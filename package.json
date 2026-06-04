@@ -1,0 +1,20 @@
+{
+  "name": "ai-command-bus",
+  "version": "0.1.0",
+  "description": "A lightweight command bus for safe multi-agent AI workflows.",
+  "type": "module",
+  "main": "src/router.js",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "demo": "node src/router.js examples/task_queue.json"
+  },
+  "keywords": [
+    "ai-agents",
+    "task-router",
+    "workflow-automation",
+    "codex",
+    "open-source"
+  ],
+  "author": "Hyundong Hwang",
+  "license": "MIT"
+}

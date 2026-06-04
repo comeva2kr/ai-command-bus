@@ -1,0 +1,18 @@
+{
+  "taskId": "TASK-001",
+  "worker": "research",
+  "status": "submitted",
+  "summary": "Grouped duplicate issue reports and identified two reproducible bugs.",
+  "confidence": {
+    "confirmed": [
+      "Three reports mention the same failing route."
+    ],
+    "assumptions": [
+      "The route regression likely came from the last parser change."
+    ],
+    "needsReview": [
+      "A maintainer should verify the failing case before closing duplicates."
+    ]
+  },
+  "recommendedNextAction": "Create one regression test and link duplicate issues."
+}

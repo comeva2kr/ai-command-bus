@@ -1,0 +1,26 @@
+[
+  {
+    "id": "TASK-001",
+    "title": "Summarize new issue reports",
+    "status": "ready",
+    "risk": "low",
+    "target": "research",
+    "requiresHumanApproval": false
+  },
+  {
+    "id": "TASK-002",
+    "title": "Draft a customer-facing announcement",
+    "status": "ready",
+    "risk": "high",
+    "target": "editorial",
+    "requiresHumanApproval": true
+  },
+  {
+    "id": "TASK-003",
+    "title": "Review a pull request for routing logic",
+    "status": "ready",
+    "risk": "medium",
+    "target": "codex",
+    "requiresHumanApproval": false
+  }
+]
