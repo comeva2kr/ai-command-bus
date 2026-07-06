@@ -151,6 +151,21 @@ export class FeedEngine {
     return { level, phase: feedPhase(level), feedbackCount: user.feedbackCount };
   }
 
+  // Public share metadata for an item (for OG tags on a shared link). Adult
+  // items get no public share page.
+  async shareData(itemId) {
+    const items = await this._items();
+    const item = items.find((i) => i.id === itemId);
+    if (!item || item.adult) return null;
+    return {
+      id: item.id,
+      title: item.title,
+      summary: item.summary,
+      category: categoryLabel(item.category),
+      source: sourceLabel(item.source)
+    };
+  }
+
   // Record an implicit engagement signal (dwell / skip / complete / open) and
   // learn from it. The lightweight, high-volume feedback behind TikTok-style
   // personalization.

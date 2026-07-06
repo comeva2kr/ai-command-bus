@@ -59,6 +59,40 @@ function readBody(req) {
   });
 }
 
+function escapeHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
+  );
+}
+
+// A tiny HTML page carrying Open Graph tags so a shared link renders a rich
+// preview in KakaoTalk / social, then bounces a human to the in-app view.
+function sharePage(data, origin, id) {
+  if (!data) {
+    return `<!doctype html><meta charset="utf-8"><title>내 취향 피드</title><meta http-equiv="refresh" content="0; url=/"><p>이동 중…</p>`;
+  }
+  const url = `${origin}/p?id=${encodeURIComponent(id)}`;
+  const title = escapeHtml(data.title);
+  const desc = escapeHtml((data.summary || "").slice(0, 160) || `${data.source} · ${data.category}`);
+  const appUrl = `/#post-${encodeURIComponent(id)}`;
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="내 취향 피드">
+<meta property="og:title" content="${title}">
+<meta property="og:description" content="${desc}">
+<meta property="og:url" content="${escapeHtml(url)}">
+<meta property="og:image" content="${escapeHtml(origin)}/icon.svg">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="${title}">
+<meta name="twitter:description" content="${desc}">
+<meta http-equiv="refresh" content="0; url=${appUrl}">
+</head><body style="background:#0e0f13;color:#e8eaf0;font-family:sans-serif;padding:40px;text-align:center">
+<p>${title}</p><p><a style="color:#4f8cff" href="${appUrl}">앱에서 열기 →</a></p>
+</body></html>`;
+}
+
 function serveStatic(res, urlPath) {
   const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
   const filePath = path.join(PUBLIC_DIR, rel);
@@ -270,6 +304,17 @@ export function createServer(opts = {}) {
           const status = err.rule && err.rule.rateLimited ? 429 : 400;
           return send(res, status, { error: String(err.message), rule: err.rule || null });
         }
+      }
+
+      // --- shareable link with OG tags (crawlers read this; humans bounce to app) ---
+      if (p === "/p" && req.method === "GET") {
+        const id = url.searchParams.get("id");
+        const data = id ? await engine.shareData(id) : null;
+        const proto = req.headers["x-forwarded-proto"] || "http";
+        const origin = `${proto}://${req.headers.host}`;
+        res.writeHead(data ? 200 : 404, { "content-type": "text/html; charset=utf-8" });
+        res.end(sharePage(data, origin, id));
+        return;
       }
 
       // --- static client ---

@@ -241,6 +241,7 @@
     <div class="detail-head">
       <button class="back" id="backBtn" aria-label="뒤로">‹</button>
       <div class="src" id="detailSrc"></div>
+      <button class="mute-btn" id="shareBtn" style="margin-left:8px">🔗 공유</button>
     </div>
     <div class="detail-body" id="detailBody"></div>
   </section>
@@ -330,9 +331,18 @@ function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg
   state.ageVerified = s.ageVerified; state.showAdult = s.showAdult;
   renderChips(); renderAdultBtn(); setupAdultToggle(); setupCompose(); setupSpace();
   setupSkipObserver();
-  if(!s.surveyed){ showSurvey(); } else { updateMeter(s); loadMore(); showDigest(); }
+  if(!s.surveyed){ showSurvey(); } else { updateMeter(s); loadMore(); showDigest(); openFromHash(); }
   setupInfiniteScroll(); setupImmersion();
 })();
+
+// deep-link: a shared /p?id link bounces to /#post-<id>; open that post
+function openFromHash(){
+  const h = location.hash;
+  if(h && h.startsWith("#post-")){
+    const id = decodeURIComponent(h.slice("#post-".length));
+    if(id) openDetail(id);
+  }
+}
 
 // ---- 관심글 알림 (digest + web push) ----
 async function showDigest(){
@@ -807,8 +817,15 @@ async function renderDetail(itemId){
   catch(e){ body.innerHTML = "<p>불러오기 실패</p>"; return; }
   document.getElementById("detailSrc").innerHTML =
     `<span class="dot" style="display:inline-block;background:${srcColor(item.source)}"></span> ${srcLabel(item.source)} · ${item.categoryLabel}`;
+  // share: native share sheet if available, else copy the OG link
+  document.getElementById("shareBtn").onclick = async ()=>{
+    const link = location.origin + "/p?id=" + encodeURIComponent(item.id);
+    if(navigator.share){ try { await navigator.share({ title: item.title, url: link }); return; } catch {} }
+    try { await navigator.clipboard.writeText(link); toast("링크를 복사했어요"); }
+    catch { prompt("링크 복사", link); }
+  };
   const head = document.querySelector(".detail-head");
-  let muteBtn = head.querySelector(".mute-btn");
+  let muteBtn = head.querySelector(".mute-btn:not(#shareBtn)");
   if(!muteBtn){ muteBtn = document.createElement("button"); muteBtn.className="mute-btn"; head.appendChild(muteBtn); }
   if(item.source==="me"){ muteBtn.style.display="none"; }
   else {
