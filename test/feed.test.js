@@ -289,3 +289,39 @@ test("engine.refresh keeps item ids stable so ratings survive", async () => {
   assert.ok(detail, "rated item still resolvable after refresh");
   assert.equal(detail.myRating, 1, "rating survived refresh");
 });
+
+test("recency boost surfaces fresher posts", async () => {
+  const { scoreItem } = await import("../src/feed/recommender.js");
+  const now = new Date("2026-07-06T10:00:00Z").getTime();
+  const vec = emptyPreferenceVector();
+  const fresh = normalizeItem({ category: "tech", tags: [], title: "새 글", score: 5, publishedAt: "2026-07-06T09:00:00Z" });
+  const old = normalizeItem({ category: "tech", tags: [], title: "오래된 글", score: 5, publishedAt: "2026-07-01T09:00:00Z" });
+  assert.ok(scoreItem(fresh, vec, { seed: 1, now }) > scoreItem(old, vec, { seed: 1, now }), "fresh outranks old");
+});
+
+test("diversify avoids long runs of one source/category", async () => {
+  const { diversify } = await import("../src/feed/recommender.js");
+  // 6 items, all high score, alternating desired; make source A dominate the top
+  const ranked = [
+    { item: { id: "1", source: "A", category: "tech" }, score: 5.0 },
+    { item: { id: "2", source: "A", category: "tech" }, score: 4.9 },
+    { item: { id: "3", source: "A", category: "tech" }, score: 4.8 },
+    { item: { id: "4", source: "B", category: "auto" }, score: 4.0 },
+    { item: { id: "5", source: "C", category: "life" }, score: 3.9 }
+  ];
+  const out = diversify(ranked, { sourcePenalty: 1.0, categoryPenalty: 0.5, window: 4 });
+  // the top pick is still the best, but B/C should be pulled up ahead of the 3rd A
+  const top3Sources = out.slice(0, 3).map((r) => r.item.source);
+  assert.ok(new Set(top3Sources).size >= 2, "top of feed isn't a single source run");
+});
+
+test("feed pages are internally diverse across sources", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const user = store.createUser("div1");
+  // broad taste so many sources qualify
+  store.saveSurvey(user.id, { categories: ["auto", "tech", "humor", "sports", "culture"] });
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 8 });
+  const sources = new Set(feed.items.map((i) => i.source));
+  assert.ok(sources.size >= 3, `expected varied sources on a page, got ${sources.size}`);
+});

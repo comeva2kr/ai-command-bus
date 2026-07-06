@@ -57,8 +57,19 @@ function noveltyJitter(item, seed) {
   return ((h % 1000) / 1000 - 0.5) * 0.2; // ~[-0.1, 0.1]
 }
 
+// Recency boost in ~[0, 1]. Fresh posts surface; it decays over ~3 days. Only
+// applied when a reference time (`opts.now`, ms) is supplied so pure scoring
+// stays deterministic for tests.
+function recencyBoost(item, now) {
+  if (!now || !item.publishedAt) return 0;
+  const ageHours = (now - new Date(item.publishedAt).getTime()) / 3.6e6;
+  if (!Number.isFinite(ageHours) || ageHours < 0) return 0.5;
+  return Math.exp(-ageHours / 72); // half-life ~2 days
+}
+
 // Score a single item. Higher = better match. `opts.seenIds` demotes items the
-// user has already been shown; `opts.seed` varies novelty jitter per request.
+// user has already been shown; `opts.seed` varies novelty jitter per request;
+// `opts.now` (ms) enables the recency term.
 export function scoreItem(item, vec, opts = {}) {
   const f = featureScore(item, vec);
   const base =
@@ -67,6 +78,7 @@ export function scoreItem(item, vec, opts = {}) {
     f.sourceW * 0.6 +
     f.styleMatch +
     popularityPrior(item) * 0.5 +
+    recencyBoost(item, opts.now) * 0.6 +
     noveltyJitter(item, opts.seed || 1);
 
   const seen = opts.seenIds && opts.seenIds.has(item.id);
@@ -78,6 +90,39 @@ export function rankItems(items, vec, opts = {}) {
   return items
     .map((item) => ({ item, score: scoreItem(item, vec, opts) }))
     .sort((a, b) => b.score - a.score);
+}
+
+// Diversity re-ranking (MMR-style). A feed that's all one source or category
+// feels repetitive even if every item scores well. This greedily builds the
+// order, penalizing a candidate for each recently-picked item that shares its
+// source or category, so the stream stays varied without abandoning relevance.
+export function diversify(ranked, opts = {}) {
+  const sourcePenalty = opts.sourcePenalty ?? 0.6;
+  const categoryPenalty = opts.categoryPenalty ?? 0.4;
+  const window = opts.window ?? 4; // how far back diversity is enforced
+
+  const pool = ranked.slice();
+  const out = [];
+  while (pool.length) {
+    let bestIdx = 0;
+    let bestVal = -Infinity;
+    for (let i = 0; i < pool.length; i++) {
+      const cand = pool[i];
+      let penalty = 0;
+      const recent = out.slice(-window);
+      for (const picked of recent) {
+        if (picked.item.source === cand.item.source) penalty += sourcePenalty;
+        if (picked.item.category === cand.item.category) penalty += categoryPenalty;
+      }
+      const val = cand.score - penalty;
+      if (val > bestVal) {
+        bestVal = val;
+        bestIdx = i;
+      }
+    }
+    out.push(pool.splice(bestIdx, 1)[0]);
+  }
+  return out;
 }
 
 // Apply a like/dislike (or explicit weight nudge) to the preference vector.

@@ -7,7 +7,7 @@
 // navigation; the server just keeps handing out the next best unseen batch.
 
 import { collect, SeedSource } from "./content.js";
-import { rankItems, applyFeedback, specializationLevel, feedPhase } from "./recommender.js";
+import { rankItems, diversify, applyFeedback, specializationLevel, feedPhase } from "./recommender.js";
 import { categoryLabel } from "./taxonomy.js";
 
 export class FeedEngine {
@@ -15,6 +15,7 @@ export class FeedEngine {
     this.store = store;
     this.sources = sources && sources.length ? sources : [new SeedSource()];
     this._cache = null; // collected items cache
+    this._clock = store && store.clock ? store.clock : null; // injectable time for tests
   }
 
   async _items() {
@@ -72,9 +73,12 @@ export class FeedEngine {
     const allowAdult = user.ageVerified === true && user.showAdult === true;
     const pool = allowAdult ? items : items.filter((i) => !i.adult);
 
-    const ranked = rankItems(pool, user.preferences, { seenIds: seen, seed: cursor + 1 });
-    // hand out only unseen items so the infinite scroll never repeats
-    const fresh = ranked.filter((r) => !seen.has(r.item.id)).slice(0, limit);
+    const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+    const ranked = rankItems(pool, user.preferences, { seenIds: seen, seed: cursor + 1, now });
+    // drop already-seen items so the infinite scroll never repeats, then
+    // diversify so a page isn't dominated by one source/category
+    const unseen = ranked.filter((r) => !seen.has(r.item.id));
+    const fresh = diversify(unseen).slice(0, limit);
 
     const level = specializationLevel(user.preferences, user.feedbackCount);
     const phase = feedPhase(level);
