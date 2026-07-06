@@ -38,6 +38,37 @@ like / dislike feedback  ──────┘        ▲                       
    you (0–1) from feature coverage, weight contrast, and feedback volume. It
    drives the phase shown in the header: `탐색 중` → `학습 중` → `맞춤 완성`.
 
+## Implicit signals (TikTok-style)
+
+Explicit 👍/👎 is scarce; behaviour is plentiful. `applyImplicit` learns from it:
+
+- **open** — tapped in (weak positive)
+- **dwell** — time read vs expected (clamped 4–60s band); lingering is positive,
+  an instant bounce is negative
+- **complete** — read to the end / long stay (strong positive)
+- **skip** — a card scrolled past unopened (weak negative)
+
+All flow through the same online learner as explicit feedback, weighted lower
+(`IMPLICIT_RATE`) because they're noisier. The client measures dwell on detail
+open/close and skips via an `IntersectionObserver`; `POST /api/signal` records
+them. **Exploration** (a deterministic, hash-gated bonus) lifts a slice of
+cold-interest items so the feed keeps probing new territory instead of
+collapsing into a bubble.
+
+## Immersion mode (몰입 모드)
+
+An optional one-post-at-a-time vertical snap-scroll for lean-back reading —
+TikTok's format adapted to text. The default stays a scannable feed (text needs
+triage-by-title); immersion is a toggle. Time each card stays centered drives
+the dwell signal.
+
+## Why this was recommended (explainability)
+
+`explain(item, vec)` returns the top positive contributions (category, tags,
+favorite source, popularity, freshness) as reasons, rendered as "추천 이유" chips
+on each card. `topPreferences(vec)` powers the taste dashboard in 내 공간 — the
+learned interests as weight bars, so the curation is visible, not a black box.
+
 ## Scoring
 
 `scoreItem()` combines, per item:
@@ -155,6 +186,7 @@ single-item fetch, so an unverified client can never pull an adult item.
 | `GET  /api/feed`         | next unseen batch (`userId`, `cursor`, `limit`)|
 | `GET  /api/item`         | one item + its comment thread                  |
 | `POST /api/rate`         | `{ itemId, signal }` — signal ∈ {-1, 0, 1}     |
+| `POST /api/signal`       | implicit signal `{ itemId, type, dwellMs }`    |
 | `POST /api/comment`      | `{ itemId, body }`                             |
 | `POST /api/post`         | create a user post `{ title, summary, category }` |
 | `GET  /api/me`           | my space: posts, comments, ratings, saved, level |
