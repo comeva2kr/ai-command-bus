@@ -17,6 +17,7 @@ import { SURVEY, validateAnswers } from "./survey.js";
 import { CATEGORIES, SOURCE_CATALOG } from "./taxonomy.js";
 import { loadRegistry, buildSources, summarize } from "./registry.js";
 import { makeFetcher } from "./fetchers.js";
+import { DEFAULT_RULES } from "./rules.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -107,6 +108,10 @@ export function createServer(opts = {}) {
         return send(res, 200, { summary: summarize(registry), communities: registry });
       }
 
+      if (p === "/api/rules" && req.method === "GET") {
+        return send(res, 200, { rules: DEFAULT_RULES });
+      }
+
       if (p === "/api/post" && req.method === "POST") {
         const body = await readBody(req);
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
@@ -115,7 +120,8 @@ export function createServer(opts = {}) {
           engine.invalidate(); // make the new post visible in the feed
           return send(res, 200, post);
         } catch (err) {
-          return send(res, 400, { error: String(err.message) });
+          const status = err.rule && err.rule.rateLimited ? 429 : 400;
+          return send(res, status, { error: String(err.message), rule: err.rule || null });
         }
       }
 
@@ -219,8 +225,13 @@ export function createServer(opts = {}) {
       if (p === "/api/comment" && req.method === "POST") {
         const body = await readBody(req);
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
-        const comment = store.addComment(body.userId, body.itemId, body.body);
-        return send(res, 200, comment);
+        try {
+          const comment = store.addComment(body.userId, body.itemId, body.body);
+          return send(res, 200, comment);
+        } catch (err) {
+          const status = err.rule && err.rule.rateLimited ? 429 : 400;
+          return send(res, status, { error: String(err.message), rule: err.rule || null });
+        }
       }
 
       // --- static client ---

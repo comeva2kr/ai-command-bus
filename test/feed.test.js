@@ -419,3 +419,51 @@ test("live sources flow through registry + translation end to end", async () => 
   assert.equal(items[0].translated, true);
   assert.match(items[0].title, /^\[ko\]/);
 });
+
+test("post rules reject empty/banned/too-many-tags", async () => {
+  const { validatePost, validateComment } = await import("../src/feed/rules.js");
+  assert.equal(validatePost({ title: "" }).ok, false);
+  assert.equal(validatePost({ title: "정상 제목", summary: "도박사이트 광고" }).ok, false);
+  assert.equal(validatePost({ title: "ok", tags: Array(20).fill("t") }).ok, false);
+  const good = validatePost({ title: "신형 시승기", summary: "연비 좋아요", category: "auto", tags: ["cars"] });
+  assert.equal(good.ok, true);
+  assert.match(good.norm, /실사용/);
+});
+
+test("rate limiting blocks a burst of posts", async () => {
+  const { validatePost } = await import("../src/feed/rules.js");
+  const limited = validatePost({ title: "글" }, { recentPosts: 5 });
+  assert.equal(limited.ok, false);
+  assert.equal(limited.rateLimited, true);
+});
+
+test("levels rise with participation and gate perks", async () => {
+  const { userLevel, can } = await import("../src/feed/rules.js");
+  const rookie = userLevel({ posts: 0, comments: 0, likesReceived: 0 });
+  assert.equal(rookie.level, 0);
+  assert.equal(can({ posts: 0 }, "moderate"), false);
+  const veteran = userLevel({ posts: 20, comments: 20, likesReceived: 20 });
+  assert.ok(veteran.level >= 2, `expected higher level, got ${veteran.level}`);
+  assert.equal(can({ posts: 30, comments: 30, likesReceived: 30 }, "moderate"), true);
+});
+
+test("store enforces rules on createPost and addComment", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  store.createUser("g1");
+  assert.throws(() => store.createPost("g1", { title: "" }), /제목/);
+  assert.throws(() => store.createPost("g1", { title: "정상", summary: "불법 스팸홍보" }), /금지어/);
+  const ok = store.createPost("g1", { title: "괜찮은 글", category: "auto" });
+  assert.ok(ok.id);
+  assert.throws(() => store.addComment("g1", ok.id, ""), /댓글/);
+});
+
+test("mySpace reports level and likes received on own posts", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const author = store.createUser("author9");
+  const fan = store.createUser("fan9");
+  const post = store.createPost(author.id, { title: "내 인기 글", category: "humor" });
+  store.recordRating(fan.id, post.id, 1); // someone likes the author's post
+  const space = store.mySpace(author.id);
+  assert.equal(space.counts.likesReceived, 1);
+  assert.ok(space.level && typeof space.level.level === "number");
+});

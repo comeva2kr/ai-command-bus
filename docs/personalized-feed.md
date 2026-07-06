@@ -118,6 +118,24 @@ Users can post (`POST /api/post`) — a post becomes a first-class feed item
 built for you. `GET /api/me` returns everything you've created or reacted to
 (posts, comments, like/dislike tallies) for integrated management.
 
+## Community governance (space rules + levels)
+
+As a space grows it earns its own norms. `rules.js` centralizes them:
+
+- **Post/comment validation** — length bounds, a space-wide banned-word filter,
+  tag limits. Enforced in the store on `createPost` / `addComment`; the server
+  returns the specific rule errors (400).
+- **Rate limiting** — max posts/comments per time window (429 when exceeded).
+- **Category norms** — advisory posting guidance per category (e.g. 시승기엔
+  실사용 정보), surfaced in the composer, not blocking.
+- **Participation levels** — a score from posts, comments, and likes *received*
+  promotes members through 새싹 → 이웃 → 단골 → 터줏대감, each unlocking perks
+  (createTags → flag → moderate). Shown in 내 공간; `GET /api/rules` exposes the
+  rulebook.
+
+This is the "이용자가 늘수록 그 안에서만 통용되는 규격/룰" layer, kept data-first
+so a space can tune its own rulebook.
+
 ## 19금 (adult) gate
 
 Adult items are filtered out server-side unless the user is **both**
@@ -139,7 +157,10 @@ single-item fetch, so an unverified client can never pull an adult item.
 | `POST /api/rate`         | `{ itemId, signal }` — signal ∈ {-1, 0, 1}     |
 | `POST /api/comment`      | `{ itemId, body }`                             |
 | `POST /api/post`         | create a user post `{ title, summary, category }` |
-| `GET  /api/me`           | my space: my posts, comments, ratings          |
+| `GET  /api/me`           | my space: posts, comments, ratings, saved, level |
+| `GET  /api/rules`        | the space's rulebook (limits, norms, banned words) |
+| `POST /api/save`         | scrap/un-scrap an item `{ itemId, on }`        |
+| `POST /api/mute`         | mute/unmute a source `{ source, on }`          |
 | `POST /api/verify-age`   | age verification (mock; wire PASS/본인확인)     |
 | `POST /api/adult`        | toggle the 19금 view `{ on }` (requires verify) |
 
@@ -165,6 +186,7 @@ and comment. State persists per browser via a `userId` in `localStorage`.
 - `src/feed/registry.js` — DB loader + source builder + queries
 - `src/feed/fetchers.js` — live RSS/HN/Reddit adapters + dispatcher
 - `src/feed/translate.js` — overseas translation source wrapper
+- `src/feed/rules.js` — space governance: post/comment rules, rate limits, levels
 - `src/feed/recommender.js` — scoring, online learning, specialization level
 - `src/feed/store.js` — users, posts, ratings, comments, JSON persistence
 - `src/feed/engine.js` — collection + ranking + cursor batches + auto-refresh

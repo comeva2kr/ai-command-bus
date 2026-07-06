@@ -8,6 +8,7 @@
 import fs from "node:fs";
 import { emptyPreferenceVector, buildPreferenceVector } from "./survey.js";
 import { inferFromHistory, mergeVectors } from "./history.js";
+import { validatePost, validateComment, userLevel } from "./rules.js";
 
 function nowIso(clock) {
   // `clock` is injected so tests and reproducible runs don't depend on the
@@ -136,10 +137,36 @@ export class FeedStore {
 
   // User-generated post. Becomes a first-class feed item (kind "community",
   // source "me"), so the space really behaves like a community built for you.
+  _nowMs() {
+    return Date.parse(nowIso(this.clock));
+  }
+
+  // Count a user's recent posts/comments within a window, for rate limiting.
+  recentActionCount(userId, type, windowMs) {
+    const now = this._nowMs();
+    if (type === "post") {
+      return (this.posts || []).filter(
+        (p) => p.userId === userId && now - Date.parse(p.publishedAt) < windowMs
+      ).length;
+    }
+    const user = this.getUser(userId);
+    return (user && user.comments ? user.comments : []).filter(
+      (c) => now - Date.parse(c.at) < windowMs
+    ).length;
+  }
+
   createPost(userId, post) {
     const user = this.requireUser(userId);
+    // enforce the space's posting rules (length, banned words, tags, rate limit)
+    const check = validatePost(post, {
+      recentPosts: this.recentActionCount(userId, "post", 10 * 60 * 1000)
+    });
+    if (!check.ok) {
+      const err = new Error(check.errors.join(" "));
+      err.rule = check;
+      throw err;
+    }
     const title = String(post.title || "").trim();
-    if (!title) throw new Error("post title is empty");
     const record = {
       id: this._id("post"),
       userId,
@@ -210,26 +237,47 @@ export class FeedStore {
     const ratings = Object.entries(user.ratings || {}).map(([itemId, r]) => ({ itemId, ...r }));
     const liked = ratings.filter((r) => r.signal > 0).length;
     const disliked = ratings.filter((r) => r.signal < 0).length;
+
+    // likes received on this user's own posts, across everyone's ratings —
+    // the reputation signal that drives level progression
+    const myPostIds = new Set(myPosts.map((p) => p.id));
+    let likesReceived = 0;
+    for (const u of this.users.values()) {
+      for (const [itemId, r] of Object.entries(u.ratings || {})) {
+        if (r.signal > 0 && myPostIds.has(itemId)) likesReceived += 1;
+      }
+    }
+
+    const counts = {
+      posts: myPosts.length,
+      comments: myComments.length,
+      likes: liked,
+      dislikes: disliked,
+      saved: (user.saved || []).length,
+      likesReceived
+    };
     return {
       posts: myPosts,
       comments: myComments,
       ratings: { total: ratings.length, liked, disliked, items: ratings },
       savedIds: user.saved || [],
       mutedSources: user.mutedSources || [],
-      counts: {
-        posts: myPosts.length,
-        comments: myComments.length,
-        likes: liked,
-        dislikes: disliked,
-        saved: (user.saved || []).length
-      }
+      level: userLevel(counts),
+      counts
     };
   }
 
   addComment(userId, itemId, body) {
     const user = this.requireUser(userId);
+    const check = validateComment(body, {
+      recentComments: this.recentActionCount(userId, "comment", 10 * 60 * 1000)
+    });
+    if (!check.ok) {
+      const err = new Error(check.errors.join(" "));
+      err.rule = check;
+      throw err;
+    }
     const text = String(body || "").trim();
-    if (!text) throw new Error("comment body is empty");
     const comment = {
       id: this._id("cmt"),
       userId,

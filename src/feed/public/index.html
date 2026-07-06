@@ -55,6 +55,11 @@
   .stat b { display: block; font-size: 20px; }
   .stat span { font-size: 11.5px; color: var(--muted); }
   .space-sec h4 { margin: 18px 0 10px; font-size: 15px; }
+  .level-banner { background: linear-gradient(135deg, #1e2740, #171922); border: 1px solid var(--line);
+    border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; }
+  .lvbar { height: 6px; border-radius: 6px; background: var(--card-2); overflow: hidden; margin-top: 8px; }
+  .lvfill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--like)); }
+  .norm-hint { font-size: 12px; color: #f0a13d; margin-top: 8px; line-height: 1.5; }
 
   .modal-back { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.6); display: flex;
     align-items: center; justify-content: center; padding: 24px; }
@@ -227,6 +232,7 @@
 const API = {
   async session(userId) { return post("/api/session", { userId }); },
   async config() { return get("/api/config"); },
+  async rules() { return get("/api/rules"); },
   async saveSurvey(userId, answers) { return post("/api/survey", { userId, answers }); },
   async history(userId, entries) { return post("/api/history", { userId, entries }); },
   async verifyAge(userId) { return post("/api/verify-age", { userId, confirmAdult: true }); },
@@ -270,6 +276,7 @@ function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg
 // ---- boot ----
 (async function boot(){
   state.config = await API.config();
+  try { state.rules = (await API.rules()).rules; } catch { state.rules = null; }
   const s = await API.session(state.userId);
   state.userId = s.userId; localStorage.setItem("feed_uid", s.userId);
   state.ageVerified = s.ageVerified; state.showAdult = s.showAdult;
@@ -342,13 +349,17 @@ function setupCompose(){
         <h3>✍️ 새 글 쓰기</h3>
         <div class="field"><label>제목</label><input id="pTitle" maxlength="120" placeholder="제목을 입력하세요"></div>
         <div class="field"><label>내용</label><textarea id="pBody" placeholder="내용을 입력하세요"></textarea></div>
-        <div class="field"><label>카테고리</label><select id="pCat">${cats}</select></div>
+        <div class="field"><label>카테고리</label><select id="pCat">${cats}</select><div class="norm-hint" id="pNorm"></div></div>
         <div class="row">
           <button class="cancel" id="pCancel">취소</button>
           <button class="confirm" id="pOk" style="background:var(--accent)">올리기</button>
         </div>
       </div>`;
     document.body.appendChild(back);
+    const norms = (state.rules && state.rules.categoryNorms) || {};
+    const catSel = back.querySelector("#pCat"), normEl = back.querySelector("#pNorm");
+    const showNorm = ()=>{ normEl.textContent = norms[catSel.value] ? "📌 "+norms[catSel.value] : ""; };
+    catSel.onchange = showNorm; showNorm();
     back.querySelector("#pCancel").onclick = ()=> back.remove();
     back.querySelector("#pOk").onclick = async ()=>{
       const title = back.querySelector("#pTitle").value.trim();
@@ -387,7 +398,12 @@ async function openSpace(){
   history.pushState({ view:"space" }, "", "#space");
   try {
     const s = await API.mySpace(state.userId);
+    const lv = s.level || { title: "새싹", level: 0, score: 0, toNext: 0, nextAt: null };
     body.innerHTML = `
+      <div class="level-banner">
+        <div><b>Lv.${lv.level} ${lv.title}</b> <span style="color:var(--muted);font-size:12px">참여점수 ${lv.score}</span></div>
+        ${lv.nextAt!=null?`<div class="lvbar"><div class="lvfill" style="width:${Math.min(100,Math.round(lv.score/lv.nextAt*100))}%"></div></div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">다음 등급까지 ${lv.toNext}점</div>`:'<div style="font-size:11.5px;color:var(--like)">최고 등급 달성 ✨</div>'}
+      </div>
       <div class="space-stats">
         <div class="stat"><b>${s.counts.posts}</b><span>내 글</span></div>
         <div class="stat"><b>${s.counts.saved||0}</b><span>스크랩</span></div>
