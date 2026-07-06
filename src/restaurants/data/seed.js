@@ -26,8 +26,12 @@ function makeReviews({
   repeatRatio = 0.4,
   ratings = [5, 4, 5, 4, 5, 3, 5, 4, 5, 5],
   specificity = 0.7,
-  ring = null // { ids:[...shared global "ring_*" ids], count:N } → first N reviews
+  texts = null, // optional per-review text (cycled) for text-integrity signals
+  aiScores = null, // optional per-review upstream AI-detector probabilities
+  ring = null, // { ids:[...shared global "ring_*" ids], count:N } → first N reviews
   // are a time-locked lockstep cluster by shared accounts co-reviewing venues
+  spike = null // { count:M, withinDays:D, rating:R } → M recent inflated reviews
+  // from fresh accounts clustered in the last D days (rating-manipulation)
 }) {
   const reviews = [];
   const localN = Math.round(count * localRatio);
@@ -49,8 +53,25 @@ function makeReviews({
       markers: i < paid ? ["협찬", "#광고"] : [],
       local: !isRing && i % count < localN,
       repeat: !isRing && i % count < repeatN,
-      specificity: Math.max(0.1, Math.min(1, specificity + (((i % 3) - 1) * 0.05)))
+      specificity: Math.max(0.1, Math.min(1, specificity + (((i % 3) - 1) * 0.05))),
+      ...(texts ? { text: texts[i % texts.length] } : {}),
+      ...(aiScores ? { ai: aiScores[i % aiScores.length] } : {})
     });
+  }
+  if (spike) {
+    for (let k = 0; k < spike.count; k++) {
+      reviews.push({
+        platform: platforms[k % platforms.length],
+        author: `s${1000 + k}`, // fresh accounts, distinct from the history
+        daysAgo: 2 + (k % Math.max(1, spike.withinDays)),
+        rating: spike.rating ?? 5,
+        paid: false,
+        markers: [],
+        local: false,
+        repeat: false,
+        specificity: 0.3
+      });
+    }
   }
   return reviews;
 }
@@ -152,6 +173,90 @@ export const SEED_RESTAURANTS = namespaceAuthors([
       platforms: WIDE, count: 22, authors: 14, spanDays: 200,
       localRatio: 0.5, repeatRatio: 0.35, specificity: 0.6,
       ratings: [5, 4, 5, 4, 5, 3, 5, 4], ring: { ids: RING, count: 8 }
+    })
+  },
+  // R-107: 싱글톤 계정 공격 — 20개 리뷰가 전부 서로 다른 "일회성" 신규 계정에서 나옴.
+  // 작성자 20명이라 HHI-다양성 검사는 통과(어뷰징 아님)하지만, 2주간 별5 폭주 +
+  // 전부 코퍼스 내 리뷰 1건뿐(싱글톤) → 싱글톤 공격으로 탐지 (Xie et al., KDD'12).
+  {
+    id: "R-107",
+    name: "알바 리뷰 신상 고깃집",
+    style: "고깃집", cuisines: ["돼지고기"], menus: [{ name: "삼겹살", attrs: [] }],
+    lat: 37.5457, lng: 127.0524, address: "서울 성동구 성수동", district: "성동구",
+    franchise: false, priceBand: 2, rating: 4.9, tags: ["분위기좋은"],
+    features: { kidsCafe: true, kidFriendly: true },
+    behavior: { revisitRate: 0.05, reservationsPerWeek: 3, avgWaitMin: 0, saves: 120 },
+    reviews: makeReviews({
+      platforms: ["naver_map", "instagram", "naver_blog"], count: 20, authors: 20, spanDays: 14,
+      paid: 0, localRatio: 0.1, repeatRatio: 0.0, specificity: 0.3,
+      ratings: [5, 5, 5, 5, 5]
+    })
+  },
+  // R-108: 복붙/템플릿 리뷰 — 거의 동일한 문장이 여러 계정에 반복 → 근접중복 탐지.
+  {
+    id: "R-108",
+    name: "복붙 리뷰 파스타집",
+    style: "양식", cuisines: ["면요리"], menus: [{ name: "파스타", attrs: [] }],
+    lat: 37.5258, lng: 126.9281, address: "서울 영등포구 여의도동", district: "영등포구",
+    franchise: false, priceBand: 3, rating: 4.7, tags: ["분위기좋은"],
+    features: { reservable: true },
+    behavior: { revisitRate: 0.1, reservationsPerWeek: 6, saves: 200 },
+    reviews: makeReviews({
+      platforms: ["naver_map", "naver_blog", "community"], count: 14, authors: 13, spanDays: 220,
+      localRatio: 0.4, repeatRatio: 0.2, specificity: 0.5,
+      ratings: [5, 4, 5, 5, 4, 5],
+      aiScores: [0.12, 0.15, 0.1, 0.14], // 텍스트 자체는 사람 냄새 → AI 아님, 복붙만
+      texts: [
+        "여기 정말 분위기 좋고 음식도 맛있어요 강력 추천합니다 재방문 의사 백퍼센트",
+        "여기 진짜 분위기 좋고 음식도 맛있어요 강력 추천해요 재방문 의사 백퍼센트",
+        "여기 정말 분위기가 좋고 음식도 맛있습니다 강추합니다 재방문 의사 백퍼",
+        "여기 정말 분위기 좋고 음식도 맛있어요 강력 추천드려요 재방문 백퍼센트"
+      ]
+    })
+  },
+  // R-109: AI 생성 의심 리뷰 — 유창하지만 뻔하고 구체성 없는 문장(업스트림 탐지기 점수 높음).
+  {
+    id: "R-109",
+    name: "AI 리뷰 브런치카페",
+    style: "카페", cuisines: ["면요리"], menus: [{ name: "파스타", attrs: [] }],
+    lat: 37.5251, lng: 126.9291, address: "서울 영등포구 여의도동", district: "영등포구",
+    franchise: false, priceBand: 3, rating: 4.8, tags: ["분위기좋은", "데이트"],
+    features: { reservable: true },
+    behavior: { revisitRate: 0.09, reservationsPerWeek: 5, saves: 180 },
+    reviews: makeReviews({
+      platforms: ["naver_map", "naver_blog", "instagram"], count: 8, authors: 8, spanDays: 240,
+      localRatio: 0.4, repeatRatio: 0.2, specificity: 0.55,
+      ratings: [5, 4, 5, 5, 4, 5, 5, 4],
+      // 8개 모두 서로 다른 문장(복붙 아님)이지만 업스트림 AI 탐지기 점수가 높음
+      texts: [
+        "이곳은 완벽한 분위기와 훌륭한 음식을 자랑하는 최고의 장소입니다 강력히 추천드립니다",
+        "친절한 서비스와 맛있는 요리가 어우러진 환상적인 경험을 선사하는 멋진 공간이었습니다",
+        "아름다운 인테리어와 뛰어난 맛으로 모두에게 자신 있게 추천할 만한 훌륭한 맛집이에요",
+        "감동적인 풍미와 우아한 공간이 조화를 이루는 정말 만족스러운 다이닝 경험이었습니다",
+        "세련된 분위기 속에서 최고의 요리를 즐길 수 있는 잊지 못할 특별한 하루였습니다",
+        "정성 가득한 음식과 편안한 공간이 어우러져 다시 찾고 싶은 완벽한 곳이었습니다",
+        "훌륭한 플레이팅과 깊은 맛이 인상적인 그야말로 최고 수준의 다이닝 공간입니다",
+        "우아하고 고급스러운 분위기에서 완벽한 한 끼를 경험할 수 있는 멋진 레스토랑입니다"
+      ],
+      aiScores: [0.86, 0.82, 0.9, 0.88, 0.84, 0.87, 0.85, 0.89]
+    })
+  },
+  // R-111: 평점 급등 조작 — 오래된 정상 이력(평점 4.1대)에 최근 2주 별5 리뷰 12건이
+  // 새 계정에서 급증. 전체 기간 대비 버스트 비율은 낮아 일반 버스트 검사는 통과하지만,
+  // 시계열 스파이크+평점 리프트가 최근 조작을 탐지 (Xie et al., KDD'12).
+  {
+    id: "R-111",
+    name: "평점 급조 노포 국밥",
+    style: "한식당", cuisines: ["국물요리"], menus: [{ name: "국밥", attrs: [] }],
+    lat: 37.5662, lng: 126.9779, address: "서울 종로구 광화문", district: "종로구",
+    franchise: false, priceBand: 1, rating: 4.3, tags: ["노포", "가성비"],
+    features: { soloFriendly: true, parking: false },
+    behavior: { revisitRate: 0.35, reservationsPerWeek: 6, saves: 400 },
+    reviews: makeReviews({
+      platforms: ["naver_map", "naver_blog", "community"], count: 16, authors: 16, spanDays: 720,
+      localRatio: 0.55, repeatRatio: 0.4, specificity: 0.65,
+      ratings: [4, 5, 4, 3, 4, 5, 4, 4], // 정상 이력(평균 ~4.1)
+      spike: { count: 12, withinDays: 14, rating: 5 } // 최근 2주 별5 급조
     })
   },
   // R-105: 숏폼 바이럴 거품 — 틱톡/쇼츠/릴스에서 폭발적으로 퍼졌지만 지도·앱·커뮤니티

@@ -26,6 +26,8 @@ export function analyzeCorpus(restaurants) {
   const authorPlaces = new Map();
   // placeId -> consensus (median) rating, for reviewer-deviation
   const consensus = new Map();
+  // author -> total organic review count across the whole corpus (singleton = 1)
+  const authorTotals = new Map();
 
   for (const r of restaurants) {
     const organic = (r.reviews ?? []).filter((rev) => !isPaidReview(rev));
@@ -39,6 +41,7 @@ export function analyzeCorpus(restaurants) {
       if (!authorPlaces.has(a)) authorPlaces.set(a, new Map());
       const pm = authorPlaces.get(a);
       pm.set(r.id, [...(pm.get(r.id) ?? []), rev.daysAgo ?? 0]);
+      authorTotals.set(a, (authorTotals.get(a) ?? 0) + 1);
     }
   }
 
@@ -81,7 +84,7 @@ export function analyzeCorpus(restaurants) {
     }
   }
 
-  return { ringAuthors, rings, consensus, authorPlaces };
+  return { ringAuthors, rings, consensus, authorPlaces, authorTotals };
 }
 
 export default analyzeCorpus;

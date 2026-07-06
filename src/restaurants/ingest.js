@@ -8,6 +8,7 @@
 
 import { scoreAuthenticity, isPaidReview } from "./authenticity.js";
 import { analyzeCorpus } from "./corpus.js";
+import { propagateFraud } from "./beliefprop.js";
 
 // Score a single place. Pass `context` (from analyzeCorpus) to enable the
 // cross-venue ring signal; omit it for standalone scoring.
@@ -31,8 +32,10 @@ export function verifyRestaurant(restaurant, options = {}, context = {}) {
 export function ingest(rawRestaurants, options = {}) {
   const { keepUnverified = false, ...cfg } = options;
   const context = analyzeCorpus(rawRestaurants);
+  // Network fraud propagation (LBP) over the reviewer–venue graph.
+  context.networkFraud = propagateFraud(rawRestaurants, { ringAuthors: context.ringAuthors });
   const scored = rawRestaurants.map((r) => verifyRestaurant(r, cfg, context));
   return keepUnverified ? scored : scored.filter((r) => r.verified);
 }
 
-export { isPaidReview, analyzeCorpus };
+export { isPaidReview, analyzeCorpus, propagateFraud };

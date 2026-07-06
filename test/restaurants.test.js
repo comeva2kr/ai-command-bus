@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { scoreAuthenticity, isPaidReview } from "../src/restaurants/authenticity.js";
-import { verifyRestaurant, ingest, analyzeCorpus } from "../src/restaurants/ingest.js";
+import { verifyRestaurant, ingest, analyzeCorpus, propagateFraud } from "../src/restaurants/ingest.js";
 import { haversineKm, travelBudgetToRadiusKm, resolveOrigin } from "../src/restaurants/geo.js";
 import { normalizeStyle, normalizeMenu, normalizeMenuAttr } from "../src/restaurants/taxonomy.js";
 import { search } from "../src/restaurants/query.js";
@@ -92,6 +92,50 @@ test("distribution-shape realism flags all-5 missing-middle as unnatural", () =>
   assert.ok(real.breakdown.realism > fake.breakdown.realism);
 });
 
+// --- Superpowers: five research-applied signals, scored WITH corpus context ---
+
+const scored = ingest(SEED_RESTAURANTS, { keepUnverified: true });
+const S = (id) => scored.find((r) => r.id === id);
+
+test("singleton-account flood is caught even with high author diversity (Xie)", () => {
+  const r = S("R-107"); // 20 unique one-shot accounts, all-5, 2-week burst
+  assert.equal(r.verified, false);
+  assert.equal(r.verdict, "싱글톤공격");
+  assert.ok(r.flags.includes("싱글톤계정공격"));
+});
+
+test("near-duplicate/template reviews are caught (text integrity)", () => {
+  const r = S("R-108");
+  assert.equal(r.verified, false);
+  assert.equal(r.verdict, "복붙리뷰");
+  assert.ok(r.signals.duplicationRatio >= 0.5);
+});
+
+test("AI-generated reviews are caught via upstream detector score", () => {
+  const r = S("R-109");
+  assert.equal(r.verified, false);
+  assert.equal(r.verdict, "AI리뷰의심");
+  assert.ok(r.signals.aiRatio >= 0.6);
+});
+
+test("belief propagation confirms the dense collusion block (FraudEagle/SpEagle)", () => {
+  const fraud = propagateFraud(SEED_RESTAURANTS, {
+    ringAuthors: analyzeCorpus(SEED_RESTAURANTS).ringAuthors
+  });
+  assert.ok(fraud.get("R-104") >= 0.8); // all-ring venue → strong network fraud
+  assert.ok(fraud.get("R-101") < 0.2); // genuine venue → near zero (no false positive)
+  assert.ok(S("R-104").flags.includes("네트워크사기전파"));
+});
+
+test("time-series spike catches rating manipulation on an established venue (Xie)", () => {
+  const r = S("R-111"); // long healthy history + recent 5★ spike
+  assert.equal(r.verified, false);
+  assert.equal(r.verdict, "평점급등의심");
+  assert.ok(r.flags.includes("평점급등이상(시계열)"));
+  // whole-span burst detection alone would miss it (spike is a small fraction).
+  assert.ok(S("R-101").verified); // genuine venues have no spike
+});
+
 test("author diversity separates real from astroturf", () => {
   const real = scoreAuthenticity(byId("R-101")).breakdown.diversity;
   const fake = scoreAuthenticity(byId("R-104")).breakdown.diversity;
@@ -122,6 +166,10 @@ test("ingest drops every non-verified place (ads + astroturf + thin)", () => {
   assert.ok(!ids.includes("R-104")); // 어뷰징+담합
   assert.ok(!ids.includes("R-105")); // 바이럴거품
   assert.ok(!ids.includes("R-106")); // 담합(위장된 리뷰링)
+  assert.ok(!ids.includes("R-107")); // 싱글톤 공격
+  assert.ok(!ids.includes("R-108")); // 복붙리뷰
+  assert.ok(!ids.includes("R-109")); // AI리뷰
+  assert.ok(!ids.includes("R-111")); // 평점급등 조작
   assert.ok(verified.every((r) => r.verified));
 });
 
@@ -153,6 +201,7 @@ test("example A: authenticity beats attribute-only matching", () => {
   assert.ok(!ids.includes("R-103")); // 광고
   assert.ok(!ids.includes("R-104")); // 속성은 맞지만 어뷰징 가짜 → 제외
   assert.ok(!ids.includes("R-106")); // 속성 완벽 일치 + J커브 위장, 그러나 리뷰링 담합 → 제외
+  assert.ok(!ids.includes("R-107")); // 속성 일치 + 작성자 다양, 그러나 싱글톤 공격 → 제외
 });
 
 // --- Worked example B ---

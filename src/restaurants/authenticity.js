@@ -69,7 +69,9 @@ const CFG = {
   AD_DOMINATED_RATIO: 0.6,
   VIRAL_SHORT_SHARE: 0.55, // 숏폼 비중이 이 위이고
   VIRAL_BEHAVIOR_FLOOR: 0.4, // 행동 확증이 이 아래면 "바이럴 거품"
-  RING_SHARE_VETO: 0.34 // 리뷰링(락스텝) 계정 비중이 이 위면 담합 의심
+  RING_SHARE_VETO: 0.34, // 리뷰링(락스텝) 계정 비중이 이 위면 담합 의심
+  NET_FRAUD_VETO: 0.8, // 네트워크 전파 사기확률이 이 위면 veto
+  NET_FRAUD_WARN: 0.62 // 이 위면 소프트 감점(네트워크 주의)
 };
 
 // Factor weights (sum = 1). Behavioral revealed-preference carries the most.
@@ -82,6 +84,9 @@ const WEIGHTS = {
   realism: 0.10, // 평점 분포 현실성
   texture: 0.08 // 후기 구체성
 };
+
+import { textIntegrity } from "./textintegrity.js";
+import { timeSeriesAnomaly } from "./timeseries.js";
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
@@ -162,6 +167,8 @@ function distributionRealism(ratings) {
 export function scoreAuthenticity(restaurant, cfg = {}, context = {}) {
   const C = { ...CFG, ...cfg };
   const ringAuthors = context.ringAuthors ?? new Set();
+  const authorTotals = context.authorTotals ?? null;
+  const networkFraud = context.networkFraud?.get?.(restaurant.id) ?? null;
   const reviews = restaurant.reviews ?? [];
   const total = reviews.length;
   const organic = reviews.filter((r) => !isPaidReview(r));
@@ -225,6 +232,15 @@ export function scoreAuthenticity(restaurant, cfg = {}, context = {}) {
     ? organic.filter((r) => ringAuthors.has(r.author)).length / organic.length
     : 0;
 
+  // --- singleton-reviewer ratio (Xie et al., KDD'12) ---
+  // Fraction of reviews by accounts with exactly one review in the whole corpus.
+  // High ratio is normal for long-tail venues, but a singleton FLOOD coinciding
+  // with a burst + rating skew is the signature of a cheap-account attack that
+  // evades author-diversity (every fake account is unique).
+  const singletonRatio = authorTotals && organic.length
+    ? organic.filter((r) => (authorTotals.get(r.author) ?? 1) <= 1).length / organic.length
+    : null;
+
   // --- veto rules ---
   const flags = [];
   const astroturf = organic.length >= 3 && (uniqueRatio < C.ASTROTURF_UNIQUE_RATIO || hhi > C.ASTROTURF_HHI);
@@ -237,6 +253,26 @@ export function scoreAuthenticity(restaurant, cfg = {}, context = {}) {
   // Coordinated burst: a short spike that is also all-5 / missing-middle and
   // low author-diversity — the classic singleton/ring push (Xie et al., KDD'12).
   const coordinatedBurst = isBurst && dist.missingMiddle && (diversity < 0.55 || ringShare > 0);
+  // Singleton flood: a burst of one-shot accounts pushing a skewed rating —
+  // evades HHI-diversity because each cheap account is unique.
+  const meanRating = mean(ratings);
+  const singletonAttack =
+    singletonRatio != null && singletonRatio >= 0.9 && isBurst &&
+    (dist.missingMiddle || meanRating >= 4.7);
+
+  // --- text integrity: near-duplicate/templated + AI-generated (if text present) ---
+  const txt = textIntegrity(organic);
+  const duplicateText = txt.hasText && txt.duplicationRatio >= 0.5;
+  const aiText = txt.hasText && txt.aiRatio >= 0.6;
+
+  // --- network fraud propagation (LBP over reviewer–venue graph) ---
+  // Catches venues pulled toward fraud by their reviewers' ties to bad venues,
+  // even when no local veto fires (FraudEagle/SpEagle).
+  const networkFraudHigh = networkFraud != null && networkFraud >= C.NET_FRAUD_VETO;
+  const networkFraudMod = networkFraud != null && networkFraud >= C.NET_FRAUD_WARN && !networkFraudHigh;
+
+  // --- time-series rating-spike anomaly (Xie et al., KDD'12) ---
+  const ts = timeSeriesAnomaly(organic);
 
   if (thin) { flags.push("표본부족"); score = Math.min(score, 42); }
   if (narrow) { flags.push("단일소스클래스"); score = Math.min(score, 45); }
@@ -244,20 +280,33 @@ export function scoreAuthenticity(restaurant, cfg = {}, context = {}) {
   if (dist.uShape) flags.push("양극단분포");
   if (viralBubble) { flags.push("바이럴거품(행동확증없음)"); score = Math.min(score, 40); }
   if (coordinatedBurst) { flags.push("조직적버스트"); score = Math.min(score, 38); }
+  if (singletonAttack) { flags.push("싱글톤계정공격"); score = Math.min(score, 36); }
+  if (ts.anomaly) { flags.push("평점급등이상(시계열)"); score = Math.min(score, 44); }
+  if (duplicateText) { flags.push("복붙/템플릿리뷰"); score = Math.min(score, 34); }
+  if (aiText) { flags.push("AI생성리뷰의심"); score = Math.min(score, 37); }
   if (astroturf) { flags.push("작성자편중(어뷰징의심)"); score = Math.min(score, 35); }
   if (reviewRing) { flags.push("리뷰링(담합/락스텝)"); score = Math.min(score, 33); }
+  if (networkFraudHigh) { flags.push("네트워크사기전파"); score = Math.min(score, 38); }
+  if (networkFraudMod) { flags.push("네트워크주의"); score = Math.min(score, 60); }
   if (adDominated) { flags.push("광고도배"); score = Math.min(score, 28); }
 
   score = Math.round(score);
 
-  const hardFake = astroturf || adDominated || thin || narrow || viralBubble || reviewRing || coordinatedBurst;
+  const hardFake = astroturf || adDominated || thin || narrow || viralBubble ||
+    reviewRing || coordinatedBurst || singletonAttack || duplicateText || aiText ||
+    networkFraudHigh || ts.anomaly;
   let verdict;
   let verified;
   if (hardFake) {
     verdict = adDominated ? "광고의심"
       : reviewRing ? "담합의심"
+      : networkFraudHigh ? "네트워크사기"
+      : aiText ? "AI리뷰의심"
+      : duplicateText ? "복붙리뷰"
       : viralBubble ? "바이럴거품"
       : coordinatedBurst ? "조직적버스트"
+      : singletonAttack ? "싱글톤공격"
+      : ts.anomaly ? "평점급등의심"
       : thin || narrow ? "정보부족"
       : "어뷰징의심";
     verified = false;
@@ -268,7 +317,11 @@ export function scoreAuthenticity(restaurant, cfg = {}, context = {}) {
 
   const reasons = buildReasons(factors, {
     hasLongevity, isBurst, astroturf, adDominated, viralBubble,
-    reviewRing, coordinatedBurst, missingMiddle: dist.missingMiddle, uShape: dist.uShape,
+    reviewRing, coordinatedBurst, singletonAttack, singletonRatio,
+    duplicateText, aiText, dupRatio: txt.duplicationRatio, aiRatio: txt.aiRatio,
+    networkFraudHigh, networkFraudMod, networkFraud,
+    spikeAnomaly: ts.anomaly, spikeShare: ts.spikeShare, ratingLift: ts.ratingLift,
+    missingMiddle: dist.missingMiddle, uShape: dist.uShape,
     localRatio, repeatRatio, hasCriticism: ratings.some((x) => x <= 3), uniqueAuthors,
     classes: [...classSet], shortShare, paidCount, ringShare,
     behaviorPresent: behavior.present, behaviorScore: behavior.score,
@@ -299,6 +352,11 @@ export function scoreAuthenticity(restaurant, cfg = {}, context = {}) {
       repeatRatio: Number(repeatRatio.toFixed(2)),
       behaviorScore: Number(behavior.score.toFixed(2)),
       ringShare: Number(ringShare.toFixed(2)),
+      singletonRatio: singletonRatio == null ? null : Number(singletonRatio.toFixed(2)),
+      duplicationRatio: txt.hasText ? txt.duplicationRatio : null,
+      aiRatio: txt.hasText ? txt.aiRatio : null,
+      networkFraud,
+      spikeShare: ts.spikeShare,
       ratingShape: dist.uShape ? "U자(양극단)" : dist.missingMiddle ? "중간없음(별5도배)" : "정상(J커브)"
     }
   };
@@ -325,6 +383,12 @@ function buildReasons(f, ctx) {
   if (ctx.missingMiddle) R.push("⚠ 별5 도배·중간 평점 없음(부자연 분포)");
   if (ctx.uShape) R.push("⚠ 양극단 평점 분포(경쟁사 공격/조작 의심)");
   if (ctx.coordinatedBurst) R.push("⚠ 조직적 버스트(짧은 기간 별5 몰림+낮은 다양성)");
+  if (ctx.singletonAttack) R.push(`⚠ 일회성 계정 폭주 ${Math.round((ctx.singletonRatio ?? 0) * 100)}%(싱글톤 공격)`);
+  if (ctx.duplicateText) R.push(`⚠ 복붙/템플릿 리뷰 ${Math.round((ctx.dupRatio ?? 0) * 100)}%`);
+  if (ctx.aiText) R.push(`⚠ AI 생성 의심 리뷰 ${Math.round((ctx.aiRatio ?? 0) * 100)}%`);
+  if (ctx.networkFraudHigh) R.push(`⚠ 네트워크 사기 전파 확률 ${Math.round((ctx.networkFraud ?? 0) * 100)}%(사기 리뷰어와 연결)`);
+  if (ctx.networkFraudMod) R.push(`⚠ 사기 리뷰어와 부분 연결(네트워크 확률 ${Math.round((ctx.networkFraud ?? 0) * 100)}%)`);
+  if (ctx.spikeAnomaly) R.push(`⚠ 최근 평점 급등 이상(스파이크 ${Math.round((ctx.spikeShare ?? 0) * 100)}%, 평점 +${(ctx.ratingLift ?? 0).toFixed(1)})`);
   if (ctx.reviewRing) R.push(`⚠ 리뷰링 계정 ${Math.round(ctx.ringShare * 100)}%(여러 업소 락스텝 담합)`);
   if (ctx.viralBubble) R.push(`⚠ 숏폼 비중 ${Math.round(ctx.shortShare * 100)}%인데 행동/지도 확증 없음(바이럴 거품)`);
   if (ctx.astroturf) R.push("⚠ 소수 계정 편중(어뷰징 의심)");
