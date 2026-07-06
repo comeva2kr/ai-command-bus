@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>맛집 통합 커뮤니티</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>🍽️ 맛집 통합 커뮤니티</h1>
+      <p class="sub">SNS · 유튜브 · 네이버 통합 · 광고/협찬 자동 제외 · 검증된 맛집만</p>
+    </header>
+
+    <main class="layout">
+      <aside class="panel">
+        <section class="card">
+          <h2>빠른 예시</h2>
+          <div class="presets" id="presets"></div>
+        </section>
+
+        <section class="card">
+          <h2>📍 위치</h2>
+          <label>기준
+            <select id="near"></select>
+          </label>
+          <label>이동수단
+            <select id="mode">
+              <option value="car">차</option>
+              <option value="transit">대중교통</option>
+              <option value="bike">자전거</option>
+              <option value="walk">도보</option>
+            </select>
+          </label>
+          <label>이동시간(분): <output id="minsOut">30</output>
+            <input type="range" id="minutes" min="5" max="60" step="5" value="30" />
+          </label>
+          <label class="chkline">
+            <input type="checkbox" id="useLocation" checked /> 위치 필터 사용
+          </label>
+        </section>
+
+        <section class="card">
+          <h2>🏷️ 장소 · 음식</h2>
+          <label>장소 스타일<div class="chips" id="styles"></div></label>
+          <label>음식 종류<div class="chips" id="cuisines"></div></label>
+        </section>
+
+        <section class="card">
+          <h2>🍤 메뉴 검색</h2>
+          <label>메뉴
+            <select id="menu"><option value="">(선택 안 함)</option></select>
+          </label>
+          <label>메뉴 특성<div class="chips" id="menuAttrs"></div></label>
+        </section>
+
+        <section class="card">
+          <h2>🧩 생활 조건 (다중)</h2>
+          <label>필수 태그<div class="chips" id="tagsAll"></div></label>
+          <label>제외 태그<div class="chips" id="excludeTags"></div></label>
+          <label>필수 편의<div class="chips" id="features"></div></label>
+          <label class="chkline">
+            <input type="checkbox" id="excludeFranchise" /> 프랜차이즈 제외
+          </label>
+          <label>가격대: <output id="priceOut">1 ~ 4</output>
+            <div class="pricerow">
+              <input type="range" id="priceMin" min="1" max="4" value="1" />
+              <input type="range" id="priceMax" min="1" max="4" value="4" />
+            </div>
+          </label>
+        </section>
+
+        <button id="searchBtn" class="primary">검색</button>
+      </aside>
+
+      <section class="results">
+        <div class="mapwrap card">
+          <canvas id="map" width="520" height="300"></canvas>
+          <div class="metabar" id="meta"></div>
+        </div>
+        <div id="list" class="list"></div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

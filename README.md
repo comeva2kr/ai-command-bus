@@ -44,8 +44,22 @@ node src/router.js examples/task_queue.json
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [맛집 통합 커뮤니티 (Restaurant Discovery Platform)](docs/restaurant-platform.md)
 - [Example task queue](examples/task_queue.json)
 - [Example worker submission](examples/submission.json)
+
+## 맛집 통합 커뮤니티
+
+여러 소스(SNS·유튜브·네이버·커뮤니티)에서 맛집을 모아 **광고/협찬을 자동 제외**하고
+교차검증된 곳만 남긴 뒤, **위치(반경·차로 N분·"OO 근처") + 생활밀착 다중조건(장소
+스타일·음식·메뉴·아이 동반·프랜차이즈 제외·파티션·가격대…)**으로 필터링하는 검색
+엔진과 웹 UI가 포함되어 있습니다.
+
+```bash
+npm run eats   # http://localhost:4173
+```
+
+자세한 내용은 [docs/restaurant-platform.md](docs/restaurant-platform.md).
 
 ## Example Work Item
 
