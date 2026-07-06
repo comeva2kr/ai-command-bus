@@ -30,6 +30,41 @@
     padding: 12px 16px calc(10px + env(safe-area-inset-top)); }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; }
   .brand small { font-weight: 500; color: var(--muted); font-size: 12px; }
+  .adult-btn { margin-left: auto; width: 34px; height: 26px; border-radius: 8px; font-weight: 800; font-size: 13px;
+    border: 1px solid var(--line); background: var(--card-2); color: var(--muted); position: relative; }
+  .adult-btn.locked::after { content: "🔒"; position: absolute; top: -7px; right: -7px; font-size: 11px; }
+  .adult-btn.on { background: var(--dislike); border-color: var(--dislike); color: #fff; }
+  .badge.adult { color: #fff; background: var(--dislike); }
+  .badge.trans { color: #0e0f13; background: #39c0d3; }
+
+  /* floating action bar */
+  .fab { position: fixed; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 30; display: flex; flex-direction: column; gap: 10px; }
+  .fab button { width: 52px; height: 52px; border-radius: 50%; border: none; font-size: 22px; color: #fff;
+    box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+  .fab .compose { background: var(--accent); }
+  .fab .space { background: var(--card-2); border: 1px solid var(--line); font-size: 20px; }
+  @media (min-width: 720px){ .fab { right: calc(50% - 360px + 16px); } }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 5px; }
+  .field input, .field textarea, .field select { width: 100%; background: var(--card-2); border: 1px solid var(--line);
+    color: var(--text); border-radius: 10px; padding: 10px 11px; font-size: 14px; }
+  .field textarea { min-height: 90px; resize: vertical; }
+  .space-stats { display: flex; gap: 8px; margin-bottom: 18px; }
+  .stat { flex: 1; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; }
+  .stat b { display: block; font-size: 20px; }
+  .stat span { font-size: 11.5px; color: var(--muted); }
+  .space-sec h4 { margin: 18px 0 10px; font-size: 15px; }
+
+  .modal-back { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.6); display: flex;
+    align-items: center; justify-content: center; padding: 24px; }
+  .modal { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; max-width: 380px; width: 100%; }
+  .modal h3 { margin: 0 0 10px; font-size: 18px; }
+  .modal p { margin: 0 0 18px; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
+  .modal .row { display: flex; gap: 10px; }
+  .modal button { flex: 1; padding: 12px; border-radius: 12px; border: none; font-weight: 700; font-size: 14px; }
+  .modal .confirm { background: var(--dislike); color: #fff; }
+  .modal .cancel { background: var(--card-2); color: var(--text); border: 1px solid var(--line); }
   .meter { margin-top: 10px; }
   .meter-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
   .meter-bar { height: 6px; border-radius: 6px; background: var(--card-2); overflow: hidden; }
@@ -118,7 +153,9 @@
 </head>
 <body>
   <header>
-    <div class="brand">🧭 내 취향 피드 <small id="phaseLabel">준비 중</small></div>
+    <div class="brand">🧭 내 취향 피드 <small id="phaseLabel">준비 중</small>
+      <button id="adultBtn" class="adult-btn locked" title="19금 보기">19</button>
+    </div>
     <div class="meter">
       <div class="meter-label"><span>취향 특정도</span><span id="levelPct">0%</span></div>
       <div class="meter-bar"><div class="meter-fill" id="levelFill"></div></div>
@@ -128,6 +165,20 @@
 
   <main id="feed"></main>
   <div class="sentinel" id="sentinel"></div>
+
+  <div class="fab" id="fab">
+    <button class="space" id="spaceBtn" title="내 공간">👤</button>
+    <button class="compose" id="composeBtn" title="글쓰기">✍️</button>
+  </div>
+
+  <!-- my space -->
+  <section id="space" class="hidden" style="position:fixed;inset:0;z-index:45;background:var(--bg);overflow-y:auto;max-width:720px;margin:0 auto">
+    <div class="detail-head">
+      <button class="back" id="spaceBack" aria-label="뒤로">‹</button>
+      <div class="src">👤 내 공간</div>
+    </div>
+    <div class="detail-body" id="spaceBody"></div>
+  </section>
 
   <!-- post detail -->
   <section id="detail" aria-hidden="true">
@@ -169,6 +220,10 @@ const API = {
   async config() { return get("/api/config"); },
   async saveSurvey(userId, answers) { return post("/api/survey", { userId, answers }); },
   async history(userId, entries) { return post("/api/history", { userId, entries }); },
+  async verifyAge(userId) { return post("/api/verify-age", { userId, confirmAdult: true }); },
+  async setAdult(userId, on) { return post("/api/adult", { userId, on }); },
+  async createPost(userId, p) { return post("/api/post", { userId, ...p }); },
+  async mySpace(userId) { return get(`/api/me?userId=${userId}`); },
   async feed(userId, cursor, limit=10) { return get(`/api/feed?userId=${userId}&cursor=${cursor}&limit=${limit}`); },
   async item(userId, itemId) { return get(`/api/item?userId=${userId}&itemId=${encodeURIComponent(itemId)}`); },
   async rate(userId, itemId, signal) { return post("/api/rate", { userId, itemId, signal }); },
@@ -184,14 +239,15 @@ const state = {
   cursor: 0, loading: false, exhausted: false,
   activeCategory: null, config: null,
   feedScrollY: 0, // remembered scroll position for exact back-restore
-  cardsById: new Map()
+  cardsById: new Map(),
+  ageVerified: false, showAdult: false
 };
 history.scrollRestoration = "manual"; // we restore scroll ourselves, precisely
 
 const SRC_COLORS = {}; // stable color per source
 const PALETTE = ["#4f8cff","#e5566b","#3fb27f","#f0a13d","#a97bff","#39c0d3","#e871c0","#7fb0ff","#c0d34a"];
 function srcColor(id){ if(!SRC_COLORS[id]){ let h=0; for(const c of id) h=(h*31+c.charCodeAt(0))>>>0; SRC_COLORS[id]=PALETTE[h%PALETTE.length]; } return SRC_COLORS[id]; }
-function srcLabel(id){ const s = state.config?.sources.find(x=>x.id===id); return s? s.label : id; }
+function srcLabel(id){ if(id==="me") return "내 글"; const s = state.config?.sources.find(x=>x.id===id); return s? s.label : id; }
 function timeAgo(iso){ if(!iso) return ""; const d=(Date.now()-new Date(iso))/1e3;
   if(d<3600) return Math.max(1,Math.floor(d/60))+"분 전"; if(d<86400) return Math.floor(d/3600)+"시간 전"; return Math.floor(d/86400)+"일 전"; }
 
@@ -202,10 +258,140 @@ function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg
   state.config = await API.config();
   const s = await API.session(state.userId);
   state.userId = s.userId; localStorage.setItem("feed_uid", s.userId);
-  renderChips();
+  state.ageVerified = s.ageVerified; state.showAdult = s.showAdult;
+  renderChips(); renderAdultBtn(); setupAdultToggle(); setupCompose(); setupSpace();
   if(!s.surveyed){ showSurvey(); } else { updateMeter(s); loadMore(); }
   setupInfiniteScroll();
 })();
+
+// ---- 19금 toggle + 성인인증 ----
+function renderAdultBtn(){
+  const b = document.getElementById("adultBtn");
+  b.classList.toggle("locked", !state.ageVerified);
+  b.classList.toggle("on", state.showAdult);
+  b.title = state.showAdult ? "19금 숨기기" : "19금 보기";
+}
+function setupAdultToggle(){
+  document.getElementById("adultBtn").onclick = async ()=>{
+    if(state.showAdult){                 // 켜져 있으면 끄기 (필터링)
+      await toggleAdult(false); return;
+    }
+    if(!state.ageVerified){ showAgeGate(); return; }  // 미인증이면 인증부터
+    await toggleAdult(true);              // 인증됨 → 켜기
+  };
+}
+async function toggleAdult(on){
+  try {
+    const r = await API.setAdult(state.userId, on);
+    state.showAdult = r.showAdult; renderAdultBtn();
+    reloadFeed(on ? "19금 게시글을 포함해서 보여드려요" : "19금 게시글을 숨겼어요");
+  } catch(e){ toast("전환 실패: "+e.message); }
+}
+function showAgeGate(){
+  const back = document.createElement("div"); back.className="modal-back";
+  back.innerHTML = `
+    <div class="modal">
+      <h3>🔞 성인 콘텐츠</h3>
+      <p>19금 게시글을 보려면 성인인증이 필요합니다. 만 19세 이상 성인이 맞으신가요? (데모에서는 실제 본인확인 대신 확인만 진행됩니다.)</p>
+      <div class="row">
+        <button class="cancel" id="ageCancel">취소</button>
+        <button class="confirm" id="ageOk">성인인증하기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+  back.querySelector("#ageCancel").onclick = ()=> back.remove();
+  back.querySelector("#ageOk").onclick = async ()=>{
+    try {
+      await API.verifyAge(state.userId); state.ageVerified = true;
+      back.remove(); renderAdultBtn(); await toggleAdult(true);
+      toast("성인인증 완료");
+    } catch(e){ toast("인증 실패: "+e.message); }
+  };
+}
+// 19금 포함/제외가 바뀌면 후보군이 달라지므로 피드를 새로 로드
+function reloadFeed(msg){
+  state.cursor = 0; state.exhausted = false; state.loading = false;
+  state.cardsById.clear();
+  document.getElementById("feed").innerHTML = "";
+  window.scrollTo(0, 0);
+  if(msg) toast(msg);
+  loadMore();
+}
+
+// ---- 글쓰기 (user posts) ----
+function setupCompose(){
+  document.getElementById("composeBtn").onclick = ()=>{
+    const cats = state.config.categories.map(c=>`<option value="${c.id}">${c.label}</option>`).join("");
+    const back = document.createElement("div"); back.className="modal-back";
+    back.innerHTML = `
+      <div class="modal">
+        <h3>✍️ 새 글 쓰기</h3>
+        <div class="field"><label>제목</label><input id="pTitle" maxlength="120" placeholder="제목을 입력하세요"></div>
+        <div class="field"><label>내용</label><textarea id="pBody" placeholder="내용을 입력하세요"></textarea></div>
+        <div class="field"><label>카테고리</label><select id="pCat">${cats}</select></div>
+        <div class="row">
+          <button class="cancel" id="pCancel">취소</button>
+          <button class="confirm" id="pOk" style="background:var(--accent)">올리기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(back);
+    back.querySelector("#pCancel").onclick = ()=> back.remove();
+    back.querySelector("#pOk").onclick = async ()=>{
+      const title = back.querySelector("#pTitle").value.trim();
+      if(!title){ toast("제목을 입력하세요"); return; }
+      try {
+        const p = await API.createPost(state.userId, {
+          title, summary: back.querySelector("#pBody").value.trim(), category: back.querySelector("#pCat").value
+        });
+        back.remove();
+        // show it immediately at the top of the feed
+        prependCard({ ...p, categoryLabel: state.config.categories.find(c=>c.id===p.category)?.label||p.category,
+          myRating:0, comments:0 });
+        toast("글이 올라갔어요");
+      } catch(e){ toast("등록 실패: "+e.message); }
+    };
+  };
+}
+function prependCard(item){
+  appendCard(item);
+  const feed = document.getElementById("feed");
+  feed.insertBefore(feed.lastChild, feed.firstChild);
+}
+
+// ---- 내 공간 (my space) ----
+function setupSpace(){
+  document.getElementById("spaceBtn").onclick = openSpace;
+  document.getElementById("spaceBack").onclick = ()=>{
+    if(location.hash.startsWith("#space")) history.back(); else closeSpace();
+  };
+}
+async function openSpace(){
+  const el = document.getElementById("space");
+  const body = document.getElementById("spaceBody");
+  body.innerHTML = '<div class="sentinel"><div class="spinner"></div></div>';
+  el.classList.remove("hidden");
+  history.pushState({ view:"space" }, "", "#space");
+  try {
+    const s = await API.mySpace(state.userId);
+    body.innerHTML = `
+      <div class="space-stats">
+        <div class="stat"><b>${s.counts.posts}</b><span>내 글</span></div>
+        <div class="stat"><b>${s.counts.comments}</b><span>댓글</span></div>
+        <div class="stat"><b>${s.counts.likes}</b><span>좋아요</span></div>
+        <div class="stat"><b>${s.counts.dislikes}</b><span>싫어요</span></div>
+      </div>
+      <div class="space-sec"><h4>내가 쓴 글</h4>${
+        s.posts.length ? s.posts.map(p=>`<article class="card"><div class="card-top"><span class="dot" style="background:var(--accent)"></span><span class="src">내 글</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.summary||"")}</p></article>`).join("")
+          : '<p style="color:var(--muted);font-size:13px">아직 쓴 글이 없어요. ✍️ 버튼으로 글을 남겨보세요.</p>'}
+      </div>
+      <div class="space-sec"><h4>내 댓글</h4>${
+        s.comments.length ? s.comments.slice().reverse().map(c=>`<div class="comment"><div class="who">${timeAgo(c.at)}</div><div class="txt">${escapeHtml(c.body)}</div></div>`).join("")
+          : '<p style="color:var(--muted);font-size:13px">아직 댓글이 없어요.</p>'}
+      </div>`;
+  } catch(e){ body.innerHTML = "<p>불러오기 실패: "+escapeHtml(e.message)+"</p>"; }
+}
+function closeSpace(){ document.getElementById("space").classList.add("hidden"); }
+function cat(id){ return state.config.categories.find(c=>c.id===id)?.label || id; }
 
 // ---- survey ----
 function showSurvey(){
@@ -308,6 +494,8 @@ function appendCard(item){
       <span class="dot" style="background:${srcColor(item.source)}"></span>
       <span class="src">${srcLabel(item.source)}</span>
       <span>· ${item.categoryLabel}</span>
+      ${item.adult?'<span class="badge adult">19</span>':''}
+      ${item.translated?'<span class="badge trans">번역</span>':(item.needsTranslation?'<span class="badge trans">원문</span>':'')}
       <span class="badge ${item.kind}">${item.kind==="news"?"뉴스":"커뮤"}</span>
     </div>
     <h3>${escapeHtml(item.title)}</h3>
@@ -377,6 +565,7 @@ function closeDetail(){
 document.getElementById("backBtn").onclick = ()=> history.back();
 window.addEventListener("popstate", (e)=>{
   if(document.getElementById("detail").classList.contains("open")) closeDetail();
+  if(!document.getElementById("space").classList.contains("hidden")) closeSpace();
 });
 
 async function renderDetail(itemId){

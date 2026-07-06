@@ -11,10 +11,22 @@
 import { isKnownCategory } from "./taxonomy.js";
 import { SEED_ITEMS } from "./seed-data.js";
 
-let idCounter = 0;
-function nextId(prefix) {
-  idCounter += 1;
-  return `${prefix}-${idCounter}`;
+// Derive a STABLE id from an item's identifying content. Stability matters:
+// sources are re-collected periodically, and ratings/comments reference item
+// ids — a counter would reassign ids on every refresh and orphan that data.
+function stableId(raw, source) {
+  const basis = [
+    raw.url || "",
+    raw.source || (source ? source.id : ""),
+    raw.title || "",
+    raw.publishedAt || ""
+  ].join("|");
+  let h = 2166136261 >>> 0; // FNV-1a
+  for (let i = 0; i < basis.length; i++) {
+    h ^= basis.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return `it_${h.toString(36)}`;
 }
 
 // Normalize an arbitrary raw item into the canonical content shape. Adapters
@@ -22,9 +34,16 @@ function nextId(prefix) {
 export function normalizeItem(raw, source) {
   const category = isKnownCategory(raw.category) ? raw.category : "news";
   return {
-    id: raw.id || nextId(source ? source.id : "item"),
+    id: raw.id || stableId(raw, source),
     kind: raw.kind === "community" ? "community" : "news", // "news" | "community"
     source: raw.source || (source ? source.id : "unknown"),
+    // 19금(성인) 여부. 인증되지 않은 사용자에게는 엔진 단에서 절대 노출되지 않는다.
+    adult: raw.adult === true,
+    // language + translation metadata (overseas sources flow through translate.js)
+    lang: raw.lang || "ko",
+    translated: raw.translated === true,
+    needsTranslation: raw.needsTranslation === true,
+    originalLang: raw.originalLang || null,
     category,
     tags: Array.isArray(raw.tags) ? raw.tags.slice(0, 12) : [],
     title: String(raw.title || "").slice(0, 300),
@@ -52,6 +71,20 @@ export class SeedSource {
 
   async fetch() {
     return this._items.map((raw) => normalizeItem(raw, this));
+  }
+}
+
+// Source backed by the store's user-generated posts, so a member's own posts
+// flow into the shared feed just like any other community content.
+export class StorePostsSource {
+  constructor(store) {
+    this.id = "me";
+    this.kind = "community";
+    this._store = store;
+  }
+
+  async fetch() {
+    return (this._store.allPosts ? this._store.allPosts() : []).map((raw) => normalizeItem(raw, this));
   }
 }
 

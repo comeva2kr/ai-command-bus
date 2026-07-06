@@ -13,6 +13,9 @@ import { normalizeItem, SeedSource, collect } from "../src/feed/content.js";
 import { inferFromHistory, mergeVectors } from "../src/feed/history.js";
 import { FeedStore } from "../src/feed/store.js";
 import { FeedEngine } from "../src/feed/engine.js";
+import { StorePostsSource } from "../src/feed/content.js";
+import { loadRegistry, query, buildSources, summarize } from "../src/feed/registry.js";
+import { TranslatingSource, memoizedTranslator } from "../src/feed/translate.js";
 
 const fixedClock = () => "2026-07-06T00:00:00.000Z";
 
@@ -141,6 +144,62 @@ test("rating through the engine updates confidence and item state", async () => 
   assert.equal(detail.myRating, 1, "rating reflected on the item");
 });
 
+test("19금 items are hidden until age-verified AND toggled on", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const user = store.createUser("adult1");
+  store.saveSurvey(user.id, { categories: ["humor", "life", "culture"] });
+
+  // default: no adult items served
+  let all = [];
+  for (let c = 0; c < 6; c++) {
+    const f = await engine.getFeed(user.id, { cursor: c * 20, limit: 20 });
+    all.push(...f.items);
+    if (f.exhausted) break;
+  }
+  assert.equal(all.some((i) => i.adult), false, "no adult items before verification");
+
+  // toggling on without verification does nothing
+  assert.equal(store.setShowAdult(user.id, true), false, "cannot enable adult unverified");
+
+  // verify + enable, fresh user to avoid seen-set masking
+  const u2 = store.createUser("adult2");
+  store.saveSurvey(u2.id, { categories: ["humor", "life", "culture"] });
+  store.verifyAge(u2.id);
+  assert.equal(store.setShowAdult(u2.id, true), true, "enabled after verification");
+
+  let withAdult = [];
+  for (let c = 0; c < 6; c++) {
+    const f = await engine.getFeed(u2.id, { cursor: c * 20, limit: 20 });
+    withAdult.push(...f.items);
+    if (f.exhausted) break;
+  }
+  assert.ok(withAdult.some((i) => i.adult), "adult items appear once verified + toggled");
+});
+
+test("stable ids survive re-collection so ratings/comments don't orphan", async () => {
+  const a = (await collect([new SeedSource()])).items;
+  const b = (await collect([new SeedSource()])).items;
+  assert.deepEqual(a.map((i) => i.id), b.map((i) => i.id), "ids are stable across collects");
+});
+
+test("getItem refuses a 19금 item for an unverified user", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const items = (await collect([new SeedSource()])).items;
+  const adultItem = items.find((i) => i.adult);
+  assert.ok(adultItem, "seed has an adult item");
+
+  const user = store.createUser("peeker");
+  const blocked = await engine.getItem(user.id, adultItem.id);
+  assert.equal(blocked, null, "adult detail blocked for unverified user");
+
+  store.verifyAge(user.id);
+  store.setShowAdult(user.id, true);
+  const allowed = await engine.getItem(user.id, adultItem.id);
+  assert.ok(allowed && allowed.adult, "adult detail served after verification");
+});
+
 test("comments attach to items and surface in the detail view", async () => {
   const store = new FeedStore({ clock: fixedClock });
   const engine = new FeedEngine(store, [new SeedSource()]);
@@ -153,4 +212,80 @@ test("comments attach to items and surface in the detail view", async () => {
   const detail = await engine.getItem(user.id, item.id);
   assert.equal(detail.thread.length, 1);
   assert.equal(detail.thread[0].body, "첫 댓글!");
+});
+
+test("registry loads the community DB and summarizes it", () => {
+  const reg = loadRegistry();
+  assert.ok(reg.length >= 25, "registry has many communities");
+  const s = summarize(reg);
+  assert.ok(s.byCountry.KR > 0 && s.byCountry.US > 0, "domestic and overseas present");
+  assert.ok(s.adult > 0, "adult communities registered");
+  assert.ok(s.byLang.en > 0 && s.byLang.ja > 0, "overseas languages present");
+});
+
+test("buildSources only emits fetchable sources and tags seed items", async () => {
+  const reg = loadRegistry();
+  const sources = buildSources(reg);
+  assert.ok(sources.length > 0);
+  const collected = await Promise.all(sources.map((s) => s.fetch()));
+  const items = collected.flat();
+  assert.ok(items.length > 20, "seed-backed communities yield content");
+  // enabled non-seed communities (no fetcher) must not appear
+  const liveOnly = query(reg, { enabled: true }).filter((c) => c.adapter.type !== "seed");
+  for (const c of liveOnly) {
+    assert.equal(items.some((i) => i.source === c.id), false, `${c.id} has no offline items`);
+  }
+});
+
+test("TranslatingSource flags untranslated foreign items and translates when wired", async () => {
+  const foreign = {
+    id: "en1", kind: "community", async fetch() {
+      return [{ id: "x1", title: "Hello world", summary: "a post", lang: "en", category: "tech", tags: [], source: "reddit" }];
+    }
+  };
+  // no translator: flagged, original kept
+  const flagged = await new TranslatingSource(foreign, null, "ko").fetch();
+  assert.equal(flagged[0].needsTranslation, true);
+  assert.equal(flagged[0].title, "Hello world");
+
+  // with translator: translated + metadata
+  const tr = memoizedTranslator(async (t) => "[번역] " + t);
+  const done = await new TranslatingSource(foreign, tr, "ko").fetch();
+  assert.equal(done[0].translated, true);
+  assert.equal(done[0].lang, "ko");
+  assert.match(done[0].title, /^\[번역\]/);
+  assert.equal(done[0].originalTitle, "Hello world");
+});
+
+test("user posts flow into the feed and into 내 공간", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new StorePostsSource(store)]);
+  const user = store.createUser("author1");
+  store.saveSurvey(user.id, { categories: ["auto"], tags: ["cars"] });
+
+  const post = store.createPost(user.id, { title: "내가 쓴 시승기", summary: "직접 타봤다", category: "auto", tags: ["cars", "testdrive"] });
+  engine.invalidate();
+
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 10 });
+  assert.ok(feed.items.some((i) => i.id === post.id), "own post appears in feed");
+
+  store.addComment(user.id, post.id, "셀프 댓글");
+  const space = store.mySpace(user.id);
+  assert.equal(space.counts.posts, 1);
+  assert.equal(space.counts.comments, 1);
+  assert.equal(space.posts[0].title, "내가 쓴 시승기");
+});
+
+test("engine.refresh keeps item ids stable so ratings survive", async () => {
+  const store = new FeedStore({ clock: () => "2026-07-06T00:00:00.000Z" });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const user = store.createUser("r1");
+  store.saveSurvey(user.id, { categories: ["auto"] });
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 3 });
+  const id = feed.items[0].id;
+  await engine.rate(user.id, id, 1);
+  await engine.refresh();
+  const detail = await engine.getItem(user.id, id);
+  assert.ok(detail, "rated item still resolvable after refresh");
+  assert.equal(detail.myRating, 1, "rating survived refresh");
 });

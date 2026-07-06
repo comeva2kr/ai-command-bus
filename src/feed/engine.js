@@ -31,6 +31,34 @@ export class FeedEngine {
     this._cache = null;
   }
 
+  // Re-collect from all sources now and swap the cache atomically. Stable item
+  // ids mean existing ratings/comments keep pointing at the right posts.
+  async refresh() {
+    const { items, errors } = await collect(this.sources);
+    this._cache = items;
+    this._errors = errors;
+    this.lastRefreshedAt = this._clock ? this._clock() : Date.now();
+    return { count: items.length, errors };
+  }
+
+  // Periodically update the DB from its sources ("정기적으로 찾으면서 db 업데이트").
+  // Returns a stop function; the interval is unref'd so it never blocks exit.
+  startAutoRefresh(intervalMs = 15 * 60 * 1000) {
+    this.stopAutoRefresh();
+    this._timer = setInterval(() => {
+      this.refresh().catch(() => {});
+    }, intervalMs);
+    if (this._timer.unref) this._timer.unref();
+    return () => this.stopAutoRefresh();
+  }
+
+  stopAutoRefresh() {
+    if (this._timer) {
+      clearInterval(this._timer);
+      this._timer = null;
+    }
+  }
+
   // Return the next batch for a user. `cursor` is an opaque number = how many
   // items already consumed this session; used only as a deterministic seed so
   // repeated identical requests are stable.
@@ -39,7 +67,12 @@ export class FeedEngine {
     const items = await this._items();
     const seen = new Set(user.seen);
 
-    const ranked = rankItems(items, user.preferences, { seenIds: seen, seed: cursor + 1 });
+    // 19금 게이트: 성인인증 + 토글이 모두 켜져 있을 때만 성인 콘텐츠를 후보에 포함.
+    // 서버에서 강제하므로 인증되지 않은 사용자에게는 어떤 경우에도 노출되지 않는다.
+    const allowAdult = user.ageVerified === true && user.showAdult === true;
+    const pool = allowAdult ? items : items.filter((i) => !i.adult);
+
+    const ranked = rankItems(pool, user.preferences, { seenIds: seen, seed: cursor + 1 });
     // hand out only unseen items so the infinite scroll never repeats
     const fresh = ranked.filter((r) => !seen.has(r.item.id)).slice(0, limit);
 
@@ -66,6 +99,7 @@ export class FeedEngine {
     const rating = user.ratings[item.id];
     return {
       ...item,
+      adult: item.adult === true,
       categoryLabel: categoryLabel(item.category),
       matchScore: Math.round(score * 100) / 100,
       myRating: rating ? rating.signal : 0,
@@ -93,6 +127,8 @@ export class FeedEngine {
     const item = items.find((i) => i.id === itemId);
     if (!item) return null;
     const user = this.store.getUser(userId);
+    // never surface a 19금 item to a user who isn't verified + opted in
+    if (item.adult && !(user && user.ageVerified === true && user.showAdult === true)) return null;
     const decorated = this._decorate(item, 0, user || { ratings: {} });
     return { ...decorated, thread: this.store.commentsFor(itemId) };
   }

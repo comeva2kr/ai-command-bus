@@ -38,6 +38,8 @@ export class FeedStore {
       preferences: emptyPreferenceVector(),
       surveyed: false,
       feedbackCount: 0,
+      ageVerified: false, // 성인인증 여부 — 19금 콘텐츠 노출의 필수 조건
+      showAdult: false, // 19금 토글 상태 (인증된 경우에만 유효)
       ratings: {}, // itemId -> { signal, at }
       seen: [], // itemIds shown, most-recent last
       comments: [], // { id, itemId, body, at }
@@ -88,6 +90,24 @@ export class FeedStore {
     return { hits, entriesSeen, preferences: user.preferences };
   }
 
+  // Mark a user as age-verified (real deployments wire this to an actual
+  // 성인인증/PASS flow; here it records the verified result).
+  verifyAge(userId) {
+    const user = this.requireUser(userId);
+    user.ageVerified = true;
+    this._persist();
+    return user;
+  }
+
+  // Toggle the 19금 view. Only takes effect when the user is age-verified;
+  // an unverified user can never turn it on.
+  setShowAdult(userId, on) {
+    const user = this.requireUser(userId);
+    user.showAdult = Boolean(on) && user.ageVerified === true;
+    this._persist();
+    return user.showAdult;
+  }
+
   recordRating(userId, itemId, signal) {
     const user = this.requireUser(userId);
     const prev = user.ratings[itemId];
@@ -110,6 +130,57 @@ export class FeedStore {
   seenSet(userId) {
     const user = this.getUser(userId);
     return new Set(user ? user.seen : []);
+  }
+
+  // User-generated post. Becomes a first-class feed item (kind "community",
+  // source "me"), so the space really behaves like a community built for you.
+  createPost(userId, post) {
+    const user = this.requireUser(userId);
+    const title = String(post.title || "").trim();
+    if (!title) throw new Error("post title is empty");
+    const record = {
+      id: this._id("post"),
+      userId,
+      kind: "community",
+      source: "me",
+      category: post.category || "life",
+      tags: Array.isArray(post.tags) ? post.tags.slice(0, 8) : [],
+      title: title.slice(0, 300),
+      summary: String(post.summary || post.body || "").slice(0, 2000),
+      author: userId,
+      adult: post.adult === true,
+      lang: "ko",
+      score: 0,
+      commentCount: 0,
+      publishedAt: nowIso(this.clock)
+    };
+    if (!this.posts) this.posts = [];
+    this.posts.push(record);
+    user.posts = user.posts || [];
+    user.posts.push(record.id);
+    this._persist();
+    return record;
+  }
+
+  // All user posts, for a store-backed feed source.
+  allPosts() {
+    return this.posts || [];
+  }
+
+  // "내 공간" — everything the user has created or reacted to in one place.
+  mySpace(userId) {
+    const user = this.requireUser(userId);
+    const myPosts = (this.posts || []).filter((p) => p.userId === userId);
+    const myComments = user.comments || [];
+    const ratings = Object.entries(user.ratings || {}).map(([itemId, r]) => ({ itemId, ...r }));
+    const liked = ratings.filter((r) => r.signal > 0).length;
+    const disliked = ratings.filter((r) => r.signal < 0).length;
+    return {
+      posts: myPosts,
+      comments: myComments,
+      ratings: { total: ratings.length, liked, disliked, items: ratings },
+      counts: { posts: myPosts.length, comments: myComments.length, likes: liked, dislikes: disliked }
+    };
   }
 
   addComment(userId, itemId, body) {
@@ -141,7 +212,8 @@ export class FeedStore {
     if (!this.file) return;
     const data = {
       seq: this._seq,
-      users: [...this.users.values()]
+      users: [...this.users.values()],
+      posts: this.posts || []
     };
     fs.writeFileSync(this.file, JSON.stringify(data, null, 2));
   }
@@ -152,6 +224,7 @@ export class FeedStore {
       this._seq = data.seq || 0;
       this.users = new Map();
       this.commentsByItem = new Map();
+      this.posts = data.posts || [];
       for (const user of data.users || []) {
         this.users.set(user.id, user);
         for (const c of user.comments || []) {

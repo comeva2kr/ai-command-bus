@@ -64,11 +64,59 @@ Content comes from pluggable **sources** — any object with
 Add an RSS or community adapter by conforming to the same shape and routing raw
 items through `normalizeItem()`.
 
+## Community registry (resource DB)
+
+Sources are defined as data in [`src/feed/communities.json`](../src/feed/communities.json),
+not code — adding a community is a new row. Each entry carries `country`,
+`lang`, `category`, `size`, `adult`, and an `adapter` (`seed` | `rss` | `reddit`
+| `json`). `registry.js` loads it and `buildSources()` turns enabled entries
+into runnable sources:
+
+- `seed` entries read the bundled offline dataset (runs with no network).
+- non-`seed` entries need a `fetcher(entry)` injected at runtime; without one
+  they stay registered but yield nothing, so the app is always runnable while
+  ready to wire live ingestion.
+
+The DB already registers domestic communities (large and small), overseas
+boards (Reddit, Hacker News, 5ch, …), and adult boards.
+
+## Overseas translation
+
+`TranslatingSource` wraps any source and localizes items whose `lang` differs
+from the reader's target. The translator is **injected** (provider-agnostic,
+dependency-free). Without one, foreign items are passed through and flagged
+`needsTranslation` so the UI labels them (`원문`) instead of silently showing a
+foreign-language post; with one, items are translated and flagged `번역` with
+the original title preserved. `memoizedTranslator()` caches so re-collection
+never re-translates the same string.
+
+## Periodic DB update
+
+`engine.startAutoRefresh(intervalMs)` re-collects every source on an interval
+and swaps the pool atomically. Because item ids are **content-stable**
+(`stableId` in `content.js`), ratings and comments keep pointing at the right
+posts across refreshes. Enable on the server with `FEED_REFRESH_MS`.
+
+## Posting + 내 공간 (my space)
+
+Users can post (`POST /api/post`) — a post becomes a first-class feed item
+(`source: "me"`) via `StorePostsSource`, so the space behaves like a community
+built for you. `GET /api/me` returns everything you've created or reacted to
+(posts, comments, like/dislike tallies) for integrated management.
+
+## 19금 (adult) gate
+
+Adult items are filtered out server-side unless the user is **both**
+age-verified (`POST /api/verify-age`) **and** has the toggle on
+(`POST /api/adult`). The gate is enforced in the engine for both the feed and
+single-item fetch, so an unverified client can never pull an adult item.
+
 ## API
 
 | Method + path            | Purpose                                        |
 | ------------------------ | ---------------------------------------------- |
 | `GET  /api/config`       | survey definition + categories + sources       |
+| `GET  /api/communities`  | community registry DB + summary                |
 | `POST /api/session`      | create/resume a user, returns `userId`         |
 | `POST /api/history`      | warm-start from `{ entries: [...] }`           |
 | `POST /api/survey`       | save `{ answers }` and seed preferences        |
@@ -76,12 +124,17 @@ items through `normalizeItem()`.
 | `GET  /api/item`         | one item + its comment thread                  |
 | `POST /api/rate`         | `{ itemId, signal }` — signal ∈ {-1, 0, 1}     |
 | `POST /api/comment`      | `{ itemId, body }`                             |
+| `POST /api/post`         | create a user post `{ title, summary, category }` |
+| `GET  /api/me`           | my space: my posts, comments, ratings          |
+| `POST /api/verify-age`   | age verification (mock; wire PASS/본인확인)     |
+| `POST /api/adult`        | toggle the 19금 view `{ on }` (requires verify) |
 
 ## Run it
 
 ```bash
 npm run feed                          # in-memory, http://localhost:4000
 PORT=4000 FEED_DB=./feed-data.json npm run feed   # persist users to a JSON file
+FEED_REFRESH_MS=900000 npm run feed               # re-collect the DB every 15 min
 ```
 
 Open the URL, take the survey (or warm-start with history), then scroll, rate,
@@ -94,8 +147,11 @@ and comment. State persists per browser via a `userId` in `localStorage`.
 - `src/feed/history.js` — browsing-history taste inference (warm start)
 - `src/feed/content.js` — content model, normalization, source adapters
 - `src/feed/seed-data.js` — offline seed dataset
+- `src/feed/communities.json` — community resource DB (国内+해외+성인)
+- `src/feed/registry.js` — DB loader + source builder + queries
+- `src/feed/translate.js` — overseas translation source wrapper
 - `src/feed/recommender.js` — scoring, online learning, specialization level
-- `src/feed/store.js` — users, ratings, comments, JSON persistence
-- `src/feed/engine.js` — collection + ranking + cursor batches
+- `src/feed/store.js` — users, posts, ratings, comments, JSON persistence
+- `src/feed/engine.js` — collection + ranking + cursor batches + auto-refresh
 - `src/feed/server.js` — zero-dependency HTTP API + static client
 - `src/feed/public/index.html` — the mobile-first single-page client

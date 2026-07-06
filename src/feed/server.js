@@ -12,9 +12,10 @@ import { fileURLToPath } from "node:url";
 
 import { FeedStore } from "./store.js";
 import { FeedEngine } from "./engine.js";
-import { SeedSource } from "./content.js";
+import { SeedSource, StorePostsSource } from "./content.js";
 import { SURVEY, validateAnswers } from "./survey.js";
 import { CATEGORIES, SOURCE_CATALOG } from "./taxonomy.js";
+import { loadRegistry, buildSources, summarize } from "./registry.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -66,7 +67,24 @@ function serveStatic(res, urlPath) {
 
 export function createServer(opts = {}) {
   const store = new FeedStore({ file: opts.file || process.env.FEED_DB || null });
-  const engine = new FeedEngine(store, opts.sources || [new SeedSource()]);
+
+  // Build sources from the community registry DB (国内+해외+성인), plus the
+  // store-backed source that surfaces users' own posts. Overseas sources are
+  // wrapped for translation when a translator is wired via opts.translate.
+  let registry = [];
+  let sources;
+  try {
+    registry = loadRegistry();
+    sources = buildSources(registry, { translate: opts.translate });
+  } catch (err) {
+    sources = [new SeedSource()];
+  }
+  sources.push(new StorePostsSource(store));
+  const engine = new FeedEngine(store, opts.sources || sources);
+
+  // 정기 DB 갱신: refresh the collected pool on an interval when configured.
+  const refreshMs = Number(opts.refreshMs || process.env.FEED_REFRESH_MS || 0);
+  if (refreshMs > 0) engine.startAutoRefresh(refreshMs);
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
@@ -80,10 +98,59 @@ export function createServer(opts = {}) {
         return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: SOURCE_CATALOG });
       }
 
+      if (p === "/api/communities" && req.method === "GET") {
+        return send(res, 200, { summary: summarize(registry), communities: registry });
+      }
+
+      if (p === "/api/post" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        try {
+          const post = store.createPost(body.userId, body);
+          engine.invalidate(); // make the new post visible in the feed
+          return send(res, 200, post);
+        } catch (err) {
+          return send(res, 400, { error: String(err.message) });
+        }
+      }
+
+      if (p === "/api/me" && req.method === "GET") {
+        const userId = url.searchParams.get("userId");
+        if (!store.getUser(userId)) return send(res, 400, { error: "unknown user" });
+        return send(res, 200, store.mySpace(userId));
+      }
+
       if (p === "/api/session" && req.method === "POST") {
         const body = await readBody(req);
         const user = store.createUser(body.userId);
-        return send(res, 200, { userId: user.id, surveyed: user.surveyed, feedbackCount: user.feedbackCount });
+        return send(res, 200, {
+          userId: user.id,
+          surveyed: user.surveyed,
+          feedbackCount: user.feedbackCount,
+          ageVerified: user.ageVerified === true,
+          showAdult: user.showAdult === true
+        });
+      }
+
+      if (p === "/api/verify-age" && req.method === "POST") {
+        // Mock 성인인증. A real deployment integrates PASS/휴대폰 본인확인 here and
+        // only calls verifyAge on a confirmed adult result.
+        const body = await readBody(req);
+        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        if (body.confirmAdult !== true) return send(res, 400, { error: "adult confirmation required" });
+        store.verifyAge(body.userId);
+        return send(res, 200, { ok: true, ageVerified: true });
+      }
+
+      if (p === "/api/adult" && req.method === "POST") {
+        const body = await readBody(req);
+        const user = store.getUser(body.userId);
+        if (!user) return send(res, 400, { error: "unknown user" });
+        if (body.on === true && user.ageVerified !== true) {
+          return send(res, 403, { error: "age verification required", ageVerified: false });
+        }
+        const on = store.setShowAdult(body.userId, body.on === true);
+        return send(res, 200, { ok: true, showAdult: on });
       }
 
       if (p === "/api/survey" && req.method === "POST") {
