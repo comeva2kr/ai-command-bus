@@ -196,6 +196,17 @@ single-item fetch, so an unverified client can never pull an adult item.
 | `POST /api/verify-age`   | age verification (mock; wire PASS/본인확인)     |
 | `POST /api/adult`        | toggle the 19금 view `{ on }` (requires verify) |
 
+## Web-first PWA
+
+Delivered as an installable Progressive Web App — the right call for acquisition
+here: zero install friction, shareable links, and no app-store gatekeeping for
+the aggregation + 19금 content that stricter store review would reject. A
+`manifest.webmanifest` makes it installable (home-screen icon, standalone
+display), and `sw.js` precaches the app shell (cache-first) and serves
+navigations network-first with an offline fallback, while never caching the
+personalized `/api/*` responses. A native shell can wrap this later once
+retention justifies it, keeping the sensitive content on the web tier.
+
 ## Run it
 
 ```bash
@@ -224,3 +235,4 @@ and comment. State persists per browser via a `userId` in `localStorage`.
 - `src/feed/engine.js` — collection + ranking + cursor batches + auto-refresh
 - `src/feed/server.js` — zero-dependency HTTP API + static client
 - `src/feed/public/index.html` — the mobile-first single-page client
+- `src/feed/public/manifest.webmanifest`, `sw.js`, `icon*.svg` — PWA shell

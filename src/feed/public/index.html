@@ -4,6 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>내 취향 피드</title>
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="theme-color" content="#0e0f13" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="취향피드" />
+<link rel="icon" href="/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icon.svg" />
 <style>
   :root {
     --bg: #0e0f13;
@@ -813,6 +821,11 @@ function syncCardComments(itemId, n){
 }
 
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c])); }
+
+// register the service worker so the app is installable + works offline
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=> navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+}
 </script>
 </body>
 </html>
