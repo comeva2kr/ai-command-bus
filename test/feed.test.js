@@ -325,3 +325,40 @@ test("feed pages are internally diverse across sources", async () => {
   const sources = new Set(feed.items.map((i) => i.source));
   assert.ok(sources.size >= 3, `expected varied sources on a page, got ${sources.size}`);
 });
+
+test("scrap/save toggles and surfaces in 내 공간", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const user = store.createUser("s1");
+  store.saveSurvey(user.id, { categories: ["auto"] });
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 3 });
+  const id = feed.items[0].id;
+
+  assert.equal(store.toggleSave(user.id, id), true, "saved");
+  assert.equal(store.mySpace(user.id).counts.saved, 1);
+  const detail = await engine.getItem(user.id, id);
+  assert.equal(detail.saved, true, "saved flag on item");
+  assert.equal(store.toggleSave(user.id, id), false, "un-saved");
+  assert.equal(store.mySpace(user.id).counts.saved, 0);
+});
+
+test("muting a source removes it from the feed", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const user = store.createUser("m1");
+  store.saveSurvey(user.id, { categories: ["auto", "tech", "humor", "sports"] });
+
+  // find a source that currently appears
+  const before = [];
+  for (let c = 0; c < 6; c++) { const f = await engine.getFeed(user.id, { cursor: c*20, limit: 20 }); before.push(...f.items); if (f.exhausted) break; }
+  const target = before[0].source;
+  store.setMute(user.id, target, true);
+
+  // fresh user's seen set is dirty; use a new user with same mute to check cleanly
+  const u2 = store.createUser("m2");
+  store.saveSurvey(u2.id, { categories: ["auto", "tech", "humor", "sports"] });
+  store.setMute(u2.id, target, true);
+  const after = [];
+  for (let c = 0; c < 6; c++) { const f = await engine.getFeed(u2.id, { cursor: c*20, limit: 20 }); after.push(...f.items); if (f.exhausted) break; }
+  assert.equal(after.some((i) => i.source === target), false, `${target} muted out of feed`);
+});

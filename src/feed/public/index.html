@@ -96,6 +96,15 @@
     border-radius: 10px; padding: 6px 11px; font-size: 13px; display: flex; align-items: center; gap: 5px; }
   .rate.up.on { color: #fff; background: var(--like); border-color: var(--like); }
   .rate.down.on { color: #fff; background: var(--dislike); border-color: var(--dislike); }
+  .rate.save.on { color: #f0a13d; border-color: #f0a13d; }
+  .card.read { opacity: .5; }
+  .card.read h3 { color: var(--muted); }
+  .card.read::after { content: "읽음"; float: right; font-size: 10px; color: var(--muted); }
+  .mute-btn { margin-left: auto; background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 8px; padding: 5px 10px; font-size: 12px; }
+  .muted-row { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; padding: 9px 12px; margin-bottom: 8px; font-size: 13px; }
+  .muted-row button { margin-left: auto; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 5px 11px; font-size: 12px; }
 
   .sentinel { height: 40px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
   .spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--accent);
@@ -224,6 +233,8 @@ const API = {
   async setAdult(userId, on) { return post("/api/adult", { userId, on }); },
   async createPost(userId, p) { return post("/api/post", { userId, ...p }); },
   async mySpace(userId) { return get(`/api/me?userId=${userId}`); },
+  async save(userId, itemId, on) { return post("/api/save", { userId, itemId, on }); },
+  async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
   async feed(userId, cursor, limit=10) { return get(`/api/feed?userId=${userId}&cursor=${cursor}&limit=${limit}`); },
   async item(userId, itemId) { return get(`/api/item?userId=${userId}&itemId=${encodeURIComponent(itemId)}`); },
   async rate(userId, itemId, signal) { return post("/api/rate", { userId, itemId, signal }); },
@@ -240,8 +251,11 @@ const state = {
   activeCategory: null, config: null,
   feedScrollY: 0, // remembered scroll position for exact back-restore
   cardsById: new Map(),
-  ageVerified: false, showAdult: false
+  ageVerified: false, showAdult: false,
+  readSet: new Set(JSON.parse(localStorage.getItem("feed_read")||"[]"))
 };
+function markRead(id){ if(state.readSet.has(id)) return; state.readSet.add(id);
+  localStorage.setItem("feed_read", JSON.stringify([...state.readSet].slice(-1000))); }
 history.scrollRestoration = "manual"; // we restore scroll ourselves, precisely
 
 const SRC_COLORS = {}; // stable color per source
@@ -376,9 +390,17 @@ async function openSpace(){
     body.innerHTML = `
       <div class="space-stats">
         <div class="stat"><b>${s.counts.posts}</b><span>내 글</span></div>
-        <div class="stat"><b>${s.counts.comments}</b><span>댓글</span></div>
+        <div class="stat"><b>${s.counts.saved||0}</b><span>스크랩</span></div>
         <div class="stat"><b>${s.counts.likes}</b><span>좋아요</span></div>
-        <div class="stat"><b>${s.counts.dislikes}</b><span>싫어요</span></div>
+        <div class="stat"><b>${s.counts.comments}</b><span>댓글</span></div>
+      </div>
+      <div class="space-sec"><h4>🔖 스크랩</h4>${
+        (s.saved&&s.saved.length) ? s.saved.map(p=>`<article class="card" data-id="${p.id}"><div class="card-top"><span class="dot" style="background:${srcColor(p.source)}"></span><span class="src">${srcLabel(p.source)}</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3></article>`).join("")
+          : '<p style="color:var(--muted);font-size:13px">📑 버튼으로 나중에 볼 글을 저장해보세요.</p>'}
+      </div>
+      <div class="space-sec"><h4>🔕 그만보기한 소스</h4>${
+        (s.mutedSources&&s.mutedSources.length) ? s.mutedSources.map(src=>`<div class="muted-row"><span class="dot" style="background:${srcColor(src)}"></span>${srcLabel(src)}<button data-src="${src}">다시보기</button></div>`).join("")
+          : '<p style="color:var(--muted);font-size:13px">그만보기한 소스가 없어요.</p>'}
       </div>
       <div class="space-sec"><h4>내가 쓴 글</h4>${
         s.posts.length ? s.posts.map(p=>`<article class="card"><div class="card-top"><span class="dot" style="background:var(--accent)"></span><span class="src">내 글</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.summary||"")}</p></article>`).join("")
@@ -388,7 +410,21 @@ async function openSpace(){
         s.comments.length ? s.comments.slice().reverse().map(c=>`<div class="comment"><div class="who">${timeAgo(c.at)}</div><div class="txt">${escapeHtml(c.body)}</div></div>`).join("")
           : '<p style="color:var(--muted);font-size:13px">아직 댓글이 없어요.</p>'}
       </div>`;
+    // unmute buttons
+    body.querySelectorAll(".muted-row button").forEach(btn=>{
+      btn.onclick = async ()=>{ try { await API.mute(state.userId, btn.dataset.src, false);
+        toast("다시 보여드릴게요"); openSpace(); reloadFeedSilently(); } catch(e){ toast("실패: "+e.message); } };
+    });
+    // tapping a scrapped item opens it
+    body.querySelectorAll(".space-sec .card[data-id]").forEach(c=>{
+      c.onclick = ()=> openDetail(c.dataset.id);
+    });
   } catch(e){ body.innerHTML = "<p>불러오기 실패: "+escapeHtml(e.message)+"</p>"; }
+}
+// refresh the underlying feed without scrolling the space away
+function reloadFeedSilently(){
+  state.cursor = 0; state.exhausted = false; state.loading = false;
+  state.cardsById.clear(); document.getElementById("feed").innerHTML = ""; loadMore();
 }
 function closeSpace(){ document.getElementById("space").classList.add("hidden"); }
 function cat(id){ return state.config.categories.find(c=>c.id===id)?.label || id; }
@@ -503,14 +539,22 @@ function appendCard(item){
     <div class="card-meta">
       <span>▲ ${item.score}</span><span>💬 ${item.comments}</span><span>${timeAgo(item.publishedAt)}</span>
       <div class="actions">
+        <button class="rate save ${item.saved?'on':''}" title="스크랩">${item.saved?'🔖':'📑'}</button>
         <button class="rate up ${item.myRating>0?'on':''}" data-s="1">👍</button>
         <button class="rate down ${item.myRating<0?'on':''}" data-s="-1">👎</button>
       </div>
     </div>`;
-  // open detail (but not when tapping rate buttons)
+  if(state.readSet.has(item.id)) card.classList.add("read");
+  // open detail (but not when tapping action buttons)
   card.addEventListener("click", (e)=>{ if(e.target.closest(".rate")) return; openDetail(item.id); });
   card.querySelector(".rate.up").onclick = (e)=>{ e.stopPropagation(); rate(item, card, 1); };
   card.querySelector(".rate.down").onclick = (e)=>{ e.stopPropagation(); rate(item, card, -1); };
+  card.querySelector(".rate.save").onclick = async (e)=>{ e.stopPropagation();
+    const btn = e.currentTarget; const on = !btn.classList.contains("on");
+    btn.classList.toggle("on", on); btn.textContent = on?'🔖':'📑';
+    try { await API.save(state.userId, item.id, on); toast(on?"스크랩했어요":"스크랩 해제"); }
+    catch(err){ toast("저장 실패: "+err.message); }
+  };
   document.getElementById("feed").appendChild(card);
   state.cardsById.set(item.id, card);
 }
@@ -551,6 +595,8 @@ function setupInfiniteScroll(){
 // ---- detail + EXACT back-restore ----
 async function openDetail(itemId){
   state.feedScrollY = window.scrollY;             // remember exactly where we were
+  markRead(itemId);
+  const card = state.cardsById.get(itemId); if(card) card.classList.add("read");
   history.pushState({ view:"detail", itemId }, "", "#post-"+encodeURIComponent(itemId));
   await renderDetail(itemId);
   const d = document.getElementById("detail");
@@ -576,6 +622,18 @@ async function renderDetail(itemId){
   catch(e){ body.innerHTML = "<p>불러오기 실패</p>"; return; }
   document.getElementById("detailSrc").innerHTML =
     `<span class="dot" style="display:inline-block;background:${srcColor(item.source)}"></span> ${srcLabel(item.source)} · ${item.categoryLabel}`;
+  const head = document.querySelector(".detail-head");
+  let muteBtn = head.querySelector(".mute-btn");
+  if(!muteBtn){ muteBtn = document.createElement("button"); muteBtn.className="mute-btn"; head.appendChild(muteBtn); }
+  if(item.source==="me"){ muteBtn.style.display="none"; }
+  else {
+    muteBtn.style.display=""; muteBtn.textContent = `🔕 ${srcLabel(item.source)} 그만보기`;
+    muteBtn.onclick = async ()=>{
+      try { await API.mute(state.userId, item.source, true);
+        toast(`${srcLabel(item.source)} 글을 더 이상 안 보여드려요`); history.back();
+        reloadFeed(); } catch(e){ toast("실패: "+e.message); }
+    };
+  }
   body.innerHTML = `
     <h2>${escapeHtml(item.title)}</h2>
     <div class="card-meta" style="margin-bottom:16px">

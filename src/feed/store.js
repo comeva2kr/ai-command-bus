@@ -40,6 +40,8 @@ export class FeedStore {
       feedbackCount: 0,
       ageVerified: false, // 성인인증 여부 — 19금 콘텐츠 노출의 필수 조건
       showAdult: false, // 19금 토글 상태 (인증된 경우에만 유효)
+      saved: [], // 스크랩한 itemId 목록
+      mutedSources: [], // 사용자가 피드에서 숨긴 소스
       ratings: {}, // itemId -> { signal, at }
       seen: [], // itemIds shown, most-recent last
       comments: [], // { id, itemId, body, at }
@@ -167,6 +169,39 @@ export class FeedStore {
     return this.posts || [];
   }
 
+  // Scrap / un-scrap an item. Returns the new saved state (boolean).
+  toggleSave(userId, itemId, on) {
+    const user = this.requireUser(userId);
+    user.saved = user.saved || [];
+    const has = user.saved.includes(itemId);
+    const want = on == null ? !has : Boolean(on);
+    if (want && !has) user.saved.push(itemId);
+    if (!want && has) user.saved = user.saved.filter((id) => id !== itemId);
+    this._persist();
+    return want;
+  }
+
+  savedIds(userId) {
+    const user = this.getUser(userId);
+    return user && user.saved ? user.saved : [];
+  }
+
+  // Mute / unmute a source so it stops appearing in the feed. Returns muted list.
+  setMute(userId, source, muted) {
+    const user = this.requireUser(userId);
+    user.mutedSources = user.mutedSources || [];
+    const has = user.mutedSources.includes(source);
+    if (muted && !has) user.mutedSources.push(source);
+    if (!muted && has) user.mutedSources = user.mutedSources.filter((s) => s !== source);
+    this._persist();
+    return user.mutedSources;
+  }
+
+  mutedSet(userId) {
+    const user = this.getUser(userId);
+    return new Set(user && user.mutedSources ? user.mutedSources : []);
+  }
+
   // "내 공간" — everything the user has created or reacted to in one place.
   mySpace(userId) {
     const user = this.requireUser(userId);
@@ -179,7 +214,15 @@ export class FeedStore {
       posts: myPosts,
       comments: myComments,
       ratings: { total: ratings.length, liked, disliked, items: ratings },
-      counts: { posts: myPosts.length, comments: myComments.length, likes: liked, dislikes: disliked }
+      savedIds: user.saved || [],
+      mutedSources: user.mutedSources || [],
+      counts: {
+        posts: myPosts.length,
+        comments: myComments.length,
+        likes: liked,
+        dislikes: disliked,
+        saved: (user.saved || []).length
+      }
     };
   }
 

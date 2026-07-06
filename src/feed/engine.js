@@ -71,7 +71,8 @@ export class FeedEngine {
     // 19금 게이트: 성인인증 + 토글이 모두 켜져 있을 때만 성인 콘텐츠를 후보에 포함.
     // 서버에서 강제하므로 인증되지 않은 사용자에게는 어떤 경우에도 노출되지 않는다.
     const allowAdult = user.ageVerified === true && user.showAdult === true;
-    const pool = allowAdult ? items : items.filter((i) => !i.adult);
+    const muted = new Set(user.mutedSources || []);
+    const pool = items.filter((i) => (allowAdult || !i.adult) && !muted.has(i.source));
 
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     const ranked = rankItems(pool, user.preferences, { seenIds: seen, seed: cursor + 1, now });
@@ -101,14 +102,24 @@ export class FeedEngine {
 
   _decorate(item, score, user) {
     const rating = user.ratings[item.id];
+    const saved = Array.isArray(user.saved) && user.saved.includes(item.id);
     return {
       ...item,
       adult: item.adult === true,
       categoryLabel: categoryLabel(item.category),
       matchScore: Math.round(score * 100) / 100,
       myRating: rating ? rating.signal : 0,
+      saved,
       comments: this.store.commentsFor(item.id).length
     };
+  }
+
+  // Resolve a list of item ids to decorated items (for the 스크랩 list).
+  async resolveItems(userId, ids) {
+    const items = await this._items();
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const user = this.store.getUser(userId) || { ratings: {}, saved: [] };
+    return ids.map((id) => byId.get(id)).filter(Boolean).map((it) => this._decorate(it, 0, user));
   }
 
   // Record a like/dislike and learn from it. Returns updated confidence.

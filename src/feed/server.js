@@ -117,7 +117,24 @@ export function createServer(opts = {}) {
       if (p === "/api/me" && req.method === "GET") {
         const userId = url.searchParams.get("userId");
         if (!store.getUser(userId)) return send(res, 400, { error: "unknown user" });
-        return send(res, 200, store.mySpace(userId));
+        const space = store.mySpace(userId);
+        // resolve scrapped item ids into displayable items
+        space.saved = await engine.resolveItems(userId, space.savedIds);
+        return send(res, 200, space);
+      }
+
+      if (p === "/api/save" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        const saved = store.toggleSave(body.userId, body.itemId, body.on);
+        return send(res, 200, { ok: true, saved });
+      }
+
+      if (p === "/api/mute" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        const muted = store.setMute(body.userId, body.source, body.on === true);
+        return send(res, 200, { ok: true, mutedSources: muted });
       }
 
       if (p === "/api/session" && req.method === "POST") {
