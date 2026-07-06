@@ -93,6 +93,16 @@ export class FeedStore {
     return { hits, entriesSeen, preferences: user.preferences };
   }
 
+  // Persist a Web Push subscription for a user (real push delivery needs a
+  // VAPID-signed server; this stores the endpoint that server would push to).
+  savePushSubscription(userId, subscription) {
+    const user = this.requireUser(userId);
+    user.pushSubscription = subscription || null;
+    user.notifyEnabled = Boolean(subscription);
+    this._persist();
+    return user.notifyEnabled;
+  }
+
   // Mark a user as age-verified (real deployments wire this to an actual
   // 성인인증/PASS flow; here it records the verified result).
   verifyAge(userId) {

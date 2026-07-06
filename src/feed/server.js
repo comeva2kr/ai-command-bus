@@ -221,6 +221,20 @@ export function createServer(opts = {}) {
         return send(res, 200, feed);
       }
 
+      if (p === "/api/digest" && req.method === "GET") {
+        const userId = url.searchParams.get("userId");
+        if (!store.getUser(userId)) return send(res, 400, { error: "unknown user" });
+        const limit = Math.min(10, Number(url.searchParams.get("limit") || 5));
+        return send(res, 200, await engine.digest(userId, { limit }));
+      }
+
+      if (p === "/api/push/subscribe" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        const enabled = store.savePushSubscription(body.userId, body.subscription || null);
+        return send(res, 200, { ok: true, notifyEnabled: enabled });
+      }
+
       if (p === "/api/item" && req.method === "GET") {
         const userId = url.searchParams.get("userId");
         const itemId = url.searchParams.get("itemId");

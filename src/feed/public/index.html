@@ -196,6 +196,12 @@
     border: 1px solid var(--line); color: var(--text); padding: 10px 18px; border-radius: 999px; font-size: 13px;
     z-index: 80; opacity: 0; transition: opacity .25s; pointer-events: none; }
   .toast.show { opacity: 1; }
+  .digest { margin: 10px 12px 0; padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, rgba(79,140,255,.16), rgba(63,178,127,.12)); border: 1px solid rgba(79,140,255,.3); }
+  .digest .dtext { flex: 1; font-size: 13.5px; line-height: 1.45; }
+  .digest .dtext b { color: #9fd0ff; }
+  .digest button { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 8px 12px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .digest .dclose { background: none; color: var(--muted); padding: 6px; font-size: 16px; }
 </style>
 </head>
 <body>
@@ -210,6 +216,8 @@
     </div>
     <div class="chips" id="chips"></div>
   </header>
+
+  <div id="digestBar" class="digest hidden"></div>
 
   <main id="feed"></main>
   <div class="sentinel" id="sentinel"></div>
@@ -275,6 +283,8 @@ const API = {
   async mySpace(userId) { return get(`/api/me?userId=${userId}`); },
   async save(userId, itemId, on) { return post("/api/save", { userId, itemId, on }); },
   async signal(userId, itemId, type, dwellMs) { return post("/api/signal", { userId, itemId, type, dwellMs }).catch(()=>{}); },
+  async digest(userId) { return get(`/api/digest?userId=${userId}&limit=5`); },
+  async subscribePush(userId, subscription) { return post("/api/push/subscribe", { userId, subscription }); },
   async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
   async feed(userId, cursor, limit=10) { return get(`/api/feed?userId=${userId}&cursor=${cursor}&limit=${limit}`); },
   async item(userId, itemId) { return get(`/api/item?userId=${userId}&itemId=${encodeURIComponent(itemId)}`); },
@@ -320,9 +330,50 @@ function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg
   state.ageVerified = s.ageVerified; state.showAdult = s.showAdult;
   renderChips(); renderAdultBtn(); setupAdultToggle(); setupCompose(); setupSpace();
   setupSkipObserver();
-  if(!s.surveyed){ showSurvey(); } else { updateMeter(s); loadMore(); }
+  if(!s.surveyed){ showSurvey(); } else { updateMeter(s); loadMore(); showDigest(); }
   setupInfiniteScroll(); setupImmersion();
 })();
+
+// ---- 관심글 알림 (digest + web push) ----
+async function showDigest(){
+  let d; try { d = await API.digest(state.userId); } catch { return; }
+  if(!d || !d.count) return;
+  const bar = document.getElementById("digestBar");
+  const top = d.top && d.top[0] ? d.top[0].title : "";
+  const notifyBtn = ("Notification" in window && Notification.permission !== "granted")
+    ? '<button id="dNotify">🔔 알림 받기</button>' : "";
+  bar.innerHTML = `<div class="dtext"><b>관심글 ${d.count}개</b>가 올라왔어요${top?` · "${escapeHtml(top.slice(0,24))}…"`:""}</div>${notifyBtn}<button class="dclose" id="dClose">✕</button>`;
+  bar.classList.remove("hidden");
+  bar.querySelector("#dClose").onclick = ()=> bar.classList.add("hidden");
+  const nb = bar.querySelector("#dNotify");
+  if(nb) nb.onclick = enableNotifications;
+  // if already permitted, fire a real local notification via the service worker
+  if("Notification" in window && Notification.permission === "granted") pushLocalNotification(d);
+}
+async function enableNotifications(){
+  if(!("Notification" in window)){ toast("이 브라우저는 알림을 지원하지 않아요"); return; }
+  const perm = await Notification.requestPermission();
+  if(perm !== "granted"){ toast("알림이 거부되었어요"); return; }
+  // try to create a push subscription (needs VAPID in production; degrade gracefully)
+  let sub = null;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    sub = await reg.pushManager.getSubscription();
+  } catch {}
+  try { await API.subscribePush(state.userId, sub ? sub.toJSON() : { local: true }); } catch {}
+  toast("알림을 켰어요");
+  const d = await API.digest(state.userId).catch(()=>null);
+  if(d && d.count) pushLocalNotification(d);
+}
+async function pushLocalNotification(d){
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    reg.showNotification("내 취향 피드", {
+      body: `관심글 ${d.count}개가 올라왔어요` + (d.top&&d.top[0]?` · ${d.top[0].title.slice(0,30)}`:""),
+      icon: "/icon.svg", badge: "/icon.svg", tag: "feed-digest"
+    });
+  } catch {}
+}
 
 // ---- 몰입 모드 (community × TikTok, but for text) ----
 let immObserver, immActive = null, immActiveAt = 0;

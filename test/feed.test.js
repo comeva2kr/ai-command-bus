@@ -555,3 +555,27 @@ test("decorated feed items carry recommendation reasons", async () => {
   const withReasons = feed.items.filter((i) => i.reasons && i.reasons.length);
   assert.ok(withReasons.length > 0, "top items explain themselves");
 });
+
+test("digest previews top unseen matches without consuming them", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const user = store.createUser("dg1");
+  store.saveSurvey(user.id, { categories: ["auto"], tags: ["cars"], communities: ["bobae"] });
+
+  const d = await engine.digest(user.id, { limit: 5 });
+  assert.ok(d.count > 0, "there are matching unseen items");
+  assert.ok(d.top.length > 0 && d.top.length <= 5);
+  assert.ok(d.top[0].matchScore >= 1.0, "digest items clear the score threshold");
+
+  // digest must NOT consume items — the feed still serves them
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 5 });
+  assert.ok(feed.items.some((i) => i.id === d.top[0].id), "digest did not mark items seen");
+});
+
+test("push subscription persists and flips notify flag", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const user = store.createUser("pn1");
+  assert.equal(store.savePushSubscription(user.id, { endpoint: "https://x/y" }), true);
+  assert.equal(store.getUser(user.id).notifyEnabled, true);
+  assert.equal(store.savePushSubscription(user.id, null), false);
+});

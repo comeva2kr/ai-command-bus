@@ -21,6 +21,26 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Focus an existing tab (or open one) when a notification is clicked.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const c of clients) if ("focus" in c) return c.focus();
+      if (self.clients.openWindow) return self.clients.openWindow("/");
+    })
+  );
+});
+
+// Real Web Push would arrive here; a VAPID-signed server sends the payload.
+self.addEventListener("push", (event) => {
+  let data = { title: "내 취향 피드", body: "관심글이 올라왔어요" };
+  try { if (event.data) data = event.data.json(); } catch {}
+  event.waitUntil(
+    self.registration.showNotification(data.title, { body: data.body, icon: "/icon.svg", badge: "/icon.svg", tag: "feed-digest" })
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;

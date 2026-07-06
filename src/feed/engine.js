@@ -164,6 +164,27 @@ export class FeedEngine {
     return { ok: true, type: event && event.type, step };
   }
 
+  // A non-consuming preview of the best unseen items — the payload behind a
+  // "관심글 N개가 올라왔어요" re-engagement notification. Does NOT mark items seen,
+  // so opening the app afterwards still shows them in the feed.
+  async digest(userId, { limit = 5, minScore = 1.0 } = {}) {
+    const user = this.store.requireUser(userId);
+    const items = await this._items();
+    const seen = new Set(user.seen);
+    const allowAdult = user.ageVerified === true && user.showAdult === true;
+    const muted = new Set(user.mutedSources || []);
+    const pool = items.filter(
+      (i) => (allowAdult || !i.adult) && !muted.has(i.source) && !seen.has(i.id)
+    );
+    const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+    const ranked = rankItems(pool, user.preferences, { seed: 1, now, explore: 0 })
+      .filter((r) => r.score >= minScore);
+    return {
+      count: ranked.length,
+      top: ranked.slice(0, limit).map((r) => this._decorate(r.item, r.score, user))
+    };
+  }
+
   // A single item with its full comment thread, for the detail view.
   async getItem(userId, itemId) {
     const items = await this._items();
