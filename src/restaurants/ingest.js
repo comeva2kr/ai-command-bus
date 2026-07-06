@@ -1,16 +1,18 @@
 // Ingestion layer.
 //
-// Takes raw multi-source restaurant records (each carrying review-level
-// signals) and runs the 찐맛집 authenticity engine over them: advertising is
-// filtered, astroturf/burst/thin-sample places are vetoed, and every place gets
-// an explainable authenticity score + verdict. By default only genuinely
-// verified places survive.
+// Runs the 찐맛집 authenticity engine over raw multi-source records. First it
+// analyzes the whole corpus for cross-venue graph fraud (review rings / lockstep
+// collusion), then scores each place with that context so ring members are
+// caught even when a place looks clean in isolation (camouflage-resistant).
+// By default only genuinely verified places survive.
 
 import { scoreAuthenticity, isPaidReview } from "./authenticity.js";
+import { analyzeCorpus } from "./corpus.js";
 
-// Keep a thin backward-compatible name; delegates to the authenticity engine.
-export function verifyRestaurant(restaurant, options = {}) {
-  const auth = scoreAuthenticity(restaurant, options);
+// Score a single place. Pass `context` (from analyzeCorpus) to enable the
+// cross-venue ring signal; omit it for standalone scoring.
+export function verifyRestaurant(restaurant, options = {}, context = {}) {
+  const auth = scoreAuthenticity(restaurant, options, context);
   return {
     ...restaurant,
     verified: auth.verified,
@@ -25,11 +27,12 @@ export function verifyRestaurant(restaurant, options = {}) {
   };
 }
 
-// Ingest a batch: score each place, drop non-verified by default.
+// Ingest a batch: analyze corpus once, score each place, drop non-verified.
 export function ingest(rawRestaurants, options = {}) {
   const { keepUnverified = false, ...cfg } = options;
-  const scored = rawRestaurants.map((r) => verifyRestaurant(r, cfg));
+  const context = analyzeCorpus(rawRestaurants);
+  const scored = rawRestaurants.map((r) => verifyRestaurant(r, cfg, context));
   return keepUnverified ? scored : scored.filter((r) => r.verified);
 }
 
-export { isPaidReview };
+export { isPaidReview, analyzeCorpus };

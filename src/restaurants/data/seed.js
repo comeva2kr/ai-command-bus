@@ -25,34 +25,56 @@ function makeReviews({
   localRatio = 0.5,
   repeatRatio = 0.4,
   ratings = [5, 4, 5, 4, 5, 3, 5, 4, 5, 5],
-  specificity = 0.7
+  specificity = 0.7,
+  ring = null // { ids:[...shared global "ring_*" ids], count:N } → first N reviews
+  // are a time-locked lockstep cluster by shared accounts co-reviewing venues
 }) {
   const reviews = [];
   const localN = Math.round(count * localRatio);
   const repeatN = Math.round(count * repeatRatio);
   for (let i = 0; i < count; i++) {
-    const daysAgo = count > 1 ? Math.round((spanDays * (count - 1 - i)) / (count - 1)) : 0;
+    const isRing = ring && i < ring.count;
+    const author = isRing ? ring.ids[i % ring.ids.length] : `u${i % authors}`;
+    // Ring reviews cluster in a tight recent window so they lockstep across
+    // venues; genuine reviews spread evenly across the venue's history.
+    const daysAgo = isRing
+      ? 6 + ((i % ring.ids.length) * 3)
+      : count > 1 ? Math.round((spanDays * (count - 1 - i)) / (count - 1)) : 0;
     reviews.push({
       platform: platforms[i % platforms.length],
-      author: `u${i % authors}`,
+      author,
       daysAgo,
       rating: ratings[i % ratings.length],
       paid: i < paid,
       markers: i < paid ? ["협찬", "#광고"] : [],
-      local: i % count < localN, // 첫 localN개를 로컬로
-      repeat: i % count < repeatN,
+      local: !isRing && i % count < localN,
+      repeat: !isRing && i % count < repeatN,
       specificity: Math.max(0.1, Math.min(1, specificity + (((i % 3) - 1) * 0.05)))
     });
   }
   return reviews;
 }
 
+// Namespace genuine (venue-local) author ids by venue so honest reviewers never
+// look like the same person across venues; shared "ring_*" ids are left intact
+// so the corpus ring detector can catch cross-venue lockstep collusion.
+function namespaceAuthors(restaurants) {
+  for (const r of restaurants) {
+    for (const rev of r.reviews ?? []) {
+      if (!String(rev.author).startsWith("ring_")) rev.author = `${r.id}_${rev.author}`;
+    }
+  }
+  return restaurants;
+}
+
+const RING = ["ring_s1", "ring_s2", "ring_s3"]; // shared shill accounts
+
 // Realistic multi-source platform mixes spanning several trust classes.
 const FOUR = ["naver_map", "naver_blog", "youtube", "community"]; // map+social+community
 const WIDE = ["naver_map", "daum_map", "catchtable", "naver_blog", "youtube", "community"];
 const SHORTS_ONLY = ["tiktok", "youtube_shorts", "instagram_reels", "instagram"]; // 숏폼+social
 
-export const SEED_RESTAURANTS = [
+export const SEED_RESTAURANTS = namespaceAuthors([
   // === A) 뒷고기 고깃집 + 키즈카페 ===
   // R-101: 진짜 동네 맛집 — 다플랫폼·다작성자·장기간·로컬/재방문·솔직 리뷰 → 찐맛집
   {
@@ -111,8 +133,25 @@ export const SEED_RESTAURANTS = [
     features: { kidsCafe: true, kidFriendly: true, parking: true },
     reviews: makeReviews({
       platforms: ["instagram", "naver_map"], count: 18, authors: 3, spanDays: 16,
-      paid: 2, localRatio: 0.05, repeatRatio: 0.0, specificity: 0.35,
-      ratings: [5, 5, 5, 5, 5]
+      paid: 0, localRatio: 0.05, repeatRatio: 0.0, specificity: 0.35,
+      ratings: [5, 5, 5, 5, 5], ring: { ids: RING, count: 18 }
+    })
+  },
+  // R-106: 담합 리뷰 — 겉보기엔 작성자 17명(다양)·다플랫폼으로 깨끗해 보이지만,
+  // 같은 셀 3계정(ring_s1/2/3)이 R-104와 여러 업소를 락스텝으로 함께 리뷰.
+  // 위장(camouflage)에도 코퍼스 리뷰링 탐지가 잡아냄 (FRAUDAR/CopyCatch 원리).
+  {
+    id: "R-106",
+    name: "담합 리뷰 뒷고기 고깃집",
+    style: "고깃집", cuisines: ["돼지고기"], menus: [{ name: "뒷고기", attrs: [] }],
+    lat: 37.5446, lng: 127.0571, address: "서울 성동구 성수동", district: "성동구",
+    franchise: false, priceBand: 2, rating: 4.5, tags: ["뒷고기", "회식"],
+    features: { kidsCafe: true, kidFriendly: true, parking: true },
+    behavior: { revisitRate: 0.12, reservationsPerWeek: 8, avgWaitMin: 3, saves: 350 },
+    reviews: makeReviews({
+      platforms: WIDE, count: 22, authors: 14, spanDays: 200,
+      localRatio: 0.5, repeatRatio: 0.35, specificity: 0.6,
+      ratings: [5, 4, 5, 4, 5, 3, 5, 4], ring: { ids: RING, count: 8 }
     })
   },
   // R-105: 숏폼 바이럴 거품 — 틱톡/쇼츠/릴스에서 폭발적으로 퍼졌지만 지도·앱·커뮤니티
@@ -243,6 +282,6 @@ export const SEED_RESTAURANTS = [
       ratings: [5, 4, 5, 4, 4, 3, 5, 4]
     })
   }
-];
+]);
 
 export default SEED_RESTAURANTS;

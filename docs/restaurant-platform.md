@@ -23,8 +23,9 @@ raw review-level signals (SNS·유튜브·네이버·커뮤니티)
 
 | 모듈 | 역할 |
 | --- | --- |
-| **`src/restaurants/authenticity.js`** | **찐맛집 판별 엔진** — 리뷰 단위 신호로 6요소 점수화 + 광고 페널티 + veto → `authenticityScore`(0–100), `verdict`, `breakdown`, `reasons` |
-| `src/restaurants/ingest.js` | 배치 수집 래퍼 — 각 업소 판별 후 미검증 제외(기본) |
+| **`src/restaurants/authenticity.js`** | **찐맛집 판별 엔진** — 리뷰+행동 신호로 7요소 점수화 + 광고 페널티 + 다중 veto → `authenticityScore`(0–100), `verdict`, `breakdown`, `reasons` |
+| **`src/restaurants/corpus.js`** | **코퍼스 그래프 분석** — 교차업소 리뷰링/락스텝 담합 탐지(CopyCatch/FRAUDAR 원리), 위장 저항 |
+| `src/restaurants/ingest.js` | 배치 래퍼 — 코퍼스 분석 후 각 업소를 컨텍스트와 함께 판별, 미검증 제외(기본) |
 | `src/restaurants/geo.js` | 하버사인 거리, 이동시간 추정, `travelBudgetToRadiusKm`(차로 N분→반경), 랜드마크 좌표 |
 | `src/restaurants/taxonomy.js` | 스타일·음식·태그·**메뉴·메뉴특성** 동의어 정규화(`고기집→고깃집`, `살아있는→활`) |
 | `src/restaurants/filter.js` | 하드조건(제외) + 소프트선호(가점) 다중조건 필터 |
@@ -84,6 +85,28 @@ raw review-level signals (SNS·유튜브·네이버·커뮤니티)
 | R-105 쇼츠 바이럴 파스타 | 35 | 바이럴거품 | 숏폼에서만 폭발, 지도·행동 확증 전무(재방문 6%) |
 
 태그 매칭이 아니라 **진위 판별**이 결과를 결정합니다.
+
+### 적용한 연구 기반 기법 (research-applied)
+
+가짜 리뷰/어뷰징 판별의 학계·업계 연구를 리서치해 조작 저항성이 높은 순으로 반영했습니다.
+
+| 기법 | 출처 | 우리 엔진에 적용 |
+| --- | --- | --- |
+| **행동 신호 > 언어 신호** — 예약·재방문 등 행동 데이터가 텍스트보다 강력(Yelp 필터는 행동 기반, 언어 단독 55–68% vs 행동 결합 ~89%) | Mukherjee et al., *What Yelp Fake Review Filter Might Be Doing?*, ICWSM 2013 | `behavior` 요소에 최대 가중(0.22) |
+| **리뷰링/락스텝** — 소수 계정이 여러 업소를 같은 시간대에 함께 리뷰. **위장(camouflage) 저항성** — 정상 리뷰를 섞어도 담합 증거는 희석되지 않음 | Beutel et al., *CopyCatch*, WWW 2013 · Hooi et al., *FRAUDAR*, KDD 2016 | `corpus.js` 코퍼스 그래프에서 교차업소 락스텝 탐지 → `담합의심` veto |
+| **버스트 + 싱글톤 + 평점 상관** — 스팸 공격은 짧은 기간 별점 급등과 상관 | Xie et al., *Review Spam Detection via Temporal Pattern Discovery*, KDD 2012 · Fei et al. co-bursting | `조직적버스트` veto (버스트+별5도배+낮은 다양성) |
+| **평점 분포 형태** — 진짜는 J커브, 가짜는 "중간 없음(별5 도배)"·U자(양극단) | Amazon/TripAdvisor 분포 연구, bimodal/co-bursting 문헌 | `realism`을 분포 형태 기반으로 업그레이드 |
+| **작성자 편중(HHI)** — 소수 계정 집중 | 스팸 그룹 탐지 문헌 | `작성자편중` veto |
+| **언어 기만 신호** — LIWC·구체성; 단독은 약해 보조 지표로만 | Ott et al., *Finding Deceptive Opinion Spam*, ACL 2011 | `texture`(구체성) 보조 가중(0.08) |
+
+핵심 원칙(FRAUDAR): 가짜는 **정상 리뷰를 섞어 위장**할 수 있으므로, 위장에도 줄어들지
+않는 신호(교차업소 락스텝, 행동 데이터)에 신뢰를 앵커링합니다. 데모의 R-106이 그 예 —
+겉보기 J커브·작성자 다양성으로 단일 업소 관점에선 깨끗해 보이나, 코퍼스 리뷰링 탐지가
+잡아냅니다.
+
+> 참고: 리뷰링 탐지는 데모 규모에선 O(n²) 페어 비교로 충분하나, 실서비스 규모에선
+> FRAUDAR류의 카무플라주-저항 밀집블록 탐색으로 대체합니다. 싱글톤-리뷰어 비율은
+> 교차업소 사용자 식별이 필요해 향후 커넥터 연동 시 추가 예정입니다.
 
 ## 위치 필터
 

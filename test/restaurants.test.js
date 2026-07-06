@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { scoreAuthenticity, isPaidReview } from "../src/restaurants/authenticity.js";
-import { verifyRestaurant, ingest } from "../src/restaurants/ingest.js";
+import { verifyRestaurant, ingest, analyzeCorpus } from "../src/restaurants/ingest.js";
 import { haversineKm, travelBudgetToRadiusKm, resolveOrigin } from "../src/restaurants/geo.js";
 import { normalizeStyle, normalizeMenu, normalizeMenuAttr } from "../src/restaurants/taxonomy.js";
 import { search } from "../src/restaurants/query.js";
@@ -62,6 +62,36 @@ test("cross-source-class corroboration is required (multi-class stats)", () => {
   assert.ok(a.reasons.some((r) => r.includes("교차확증")));
 });
 
+// --- Research-applied: cross-venue review-ring / lockstep (CopyCatch/FRAUDAR) ---
+
+test("corpus analysis detects a cross-venue lockstep review ring", () => {
+  const ctx = analyzeCorpus(SEED_RESTAURANTS);
+  assert.ok(ctx.ringAuthors.has("ring_s1"));
+  assert.ok(ctx.rings.some((r) => r.venues.includes("R-104") && r.venues.includes("R-106")));
+});
+
+test("camouflaged ring venue is vetoed despite looking clean in isolation", () => {
+  // R-106 has diverse authors + a normal J-curve, so per-venue signals miss it.
+  const solo = scoreAuthenticity(byId("R-106")); // no corpus context
+  assert.equal(solo.verdict !== "담합의심", true); // isolation can't catch it
+  // With corpus context the cross-venue ring is caught.
+  const ctx = analyzeCorpus(SEED_RESTAURANTS);
+  const withCtx = scoreAuthenticity(byId("R-106"), {}, ctx);
+  assert.equal(withCtx.verified, false);
+  assert.equal(withCtx.verdict, "담합의심");
+  assert.ok(withCtx.stats.ringShare >= 0.34);
+});
+
+// --- Research-applied: rating-distribution shape (J-curve vs missing-middle) ---
+
+test("distribution-shape realism flags all-5 missing-middle as unnatural", () => {
+  const fake = scoreAuthenticity(byId("R-103")); // all-5 ratings
+  assert.equal(fake.stats.ratingShape, "중간없음(별5도배)");
+  const real = scoreAuthenticity(byId("R-101")); // J-curve with criticism
+  assert.equal(real.stats.ratingShape, "정상(J커브)");
+  assert.ok(real.breakdown.realism > fake.breakdown.realism);
+});
+
 test("author diversity separates real from astroturf", () => {
   const real = scoreAuthenticity(byId("R-101")).breakdown.diversity;
   const fake = scoreAuthenticity(byId("R-104")).breakdown.diversity;
@@ -89,7 +119,9 @@ test("ingest drops every non-verified place (ads + astroturf + thin)", () => {
   const verified = ingest(SEED_RESTAURANTS);
   const ids = verified.map((r) => r.id);
   assert.ok(!ids.includes("R-103")); // 광고
-  assert.ok(!ids.includes("R-104")); // 어뷰징
+  assert.ok(!ids.includes("R-104")); // 어뷰징+담합
+  assert.ok(!ids.includes("R-105")); // 바이럴거품
+  assert.ok(!ids.includes("R-106")); // 담합(위장된 리뷰링)
   assert.ok(verified.every((r) => r.verified));
 });
 
@@ -120,6 +152,7 @@ test("example A: authenticity beats attribute-only matching", () => {
   assert.ok(!ids.includes("R-102")); // 프랜차이즈
   assert.ok(!ids.includes("R-103")); // 광고
   assert.ok(!ids.includes("R-104")); // 속성은 맞지만 어뷰징 가짜 → 제외
+  assert.ok(!ids.includes("R-106")); // 속성 완벽 일치 + J커브 위장, 그러나 리뷰링 담합 → 제외
 });
 
 // --- Worked example B ---

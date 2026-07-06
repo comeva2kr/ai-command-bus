@@ -68,7 +68,8 @@ const CFG = {
   ASTROTURF_HHI: 0.35,
   AD_DOMINATED_RATIO: 0.6,
   VIRAL_SHORT_SHARE: 0.55, // 숏폼 비중이 이 위이고
-  VIRAL_BEHAVIOR_FLOOR: 0.4 // 행동 확증이 이 아래면 "바이럴 거품"
+  VIRAL_BEHAVIOR_FLOOR: 0.4, // 행동 확증이 이 아래면 "바이럴 거품"
+  RING_SHARE_VETO: 0.34 // 리뷰링(락스텝) 계정 비중이 이 위면 담합 의심
 };
 
 // Factor weights (sum = 1). Behavioral revealed-preference carries the most.
@@ -140,8 +141,27 @@ function behaviorScore(b) {
   return { score, present: true };
 }
 
-export function scoreAuthenticity(restaurant, cfg = {}) {
+// Rating-distribution shape realism (0..1) with J-curve / missing-middle /
+// U-shape awareness.
+function distributionRealism(ratings) {
+  if (ratings.length < 3) return { score: 0.5, missingMiddle: false, uShape: false };
+  const n = ratings.length;
+  const share = (k) => ratings.filter((r) => Math.round(r) === k).length / n;
+  const s5 = share(5), s4 = share(4), s3 = share(3), s2 = share(2), s1 = share(1);
+  const middle = s3 + s4; // 3-4★ "middle" band
+  const hasCriticism = s1 + s2 + s3 > 0;
+  const sd = stdev(ratings);
+  const missingMiddle = s5 >= 0.7 && middle < 0.1; // 별5 도배, 중간 없음
+  const uShape = s5 >= 0.4 && s1 >= 0.25 && middle < 0.25; // 양극단(경쟁사 공격 등)
+  let score = 0.4 + Math.min(0.35, sd * 0.5) + (hasCriticism ? 0.25 : 0);
+  if (missingMiddle) score = Math.min(score, 0.25);
+  if (uShape) score = Math.min(score, 0.2);
+  return { score: clamp01(score), missingMiddle, uShape };
+}
+
+export function scoreAuthenticity(restaurant, cfg = {}, context = {}) {
   const C = { ...CFG, ...cfg };
+  const ringAuthors = context.ringAuthors ?? new Set();
   const reviews = restaurant.reviews ?? [];
   const total = reviews.length;
   const organic = reviews.filter((r) => !isPaidReview(r));
@@ -180,13 +200,17 @@ export function scoreAuthenticity(restaurant, cfg = {}) {
   // --- behavioral revealed preference ---
   const behavior = behaviorScore(restaurant.behavior);
 
-  // --- text specificity + rating realism ---
+  // --- text specificity ---
   const texture = clamp01(mean(organic.map((r) => r.specificity ?? 0.5)));
+
+  // --- rating-distribution realism (shape, not just variance) ---
+  // Genuine venues form a J-curve (mostly 5, some 4, thin tail of low ratings).
+  // Manipulated ones show a "missing middle" (all 5s, ~no 3-4s) or a U-shape
+  // (5s + competitor-attack 1s). See Amazon/TripAdvisor distribution studies and
+  // the bimodal/co-bursting review-spam literature.
   const ratings = organic.map((r) => r.rating ?? 5);
-  const allFive = ratings.length > 0 && ratings.every((x) => x >= 5);
-  const hasCriticism = ratings.some((x) => x <= 3);
-  const sd = stdev(ratings);
-  const realism = clamp01((allFive ? 0 : 0.5) + Math.min(0.3, sd * 0.4) + (hasCriticism ? 0.2 : 0));
+  const dist = distributionRealism(ratings);
+  const realism = dist.score;
 
   const factors = {
     behavior: behavior.score, diversity, local, classBreadth, sustain, realism, texture
@@ -196,6 +220,11 @@ export function scoreAuthenticity(restaurant, cfg = {}) {
   const adCleanliness = 1 - 0.5 * Math.min(1, paidRatio);
   let score = raw * adCleanliness * 100;
 
+  // --- cross-venue graph signal: review-ring / lockstep membership ---
+  const ringShare = organic.length
+    ? organic.filter((r) => ringAuthors.has(r.author)).length / organic.length
+    : 0;
+
   // --- veto rules ---
   const flags = [];
   const astroturf = organic.length >= 3 && (uniqueRatio < C.ASTROTURF_UNIQUE_RATIO || hhi > C.ASTROTURF_HHI);
@@ -204,22 +233,31 @@ export function scoreAuthenticity(restaurant, cfg = {}) {
   const narrow = classSet.size < 2;
   const viralBubble =
     shortShare >= C.VIRAL_SHORT_SHARE && !hasHardClass && behavior.score < C.VIRAL_BEHAVIOR_FLOOR;
+  const reviewRing = ringShare >= C.RING_SHARE_VETO;
+  // Coordinated burst: a short spike that is also all-5 / missing-middle and
+  // low author-diversity — the classic singleton/ring push (Xie et al., KDD'12).
+  const coordinatedBurst = isBurst && dist.missingMiddle && (diversity < 0.55 || ringShare > 0);
 
   if (thin) { flags.push("표본부족"); score = Math.min(score, 42); }
   if (narrow) { flags.push("단일소스클래스"); score = Math.min(score, 45); }
   if (isBurst) flags.push("단기폭발");
+  if (dist.uShape) flags.push("양극단분포");
   if (viralBubble) { flags.push("바이럴거품(행동확증없음)"); score = Math.min(score, 40); }
+  if (coordinatedBurst) { flags.push("조직적버스트"); score = Math.min(score, 38); }
   if (astroturf) { flags.push("작성자편중(어뷰징의심)"); score = Math.min(score, 35); }
+  if (reviewRing) { flags.push("리뷰링(담합/락스텝)"); score = Math.min(score, 33); }
   if (adDominated) { flags.push("광고도배"); score = Math.min(score, 28); }
 
   score = Math.round(score);
 
-  const hardFake = astroturf || adDominated || thin || narrow || viralBubble;
+  const hardFake = astroturf || adDominated || thin || narrow || viralBubble || reviewRing || coordinatedBurst;
   let verdict;
   let verified;
   if (hardFake) {
     verdict = adDominated ? "광고의심"
+      : reviewRing ? "담합의심"
       : viralBubble ? "바이럴거품"
+      : coordinatedBurst ? "조직적버스트"
       : thin || narrow ? "정보부족"
       : "어뷰징의심";
     verified = false;
@@ -230,8 +268,9 @@ export function scoreAuthenticity(restaurant, cfg = {}) {
 
   const reasons = buildReasons(factors, {
     hasLongevity, isBurst, astroturf, adDominated, viralBubble,
-    localRatio, repeatRatio, hasCriticism, uniqueAuthors,
-    classes: [...classSet], shortShare, paidCount,
+    reviewRing, coordinatedBurst, missingMiddle: dist.missingMiddle, uShape: dist.uShape,
+    localRatio, repeatRatio, hasCriticism: ratings.some((x) => x <= 3), uniqueAuthors,
+    classes: [...classSet], shortShare, paidCount, ringShare,
     behaviorPresent: behavior.present, behaviorScore: behavior.score,
     b: restaurant.behavior
   });
@@ -258,7 +297,9 @@ export function scoreAuthenticity(restaurant, cfg = {}) {
       spanDays: span,
       localRatio: Number(localRatio.toFixed(2)),
       repeatRatio: Number(repeatRatio.toFixed(2)),
-      behaviorScore: Number(behavior.score.toFixed(2))
+      behaviorScore: Number(behavior.score.toFixed(2)),
+      ringShare: Number(ringShare.toFixed(2)),
+      ratingShape: dist.uShape ? "U자(양극단)" : dist.missingMiddle ? "중간없음(별5도배)" : "정상(J커브)"
     }
   };
 }
@@ -281,6 +322,10 @@ function buildReasons(f, ctx) {
   if (ctx.hasCriticism) R.push("솔직한 단점 리뷰 존재(별점 조작 아님)");
   if (ctx.paidCount > 0) R.push(`협찬/광고 ${ctx.paidCount}건 제외 후 계산`);
   if (ctx.isBurst) R.push("⚠ 단기간 리뷰 폭발(신뢰도 감점)");
+  if (ctx.missingMiddle) R.push("⚠ 별5 도배·중간 평점 없음(부자연 분포)");
+  if (ctx.uShape) R.push("⚠ 양극단 평점 분포(경쟁사 공격/조작 의심)");
+  if (ctx.coordinatedBurst) R.push("⚠ 조직적 버스트(짧은 기간 별5 몰림+낮은 다양성)");
+  if (ctx.reviewRing) R.push(`⚠ 리뷰링 계정 ${Math.round(ctx.ringShare * 100)}%(여러 업소 락스텝 담합)`);
   if (ctx.viralBubble) R.push(`⚠ 숏폼 비중 ${Math.round(ctx.shortShare * 100)}%인데 행동/지도 확증 없음(바이럴 거품)`);
   if (ctx.astroturf) R.push("⚠ 소수 계정 편중(어뷰징 의심)");
   if (ctx.adDominated) R.push("⚠ 광고성 리뷰 과다");
