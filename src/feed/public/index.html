@@ -73,6 +73,18 @@
   .lvbar { height: 6px; border-radius: 6px; background: var(--card-2); overflow: hidden; margin-top: 8px; }
   .lvfill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--like)); }
   .norm-hint { font-size: 12px; color: #f0a13d; margin-top: 8px; line-height: 1.5; }
+  .reasons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .why { font-size: 11px; color: #9fd0ff; background: rgba(79,140,255,.12); border: 1px solid rgba(79,140,255,.25);
+    border-radius: 999px; padding: 3px 9px; }
+  .why::before { content: "✓ "; opacity: .8; }
+  .taste-grid { margin-bottom: 6px; }
+  .taste-row { margin-bottom: 12px; }
+  .taste-row .tlabel { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .bar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+  .bar .name { width: 92px; flex: 0 0 auto; }
+  .bar .track { flex: 1; height: 8px; background: var(--card-2); border-radius: 6px; overflow: hidden; }
+  .bar .fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--like)); }
+  .bar.neg .fill { background: var(--dislike); }
 
   .modal-back { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,.6); display: flex;
     align-items: center; justify-content: center; padding: 24px; }
@@ -463,6 +475,7 @@ async function openSpace(){
         <div class="stat"><b>${s.counts.likes}</b><span>좋아요</span></div>
         <div class="stat"><b>${s.counts.comments}</b><span>댓글</span></div>
       </div>
+      <div class="space-sec"><h4>📊 내 취향 (학습된 결과)</h4>${tasteHtml(s.taste)}</div>
       <div class="space-sec"><h4>🔖 스크랩</h4>${
         (s.saved&&s.saved.length) ? s.saved.map(p=>`<article class="card" data-id="${p.id}"><div class="card-top"><span class="dot" style="background:${srcColor(p.source)}"></span><span class="src">${srcLabel(p.source)}</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3></article>`).join("")
           : '<p style="color:var(--muted);font-size:13px">📑 버튼으로 나중에 볼 글을 저장해보세요.</p>'}
@@ -497,6 +510,19 @@ function reloadFeedSilently(){
 }
 function closeSpace(){ document.getElementById("space").classList.add("hidden"); }
 function cat(id){ return state.config.categories.find(c=>c.id===id)?.label || id; }
+// render the taste dashboard from top learned preferences
+function tasteHtml(t){
+  if(!t) return "";
+  const max = Math.max(1, ...[...t.categories,...t.tags,...t.sources].map(x=>x.weight));
+  const bars = (arr, neg)=> arr.length ? arr.map(x=>`<div class="bar ${neg?'neg':''}"><span class="name">${escapeHtml(x.label)}</span><div class="track"><div class="fill" style="width:${Math.round(Math.abs(x.weight)/max*100)}%"></div></div></div>`).join("") : '<div style="color:var(--muted);font-size:12px">아직 데이터가 부족해요</div>';
+  const row = (label, arr, neg)=> `<div class="taste-row"><div class="tlabel">${label}</div>${bars(arr,neg)}</div>`;
+  return `<div class="taste-grid">
+    ${row("좋아하는 카테고리", t.categories)}
+    ${row("관심 태그", t.tags)}
+    ${row("즐겨보는 커뮤니티", t.sources)}
+    ${t.disliked&&t.disliked.length?row("덜 보고 싶어함", t.disliked, true):""}
+  </div>`;
+}
 
 // ---- survey ----
 function showSurvey(){
@@ -605,6 +631,7 @@ function appendCard(item){
     </div>
     <h3>${escapeHtml(item.title)}</h3>
     <p>${escapeHtml(item.summary)}</p>
+    ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
     <div class="card-meta">
       <span>▲ ${item.score}</span><span>💬 ${item.comments}</span><span>${timeAgo(item.publishedAt)}</span>
       <div class="actions">

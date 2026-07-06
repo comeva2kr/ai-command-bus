@@ -216,6 +216,49 @@ function decayAll(vec) {
   }
 }
 
+// Explain *why* an item was recommended: the top positive feature contributions,
+// as human-readable reasons. Powers the "추천 이유" chips — making the curation
+// visible and trustworthy instead of a black box.
+export function explain(item, vec, opts = {}) {
+  const reasons = [];
+  const catW = vec.categories[item.category] || 0;
+  if (catW > 0.2) reasons.push({ kind: "category", key: item.category, weight: catW });
+  for (const tag of item.tags) {
+    const w = vec.tags[tag] || 0;
+    if (w > 0.2) reasons.push({ kind: "tag", key: tag, weight: w * 1.3 });
+  }
+  const srcW = vec.sources[item.source] || 0;
+  if (srcW > 0.2) reasons.push({ kind: "source", key: item.source, weight: srcW * 0.9 });
+
+  if (popularityPrior(item) > 0.6) reasons.push({ kind: "popular", key: "popular", weight: 0.5 });
+  if (recencyBoost(item, opts.now) > 0.6) reasons.push({ kind: "fresh", key: "fresh", weight: 0.4 });
+  if (!reasons.length) reasons.push({ kind: "explore", key: "explore", weight: 0.1 });
+
+  return reasons.sort((a, b) => b.weight - a.weight).slice(0, 3);
+}
+
+// Top learned preferences, for the taste dashboard ("내 취향이 이렇게 학습됐어요").
+export function topPreferences(vec, n = 6) {
+  const top = (map) =>
+    Object.entries(map || {})
+      .filter(([, w]) => w > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, n)
+      .map(([id, weight]) => ({ id, weight: Math.round(weight * 100) / 100 }));
+  const disliked = Object.entries(vec.categories || {})
+    .concat(Object.entries(vec.tags || {}))
+    .filter(([, w]) => w < -0.3)
+    .sort((a, b) => a[1] - b[1])
+    .slice(0, n)
+    .map(([id, weight]) => ({ id, weight: Math.round(weight * 100) / 100 }));
+  return {
+    categories: top(vec.categories),
+    tags: top(vec.tags),
+    sources: top(vec.sources),
+    disliked
+  };
+}
+
 // "특정화 정도" — how well we understand this user, in [0, 1].
 //
 // Combines two things:

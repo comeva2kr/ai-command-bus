@@ -18,6 +18,8 @@ import { CATEGORIES, SOURCE_CATALOG } from "./taxonomy.js";
 import { loadRegistry, buildSources, summarize } from "./registry.js";
 import { makeFetcher } from "./fetchers.js";
 import { DEFAULT_RULES } from "./rules.js";
+import { topPreferences } from "./recommender.js";
+import { categoryLabel, sourceLabel } from "./taxonomy.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -131,6 +133,15 @@ export function createServer(opts = {}) {
         const space = store.mySpace(userId);
         // resolve scrapped item ids into displayable items
         space.saved = await engine.resolveItems(userId, space.savedIds);
+        // taste dashboard: top learned preferences, labelled for display
+        const prefs = store.getUser(userId).preferences;
+        const t = topPreferences(prefs);
+        space.taste = {
+          categories: t.categories.map((c) => ({ ...c, label: categoryLabel(c.id) })),
+          tags: t.tags.map((x) => ({ ...x, label: "#" + x.id })),
+          sources: t.sources.map((s) => ({ ...s, label: sourceLabel(s.id) })),
+          disliked: t.disliked.map((d) => ({ ...d, label: categoryLabel(d.id) }))
+        };
         return send(res, 200, space);
       }
 

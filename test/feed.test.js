@@ -525,3 +525,33 @@ test("engine.signal applies implicit feedback and counts it", async () => {
   assert.equal(r.ok, true);
   assert.equal(store.getUser(user.id).implicitCount, 1);
 });
+
+test("explain surfaces the top reasons an item matched", async () => {
+  const { explain } = await import("../src/feed/recommender.js");
+  const vec = buildPreferenceVector({ categories: ["auto"], tags: ["cars", "testdrive"], communities: ["bobae"] });
+  const item = normalizeItem({ category: "auto", tags: ["cars", "testdrive"], source: "bobae", title: "시승기", length: 400 });
+  const reasons = explain(item, vec);
+  assert.ok(reasons.length >= 1 && reasons.length <= 3);
+  const kinds = reasons.map((r) => r.kind);
+  assert.ok(kinds.includes("category") || kinds.includes("tag") || kinds.includes("source"), "reasons reflect learned taste");
+});
+
+test("topPreferences ranks learned interests and separates dislikes", async () => {
+  const { topPreferences } = await import("../src/feed/recommender.js");
+  const vec = buildPreferenceVector({ categories: ["auto", "tech"], tags: ["cars"], communities: ["bobae"], avoid: ["politics"] });
+  const t = topPreferences(vec);
+  assert.ok(t.categories.some((c) => c.id === "auto"));
+  assert.ok(t.tags.some((x) => x.id === "cars"));
+  assert.ok(t.sources.some((s) => s.id === "bobae"));
+  assert.ok(t.disliked.some((d) => d.id === "politics"), "avoided category shows as disliked");
+});
+
+test("decorated feed items carry recommendation reasons", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const user = store.createUser("why1");
+  store.saveSurvey(user.id, { categories: ["auto"], tags: ["cars"], communities: ["bobae"] });
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 5 });
+  const withReasons = feed.items.filter((i) => i.reasons && i.reasons.length);
+  assert.ok(withReasons.length > 0, "top items explain themselves");
+});

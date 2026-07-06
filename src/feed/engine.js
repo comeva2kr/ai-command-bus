@@ -7,8 +7,21 @@
 // navigation; the server just keeps handing out the next best unseen batch.
 
 import { collect, SeedSource } from "./content.js";
-import { rankItems, diversify, applyFeedback, applyImplicit, specializationLevel, feedPhase } from "./recommender.js";
-import { categoryLabel } from "./taxonomy.js";
+import { rankItems, diversify, applyFeedback, applyImplicit, explain, specializationLevel, feedPhase } from "./recommender.js";
+import { categoryLabel, sourceLabel } from "./taxonomy.js";
+
+// Turn a structured reason into a short human label for the "추천 이유" chip.
+function reasonLabel(r) {
+  switch (r.kind) {
+    case "category": return categoryLabel(r.key);
+    case "tag": return "#" + r.key;
+    case "source": return sourceLabel(r.key) + " 즐겨찾기";
+    case "popular": return "인기글";
+    case "fresh": return "최신";
+    case "explore": return "새로운 탐색";
+    default: return r.key;
+  }
+}
 
 export class FeedEngine {
   constructor(store, sources) {
@@ -103,11 +116,13 @@ export class FeedEngine {
   _decorate(item, score, user) {
     const rating = user.ratings[item.id];
     const saved = Array.isArray(user.saved) && user.saved.includes(item.id);
+    const reasons = user.preferences ? explain(item, user.preferences).map(reasonLabel) : [];
     return {
       ...item,
       adult: item.adult === true,
       categoryLabel: categoryLabel(item.category),
       matchScore: Math.round(score * 100) / 100,
+      reasons,
       myRating: rating ? rating.signal : 0,
       saved,
       comments: this.store.commentsFor(item.id).length
