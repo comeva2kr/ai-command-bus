@@ -579,3 +579,50 @@ test("push subscription persists and flips notify flag", async () => {
   assert.equal(store.getUser(user.id).notifyEnabled, true);
   assert.equal(store.savePushSubscription(user.id, null), false);
 });
+
+test("cosine similarity is high for aligned taste, low for opposed", async () => {
+  const { cosineSimilarity } = await import("../src/feed/collab.js");
+  const a = buildPreferenceVector({ categories: ["auto"], tags: ["cars"] });
+  const b = buildPreferenceVector({ categories: ["auto"], tags: ["cars", "testdrive"] });
+  const c = buildPreferenceVector({ categories: ["politics"], tags: ["policy"] });
+  assert.ok(cosineSimilarity(a, b) > cosineSimilarity(a, c), "aligned users are more similar");
+  assert.ok(cosineSimilarity(a, b) > 0.3);
+});
+
+test("collaborative boosts come from similar users' likes", async () => {
+  const { collaborativeBoosts } = await import("../src/feed/collab.js");
+  const store = new FeedStore({ clock: fixedClock });
+  const me = store.createUser("cf_me");
+  store.saveSurvey(me.id, { categories: ["auto"], tags: ["cars"] });
+  const twin = store.createUser("cf_twin");   // same taste as me
+  store.saveSurvey(twin.id, { categories: ["auto"], tags: ["cars", "testdrive"] });
+  const stranger = store.createUser("cf_stranger"); // opposite taste
+  store.saveSurvey(stranger.id, { categories: ["politics"], tags: ["policy"] });
+
+  store.recordRating(twin.id, "item_liked_by_twin", 1);
+  store.recordRating(stranger.id, "item_liked_by_stranger", 1);
+
+  const boosts = collaborativeBoosts(store, me.id);
+  assert.ok((boosts.get("item_liked_by_twin") || 0) > 0, "twin's like boosts the item for me");
+  assert.ok((boosts.get("item_liked_by_stranger") || 0) <= (boosts.get("item_liked_by_twin") || 0),
+    "stranger's like matters less");
+});
+
+test("collaborative picks surface in the feed with a reason", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const me = store.createUser("cf2_me");
+  store.saveSurvey(me.id, { categories: ["auto"], tags: ["cars"] });
+  const twin = store.createUser("cf2_twin");
+  store.saveSurvey(twin.id, { categories: ["auto"], tags: ["cars", "testdrive"] });
+
+  // find a real item the twin likes, then confirm it surfaces for me as a pick
+  const twinFeed = await engine.getFeed(twin.id, { cursor: 0, limit: 5 });
+  const liked = twinFeed.items[2]; // some auto item the twin rates up
+  store.recordRating(twin.id, liked.id, 1);
+
+  const myFeed = await engine.getFeed(me.id, { cursor: 0, limit: 30 });
+  const pick = myFeed.items.find((i) => i.id === liked.id);
+  assert.ok(pick, "the twin-liked item appears in my feed");
+  assert.ok(pick.collabPick === true && pick.reasons.includes("비슷한 취향 픽"), "marked as a collaborative pick");
+});

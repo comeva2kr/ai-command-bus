@@ -8,6 +8,7 @@
 
 import { collect, SeedSource } from "./content.js";
 import { rankItems, diversify, applyFeedback, applyImplicit, explain, specializationLevel, feedPhase } from "./recommender.js";
+import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 
 // Turn a structured reason into a short human label for the "추천 이유" chip.
@@ -88,7 +89,9 @@ export class FeedEngine {
     const pool = items.filter((i) => (allowAdult || !i.adult) && !muted.has(i.source));
 
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
-    const ranked = rankItems(pool, user.preferences, { seenIds: seen, seed: cursor + 1, now });
+    // collaborative boost: what similar-taste users liked (no-op with one user)
+    const collabBoosts = collaborativeBoosts(this.store, userId);
+    const ranked = rankItems(pool, user.preferences, { seenIds: seen, seed: cursor + 1, now, collabBoosts });
     // drop already-seen items so the infinite scroll never repeats, then
     // diversify so a page isn't dominated by one source/category
     const unseen = ranked.filter((r) => !seen.has(r.item.id));
@@ -97,7 +100,15 @@ export class FeedEngine {
     const level = specializationLevel(user.preferences, user.feedbackCount);
     const phase = feedPhase(level);
 
-    const batch = fresh.map((r) => this._decorate(r.item, r.score, user));
+    const batch = fresh.map((r) => {
+      const d = this._decorate(r.item, r.score, user);
+      // surface collaborative picks so "사람들이 좋아한" recommendations are visible
+      if ((collabBoosts.get(r.item.id) || 0) > 0.2) {
+        d.collabPick = true;
+        d.reasons = ["비슷한 취향 픽", ...d.reasons].slice(0, 3);
+      }
+      return d;
+    });
 
     if (markSeen && batch.length) {
       this.store.markSeen(userId, batch.map((b) => b.id));

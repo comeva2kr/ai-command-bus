@@ -69,6 +69,28 @@ favorite source, popularity, freshness) as reasons, rendered as "추천 이유" 
 on each card. `topPreferences(vec)` powers the taste dashboard in 내 공간 — the
 learned interests as weight bars, so the curation is visible, not a black box.
 
+## Collaborative filtering (사람들이 좋아한)
+
+Content-based ranking only knows what you told it; `collab.js` adds the crowd.
+`cosineSimilarity` compares taste vectors, `neighbors` finds your closest users,
+and `collaborativeBoosts` boosts items those neighbours liked (similarity-
+weighted, capped so CF nudges rather than dominates). With one user it's a
+no-op; boosted items surface with a "비슷한 취향 픽" reason.
+
+## Re-engagement (digest + web push)
+
+`engine.digest` returns a non-consuming preview of your best unseen matches —
+the "관심글 N개가 올라왔어요" payload — shown as an in-app banner and, with
+permission, a notification via the service worker. `POST /api/push/subscribe`
+persists a Web Push subscription; `sw.js` has a `push` handler ready for a
+VAPID-signed server to deliver payloads when the app is closed.
+
+## Shareable links (OG previews)
+
+`GET /p?id=<item>` server-renders Open Graph + Twitter-card tags so a shared
+link shows a rich preview in KakaoTalk/social, then bounces a human to the
+in-app view (`/#post-<id>`, opened on boot). Adult items get no public page.
+
 ## Scoring
 
 `scoreItem()` combines, per item:
@@ -187,6 +209,9 @@ single-item fetch, so an unverified client can never pull an adult item.
 | `GET  /api/item`         | one item + its comment thread                  |
 | `POST /api/rate`         | `{ itemId, signal }` — signal ∈ {-1, 0, 1}     |
 | `POST /api/signal`       | implicit signal `{ itemId, type, dwellMs }`    |
+| `GET  /api/digest`       | non-consuming preview of top unseen matches    |
+| `POST /api/push/subscribe` | store a Web Push subscription                |
+| `GET  /p?id=<item>`      | shareable page with Open Graph tags            |
 | `POST /api/comment`      | `{ itemId, body }`                             |
 | `POST /api/post`         | create a user post `{ title, summary, category }` |
 | `GET  /api/me`           | my space: posts, comments, ratings, saved, level |
@@ -231,6 +256,7 @@ and comment. State persists per browser via a `userId` in `localStorage`.
 - `src/feed/translate.js` — overseas translation source wrapper
 - `src/feed/rules.js` — space governance: post/comment rules, rate limits, levels
 - `src/feed/recommender.js` — scoring, online learning, specialization level
+- `src/feed/collab.js` — collaborative filtering (taste similarity + boosts)
 - `src/feed/store.js` — users, posts, ratings, comments, JSON persistence
 - `src/feed/engine.js` — collection + ranking + cursor batches + auto-refresh
 - `src/feed/server.js` — zero-dependency HTTP API + static client

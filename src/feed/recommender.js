@@ -83,6 +83,7 @@ export function scoreItem(item, vec, opts = {}) {
     popularityPrior(item) * 0.5 +
     recencyBoost(item, opts.now) * 0.6 +
     explorationBonus(item, vec, opts) +
+    (opts.collabBoosts ? opts.collabBoosts.get(item.id) || 0 : 0) +
     noveltyJitter(item, opts.seed || 1);
 
   const seen = opts.seenIds && opts.seenIds.has(item.id);
