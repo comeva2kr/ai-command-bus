@@ -6,12 +6,15 @@
   "main": "src/router.js",
   "scripts": {
     "test": "node --test test/*.test.js",
-    "demo": "node src/router.js examples/task_queue.json"
+    "demo": "node src/router.js examples/task_queue.json",
+    "feed": "node src/feed/server.js"
   },
   "keywords": [
     "ai-agents",
     "task-router",
     "workflow-automation",
+    "personalized-feed",
+    "recommender",
     "codex",
     "open-source"
   ],
