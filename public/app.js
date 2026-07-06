@@ -125,9 +125,16 @@ function render(data) {
   list.innerHTML = data.results.map(cardHtml).join("");
 }
 
+const VERDICT_CLASS = { "찐맛집": "v-gem", "검증됨": "v-ok" };
+const FACTOR_LABEL = {
+  behavior: "행동데이터", diversity: "작성자다양", local: "로컬·재방문",
+  classBreadth: "소스교차", sustain: "지속성", realism: "평점현실성", texture: "후기구체성"
+};
+
 function cardHtml(r) {
   const badges = [];
-  badges.push(`<span class="badge verify">✔ 검증 ${r.verificationScore}</span>`);
+  const vcls = VERDICT_CLASS[r.verdict] || "v-mid";
+  badges.push(`<span class="badge verdict ${vcls}">${r.verdict === "찐맛집" ? "🔥 " : "✔ "}${r.verdict} ${r.authenticityScore}</span>`);
   if (r.distanceKm != null) {
     badges.push(`<span class="badge dist">${r.distanceKm}km · ${r.travelMinutes}분</span>`);
   }
@@ -138,12 +145,21 @@ function cardHtml(r) {
   const feats = Object.entries(r.features || {})
     .filter(([, v]) => v)
     .map(([k]) => k);
-  const filtered = r.signals?.adMentionsFiltered
-    ? `<div class="filtered">🚫 광고/협찬 ${r.signals.adMentionsFiltered}건 제외 · 플랫폼 ${r.signals.platformCount}곳 교차검증</div>`
-    : "";
-  const menus = (r.menus || []).map((mmm) =>
-    mmm.attrs?.length ? `${mmm.name}(${mmm.attrs.join(",")})` : mmm.name
+  const menus = (r.menus || []).map((m) =>
+    m.attrs?.length ? `${m.name}(${m.attrs.join(",")})` : m.name
   );
+
+  // Explainable authenticity: factor bars + reasons.
+  const bars = Object.entries(r.breakdown || {})
+    .map(([k, v]) => `<div class="fbar"><span>${FACTOR_LABEL[k] || k}</span>
+      <i style="--w:${v}%"></i><b>${v}</b></div>`)
+    .join("");
+  const reasons = (r.reasons || [])
+    .map((x) => `<li>${x}</li>`)
+    .join("");
+  const filtered = r.signals?.paidFiltered
+    ? `<div class="filtered">🚫 협찬/광고 ${r.signals.paidFiltered}건 제외 · 독립 플랫폼 ${r.signals.platformCount}곳 · 작성자 ${r.signals.uniqueAuthors}명 교차검증</div>`
+    : "";
 
   return `<article class="rc">
     <h3>${r.name}</h3>
@@ -152,7 +168,11 @@ function cardHtml(r) {
     <div class="taglist">🍴 ${menus.join(" · ") || "-"}</div>
     <div class="taglist">🏷️ ${(r.tags || []).join(" · ") || "-"}</div>
     <div class="taglist">🧩 ${feats.join(" · ") || "-"}</div>
-    ${filtered}
+    <details class="why"><summary>왜 검증됐나? (판별 근거)</summary>
+      <div class="fbars">${bars}</div>
+      <ul class="reasons">${reasons}</ul>
+      ${filtered}
+    </details>
   </article>`;
 }
 
