@@ -362,3 +362,60 @@ test("muting a source removes it from the feed", async () => {
   for (let c = 0; c < 6; c++) { const f = await engine.getFeed(u2.id, { cursor: c*20, limit: 20 }); after.push(...f.items); if (f.exhausted) break; }
   assert.equal(after.some((i) => i.source === target), false, `${target} muted out of feed`);
 });
+
+test("parseRss handles RSS 2.0 and Atom", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  const rss = `<rss><channel>
+    <item><title>첫 글</title><description><![CDATA[<b>본문</b> 내용]]></description><link>http://x/1</link><pubDate>Mon, 06 Jul 2026 09:00:00 GMT</pubDate></item>
+    <item><title>둘째 글</title><description>plain</description><guid>http://x/2</guid></item>
+  </channel></rss>`;
+  const items = parseRss(rss);
+  assert.equal(items.length, 2);
+  assert.equal(items[0].title, "첫 글");
+  assert.equal(items[0].summary, "본문 내용");
+  assert.equal(items[0].url, "http://x/1");
+  assert.ok(items[0].publishedAt.startsWith("2026-07-06"));
+
+  const atom = `<feed xmlns="http://www.w3.org/2005/Atom">
+    <entry><title>Atom Post</title><summary>hello</summary><link href="http://a/1"/><updated>2026-07-06T10:00:00Z</updated></entry>
+  </feed>`;
+  const aitems = parseRss(atom);
+  assert.equal(aitems.length, 1);
+  assert.equal(aitems[0].title, "Atom Post");
+  assert.equal(aitems[0].url, "http://a/1");
+});
+
+test("makeFetcher maps HN and reddit payloads through a fake network", async () => {
+  const { makeFetcher } = await import("../src/feed/fetchers.js");
+  const fakeFetch = async (url) => {
+    if (url.includes("hn.algolia.com")) {
+      return { ok: true, async json() { return { hits: [{ objectID: "1", title: "HN Story", url: "http://h/1", points: 42, num_comments: 7, author: "pg", created_at: "2026-07-06T00:00:00Z" }] }; } };
+    }
+    if (url.includes("reddit.com")) {
+      return { ok: true, async json() { return { data: { children: [{ data: { id: "abc", title: "Reddit Post", selftext: "body", permalink: "/r/x/abc", score: 100, num_comments: 12, author: "u", created_utc: 1782345600, over_18: false } }] } }; } };
+    }
+    throw new Error("unexpected url " + url);
+  };
+  const hn = await makeFetcher({ id: "hackernews", adapter: { type: "json" } }, fakeFetch)();
+  assert.equal(hn[0].title, "HN Story");
+  assert.equal(hn[0].score, 42);
+  assert.equal(hn[0].lang, "en");
+
+  const rd = await makeFetcher({ id: "reddit", adapter: { type: "reddit", url: "programming" } }, fakeFetch)();
+  assert.equal(rd[0].title, "Reddit Post");
+  assert.equal(rd[0].commentCount, 12);
+});
+
+test("live sources flow through registry + translation end to end", async () => {
+  const { buildSources, loadRegistry } = await import("../src/feed/registry.js");
+  const reg = [
+    { id: "reddit", label: "Reddit", country: "US", lang: "en", kind: "community", category: "tech", adult: false, enabled: true, adapter: { type: "reddit", url: "programming" } }
+  ];
+  const fetcher = async () => [{ id: "rd_1", title: "English Title", summary: "body", url: "http://r/1", lang: "en" }];
+  const tr = (t) => "[ko] " + t;
+  const sources = buildSources(reg, { fetcher, translate: { targetLang: "ko", translateFn: async (t) => tr(t) } });
+  const items = (await Promise.all(sources.map((s) => s.fetch()))).flat();
+  assert.equal(items[0].source, "reddit");
+  assert.equal(items[0].translated, true);
+  assert.match(items[0].title, /^\[ko\]/);
+});

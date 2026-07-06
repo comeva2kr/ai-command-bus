@@ -77,6 +77,20 @@ into runnable sources:
   they stay registered but yield nothing, so the app is always runnable while
   ready to wire live ingestion.
 
+### Live ingestion
+
+`fetchers.js` provides real adapters — RSS/Atom (`parseRss`, dependency-free),
+Hacker News (Algolia front page), and Reddit-style JSON — plus a `makeFetcher`
+dispatcher keyed on the entry's `adapter.type`. Turn it on with `FEED_LIVE=1`:
+enabled non-seed communities are then fetched live (and translated if a
+translator is wired). The network layer is injectable (`fetchImpl`) so it's
+tested offline with fixtures and runs wherever the host network policy allows
+the target domains. Behind a re-terminating proxy, set `NODE_EXTRA_CA_CERTS`
+to the CA bundle so `fetch` trusts it.
+
+> Note: some managed environments restrict outbound HTTP to an allowlist; there,
+> keep `FEED_LIVE` off and the app runs on the seed dataset.
+
 The DB already registers domestic communities (large and small), overseas
 boards (Reddit, Hacker News, 5ch, …), and adult boards.
 
@@ -149,6 +163,7 @@ and comment. State persists per browser via a `userId` in `localStorage`.
 - `src/feed/seed-data.js` — offline seed dataset
 - `src/feed/communities.json` — community resource DB (国内+해외+성인)
 - `src/feed/registry.js` — DB loader + source builder + queries
+- `src/feed/fetchers.js` — live RSS/HN/Reddit adapters + dispatcher
 - `src/feed/translate.js` — overseas translation source wrapper
 - `src/feed/recommender.js` — scoring, online learning, specialization level
 - `src/feed/store.js` — users, posts, ratings, comments, JSON persistence

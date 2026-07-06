@@ -16,6 +16,7 @@ import { SeedSource, StorePostsSource } from "./content.js";
 import { SURVEY, validateAnswers } from "./survey.js";
 import { CATEGORIES, SOURCE_CATALOG } from "./taxonomy.js";
 import { loadRegistry, buildSources, summarize } from "./registry.js";
+import { makeFetcher } from "./fetchers.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -75,7 +76,11 @@ export function createServer(opts = {}) {
   let sources;
   try {
     registry = loadRegistry();
-    sources = buildSources(registry, { translate: opts.translate });
+    // FEED_LIVE turns on real ingestion for enabled non-seed communities.
+    // Off by default so the app always runs on the offline seed dataset; where
+    // the network policy blocks these hosts, leave it off.
+    const live = opts.fetcher || (process.env.FEED_LIVE ? makeFetcher : null);
+    sources = buildSources(registry, { translate: opts.translate, fetcher: live ? (e) => live(e)() : undefined });
   } catch (err) {
     sources = [new SeedSource()];
   }
