@@ -36,6 +36,19 @@
   .adult-btn.on { background: var(--dislike); border-color: var(--dislike); color: #fff; }
   .badge.adult { color: #fff; background: var(--dislike); }
   .badge.trans { color: #0e0f13; background: #39c0d3; }
+  .adult-btn.on#immBtn, #immBtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* 몰입 모드: 한 글씩 세로 스와이프 (틱톡식 포맷, 콘텐츠는 글) */
+  body.immersion { max-width: 100%; }
+  body.immersion header .chips, body.immersion .fab { display: none; }
+  body.immersion #feed { scroll-snap-type: y mandatory; height: calc(100vh - 96px); overflow-y: auto; padding: 0; }
+  body.immersion .card { scroll-snap-align: start; min-height: calc(100vh - 96px); margin: 0; border-radius: 0;
+    border-left: none; border-right: none; display: flex; flex-direction: column; justify-content: center; padding: 30px 24px; }
+  body.immersion .card h3 { font-size: 24px; line-height: 1.45; margin-bottom: 14px; }
+  body.immersion .card p { font-size: 16px; line-height: 1.7; -webkit-line-clamp: 8; }
+  body.immersion .card-meta { margin-top: 22px; }
+  body.immersion .card.read::after { content: ""; }
+  body.immersion .actions .rate { padding: 10px 14px; font-size: 16px; }
 
   /* floating action bar */
   .fab { position: fixed; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 30; display: flex; flex-direction: column; gap: 10px; }
@@ -168,7 +181,8 @@
 <body>
   <header>
     <div class="brand">🧭 내 취향 피드 <small id="phaseLabel">준비 중</small>
-      <button id="adultBtn" class="adult-btn locked" title="19금 보기">19</button>
+      <button id="immBtn" class="adult-btn" style="margin-left:auto" title="몰입 모드">🎬</button>
+      <button id="adultBtn" class="adult-btn locked" style="margin-left:8px" title="19금 보기">19</button>
     </div>
     <div class="meter">
       <div class="meter-label"><span>취향 특정도</span><span id="levelPct">0%</span></div>
@@ -240,6 +254,7 @@ const API = {
   async createPost(userId, p) { return post("/api/post", { userId, ...p }); },
   async mySpace(userId) { return get(`/api/me?userId=${userId}`); },
   async save(userId, itemId, on) { return post("/api/save", { userId, itemId, on }); },
+  async signal(userId, itemId, type, dwellMs) { return post("/api/signal", { userId, itemId, type, dwellMs }).catch(()=>{}); },
   async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
   async feed(userId, cursor, limit=10) { return get(`/api/feed?userId=${userId}&cursor=${cursor}&limit=${limit}`); },
   async item(userId, itemId) { return get(`/api/item?userId=${userId}&itemId=${encodeURIComponent(itemId)}`); },
@@ -258,7 +273,10 @@ const state = {
   feedScrollY: 0, // remembered scroll position for exact back-restore
   cardsById: new Map(),
   ageVerified: false, showAdult: false,
-  readSet: new Set(JSON.parse(localStorage.getItem("feed_read")||"[]"))
+  readSet: new Set(JSON.parse(localStorage.getItem("feed_read")||"[]")),
+  openedAt: 0, openItemId: null, // dwell timing for the open post
+  openedSet: new Set(), skipSignaled: new Set(), // skip detection bookkeeping
+  immersion: false
 };
 function markRead(id){ if(state.readSet.has(id)) return; state.readSet.add(id);
   localStorage.setItem("feed_read", JSON.stringify([...state.readSet].slice(-1000))); }
@@ -281,9 +299,44 @@ function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg
   state.userId = s.userId; localStorage.setItem("feed_uid", s.userId);
   state.ageVerified = s.ageVerified; state.showAdult = s.showAdult;
   renderChips(); renderAdultBtn(); setupAdultToggle(); setupCompose(); setupSpace();
+  setupSkipObserver();
   if(!s.surveyed){ showSurvey(); } else { updateMeter(s); loadMore(); }
-  setupInfiniteScroll();
+  setupInfiniteScroll(); setupImmersion();
 })();
+
+// ---- 몰입 모드 (community × TikTok, but for text) ----
+let immObserver, immActive = null, immActiveAt = 0;
+function setupImmersion(){
+  document.getElementById("immBtn").onclick = ()=>{
+    state.immersion = !state.immersion;
+    document.body.classList.toggle("immersion", state.immersion);
+    document.getElementById("immBtn").classList.toggle("on", state.immersion);
+    if(state.immersion){ startImmersionTracking(); toast("몰입 모드 · 한 글씩 넘겨보세요"); }
+    else { stopImmersionTracking(); }
+    window.scrollTo(0,0);
+  };
+}
+// track how long each card stays centered → dwell signal per swipe
+function startImmersionTracking(){
+  immObserver = new IntersectionObserver((entries)=>{
+    for(const e of entries){
+      if(e.isIntersecting && e.intersectionRatio > 0.6){
+        flushImmersionDwell();                    // leaving previous card
+        immActive = e.target.dataset.id; immActiveAt = Date.now();
+        if(immActive){ markRead(immActive); state.openedSet.add(immActive); }
+      }
+    }
+  }, { root: document.getElementById("feed"), threshold: [0.6] });
+  state.cardsById.forEach(c=> immObserver.observe(c));
+}
+function flushImmersionDwell(){
+  if(immActive && immActiveAt){
+    const dwellMs = Date.now() - immActiveAt;
+    if(dwellMs > 600) API.signal(state.userId, immActive, dwellMs > 8000 ? "complete" : "dwell", dwellMs);
+  }
+  immActive = null; immActiveAt = 0;
+}
+function stopImmersionTracking(){ flushImmersionDwell(); if(immObserver){ immObserver.disconnect(); immObserver=null; } }
 
 // ---- 19금 toggle + 성인인증 ----
 function renderAdultBtn(){
@@ -540,7 +593,7 @@ async function loadMore(){
 }
 
 function appendCard(item){
-  const card = document.createElement("article"); card.className="card"; card.dataset.cat=item.category;
+  const card = document.createElement("article"); card.className="card"; card.dataset.cat=item.category; card.dataset.id=item.id;
   card.innerHTML = `
     <div class="card-top">
       <span class="dot" style="background:${srcColor(item.source)}"></span>
@@ -573,6 +626,8 @@ function appendCard(item){
   };
   document.getElementById("feed").appendChild(card);
   state.cardsById.set(item.id, card);
+  if(skipObserver) skipObserver.observe(card);
+  if(state.immersion && immObserver) immObserver.observe(card);
 }
 
 async function rate(item, card, signal){
@@ -608,10 +663,31 @@ function setupInfiniteScroll(){
   io.observe(document.getElementById("sentinel"));
 }
 
+// Skip detection: a card that was on screen and then scrolled up out of view
+// without ever being opened is a weak "not interested" signal (TikTok's scroll-past).
+let skipObserver;
+function setupSkipObserver(){
+  skipObserver = new IntersectionObserver((entries)=>{
+    for(const e of entries){
+      const id = e.target.dataset.id; if(!id) continue;
+      if(e.isIntersecting){ e.target._seenOnce = true; continue; }
+      // left viewport upward, was seen, never opened, not already counted
+      if(e.target._seenOnce && e.boundingClientRect.top < 0 &&
+         !state.openedSet.has(id) && !state.skipSignaled.has(id)){
+        state.skipSignaled.add(id);
+        API.signal(state.userId, id, "skip");
+      }
+    }
+  }, { threshold: 0.4 });
+}
+
 // ---- detail + EXACT back-restore ----
 async function openDetail(itemId){
   state.feedScrollY = window.scrollY;             // remember exactly where we were
   markRead(itemId);
+  state.openedSet.add(itemId);                    // opened → never counts as a skip
+  state.openedAt = Date.now(); state.openItemId = itemId;
+  API.signal(state.userId, itemId, "open");       // weak positive: chose to open
   const card = state.cardsById.get(itemId); if(card) card.classList.add("read");
   history.pushState({ view:"detail", itemId }, "", "#post-"+encodeURIComponent(itemId));
   await renderDetail(itemId);
@@ -620,6 +696,13 @@ async function openDetail(itemId){
 }
 function closeDetail(){
   const d = document.getElementById("detail");
+  // dwell signal: how long was this post actually read?
+  if(state.openItemId && state.openedAt){
+    const dwellMs = Date.now() - state.openedAt;
+    const bottom = d.scrollTop + d.clientHeight >= d.scrollHeight - 40;
+    API.signal(state.userId, state.openItemId, bottom && dwellMs > 4000 ? "complete" : "dwell", dwellMs);
+  }
+  state.openItemId = null; state.openedAt = 0;
   d.classList.remove("open"); d.setAttribute("aria-hidden","true");
   // restore feed scroll to the exact pixel the user left from
   window.scrollTo(0, state.feedScrollY);

@@ -11,6 +11,9 @@ import { emptyPreferenceVector } from "./survey.js";
 // How hard a single rating moves the weights. Kept small so one click never
 // swings the feed violently; the signal accumulates.
 const LEARNING_RATE = 0.35;
+// Implicit signals (dwell, skip, complete) are far more plentiful than explicit
+// clicks — TikTok's real magic — but noisier, so they move weights more gently.
+const IMPLICIT_RATE = 0.12;
 // Ratings decay the influence of very old preferences slightly so taste can
 // drift. 1.0 = no decay.
 const WEIGHT_DECAY = 0.995;
@@ -79,10 +82,27 @@ export function scoreItem(item, vec, opts = {}) {
     f.styleMatch +
     popularityPrior(item) * 0.5 +
     recencyBoost(item, opts.now) * 0.6 +
+    explorationBonus(item, vec, opts) +
     noveltyJitter(item, opts.seed || 1);
 
   const seen = opts.seenIds && opts.seenIds.has(item.id);
   return seen ? base - 3 : base;
+}
+
+// Exploration: occasionally lift content from interests we know little about, so
+// the feed keeps probing new territory instead of collapsing into a bubble.
+// Deterministic (hash-gated, no Math.random) so results stay reproducible.
+function explorationBonus(item, vec, opts) {
+  const eps = opts.explore ?? 0.2;
+  if (eps <= 0) return 0;
+  const known = Math.abs(vec.categories[item.category] || 0) +
+    (item.tags.reduce((a, t) => a + Math.abs(vec.tags[t] || 0), 0) / Math.max(1, item.tags.length));
+  if (known >= 0.4) return 0; // already a known interest — no exploration lift
+  // rotate which cold items get lifted, using the request seed
+  let h = (opts.seed || 1) >>> 0;
+  const key = String(item.id);
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return h % 4 === 0 ? eps : 0; // ~1 in 4 cold items surfaced
 }
 
 // Rank items best-first. Returns a new array of { item, score }.
@@ -125,14 +145,10 @@ export function diversify(ranked, opts = {}) {
   return out;
 }
 
-// Apply a like/dislike (or explicit weight nudge) to the preference vector.
-// `signal` is +1 for like, -1 for dislike. Returns the mutated vector.
-export function applyFeedback(vec, item, signal) {
-  const s = signal >= 0 ? 1 : -1;
-  const step = LEARNING_RATE * s;
-
-  // gently decay everything so stale interests fade
-  decayAll(vec);
+// Move the preference vector by `step` in the direction of an item's features.
+// Shared by explicit feedback and implicit signals so both learn the same way.
+function nudge(vec, item, step) {
+  decayAll(vec); // gently fade stale interests
 
   vec.categories[item.category] = clamp(
     (vec.categories[item.category] || 0) + step,
@@ -153,6 +169,42 @@ export function applyFeedback(vec, item, signal) {
   else if (item.length <= 120) vec.prefs.longform = clamp((vec.prefs.longform || 0) - step * 0.3, -2, 2);
 
   return vec;
+}
+
+// Apply a like/dislike (or explicit weight nudge) to the preference vector.
+// `signal` is +1 for like, -1 for dislike. Returns the mutated vector.
+export function applyFeedback(vec, item, signal) {
+  const s = signal >= 0 ? 1 : -1;
+  return nudge(vec, item, LEARNING_RATE * s);
+}
+
+// Apply an implicit engagement signal — the TikTok-style behavioural feedback
+// users leave without clicking anything. Returns { step } for observability.
+//   open      : tapped in                      → weak positive
+//   dwell     : time spent reading vs expected  → positive if lingered, negative if bounced
+//   complete  : read to the end / stayed long   → strong positive
+//   skip      : scrolled past without opening    → weak negative
+// `event.dwellMs` and the item's length drive the dwell computation.
+export function applyImplicit(vec, item, event = {}) {
+  const type = event.type;
+  let step = 0;
+  if (type === "open") {
+    step = IMPLICIT_RATE * 0.3;
+  } else if (type === "complete") {
+    step = IMPLICIT_RATE * 1.0;
+  } else if (type === "skip") {
+    step = -IMPLICIT_RATE * 0.6;
+  } else if (type === "dwell") {
+    // expected reading time ~180ms/word, clamped to a sane [4s, 60s] band so a
+    // very long article doesn't make every real read look like a bounce
+    const words = Math.max(20, item.length || 40);
+    const expectedMs = clamp(words * 180, 4000, 60000);
+    const ratio = (event.dwellMs || 0) / expectedMs;
+    // ratio<0.4 → bounced (negative), >0.4 → engaged (positive), capped
+    step = IMPLICIT_RATE * clamp((ratio - 0.4) / 0.6, -1, 1);
+  }
+  if (step !== 0) nudge(vec, item, step);
+  return { step: Math.round(step * 1000) / 1000 };
 }
 
 function decayAll(vec) {

@@ -111,6 +111,16 @@ export class FeedStore {
     return user.showAdult;
   }
 
+  // Record that an implicit signal was applied (for observability/metrics). The
+  // preference-vector mutation itself happens in the engine via applyImplicit.
+  recordSignal(userId, itemId, type, step) {
+    const user = this.requireUser(userId);
+    user.implicitCount = (user.implicitCount || 0) + 1;
+    user.lastSignal = { itemId, type, step, at: nowIso(this.clock) };
+    this._persist();
+    return user.implicitCount;
+  }
+
   recordRating(userId, itemId, signal) {
     const user = this.requireUser(userId);
     const prev = user.ratings[itemId];

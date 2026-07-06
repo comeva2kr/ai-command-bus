@@ -215,6 +215,16 @@ export function createServer(opts = {}) {
         return send(res, 200, item);
       }
 
+      if (p === "/api/signal" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        const result = await engine.signal(body.userId, body.itemId, {
+          type: body.type,
+          dwellMs: Number(body.dwellMs || 0)
+        });
+        return send(res, 200, result);
+      }
+
       if (p === "/api/rate" && req.method === "POST") {
         const body = await readBody(req);
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });

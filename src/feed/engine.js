@@ -7,7 +7,7 @@
 // navigation; the server just keeps handing out the next best unseen batch.
 
 import { collect, SeedSource } from "./content.js";
-import { rankItems, diversify, applyFeedback, specializationLevel, feedPhase } from "./recommender.js";
+import { rankItems, diversify, applyFeedback, applyImplicit, specializationLevel, feedPhase } from "./recommender.js";
 import { categoryLabel } from "./taxonomy.js";
 
 export class FeedEngine {
@@ -134,6 +134,19 @@ export class FeedEngine {
 
     const level = specializationLevel(user.preferences, user.feedbackCount);
     return { level, phase: feedPhase(level), feedbackCount: user.feedbackCount };
+  }
+
+  // Record an implicit engagement signal (dwell / skip / complete / open) and
+  // learn from it. The lightweight, high-volume feedback behind TikTok-style
+  // personalization.
+  async signal(userId, itemId, event) {
+    const user = this.store.requireUser(userId);
+    const items = await this._items();
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return { ok: false };
+    const { step } = applyImplicit(user.preferences, item, event || {});
+    this.store.recordSignal(userId, itemId, event && event.type, step);
+    return { ok: true, type: event && event.type, step };
   }
 
   // A single item with its full comment thread, for the detail view.

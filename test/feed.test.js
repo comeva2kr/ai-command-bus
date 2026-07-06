@@ -467,3 +467,61 @@ test("mySpace reports level and likes received on own posts", async () => {
   assert.equal(space.counts.likesReceived, 1);
   assert.ok(space.level && typeof space.level.level === "number");
 });
+
+test("implicit signals: long dwell up, quick bounce and skip down", async () => {
+  const { applyImplicit, scoreItem } = await import("../src/feed/recommender.js");
+  const item = normalizeItem({ category: "auto", tags: ["cars"], title: "시승기", length: 100 });
+
+  const up = emptyPreferenceVector();
+  const before = scoreItem(item, up, { seed: 1, explore: 0 });
+  applyImplicit(up, item, { type: "dwell", dwellMs: 60000 }); // lingered
+  assert.ok(scoreItem(item, up, { seed: 1, explore: 0 }) > before, "long dwell raises score");
+
+  const down = emptyPreferenceVector();
+  const b2 = scoreItem(item, down, { seed: 1, explore: 0 });
+  applyImplicit(down, item, { type: "dwell", dwellMs: 500 }); // bounced instantly
+  assert.ok(scoreItem(item, down, { seed: 1, explore: 0 }) < b2, "quick bounce lowers score");
+
+  const sk = emptyPreferenceVector();
+  const b3 = scoreItem(item, sk, { seed: 1, explore: 0 });
+  applyImplicit(sk, item, { type: "skip" });
+  assert.ok(scoreItem(item, sk, { seed: 1, explore: 0 }) < b3, "skip lowers score");
+});
+
+test("complete is a stronger positive than open", async () => {
+  const { applyImplicit } = await import("../src/feed/recommender.js");
+  const item = normalizeItem({ category: "tech", tags: ["ai"], title: "x", length: 300 });
+  const a = applyImplicit(emptyPreferenceVector(), item, { type: "open" });
+  const b = applyImplicit(emptyPreferenceVector(), item, { type: "complete" });
+  assert.ok(b.step > a.step && a.step > 0, "complete > open > 0");
+});
+
+test("exploration lifts cold-interest items but not known ones", async () => {
+  const { scoreItem } = await import("../src/feed/recommender.js");
+  const vec = buildPreferenceVector({ categories: ["auto"], tags: ["cars"] });
+  // a cold item in an unknown category; find one whose hash gate opens
+  let lifted = false;
+  for (let s = 1; s < 12 && !lifted; s++) {
+    const cold = normalizeItem({ category: "science", tags: ["space"], title: "우주 " + s, length: 200 });
+    const withE = scoreItem(cold, vec, { seed: s, explore: 0.5 });
+    const without = scoreItem(cold, vec, { seed: s, explore: 0 });
+    if (withE > without) lifted = true;
+  }
+  assert.ok(lifted, "some cold item gets an exploration lift");
+
+  // a known-interest item should not receive the exploration bonus
+  const hot = normalizeItem({ category: "auto", tags: ["cars"], title: "신차", length: 200 });
+  assert.equal(scoreItem(hot, vec, { seed: 1, explore: 0.5 }), scoreItem(hot, vec, { seed: 1, explore: 0 }));
+});
+
+test("engine.signal applies implicit feedback and counts it", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const user = store.createUser("sig1");
+  store.saveSurvey(user.id, { categories: ["auto"] });
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 3 });
+  const id = feed.items[0].id;
+  const r = await engine.signal(user.id, id, { type: "dwell", dwellMs: 40000 });
+  assert.equal(r.ok, true);
+  assert.equal(store.getUser(user.id).implicitCount, 1);
+});
