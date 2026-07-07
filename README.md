@@ -59,6 +59,7 @@ back navigation. See [docs/personalized-feed.md](docs/personalized-feed.md).
 
 - [Architecture](docs/architecture.md)
 - [Personalized community feed](docs/personalized-feed.md)
+- [Deploying the feed](docs/deploy.md)
 - [Example task queue](examples/task_queue.json)
 - [Example worker submission](examples/submission.json)
 
