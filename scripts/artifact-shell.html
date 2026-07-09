@@ -1,0 +1,274 @@
+<title>찐맛집 · 검증된 맛집만</title>
+<style>
+/*__CSS__*/
+/* --- artifact: force dark palette + tab bar --- */
+:root { color-scheme: dark; }
+html, body { background: #0f1115; }
+.tabbar { position: sticky; top: 0; z-index: 60; display: flex; gap: 6px; padding: 8px 12px; background: #12151b; border-bottom: 1px solid #2b303c; }
+.tabbar button { flex: 1; background: transparent; color: #9aa3b2; border: 0; border-radius: 10px; padding: 10px; font-weight: 800; font-size: 14px; }
+.tabbar button.on { background: #1c212b; color: #ff7a59; }
+#adminView { display: none; }
+#adminView.show { display: block; }
+#userView.hide { display: none; }
+.demo-note { color: #9aa3b2; font-size: 11.5px; text-align: center; padding: 6px 16px 0; }
+</style>
+
+<div class="tabbar">
+  <button id="tabUser" class="on" type="button">🍽️ 사용자</button>
+  <button id="tabAdmin" type="button">🛡️ 관리자</button>
+</div>
+<div class="demo-note">데모 · 시드 데이터로 클라이언트에서 알고리즘이 실제 동작합니다</div>
+
+<!-- ===================== 사용자 뷰 ===================== -->
+<div id="userView">
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">🍽️ <span>찐맛집</span></div>
+      <button class="loc-chip" id="locChip" type="button">
+        <span class="loc-ico">📍</span><span id="locLabel">위치 설정</span><span class="chev">▾</span>
+      </button>
+    </header>
+    <div class="quickrow" id="presets"></div>
+    <div class="subbar">
+      <div class="seg" id="verifiedSeg">
+        <button class="seg-btn on" data-mode="verified" type="button">검증된 곳만</button>
+        <button class="seg-btn" data-mode="all" type="button">전체(가짜 표시)</button>
+      </div>
+      <div class="count" id="count">—</div>
+    </div>
+    <main id="list" class="list"></main>
+    <div class="fabbar">
+      <button class="fab-filter" id="openFilter" type="button"><span>⚙️ 필터</span><span class="fab-badge" id="filterBadge" hidden>0</span></button>
+      <button class="fab-map" id="toggleMap" type="button">🗺️ 지도</button>
+    </div>
+  </div>
+  <div class="backdrop" id="backdrop" hidden></div>
+  <section class="sheet" id="sheetLoc" aria-hidden="true">
+    <div class="sheet-grip"></div>
+    <h2>📍 위치 설정</h2>
+    <button class="wide-btn" id="useGeo" type="button">📍 내 현재 위치 사용</button>
+    <label class="fld">기준 지역 <select id="near"></select></label>
+    <div class="row2">
+      <label class="fld">이동수단 <select id="mode">
+        <option value="car">🚗 차</option><option value="transit">🚌 대중교통</option>
+        <option value="bike">🚲 자전거</option><option value="walk">🚶 도보</option></select></label>
+      <label class="fld">시간(분): <b id="minsOut">30</b><input type="range" id="minutes" min="5" max="60" step="5" value="30" /></label>
+    </div>
+    <label class="chk"><input type="checkbox" id="useLocation" checked /> 위치 필터 사용</label>
+    <button class="apply" id="applyLoc" type="button">적용</button>
+  </section>
+  <section class="sheet tall" id="sheetFilter" aria-hidden="true">
+    <div class="sheet-grip"></div>
+    <div class="sheet-head"><h2>⚙️ 필터</h2><button class="reset" id="resetFilter" type="button">초기화</button></div>
+    <div class="sheet-body">
+      <div class="grp"><h3>🍤 메뉴</h3><select id="menu"><option value="">(선택 안 함)</option></select><div class="chips" id="menuAttrs"></div></div>
+      <div class="grp"><h3>🏠 장소 스타일</h3><div class="chips" id="styles"></div></div>
+      <div class="grp"><h3>🍜 음식 종류</h3><div class="chips" id="cuisines"></div></div>
+      <div class="grp"><h3>🧩 필수 편의</h3><div class="chips" id="features"></div></div>
+      <div class="grp"><h3>🏷️ 필수 태그</h3><div class="chips" id="tagsAll"></div></div>
+      <div class="grp"><h3>🚫 제외 태그</h3><div class="chips" id="excludeTags"></div></div>
+      <div class="grp"><label class="chk"><input type="checkbox" id="excludeFranchise" /> 프랜차이즈 제외</label>
+        <h3>💰 가격대: <b id="priceOut">₩ ~ ₩₩₩₩</b></h3>
+        <div class="row2"><input type="range" id="priceMin" min="1" max="4" value="1" /><input type="range" id="priceMax" min="1" max="4" value="4" /></div></div>
+    </div>
+    <button class="apply" id="applyFilter" type="button">결과 보기</button>
+  </section>
+  <section class="sheet" id="sheetMap" aria-hidden="true">
+    <div class="sheet-grip"></div><h2>🗺️ 위치 지도</h2>
+    <canvas id="map" width="600" height="360"></canvas>
+    <div class="map-meta" id="mapMeta"></div>
+  </section>
+</div>
+
+<!-- ===================== 관리자 뷰 ===================== -->
+<div id="adminView">
+  <header class="a-top">
+    <div class="a-brand">🛡️ 찐맛집 <b>관리자 콘솔</b></div>
+    <nav class="a-nav"><button id="refresh" class="a-btn" type="button">↻ 새로고침</button></nav>
+  </header>
+  <main class="a-main">
+    <section class="tiles" id="tiles"></section>
+    <section class="panel"><h2>판정 분포</h2><div class="dist" id="dist"></div></section>
+    <section class="panel"><h2>🕸️ 탐지된 담합 링 (교차업소 락스텝)</h2><div id="rings" class="rings"></div></section>
+    <section class="panel">
+      <div class="panel-head"><h2>업소 검수</h2><input id="q" class="search" type="search" placeholder="업소명 검색…" /></div>
+      <div class="verdict-filter" id="vfilter"></div>
+      <div class="table" id="table"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+/*__ENGINE__*/
+
+/* ---------------- shared meta + client "API" ---------------- */
+const META = {
+  landmarks: Object.keys(LANDMARKS),
+  styles: Object.keys(STYLE_SYNONYMS),
+  cuisines: Object.keys(CUISINE_SYNONYMS),
+  tags: Object.keys(TAG_SYNONYMS),
+  menus: Object.keys(MENU_SYNONYMS),
+  menuAttrs: Object.keys(MENU_ATTR_SYNONYMS),
+  features: FEATURE_KEYS
+};
+const PRESETS = {
+  "kids-pork": { label: "프랜차이즈 아닌 뒷고기 고깃집 + 키즈카페", query: { styles: ["고깃집"], cuisines: ["돼지고기"], excludeFranchise: true, require: { kidsCafe: true }, prefer: ["뒷고기"] } },
+  "izakaya-aged": { label: "이자카야 · 숙성회 · 싼 분위기 아님 · 파티션", query: { styles: ["이자카야"], tagsAll: ["숙성회"], excludeTags: ["가성비"], prefer: ["고급스러운", "분위기좋은"], preferFeatures: { partition: true }, priceMin: 2 } },
+  "sejong-mackerel": { label: "세종 인근 · 차로 30분 · 활(살아있는)고등어회", query: { location: { near: "세종" }, travel: { mode: "car", minutes: 30 }, menu: "고등어회", menuAttrs: ["활"] } }
+};
+META.presets = Object.fromEntries(Object.entries(PRESETS).map(([k, v]) => [k, v.label]));
+const apiSearch = (q) => search(SEED_RESTAURANTS, q);
+const apiPreset = (name, all) => { const q = { ...PRESETS[name].query }; if (all) q.includeUnverified = true; return { query: q, ...search(SEED_RESTAURANTS, q) }; };
+function apiAdmin() {
+  const venues = ingest(SEED_RESTAURANTS, { keepUnverified: true }).slice().sort((a, b) => b.authenticityScore - a.authenticityScore);
+  const corpus = analyzeCorpus(SEED_RESTAURANTS);
+  const counts = {}; venues.forEach((v) => (counts[v.verdict] = (counts[v.verdict] || 0) + 1));
+  return { venues, rings: corpus.rings, summary: { total: venues.length, verified: venues.filter((v) => v.verified).length, rejected: venues.filter((v) => !v.verified).length, verdictCounts: counts } };
+}
+
+/* ---------------- USER APP ---------------- */
+const UserApp = (() => {
+  const $ = (id) => document.getElementById(id);
+  const sel = { styles: new Set(), cuisines: new Set(), menuAttrs: new Set(), tagsAll: new Set(), excludeTags: new Set(), features: new Set() };
+  let mode = "verified", location = null, lastData = null, lastRun = null;
+
+  const openSheet = (id) => { $("backdrop").hidden = false; const s = $(id); s.setAttribute("aria-hidden", "false"); requestAnimationFrame(() => s.classList.add("open")); };
+  const closeSheets = () => { document.querySelectorAll("#userView .sheet.open").forEach((s) => { s.classList.remove("open"); s.setAttribute("aria-hidden", "true"); }); $("backdrop").hidden = true; };
+
+  function chipGroup(id, items, set) {
+    const el = $(id); el.innerHTML = "";
+    items.forEach((item) => { const c = document.createElement("button"); c.type = "button"; c.className = "chip" + (set.has(item) ? " on" : ""); c.textContent = item; c.onclick = () => { set.has(item) ? (set.delete(item), c.classList.remove("on")) : (set.add(item), c.classList.add("on")); filterCount(); }; el.appendChild(c); });
+  }
+  function filterCount() {
+    let n = sel.styles.size + sel.cuisines.size + sel.menuAttrs.size + sel.tagsAll.size + sel.excludeTags.size + sel.features.size;
+    if ($("menu").value) n++; if ($("excludeFranchise").checked) n++; if (+$("priceMin").value > 1 || +$("priceMax").value < 4) n++;
+    const b = $("filterBadge"); b.hidden = n === 0; b.textContent = n;
+  }
+  const modeLabel = () => ({ car: "차", transit: "대중교통", bike: "자전거", walk: "도보" }[$("mode").value] || "차");
+  function syncLocLabel() {
+    if (!$("useLocation").checked) { location = null; $("locLabel").textContent = "위치 필터 끔"; return; }
+    if (location && location.lat != null) $("locLabel").textContent = `현재위치 · ${modeLabel()} ${$("minutes").value}분`;
+    else { location = { near: $("near").value }; $("locLabel").textContent = `${$("near").value} · ${modeLabel()} ${$("minutes").value}분`; }
+  }
+  function buildQuery() {
+    const q = { styles: [...sel.styles], cuisines: [...sel.cuisines], menuAttrs: [...sel.menuAttrs], tagsAll: [...sel.tagsAll], excludeTags: [...sel.excludeTags], require: Object.fromEntries([...sel.features].map((f) => [f, true])), excludeFranchise: $("excludeFranchise").checked, priceMin: Math.min(+$("priceMin").value, +$("priceMax").value), priceMax: Math.max(+$("priceMin").value, +$("priceMax").value), includeUnverified: mode === "all" };
+    if ($("menu").value) q.menu = $("menu").value;
+    if ($("useLocation").checked) { q.location = location && location.lat != null ? location : { near: $("near").value }; q.travel = { mode: $("mode").value, minutes: +$("minutes").value }; }
+    return q;
+  }
+  const runManual = () => { lastRun = { type: "manual" }; render(apiSearch(buildQuery())); };
+  const runPreset = (name) => { lastRun = { type: "preset", name }; render(apiPreset(name, mode === "all")); };
+  const rerun = () => (lastRun?.type === "preset" ? runPreset(lastRun.name) : runManual());
+
+  const VCLASS = { "찐맛집": "v-gem", "검증됨": "v-ok" };
+  const FLABEL = { behavior: "행동데이터", diversity: "작성자다양", local: "로컬·재방문", classBreadth: "소스교차", sustain: "지속성", realism: "평점현실성", texture: "후기구체성" };
+  function render(data) {
+    lastData = data; const meta = data.meta || {};
+    const parts = [`${meta.total}곳`]; if (meta.origin) parts.push(`반경 ${meta.radiusKm}km`); parts.push(meta.verifiedOnly ? "광고·가짜 제외" : "전체 표시");
+    $("count").textContent = parts.join(" · "); drawMap();
+    const list = $("list");
+    if (!data.results.length) { list.innerHTML = `<div class="empty">조건에 맞는 ${meta.verifiedOnly ? "검증된 " : ""}맛집이 없어요.<br>필터를 완화하거나 반경을 늘려보세요.</div>`; return; }
+    list.innerHTML = data.results.map(card).join("");
+  }
+  function card(r) {
+    const vcls = VCLASS[r.verdict] || "v-bad"; const m = [];
+    if (r.distanceKm != null) m.push(`<span class="metric dist">${r.distanceKm}km · ${r.travelMinutes}분</span>`);
+    m.push(`<span class="metric score">진위 ${r.authenticityScore}</span>`, `<span class="metric">${"₩".repeat(r.priceBand)}</span>`, `<span class="metric">⭐ ${r.rating}</span>`);
+    if (r.franchise) m.push(`<span class="metric">프랜차이즈</span>`);
+    const menus = (r.menus || []).map((x) => x.attrs?.length ? `${x.name}(${x.attrs.join(",")})` : x.name);
+    const feats = Object.entries(r.features || {}).filter(([, v]) => v).map(([k]) => k);
+    const bars = Object.entries(r.breakdown || {}).map(([k, v]) => `<div class="fbar"><span>${FLABEL[k] || k}</span><i style="--w:${v}%"></i><b>${v}</b></div>`).join("");
+    const reasons = (r.reasons || []).map((x) => `<li>${x}</li>`).join("");
+    return `<article class="rc${r.verified ? "" : " bad"}"><div class="rc-top"><div><h3>${r.name}</h3><div class="addr">${r.style} · ${r.address}</div></div><span class="verdict ${vcls}">${r.verdict === "찐맛집" ? "🔥 " : r.verified ? "✔ " : "⚠ "}${r.verdict}</span></div><div class="metrics">${m.join("")}</div><div class="taglist">🍴 <b>${menus.join(" · ") || "-"}</b></div><div class="taglist">🏷️ ${(r.tags || []).join(" · ") || "-"}</div><div class="taglist">🧩 ${feats.join(" · ") || "-"}</div><details class="why"><summary>판별 근거 보기</summary><div class="fbars">${bars}</div><ul class="reasons">${reasons}</ul></details></article>`;
+  }
+  function drawMap() {
+    const cv = $("map"); if (!cv || !lastData) return; const ctx = cv.getContext("2d"); ctx.clearRect(0, 0, cv.width, cv.height);
+    const origin = lastData.meta?.origin; const pts = (lastData.results || []).filter((r) => r.lat && r.lng); const all = origin ? [origin, ...pts] : pts;
+    $("mapMeta").textContent = origin ? `기준(초록) 반경 ${lastData.meta.radiusKm}km 내 ${pts.length}곳` : `${pts.length}곳 (위치 필터 없음)`;
+    if (!all.length) return;
+    const lats = all.map((p) => p.lat), lngs = all.map((p) => p.lng);
+    let a = Math.min(...lats), b = Math.max(...lats), c = Math.min(...lngs), d = Math.max(...lngs);
+    const dl = (b - a) || 0.01, dn = (d - c) || 0.01; a -= dl * .15; b += dl * .15; c -= dn * .15; d += dn * .15;
+    const X = (lng) => ((lng - c) / (d - c)) * (cv.width - 40) + 20, Y = (lat) => cv.height - (((lat - a) / (b - a)) * (cv.height - 40) + 20);
+    if (origin) { ctx.fillStyle = "#4dd0a7"; ctx.beginPath(); ctx.arc(X(origin.lng), Y(origin.lat), 9, 0, 7); ctx.fill(); }
+    pts.forEach((p, i) => { ctx.fillStyle = p.verdict === "찐맛집" ? "#ffb057" : "#ff7a59"; ctx.beginPath(); ctx.arc(X(p.lng), Y(p.lat), 7, 0, 7); ctx.fill(); ctx.fillStyle = "#eef1f5"; ctx.font = "12px sans-serif"; ctx.fillText(String(i + 1), X(p.lng) - 3, Y(p.lat) - 11); });
+  }
+  function reset() {
+    Object.values(sel).forEach((s) => s.clear());
+    chipGroup("styles", META.styles, sel.styles); chipGroup("cuisines", META.cuisines, sel.cuisines); chipGroup("menuAttrs", META.menuAttrs, sel.menuAttrs);
+    chipGroup("tagsAll", META.tags, sel.tagsAll); chipGroup("excludeTags", META.tags, sel.excludeTags); chipGroup("features", META.features, sel.features);
+    $("menu").value = ""; $("excludeFranchise").checked = false; $("priceMin").value = 1; $("priceMax").value = 4; $("priceOut").textContent = "₩ ~ ₩₩₩₩"; filterCount();
+  }
+  function useGeo() {
+    if (!navigator.geolocation) { alert("이 기기에서 위치를 사용할 수 없어요."); return; }
+    $("useGeo").textContent = "위치 확인 중…";
+    navigator.geolocation.getCurrentPosition((p) => { location = { lat: p.coords.latitude, lng: p.coords.longitude }; $("useGeo").textContent = "📍 현재 위치 사용됨 ✓"; $("useLocation").checked = true; }, () => { $("useGeo").textContent = "📍 내 현재 위치 사용"; alert("위치 권한이 필요해요."); });
+  }
+  function init() {
+    $("near").innerHTML = META.landmarks.map((l) => `<option>${l}</option>`).join("");
+    $("menu").insertAdjacentHTML("beforeend", META.menus.map((x) => `<option>${x}</option>`).join(""));
+    chipGroup("styles", META.styles, sel.styles); chipGroup("cuisines", META.cuisines, sel.cuisines); chipGroup("menuAttrs", META.menuAttrs, sel.menuAttrs);
+    chipGroup("tagsAll", META.tags, sel.tagsAll); chipGroup("excludeTags", META.tags, sel.excludeTags); chipGroup("features", META.features, sel.features);
+    const pbox = $("presets"); pbox.innerHTML = "";
+    Object.entries(META.presets).forEach(([k, label]) => { const btn = document.createElement("button"); btn.type = "button"; btn.className = "preset"; btn.textContent = label; btn.onclick = () => runPreset(k); pbox.appendChild(btn); });
+    $("openFilter").onclick = () => openSheet("sheetFilter"); $("locChip").onclick = () => openSheet("sheetLoc"); $("toggleMap").onclick = () => { drawMap(); openSheet("sheetMap"); };
+    $("backdrop").onclick = closeSheets; document.querySelectorAll("#userView .sheet-grip").forEach((g) => (g.onclick = closeSheets));
+    $("minutes").oninput = (e) => ($("minsOut").textContent = e.target.value);
+    const ps = () => { let lo = +$("priceMin").value, hi = +$("priceMax").value; if (lo > hi) [lo, hi] = [hi, lo]; $("priceOut").textContent = `${"₩".repeat(lo)} ~ ${"₩".repeat(hi)}`; filterCount(); };
+    $("priceMin").oninput = ps; $("priceMax").oninput = ps; $("menu").onchange = filterCount; $("excludeFranchise").onchange = filterCount;
+    $("applyFilter").onclick = () => { closeSheets(); runManual(); }; $("resetFilter").onclick = reset;
+    $("applyLoc").onclick = () => { closeSheets(); syncLocLabel(); runManual(); }; $("useGeo").onclick = useGeo;
+    $("verifiedSeg").querySelectorAll(".seg-btn").forEach((btn) => (btn.onclick = () => { mode = btn.dataset.mode; $("verifiedSeg").querySelectorAll(".seg-btn").forEach((b) => b.classList.toggle("on", b === btn)); rerun(); }));
+    syncLocLabel(); runPreset("kids-pork");
+  }
+  return { init };
+})();
+
+/* ---------------- ADMIN APP ---------------- */
+const AdminApp = (() => {
+  const $ = (id) => document.getElementById(id); let data = null, verdict = "all", q = "", started = false;
+  const rowClass = (v, vd) => (vd === "찐맛집" ? "gem" : v ? "ok" : "bad");
+  const badgeClass = (v, vd) => (vd === "찐맛집" ? "b-gem" : v ? "b-ok" : "b-bad");
+  const FLABEL = { behavior: "행동데이터", diversity: "작성자다양", local: "로컬·재방문", classBreadth: "소스교차", sustain: "지속성", realism: "평점현실성", texture: "후기구체성" };
+  const tile = (k, v, cls) => `<div class="tile ${cls}"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  const nameOf = (id) => (data.venues.find((v) => v.id === id)?.name) || id;
+
+  function tiles() { const s = data.summary; $("tiles").innerHTML = [tile("전체 업소", s.total, ""), tile("검증 통과", s.verified, "good"), tile("가짜 판별", s.rejected, "bad"), tile("찐맛집", s.verdictCounts["찐맛집"] || 0, "gem"), tile("담합 링", data.rings.length, "bad")].join(""); }
+  function dist() {
+    const c = data.summary.verdictCounts, max = Math.max(1, ...Object.values(c));
+    const order = ["찐맛집", "검증됨", "보통", "미검증", "광고의심", "어뷰징의심", "바이럴거품", "담합의심", "조직적버스트", "싱글톤공격", "복붙리뷰", "AI리뷰의심", "평점급등의심", "정보부족"];
+    $("dist").innerHTML = order.filter((k) => c[k]).map((k) => { const good = k === "찐맛집" || k === "검증됨"; const col = good ? "var(--accent2)" : k === "보통" ? "var(--muted)" : "var(--bad)"; return `<div class="dist-row"><span>${k}</span><div class="bar"><i style="--w:${(c[k] / max) * 100}%;background:${col}"></i></div><b>${c[k]}</b></div>`; }).join("");
+  }
+  function rings() { $("rings").innerHTML = data.rings.length ? data.rings.map((r) => `<div class="ring"><div class="who">👥 ${r.authors.join(" ↔ ")}</div><div class="ven">함께 리뷰한 업소: ${r.venues.map(nameOf).join(", ")}</div></div>`).join("") : `<div class="muted">탐지된 담합 링이 없습니다.</div>`; }
+  function vfilter() {
+    const s = data.summary, chips = [["all", `전체 ${s.total}`], ["verified", `검증 ${s.verified}`], ["rejected", `가짜 ${s.rejected}`]];
+    $("vfilter").innerHTML = chips.map(([v, l]) => `<button class="vchip ${verdict === v ? "on" : ""}" data-v="${v}">${l}</button>`).join("");
+    $("vfilter").querySelectorAll(".vchip").forEach((c) => (c.onclick = () => { verdict = c.dataset.v; vfilter(); table(); }));
+  }
+  function table() {
+    let v = data.venues; if (verdict === "verified") v = v.filter((x) => x.verified); else if (verdict === "rejected") v = v.filter((x) => !x.verified);
+    if (q) v = v.filter((x) => x.name.toLowerCase().includes(q.toLowerCase()));
+    $("table").innerHTML = v.length ? v.map(row).join("") : `<div class="muted">해당 조건의 업소가 없습니다.</div>`;
+    $("table").querySelectorAll(".tsum").forEach((el) => (el.onclick = () => el.parentElement.classList.toggle("open")));
+  }
+  function row(v) {
+    const flags = (v.flags || []).map((f) => `<span class="fchip">${f}</span>`).join("");
+    const bars = Object.entries(v.breakdown || {}).map(([k, val]) => `<div class="fbar"><span>${FLABEL[k] || k}</span><i style="--w:${val}%"></i><b>${val}</b></div>`).join("");
+    const reasons = (v.reasons || []).map((x) => `<li>${x}</li>`).join(""); const s = v.signals || {};
+    const kv = [["소스 클래스", (s.sourceClasses || []).join("·")], ["작성자 / HHI", `${s.uniqueAuthors} / ${s.authorHHI}`], ["광고 제외", `${s.paidFiltered}건 (${s.paidRatio})`], ["숏폼 비중", s.shortFormShare], ["행동 점수", s.behaviorScore], ["리뷰링 비중", s.ringShare], ["네트워크 사기확률", s.networkFraud], ["평점 분포", s.ratingShape], ["복붙/AI", `${s.duplicationRatio ?? "-"} / ${s.aiRatio ?? "-"}`], ["시계열 스파이크", s.spikeShare]].map(([k, val]) => `<div class="k">${k}</div><div>${val ?? "-"}</div>`).join("");
+    return `<div class="trow ${rowClass(v.verified, v.verdict)}"><div class="tsum"><div class="tname">${v.name}<div class="sub">${v.style} · ${v.address} · <span class="expand">자세히 ▾</span></div></div><div class="tright"><span class="vbadge ${badgeClass(v.verified, v.verdict)}">${v.verdict}</span><span class="tscore">${v.authenticityScore}</span></div></div>${flags ? `<div class="tflags">${flags}</div>` : ""}<div class="tdetail"><div class="grid2"><div><div class="muted" style="margin-bottom:8px">진위 요소 점수</div><div class="fbars">${bars}</div></div><div><div class="muted" style="margin-bottom:8px">판별 신호</div><div class="kv">${kv}</div></div></div><div class="muted" style="margin:12px 0 4px">판별 근거</div><ul class="reasons">${reasons || "<li>-</li>"}</ul></div></div>`;
+  }
+  function load() { data = apiAdmin(); tiles(); dist(); rings(); vfilter(); table(); }
+  function init() { if (started) return; started = true; $("q").oninput = (e) => { q = e.target.value; table(); }; $("refresh").onclick = load; load(); }
+  return { init };
+})();
+
+/* ---------------- tabs ---------------- */
+(function () {
+  const u = document.getElementById("tabUser"), a = document.getElementById("tabAdmin");
+  const uv = document.getElementById("userView"), av = document.getElementById("adminView");
+  u.onclick = () => { u.classList.add("on"); a.classList.remove("on"); uv.classList.remove("hide"); av.classList.remove("show"); };
+  a.onclick = () => { a.classList.add("on"); u.classList.remove("on"); uv.classList.add("hide"); av.classList.add("show"); AdminApp.init(); };
+  UserApp.init();
+})();
+</script>
