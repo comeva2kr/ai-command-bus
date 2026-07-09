@@ -9,6 +9,7 @@ import fs from "node:fs";
 import { emptyPreferenceVector, buildPreferenceVector } from "./survey.js";
 import { inferFromHistory, mergeVectors } from "./history.js";
 import { validatePost, validateComment, userLevel, DEFAULT_RULES } from "./rules.js";
+import { nicknameFor } from "./nickname.js";
 
 function nowIso(clock) {
   // `clock` is injected so tests and reproducible runs don't depend on the
@@ -36,6 +37,7 @@ export class FeedStore {
     if (this.users.has(id)) return this.users.get(id);
     const user = {
       id,
+      nickname: nicknameFor(id), // 오늘의 닉네임 — anonymous, stable per user
       preferences: emptyPreferenceVector(),
       surveyed: false,
       feedbackCount: 0,
@@ -408,6 +410,7 @@ export class FeedStore {
       likesReceived
     };
     return {
+      nickname: user.nickname,
       posts: myPosts,
       comments: myComments,
       ratings: { total: ratings.length, liked, disliked, items: ratings },
@@ -432,6 +435,7 @@ export class FeedStore {
     const comment = {
       id: this._id("cmt"),
       userId,
+      author: user.nickname || nicknameFor(userId), // show a nickname, never "나"
       itemId,
       body: text.slice(0, 2000),
       at: nowIso(this.clock)
@@ -474,6 +478,7 @@ export class FeedStore {
       this.adminDisabledSources = data.adminDisabledSources || [];
       this.adminBannedWords = data.adminBannedWords || [];
       for (const user of data.users || []) {
+        if (!user.nickname) user.nickname = nicknameFor(user.id); // backfill
         this.users.set(user.id, user);
         for (const c of user.comments || []) {
           const list = this.commentsByItem.get(c.itemId) || [];

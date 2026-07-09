@@ -704,3 +704,19 @@ test("hotness ranks by public engagement + freshness only", async () => {
   const cold = hotness({ score: 5, commentCount: 1, publishedAt: "2026-07-01T00:00:00Z" }, now);
   assert.ok(hot > cold, "viral fresh post outranks a quiet old one");
 });
+
+test("users get a stable anonymous nickname; comments carry it (never 나)", async () => {
+  const { nicknameFor } = await import("../src/feed/nickname.js");
+  const store = new FeedStore({ clock: fixedClock });
+  const u = store.createUser("nick_u");
+  assert.ok(u.nickname && /\s/.test(u.nickname), "has a nickname");
+  assert.equal(u.nickname, nicknameFor("nick_u"), "nickname is deterministic from id");
+
+  store.saveSurvey(u.id, { categories: ["humor"] });
+  const c = store.addComment(u.id, "some_item", "첫 댓글");
+  assert.equal(c.author, u.nickname, "comment records the author nickname");
+  assert.notEqual(c.author, "나");
+
+  const space = store.mySpace(u.id);
+  assert.equal(space.nickname, u.nickname);
+});

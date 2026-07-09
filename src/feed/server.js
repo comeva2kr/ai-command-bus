@@ -227,6 +227,7 @@ export function createServer(opts = {}) {
         const user = store.createUser(body.userId);
         return send(res, 200, {
           userId: user.id,
+          nickname: user.nickname,
           surveyed: user.surveyed,
           feedbackCount: user.feedbackCount,
           ageVerified: user.ageVerified === true,
