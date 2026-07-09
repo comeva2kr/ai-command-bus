@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { search } from "./query.js";
+import { ingest, analyzeCorpus } from "./ingest.js";
 import { SEED_RESTAURANTS } from "./data/seed.js";
 import { LANDMARKS } from "./geo.js";
 import {
@@ -127,8 +128,34 @@ export function createServer(dataset = SEED_RESTAURANTS) {
       const name = url.searchParams.get("name");
       const preset = PRESETS[name];
       if (!preset) return sendJson(res, 404, { error: "unknown preset", available: Object.keys(PRESETS) });
-      return sendJson(res, 200, { query: preset.query, ...search(dataset, preset.query) });
+      const q = { ...preset.query };
+      if (url.searchParams.get("all") === "1") q.includeUnverified = true;
+      return sendJson(res, 200, { query: q, ...search(dataset, q) });
     }
+
+    // Admin console data: every venue scored (verified + rejected) plus the
+    // corpus-level collusion signals (detected rings).
+    if (url.pathname === "/api/admin") {
+      const venues = ingest(dataset, { keepUnverified: true })
+        .slice()
+        .sort((a, b) => b.authenticityScore - a.authenticityScore);
+      const corpus = analyzeCorpus(dataset);
+      const counts = {};
+      for (const v of venues) counts[v.verdict] = (counts[v.verdict] ?? 0) + 1;
+      return sendJson(res, 200, {
+        venues,
+        rings: corpus.rings,
+        ringAuthors: [...corpus.ringAuthors],
+        summary: {
+          total: venues.length,
+          verified: venues.filter((v) => v.verified).length,
+          rejected: venues.filter((v) => !v.verified).length,
+          verdictCounts: counts
+        }
+      });
+    }
+
+    if (url.pathname === "/admin") return serveStatic(res, "/admin.html");
 
     return serveStatic(res, url.pathname);
   });

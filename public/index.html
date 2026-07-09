@@ -2,85 +2,109 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#12151b" />
     <title>맛집 통합 커뮤니티</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <h1>🍽️ 맛집 통합 커뮤니티</h1>
-      <p class="sub">SNS · 유튜브 · 네이버 통합 · 광고/협찬 자동 제외 · 검증된 맛집만</p>
-    </header>
+    <div class="app">
+      <!-- 상단바 -->
+      <header class="topbar">
+        <div class="brand">🍽️ <span>찐맛집</span></div>
+        <button class="loc-chip" id="locChip" type="button">
+          <span class="loc-ico">📍</span><span id="locLabel">위치 설정</span><span class="chev">▾</span>
+        </button>
+      </header>
 
-    <main class="layout">
-      <aside class="panel">
-        <section class="card">
-          <h2>빠른 예시</h2>
-          <div class="presets" id="presets"></div>
-        </section>
+      <!-- 프리셋 빠른검색 -->
+      <div class="quickrow" id="presets"></div>
 
-        <section class="card">
-          <h2>📍 위치</h2>
-          <label>기준
-            <select id="near"></select>
-          </label>
-          <label>이동수단
-            <select id="mode">
-              <option value="car">차</option>
-              <option value="transit">대중교통</option>
-              <option value="bike">자전거</option>
-              <option value="walk">도보</option>
-            </select>
-          </label>
-          <label>이동시간(분): <output id="minsOut">30</output>
-            <input type="range" id="minutes" min="5" max="60" step="5" value="30" />
-          </label>
-          <label class="chkline">
-            <input type="checkbox" id="useLocation" checked /> 위치 필터 사용
-          </label>
-        </section>
-
-        <section class="card">
-          <h2>🏷️ 장소 · 음식</h2>
-          <label>장소 스타일<div class="chips" id="styles"></div></label>
-          <label>음식 종류<div class="chips" id="cuisines"></div></label>
-        </section>
-
-        <section class="card">
-          <h2>🍤 메뉴 검색</h2>
-          <label>메뉴
-            <select id="menu"><option value="">(선택 안 함)</option></select>
-          </label>
-          <label>메뉴 특성<div class="chips" id="menuAttrs"></div></label>
-        </section>
-
-        <section class="card">
-          <h2>🧩 생활 조건 (다중)</h2>
-          <label>필수 태그<div class="chips" id="tagsAll"></div></label>
-          <label>제외 태그<div class="chips" id="excludeTags"></div></label>
-          <label>필수 편의<div class="chips" id="features"></div></label>
-          <label class="chkline">
-            <input type="checkbox" id="excludeFranchise" /> 프랜차이즈 제외
-          </label>
-          <label>가격대: <output id="priceOut">1 ~ 4</output>
-            <div class="pricerow">
-              <input type="range" id="priceMin" min="1" max="4" value="1" />
-              <input type="range" id="priceMax" min="1" max="4" value="4" />
-            </div>
-          </label>
-        </section>
-
-        <button id="searchBtn" class="primary">검색</button>
-      </aside>
-
-      <section class="results">
-        <div class="mapwrap card">
-          <canvas id="map" width="520" height="300"></canvas>
-          <div class="metabar" id="meta"></div>
+      <!-- 검증 토글 + 결과 요약 -->
+      <div class="subbar">
+        <div class="seg" id="verifiedSeg">
+          <button class="seg-btn on" data-mode="verified" type="button">검증된 곳만</button>
+          <button class="seg-btn" data-mode="all" type="button">전체(가짜 표시)</button>
         </div>
-        <div id="list" class="list"></div>
-      </section>
-    </main>
+        <div class="count" id="count">—</div>
+      </div>
+
+      <!-- 결과 리스트 -->
+      <main id="list" class="list"></main>
+
+      <!-- 하단 필터 바 -->
+      <div class="fabbar">
+        <button class="fab-filter" id="openFilter" type="button">
+          <span>⚙️ 필터</span><span class="fab-badge" id="filterBadge" hidden>0</span>
+        </button>
+        <button class="fab-map" id="toggleMap" type="button">🗺️ 지도</button>
+      </div>
+    </div>
+
+    <!-- 백드롭 -->
+    <div class="backdrop" id="backdrop" hidden></div>
+
+    <!-- 위치 시트 -->
+    <section class="sheet" id="sheetLoc" aria-hidden="true">
+      <div class="sheet-grip"></div>
+      <h2>📍 위치 설정</h2>
+      <button class="wide-btn" id="useGeo" type="button">📍 내 현재 위치 사용</button>
+      <label class="fld">기준 지역
+        <select id="near"></select>
+      </label>
+      <div class="row2">
+        <label class="fld">이동수단
+          <select id="mode">
+            <option value="car">🚗 차</option>
+            <option value="transit">🚌 대중교통</option>
+            <option value="bike">🚲 자전거</option>
+            <option value="walk">🚶 도보</option>
+          </select>
+        </label>
+        <label class="fld">시간(분): <b id="minsOut">30</b>
+          <input type="range" id="minutes" min="5" max="60" step="5" value="30" />
+        </label>
+      </div>
+      <label class="chk"><input type="checkbox" id="useLocation" checked /> 위치 필터 사용</label>
+      <button class="apply" id="applyLoc" type="button">적용</button>
+    </section>
+
+    <!-- 필터 시트 -->
+    <section class="sheet tall" id="sheetFilter" aria-hidden="true">
+      <div class="sheet-grip"></div>
+      <div class="sheet-head">
+        <h2>⚙️ 필터</h2>
+        <button class="reset" id="resetFilter" type="button">초기화</button>
+      </div>
+      <div class="sheet-body">
+        <div class="grp"><h3>🍤 메뉴</h3>
+          <select id="menu"><option value="">(선택 안 함)</option></select>
+          <div class="chips" id="menuAttrs"></div>
+        </div>
+        <div class="grp"><h3>🏠 장소 스타일</h3><div class="chips" id="styles"></div></div>
+        <div class="grp"><h3>🍜 음식 종류</h3><div class="chips" id="cuisines"></div></div>
+        <div class="grp"><h3>🧩 필수 편의</h3><div class="chips" id="features"></div></div>
+        <div class="grp"><h3>🏷️ 필수 태그</h3><div class="chips" id="tagsAll"></div></div>
+        <div class="grp"><h3>🚫 제외 태그</h3><div class="chips" id="excludeTags"></div></div>
+        <div class="grp">
+          <label class="chk"><input type="checkbox" id="excludeFranchise" /> 프랜차이즈 제외</label>
+          <h3>💰 가격대: <b id="priceOut">₩ ~ ₩₩₩₩</b></h3>
+          <div class="row2">
+            <input type="range" id="priceMin" min="1" max="4" value="1" />
+            <input type="range" id="priceMax" min="1" max="4" value="4" />
+          </div>
+        </div>
+      </div>
+      <button class="apply" id="applyFilter" type="button">결과 보기</button>
+    </section>
+
+    <!-- 지도 시트 -->
+    <section class="sheet" id="sheetMap" aria-hidden="true">
+      <div class="sheet-grip"></div>
+      <h2>🗺️ 위치 지도</h2>
+      <canvas id="map" width="600" height="360"></canvas>
+      <div class="map-meta" id="mapMeta"></div>
+    </section>
 
     <script src="/app.js"></script>
   </body>
