@@ -59,7 +59,14 @@
         <div class="sec"><label class="switch-row">🔥 찐맛집만 보기<span class="switch"><input type="checkbox" id="gemOnly" /><span class="track"></span></span></label></div>
         <div class="sec"><h3>음식 종류</h3><div class="pills" id="cuisines"></div></div>
         <div class="sec"><h3>가격대 <span class="hint">1인 기준</span></h3><div class="pills" id="priceBands"></div></div>
-        <div class="sec"><h3>이런 점이 필요해요</h3><div class="pills" id="features"></div></div>
+        <div class="sec"><h3>편의시설</h3>
+          <div class="segline sm" id="featMode">
+            <button class="on" data-m="prefer" type="button">있으면 좋아요</button>
+            <button data-m="require" type="button">꼭 필요해요</button>
+          </div>
+          <div class="pills" id="features" style="margin-top:10px"></div>
+          <div class="hint" id="featHint" style="margin-top:8px">‘있으면 좋아요’는 조건이 맞는 곳을 위로 올려줘요(빼지 않아요).</div>
+        </div>
         <div class="sec"><h3>분위기</h3><div class="pills" id="tags"></div></div>
         <div class="sec"><h3>메뉴로 찾기</h3><select id="menu"><option value="">전체</option></select><div class="pills" id="menuAttrs" style="margin-top:10px"></div></div>
         <div class="sec"><h3>정렬</h3><div class="segline" id="sortSeg">

@@ -124,6 +124,7 @@ h1,h2,h3,h4 { margin: 0; }
 .segline { display: flex; gap: 6px; background: var(--surface); border-radius: 12px; padding: 4px; }
 .segline button { flex: 1; background: none; border: 0; border-radius: 9px; padding: 10px; font-size: 14px; font-weight: 700; color: var(--muted); }
 .segline button.on { background: #fff; color: var(--brand-ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.segline.sm button { padding: 8px; font-size: 13px; }
 .sheet-scroll { overflow-y: auto; margin: 0 -20px; padding: 8px 20px; }
 .sec { padding: 14px 0; border-top: 1px solid var(--line2); }
 .sec:first-child { border-top: 0; }

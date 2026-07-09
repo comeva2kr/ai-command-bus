@@ -126,6 +126,7 @@ h1,h2,h3,h4 { margin: 0; }
 .segline { display: flex; gap: 6px; background: var(--surface); border-radius: 12px; padding: 4px; }
 .segline button { flex: 1; background: none; border: 0; border-radius: 9px; padding: 10px; font-size: 14px; font-weight: 700; color: var(--muted); }
 .segline button.on { background: #fff; color: var(--brand-ink); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+.segline.sm button { padding: 8px; font-size: 13px; }
 .sheet-scroll { overflow-y: auto; margin: 0 -20px; padding: 8px 20px; }
 .sec { padding: 14px 0; border-top: 1px solid var(--line2); }
 .sec:first-child { border-top: 0; }
@@ -223,7 +224,14 @@ input[type="range"] { accent-color: var(--brand); margin-top: 8px; }
         <div class="sec"><label class="switch-row">🔥 찐맛집만 보기<span class="switch"><input type="checkbox" id="gemOnly" /><span class="track"></span></span></label></div>
         <div class="sec"><h3>음식 종류</h3><div class="pills" id="cuisines"></div></div>
         <div class="sec"><h3>가격대 <span class="hint">1인 기준</span></h3><div class="pills" id="priceBands"></div></div>
-        <div class="sec"><h3>이런 점이 필요해요</h3><div class="pills" id="features"></div></div>
+        <div class="sec"><h3>편의시설</h3>
+          <div class="segline sm" id="featMode">
+            <button class="on" data-m="prefer" type="button">있으면 좋아요</button>
+            <button data-m="require" type="button">꼭 필요해요</button>
+          </div>
+          <div class="pills" id="features" style="margin-top:10px"></div>
+          <div class="hint" id="featHint" style="margin-top:8px">‘있으면 좋아요’는 조건이 맞는 곳을 위로 올려줘요(빼지 않아요).</div>
+        </div>
         <div class="sec"><h3>분위기</h3><div class="pills" id="tags"></div></div>
         <div class="sec"><h3>메뉴로 찾기</h3><select id="menu"><option value="">전체</option></select><div class="pills" id="menuAttrs" style="margin-top:10px"></div></div>
         <div class="sec"><h3>정렬</h3><div class="segline" id="sortSeg">
@@ -1961,7 +1969,7 @@ window.fetch = async (url, opts = {}) => {
 // and smart zero-result relaxation.
 
 const state = {
-  meta: null, mode: "verified", gemOnly: false, sort: "trust",
+  meta: null, mode: "verified", gemOnly: false, sort: "trust", featureMode: "prefer",
   cats: new Set(), location: null, situation: null,
   sel: { cuisines: new Set(), tags: new Set(), features: new Set(), menuAttrs: new Set(), priceBands: new Set() },
   prefer: [], preferFeatures: [], last: null
@@ -1973,10 +1981,11 @@ const catOf = (s) => CAT[s] || ["🍽️", "#eef1f4"];
 const FEATURE_LABEL = { kidsCafe: "🧸 키즈카페(놀이방)", kidFriendly: "👶 아이 데려가기 좋음", partition: "🚪 파티션·룸", privateRoom: "🛋️ 룸 있음", parking: "🅿️ 주차", reservable: "📞 예약 가능", soloFriendly: "🍽️ 혼밥 좋음", petFriendly: "🐶 반려동물", lateNight: "🌙 심야영업", vegetarianOptions: "🥗 채식 옵션" };
 const BAND = { 1: "₩ 1만↓", 2: "₩₩ 1~2만", 3: "₩₩₩ 2~4만", 4: "₩₩₩₩ 4만+" };
 const SITUATIONS = [
-  { key: "kids", emo: "🍼", lb: "아이랑", require: ["kidFriendly"], prefFeat: ["kidsCafe", "parking"] },
-  { key: "party", emo: "👥", lb: "회식", tags: ["회식"], prefFeat: ["partition", "privateRoom", "parking"] },
+  // hardFeat = 반드시 있어야 하는 조건(요약칩으로 노출, 0곳이면 완화 제안). prefFeat = 우대(가점).
+  { key: "kids", emo: "🍼", lb: "아이랑", hardFeat: ["kidFriendly", "parking"], prefFeat: ["kidsCafe"] },
+  { key: "party", emo: "👥", lb: "회식", prefFeat: ["partition", "privateRoom", "parking"] },
   { key: "date", emo: "💕", lb: "데이트", tags: ["데이트"], pref: ["분위기좋은", "조용한", "고급스러운"] },
-  { key: "solo", emo: "🍚", lb: "혼밥", require: ["soloFriendly"] },
+  { key: "solo", emo: "🍚", lb: "혼밥", hardFeat: ["soloFriendly"] },
   { key: "view", emo: "🌆", lb: "뷰맛집", tags: ["뷰맛집"] }
 ];
 const VERDICT_MSG = { "광고의심": "광고·협찬 리뷰가 너무 많아요", "어뷰징의심": "소수 계정이 몰아준 정황이 있어요", "바이럴거품": "숏폼에서만 반짝, 실제 방문 확인이 안 돼요", "담합의심": "여러 가게와 짜고 리뷰한 정황이 있어요", "조직적버스트": "짧은 기간 별점을 몰아준 정황이 있어요", "싱글톤공격": "일회성 계정이 별점을 몰아줬어요", "복붙리뷰": "복사·붙여넣기 리뷰가 많아요", "AI리뷰의심": "AI로 작성한 듯한 리뷰가 많아요", "평점급등의심": "최근 갑자기 별점이 치솟았어요", "보통": "검증 신호가 뚜렷하지 않아요", "미검증": "검증 신호가 부족해요", "정보부족": "리뷰가 아직 부족해요" };
@@ -2048,6 +2057,7 @@ async function init() {
   $("useGeo").onclick = useGeo;
   $("verifiedSeg").querySelectorAll("button").forEach((b) => (b.onclick = () => { state.mode = b.dataset.mode; $("verifiedSeg").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); run(); }));
   $("sortSeg").querySelectorAll("button").forEach((b) => (b.onclick = () => { state.sort = b.dataset.sort; $("sortSeg").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b)); run(); }));
+  $("featMode").querySelectorAll("button").forEach((b) => (b.onclick = () => { setFeatMode(b.dataset.m); clearSituation(); run(); }));
 
   syncLoc(); run();
 }
@@ -2061,7 +2071,13 @@ function toggleCat(c) {
 function clearFilters() {
   state.gemOnly = false; $("gemOnly").checked = false;
   Object.values(state.sel).forEach((s) => s.clear()); state.prefer = []; state.preferFeatures = []; $("menu").value = "";
-  syncPills();
+  setFeatMode("prefer"); syncPills();
+}
+function setFeatMode(m) {
+  state.featureMode = m;
+  $("featMode") && $("featMode").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.m === m));
+  const h = $("featHint");
+  if (h) h.textContent = m === "require" ? "‘꼭 필요해요’는 그 조건이 없는 곳은 결과에서 빼요." : "‘있으면 좋아요’는 조건이 맞는 곳을 위로 올려줘요(빼지 않아요).";
 }
 function clearSituation() { if (state.situation) { state.situation = null; $("situations").querySelectorAll(".sit").forEach((b) => b.classList.remove("on")); } }
 function pickSituation(s, btn) {
@@ -2070,7 +2086,8 @@ function pickSituation(s, btn) {
   $("situations").querySelectorAll(".sit").forEach((b) => b.classList.remove("on"));
   if (was) { state.situation = null; run(); return; }
   state.situation = s.key; btn.classList.add("on");
-  (s.require || []).forEach((f) => state.sel.features.add(f));
+  setFeatMode(s.hardFeat && s.hardFeat.length ? "require" : "prefer");
+  (s.hardFeat || []).forEach((f) => state.sel.features.add(f));
   (s.tags || []).forEach((t) => state.sel.tags.add(t));
   state.preferFeatures = s.prefFeat || []; state.prefer = s.pref || [];
   syncPills(); run();
@@ -2089,10 +2106,13 @@ function useGeo() {
 
 function buildQuery(extra = {}) {
   const pb = [...state.sel.priceBands];
+  const manual = [...state.sel.features], hard = state.featureMode === "require";
+  const require = {}, preferF = {};
+  manual.forEach((f) => ((hard ? require : preferF)[f] = true));
+  (state.preferFeatures || []).forEach((f) => (preferF[f] = true));
   const q = {
     styles: [...state.cats], cuisines: [...state.sel.cuisines], tagsAny: [...state.sel.tags],
-    menuAttrs: [...state.sel.menuAttrs], require: Object.fromEntries([...state.sel.features].map((f) => [f, true])),
-    prefer: state.prefer, preferFeatures: Object.fromEntries((state.preferFeatures || []).map((f) => [f, true])),
+    menuAttrs: [...state.sel.menuAttrs], require, preferFeatures: preferF, prefer: state.prefer,
     priceMin: pb.length ? Math.min(...pb) : 1, priceMax: pb.length ? Math.max(...pb) : 4,
     includeUnverified: state.mode === "all"
   };
@@ -2120,7 +2140,7 @@ async function run() {
   [...$("list").children].forEach((el, i) => (el.onclick = () => openDetail(rows[i])));
 }
 function renderCount(meta, n) {
-  const where = meta.origin ? `${$("locName").textContent} 근처` : "전국";
+  const where = meta.origin ? `${$("locName").textContent} 기준` : "전국";
   $("count").textContent = `${where} ${state.gemOnly ? "🔥 찐맛집" : meta.verifiedOnly ? "검증 맛집" : "전체"} ${n}곳`;
 }
 
