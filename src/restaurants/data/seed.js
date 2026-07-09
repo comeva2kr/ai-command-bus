@@ -1,7 +1,11 @@
-// Sample dataset with REVIEW-LEVEL signals so the 찐맛집 authenticity engine has
-// real material to work with. `makeReviews` deterministically expands a compact
-// spec into individual reviews (author, timestamp, rating, paid?, local?,
-// repeat?, specificity) — no randomness, so scores are reproducible.
+// TEST FIXTURE ONLY — not product data. This synthetic dataset exists purely to
+// unit-test the authenticity engine (test/restaurants.test.js). It is NOT served
+// to users; the running app uses real place data via src/restaurants/places.js.
+// Do not wire this into any user-facing path.
+//
+// Review-level signals so the 찐맛집 authenticity engine has material to score.
+// `makeReviews` deterministically expands a compact spec into individual reviews
+// (author, timestamp, rating, paid?, local?, repeat?, specificity).
 //
 // The set deliberately includes fakes that PASS the attribute filters but must
 // be rejected by the authenticity engine (e.g. an astroturfed 뒷고기+키즈카페

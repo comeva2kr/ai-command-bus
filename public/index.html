@@ -4,102 +4,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#ffffff" />
-    <title>찐맛집 · 검증된 맛집만</title>
+    <title>찐맛집</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <div class="app">
       <header class="hd">
-        <button class="loc" id="locChip" type="button"><span class="pin">📍</span> <span id="locName">강남역</span> <i>▾</i></button>
-        <div class="hd-title">찐맛집</div>
-        <button class="hd-ic" id="infoBtn" type="button" aria-label="검증 기준">ⓘ</button>
+        <div class="hd-title">🍽️ 찐맛집</div>
+        <button class="hd-ic geo" id="geoBtn" type="button">📍 내 주변</button>
       </header>
 
-      <div class="situations" id="situations"></div>
+      <div class="searchbar">
+        <input id="q" type="search" placeholder="지역·맛집 검색 (예: 강남 고깃집)" />
+        <button id="searchBtn" type="button">검색</button>
+      </div>
+
       <nav class="cats" id="cats"></nav>
 
-      <div class="ctrl">
-        <div class="seg" id="verifiedSeg">
-          <button class="on" data-mode="verified" type="button">검증된 곳만</button>
-          <button data-mode="all" type="button">전체</button>
-        </div>
-        <button class="filterbtn" id="openFilter" type="button">⚙ 필터 <span class="dot" id="filterDot" hidden>0</span></button>
-      </div>
-
-      <div class="applied" id="applied" hidden></div>
-      <div class="count" id="count">—</div>
+      <div class="count" id="count"></div>
       <main class="list" id="list"></main>
     </div>
-
-    <div class="scrim" id="scrim" hidden></div>
-
-    <!-- 위치 -->
-    <section class="sheet" id="sheetLoc" aria-hidden="true">
-      <div class="grip"></div>
-      <h2>위치 설정</h2>
-      <div class="sheet-scroll">
-        <div class="sec"><button class="btn btn-ghost" id="useGeo" type="button">📍 내 현재 위치 사용</button></div>
-        <div class="sec"><h3>기준 지역</h3><select id="near"></select></div>
-        <div class="sec"><h3>이동 범위</h3>
-          <div class="row2">
-            <select id="mode"><option value="car">🚗 차</option><option value="transit">🚌 대중교통</option><option value="bike">🚲 자전거</option><option value="walk">🚶 도보</option></select>
-            <div class="fld">시간 <b id="minsOut">15</b>분<input type="range" id="minutes" min="5" max="60" step="5" value="15" /></div>
-          </div>
-          <label class="switch-row">위치로 거리 필터<span class="switch"><input type="checkbox" id="useLocation" checked /><span class="track"></span></span></label>
-        </div>
-      </div>
-      <button class="btn btn-primary" id="applyLoc" type="button">적용</button>
-    </section>
-
-    <!-- 필터 (하나로 통일, 즉시 반영) -->
-    <section class="sheet tall" id="sheetFilter" aria-hidden="true">
-      <div class="grip"></div>
-      <div class="sheet-head"><button class="btn-reset" id="resetFilter" type="button">초기화</button><h2>필터</h2><button class="btn-x" id="closeFilter" type="button">✕</button></div>
-      <div class="sheet-scroll">
-        <div class="sec"><label class="switch-row">🔥 찐맛집만 보기<span class="switch"><input type="checkbox" id="gemOnly" /><span class="track"></span></span></label></div>
-        <div class="sec"><h3>음식 종류</h3><div class="pills" id="cuisines"></div></div>
-        <div class="sec"><h3>가격대 <span class="hint">1인 기준</span></h3><div class="pills" id="priceBands"></div></div>
-        <div class="sec"><h3>편의시설</h3>
-          <div class="segline sm" id="featMode">
-            <button class="on" data-m="prefer" type="button">있으면 좋아요</button>
-            <button data-m="require" type="button">꼭 필요해요</button>
-          </div>
-          <div class="pills" id="features" style="margin-top:10px"></div>
-          <div class="hint" id="featHint" style="margin-top:8px">‘있으면 좋아요’는 조건이 맞는 곳을 위로 올려줘요(빼지 않아요).</div>
-        </div>
-        <div class="sec"><h3>분위기</h3><div class="pills" id="tags"></div></div>
-        <div class="sec"><h3>메뉴로 찾기</h3><select id="menu"><option value="">전체</option></select><div class="pills" id="menuAttrs" style="margin-top:10px"></div></div>
-        <div class="sec"><h3>정렬</h3><div class="segline" id="sortSeg">
-          <button class="on" data-sort="trust" type="button">검증 신뢰순</button>
-          <button data-sort="rating" type="button">평점순</button>
-          <button data-sort="distance" type="button">거리순</button>
-        </div></div>
-      </div>
-      <button class="btn btn-primary" id="applyFilter" type="button">결과 보기</button>
-    </section>
-
-    <!-- 상세 -->
-    <section class="sheet tall" id="sheetDetail" aria-hidden="true">
-      <div class="grip"></div>
-      <div class="sheet-scroll" id="detailBody"></div>
-      <div class="sheet-actions" id="detailActions"></div>
-    </section>
-
-    <!-- 검증 기준 -->
-    <section class="sheet" id="sheetInfo" aria-hidden="true">
-      <div class="grip"></div>
-      <h2>‘검증’은 어떻게 하나요?</h2>
-      <div class="sheet-scroll">
-        <ul class="trust">
-          <li><span class="ic">🧹</span><span>협찬·광고 리뷰를 걸러내고 계산해요. (제휴 광고 안 받아요)</span></li>
-          <li><span class="ic">🗺️</span><span>네이버·커뮤니티 등 여러 채널에서 <b>교차 확인</b>된 곳만 ‘검증’으로 표시해요.</span></li>
-          <li><span class="ic">🔁</span><span>말(리뷰)보다 <b>실제 재방문·단골</b>을 더 크게 봐요.</span></li>
-          <li><span class="ic">🚫</span><span>소수 계정 몰아주기·담합·별점 급조는 자동으로 걸러내요.</span></li>
-          <li><span class="ic">🔥</span><span><b>찐맛집</b>은 그중에서도 신뢰 신호가 가장 강한 최상위예요.</span></li>
-        </ul>
-      </div>
-      <button class="btn btn-primary" id="closeInfo" type="button">알겠어요</button>
-    </section>
 
     <script src="/app.js"></script>
   </body>

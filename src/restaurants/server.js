@@ -1,61 +1,19 @@
-// Zero-dependency HTTP server exposing the restaurant discovery API plus a
-// static frontend. Run: `node src/restaurants/server.js` then open the printed
-// URL.
+// Zero-dependency HTTP server for the real restaurant app.
+// Serves the frontend + a live place-search API backed by a real connector
+// (Kakao Local). No sample/dummy data is served — if no data source is
+// configured, /api/places returns 503 and the UI shows a setup state.
+//
+// Run: KAKAO_REST_KEY=xxxx node src/restaurants/server.js
 
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { search } from "./query.js";
-import { ingest, analyzeCorpus } from "./ingest.js";
-import { SEED_RESTAURANTS } from "./data/seed.js";
-import { LANDMARKS } from "./geo.js";
-import {
-  STYLE_SYNONYMS,
-  CUISINE_SYNONYMS,
-  TAG_SYNONYMS,
-  MENU_SYNONYMS,
-  MENU_ATTR_SYNONYMS,
-  FEATURE_KEYS
-} from "./taxonomy.js";
+import { dataSourceStatus, findPlaces } from "./places.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "..", "public");
-
-// Ready-made queries matching the user's worked examples.
-export const PRESETS = {
-  "kids-pork": {
-    label: "프랜차이즈 아닌 뒷고기 고깃집 + 키즈카페",
-    query: {
-      styles: ["고깃집"],
-      cuisines: ["돼지고기"],
-      excludeFranchise: true,
-      require: { kidsCafe: true },
-      prefer: ["뒷고기"]
-    }
-  },
-  "izakaya-aged": {
-    label: "이자카야 · 숙성회 · 싼 분위기 아님 · 파티션",
-    query: {
-      styles: ["이자카야"],
-      tagsAll: ["숙성회"],
-      excludeTags: ["가성비"],
-      prefer: ["고급스러운", "분위기좋은"],
-      preferFeatures: { partition: true },
-      priceMin: 2
-    }
-  },
-  "sejong-mackerel": {
-    label: "세종 인근 · 차로 30분 · 활(살아있는)고등어회",
-    query: {
-      location: { near: "세종" },
-      travel: { mode: "car", minutes: 30 },
-      menu: "고등어회",
-      menuAttrs: ["활"]
-    }
-  }
-};
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -65,9 +23,8 @@ const MIME = {
 };
 
 function sendJson(res, status, body) {
-  const data = JSON.stringify(body, null, 2);
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
-  res.end(data);
+  res.end(JSON.stringify(body));
 }
 
 function serveStatic(res, urlPath) {
@@ -78,84 +35,38 @@ function serveStatic(res, urlPath) {
     res.end("Not found");
     return;
   }
-  const ext = path.extname(filePath);
-  res.writeHead(200, { "content-type": MIME[ext] ?? "application/octet-stream" });
+  res.writeHead(200, { "content-type": MIME[path.extname(filePath)] ?? "application/octet-stream" });
   fs.createReadStream(filePath).pipe(res);
 }
 
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let raw = "";
-    req.on("data", (chunk) => {
-      raw += chunk;
-      if (raw.length > 1e6) reject(new Error("payload too large"));
-    });
-    req.on("end", () => resolve(raw));
-    req.on("error", reject);
-  });
-}
-
-export function createServer(dataset = SEED_RESTAURANTS) {
+export function createServer() {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
 
-    if (url.pathname === "/api/meta") {
-      return sendJson(res, 200, {
-        landmarks: Object.keys(LANDMARKS),
-        styles: Object.keys(STYLE_SYNONYMS),
-        cuisines: Object.keys(CUISINE_SYNONYMS),
-        tags: Object.keys(TAG_SYNONYMS),
-        menus: Object.keys(MENU_SYNONYMS),
-        menuAttrs: Object.keys(MENU_ATTR_SYNONYMS),
-        features: FEATURE_KEYS,
-        presets: Object.fromEntries(
-          Object.entries(PRESETS).map(([k, v]) => [k, v.label])
-        )
-      });
+    // Tells the frontend whether a real data source is wired up.
+    if (url.pathname === "/api/config") {
+      return sendJson(res, 200, { data: dataSourceStatus() });
     }
 
-    if (url.pathname === "/api/search" && req.method === "POST") {
+    // Live place search. query + optional lat/lng/radius for location search.
+    if (url.pathname === "/api/places") {
+      const q = url.searchParams;
       try {
-        const raw = await readBody(req);
-        const query = raw ? JSON.parse(raw) : {};
-        return sendJson(res, 200, search(dataset, query));
+        const result = await findPlaces({
+          query: q.get("query") || "맛집",
+          lat: q.get("lat") ? Number(q.get("lat")) : undefined,
+          lng: q.get("lng") ? Number(q.get("lng")) : undefined,
+          radiusM: q.get("radius") ? Number(q.get("radius")) : 1500,
+          cafe: q.get("cafe") === "1"
+        });
+        return sendJson(res, 200, result);
       } catch (err) {
-        return sendJson(res, 400, { error: String(err.message || err) });
+        if (String(err.message).includes("NO_SOURCE")) {
+          return sendJson(res, 503, { error: "no_data_source", message: "실데이터 소스(KAKAO_REST_KEY)가 설정되지 않았습니다." });
+        }
+        return sendJson(res, 502, { error: "upstream", message: String(err.message) });
       }
     }
-
-    if (url.pathname === "/api/preset") {
-      const name = url.searchParams.get("name");
-      const preset = PRESETS[name];
-      if (!preset) return sendJson(res, 404, { error: "unknown preset", available: Object.keys(PRESETS) });
-      const q = { ...preset.query };
-      if (url.searchParams.get("all") === "1") q.includeUnverified = true;
-      return sendJson(res, 200, { query: q, ...search(dataset, q) });
-    }
-
-    // Admin console data: every venue scored (verified + rejected) plus the
-    // corpus-level collusion signals (detected rings).
-    if (url.pathname === "/api/admin") {
-      const venues = ingest(dataset, { keepUnverified: true })
-        .slice()
-        .sort((a, b) => b.authenticityScore - a.authenticityScore);
-      const corpus = analyzeCorpus(dataset);
-      const counts = {};
-      for (const v of venues) counts[v.verdict] = (counts[v.verdict] ?? 0) + 1;
-      return sendJson(res, 200, {
-        venues,
-        rings: corpus.rings,
-        ringAuthors: [...corpus.ringAuthors],
-        summary: {
-          total: venues.length,
-          verified: venues.filter((v) => v.verified).length,
-          rejected: venues.filter((v) => !v.verified).length,
-          verdictCounts: counts
-        }
-      });
-    }
-
-    if (url.pathname === "/admin") return serveStatic(res, "/admin.html");
 
     return serveStatic(res, url.pathname);
   });
@@ -164,7 +75,8 @@ export function createServer(dataset = SEED_RESTAURANTS) {
 if (process.argv[1] && process.argv[1].endsWith("server.js")) {
   const port = Number(process.env.PORT) || 4173;
   createServer().listen(port, () => {
-    console.log(`맛집 통합 커뮤니티 running at http://localhost:${port}`);
-    console.log(`Presets: ${Object.keys(PRESETS).join(", ")}`);
+    const s = dataSourceStatus();
+    console.log(`찐맛집 running at http://localhost:${port}`);
+    console.log(s.ready ? `데이터 소스: ${s.source} (실연동)` : "⚠ 데이터 소스 미설정 — KAKAO_REST_KEY 환경변수를 설정하세요.");
   });
 }
