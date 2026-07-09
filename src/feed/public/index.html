@@ -275,22 +275,26 @@
   <!-- onboarding survey -->
   <section id="survey" class="hidden">
     <div class="survey-inner">
-      <h1>취향을 알려주세요</h1>
-      <p class="lead">몇 가지만 고르면 그에 맞는 커뮤니티·뉴스 글을 모아 드려요. 이후 좋아요/싫어요를 누를수록 점점 정확해집니다.</p>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
+        <h1 style="margin:0;flex:1">취향을 알려주세요</h1>
+        <button id="surveySkip" style="background:none;border:none;color:var(--muted);font-size:14px">나중에</button>
+      </div>
+      <p class="lead">관심 주제만 톡톡 고르면 그에 맞는 글을 모아드려요. 좋아요/싫어요로 계속 정확해집니다.</p>
 
-      <div class="warmstart">
-        <div class="prompt">🕘 방문기록으로 미리 채우기 <span style="color:var(--muted);font-weight:400">(선택)</span></div>
-        <p style="color:var(--muted);font-size:12.5px;line-height:1.6;margin:2px 0 10px">
+      <div id="questions"></div>
+
+      <details class="warmstart" style="margin-top:4px">
+        <summary style="cursor:pointer;font-weight:700;font-size:14px;list-style:none">＋ 방문기록으로 더 정확하게 <span style="color:var(--muted);font-weight:400">(선택)</span></summary>
+        <p style="color:var(--muted);font-size:12.5px;line-height:1.6;margin:10px 0 10px">
           자주 가는 커뮤니티 주소나 봤던 글 제목을 붙여넣으면 초반 취향을 자동으로 유추해요. 도메인·제목만 사용하고 저장하지 않습니다.</p>
-        <textarea id="histInput" placeholder="예)&#10;bobae.co.kr&#10;clien.net&#10;신형 그랜저 시승기&#10;아이폰 신제품 루머"></textarea>
+        <textarea id="histInput" placeholder="예)&#10;bobae.co.kr&#10;clien.net&#10;신형 그랜저 시승기"></textarea>
         <div style="display:flex;gap:8px;margin-top:8px">
           <button class="opt" id="histSample" type="button">샘플 넣기</button>
           <button class="opt" id="histApply" type="button">이 기록으로 유추</button>
           <span id="histResult" style="align-self:center;font-size:12.5px;color:var(--like)"></span>
         </div>
-      </div>
+      </details>
 
-      <div id="questions"></div>
       <button class="start" id="startBtn" disabled>이 취향으로 시작하기</button>
     </div>
   </section>
@@ -350,16 +354,34 @@ function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg
 
 // ---- boot ----
 (async function boot(){
-  state.config = await API.config();
-  try { state.rules = (await API.rules()).rules; } catch { state.rules = null; }
-  const s = await API.session(state.userId);
+  // parallel fetch so the first paint isn't three serial round-trips
+  const [config, rulesRes, s] = await Promise.all([
+    API.config(),
+    API.rules().catch(()=>({rules:null})),
+    API.session(state.userId)
+  ]);
+  state.config = config; state.rules = rulesRes.rules;
   state.userId = s.userId; localStorage.setItem("feed_uid", s.userId);
   state.ageVerified = s.ageVerified; state.showAdult = s.showAdult; state.nickname = s.nickname;
-  renderChips(); renderAdultBtn(); setupAdultToggle(); setupCompose(); setupSpace();
-  setupSkipObserver();
-  if(!s.surveyed){ showSurvey(); } else { updateMeter(s); loadMore(); showDigest(); openFromHash(); }
+  state.surveyed = s.surveyed;
+  renderChips(); renderAdultBtn(); setupAdultToggle(); setupCompose(); setupSpace(); setupSkipObserver();
+  // Always show content first — a preview feed (popularity-ranked when no taste
+  // yet). Personalization is invited, never a gate. (adversarial review #1)
+  updateMeter(s); loadMore(); openFromHash();
+  if(!s.surveyed) showPersonalizeBanner(); else showDigest();
   setupInfiniteScroll(); setupImmersion();
 })();
+
+// Soft, dismissible invitation to personalize — replaces the old survey wall.
+function showPersonalizeBanner(){
+  if(document.getElementById("pbanner")) return;
+  const bar=document.createElement("div"); bar.id="pbanner"; bar.className="digest";
+  bar.innerHTML=`<div class="dtext"><b>지금은 인기글 미리보기</b> · 취향을 맞추면 내 글만 모여요</div>
+    <button id="pbGo">취향 맞추기</button><button class="dclose" id="pbX">✕</button>`;
+  const feed=document.getElementById("feed"); feed.parentNode.insertBefore(bar, feed);
+  bar.querySelector("#pbGo").onclick=()=>showSurvey();
+  bar.querySelector("#pbX").onclick=()=>bar.remove();
+}
 
 // deep-link: a shared /p?id link bounces to /#post-<id>; open that post
 function openFromHash(){
@@ -666,12 +688,17 @@ function showSurvey(){
     } catch(e){ toast("유추 실패: "+e.message); }
   };
 
+  document.getElementById("surveySkip").onclick = ()=>{
+    document.getElementById("survey").classList.add("hidden"); // keep browsing the preview feed
+  };
   document.getElementById("startBtn").onclick = async ()=>{
     try {
       await API.saveSurvey(state.userId, answers);
+      state.surveyed = true;
       document.getElementById("survey").classList.add("hidden");
-      state.cursor=0; state.exhausted=false; document.getElementById("feed").innerHTML="";
-      loadMore(); toast("취향 반영 완료! 피드를 채우는 중…");
+      const pb=document.getElementById("pbanner"); if(pb) pb.remove();
+      state.cursor=0; state.exhausted=false; state.cardsById.clear(); document.getElementById("feed").innerHTML="";
+      loadMore(); toast("취향 반영 완료");
     } catch(e){ toast("설문 오류: "+e.message); }
   };
   document.getElementById("survey").classList.remove("hidden");
