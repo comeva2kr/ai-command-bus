@@ -237,7 +237,7 @@
       <button id="adultBtn" class="adult-btn locked" style="margin-left:8px" title="19금 보기">19</button>
     </div>
     <div class="meter">
-      <div class="meter-label"><span>취향 특정도</span><span id="levelPct">0%</span></div>
+      <div class="meter-label"><span>취향 정확도</span><span id="levelPct">0%</span></div>
       <div class="meter-bar"><div class="meter-fill" id="levelFill"></div></div>
     </div>
     <div class="chips" id="chips"></div>
@@ -470,7 +470,9 @@ function stopImmersionTracking(){ flushImmersionDwell(); if(immObserver){ immObs
 // ---- 19금 toggle + 성인인증 ----
 function renderAdultBtn(){
   const b = document.getElementById("adultBtn");
-  b.classList.toggle("locked", !state.ageVerified);
+  // keep the red 19 out of the first impression — only show it once verified
+  // (access lives in 내 공간 until then). (adversarial review: declutter)
+  b.style.display = state.ageVerified ? "" : "none";
   b.classList.toggle("on", state.showAdult);
   b.title = state.showAdult ? "19금 숨기기" : "19금 보기";
 }
@@ -487,7 +489,7 @@ async function toggleAdult(on){
   try {
     const r = await API.setAdult(state.userId, on);
     state.showAdult = r.showAdult; renderAdultBtn();
-    reloadFeed(on ? "19금 게시글을 포함해서 보여드려요" : "19금 게시글을 숨겼어요");
+    reloadFeed(on ? "19금 포함" : "19금 숨김");
   } catch(e){ toast("전환 실패: "+e.message); }
 }
 function showAgeGate(){
@@ -595,6 +597,9 @@ async function openSpace(){
         <div class="stat"><b>${s.counts.comments}</b><span>댓글</span></div>
       </div>
       <div class="space-sec"><h4>📊 내 취향 (학습된 결과)</h4>${tasteHtml(s.taste)}</div>
+      <div class="space-sec"><h4>설정</h4>
+        <div class="muted-row">🔞 성인 콘텐츠(19금) 보기 <button id="adultEntry">${state.ageVerified?(state.showAdult?"끄기":"켜기"):"성인인증"}</button></div>
+      </div>
       <div class="space-sec"><h4>🔖 스크랩</h4>${
         (s.saved&&s.saved.length) ? s.saved.map(p=>`<article class="card" data-id="${p.id}"><div class="card-top"><span class="dot" style="background:${srcColor(p.source)}"></span><span class="src">${srcLabel(p.source)}</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3></article>`).join("")
           : '<p style="color:var(--muted);font-size:13px">📑 버튼으로 나중에 볼 글을 저장해보세요.</p>'}
@@ -620,6 +625,12 @@ async function openSpace(){
     body.querySelectorAll(".space-sec .card[data-id]").forEach(c=>{
       c.onclick = ()=> openDetail(c.dataset.id);
     });
+    // 19금 access from settings (verify gate lives here, not the header)
+    const ae = body.querySelector("#adultEntry");
+    if(ae) ae.onclick = ()=>{
+      if(!state.ageVerified){ showAgeGate(); return; }
+      toggleAdult(!state.showAdult); closeSpace();
+    };
   } catch(e){ body.innerHTML = "<p>불러오기 실패: "+escapeHtml(e.message)+"</p>"; }
 }
 // refresh the underlying feed without scrolling the space away
@@ -698,7 +709,7 @@ function showSurvey(){
       document.getElementById("survey").classList.add("hidden");
       const pb=document.getElementById("pbanner"); if(pb) pb.remove();
       state.cursor=0; state.exhausted=false; state.cardsById.clear(); document.getElementById("feed").innerHTML="";
-      loadMore(); toast("취향 반영 완료");
+      loadMore(); toast("취향 반영됨");
     } catch(e){ toast("설문 오류: "+e.message); }
   };
   document.getElementById("survey").classList.remove("hidden");
@@ -735,13 +746,23 @@ async function loadMore(){
     state.cursor = res.nextCursor;
     updateMeter(res);
     for(const item of res.items) appendCard(item);
-    if(res.exhausted){ state.exhausted=true; setSentinel(false, "여기까지 모두 봤어요 · 평가할수록 새로 추천돼요"); }
+    if(res.exhausted){ state.exhausted=true; setSentinel(false, "새 화제글을 모으는 중… 평가할수록 더 정확해져요"); }
     else setSentinel(false);
     applyFilter();
   } catch(e){ setSentinel(false, "불러오기 실패: "+e.message); }
   finally { state.loading=false; }
 }
 
+// 화제성/신선도 뱃지 — proves "this is actually hot right now" (review #3).
+// From public signals only: engagement volume + freshness.
+function hotBadge(item){
+  const ageH = item.publishedAt ? (Date.now()-new Date(item.publishedAt))/3.6e6 : 999;
+  const eng = (item.score||0) + (item.comments||0)*2;
+  if(eng>=1000 && ageH<12) return '<span class="badge" style="background:#e5566b;color:#fff">🔥 급상승</span>';
+  if(eng>=800) return '<span class="badge" style="background:#f0a13d;color:#0e0f13">🔥 화제</span>';
+  if(ageH<3) return '<span class="badge" style="background:#3fb27f;color:#0e0f13">🆕 방금</span>';
+  return '';
+}
 function appendCard(item){
   const card = document.createElement("article"); card.className="card"; card.dataset.cat=item.category; card.dataset.id=item.id;
   card.innerHTML = `
@@ -749,6 +770,7 @@ function appendCard(item){
       <span class="dot" style="background:${srcColor(item.source)}"></span>
       <span class="src">${srcLabel(item.source)}</span>
       <span>· ${item.categoryLabel}</span>
+      ${hotBadge(item)}
       ${item.adult?'<span class="badge adult">19</span>':''}
       ${item.translated?'<span class="badge trans">번역</span>':(item.needsTranslation?'<span class="badge trans">원문</span>':'')}
       <span class="badge ${item.kind}">${item.kind==="news"?"뉴스":"커뮤"}</span>
@@ -789,7 +811,8 @@ async function rate(item, card, signal){
   try {
     const r = await API.rate(state.userId, item.id, already ? 0 : signal);
     updateMeter(r);
-    toast(signal>0 ? "좋아요! 비슷한 글을 더 보여드릴게요" : "싫어요 반영 · 덜 보여드릴게요");
+    // button color already conveys state; teach once, then stay quiet (review #7)
+    if(!state.taughtRate){ state.taughtRate=true; toast("반응할수록 추천이 정확해져요"); }
   } catch(e){ toast("평가 실패: "+e.message); }
 }
 
@@ -799,7 +822,7 @@ function updateMeter(info){
   document.getElementById("levelFill").style.width = Math.round(lvl*100)+"%";
   document.getElementById("levelPct").textContent = Math.round(lvl*100)+"%";
   const phase = info.phase;
-  const map = { survey:"탐색 중", calibrating:"학습 중 📈", personalized:"맞춤 완성 ✨" };
+  const map = { survey:"맞춰가는 중", calibrating:"학습 중", personalized:"맞춤 완성" };
   if(phase) document.getElementById("phaseLabel").textContent = map[phase] || "";
 }
 
