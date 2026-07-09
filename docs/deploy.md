@@ -12,6 +12,7 @@ The server is zero-dependency Node (`src/feed/server.js`) and listens on
 | `FEED_LIVE` | `1` to enable live ingestion of enabled non-seed communities | off |
 | `FEED_REFRESH_MS` | periodic re-collection interval in ms (e.g. `900000` = 15 min) | off |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push signing keys (see below) | push disabled |
+| `ADMIN_TOKEN` | token gating the admin console at `/admin` and `/api/admin/*` | `admin-dev` (insecure) |
 | `NODE_EXTRA_CA_CERTS` | CA bundle path if egress goes through a TLS-terminating proxy | — |
 
 Health check endpoint: `GET /api/health` → `{ "ok": true }`.

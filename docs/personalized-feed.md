@@ -220,6 +220,8 @@ single-item fetch, so an unverified client can never pull an adult item.
 | `POST /api/mute`         | mute/unmute a source `{ source, on }`          |
 | `POST /api/verify-age`   | age verification (mock; wire PASS/본인확인)     |
 | `POST /api/adult`        | toggle the 19금 view `{ on }` (requires verify) |
+| `GET  /admin`            | admin console (PC-first; token-gated)          |
+| `/api/admin/*`           | admin: stats, moderation, community + banned-word control (needs `ADMIN_TOKEN`) |
 
 ## Web-first PWA
 
