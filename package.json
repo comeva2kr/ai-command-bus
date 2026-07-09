@@ -6,7 +6,8 @@
   "main": "src/router.js",
   "scripts": {
     "test": "node --test test/*.test.js",
-    "demo": "node src/router.js examples/task_queue.json"
+    "demo": "node src/router.js examples/task_queue.json",
+    "eats": "node src/restaurants/server.js"
   },
   "keywords": [
     "ai-agents",

@@ -44,8 +44,25 @@ node src/router.js examples/task_queue.json
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [맛집 통합 커뮤니티 (Restaurant Discovery Platform)](docs/restaurant-platform.md)
 - [Example task queue](examples/task_queue.json)
 - [Example worker submission](examples/submission.json)
+
+## 맛집 통합 커뮤니티
+
+**실제 식당을 위치 기반으로 검색**(카카오 로컬 API)하고 네이버지도로 연결하며, 그
+위에 **찐맛집 판별(검증) 레이어**를 얹는 서비스입니다. 가짜·더미 데이터는 쓰지
+않습니다 — 데이터 소스가 없으면 결과 대신 설정 안내를 표시합니다.
+
+```bash
+KAKAO_REST_KEY=발급받은키 npm run eats   # http://localhost:4173
+```
+
+- **1단계(구현됨)**: 실제 식당·위치검색·네이버 링크.
+- **2단계(엔진 완성, 데이터 대기)**: 광고/담합/어뷰징을 걸러내는 판별 엔진은
+  구현·테스트 완료됐으나, 실제 리뷰 데이터 파이프라인 연결 후 활성화됩니다.
+
+자세한 내용은 [docs/restaurant-platform.md](docs/restaurant-platform.md).
 
 ## Example Work Item
 
