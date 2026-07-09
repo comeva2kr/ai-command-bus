@@ -626,3 +626,26 @@ test("collaborative picks surface in the feed with a reason", async () => {
   assert.ok(pick, "the twin-liked item appears in my feed");
   assert.ok(pick.collabPick === true && pick.reasons.includes("비슷한 취향 픽"), "marked as a collaborative pick");
 });
+
+test("web push: VAPID JWT signs and verifies", async () => {
+  const { generateVapidKeys, vapidJwt, verifyVapidJwt } = await import("../src/feed/push.js");
+  const keys = generateVapidKeys();
+  const jwt = vapidJwt("https://fcm.googleapis.com/fcm/send/abc", keys, "mailto:a@b.c", 3600, 1000000);
+  assert.equal(jwt.split(".").length, 3);
+  assert.equal(verifyVapidJwt(jwt, keys.publicKey), true, "JWT verifies with its public key");
+});
+
+test("web push: aes128gcm payload round-trips", async () => {
+  const crypto = await import("node:crypto");
+  const { encryptPayload, decryptPayload } = await import("../src/feed/push.js");
+  // simulate a subscriber's keypair
+  const ua = crypto.createECDH("prime256v1"); ua.generateKeys();
+  const auth = crypto.randomBytes(16);
+  const sub = { endpoint: "https://push/x", keys: {
+    p256dh: ua.getPublicKey().toString("base64url"), auth: auth.toString("base64url") } };
+  const recipientKeys = { p256dh: sub.keys.p256dh, auth: sub.keys.auth, private: ua.getPrivateKey().toString("base64url") };
+
+  const body = encryptPayload(sub, "관심글 3개가 올라왔어요");
+  const out = decryptPayload(body, recipientKeys);
+  assert.equal(out.toString("utf8"), "관심글 3개가 올라왔어요", "decrypted payload matches");
+});
