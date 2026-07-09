@@ -47,8 +47,12 @@ export function normalizeItem(raw, source) {
     category,
     tags: Array.isArray(raw.tags) ? raw.tags.slice(0, 12) : [],
     title: String(raw.title || "").slice(0, 300),
-    summary: String(raw.summary || raw.body || "").slice(0, 1000),
-    url: raw.url || null,
+    // excerpt only for aggregated/out-link items; user's own posts keep their body
+    summary: String(raw.summary || raw.body || "").slice(0, raw.via === "submit" || raw.via === "rss" ? 200 : 1000),
+    url: raw.url || null, // out-link to the original (required for aggregated items)
+    via: raw.via || "seed", // provenance: seed | rss | api | submit | me
+    sourceLabel: raw.sourceLabel || null,
+    image: raw.image || null,
     author: raw.author || null,
     // engagement metadata used as weak popularity signals
     score: Number.isFinite(raw.score) ? raw.score : 0,
@@ -84,7 +88,13 @@ export class StorePostsSource {
   }
 
   async fetch() {
-    return (this._store.allPosts ? this._store.allPosts() : []).map((raw) => normalizeItem(raw, this));
+    const posts = this._store.allPosts ? this._store.allPosts() : [];
+    const subs = this._store.allSubmissions ? this._store.allSubmissions() : [];
+    // user posts keep source "me"; submissions keep their own out-link source
+    return [
+      ...posts.map((raw) => normalizeItem(raw, this)),
+      ...subs.map((raw) => normalizeItem(raw, { id: raw.source, kind: "community" }))
+    ];
   }
 }
 

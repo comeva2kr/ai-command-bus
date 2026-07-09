@@ -18,6 +18,7 @@ import { CATEGORIES, SOURCE_CATALOG } from "./taxonomy.js";
 import { loadRegistry, buildSources, summarize } from "./registry.js";
 import { makeFetcher } from "./fetchers.js";
 import { DEFAULT_RULES } from "./rules.js";
+import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 
@@ -169,6 +170,23 @@ export function createServer(opts = {}) {
         } catch (err) {
           const status = err.rule && err.rule.rateLimited ? 429 : 400;
           return send(res, status, { error: String(err.message), rule: err.rule || null });
+        }
+      }
+
+      if (p === "/api/submit" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        try {
+          // fetch the page's own OG tags for title/excerpt where the network
+          // allows; otherwise fall back to the submitter-provided title.
+          const item = await normalizeSubmission(body, {
+            fetchImpl: process.env.FEED_LIVE ? fetch : null
+          });
+          const rec = store.addSubmission(body.userId, item);
+          engine.invalidate();
+          return send(res, 200, rec);
+        } catch (err) {
+          return send(res, 400, { error: String(err.message) });
         }
       }
 

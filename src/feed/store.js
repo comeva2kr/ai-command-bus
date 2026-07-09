@@ -222,6 +222,30 @@ export class FeedStore {
     return this.posts || [];
   }
 
+  // User-submitted out-link (legal ingestion path: no crawling). `item` comes
+  // from ingest.normalizeSubmission — title + short excerpt + source + url.
+  addSubmission(userId, item) {
+    const user = this.requireUser(userId);
+    if (!item || !item.url) throw new Error("링크가 필요해요.");
+    const record = {
+      id: this._id("sub"),
+      userId,
+      via: "submit",
+      score: 0,
+      commentCount: 0,
+      publishedAt: nowIso(this.clock),
+      ...item
+    };
+    this.submissions = this.submissions || [];
+    this.submissions.push(record);
+    this._persist();
+    return record;
+  }
+
+  allSubmissions() {
+    return this.submissions || [];
+  }
+
   // ---- admin / moderation ----
 
   // Extra banned words configured at runtime by an admin (merged with the
@@ -432,6 +456,7 @@ export class FeedStore {
       seq: this._seq,
       users: [...this.users.values()],
       posts: this.posts || [],
+      submissions: this.submissions || [],
       adminDisabledSources: this.adminDisabledSources || [],
       adminBannedWords: this.adminBannedWords || []
     };
@@ -445,6 +470,7 @@ export class FeedStore {
       this.users = new Map();
       this.commentsByItem = new Map();
       this.posts = data.posts || [];
+      this.submissions = data.submissions || [];
       this.adminDisabledSources = data.adminDisabledSources || [];
       this.adminBannedWords = data.adminBannedWords || [];
       for (const user of data.users || []) {

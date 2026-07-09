@@ -649,3 +649,58 @@ test("web push: aes128gcm payload round-trips", async () => {
   const out = decryptPayload(body, recipientKeys);
   assert.equal(out.toString("utf8"), "관심글 3개가 올라왔어요", "decrypted payload matches");
 });
+
+test("parseOpenGraph pulls title/excerpt/source from a page's own tags", async () => {
+  const { parseOpenGraph } = await import("../src/feed/ingest.js");
+  const html = `<html><head>
+    <meta property="og:title" content="신형 전기차 실측 후기">
+    <meta property="og:description" content="충전 속도와 실주행 거리를 직접 재봤습니다. 결론부터 말하면...">
+    <meta property="og:site_name" content="보배드림">
+    <meta property="og:image" content="https://x/y.jpg"></head><body>full body text here</body></html>`;
+  const og = parseOpenGraph(html, "https://www.bobae.co.kr/view/123");
+  assert.equal(og.title, "신형 전기차 실측 후기");
+  assert.ok(og.summary.length <= 200 && og.summary.startsWith("충전"));
+  assert.equal(og.siteName, "보배드림");
+  assert.ok(!og.summary.includes("full body"), "never captures the article body");
+});
+
+test("normalizeSubmission builds a legal out-link item (title+excerpt+source+url)", async () => {
+  const { normalizeSubmission } = await import("../src/feed/ingest.js");
+  const fakeFetch = async () => ({ ok: true, async text() {
+    return `<meta property="og:title" content="핫한 유머 글"><meta property="og:description" content="짧은 미리보기">`;
+  }});
+  const item = await normalizeSubmission({ url: "https://web.humoruniv.com/board/1", category: "humor" }, { fetchImpl: fakeFetch });
+  assert.equal(item.via, "submit");
+  assert.equal(item.url, "https://web.humoruniv.com/board/1");
+  assert.equal(item.source, "web.humoruniv.com");
+  assert.equal(item.title, "핫한 유머 글");
+  assert.ok(item.summary.length <= 200);
+
+  // rejects non-http and needs a title when OG is unavailable
+  await assert.rejects(() => normalizeSubmission({ url: "ftp://x" }), /링크/);
+  await assert.rejects(() => normalizeSubmission({ url: "https://x/y" }, { fetchImpl: async () => ({ ok: false }) }), /제목/);
+});
+
+test("submitted links flow into the feed as out-links", async () => {
+  const { normalizeSubmission } = await import("../src/feed/ingest.js");
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new StorePostsSource(store)]);
+  const user = store.createUser("sub_u");
+  store.saveSurvey(user.id, { categories: ["humor"] });
+  const item = await normalizeSubmission({ url: "https://theqoo.net/hot/9", title: "화제의 짤", category: "humor" });
+  const rec = store.addSubmission(user.id, item);
+  engine.invalidate();
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 10 });
+  const found = feed.items.find((i) => i.id === rec.id);
+  assert.ok(found, "submission appears in feed");
+  assert.equal(found.url, "https://theqoo.net/hot/9", "keeps the out-link");
+  assert.equal(found.via, "submit");
+});
+
+test("hotness ranks by public engagement + freshness only", async () => {
+  const { hotness } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-06T10:00:00Z");
+  const hot = hotness({ score: 800, commentCount: 300, publishedAt: "2026-07-06T09:00:00Z" }, now);
+  const cold = hotness({ score: 5, commentCount: 1, publishedAt: "2026-07-01T00:00:00Z" }, now);
+  assert.ok(hot > cold, "viral fresh post outranks a quiet old one");
+});
