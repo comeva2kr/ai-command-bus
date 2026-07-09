@@ -86,7 +86,10 @@ export class FeedEngine {
     // 서버에서 강제하므로 인증되지 않은 사용자에게는 어떤 경우에도 노출되지 않는다.
     const allowAdult = user.ageVerified === true && user.showAdult === true;
     const muted = new Set(user.mutedSources || []);
-    const pool = items.filter((i) => (allowAdult || !i.adult) && !muted.has(i.source));
+    const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
+    const pool = items.filter(
+      (i) => (allowAdult || !i.adult) && !muted.has(i.source) && !disabled.has(i.source)
+    );
 
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     // collaborative boost: what similar-taste users liked (no-op with one user)
@@ -199,8 +202,9 @@ export class FeedEngine {
     const seen = new Set(user.seen);
     const allowAdult = user.ageVerified === true && user.showAdult === true;
     const muted = new Set(user.mutedSources || []);
+    const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
     const pool = items.filter(
-      (i) => (allowAdult || !i.adult) && !muted.has(i.source) && !seen.has(i.id)
+      (i) => (allowAdult || !i.adult) && !muted.has(i.source) && !disabled.has(i.source) && !seen.has(i.id)
     );
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     const ranked = rankItems(pool, user.preferences, { seed: 1, now, explore: 0 })

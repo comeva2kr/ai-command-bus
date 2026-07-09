@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>관리자 · 내 취향 피드</title>
+<style>
+  :root { --bg:#0e0f13; --card:#171922; --card2:#1e202b; --line:#262a37; --text:#e8eaf0; --muted:#8a90a2;
+    --accent:#4f8cff; --danger:#e5566b; --ok:#3fb27f; --warn:#f0a13d; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif; }
+  a { color:var(--accent); }
+  button { font:inherit; cursor:pointer; }
+  header { display:flex; align-items:center; gap:12px; padding:16px 22px; border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:rgba(14,15,19,.92); backdrop-filter:blur(10px); z-index:10; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; font-weight:800; }
+  header .sp { flex:1; }
+  header input { background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:8px 10px; font-size:13px; width:200px; }
+  header button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:8px 14px; font-weight:600; font-size:13px; }
+  .wrap { max-width:1100px; margin:0 auto; padding:20px 22px 60px; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:20px; }
+  .tab { background:var(--card); border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:8px 16px; font-size:13.5px; }
+  .tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:8px; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  .stat b { display:block; font-size:26px; }
+  .stat span { color:var(--muted); font-size:12.5px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:12px; }
+  tr:hover td { background:var(--card); }
+  .row-card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .del { background:var(--danger); color:#fff; border:none; border-radius:8px; padding:6px 11px; font-size:12.5px; }
+  .toggle { border:1px solid var(--line); background:var(--card2); color:var(--text); border-radius:8px; padding:6px 11px; font-size:12.5px; }
+  .toggle.off { color:var(--danger); border-color:var(--danger); }
+  .pill { font-size:11px; padding:2px 8px; border-radius:999px; background:var(--card2); color:var(--muted); margin-left:6px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .muted { color:var(--muted); }
+  .addword { display:flex; gap:8px; margin-bottom:14px; }
+  .addword input { flex:1; background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:9px 11px; }
+  .addword button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:0 16px; font-weight:600; }
+  .wordchip { display:inline-flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:999px; padding:6px 12px; margin:0 8px 8px 0; font-size:13px; }
+  .wordchip button { background:none; border:none; color:var(--danger); font-size:14px; }
+  .gate { max-width:360px; margin:80px auto; text-align:center; }
+  .gate input { width:100%; margin:14px 0; }
+  .hidden { display:none !important; }
+  .empty { color:var(--muted); font-size:13px; padding:20px 0; }
+  .country { font-size:11px; color:var(--muted); }
+</style>
+</head>
+<body>
+  <div id="gate" class="gate">
+    <h1>🛠 관리자 로그인</h1>
+    <p class="muted" style="font-size:13px">관리자 토큰을 입력하세요. (서버 <code>ADMIN_TOKEN</code>)</p>
+    <input id="gateToken" type="password" placeholder="admin token" />
+    <button onclick="login()" style="width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-weight:700">입장</button>
+    <p id="gateErr" class="muted" style="color:var(--danger);font-size:12.5px"></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <header>
+      <h1>🛠 내 취향 피드 · 관리자</h1>
+      <span class="pill" id="whoami"></span>
+      <span class="sp"></span>
+      <a href="/" style="font-size:13px">← 서비스로</a>
+      <button onclick="logout()" style="background:var(--card2);border:1px solid var(--line);color:var(--text)">로그아웃</button>
+    </header>
+    <div class="wrap">
+      <div class="tabs" id="tabs"></div>
+      <div id="panel"></div>
+    </div>
+  </div>
+
+<script>
+const TABS = [
+  ["dashboard","대시보드"], ["communities","커뮤니티"], ["posts","게시글"],
+  ["comments","댓글"], ["words","금지어"], ["users","사용자"]
+];
+let token = localStorage.getItem("admin_token") || "";
+let active = "dashboard";
+
+async function api(path, opts={}) {
+  const res = await fetch(path, { ...opts, headers: { "content-type":"application/json", "x-admin-token": token, ...(opts.headers||{}) } });
+  if (res.status === 401) { logout(); throw new Error("인증 실패"); }
+  if (!res.ok) throw new Error((await res.json().catch(()=>({}))).error || res.status);
+  return res.json();
+}
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function when(iso){ if(!iso) return ""; const d=new Date(iso); return isNaN(d)?"":d.toLocaleString("ko-KR"); }
+
+async function login(){
+  token = document.getElementById("gateToken").value.trim();
+  try { await api("/api/admin/stats"); localStorage.setItem("admin_token", token); boot(); }
+  catch(e){ document.getElementById("gateErr").textContent = "토큰이 올바르지 않습니다."; }
+}
+function logout(){ localStorage.removeItem("admin_token"); token=""; document.getElementById("app").classList.add("hidden"); document.getElementById("gate").classList.remove("hidden"); }
+
+function boot(){
+  document.getElementById("gate").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  const tabsEl = document.getElementById("tabs"); tabsEl.innerHTML="";
+  for (const [id,label] of TABS){
+    const b=document.createElement("button"); b.className="tab"+(id===active?" active":""); b.textContent=label;
+    b.onclick=()=>{ active=id; boot(); }; tabsEl.appendChild(b);
+  }
+  render();
+}
+
+async function render(){
+  const panel=document.getElementById("panel"); panel.innerHTML='<p class="empty">불러오는 중…</p>';
+  try {
+    if (active==="dashboard") return renderDashboard(panel);
+    if (active==="communities") return renderCommunities(panel);
+    if (active==="posts") return renderPosts(panel);
+    if (active==="comments") return renderComments(panel);
+    if (active==="words") return renderWords(panel);
+    if (active==="users") return renderUsers(panel);
+  } catch(e){ panel.innerHTML='<p class="empty" style="color:var(--danger)">'+esc(e.message)+'</p>'; }
+}
+
+async function renderDashboard(panel){
+  const { stats, communities } = await api("/api/admin/stats");
+  panel.innerHTML = `
+    <div class="stats">
+      <div class="stat"><b>${stats.users}</b><span>사용자</span></div>
+      <div class="stat"><b>${stats.posts}</b><span>게시글</span></div>
+      <div class="stat"><b>${stats.comments}</b><span>댓글</span></div>
+      <div class="stat"><b>${stats.ratings}</b><span>좋아요/싫어요</span></div>
+      <div class="stat"><b>${stats.signals}</b><span>암묵 신호</span></div>
+      <div class="stat"><b>${communities.enabled}/${communities.total}</b><span>커뮤니티(활성)</span></div>
+    </div>
+    <div class="row-card"><b>비활성화된 소스</b> ${stats.disabledSources.length?stats.disabledSources.map(s=>`<span class="pill">${esc(s)}</span>`).join(""):'<span class="muted">없음</span>'}</div>
+    <div class="row-card"><b>추가 금지어</b> ${stats.bannedWords.length?stats.bannedWords.map(w=>`<span class="pill">${esc(w)}</span>`).join(""):'<span class="muted">없음</span>'}</div>`;
+}
+
+async function renderCommunities(panel){
+  const { communities } = await api("/api/admin/communities");
+  const colors={};
+  const rows = communities.map(c=>`<tr>
+    <td><b>${esc(c.label)}</b> <span class="country">${esc(c.country)}·${esc(c.lang)}${c.adult?" · 🔞":""}</span></td>
+    <td class="muted">${esc(c.category)} / ${esc(c.kind)} / ${esc(c.size||"")}</td>
+    <td>${c.enabled?'<span style="color:var(--ok)">등록</span>':'<span class="muted">비등록</span>'}</td>
+    <td><button class="toggle ${c.disabled?'off':''}" onclick="toggleCommunity('${esc(c.id)}',${!c.disabled})">${c.disabled?'비활성(켜기)':'활성(끄기)'}</button></td>
+  </tr>`).join("");
+  panel.innerHTML = `<p class="muted" style="font-size:12.5px">전역으로 끄면 모든 사용자 피드에서 해당 커뮤니티가 사라집니다.</p>
+    <table><thead><tr><th>커뮤니티</th><th>분류</th><th>수집</th><th>노출</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+async function toggleCommunity(id, disabled){
+  await api("/api/admin/community",{method:"POST",body:JSON.stringify({id,disabled})}); render();
+}
+
+async function renderPosts(panel){
+  const { posts } = await api("/api/admin/posts");
+  if(!posts.length){ panel.innerHTML='<p class="empty">사용자 게시글이 없습니다.</p>'; return; }
+  panel.innerHTML = posts.map(p=>`<div class="row-card">
+    <div class="muted" style="font-size:12px">${esc(p.category)} · ${esc(p.userId)} · ${when(p.publishedAt)}</div>
+    <div style="font-weight:600;margin:4px 0">${esc(p.title)}</div>
+    <div class="muted" style="font-size:13px">${esc((p.summary||"").slice(0,140))}</div>
+    <div style="margin-top:8px"><button class="del" onclick="delPost('${esc(p.id)}')">삭제</button></div>
+  </div>`).join("");
+}
+async function delPost(id){ if(!confirm("이 게시글을 삭제할까요?"))return; await api("/api/admin/delete-post",{method:"POST",body:JSON.stringify({id})}); render(); }
+
+async function renderComments(panel){
+  const { comments } = await api("/api/admin/comments");
+  if(!comments.length){ panel.innerHTML='<p class="empty">댓글이 없습니다.</p>'; return; }
+  panel.innerHTML = comments.map(c=>`<div class="row-card">
+    <div class="muted" style="font-size:12px">${esc(c.userId)} · ${when(c.at)} · 글 ${esc(c.itemId)}</div>
+    <div style="margin:4px 0">${esc(c.body)}</div>
+    <button class="del" onclick="delComment('${esc(c.id)}')">삭제</button>
+  </div>`).join("");
+}
+async function delComment(id){ if(!confirm("이 댓글을 삭제할까요?"))return; await api("/api/admin/delete-comment",{method:"POST",body:JSON.stringify({id})}); render(); }
+
+async function renderWords(panel){
+  const { stats } = await api("/api/admin/stats");
+  const chips = stats.bannedWords.map(w=>`<span class="wordchip">${esc(w)} <button onclick="rmWord('${esc(w)}')">✕</button></span>`).join("") || '<span class="muted">추가된 금지어가 없습니다.</span>';
+  panel.innerHTML = `<div class="addword"><input id="newWord" placeholder="금지어 입력" onkeydown="if(event.key==='Enter')addWord()"><button onclick="addWord()">추가</button></div><div>${chips}</div>
+    <p class="muted" style="font-size:12.5px;margin-top:12px">기본 금지어에 더해 적용됩니다. 게시글·댓글에 포함되면 등록이 거부됩니다.</p>`;
+}
+async function addWord(){ const w=document.getElementById("newWord").value.trim(); if(!w)return; await api("/api/admin/banned-word",{method:"POST",body:JSON.stringify({word:w,action:"add"})}); render(); }
+async function rmWord(w){ await api("/api/admin/banned-word",{method:"POST",body:JSON.stringify({word:w,action:"remove"})}); render(); }
+
+async function renderUsers(panel){
+  const { users } = await api("/api/admin/users");
+  if(!users.length){ panel.innerHTML='<p class="empty">사용자가 없습니다.</p>'; return; }
+  const rows = users.map(u=>`<tr>
+    <td>${esc(u.id)}</td><td>${u.surveyed?"✓":"—"}</td><td>${u.posts}</td><td>${u.comments}</td>
+    <td>${u.feedbackCount}</td><td>${u.ageVerified?"🔞":"—"}</td><td class="muted">${when(u.createdAt)}</td>
+  </tr>`).join("");
+  panel.innerHTML = `<table><thead><tr><th>ID</th><th>설문</th><th>글</th><th>댓글</th><th>피드백</th><th>성인</th><th>가입</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// boot
+if (token) { api("/api/admin/stats").then(boot).catch(logout); }
+</script>
+</body>
+</html>

@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import { emptyPreferenceVector, buildPreferenceVector } from "./survey.js";
 import { inferFromHistory, mergeVectors } from "./history.js";
-import { validatePost, validateComment, userLevel } from "./rules.js";
+import { validatePost, validateComment, userLevel, DEFAULT_RULES } from "./rules.js";
 
 function nowIso(clock) {
   // `clock` is injected so tests and reproducible runs don't depend on the
@@ -161,6 +161,12 @@ export class FeedStore {
     return Date.parse(nowIso(this.clock));
   }
 
+  // Rulebook merged with any admin-added banned words.
+  _rules() {
+    if (!this.adminBannedWords || !this.adminBannedWords.length) return DEFAULT_RULES;
+    return { ...DEFAULT_RULES, bannedWords: [...DEFAULT_RULES.bannedWords, ...this.adminBannedWords] };
+  }
+
   // Count a user's recent posts/comments within a window, for rate limiting.
   recentActionCount(userId, type, windowMs) {
     const now = this._nowMs();
@@ -180,7 +186,7 @@ export class FeedStore {
     // enforce the space's posting rules (length, banned words, tags, rate limit)
     const check = validatePost(post, {
       recentPosts: this.recentActionCount(userId, "post", 10 * 60 * 1000)
-    });
+    }, this._rules());
     if (!check.ok) {
       const err = new Error(check.errors.join(" "));
       err.rule = check;
@@ -214,6 +220,107 @@ export class FeedStore {
   // All user posts, for a store-backed feed source.
   allPosts() {
     return this.posts || [];
+  }
+
+  // ---- admin / moderation ----
+
+  // Extra banned words configured at runtime by an admin (merged with the
+  // static rulebook when validating posts/comments).
+  bannedWords() {
+    return this.adminBannedWords || [];
+  }
+  addBannedWord(word) {
+    const w = String(word || "").trim();
+    if (!w) return this.bannedWords();
+    this.adminBannedWords = this.adminBannedWords || [];
+    if (!this.adminBannedWords.includes(w)) this.adminBannedWords.push(w);
+    this._persist();
+    return this.adminBannedWords;
+  }
+  removeBannedWord(word) {
+    this.adminBannedWords = (this.adminBannedWords || []).filter((w) => w !== word);
+    this._persist();
+    return this.adminBannedWords;
+  }
+
+  // Globally disable/enable a source for everyone (admin-level, distinct from a
+  // user's personal mute).
+  setSourceDisabled(sourceId, disabled) {
+    this.adminDisabledSources = this.adminDisabledSources || [];
+    const has = this.adminDisabledSources.includes(sourceId);
+    if (disabled && !has) this.adminDisabledSources.push(sourceId);
+    if (!disabled && has) this.adminDisabledSources = this.adminDisabledSources.filter((s) => s !== sourceId);
+    this._persist();
+    return this.adminDisabledSources;
+  }
+  disabledSources() {
+    return new Set(this.adminDisabledSources || []);
+  }
+
+  deletePost(id) {
+    const before = (this.posts || []).length;
+    const post = (this.posts || []).find((p) => p.id === id);
+    this.posts = (this.posts || []).filter((p) => p.id !== id);
+    if (post) {
+      const owner = this.users.get(post.userId);
+      if (owner) owner.posts = (owner.posts || []).filter((pid) => pid !== id);
+      if (this.commentsByItem) this.commentsByItem.delete(id); // drop its thread
+    }
+    this._persist();
+    return before !== (this.posts || []).length;
+  }
+
+  deleteComment(id) {
+    let removed = false;
+    if (this.commentsByItem) {
+      for (const [itemId, list] of this.commentsByItem) {
+        const next = list.filter((c) => c.id !== id);
+        if (next.length !== list.length) {
+          removed = true;
+          this.commentsByItem.set(itemId, next);
+        }
+      }
+    }
+    for (const u of this.users.values()) {
+      if (u.comments && u.comments.some((c) => c.id === id)) {
+        u.comments = u.comments.filter((c) => c.id !== id);
+        removed = true;
+      }
+    }
+    if (removed) this._persist();
+    return removed;
+  }
+
+  adminStats() {
+    let comments = 0;
+    let ratings = 0;
+    let signals = 0;
+    for (const u of this.users.values()) {
+      comments += (u.comments || []).length;
+      ratings += Object.keys(u.ratings || {}).length;
+      signals += u.implicitCount || 0;
+    }
+    return {
+      users: this.users.size,
+      posts: (this.posts || []).length,
+      comments,
+      ratings,
+      signals,
+      disabledSources: [...this.disabledSources()],
+      bannedWords: this.bannedWords()
+    };
+  }
+
+  adminUsers() {
+    return [...this.users.values()].map((u) => ({
+      id: u.id,
+      createdAt: u.createdAt,
+      surveyed: u.surveyed,
+      feedbackCount: u.feedbackCount || 0,
+      posts: (u.posts || []).length,
+      comments: (u.comments || []).length,
+      ageVerified: u.ageVerified === true
+    }));
   }
 
   // Scrap / un-scrap an item. Returns the new saved state (boolean).
@@ -291,7 +398,7 @@ export class FeedStore {
     const user = this.requireUser(userId);
     const check = validateComment(body, {
       recentComments: this.recentActionCount(userId, "comment", 10 * 60 * 1000)
-    });
+    }, this._rules());
     if (!check.ok) {
       const err = new Error(check.errors.join(" "));
       err.rule = check;
@@ -324,7 +431,9 @@ export class FeedStore {
     const data = {
       seq: this._seq,
       users: [...this.users.values()],
-      posts: this.posts || []
+      posts: this.posts || [],
+      adminDisabledSources: this.adminDisabledSources || [],
+      adminBannedWords: this.adminBannedWords || []
     };
     fs.writeFileSync(this.file, JSON.stringify(data, null, 2));
   }
@@ -336,6 +445,8 @@ export class FeedStore {
       this.users = new Map();
       this.commentsByItem = new Map();
       this.posts = data.posts || [];
+      this.adminDisabledSources = data.adminDisabledSources || [];
+      this.adminBannedWords = data.adminBannedWords || [];
       for (const user of data.users || []) {
         this.users.set(user.id, user);
         for (const c of user.comments || []) {

@@ -131,6 +131,14 @@ export function createServer(opts = {}) {
   const refreshMs = Number(opts.refreshMs || process.env.FEED_REFRESH_MS || 0);
   if (refreshMs > 0) engine.startAutoRefresh(refreshMs);
 
+  // Admin auth. Set ADMIN_TOKEN in production; a dev default is used otherwise.
+  const ADMIN_TOKEN = opts.adminToken || process.env.ADMIN_TOKEN || "admin-dev";
+  if (ADMIN_TOKEN === "admin-dev") {
+    console.warn("[admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'");
+  }
+  const isAdmin = (req, url) =>
+    (req.headers["x-admin-token"] || url.searchParams.get("token")) === ADMIN_TOKEN;
+
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     const p = url.pathname;
@@ -305,6 +313,57 @@ export function createServer(opts = {}) {
           return send(res, status, { error: String(err.message), rule: err.rule || null });
         }
       }
+
+      // --- admin API (token-guarded) ---
+      if (p.startsWith("/api/admin/")) {
+        if (!isAdmin(req, url)) return send(res, 401, { error: "admin auth required" });
+
+        if (p === "/api/admin/stats" && req.method === "GET") {
+          return send(res, 200, { stats: store.adminStats(), communities: summarize(registry) });
+        }
+        if (p === "/api/admin/users" && req.method === "GET") {
+          return send(res, 200, { users: store.adminUsers() });
+        }
+        if (p === "/api/admin/posts" && req.method === "GET") {
+          return send(res, 200, { posts: store.allPosts().slice().reverse() });
+        }
+        if (p === "/api/admin/comments" && req.method === "GET") {
+          const all = [];
+          for (const u of store.users.values()) for (const c of u.comments || []) all.push(c);
+          all.sort((a, b) => (a.at < b.at ? 1 : -1));
+          return send(res, 200, { comments: all });
+        }
+        if (p === "/api/admin/communities" && req.method === "GET") {
+          const disabled = store.disabledSources();
+          return send(res, 200, {
+            communities: registry.map((c) => ({ ...c, disabled: disabled.has(c.id) }))
+          });
+        }
+        if (p === "/api/admin/delete-post" && req.method === "POST") {
+          const body = await readBody(req);
+          const ok = store.deletePost(body.id);
+          engine.invalidate();
+          return send(res, 200, { ok });
+        }
+        if (p === "/api/admin/delete-comment" && req.method === "POST") {
+          const body = await readBody(req);
+          return send(res, 200, { ok: store.deleteComment(body.id) });
+        }
+        if (p === "/api/admin/community" && req.method === "POST") {
+          const body = await readBody(req);
+          const list = store.setSourceDisabled(body.id, body.disabled === true);
+          return send(res, 200, { ok: true, disabledSources: list });
+        }
+        if (p === "/api/admin/banned-word" && req.method === "POST") {
+          const body = await readBody(req);
+          const words = body.action === "remove" ? store.removeBannedWord(body.word) : store.addBannedWord(body.word);
+          return send(res, 200, { ok: true, bannedWords: words });
+        }
+        return send(res, 404, { error: "not found" });
+      }
+
+      // --- admin page ---
+      if (p === "/admin" && req.method === "GET") return serveStatic(res, "/admin.html");
 
       // --- shareable link with OG tags (crawlers read this; humans bounce to app) ---
       if (p === "/p" && req.method === "GET") {
