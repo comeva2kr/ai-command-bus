@@ -55,9 +55,27 @@ Highlights: warm-start from browsing history, onboarding survey, on-the-fly
 online learning, smooth infinite scroll, and exact scroll-position restore on
 back navigation. See [docs/personalized-feed.md](docs/personalized-feed.md).
 
+## Weekly Viral Quiz
+
+The feed's hot-topic ingestion also powers a **weekly AI-generated 유형테스트**
+(shareable personality quiz) pipeline: pick the week's brand-safe hot topics,
+generate a quiz with Claude (deterministic template fallback offline), hold it
+in a human-approval queue, then serve share-optimized pages at `/q/<slug>`
+with per-result OG previews for the viral loop.
+
+```bash
+node src/quiz/weekly.js run examples/hot_items.json   # draft + approval queue
+node src/quiz/weekly.js approve <slug>                # human decision → publish
+npm run feed                                          # serves /q
+```
+
+Publishing is approval-gated through the command bus (`decision_queue`) like
+every other external side effect. See [docs/viral-quiz.md](docs/viral-quiz.md).
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Weekly viral quiz pipeline](docs/viral-quiz.md)
 - [Personalized community feed](docs/personalized-feed.md)
 - [Deploying the feed](docs/deploy.md)
 - [Example task queue](examples/task_queue.json)

@@ -23,6 +23,8 @@ import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { sendDigestPushes } from "./push.js";
+import { QuizStore } from "../quiz/store.js";
+import { renderIndexPage, renderQuizPage, renderResultPage } from "../quiz/render.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -179,6 +181,10 @@ export function createServer(opts = {}) {
     }, pushDigestMs);
     if (pushTimer.unref) pushTimer.unref();
   }
+
+  // 주간 유형테스트: published/만 서빙 — 초안은 사람이 승인(approve)해야
+  // 공개된다 (src/quiz/store.js의 승인 게이트).
+  const quizStore = opts.quizStore || new QuizStore({ dir: opts.quizDir });
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
@@ -501,6 +507,37 @@ export function createServer(opts = {}) {
         res.writeHead(data ? 200 : 404, { "content-type": "text/html; charset=utf-8" });
         res.end(sharePage(data, origin, id));
         return;
+      }
+
+      // --- 주간 유형테스트 (published only) ---
+      if (p === "/api/quiz" && req.method === "GET") {
+        const list = quizStore.listPublished().map((r) => ({
+          slug: r.slug,
+          title: r.quiz.title,
+          description: r.quiz.description,
+          week: r.week || null,
+          publishedAt: r.publishedAt || null
+        }));
+        return send(res, 200, { quizzes: list });
+      }
+      if (p.startsWith("/q") && req.method === "GET") {
+        const proto = req.headers["x-forwarded-proto"] || "http";
+        const origin = `${proto}://${req.headers.host}`;
+        const html = (status, body) => {
+          res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
+          res.end(body);
+        };
+        if (p === "/q" || p === "/q/") return html(200, renderIndexPage(quizStore.listPublished(), origin));
+        // /q/<slug> 또는 /q/<slug>/r/<resultId>
+        const m = p.match(/^\/q\/([^/]+)(?:\/r\/([^/]+))?$/);
+        if (m) {
+          const record = quizStore.getPublished(decodeURIComponent(m[1]));
+          if (!record) return send(res, 404, { error: "not found" });
+          if (!m[2]) return html(200, renderQuizPage(record, origin));
+          const result = record.quiz.results.find((r) => r.id === decodeURIComponent(m[2]));
+          if (!result) return send(res, 404, { error: "not found" });
+          return html(200, renderResultPage(record, result, origin));
+        }
       }
 
       // --- static client ---
