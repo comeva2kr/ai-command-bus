@@ -2,8 +2,9 @@
 // Local) via our server; tapping a card opens the matching place on Naver Map.
 // No fabricated data: if no data source is configured, we show a setup state.
 
-const state = { coords: null, cat: "", ready: false };
+const state = { coords: null, cat: "", ready: false, nopoOnly: false, lastPlaces: [], lastWhere: "" };
 const $ = (id) => document.getElementById(id);
+const isNopo = (p) => p.nopo && (p.nopo.tier === "ancient" || p.nopo.tier === "old");
 
 // category label -> Kakao keyword (or __cafe flag)
 const CATS = [
@@ -29,6 +30,7 @@ async function init() {
   $("searchBtn").onclick = () => { state.coords = null; run(); };
   $("q").addEventListener("keydown", (e) => { if (e.key === "Enter") { state.coords = null; run(); } });
   $("geoBtn").onclick = useGeo;
+  $("nopoToggle").onclick = () => { state.nopoOnly = !state.nopoOnly; $("nopoToggle").classList.toggle("on", state.nopoOnly); renderList(); };
 
   if (!state.ready) return renderSetup();
   $("count").textContent = "지역을 검색하거나 ‘내 주변’을 눌러보세요.";
@@ -73,12 +75,27 @@ async function run() {
     $("count").textContent = "오류";
     return;
   }
-  const where = state.coords ? "내 주변" : $("q").value.trim() || "검색";
-  $("count").textContent = `${where} · 실제 식당 ${data.places.length}곳 (카카오)`;
-  if (!data.places.length) { $("list").innerHTML = `<div class="empty">결과가 없어요. 다른 지역·키워드로 검색해 보세요.</div>`; return; }
-  $("list").innerHTML =
-    `<div class="notice">ℹ️ 지금은 <b>카카오 실데이터</b>로 실제 식당·위치·네이버 링크를 보여줍니다. ‘검증’ 배지는 실리뷰 데이터 연동 후 제공돼요.</div>` +
-    data.places.map(card).join("");
+  state.lastPlaces = data.places;
+  state.lastWhere = state.coords ? "내 주변" : $("q").value.trim() || "검색";
+  renderList();
+}
+
+function renderList() {
+  const all = state.lastPlaces || [];
+  const places = state.nopoOnly ? all.filter(isNopo) : all;
+  const nopoCount = all.filter(isNopo).length;
+  if (!all.length) { $("count").textContent = "결과 없음"; $("list").innerHTML = `<div class="empty">결과가 없어요. 다른 지역·키워드로 검색해 보세요.</div>`; return; }
+  $("count").textContent = state.nopoOnly
+    ? `${state.lastWhere} · 오래된 집(노포) ${places.length}곳`
+    : `${state.lastWhere} · 실제 식당 ${all.length}곳 (카카오)${nopoCount ? ` · 🏛️ 노포 ${nopoCount}` : ""}`;
+  if (!places.length) {
+    $("list").innerHTML = `<div class="empty">이 근처엔 전화번호로 판별되는 오래된 집이 없어요.<br>범위를 넓히거나 필터를 꺼보세요.</div>`;
+    return;
+  }
+  const note = state.nopoOnly
+    ? `<div class="notice">🏛️ 전화번호(지역번호 제외)가 <b>6자리면 아주 오래된 집</b>, 서울(02) <b>7자리면 오래된 집</b>이에요. 개통일은 조작이 안 돼서 진짜 오래됨의 신호예요.</div>`
+    : `<div class="notice">ℹ️ <b>카카오 실데이터</b>로 실제 식당·위치·네이버 링크를 보여줍니다. ‘검증’ 배지는 실리뷰 데이터 연동 후 제공돼요.</div>`;
+  $("list").innerHTML = note + places.map(card).join("");
 }
 
 function card(p) {
@@ -86,10 +103,13 @@ function card(p) {
   const emo = CAT_EMO[cat] || "🍽️";
   const dist = p.distanceM != null ? (p.distanceM < 1000 ? `${p.distanceM}m` : `${(p.distanceM / 1000).toFixed(1)}km`) : "";
   const sub = [cat, dist, p.phone].filter(Boolean).join(" · ");
+  const nopo = p.nopo?.label
+    ? `<span class="badge ${p.nopo.tier === "ancient" ? "b-nopo" : "b-old"}">${p.nopo.tier === "ancient" ? "🏛️" : "🕰️"} ${p.nopo.label}</span>`
+    : "";
   return `<a class="card" href="${p.naverUrl}" target="_blank" rel="noopener">
     <div class="thumb" style="background:#f2f4f6">${emo}</div>
     <div class="cbody">
-      <div class="crow"><span class="cname">${p.name}</span></div>
+      <div class="crow"><span class="cname">${p.name}</span>${nopo}</div>
       <div class="csub">${sub}</div>
       <div class="addr">${p.address || ""}</div>
     </div>
