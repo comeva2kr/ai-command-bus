@@ -28,7 +28,16 @@
 4. ~~실데이터 검증~~ ✅ (2026-07-23 로컬, `FEED_LIVE=1`): 피드 10건 전부 live(rss) · seed 누출 0 · 실제 구글뉴스 기사 제목 확인. 이 과정에서 실버그 발견·수정: 라이브 항목에 `via` 미표기 → "seed"로 둔갑, 발췌 200자 캡 우회. registry가 어댑터 타입별 provenance(rss/api)를 찍고, 캡은 me/seed 외 전부 적용으로 반전(`e5aec79`).
 5. ~~시드 격리~~ ✅ (`FEED_DEV` 게이트)
 6. ~~테스트·커밋·푸시~~ ✅ 이 커밋
-7. 로드맵: 배포(Dockerfile·docs/deploy.md 준비됨) → 웹푸시 VAPID 실동작(push.js 구현됨, 서버 배선만) → 수익모델 설계.
+7. ~~로드맵~~ ✅ (2026-07-23, 3차 갱신):
+   - **배포** ✅ Render Blueprint(main, `render.yaml`)로 https://taste-feed.onrender.com 라이브. free tier — 15분 유휴 스핀다운, `FEED_DB` 미설정(인메모리). VAPID 3종 env 설정 완료, `ADMIN_TOKEN`은 Render 자동 생성(대시보드 → Environment). public repo URL 연결이라 push 자동배포 없음 → 갱신은 대시보드 Manual Deploy.
+   - **웹푸시 실동작** ✅ 검증 완료: 로컬 테스트 61/61 통과, 프로덕션 `/api/push/vapid-key` 200+키 반환, `/`·`sw.js`·`manifest` 200, `PUSH_DIGEST_MS` 배선 확인(server.js, VAPID 있을 때만 interval 가동). 실제 브라우저 구독→수신 E2E만 미실시(수동 확인 권장).
+   - **수익모델 설계** ✅ `docs/monetization.md` 작성 — P0 제휴 커머스 카드(쿠팡파트너스, 표시광고법 고지·19금 제외) + AdFit, P1 프리미엄 구독(번역 무제한, FEED_DB 영속화 선행), P2 트렌드 리포트. 착수 전 blocking: 쿠팡파트너스 약관상 게재 방식 확인(David).
+
+## 다음 착수 후보 (순서 제안)
+
+1. 실기기 웹푸시 E2E 수동 확인 (iPhone/Android 브라우저에서 알림 받기 → `/api/admin/push-digest` 수동 발사).
+2. `docs/monetization.md` Phase A: 제휴 카드 슬롯 구현 (약관 확인 후).
+3. 실사용 전환 시 Render 유료 플랜 + 디스크 + `FEED_DB` 활성.
 
 ## 코드 지도 (src/feed/)
 
