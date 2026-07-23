@@ -317,7 +317,14 @@ export function createServer(opts = {}) {
         if (!userId || !store.getUser(userId)) return send(res, 400, { error: "unknown user" });
         const cursor = Number(url.searchParams.get("cursor") || 0);
         const limit = Math.min(30, Number(url.searchParams.get("limit") || 10));
-        const feed = await engine.getFeed(userId, { cursor, limit });
+        // 소스별 보기 ("전체" 칩이 아닌 특정 소스 칩 선택 시): 존재하는 소스인지
+        // 레지스트리로 확인 — 없으면 400 (오타/삭제된 소스로 조용히 빈 피드가
+        // 나오는 것을 방지).
+        const source = url.searchParams.get("source") || null;
+        if (source && !registry.some((c) => c.id === source)) {
+          return send(res, 400, { error: "unknown source" });
+        }
+        const feed = await engine.getFeed(userId, { cursor, limit, source });
         return send(res, 200, feed);
       }
 

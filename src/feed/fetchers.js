@@ -59,8 +59,9 @@ function decodeXml(s) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
     .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
     .replace(/&amp;/g, "&");
 }
 
@@ -137,8 +138,149 @@ export function redditFetcher(subreddit, fetchImpl = fetch, limit = 30) {
   };
 }
 
+// --- Generic list-page adapter (jagei.co.kr model) -------------------------
+//
+// Some communities publish no RSS/API but do render their best/hot board as a
+// plain server-rendered HTML list. For those we fetch ONE list page and pull
+// only { title, url, publishedAt, score, commentCount } — never body/images —
+// via small regexes declared per-community in communities.json (adapter.list).
+// This keeps site-by-site differences in *data*, not in code: one parser
+// (parseListPage) drives every community from its own config.
+//
+// adapter.list config:
+//   urlBase       resolve relative hrefs found by titleRegex (e.g. "https://theqoo.net")
+//   titleRegex    string, exactly 2 capture groups: (url, title). Matched with
+//                 the "g" flag (repeated) against the raw HTML.
+//   windowBefore / windowAfter  chars of HTML context around each title match
+//                 to search for the optional fields below (default 0 / 400)
+//   dateRegex     1 capture group: a raw timestamp/date string (best-effort
+//                 parsed; unparseable text is dropped rather than guessed)
+//   scoreRegex    1 capture group: a public engagement number (recommend/view)
+//   commentRegex  1 capture group: a public comment count
+//   dateIn / scoreIn / commentIn  "after" (default) or "before" — some sites
+//                 render the metadata ahead of the title in the DOM (e.g. a
+//                 date span before the link). Each field searches only its
+//                 own side so a neighboring row's numbers never bleed in.
+//   max           stop after this many rows (default 60 — "리스트 1~2페이지")
+//   urlGroup / titleGroup  which capture group (1-based) of titleRegex holds
+//                 the url / title, for formats where url doesn't come first
+//                 textually (e.g. JSON-LD "name" before "item") — default 1/2
+//   excludeRegex  if the row wrapper (before-window + the match itself)
+//                 matches this, skip the row (e.g. a pinned/notice class)
+//   charset       decode the fetched bytes with this charset (default utf-8;
+//                 e.g. "euc-kr" for legacy Korean boards that never send one)
+const LIST_UA = "taste-feed/1.0 (+https://taste-feed.onrender.com)";
+
+function resolveUrl(base, href) {
+  const h = String(href || "").trim();
+  if (!h) return h;
+  if (/^https?:\/\//i.test(h)) return h;
+  if (!base) return h;
+  const b = base.replace(/\/$/, "");
+  return h.startsWith("/") ? b + h : `${b}/${h}`;
+}
+
+function toNumber(s) {
+  const n = Number(String(s || "").replace(/[,\s]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Best-effort parse of whatever a list page shows as a timestamp. Korean
+// boards mix full dates ("2026.07.23"), short dates ("07-23"), bare times
+// ("21:23", meaning "today"), and relative text ("5시간전", "6일"). We only
+// ever *add* a signal (freshness ranking) — an unparsed date safely yields
+// null and the recommender falls back to its default freshness weight.
+function normalizeListDate(raw, now = () => Date.now()) {
+  if (!raw) return null;
+  const s = raw.trim();
+
+  const hm = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (hm) {
+    const d = new Date(now());
+    d.setHours(Number(hm[1]), Number(hm[2]), 0, 0);
+    return d.toISOString();
+  }
+  const relH = s.match(/^(\d+)\s*시간\s*전$/);
+  if (relH) return new Date(now() - Number(relH[1]) * 3.6e6).toISOString();
+  const relM = s.match(/^(\d+)\s*분\s*전$/);
+  if (relM) return new Date(now() - Number(relM[1]) * 6e4).toISOString();
+  const relD = s.match(/^(\d+)\s*일\s*$/);
+  if (relD) return new Date(now() - Number(relD[1]) * 8.64e7).toISOString();
+
+  const normalized = s.replace(/^(\d{2})[./](\d{2})[./](\d{2})(?:\s|$)/, "20$1-$2-$3 ").replace(/\./g, "-");
+  const t = Date.parse(normalized);
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
+}
+
+export function parseListPage(html, cfg = {}) {
+  if (!cfg.titleRegex) return [];
+  const items = [];
+  const titleRe = new RegExp(cfg.titleRegex, "g");
+  const before = cfg.windowBefore || 0;
+  const after = cfg.windowAfter != null ? cfg.windowAfter : 400;
+  const max = cfg.max || 60;
+  const urlGroup = cfg.urlGroup || 1;
+  const titleGroup = cfg.titleGroup || 2;
+  let m;
+  while ((m = titleRe.exec(html))) {
+    const href = m[urlGroup];
+    const titleRaw = m[titleGroup];
+    const title = decodeXml(stripCdata(titleRaw || "")).trim();
+    if (!href || !title) continue;
+
+    // Two separate, non-overlapping windows — a field only ever reads its own
+    // side, so a neighboring row's numbers can never bleed into this one.
+    const beforeCtx = html.slice(Math.max(0, m.index - before), m.index);
+    const afterCtx = html.slice(m.index + m[0].length, Math.min(html.length, m.index + m[0].length + after));
+
+    if (cfg.excludeRegex && new RegExp(cfg.excludeRegex).test(beforeCtx + m[0])) continue;
+
+    const pick = (regexStr, where) => {
+      if (!regexStr) return null;
+      const ctx = where === "before" ? beforeCtx : afterCtx;
+      return ctx.match(new RegExp(regexStr));
+    };
+
+    const raw = { title, url: resolveUrl(cfg.urlBase, href) };
+    const dm = pick(cfg.dateRegex, cfg.dateIn);
+    if (dm) {
+      const iso = normalizeListDate(dm[1]);
+      if (iso) raw.publishedAt = iso;
+    }
+    const sm = pick(cfg.scoreRegex, cfg.scoreIn);
+    if (sm) raw.score = toNumber(sm[1]);
+    const cm = pick(cfg.commentRegex, cfg.commentIn);
+    if (cm) raw.commentCount = toNumber(cm[1]);
+
+    items.push(raw);
+    if (items.length >= max) break;
+    if (titleRe.lastIndex === m.index) titleRe.lastIndex++; // guard zero-width matches
+  }
+  return items;
+}
+
+export function listFetcher(entry, fetchImpl = fetch) {
+  const a = entry.adapter || {};
+  const cfg = a.list || {};
+  const url = a.url;
+  return async () => {
+    if (!url) return [];
+    const res = await fetchImpl(url, {
+      headers: { "user-agent": LIST_UA, accept: "text/html,*/*" },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+    // Decode explicitly rather than res.text(): the Fetch spec's text() always
+    // assumes UTF-8, but a few legacy Korean boards still serve EUC-KR without
+    // declaring a charset — res.text() would silently mangle every title.
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const html = new TextDecoder(cfg.charset || "utf-8").decode(buf);
+    return parseListPage(html, cfg);
+  };
+}
+
 // Dispatch: build a fetcher for a registry entry from its adapter config.
-// entry.adapter = { type: "rss"|"reddit"|"json"|"hn", url }
+// entry.adapter = { type: "rss"|"reddit"|"json"|"list"|"hn", url }
 export function makeFetcher(entry, fetchImpl = fetch) {
   const a = entry.adapter || {};
   switch (a.type) {
@@ -150,6 +292,8 @@ export function makeFetcher(entry, fetchImpl = fetch) {
       return redditFetcher(a.url || entry.id, fetchImpl);
     case "hn":
       return hackerNewsFetcher(fetchImpl);
+    case "list":
+      return listFetcher(entry, fetchImpl);
     case "json":
       if (entry.id === "hackernews") return hackerNewsFetcher(fetchImpl);
       if (!a.url) return async () => [];

@@ -10,6 +10,7 @@ import { collect, SeedSource } from "./content.js";
 import { rankItems, diversify, applyFeedback, applyImplicit, explain, specializationLevel, feedPhase } from "./recommender.js";
 import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
+import { hotness } from "./ingest.js";
 
 // Turn a structured reason into a short human label for the "추천 이유" chip.
 function reasonLabel(r) {
@@ -77,7 +78,12 @@ export class FeedEngine {
   // Return the next batch for a user. `cursor` is an opaque number = how many
   // items already consumed this session; used only as a deterministic seed so
   // repeated identical requests are stable.
-  async getFeed(userId, { limit = 10, cursor = 0, markSeen = true } = {}) {
+  //
+  // `source`: when set, scopes the feed to a single community/news source —
+  // the "소스별 보기" chip bar. This is a jagei-style board view, not a taste
+  // feed, so it skips personalized ranking (and the mute filter, since picking
+  // the chip is the opposite of muting it) in favor of latest+공개화제성 order.
+  async getFeed(userId, { limit = 10, cursor = 0, markSeen = true, source = null } = {}) {
     const user = this.store.requireUser(userId);
     const items = await this._items();
     const seen = new Set(user.seen);
@@ -87,17 +93,28 @@ export class FeedEngine {
     const allowAdult = user.ageVerified === true && user.showAdult === true;
     const muted = new Set(user.mutedSources || []);
     const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
-    const pool = items.filter(
-      (i) => (allowAdult || !i.adult) && !muted.has(i.source) && !disabled.has(i.source)
-    );
-
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
-    // collaborative boost: what similar-taste users liked (no-op with one user)
-    const collabBoosts = collaborativeBoosts(this.store, userId);
-    const ranked = rankItems(pool, user.preferences, { seenIds: seen, seed: cursor + 1, now, collabBoosts });
-    // drop already-seen items so the infinite scroll never repeats, then
-    // diversify so a page isn't dominated by one source/category
-    const unseen = ranked.filter((r) => !seen.has(r.item.id));
+
+    let unseen;
+    let collabBoosts = new Map();
+    if (source) {
+      const pool = items.filter(
+        (i) => i.source === source && (allowAdult || !i.adult) && !disabled.has(i.source)
+      );
+      const ranked = pool.map((item) => ({ item, score: hotness(item, now) })).sort((a, b) => b.score - a.score);
+      unseen = ranked.filter((r) => !seen.has(r.item.id));
+    } else {
+      const pool = items.filter(
+        (i) => (allowAdult || !i.adult) && !muted.has(i.source) && !disabled.has(i.source)
+      );
+      // collaborative boost: what similar-taste users liked (no-op with one user)
+      collabBoosts = collaborativeBoosts(this.store, userId);
+      const ranked = rankItems(pool, user.preferences, { seenIds: seen, seed: cursor + 1, now, collabBoosts });
+      // drop already-seen items so the infinite scroll never repeats
+      unseen = ranked.filter((r) => !seen.has(r.item.id));
+    }
+    // diversify so a page isn't dominated by one source/category (a no-op
+    // when every candidate already shares the same `source`)
     const fresh = diversify(unseen).slice(0, limit);
 
     const level = specializationLevel(user.preferences, user.feedbackCount);

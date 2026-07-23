@@ -113,6 +113,15 @@
 
   .chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 4px; scrollbar-width: none; }
   .chips::-webkit-scrollbar { display: none; }
+  /* source-select chip bar ("전체" + per-community/news chips, jagei-style board view) —
+     always a horizontal top bar, even on the desktop layout where the category
+     .chips become a sidebar list (see the min-width:1000px block below). */
+  .src-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; margin: 0;
+    border-bottom: 1px solid var(--line); scrollbar-width: none; background: var(--bg); }
+  .src-chips::-webkit-scrollbar { display: none; }
+  .src-chip { flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--card-2); color: var(--muted); font-size: 13px; font-weight: 700; white-space: nowrap; }
+  .src-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .chip { flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
     background: var(--card); color: var(--muted); font-size: 13px; }
   .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -222,6 +231,7 @@
     header .chips { flex-direction: column; overflow: visible; padding: 18px 0 0; gap: 6px; }
     header .chips .chip { width: 100%; text-align: left; }
     /* main content column sits to the right of the sidebar */
+    .src-chips { margin-left: 260px; max-width: 640px; border-bottom: none; }
     #digestBar { margin: 16px 0 0 260px; }
     main#feed { margin-left: 260px; max-width: 640px; padding-top: 16px; }
     .sentinel { margin-left: 260px; max-width: 640px; }
@@ -248,6 +258,8 @@
   </header>
 
   <div id="digestBar" class="digest hidden"></div>
+
+  <div class="src-chips" id="srcChips"></div>
 
   <main id="feed"></main>
   <div class="sentinel" id="sentinel"></div>
@@ -309,6 +321,7 @@
 const API = {
   async session(userId) { return post("/api/session", { userId }); },
   async config() { return get("/api/config"); },
+  async communities() { return get("/api/communities"); },
   async rules() { return get("/api/rules"); },
   async saveSurvey(userId, answers) { return post("/api/survey", { userId, answers }); },
   async history(userId, entries) { return post("/api/history", { userId, entries }); },
@@ -322,7 +335,11 @@ const API = {
   async subscribePush(userId, subscription) { return post("/api/push/subscribe", { userId, subscription }); },
   async vapidKey() { return get("/api/push/vapid-key"); },
   async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
-  async feed(userId, cursor, limit=10) { return get(`/api/feed?userId=${userId}&cursor=${cursor}&limit=${limit}`); },
+  async feed(userId, cursor, limit=10, source=null) {
+    const q = new URLSearchParams({ userId, cursor, limit });
+    if(source) q.set("source", source);
+    return get(`/api/feed?${q}`);
+  },
   async item(userId, itemId) { return get(`/api/item?userId=${userId}&itemId=${encodeURIComponent(itemId)}`); },
   async rate(userId, itemId, signal) { return post("/api/rate", { userId, itemId, signal }); },
   async comment(userId, itemId, body) { return post("/api/comment", { userId, itemId, body }); }
@@ -336,6 +353,7 @@ const state = {
   userId: localStorage.getItem("feed_uid") || null,
   cursor: 0, loading: false, exhausted: false,
   activeCategory: null, config: null,
+  communities: [], activeSource: localStorage.getItem("feed_src") || null,
   feedScrollY: 0, // remembered scroll position for exact back-restore
   cardsById: new Map(),
   ageVerified: false, showAdult: false,
@@ -360,16 +378,19 @@ function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg
 // ---- boot ----
 (async function boot(){
   // parallel fetch so the first paint isn't three serial round-trips
-  const [config, rulesRes, s] = await Promise.all([
+  const [config, rulesRes, s, communitiesRes] = await Promise.all([
     API.config(),
     API.rules().catch(()=>({rules:null})),
-    API.session(state.userId)
+    API.session(state.userId),
+    API.communities().catch(()=>({communities:[]}))
   ]);
   state.config = config; state.rules = rulesRes.rules;
   state.userId = s.userId; localStorage.setItem("feed_uid", s.userId);
   state.ageVerified = s.ageVerified; state.showAdult = s.showAdult; state.nickname = s.nickname;
   state.surveyed = s.surveyed;
-  renderChips(); renderAdultBtn(); setupAdultToggle(); setupCompose(); setupSpace(); setupSkipObserver();
+  // 소스 칩은 레지스트리에서 동적으로 — 하드코딩 목록 없음. 활성(enabled) + 비성인 소스만.
+  state.communities = (communitiesRes.communities || []).filter(c => c.enabled && !c.adult);
+  renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); setupCompose(); setupSpace(); setupSkipObserver();
   // Always show content first — a preview feed (popularity-ranked when no taste
   // yet). Personalization is invited, never a gate. (adversarial review #1)
   updateMeter(s); loadMore(); openFromHash();
@@ -754,6 +775,37 @@ function setCategory(cat, container, btn){
   [...container.children].forEach(c=>c.classList.remove("active")); btn.classList.add("active");
   applyFilter();
 }
+
+// ---- source chips (server-driven board view, jagei-style) ----
+// "전체" = the existing personalized feed, unchanged. Picking a source chip
+// switches to GET /api/feed?source=<id> — that source's own posts in
+// latest+화제성 order, not personalized ranking. Selection persists across visits.
+function renderSourceChips(){
+  const el = document.getElementById("srcChips"); el.innerHTML = "";
+  // a source saved from a previous visit may have since been disabled/removed
+  if(state.activeSource && !state.communities.some(c=>c.id===state.activeSource)) {
+    state.activeSource = null; localStorage.removeItem("feed_src");
+  }
+  const all = document.createElement("button");
+  all.className = "src-chip" + (state.activeSource ? "" : " active");
+  all.textContent = "전체";
+  all.onclick = () => setSource(null, el, all);
+  el.appendChild(all);
+  for(const c of state.communities){
+    const b = document.createElement("button");
+    b.className = "src-chip" + (state.activeSource===c.id ? " active" : "");
+    b.textContent = c.labelKo || c.label;
+    b.onclick = () => setSource(c.id, el, b);
+    el.appendChild(b);
+  }
+}
+function setSource(id, container, btn){
+  if(state.activeSource === id) return;
+  state.activeSource = id;
+  if(id) localStorage.setItem("feed_src", id); else localStorage.removeItem("feed_src");
+  [...container.children].forEach(c=>c.classList.remove("active")); btn.classList.add("active");
+  reloadFeed();
+}
 function applyFilter(){
   for(const [,card] of state.cardsById){
     const show = !state.activeCategory || card.dataset.cat===state.activeCategory;
@@ -766,7 +818,7 @@ async function loadMore(){
   if(state.loading || state.exhausted) return;
   state.loading = true; setSentinel(true);
   try {
-    const res = await API.feed(state.userId, state.cursor);
+    const res = await API.feed(state.userId, state.cursor, 10, state.activeSource);
     state.cursor = res.nextCursor;
     updateMeter(res);
     for(const item of res.items) appendCard(item);

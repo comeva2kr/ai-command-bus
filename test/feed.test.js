@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { buildPreferenceVector, validateAnswers, emptyPreferenceVector } from "../src/feed/survey.js";
 import {
@@ -18,6 +21,14 @@ import { loadRegistry, query, buildSources, summarize } from "../src/feed/regist
 import { TranslatingSource, memoizedTranslator } from "../src/feed/translate.js";
 
 const fixedClock = () => "2026-07-06T00:00:00.000Z";
+
+// Fixtures captured 2026-07-23 with a single real fetch each, used to test the
+// "list" adapter's regex parsing entirely offline (no network in tests).
+const FIXTURES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
+function fixture(name, charset = "utf-8") {
+  const buf = fs.readFileSync(path.join(FIXTURES_DIR, name));
+  return new TextDecoder(charset).decode(buf);
+}
 
 test("survey builds a preference vector from answers", () => {
   const vec = buildPreferenceVector({
@@ -823,4 +834,247 @@ test("users get a stable anonymous nickname; comments carry it (never 나)", asy
 
   const space = store.mySpace(u.id);
   assert.equal(space.nickname, u.nickname);
+});
+
+// --- "list" adapter (jagei.co.kr model) — offline, fixture-driven ----------
+// Each community below ships with its actual adapter.list config in
+// communities.json; these tests replay that exact config against a real HTML
+// snapshot (test/fixtures/*.html, captured 2026-07-23) so the regexes are
+// verified against real markup without ever touching the network in CI.
+
+test("parseListPage: theqoo 핫게시판 — title/url/date/score/comment parse, notices excluded", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "theqoo");
+  const items = parseListPage(fixture("theqoo_hot.html"), entry.adapter.list);
+  assert.ok(items.length >= 15, `expected many rows, got ${items.length}`);
+  assert.ok(items.every((i) => i.url.startsWith("https://theqoo.net/hot/")), "urls resolved against urlBase");
+  assert.ok(items.every((i) => !("summary" in i) && !("body" in i)), "no body/excerpt collected");
+  assert.ok(items.some((i) => i.commentCount > 0), "comment counts captured");
+  assert.ok(items.some((i) => i.score > 0), "view counts captured as score");
+  // the pinned/notice rows ("더쿠 이용 규칙" etc.) must not leak into the feed
+  assert.ok(items.every((i) => !i.title.includes("더쿠 이용 규칙")), "pinned notices excluded");
+});
+
+test("parseListPage: 보배드림 베스트 — title/url/comment parse via title attribute", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "bobae");
+  assert.equal(entry.adapter.type, "list");
+  const items = parseListPage(fixture("bobaedream_best.html"), entry.adapter.list);
+  assert.ok(items.length >= 15, `expected many rows, got ${items.length}`);
+  assert.ok(items.every((i) => i.url.includes("code=best")));
+  assert.ok(items.some((i) => i.commentCount > 0));
+});
+
+test("parseListPage: 오늘의유머 베오베 — date/score/comment all parse without bleeding across rows", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "todayhumor");
+  assert.equal(entry.enabled, true);
+  const items = parseListPage(fixture("todayhumor_beobe.html"), entry.adapter.list);
+  assert.ok(items.length >= 15);
+  // distinct rows must not all collapse onto the same score/comment (the bug a
+  // context-window overlap would produce)
+  const scores = new Set(items.map((i) => i.score));
+  assert.ok(scores.size > 3, "scores vary across rows, not bled from a neighbor");
+  assert.ok(items.every((i) => i.publishedAt), "every row got a parsed date");
+});
+
+test("parseListPage: 엠엘비파크 불펜 — date is read from BEFORE the title (dateIn:'before')", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "mlbpark");
+  assert.equal(entry.enabled, true, "enabled despite robots Disallow:/ — WARN accepted per handoff.md 절대원칙 2");
+  assert.match(entry.adapter.note, /robots/);
+  const items = parseListPage(fixture("mlbpark_bullpen.html"), entry.adapter.list);
+  assert.ok(items.length >= 10);
+  assert.ok(items.every((i) => i.url.includes("b=bullpen")));
+  assert.ok(items.some((i) => i.publishedAt), "relative Korean dates ('N시간전') parsed");
+});
+
+test("parseListPage: 웃긴대학 웃긴자료(pds) — EUC-KR page decodes correctly via adapter.list.charset", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "humoruniv");
+  assert.equal(entry.adapter.list.charset, "euc-kr");
+  const html = fixture("humoruniv_pds.html", "euc-kr"); // decoded the same way listFetcher would
+  const items = parseListPage(html, entry.adapter.list);
+  assert.ok(items.length >= 10);
+  assert.ok(items.every((i) => !/�/.test(i.title)), "no mojibake/replacement chars in titles");
+  assert.ok(items.some((i) => i.commentCount > 0));
+});
+
+test("parseListPage: 이토랜드 유머게시판 — parses the page's own JSON-LD ItemList (url/title group order swapped)", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "etoland");
+  assert.equal(entry.adapter.list.urlGroup, 2);
+  assert.equal(entry.adapter.list.titleGroup, 1);
+  const items = parseListPage(fixture("etoland_humor.html"), entry.adapter.list);
+  assert.ok(items.length >= 20);
+  assert.ok(items.every((i) => i.url.startsWith("https://etoland.co.kr/b/etohumor02/view/")));
+  assert.ok(items.every((i) => i.title && !i.title.startsWith("http")), "title/url groups not swapped");
+});
+
+test("parseListPage: 네이트판 톡커들의 선택 — title attribute + recommend/reply counts", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "pann");
+  assert.equal(entry.enabled, true);
+  const items = parseListPage(fixture("pann_talk_ranking.html"), entry.adapter.list);
+  assert.ok(items.length >= 20);
+  assert.ok(items.every((i) => i.url.startsWith("https://pann.nate.com/talk/")));
+  assert.ok(items.some((i) => i.score > 0 && i.commentCount > 0));
+});
+
+test("makeFetcher dispatches adapter.type 'list' through listFetcher, decoding bytes itself (not res.text())", async () => {
+  const { makeFetcher } = await import("../src/feed/fetchers.js");
+  const html = fixture("theqoo_hot.html");
+  const bytes = new TextEncoder().encode(html);
+  let calledWith = null;
+  const fakeFetch = async (url, opts) => {
+    calledWith = { url, ua: opts.headers["user-agent"] };
+    return { ok: true, async arrayBuffer() { return bytes.buffer; } };
+  };
+  const entry = {
+    id: "theqoo",
+    adapter: {
+      type: "list",
+      url: "https://theqoo.net/hot",
+      list: {
+        urlBase: "https://theqoo.net",
+        titleRegex: "<td class=\"title\">\\s*<a href=\"(/hot/\\d+)\"[^>]*>(?:<strong>)?(?:<span[^>]*>)?([^<]+)",
+        windowBefore: 280,
+        excludeRegex: "<tr class=\"notice[\\s\"]"
+      }
+    }
+  };
+  const rows = await makeFetcher(entry, fakeFetch)();
+  assert.ok(rows.length > 0);
+  assert.equal(calledWith.url, "https://theqoo.net/hot");
+  assert.match(calledWith.ua, /^taste-feed\/1\.0/, "identifying UA required by handoff.md's list-page adapter rule");
+});
+
+test("communities.json: fmkorea/arca stay disabled and dcinside stays seed-only per David's 2026-07-23 exclusion", async () => {
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const reg = loadRegistry();
+  const fmkorea = reg.find((c) => c.id === "fmkorea");
+  const arca = reg.find((c) => c.id === "arca");
+  const dcinside = reg.find((c) => c.id === "dcinside");
+  assert.equal(fmkorea.enabled, false);
+  assert.match(fmkorea.adapter.note, /David/);
+  assert.equal(arca.enabled, false);
+  assert.match(arca.adapter.note, /David/);
+  assert.equal(dcinside.adapter.type, "seed", "no live adapter built for dcinside");
+  assert.match(dcinside.adapter.note, /David/);
+
+  // buildSources must never invoke a fetcher for these three ids
+  const called = [];
+  const spyFetcher = async (entry) => {
+    called.push(entry.id);
+    return [];
+  };
+  const { buildSources } = await import("../src/feed/registry.js");
+  const sources = buildSources(reg, { seed: true, fetcher: spyFetcher });
+  await Promise.all(sources.map((s) => s.fetch()));
+  assert.ok(!called.includes("fmkorea"));
+  assert.ok(!called.includes("arca"));
+  assert.ok(!called.includes("dcinside"));
+});
+
+// --- Phase 3: per-source volume cap (gnews-style 100+ item sources must not
+// drown out communities that only ever surface a few dozen posts) ----------
+
+test("collect() caps each source at FEED_SOURCE_CAP (default 30) before merging", async () => {
+  const bigSource = {
+    id: "gnews",
+    kind: "news",
+    async fetch() {
+      return Array.from({ length: 100 }, (_, i) => normalizeItem({ id: `g${i}`, source: "gnews", title: `기사 ${i}`, url: `https://n/${i}` }));
+    }
+  };
+  const smallSource = {
+    id: "clien",
+    kind: "community",
+    async fetch() {
+      return [normalizeItem({ id: "c1", source: "clien", title: "글", url: "https://c/1" })];
+    }
+  };
+  const { items } = await collect([bigSource, smallSource]);
+  const fromGnews = items.filter((i) => i.source === "gnews");
+  const fromClien = items.filter((i) => i.source === "clien");
+  assert.equal(fromGnews.length, 30, "capped at the default of 30");
+  assert.equal(fromClien.length, 1, "small source unaffected by the cap");
+});
+
+test("collect() honors FEED_SOURCE_CAP env override and opts.perSourceCap", async () => {
+  const source = {
+    id: "gnews",
+    kind: "news",
+    async fetch() {
+      return Array.from({ length: 50 }, (_, i) => normalizeItem({ id: `e${i}`, source: "gnews", title: `t${i}`, url: `https://n/${i}` }));
+    }
+  };
+  const viaOpt = await collect([source], { perSourceCap: 5 });
+  assert.equal(viaOpt.items.length, 5);
+
+  const prev = process.env.FEED_SOURCE_CAP;
+  process.env.FEED_SOURCE_CAP = "7";
+  try {
+    const viaEnv = await collect([source]);
+    assert.equal(viaEnv.items.length, 7);
+  } finally {
+    if (prev == null) delete process.env.FEED_SOURCE_CAP;
+    else process.env.FEED_SOURCE_CAP = prev;
+  }
+});
+
+// --- Phase 4: source-select chip bar (GET /api/feed?source=) ---------------
+
+test("GET /api/feed?source= scopes to one source in latest+hotness order (not personalized); unknown source is 400", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const { JsonSource } = await import("../src/feed/content.js");
+
+  const clien = new JsonSource(
+    "clien",
+    async () => [
+      { title: "클리앙 글 A", url: "https://clien.net/a", category: "tech", score: 1, publishedAt: "2026-07-06T00:00:00Z" },
+      { title: "클리앙 글 B", url: "https://clien.net/b", category: "tech", score: 50, publishedAt: "2026-07-06T09:00:00Z" }
+    ],
+    "community"
+  );
+  const ppomppu = new JsonSource(
+    "ppomppu",
+    async () => [{ title: "뽐뿌 글", url: "https://ppomppu.co.kr/a", category: "business", score: 1 }],
+    "community"
+  );
+  const server = createServer({ sources: [clien, ppomppu] });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const userId = session.userId;
+    await fetch(`${base}/api/survey`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId, answers: { categories: ["business"] } }) // taste favors ppomppu's category
+    });
+
+    const res = await fetch(`${base}/api/feed?userId=${userId}&source=clien&limit=10`);
+    assert.equal(res.status, 200);
+    const feed = await res.json();
+    assert.ok(feed.items.length > 0, "source-scoped feed returns items");
+    assert.ok(feed.items.every((i) => i.source === "clien"), "only the requested source appears, even though the user's taste favors the other one");
+    // hotness order (fresher/higher-score first), not the taste-personalized order
+    assert.equal(feed.items[0].title, "클리앙 글 B");
+
+    const bad = await fetch(`${base}/api/feed?userId=${userId}&source=not-a-real-source`);
+    assert.equal(bad.status, 400);
+    assert.match((await bad.json()).error, /unknown source/);
+  } finally {
+    server.close();
+  }
 });

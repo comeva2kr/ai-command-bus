@@ -118,15 +118,29 @@ export class JsonSource {
   }
 }
 
+// Default per-source cap applied during collection. A single noisy source
+// (gnews' 100+ item RSS pages, for example) would otherwise flood the shared
+// pool and drown out communities that only ever surface a few dozen posts —
+// this keeps the mix balanced before ranking/diversify ever see the items.
+// Override with the FEED_SOURCE_CAP env var, or opts.perSourceCap for tests.
+const DEFAULT_SOURCE_CAP = 30;
+
 // Collect and merge items from many sources. Failures in one source never take
 // down the whole collection — the feed degrades gracefully to whatever loaded.
-export async function collect(sources) {
+export async function collect(sources, opts = {}) {
+  const cap = opts.perSourceCap != null ? opts.perSourceCap : Number(process.env.FEED_SOURCE_CAP || DEFAULT_SOURCE_CAP);
   const results = await Promise.allSettled(sources.map((s) => s.fetch()));
   const items = [];
   const errors = [];
   results.forEach((res, i) => {
     if (res.status === "fulfilled") {
-      items.push(...res.value);
+      const list = Array.isArray(res.value) ? res.value : [];
+      // "seed" and "me" are aggregate pseudo-sources (the whole bundled dev
+      // dataset / every user's own posts, respectively) — not a single noisy
+      // feed, so the per-*community* cap doesn't apply to them.
+      const id = sources[i] && sources[i].id;
+      const exempt = id === "seed" || id === "me";
+      items.push(...(cap > 0 && !exempt ? list.slice(0, cap) : list));
     } else {
       errors.push({ source: sources[i] && sources[i].id, error: String(res.reason) });
     }

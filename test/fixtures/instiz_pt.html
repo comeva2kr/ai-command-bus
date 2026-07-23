@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+	<meta charset="utf-8" />
+	<link rel="canonical" href="https://www.instiz.net/pt">	<meta name="apple-mobile-web-app-title" content="인스티즈" />
+	<meta name="apple-itunes-app" content="app-id=1218109903">
+	<meta name="google-play-app" content="app-id=net.instiz.www.instiz">
+	<meta name="keywords" content="인스티즈,instiz,커뮤니티,커뮤,아이돌,케이팝,kpop,이슈,유머,뉴스,뷰티,아이차트,ichart,음원순위,연예,스포츠" />
+	<meta name="theme-color" content="#14bf68">
+	<meta name="description" content="많은 연예계 이슈가 여기서 시작! 다양한 소식을 인스티즈에서 모두 만나보세요" />
+	<meta name="google-site-verification" content="3PNeUx3Wt9jgN_Bh8QK_6_aSJOWIiR68QOVC49R4Ya4" />
+	<meta name="naver-site-verification" content="1c7cdafe84c13e494d246b88d1898556c6884cb9" />
+	<meta property="og:site_name" content="인스티즈(instiz)">
+	<meta property="og:url" content="https://www.instiz.net/pt">
+	<meta property="og:title" content="인스티즈(instiz) 이슈 카테고리">
+		<meta property="og:image" content="https://static.instiz.net/m/images/ico_android_kor.png?220722">
+	<meta property="og:description" content="많은 연예계 이슈가 여기서 시작!">
+	<meta name="robots" content="index, follow">
+	<meta property="article:section" content="이슈">	<meta property="article:published_time" content="2026-07-23T21:58:26+09:00">
+	<meta name="mobile-web-app-capable" content="yes"/>
+	<meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0">	<meta name="format-detection" content="telephone=no" />
+	<title>인스티즈(instiz) 이슈 카테고리</title>
+	
+<link href="//www.instiz.net/fontawesome6/css/all.min.css?v=1" rel="stylesheet" type="text/css" />	<link rel="stylesheet" href="//www.instiz.net/ajax/testcss/m/style.css?2606281" type="text/css" />
+	<link rel="stylesheet" href="//www.instiz.net/naverpowerlink/m_instiz.css?2510211" type="text/css" />
+	<link href="//static.instiz.net/m/images/ico_android_kor.png?220722" rel="apple-touch-icon-precomposed" />
+	<link href="/favicon.ico?231205" rel="shortcut icon" type="image/x-icon" />
+	<link rel='icon' href="/favicon.ico?231205">
+	<link rel="mask-icon" href="/favicon.ico?231205">
+	<link rel="stylesheet" type="text/css" href="//static.instiz.net/style_jquery_ui.css">
+	<style type="text/css">html { overflow-y:scroll; }</style>	<!--DFP-->
+	<!--<script type='text/javascript' defer='defer' src='https://extend.vimeocdn.com/ga/130667432.js'></script>-->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-BWLLNQC3F5"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-BWLLNQC3F5');
+</script></head>
+
+<body>
+<script src="//static.instiz.net/mainscript.js?26062400"></script>
+<script>
+    function checkDarkMode(isDarkMode) {
+        $('#night_css').remove();
+
+        if (isDarkMode) {
+            mode=1;
+            opa=0.4;
+            $('head').append('<link id="night_css" rel="stylesheet" href="//www.instiz.net/ajax/testcss/m/style_night.css?2606281" type="text/css" />');
+
+            var ExpDate = new Date();
+            ExpDate.setTime(ExpDate.getTime() + 1000 * 3600 * 24 * 365);
+            SetCookie('usenight_cookie', 1, ExpDate);
+        } else {
+            opa=1;
+            $('#night_css').remove();
+
+            var ExpDate = new Date();
+            ExpDate.setTime(ExpDate.getTime() + 1000);
+            SetCookie('usenight_cookie', '', ExpDate);
+        }
+
+    
+        try {
+            if (navigator.userAgent.indexOf('instiz(inapp)_v2') != -1) {
+                var s = navigator.userAgent.toLowerCase();
+                var versionName = s.substring(s.length - 5, s.length);
+
+                if (navigator.userAgent.toLowerCase().indexOf('android') != -1) {
+                    if (versionName > "1.3.1") {
+                        if (mode === 'auto') {
+                            setTimeout(function(){ location = "instiz://themeAuto"; },3000);
+                        } else if (mode == 1) {
+                            setTimeout(function(){ location = "instiz://themeNight"; },3000);
+                        } else {
+                            setTimeout(function(){ location = "instiz://themeDay"; },3000);
+                        }
+                    }
+                } else if (navigator.userAgent.toLowerCase().indexOf('iphone') != -1 || navigator.userAgent.toLowerCase().indexOf('ipad') != -1) {
+                    if (versionName > "1.3.2") {
+                        if (mode == 1) {
+                            webkit.messageHandlers.themeNight.postMessage('');
+                        } else {
+                            webkit.messageHandlers.themeDay.postMessage('');
+                        }
+                    }
+                }
+            }
+        }
+        catch (e) {
+
+        }
+    }
+
+    	if(!GetCookie('usenight_manual_cookie') && GetCookie('mobile')){
+        // 테마 폰설정 (자동) 선택 시 로직
+        // 안드로이드 앱은 prefers-color-scheme에서 테마를 OS 설정과 다르게 받아와서
+        // night 함수에서 instiz://themeAuto 스킴을 실행 시키는 방식으로 처리
+        if (!isAOSApp()) {
+            const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            checkDarkMode(darkModeQuery.matches);
+    
+            darkModeQuery.addListener(function (event) {
+                checkDarkMode(event.matches);
+            });
+        }
+	}
+	
+    var imgurl='//www.instiz.net/sw.php?id=pt&no=';
+    var pno='';
+    var is_index='';
+    var memsound='';
+        var copyrights='1000';
+</script>
+</div>
+
+<script>
+    var favor_timer;
+
+        var memlevel='10';
+    var memaddr='3ddd094689845096bb9801ddc8a54238';
+    var memcovercolor='14bf68';
+    var memno='0';
+        if(!GetCookie('usefixed_cookie')) $('#menuall').css('position','fixed');
+</script>
+
+<form id="search" method="get" onsubmit="return searchs();" action="//www.instiz.net/bbs/list.php">
+<div id="sbox" class="sbox">
+<div class="content mcon">
+    <div>
+        <a href="javascript:totalmenuclose();"><i class="fa-solid fa-arrow-left"></i></a>
+    </div>
+    <div>
+        <input type="text" id="k" name="k" placeholder="글/게시판 모두 찾을 수 있어요" class="input ks" value="" onfocus="nouncopy();searchreset()" onclick="keywordshow();" onkeypress="ffkeyword('pt',event);$('#nolisting').val('');" onkeyup="nouncopy();keyword_check(this.value,'pt',event)" autocorrect="off" autocomplete="off" autocapitalize="off" required />
+        <div><input type="submit" accesskey="s" /></div>
+    </div>
+    <div>
+        <a href="javascript:$('#search').submit();" class="texthead"><i class="fa-solid fa-magnifying-glass"></i></a>
+    </div>
+</div>
+<div class="ajax_search content" style="padding:0;"><div id="dd"></div></div>
+
+<script>
+        var load_picker_load;
+        var load_picker=function(){
+            (function() {
+                if(load_picker_load!=1) {
+                    load_picker_load=1;
+                    const baseUrl = "//static.instiz.net/";
+
+                    // 스타일시트 동적 삽입
+                    const styles = [
+                        "style_jquery_ui.css",
+                        "style_jquery_time.css"
+                    ];
+                    styles.forEach(href => {
+                        const link = document.createElement("link");
+                        link.rel = "stylesheet";
+                        link.type = "text/css";
+                        link.href = baseUrl + href;
+                        document.head.appendChild(link);
+                    });
+
+                    const scripts = [
+                        { src: "mainscript_jquery_ui.js?"+1907071 },
+                        { src: "mainscript_time.js?"+2304014 }
+                        // ...필요한 스크립트 추가
+                    ];
+
+                    function loadScript(src) {
+                        return new Promise(function(resolve, reject) {
+                            const script = document.createElement("script");
+                            script.type = "text/javascript";
+                            script.src = baseUrl + src;
+                            script.onload = resolve;
+                            script.onerror = reject;
+                            document.head.appendChild(script);
+                        });
+                    }
+
+                    Promise.all(scripts.map(s => loadScript(s.src)))
+                    .then(() => {
+                        // 스크립트 2개 모두 로딩 완료 후 실행
+                        var minSelectableDate = new Date(2009, 7, 3); // 8월 3일
+                        var today = new Date();
+                        
+                        // 기존 datepicker가 있다면 제거
+                        $('#starttime, #endtime').each(function() {
+                            if ($(this).hasClass('hasDatepicker')) {
+                                $(this).datepicker('destroy');
+                            }
+                        });
+
+                        $('#starttime').datetimepicker({
+                            minTime: '00:00',
+                            timeFormat: 'hh:mm',
+                            minDate: minSelectableDate,
+                            maxDate: today,
+                            changeMonth:true,
+                            changeYear:true,
+                            yearRange: '2009:c',
+                        });
+
+                        $('#endtime').datetimepicker({
+                            minTime: '00:00',
+                            timeFormat: 'hh:mm',
+                            minDate: minSelectableDate,
+                            maxDate: today,
+                            changeMonth:true,
+                            changeYear:true,
+                            yearRange: '2009:c',
+                        });
+                    })
+                    .catch(err => {
+                        console.error("스크립트 로딩 중 오류 발생:", err);
+                    });
+                }
+            })();
+        };
+</script>
+<div class="content search_info">
+<div class="search_option">
+    <div>
+        <span class="button2 button4"><a href="javascript:$('.flex_search').toggle();"><i class="fa-solid fa-magnifying-glass-plus"></i> 상세 검색</a></span> <span class="button button4"><a href="javascript:lopen('//www.instiz.net/popup_view_fullmenu.htm?id=pt',500,700);"><i class="fa-solid fa-table-list"></i> 카테고리</a></span> <span class="button4"><a href="javascript:load_picker();$('.flex_search').toggle();"><i class="fa-solid fa-calendar-days"></i> 기간</a></span>
+    </div>
+    <div>
+            </div>
+</div>
+
+<div class="flex_search" style="display:none;">
+    <table class="kscon">
+        <tr class="tbset2 tbset3">
+            <td><input type="button" id="ks1" class="list_search kstype kstype1" value=" 제목 " onclick="typeop(1)" readonly /></td>
+                            <td><input type="button" id="ks5" class="list_search kstype kstype1" value=" 내용 " onclick="typeop(5)" readonly /></td>
+                <td><input type="button" id="ks9" class="list_search kstype kstype1 kstypeon" value="제목+내용" onclick="typeop(9)" readonly /></td>
+                        </tr>
+    </table>
+
+    <div id="changesortingtable" class="kscon bse minitext2" style="background-color:transparent;">
+        <div><a href="../bbs/list.php?id=pt&srt=&k=&stype=&stype2=&stype3=" onclick="$('#changesortingtable').remove();" class="texthead">시간순</a></div>
+        <div><a href="../bbs/list.php?id=pt&srt=1&k=&stype=&stype2=&stype3=" onclick="$('#changesortingtable').remove();" >조회순</a></div>
+        <div><a href="../bbs/list.php?id=pt&srt=2&k=&stype=&stype2=&stype3=" onclick="$('#changesortingtable').remove();" >추천순</a></div>
+        <div><a href="../bbs/list.php?id=pt&srt=3&k=&stype=&stype2=&stype3=" onclick="$('#changesortingtable').remove();" >댓글순</a></div>
+        <div><a href="../bbs/list.php?id=pt&srt=4&k=&stype=&stype2=&stype3=" onclick="$('#changesortingtable').remove();" >스크랩순</a></div>
+    </div>
+</div>
+
+<div class="flex_search" style="display:none;">
+    <div id="showdetail" class="search_term">
+        <input type="text" id="starttime" name="starttime" class="input" placeholder="시작 날짜" value="" maxlength="20" readonly />
+         ~ 
+        <input type="text" class="input" id="endtime" name="endtime" placeholder="종료 날짜" value="" maxlength="20" readonly />
+        <br>
+        <span class="button2 button4"><a href="javascript:if($('#starttime').val() && $('#endtime').val()){ $('#k').val('기간탐색');$('#search').submit(); }else{ alert('기간을 설정해 주세요'); }">기간 탐색</a></span>
+    </div>
+
+    </div>
+
+<input type="hidden" id="id" name="id" value="pt">
+<input type="hidden" id="no" name="no" />
+<input type="hidden" id="nopass" name="nopass" />
+<input type="hidden" id="nolisting" name="nolisting" value="" />
+<input type="hidden" id="stype" name="stype" value="9" />
+<input type="hidden" id="stype2" name="stype2" value="" />
+<input type="hidden" name="stype3" value="" />
+<input type="hidden" id="ctgr" name="category" value="">
+<input type="hidden" id="nocache" name="nocache" value="">
+
+<div id="mykeyword"></div>
+</div>
+</div>
+</form>
+
+<script type="text/javascript">
+$(document).ready(function(){
+if(location.hash && $(location.hash.replace('r','n'))){
+    $(window).ready(function(){
+        if(menufixed){
+            setTimeout(function(){ $(window).scrollTop($(window).scrollTop()-110); },300);
+        }
+        hashbrown();
+    });
+}
+});
+</script><div id="topfixed" class="fixedmenu">
+ 
+	<div id="menu_header_cover" class="menu_top" style="/*background-image:url(//static.instiz.net/static/191114_snow.png);background-size: auto 39px;background-position: unset;*/">
+
+	<div class="menu_logo" id="menu_top">
+		<a href="//www.instiz.net/" class="menu_logo_a"><img alt="로고" src="//cdn.instiz.net/data/images/ico_instiz_mark.svg" class="menu_logo_img">
+			<img alt="인스티즈" src="//cdn.instiz.net/data/images/ico_logo_new_eng.png" class="menu_logo_txt"></a>		
+		<!--<span>
+        [CHECK]        </span>-->
+		<div class="push fullmenu" onclick="fullmenu();"><i class="fa-solid fa-bars"></i></div>
+			<a href="javascript:searchbutton();" id="my" class="push" alt="알림"><i class="fa fa-search" alt="검색"></i></a>
+				<a href="javascript:$('#loginwindow').css({'display':'block'});$('#user_id').focus();void(0);" class="push" /><i class="fa-solid fa-right-to-bracket"></i></a>
+		<a href="javascript:joininti();" class="push login_top_join"/>회원가입</a>
+		
+		<!--<a href="javascript:lopen('//www.instiz.net/service/intitools/index.htm',500,600);" class="push"><i class="fa-solid fa-wand-magic"></i></a>-->
+		<style>
+		.textmenu{ text-shadow: 0 0 2px rgb(0,0,0,.3);; }
+		</style>
+
+				<a href="javascript:rule(1);" class="push textmenu"><i class="fa-solid fa-circle-info"></i> 이용 방법·규칙</a>
+
+			</div>
+</div>
+
+<div id="loginwindow" class="login3">
+	<iframe id="ifrm_login" name="ifrm_login" style="display:none"></iframe>
+	<form id="login" name="login" method="post" target="ifrm_login" onsubmit="return login_check()" action="//www.instiz.net/bbs/login_check.php">
+		<input type="hidden" name="s_url" value="//www.instiz.net/pt&autologinok=1">
+		<div>
+			<div class="login1">
+				<div class="login4">
+					<input type="text" id="user_id" name="user_id" placeholder="아이디(ID) / 이메일(E-Mail)" value=""  autocomplete="off" autocapitalize="off" maxlength="60" tabindex="1" />
+				</div>
+			</div>
+		</div>
+
+		<div>
+			<div class="login2">
+				<div>
+					<div onclick="togglepw();"><img id="toggle-pw-img" src="//cdn.instiz.net/data/images/btn_password_hide.png"></div>
+				</div>
+				<div class="login5">
+					<input type="password" id="password" name="password" placeholder="비밀번호(Password)" autocomplete="off" autocapitalize="off" maxlength="50" tabindex="2" />
+				</div>
+			</div>
+
+			<div class="btn_chkarea">
+				<div class="minitext3">
+					<label for="savecheck"><input type="checkbox" id="savecheck" name="savecheck" onclick="$('#password').focus()" tabindex="3" /> ID 저장</label>&nbsp;&nbsp;&nbsp;<label for="auto_login"><input type="checkbox" id="auto_login" name="auto_login" value="1" onclick="autologin()" tabindex="4" title="자동 로그인 (Auto Login)" checked /> 자동 로그인</label>
+				</div>
+
+				<div class="login6">
+					<input type="submit" value="로그인" accesskey="s" tabindex="5" class="login_go" />
+					<div><input type="button" value="분실" onclick="lostid()" class="login_lost" tabindex="6" /></div>
+					<div><input type="button" value="닫기" onclick="$('#loginwindow').css({'display':'none'});" class="login_close" tabindex="7" />
+					</div>
+				</div>
+			</div>
+		</div>
+</div>
+</form>
+
+<div id="hide_menu_logo">
+	<div class="menu_short" style="display:none;">
+		<a href="https://www.instiz.net/m"><img alt="로고" src="//cdn.instiz.net/data/images/ico_instiz_mark.svg"></a></div></div>
+
+<div id="hide_menu_full">
+	<div class="menu_short">
+		<!--<div class="push" onclick="fullmenu();" style="margin:0;"><i class="fa-solid fa-bars"></i></div>-->
+	</div>
+</div>
+
+<div class="favor_back">
+	<div class="content">
+		<div class="favorlist_more_gradient">&nbsp;</div>
+		<a id="favorlist_more_btn" class="favorlist_btn" onclick="favorbtn();"><i class="fa-solid fa-chevron-down"></i></a>
+
+		<script>
+			var favorbtn=function(){
+				$('.favorlist_expand_parent').toggle();
+				if($('.favorlist_expand_parent').css('display')!='none'){
+					if($('.favorlist_expand').html()=='') $('.favorlist a').each(function(){ $('.favorlist_expand').append('<div><a href="'+$(this).attr('href')+'">'+$(this).html()+'</a></div>'); });
+					$('#favorlist_more_btn').html('<i class="fa-solid fa-chevron-up"></i>');
+				}else{
+					$('#favorlist_more_btn').html('<i class="fa-solid fa-chevron-down"></i>');
+				}
+			};
+		</script>
+	</div>
+
+	<div class="topmenu">
+		<div class="favorlist">
+		<a href="https://www.instiz.net/hot.htm">HOT</a>
+		<a  href="https://www.instiz.net/pt" class="highmenu">이슈</a><a  href="https://www.instiz.net/name">일상</a><a  href="https://www.instiz.net/name_enter">연예</a><a  href="https://www.instiz.net/name_enter?category=3">드영배</a><a  href="https://www.instiz.net/market">장터</a><a  href="https://www.instiz.net/writing">픽션</a><a  href="https://www.instiz.net/ogong">공포</a><a  href="https://www.instiz.net/name_beauty">뷰티</a><a  href="https://www.instiz.net/name_study">스터디</a><a  href="javascript:op('https://www.ichart.kr');">iChart</a><a  href="javascript:attendance();">출석체크</a><a  href="https://www.instiz.net/spage/2">게임</a><a style="border-left:1px dotted #ccc" href="javascript:lopen('https://www.instiz.net/popup_move_favor.htm',400,600);">변경</a>	</div>
+	</div>
+
+	<div class="content"><div id="sidead"></div></div>
+</div>
+
+<div class="favor_back favorlist_expand_parent" style="display:none;">
+	<div class="favorlist_expand content"></div>
+</div>
+
+</div>
+
+</div>
+<div class="fixedmenu2 fixedmenu2_top">
+	<img alt="로고" src="//cdn.instiz.net/data/images/ico_instiz_mark.svg" class="menu_logo_tophidden">
+</div>
+
+<script type="text/javascript">
+	var pushIconElement = document.getElementById('push_icon'); //0109 수정
+	var topmenu_autowrap;
+	function daynightForApp(mode) {
+		try {
+			//낮
+			if(mode==1) {
+				$('#night_css, #night_css2').remove();
+				SetCookie('usenight_cookie', "");
+
+				//밤
+			}else{
+				var date = new Date();
+				date.setTime(date.getTime() + (365 * 24 * 60 * 60 * 1000));
+				if (GetCookie('usenight_cookie')) {
+					// 쿠키시간만 갱신
+				} else {
+					//2023.05.08 수정, 원복 예정
+					$('head').append('<link id="night_css" rel="stylesheet" href="//instiz.net/ajax/testcss/m/style_night.css?2606281" type="text/css" />');
+					//$('head').append('<link id="night_css" rel="stylesheet" href="//static.instiz.net/m/style_night.css?260628" type="text/css" />');
+				}
+				SetCookie('usenight_cookie', "1", date);
+			}
+		} catch (e) {
+
+		}
+	}
+
+	var lastscroll=0;
+		var lastaction=0;
+        let runOnlyCss = false;
+        $(window).scroll(function(){
+            if (runOnlyCss) return;
+			if(lastscroll!=0){
+				if($(window).scrollTop()<50){ //맨위일때
+					if(lastaction!=1){
+						$('#topfixed').stop().animate({'top':'0'},300);
+						$('#hide_menu_logo, #hide_menu_full').stop().animate({'opacity':0},500,function(){ $('.menu_short').css({'display':'none'}) });
+					}
+					lastaction=1;
+				}else if(lastscroll-30>$(window).scrollTop()){ //올라갈때
+					if(lastaction!=1){
+						$('#topfixed').stop().animate({'top':'0'},300);
+						$('#hide_menu_logo, #hide_menu_full').stop().animate({'opacity':0},500,function(){ $('.menu_short').css({'display':'none'}) });
+					}
+					lastaction=1;
+				}else if(lastscroll+30<$(window).scrollTop()){ //내려갈때
+					if(lastaction!=2){
+						$('#topfixed').stop().animate({'top':'-50px'},300);
+						$('.menu_short').css({'display':''});
+						$('#hide_menu_logo, #hide_menu_full').stop().animate({'opacity':'0.7'});
+					}
+					lastaction=2;
+				}
+			}
+			lastscroll=$(window).scrollTop();
+		});
+	function printOut(message) {
+
+		if (!message) {
+			console.log('콘솔값 : false');
+			var messages = 'fa';
+		} else {
+			console.log('콘솔값',message);
+			var messages = message;
+		}
+
+		return messages;
+	}
+
+	function popup_push_ajax(status) {
+		var st = 1;
+		if(memno !=0 && status == true) {
+			console.log('분기후3 ::', status);
+			st = 0;
+			sendGetRequest(st);
+			SetCookie('notisetMember', st); //0108 수정
+
+			pushIconElement.classList.add('fa-bell'); //0109수정
+			pushIconElement.classList.remove('fa-bell-slash'); //0109수정
+
+		}else if(memno !=0 && status == 'fa') {
+			console.log('분기후엘즈3 ::', status);
+			st = 1;
+			sendGetRequest(st);
+			SetCookie('notisetMember', st); //0108 수정
+
+			pushIconElement.classList.add('fa-bell-slash'); //0109수정
+			pushIconElement.classList.remove('fa-bell'); //0109수정
+
+		}else if(memno == 0 && status == true){
+			console.log('분기후4 ::', status);
+			st = 2;
+			SetCookie('notiset', st);
+		}else if(memno == 0 && status == 'fa') {
+			console.log('분기후엘즈4 ::', status);
+			st = 1;
+			SetCookie('notiset', st);
+		}
+	}
+
+	function sendGetRequest(st) {
+		var xhr = new XMLHttpRequest();
+		var url = "https://www.instiz.net/popup_push_ing2.htm?type=1&value="+st; // API 엔드포인트 URL
+
+		xhr.open("GET", url, true);
+		// 요청이 완료되었을 때 처리
+		xhr.onload = function() {
+
+			if (xhr.status === 200) {
+				var responseData = xhr.responseText; // 서버 응답 데이터
+				console.log('레스 :: '+responseData);
+				// 여기에서 응답 데이터를 처리
+			}
+		};
+
+		// 요청 보내기
+		xhr.send();
+	}
+
+	// if (printvalue != null && printvalue == false) {
+	// 	ajaxload2('popup_push_ing.htm?type=1&value=false', 1, function (data) {
+	// 	});
+	// } else if (printvalue != null && printvalue == true) {
+	// 	ajaxload2('popup_push_ing.htm?type=1&value=' + printvalue, 1, function (data) {
+	// 	});
+	// }
+
+	function gohot(noshow){
+		if(noshow){
+			if(!$('#boardhot').length){
+				if(typeof menuicon == 'function') {
+					menuicon(2);
+					menuicon_off=1;
+				}
+			}else{
+				runOnlyCss = true;
+								$('#topfixed').stop().css({'top': '-50px'});
+				lastaction = 2;
+				lastscroll = $(window).scrollTop();
+				                $('#sense20, #sense11, #sense14, #sense10').css({'min-height':'350px'});
+				var aTag=$('a[name=\'nowhot\']');
+				$('html,body').scrollTop(aTag.offset().top-45);
+				setTimeout(()=> runOnlyCss = false, 1000);
+			}
+		}else{
+			//noshow값이 없으면 흔들기 기능 작동된것
+			//흔들어서 인기글가기 기능 없앰 (오작동)
+			//show_bottom_msg('⚡ 흔들어서 인기글로 왔어요 ⚡',1);
+		}
+
+		$('.menu_short').css({'display':''});
+		$('#hide_menu_logo, #hide_menu_full').stop().animate({'opacity':'0.7'});
+	}
+
+	var memno='0';
+	var memlevel='10';
+	var memaddr='3ddd094689845096bb9801ddc8a54238';
+	var memcovercolor='14bf68';		if(top!=self)window.top.location.href=location;
+			var shakehot='';
+</script>
+
+<div class="content remote_container"><div class="remote">
+	<!--인기글-->
+	<a id="remote_splotch" class="remote_more_btn" href="javascript:remocon(2);">
+		<div><i class="fa-solid fa-fire"></i></div><div>인기글</div>
+	</a>
+
+	<div id="remote_fold" style="height:0;">
+		
+		<!--본문-->
+		<a class="remote_more_btn btn_top" href="javascript:remocon(4);" style="">
+			<i class="fa-solid fa-angle-up" alt="더보기"></i>
+		</a>
+
+			</div>
+	
+	<a class="remote_more" href="javascript:remocon(7);"><i class="fa-solid fa-ellipsis"></i></a>
+</div></div>
+
+<script>
+$(function(){
+	$('#mboard td:not(\'.no_mouseover\'), #green_mainboard td:not(\'.no_mouseover\'), .realchart_item').on({
+		mouseenter: function() {
+			$(this).addClass('mouseover_td');
+		},
+		mouseleave: function() {
+			$(this).removeClass('mouseover_td');
+		}
+	});
+});
+
+if( ($(document).width()-$('#menu_top').width()-20)/2 > 160){
+    if( ($(document).width()-$('#menu_top').width()-20)/2 > 300) w=300;
+    else w=160;
+
+	$('#sidead').html('<div id="sense_side" style="width:'+w+'px"><scr'+'ipt async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3886779655816026" crossorigin="anonymous"></scr'+'ipt><ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-3886779655816026" data-ad-slot="8819983395" data-ad-format="auto"></ins></div><scr'+'ipt>loadsense(\'sense_side\',\'DAN-1i5H6clQSRvVVmh3\',160,600);</scr'+'ipt>');
+}
+</script>
+<div id="filterlayer" class="floatinglayer_con">
+    <table class="floatinglayer article_control">
+        <tr><td><a class="article_control_button" id="filter_btn" href="javascript:lopen('../popup_setting_filter.htm?id=pt&category=',500,700);">필터링</a></td></tr>        <tr><td><a class="article_control_button" href="javascript:if(confirm('이 카테고리에 등록된 모든 글에 대해 알림 설정하시겠어요?'))keyword_add('pt','','전체게시물','',1);void(0);">전체 게시물 알림</a></td></tr>
+    </table>
+</div>
+
+<div class="content">
+<div class="boardhead" style="height:12px"></div>
+<div class="bt" style="padding-bottom:5px">
+<div class="board_top_menu">
+    <div class="board_top_menu_cell">
+        <a href="../pt" class="bttitle" itemprop="articleSection">이슈</a></a>        <a href="javascript:selectmenu2('이슈','pt','0');">
+        <i class="fa-star fas fv_star1 fv"></i></a>
+    </div>
+
+    <div class="board_top_menu_cell">
+        </div>
+</div>
+</div>
+
+
+<div style="clear:both"></div>
+</div>
+</div>
+
+<div class="content" style="position:unset;">
+<div class="subcategory">
+ <span class="button strong"><a href="https://www.instiz.net/pt?category=3">정보·기타</a></span> <span class="button"><a href="https://www.instiz.net/pt?category=1">이슈·소식</a></span> <span class="button"><a href="https://www.instiz.net/pt?category=2">유머·감동</a></span> <span class="button"><a href="https://www.instiz.net/pt?category=8">뮤직(국내)</a></span> <span class="button"><a href="https://www.instiz.net/pt?category=5">팁·추천</a></span> <span class="button"><a href="https://www.instiz.net/pt?category=10">할인·특가</a></span> <span class="button"><a href="https://www.instiz.net/pt?category=11">고르기·테스트</a></span></div>
+
+</div>
+<div class="content">
+<div id="thumbani" style="position:fixed;left:0;right:0;top:0;text-align:center;z-index:9999;"></div>
+</div>
+
+<div class="board_top cate_sports">
+    <div class="content">
+        <table class="baseball newmenu">
+            <tr>
+                <td class="newmenu_now" style="width:50%;"><a href="https://www.instiz.net/pt">이슈</a></td>
+                <td style="width:50%;"><a href="https://www.instiz.net/ogong">오싹공포</a></td>
+            </tr>
+        </table>
+    </div>
+</div>
+</div>
+
+
+<div class="content" style="padding:0;"><script type="text/javascript" src="//static.instiz.net/mainscript_swiper.min.js?2603311"></script>
+<link rel="stylesheet" href="//static.instiz.net/style_touch_page.css?220130">
+
+
+<script type="text/javascript">
+var searchhigh;
+var is_loaded_searchjs=false;
+var filter_length=0;
+function searchhighnow() {
+try{
+    //대체 콘텐츠 (초록글)
+    var c=0;
+    $('#greenv > .listsubject').each(function() {
+        if ($(this).html()=='&nbsp;')c++;
+    });
+
+    if($('#menufoot').length==0 && c) {
+        ajaxload2('../include_get_howabout.php?id=pt&type=green&limit=' + c, 1, function (data) {
+            jsonData = JSON.parse(data);
+
+            var v = 0;
+            $('#greenv > .listsubject').each(function (index) {
+                if ($(this).html() == '&nbsp;') {
+                    item = jsonData[v];
+                    v++;
+                    if(item.total_comment) cmt=' <span class="cmt3" title="유효 댓글 수 ">'+item.total_comment+'</span>'; else cmt='';
+                    $(this).parent().parent().append('<tr id="greenv"><td class="listsubject"><a href="https://www.instiz.net/' + item.id + '/' + item.no + '?category='+ item.category +'&fromhowabout=1"><div style="max-width: calc(100vw - 20px);"><span class="minitext3">대체</span> <span class="tb_spr">l</span> <span class="texthead_notice">' + item.subject + cmt + '</span></div></a></td></tr>');
+                    $(this).parent().remove();
+                }
+            });
+        });
+    }
+
+    //대체 콘텐츠 (인기글)
+    var c=0;
+    $('.realchart_item_a').each(function() {
+        if ($(this).html()=='&nbsp;')c++;
+    });
+
+    if(menuicon_off==1 && c) {
+        ajaxload2('../include_get_howabout.php?id=pt&type=hot&limit=' + c, 1, function (data) {
+            jsonData = data ? JSON.parse(data) : null;
+
+            var v = 0;
+            $('.realchart_item_a').each(function (index) {
+                if ($(this).html() == '&nbsp;') {
+                    if (jsonData) {
+                        item = jsonData[v];
+                        $(this).parent().parent().append('<div class="realchart_item"><div class="realchart_item_a sbj"><a href="https://www.instiz.net/' + item.id + '/' + item.no + '?category='+item.category+'&fromhowabout=1"><span class="itsme rank">대체</span> ' + '<span class="post_title">' + item.subject + '</span>' + ((item.total_comment)?' <span class="cmt">'+item.total_comment+'</span>':'') + '</a></div></div>');
+                        v++;
+                    } else {
+                        $(this).parent().parent().append('<div class="realchart_item"><div class="realchart_item_a sbj"><div class="empty_text"><span class="post_title"> - </span></div></div></div>');
+                    }
+                    $(this).parent().remove();
+                }
+            });
+        });
+    }
+
+    if(filter_length){
+        $('#filter_no').remove();
+        $('#filter_btn').append('<span class="cmt" id="filter_no">'+filter_length+'개</span>');
+    }
+
+}catch(e){
+
+}
+}
+
+$(document).ready(
+function() {
+    var hashpage=0;
+    maxpage=eval($('.indextable_foot .indexing1').text());
+
+    a = document.location.hash;
+    if (a.indexOf('nextpage') > -1) {
+        page = a.replace('#nextpage', '');
+
+        //최대 페이지 앞에서 5페이지 까지만 불러옴
+        if(page>5) startpage=page-4; else startpage=2;
+
+        for(hashpage=startpage;hashpage<=page;hashpage++){
+            getnextpage(hashpage,1);
+        }
+    }
+});
+</script>
+<form id="list" name="list" method="post">
+<div style="clear:both"></div>
+<input type="hidden" id="id" name="id" value="pt">
+<a name="list"></a>
+
+<table id="mainboard_top" class="mboard">
+<tr id="topboard" class="list_header">
+<td>
+<div class="subcategory">
+<span class="topbtn1" onclick="location='../pt?category=';">전체</span>
+<!--<span id="topbtn1" class="topbtn1" onclick="topbtn(1);"><img src="//cdn.instiz.net/data/images/ico_green_leaf.png" alt="초록글" style="width:16px;height:16px;">초록글</span>--><span id="topbtn3" class="topbtn2" onclick="location='../pt?&srt=3&srd=2';" id="sort_btn_4" >HOT</span><span class="topbtn2" onclick="location='../pt?stype=8&category=';">댓글없는글</span></div>
+
+<div style="float:left;" class="minitext3">
+<script type="text/javascript">
+var colspan='2';
+var loadgreen=function(id,category,page){
+    ajaxload2('//www.instiz.net/iframe_green_my.htm?id='+id+'&category='+category+'&page='+page,1,function(data){
+    document.getElementById('ingreen').innerHTML=data;
+    $('#greenv td div').css({'max-width':$('#greenv').width()});
+
+    var swiper3 = new Swiper('#swiper-container-green',{
+    pagination: {
+        el: '#swiper-pagination-green',
+    },
+    paginationClickable: true,
+    navigation: {
+        nextEl: '#greenr-green',
+        prevEl: '#greenl-green',
+    },
+    loop: true,
+        });
+    });
+};
+
+</script>
+</div>
+
+    <div style="display:none">
+        <span id="greenl-green" class="greenl"></span>
+        <span id="greenr-green" class="greenr"></span>
+    </div>
+</td>
+</tr><tr id="topboard"><td id="ingreen" colspan="2"><table id="green_mainboard" class="mboard2" style=""><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=2"><span class="list_category">유머·감동</span></a></td><td class="r7883821 listsubject"><a href="https://www.instiz.net/pt/7883821?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 와이프에게 아버지의 전화요구 미치겠다.jpg<span class="cmt3" title="유효 댓글 수 268">341</span></b></font></span></u></a></td>
+<td class="listno" width="60">12:52</td><td class="listno" width="45">65958</td>
+<td class="listno" width="25">1</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=2"><span class="list_category">유머·감동</span></a></td><td class="r7883790 listsubject"><a href="https://www.instiz.net/pt/7883790?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 경조사 괘씸죄로 승진 탈락했다는 회사원.jpg<span class="cmt3" title="유효 댓글 수 196">220</span></b></font></span></u></a></td>
+<td class="listno" width="60">10:04</td><td class="listno" width="45">84439</td>
+<td class="listno" width="25">0</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=3"><span class="list_category">정보·기타</span></a></td><td class="r7883836 listsubject"><a href="https://www.instiz.net/pt/7883836?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 회사 점심 식대로 저녁까지 먹는 직원 논란<span class="cmt3" title="유효 댓글 수 184">224</span></b></font></span></u></a></td>
+<td class="listno" width="60">14:07</td><td class="listno" width="45">56838</td>
+<td class="listno" width="25">0</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=2"><span class="list_category">유머·감동</span></a></td><td class="r7883831 listsubject"><a href="https://www.instiz.net/pt/7883831?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 비밀 무덤까지 가져가는 MBTI 유형.jpg<span class="cmt3" title="유효 댓글 수 131">147</span></b></font></span></u></a></td>
+<td class="listno" width="60">13:23</td><td class="listno" width="45">53178</td>
+<td class="listno" width="25">0</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;border-bottom:0;"><a href="https://www.instiz.net/pt?category=1"><span class="list_category">이슈·소식</span></a></td><td class="r7883827 listsubject" style="border-bottom:0;"><a href="https://www.instiz.net/pt/7883827?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 최근 200만원에 합의한 어린이 보호 구역 사고<span class="cmt3" title="유효 댓글 수 127">152</span></b></font></span></u></a></td>
+<td class="listno" width="60" style="border-bottom:0;">13:08</td><td class="listno" width="45" style="border-bottom:0;">53375</td>
+<td class="listno" width="25" style="border-bottom:0;">3</td>
+</tr></table>
+</div>
+<table id="green_mainboard1" class="mboard2" style="display:none"><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=2"><span class="list_category">유머·감동</span></a></td><td class="r7883854 listsubject"><a href="https://www.instiz.net/pt/7883854?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 수영장 다니는데 문신ㅊ이 너무 많아서 진짜 짜증나요<span class="cmt3" title="유효 댓글 수 104">127</span></b></font></span></u></a></td>
+<td class="listno" width="60">15:30</td><td class="listno" width="45">39045</td>
+<td class="listno" width="25">5</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=3"></a></td><td class="r7883776 listsubject"><a href="https://www.instiz.net/pt/7883776?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 반지 사이즈 때문에 바이럴 되고 있는 사진<span class="cmt3" title="유효 댓글 수 87">102</span></b></font></span></u></a></td>
+<td class="listno" width="60">8:30</td><td class="listno" width="45">81714</td>
+<td class="listno" width="25">1</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=3"></a></td><td class="r7883846 listsubject"><a href="https://www.instiz.net/pt/7883846?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 중국산 생수 한국 진출하려나봄<span class="cmt3" title="유효 댓글 수 85">119</span></b></font></span></u></a></td>
+<td class="listno" width="60">15:08</td><td class="listno" width="45">36004</td>
+<td class="listno" width="25">4</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=3"></a></td><td class="r7883804 listsubject"><a href="https://www.instiz.net/pt/7883804?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 짝에 출연했었던 존잘남 근황<span class="cmt3" title="유효 댓글 수 79">97</span></b></font></span></u></a></td>
+<td class="listno" width="60">11:01</td><td class="listno" width="45">71917</td>
+<td class="listno" width="25">0</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;border-bottom:0;"><a href="https://www.instiz.net/pt?category=3"></a></td><td class="r7883745 listsubject" style="border-bottom:0;"><a href="https://www.instiz.net/pt/7883745?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 요즘 여드름 약국템으로 붐업되는 연고<span class="cmt3" title="유효 댓글 수 76">271</span></b></font></span></u></a></td>
+<td class="listno" width="60" style="border-bottom:0;">5:07</td><td class="listno" width="45" style="border-bottom:0;">87540</td>
+<td class="listno" width="25" style="border-bottom:0;">8</td>
+</tr></table>
+</div>
+<table id="green_mainboard2" class="mboard2" style="display:none"><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=1"><span class="list_category">이슈·소식</span></a></td><td class="r7883864 listsubject"><a href="https://www.instiz.net/pt/7883864?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 🚨드럼통🛢이 ㄹㅇ 현실이었던 이유 공개됨🚨<span class="cmt3" title="유효 댓글 수 66">132</span></b></font></span></u></a></td>
+<td class="listno" width="60">16:18</td><td class="listno" width="45">44895</td>
+<td class="listno" width="25">17</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=3"></a></td><td class="r7883793 listsubject"><a href="https://www.instiz.net/pt/7883793?green=1"><span class="texthead_notice">19세 벤츠 운전자, 대전 초교 앞 가로수 들이받아 사망<span class="cmt3" title="유효 댓글 수 58">67</span></b></font></span></u></a></td>
+<td class="listno" width="60">10:22</td><td class="listno" width="45">62139</td>
+<td class="listno" width="25">0</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=2"><span class="list_category">유머·감동</span></a></td><td class="r7883830 listsubject"><a href="https://www.instiz.net/pt/7883830?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 왜 사람들은 동사무소라는 명칭에 애착을 갖는걸까<span class="cmt3" title="유효 댓글 수 57">63</span></b></font></span></u></a></td>
+<td class="listno" width="60">13:23</td><td class="listno" width="45">34182</td>
+<td class="listno" width="25">0</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;"><a href="https://www.instiz.net/pt?category=3"></a></td><td class="r7883901 listsubject"><a href="https://www.instiz.net/pt/7883901?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> "진짜" 들에게만 있는 폐급 식습관<span class="cmt3" title="유효 댓글 수 53">67</span></b></font></span></u></a></td>
+<td class="listno" width="60">18:06</td><td class="listno" width="45">38297</td>
+<td class="listno" width="25">0</td>
+</tr><tr id="detour">
+<td class="minitext listnm" style="width:140px;border-bottom:0;"><a href="https://www.instiz.net/pt?category=3"></a></td><td class="r7883824 listsubject" style="border-bottom:0;"><a href="https://www.instiz.net/pt/7883824?green=1"><span class="texthead_notice"><i class="fa-regular fa-image fa-image-custom"></i> 출장 안마 레전드 사건 ..jpg<span class="cmt3" title="유효 댓글 수 50">61</span></b></font></span></u></a></td>
+<td class="listno" width="60" style="border-bottom:0;">13:03</td><td class="listno" width="45" style="border-bottom:0;">50513</td>
+<td class="listno" width="25" style="border-bottom:0;">0</td>
+</tr></table>
+</div>
+</td></tr><tr id="list22337251_57329">
+<td class="greentop no_mouseover" id="gts" valign="top">
+<a href="javascript:gt(1,'pt','2','');"><span id="greenwide" class="greenwide" style="position:absolute;right:0;margin: 0 10px 0 0;"><i class="fa-solid fa-angle-down"></i></span></a>
+    <div class="bullet_green">        <div id="swiper-pagination-green" class="swiper-pagination swiper-greentop"></div>    </div>
+
+    <div class="green-pagenation" style="display:none;">
+        <span id="greenl-green" class="button4 button_left"><i class="fa-solid fa-angle-left"></i></span><span id="greenr-green" class="button4 button_right"><i class="fa-solid fa-angle-right"></i></span>
+    </div>
+
+<a name="greentop"></a>
+<script type="text/javascript">
+var swiper3 = new Swiper('#swiper-container-green',{
+pagination: {
+    el: '#swiper-pagination-green',
+},
+paginationClickable: true,
+navigation: {
+    nextEl: '#greenr-green',
+    prevEl: '#greenl-green',
+},
+loop: true,
+});
+</script>
+
+</td>
+<!-- 데이트 피커 관련 파일 -->
+<link href="//static.instiz.net/style_jquery_ui.css" rel="stylesheet" type="text/css" />
+<link href="//static.instiz.net/style_jquery_time.css" rel="stylesheet" type="text/css" />
+<!-- 데이트 피커 관련 스크립트 -->
+<script type="text/javascript" src="//static.instiz.net/mainscript_jquery_ui.js?1907071"></script>
+<script type="text/javascript" src="//static.instiz.net/mainscript_time.js?2304014"></script>
+<script type="text/javascript" src="//static.instiz.net/mainscript_jquery_touch.js"></script>
+</tr><tr><td class="no_mouseover"><div id="sense27" style="margin:0 auto;text-align:center;min-height:100px;line-height:0;height:100px;overflow-y:hidden;">
+<ins class="adsbygoogle mobile_ad_responsive_slim"
+     style="display:inline-block;/*width:320px;height:100px*/"     data-ad-client="ca-pub-3886779655816026"
+     data-ad-slot="8154248773"
+          data-full-width-responsive="false"
+        ></ins><script>loadsense('sense27','DAN-OW2yD0LWfo0OVV8a','320','100');</script></div></td></tr><list>    <tr id="list7883975_84881">
+        <td class="listsubject r7883975">
+            <a  href="https://www.instiz.net/pt/7883975?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 한국에서 예능최초로 자막넣다가 시말서 받은 PD</span></font></b></div><div class="list_subtitle"><div no="7883975" class="listno regdate">21:51 <span class="tb_spr">l</span> 조회 664</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883974_56024">
+        <td class="listsubject r7883974">
+            <a  href="https://www.instiz.net/pt/7883974?page=1">            <div class="sbj"><i class="fa-brands fa-x-twitter"></i> 호기심을 참지 못하고 결국 '그'를 구독해버린 류진.jpg</span></font></b></div><div class="list_subtitle"><div no="7883974" class="listno regdate">21:46 <span class="tb_spr">l</span> 조회 960</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883973_48682">
+        <td class="listsubject r7883973">
+            <a  href="https://www.instiz.net/pt/7883973?page=1">            <div class="sbj"><i class="fa-brands fa-youtube"></i> 팀장님한테 들려주고 싶은 챌린지</span></font></b></div><div class="list_subtitle"><div no="7883973" class="listno regdate">21:45 <span class="tb_spr">l</span> 조회 123</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883972_31834">
+        <td class="listsubject r7883972">
+            <a  href="https://www.instiz.net/pt/7883972?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 한국 악귀의 땅 뭐 이런류 괴담 웃긴 점</span></font></b></div><div class="list_subtitle"><div no="7883972" class="listno regdate">21:44 <span class="tb_spr">l</span> 조회 782</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883971_93622">
+        <td class="listsubject r7883971">
+            <a  href="https://www.instiz.net/pt/7883971?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 여자들이 보는 남자 현실</span></font></b></div><div class="list_subtitle"><div no="7883971" class="listno regdate">21:37 <span class="tb_spr">l</span> 조회 1745</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883970_96671">
+        <td class="listsubject r7883970">
+            <a  href="https://www.instiz.net/pt/7883970?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 병원 다큐 보는디 의료인들 서서히 서로를 알아보는거 왜케 웃기냐</span></font></b></div><div class="list_subtitle"><div no="7883970" class="listno regdate">21:37 <span class="tb_spr">l</span> 조회 1368</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883969_72137">
+        <td class="listsubject r7883969">
+            <a  href="https://www.instiz.net/pt/7883969?page=1">            <div class="sbj"><i class="fa-brands fa-x-twitter"></i> 대남재탕면(대충 남은 재료로 만든 탕면 이라는 뜻ㅋ)</span></font></b></div><div class="list_subtitle"><div no="7883969" class="listno regdate">21:35 <span class="tb_spr">l</span> 조회 236</div></div>
+            </a>
+        </td>
+    </tr>
+<tr id="list64556614_85343"><td class="no_mouseover">
+                
+                <div id="sense14" style="margin:0 auto;text-align:center;min-height:250px;padding:20px 0;line-height:0;">
+<ins class="adsbygoogle mobile_ad_responsive"
+          style="display:block;"
+          data-ad-client="ca-pub-3886779655816026"
+     data-ad-slot="3878030210"
+          data-ad-format="auto"
+     data-full-width-responsive="true"
+         ></ins><script>loadsense('sense14','DAN-1YBSQmS5OJaCmQG6','300','250');</script></div>                <!--<iframe src="//www.instiz.net/_instiz.htm?from=adfit&width=320&height=100" scrolling="no" width="100%" height="100" frameborder="0"></iframe>-->
+            </td></tr>    <tr id="list7883968_74926">
+        <td class="listsubject r7883968">
+            <a  href="https://www.instiz.net/pt/7883968?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 훈남 + 배구 실력 + 노래까지 잘하는 사기캐</span></font></b></div><div class="list_subtitle"><div no="7883968" class="listno regdate">21:28 <span class="tb_spr">l</span> 조회 1729</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883967_31259">
+        <td class="listsubject r7883967">
+            <a  href="https://www.instiz.net/pt/7883967?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 어렸을때 허벅지가 커서 놀림 받았던 모델 근황<span class="cmt2" title="유효 댓글 수 5">5</span></span></font></b></div><div class="list_subtitle"><div no="7883967" class="listno regdate">21:23 <span class="tb_spr">l</span> 조회 11039 <span class="tb_spr">l</span> 추천 6</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883966_51077">
+        <td class="listsubject r7883966">
+            <a  href="https://www.instiz.net/pt/7883966?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 올해 41세 에이브릴 라빈 근황<span class="cmt2" title="유효 댓글 수 17">17</span></span></font></b></div><div class="list_subtitle"><div no="7883966" class="listno regdate">21:08 <span class="tb_spr">l</span> 조회 11786</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883965_12326">
+        <td class="listsubject r7883965">
+            <a  href="https://www.instiz.net/pt/7883965?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 인간이 각기 다른 행성에서 점프했을 경우<span class="cmt2" title="유효 댓글 수 5 미만">3</span></span></font></b></div><div class="list_subtitle"><div no="7883965" class="listno regdate">21:08 <span class="tb_spr">l</span> 조회 2025 <span class="tb_spr">l</span> 추천 1</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883964_44306">
+        <td class="listsubject r7883964">
+            <a  href="https://www.instiz.net/pt/7883964?page=1">            <div class="sbj"><i class="fa-brands fa-youtube"></i> 1년전이랑 한국어 실력 vs 지금 한국어 실력</span></font></b></div><div class="list_subtitle"><div no="7883964" class="listno regdate">21:08 <span class="tb_spr">l</span> 조회 171</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883963_92230">
+        <td class="listsubject r7883963">
+            <a  href="https://www.instiz.net/pt/7883963?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 견주가 강아지 없이 보내는 일주일.jpg</span></font></b></div><div class="list_subtitle"><div no="7883963" class="listno regdate">21:06 <span class="tb_spr">l</span> 조회 3031 <span class="tb_spr">l</span> 추천 1</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883962_72701">
+        <td class="listsubject r7883962">
+            <a  href="https://www.instiz.net/pt/7883962?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> '애낳는 여자가 비주류'라는 서울 출산율 0.55의 의미<span class="cmt2" title="유효 댓글 수 5 미만">4</span></span></font></b></div><div class="list_subtitle"><div no="7883962" class="listno regdate">21:06 <span class="tb_spr">l</span> 조회 1911</div></div>
+            </a>
+        </td>
+    </tr>
+        <tr id="list92311406_87419"><td class="no_mouseover">
+            <div class="content between_house"><div class="texthead bttitle"><span class="minitext3 itsme">ㄱ</span>빈늘 <span class="button2 button4"><a href="javascript:selectmenu2('(ㄱ) 빈늘','name_enter','641','');">추가하기</a></span></div><div class="righttitle"><a href="https://www.instiz.net/name_enter?category=641">더보기 <i class="fa-solid fa-chevron-right"></i></a></div><div class="subcategory" style="display: flex;"><a href="https://www.instiz.net/name_enter/89145448?category=641"><span class="between_article"><div class="between_title"><span class="itsme">ㄱ</span>빈늘듀스..... 이럴수있어??? <span class="cmt">1</span></div></span></a><a href="https://www.instiz.net/name_enter/89113739?category=641"><span class="between_article"><div class="between_title">빈늘셀카 독방에두 올려야징 <span class="cmt">2</span></div></span></a><a href="https://www.instiz.net/name_enter/89071779?category=641"><span class="between_article"><div class="between_title"><span class="itsme">ㄱ</span>빈늘러들 안녕!!!!! <span class="cmt">2</span></div></span></a><a href="https://www.instiz.net/name_enter/88850704?category=641"><span class="between_article"><div class="between_title">여기 왜 글이 아무 것도 안 보이지 <span class="cmt">2</span></div></span></a><a href="https://www.instiz.net/name_enter/88598461?category=641"><span class="between_article"><div class="between_title">얘드라 살아있니</div></span></a><a href="https://www.instiz.net/name_enter/88005592?category=641"><span class="between_article"><div class="between_title">빈늘 염천 고자극 <span class="cmt">2</span></div></span></a></div></div>    <tr id="list7883961_17369">
+        <td class="listsubject r7883961">
+            <a  href="https://www.instiz.net/pt/7883961?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 현재 큰일났다는 88년생 혼인율<span class="cmt2" title="유효 댓글 수 12">12</span></span></font></b></div><div class="list_subtitle"><div no="7883961" class="listno regdate">21:06 <span class="tb_spr">l</span> 조회 11141</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883960_40202">
+        <td class="listsubject r7883960">
+            <a  href="https://www.instiz.net/pt/7883960?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 잠실 르엘 48평 재산세<span class="cmt2" title="유효 댓글 수 11">11</span></span></font></b></div><div class="list_subtitle"><div no="7883960" class="listno regdate">21:04 <span class="tb_spr">l</span> 조회 12242</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883959_48521">
+        <td class="listsubject r7883959">
+            <a  href="https://www.instiz.net/pt/7883959?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 이민정이 말하는 아들과 딸의 차이</span></font></b></div><div class="list_subtitle"><div no="7883959" class="listno regdate">21:04 <span class="tb_spr">l</span> 조회 2972</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883958_90674">
+        <td class="listsubject r7883958">
+            <a  href="https://www.instiz.net/pt/7883958?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 거의 20년 동안 "동성애 치료”를 설교했던 목사가 사과하고 다른 목사와 결혼했습니다</span></font></b></div><div class="list_subtitle"><div no="7883958" class="listno regdate">21:04 <span class="tb_spr">l</span> 조회 930</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883957_29282">
+        <td class="listsubject r7883957">
+            <a  href="https://www.instiz.net/pt/7883957?page=1">            <div class="sbj"><i class="fa-regular fa-image fa-image-custom"></i> 홈마랑 돌팬들한테 개꿀인 이번 갤럭시 새로운 기능 직캠촬영모드</span></font></b></div><div class="list_subtitle"><div no="7883957" class="listno regdate">21:04 <span class="tb_spr">l</span> 조회 80</div></div>
+            </a>
+        </td>
+    </tr>
+    <tr id="list7883956_60327">
+        <td class="listsubject r7883956">
+            <a  href="https://www.instiz.net/pt/7883956?page=1">            <div class="sbj"><i class="fa-brands fa-x-twitter"></i> 악어를 골목길에서 마주쳤을때 입에 모래를 넣어야하는 이유</span></font></b></div><div class="list_subtitle"><div no="7883956" class="listno regdate">20:58 <span class="tb_spr">l</span> 조회 697</div></div>
+            </a>
+        </td>
+    </tr>
+</list></table>
+<table id="navigator" class="mboard" style="">
+<tr>
+<td id="morebutton" class="morebutton" style="padding:0;border-top:0;">
+<a href="javascript:getnextpage(maxpage+1);">더보기 <i class="fa-solid fa-chevron-down"></i></a>
+</tr>
+</table>
+</form>
+
+<script type="text/javascript">
+nowno();
+searchhighnow();
+</script>
+</div>
+
+<br>
+<br>
+<!--<div class="list_foot"></div>-->
+<div id="index_container" class="content">
+<div>
+<index><table id="indextable" class="indextable_foot"><tr><td></td><td class="indexing1"><a href="../pt?1#greentop">1</a></td><td><a href="../pt?page=2#greentop">2</a></td><td><a href="../pt?page=3#greentop">3</a></td><td><a href="../pt?page=4#greentop">4</a></td><td><a href="../pt?page=5#greentop">5</a></td><td><a href="../pt?page=6#greentop">6</a></td><td><a href="../pt?page=7#greentop">7</a></td><td><a href="../pt?page=8#greentop">8</a></td><td><a href="../pt?page=9#greentop">9</a></td><td><a href="../pt?page=10#greentop">10</a></td><td><a href="../pt?page=11#greentop">다음</a></td><td><a href="javascript:var a=prompt('%ED%8E%98%EC%9D%B4%EC%A7%80%EB%A5%BC %EC%9E%85%EB%A0%A5%ED%95%B4 %EC%A3%BC%EC%84%B8%EC%9A%94');if(a)location='//www.instiz.net/pt?category=&page='+a"><i class="fa-solid fa-circle-arrow-right"></i></a></td></td></tr></table></index></div>
+</div>
+
+<div class="content">
+
+</div>
+
+</div>
+
+
+<a name="nowhot"></a>
+<div class="hot_up">
+<div id="powerlink_ch3" class="powerlink_ch3 content" style="margin:0 auto;height:auto;display:none;"></div>
+</div>
+
+<script type="text/javascript" src="https://ssl.pstatic.net/adimg3.search/adpost/js/adpost_show_ads_v2.min.js"></script>
+<script src="//www.instiz.net/naverpowerlink/m_instiz.ch3.js?26021912"></script>
+<script>naver_ch3();</script><span id="menufoot">
+    </div><div id="boardhot">
+<div class="content content_sub">
+
+<!--탭 영역-->
+<!--탭 영역-->
+
+<div class="title" style="height:auto;">
+<div id="tab1" class="topbtn1">이슈</div>
+<div id="tab2" class="topbtn2">일상</div><div id="tab3" class="topbtn2">연예</div><div id="tab4" class="topbtn2">드영배</div>
+<div class="hot_article_help minitext"><a href="javascript:ialert('2026/7/23 21:56:02 업데이트 (2분 마다)<br><a href=\'javascript:nvv();\'><b>인기글 기준 자세히 보기</b></a>');"><i class="fa-regular fa-clock"></i>21:56</a></div>
+<script>var nvv=function(){ notice_view('notice',307); };</script>
+</div>
+
+<script>
+if($('#id').val()=='name_enter'){
+
+//양지만
+if(GetCookie('gout_pt__cookie')==1){
+    for(i=1;i<=20;i++){
+        $('.rank_item_'+i+' div').removeAttr('onclick');
+        $('.rank_item_'+i+' div').attr('class','realchart_item_a sbj');
+        $('.rank_item_'+i+' div').html('&nbsp;');
+    }
+
+    ajaxload2('../include_gout_mb.php?id=pt&category=',1,function(data){
+        goutdata=JSON.parse(data);
+        for(s=0,cnt=goutdata['gout'].length;s<cnt;s++){
+            $('.rank_item_'+(s+1)+' div').attr('onclick','location=\''+goutdata['gout'][s]['url']+'\'');
+            $('.rank_item_'+(s+1)+' div').addClass('r'+goutdata['gout'][s]['no']);
+            $('.rank_item_'+(s+1)+' div').html('<a href="'+goutdata['gout'][s]['url']+'"><span class="itsme rank" style="padding: 1px 3px;">'+(s+1)+'</span>'+'<span class="post_title">'+goutdata['gout'][s]['subject'] + '</span>' + goutdata['gout'][s]['cmt'] +'</a>');
+        }
+        searchhighnow();
+    });
+}
+}
+</script>
+
+<!-- 1번째 탭 -->
+<!-- 1번째 탭 -->
+<div id="swiper-container-sub" class="swiper-container">
+<div id="board_realchart_body" class="swiper-wrapper">
+<div class="swiper-slide">
+<div class="realchart_body">
+<div class="realchart_item rank_item_1">
+<div class="realchart_item_a sbj r7883967">
+<a href="https://www.instiz.net/pt/7883967"><span class="itsme rank">1</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 어렸을때 허벅지가 커서 놀림 받았던 모델 근황</span> <span class="cmt">5</span></a></div></div><div class="realchart_item rank_item_2">
+<div class="realchart_item_a sbj r7883966">
+<a href="https://www.instiz.net/pt/7883966"><span class="itsme rank">2</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 올해 41세 에이브릴 라빈 근황</span> <span class="cmt">17</span></a></div></div><div class="realchart_item rank_item_3">
+<div class="realchart_item_a sbj r7883961">
+<a href="https://www.instiz.net/pt/7883961"><span class="itsme rank">3</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 현재 큰일났다는 88년생 혼인율</span> <span class="cmt">11</span></a></div></div><div class="realchart_item rank_item_4">
+<div class="realchart_item_a sbj r7883960">
+<a href="https://www.instiz.net/pt/7883960"><span class="itsme rank">4</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 잠실 르엘 48평 재산세</span> <span class="cmt">10</span></a></div></div><div class="realchart_item rank_item_5">
+<div class="realchart_item_a sbj r7883935">
+<a href="https://www.instiz.net/pt/7883935"><span class="itsme rank">5</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 맥도날드 '지역 상생' 버거는 정말 농가에 도움이 될까?</span> <span class="cmt">41</span></a></div></div><div class="realchart_item rank_item_6">
+<div class="realchart_item_a sbj r7883947">
+<a href="https://www.instiz.net/pt/7883947"><span class="itsme rank">6</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 생각보다 많은 "남편이 카드 정지 시켰어요"</span> <span class="cmt">30</span></a></div></div><div class="realchart_item rank_item_7">
+<div class="realchart_item_a sbj r7883948">
+<a href="https://www.instiz.net/pt/7883948"><span class="itsme rank">7</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 핫플난, 4050맘카페에서 말하는 요즘 출산율 떨어지는 이유</span> <span class="cmt">43</span></a></div></div><div class="realchart_item rank_item_8">
+<div class="realchart_item_a sbj r7883953">
+<a href="https://www.instiz.net/pt/7883953"><span class="itsme rank">8</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 쳐다보기만 해도 시름시름 앓다가 결국 죽음에 이르고마는 눈빛.jpg</span> <span class="cmt">7</span></a></div></div><div class="realchart_item rank_item_9">
+<div class="realchart_item_a sbj r7883938">
+<a href="https://www.instiz.net/pt/7883938"><span class="itsme rank">9</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 집안일 육아 분담하자고 하니 유치해지는 남편</span> <span class="cmt">19</span></a></div></div><div class="realchart_item rank_item_10">
+<div class="realchart_item_a sbj r7883975">
+<a href="https://www.instiz.net/pt/7883975"><span class="itsme rank">10</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 한국에서 예능최초로 자막넣다가 시말서 받은 PD</span></a></div></div></div>
+</div>
+<div class="swiper-slide">
+<div class="realchart_body">
+<div class="realchart_item rank_item_11">
+
+<div class="realchart_item_a sbj r7883970">
+<a href="https://www.instiz.net/pt/7883970"><span class="itsme rank">11</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 병원 다큐 보는디 의료인들 서서히 서로를 알아보는거 왜케 웃기냐</span></a></div></div><div class="realchart_item rank_item_12">
+
+<div class="realchart_item_a sbj r7883954">
+<a href="https://www.instiz.net/pt/7883954"><span class="itsme rank">12</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 사실 부동산 가격잡는법 알고있는 대통령</span> <span class="cmt">9</span></a></div></div><div class="realchart_item rank_item_13">
+
+<div class="realchart_item_a sbj r7883974">
+<a href="https://www.instiz.net/pt/7883974"><span class="itsme rank">13</span><span class="post_title"><i class="fa-brands fa-x-twitter"></i> 호기심을 참지 못하고 결국 '그'를 구독해버린 류진.jpg</span></a></div></div><div class="realchart_item rank_item_14">
+
+<div class="realchart_item_a sbj r7883963">
+<a href="https://www.instiz.net/pt/7883963"><span class="itsme rank">14</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 견주가 강아지 없이 보내는 일주일.jpg</span></a></div></div><div class="realchart_item rank_item_15">
+
+<div class="realchart_item_a sbj r7883951">
+<a href="https://www.instiz.net/pt/7883951"><span class="itsme rank">15</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 우리동네 배민리뷰 중에 개(p)가 있어</span> <span class="cmt">3</span></a></div></div><div class="realchart_item rank_item_16">
+
+<div class="realchart_item_a sbj r7883968">
+<a href="https://www.instiz.net/pt/7883968"><span class="itsme rank">16</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 훈남 + 배구 실력 + 노래까지 잘하는 사기캐</span></a></div></div><div class="realchart_item rank_item_17">
+
+<div class="realchart_item_a sbj r7883971">
+<a href="https://www.instiz.net/pt/7883971"><span class="itsme rank">17</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 여자들이 보는 남자 현실</span></a></div></div><div class="realchart_item rank_item_18">
+
+<div class="realchart_item_a sbj r7883959">
+<a href="https://www.instiz.net/pt/7883959"><span class="itsme rank">18</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 이민정이 말하는 아들과 딸의 차이</span></a></div></div><div class="realchart_item rank_item_19">
+
+<div class="realchart_item_a sbj r7883952">
+<a href="https://www.instiz.net/pt/7883952"><span class="itsme rank">19</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 친환경인 '척'하는 리유저블 컵과 기업의 진실</span> <span class="cmt">2</span></a></div></div><div class="realchart_item rank_item_20">
+
+<div class="realchart_item_a sbj r7883972">
+<a href="https://www.instiz.net/pt/7883972"><span class="itsme rank">20</span><span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 한국 악귀의 땅 뭐 이런류 괴담 웃긴 점</span></a></div></div></div>
+</div>
+
+<!-- 2번째 탭-->
+<!-- 2번째 탭-->
+<div class="swiper-slide">
+<div class="realchart_body">
+<div class="realchart_item rank_item_21">
+
+    <div class="realchart_item_a sbj r67064747">
+    <a href="https://www.instiz.net/name/67064747?category=1"><span class="itsme rank">1</span>        <!--<span class="minitext">일상</span>&nbsp;-->
+    <span class="post_title">한아름송이 남편 정신병 전역 봤어?</span> <span class="cmt">15</span></a></div></div><div class="realchart_item rank_item_22">
+
+    <div class="realchart_item_a sbj r67064652">
+    <a href="https://www.instiz.net/name/67064652?category=1"><span class="itsme rank">2</span>        <!--<span class="minitext">일상</span>&nbsp;-->
+    <span class="post_title">커피 내기 걸렸다고 우는 직장인 처음봄</span> <span class="cmt">14</span></a></div></div><div class="realchart_item rank_item_23">
+
+    <div class="realchart_item_a sbj r67064551">
+    <a href="https://www.instiz.net/name/67064551?category=1"><span class="itsme rank">3</span>        <!--<span class="minitext">일상</span>&nbsp;-->
+    <span class="post_title">채용 공고 보는데 너무너무너무 무서워</span> <span class="cmt">8</span></a></div></div><div class="realchart_item rank_item_24">
+
+    <div class="realchart_item_a sbj r67064430">
+    <a href="https://www.instiz.net/name/67064430?category=1"><span class="itsme rank">4</span>        <!--<span class="minitext">일상</span>&nbsp;-->
+    <span class="post_title">마운자로부작용 이거 응급실가야돼?</span> <span class="cmt">29</span></a></div></div><div class="realchart_item rank_item_25">
+
+    <div class="realchart_item_a sbj r67064607">
+    <a href="https://www.instiz.net/name/67064607?category=1"><span class="itsme rank">5</span>        <!--<span class="minitext">일상</span>&nbsp;-->
+    <span class="post_title">카톡 몰래 추가해서 보고있을수 있네</span> <span class="cmt">6</span></a></div></div><div class="realchart_item rank_item_26">
+
+    <div class="realchart_item_a sbj r67064471">
+    <a href="https://www.instiz.net/name/67064471?category=1"><span class="itsme rank">6</span>        <!--<span class="minitext">일상</span>&nbsp;-->
+    <span class="post_title">겁내 금수저인 친구 만나고 오는데 현타온다</span> <span class="cmt">8</span></a></div></div><div class="realchart_item rank_item_27">
+
+    <div class="realchart_item_a sbj r67064653">
+    <a href="https://www.instiz.net/name/67064653?category=1"><span class="itsme rank">7</span>        <!--<span class="minitext">일상</span>&nbsp;-->
+    <span class="post_title">01이면 지금 보통 뭐해?</span> <span class="cmt">15</span></a></div></div><div class="realchart_item rank_item_28">
+
+    <div class="realchart_item_a sbj r67064840">
+    <a href="https://www.instiz.net/name/67064840?category=1"><span class="itsme rank">8</span>        <!--<span class="minitext">일상</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 잔머리 일부러 자른 거 같음?? 40</span> <span class="cmt">1</span></a></div></div><div class="realchart_item rank_item_29">
+
+    <div class="realchart_item_a sbj r67064600">
+    <a href="https://www.instiz.net/name/67064600?category=1"><span class="itsme rank">9</span>        <!--<span class="minitext">일상</span>&nbsp;-->
+    <span class="post_title">듣보잡 4년제 나와서 중견 신입 다니는 중</span> <span class="cmt">2</span></a></div></div><div class="realchart_item rank_item_30">
+
+    <div class="realchart_item_a sbj r67064847">
+    <a href="https://www.instiz.net/name/67064847?category=1"><span class="itsme rank">10</span>        <!--<span class="minitext">일상</span>&nbsp;-->
+    <span class="post_title">상사랑 버스타면 내가 버스비 내줘야 해?</span> <span class="cmt">3</span></a></div></div></div>
+</div>
+<div class="swiper-slide">
+<div class="realchart_body">
+<div class="realchart_item rank_item_31">
+
+<div class="realchart_item_a sbj r67064843">
+<a href="https://www.instiz.net/name/67064843?category=1"><span class="itsme rank">11</span><!--<span class="minitext">일상</span>&nbsp;-->
+<span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 익들아 이거봄? 추천에 떴는데 ㄹㅈㄷ</span></a></div></div><div class="realchart_item rank_item_32">
+
+<div class="realchart_item_a sbj r67064675">
+<a href="https://www.instiz.net/name/67064675?category=1"><span class="itsme rank">12</span><!--<span class="minitext">일상</span>&nbsp;-->
+<span class="post_title">성인되고나서 깨달았다 내 인생이 쉬웠던건 누가 대신 돈벌어서</span><span class="cmt">2</span></a></div></div><div class="realchart_item rank_item_33">
+
+<div class="realchart_item_a sbj r67064812">
+<a href="https://www.instiz.net/name/67064812?category=1"><span class="itsme rank">13</span><!--<span class="minitext">일상</span>&nbsp;-->
+<span class="post_title">아 낼 친구랑 에버랜드 가기로 했는데 가기 싫어지네 ㅋㅋㅋ</span><span class="cmt">5</span></a></div></div><div class="realchart_item rank_item_34">
+
+<div class="realchart_item_a sbj r67064663">
+<a href="https://www.instiz.net/name/67064663?category=1"><span class="itsme rank">14</span><!--<span class="minitext">일상</span>&nbsp;-->
+<span class="post_title">유주택자들아ㅏ 구축 아파트 vs 신축 오피스텔</span><span class="cmt">16</span></a></div></div><div class="realchart_item rank_item_35">
+
+<div class="realchart_item_a sbj r67064865">
+<a href="https://www.instiz.net/name/67064865?category=1"><span class="itsme rank">15</span><!--<span class="minitext">일상</span>&nbsp;-->
+<span class="post_title">둘이 같이 살려면 복층 vs 1.5룸</span><span class="cmt">4</span></a></div></div><div class="realchart_item rank_item_36">
+
+<div class="realchart_item_a sbj r67064845">
+<a href="https://www.instiz.net/name/67064845?category=1"><span class="itsme rank">16</span><!--<span class="minitext">일상</span>&nbsp;-->
+<span class="post_title">싸다김밥 최애메뉴 뭐야</span><span class="cmt">2</span></a></div></div><div class="realchart_item rank_item_37">
+
+<div class="realchart_item_a sbj r67064715">
+<a href="https://www.instiz.net/name/67064715?category=1"><span class="itsme rank">17</span><!--<span class="minitext">일상</span>&nbsp;-->
+<span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 레이어드컷 잘해주는 미용사 찾기 힘든데 내 단골 미용사쌤 천재심♡</span><span class="cmt">5</span></a></div></div><div class="realchart_item rank_item_38">
+
+<div class="realchart_item_a sbj r67064833">
+<a href="https://www.instiz.net/name/67064833?category=1"><span class="itsme rank">18</span><!--<span class="minitext">일상</span>&nbsp;-->
+<span class="post_title">98년생이 10년생으로 보일 수가 있나</span><span class="cmt">1</span></a></div></div><div class="realchart_item rank_item_39">
+
+<div class="realchart_item_a sbj r67064894">
+<a href="https://www.instiz.net/name/67064894?category=1"><span class="itsme rank">19</span><!--<span class="minitext">일상</span>&nbsp;-->
+<span class="post_title">사내 왕따당했을때 집이 여유로우면 안참고 바로 나와?</span><span class="cmt">1</span></a></div></div><div class="realchart_item rank_item_40">
+
+<div class="realchart_item_a sbj r67064899">
+<a href="https://www.instiz.net/name/67064899?category=1"><span class="itsme rank">20</span><!--<span class="minitext">일상</span>&nbsp;-->
+<span class="post_title">근데 진짜 난 애는 30전에 낳고싶은데 상식적으로 내상황에선</span></a></div></div></div>
+</div>
+
+<!-- 3번째 탭-->
+<!-- 3번째 탭-->
+<div class="swiper-slide">
+<div class="realchart_body">
+<div class="realchart_item rank_item_41">
+    <div class="realchart_item_a sbj r100142184">
+    <a href="https://www.instiz.net/name_enter/100142184?category=2"><span class="itsme rank">1</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 32살 2세대 남돌 근황...</span> <span class="cmt">16</span></a></div></div><div class="realchart_item rank_item_42">
+    <div class="realchart_item_a sbj r100142119">
+    <a href="https://www.instiz.net/name_enter/100142119?category=2"><span class="itsme rank">2</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> <span style="color:#276998">정보/소식</span> 김도훈 평론가 인스스</span> <span class="cmt">58</span></a></div></div><div class="realchart_item rank_item_43">
+    <div class="realchart_item_a sbj r100142236">
+    <a href="https://www.instiz.net/name_enter/100142236?category=2"><span class="itsme rank">3</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">...ㅋㅋㅋㅋㅋ최선을 다해서 사기 당하고 오는 길임</span> <span class="cmt">20</span></a></div></div><div class="realchart_item rank_item_44">
+    <div class="realchart_item_a sbj r100142225">
+    <a href="https://www.instiz.net/name_enter/100142225?category=2"><span class="itsme rank">4</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 뉴진스 하니해린 이 사진 느낌이 좋아,,</span> <span class="cmt">4</span></a></div></div><div class="realchart_item rank_item_45">
+    <div class="realchart_item_a sbj r100142148">
+    <a href="https://www.instiz.net/name_enter/100142148?category=2"><span class="itsme rank">5</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">콘서트티켓 어디서팔아야돼....</span> <span class="cmt">27</span></a></div></div><div class="realchart_item rank_item_46">
+    <div class="realchart_item_a sbj r100142311">
+    <a href="https://www.instiz.net/name_enter/100142311?category=2"><span class="itsme rank">6</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">찐친끼리는 원래 당사자 동의없이 폰 막 열어보고 그럼?</span> <span class="cmt">5</span></a></div></div><div class="realchart_item rank_item_47">
+    <div class="realchart_item_a sbj r100142265">
+    <a href="https://www.instiz.net/name_enter/100142265?category=2"><span class="itsme rank">7</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-brands fa-youtube"></i> 뉴진스가 춤을 ㄹㅇ개잘췄던거같음</span> <span class="cmt">8</span></a></div></div><div class="realchart_item rank_item_48">
+    <div class="realchart_item_a sbj r100142284">
+    <a href="https://www.instiz.net/name_enter/100142284?category=2"><span class="itsme rank">8</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 뉴진스 혜인 하니 이 때 진짜 예쁘다</span> <span class="cmt">1</span></a></div></div><div class="realchart_item rank_item_49">
+    <div class="realchart_item_a sbj r100142275">
+    <a href="https://www.instiz.net/name_enter/100142275?category=2"><span class="itsme rank">9</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-brands fa-youtube"></i> <span style="color:#276998">정보/소식</span> 삼성 X 젠틀몬스터 합작 스마트 글라스</span></a></div></div><div class="realchart_item rank_item_50">
+    <div class="realchart_item_a sbj r100142305">
+    <a href="https://www.instiz.net/name_enter/100142305?category=2"><span class="itsme rank">10</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 익들아!!!!!! 아이돌은 아니긴한데 내장르 인형 좀 골라줘</span> <span class="cmt">5</span></a></div></div></div>
+</div>
+<div class="swiper-slide">
+<div class="realchart_body">
+<div class="realchart_item rank_item_51">
+
+    <div class="realchart_item_a sbj r100142294">
+    <a href="https://www.instiz.net/name_enter/100142294?category=2"><span class="itsme rank">11</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">각 그룹 인기멤들 보면</span> <span class="cmt">4</span></a></div></div><div class="realchart_item rank_item_52">
+
+    <div class="realchart_item_a sbj r100142266">
+    <a href="https://www.instiz.net/name_enter/100142266?category=2"><span class="itsme rank">12</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">짱구 랩 나오는 에피 나오면 걍 넘김</span></a></div></div><div class="realchart_item rank_item_53">
+
+    <div class="realchart_item_a sbj r100142293">
+    <a href="https://www.instiz.net/name_enter/100142293?category=2"><span class="itsme rank">13</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 아니 원빈 이짤 넘 잘생겨서 좀 무서울정도임</span> <span class="cmt">3</span></a></div></div><div class="realchart_item rank_item_54">
+
+    <div class="realchart_item_a sbj r100142129">
+    <a href="https://www.instiz.net/name_enter/100142129?category=2"><span class="itsme rank">14</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 내기준 지금 미감 탑은 키키 담당 포토그래퍼 같음</span> <span class="cmt">5</span></a></div></div><div class="realchart_item rank_item_55">
+
+    <div class="realchart_item_a sbj r100142272">
+    <a href="https://www.instiz.net/name_enter/100142272?category=2"><span class="itsme rank">15</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">리센느 안원잘부 유튭에 재밌는 멤들이 늦게 나왔다는거</span> <span class="cmt">2</span></a></div></div><div class="realchart_item rank_item_56">
+
+    <div class="realchart_item_a sbj r100142317">
+    <a href="https://www.instiz.net/name_enter/100142317?category=2"><span class="itsme rank">16</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">강해린 꿍싯꿍싯 챌린지 실화냐</span> <span class="cmt">1</span></a></div></div><div class="realchart_item rank_item_57">
+
+    <div class="realchart_item_a sbj r100142315">
+    <a href="https://www.instiz.net/name_enter/100142315?category=2"><span class="itsme rank">17</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">남주가 매력적인 웹툰 없을까! 로판으로!</span></a></div></div><div class="realchart_item rank_item_58">
+
+    <div class="realchart_item_a sbj r100142179">
+    <a href="https://www.instiz.net/name_enter/100142179?category=2"><span class="itsme rank">18</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">버블에 개인적인 얘기도 보내??</span> <span class="cmt">7</span></a></div></div><div class="realchart_item rank_item_59">
+
+    <div class="realchart_item_a sbj r100142189">
+    <a href="https://www.instiz.net/name_enter/100142189?category=2"><span class="itsme rank">19</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">아 태연 라방 개재밌다</span> <span class="cmt">4</span></a></div></div><div class="realchart_item rank_item_60">
+
+    <div class="realchart_item_a sbj r100142298">
+    <a href="https://www.instiz.net/name_enter/100142298?category=2"><span class="itsme rank">20</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">미드나잇 들어간 노래는 다 좋음</span> <span class="cmt">1</span></a></div></div></div>
+</div>
+
+<!-- 4번째 탭-->
+<!-- 4번째 탭-->
+<div class="swiper-slide">
+<div class="realchart_body">
+<div class="realchart_item rank_item_61">
+
+    <div class="realchart_item_a sbj r100141617">
+    <a href="https://www.instiz.net/name_enter/100141617?category=3"><span class="itsme rank">1</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><span style="color:#276998">정보/소식</span> '왕사남 표절 의혹' 상영금지 가처분 기각…"줄거리 전혀 달라"</span> <span class="cmt">2</span></a></div></div><div class="realchart_item rank_item_62">
+
+    <div class="realchart_item_a sbj r100142025">
+    <a href="https://www.instiz.net/name_enter/100142025?category=3"><span class="itsme rank">2</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 아이유 이짤 ㅈㅉ 사랑스러움</span> <span class="cmt">16</span></a></div></div><div class="realchart_item rank_item_63">
+
+    <div class="realchart_item_a sbj r100139725">
+    <a href="https://www.instiz.net/name_enter/100139725?category=3"><span class="itsme rank">3</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 얘들아 오늘 신혜선 인스타 볼래</span> <span class="cmt">21</span></a></div></div><div class="realchart_item rank_item_64">
+
+    <div class="realchart_item_a sbj r100141995">
+    <a href="https://www.instiz.net/name_enter/100141995?category=3"><span class="itsme rank">4</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">개취로 연기 진짜 잘한다고 느끼는 배우들</span> <span class="cmt">11</span></a></div></div><div class="realchart_item rank_item_65">
+
+    <div class="realchart_item_a sbj r100140067">
+    <a href="https://www.instiz.net/name_enter/100140067?category=3"><span class="itsme rank">5</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 신혜선 레두때도 느낀 건데</span> <span class="cmt">8</span></a></div></div><div class="realchart_item rank_item_66">
+
+    <div class="realchart_item_a sbj r100142154">
+    <a href="https://www.instiz.net/name_enter/100142154?category=3"><span class="itsme rank">6</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">연기 잘하는 배우들은 많은데</span> <span class="cmt">6</span></a></div></div><div class="realchart_item rank_item_67">
+
+    <div class="realchart_item_a sbj r100142290">
+    <a href="https://www.instiz.net/name_enter/100142290?category=3"><span class="itsme rank">7</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">뭔가 남배 헤메코는</span> <span class="cmt">4</span></a></div></div><div class="realchart_item rank_item_68">
+
+    <div class="realchart_item_a sbj r100139986">
+    <a href="https://www.instiz.net/name_enter/100139986?category=3"><span class="itsme rank">8</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">동궁에서 젤 나쁜 건 (ㅅㅍㅈㅇ)</span> <span class="cmt">12</span></a></div></div><div class="realchart_item rank_item_69">
+
+    <div class="realchart_item_a sbj r100142214">
+    <a href="https://www.instiz.net/name_enter/100142214?category=3"><span class="itsme rank">9</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">윤아 이진욱은 확정이야?</span> <span class="cmt">2</span></a></div></div><div class="realchart_item rank_item_70">
+
+    <div class="realchart_item_a sbj r100139715">
+    <a href="https://www.instiz.net/name_enter/100139715?category=3"><span class="itsme rank">10</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 박지훈 광고뜬거 왕사남인데 취랄 묻었음</span> <span class="cmt">29</span></a></div></div></div>
+</div>
+<div class="swiper-slide">
+<div class="realchart_body">
+<div class="realchart_item rank_item_71">
+    <div class="realchart_item_a sbj r99932564">
+    <a href="https://www.instiz.net/name_enter/99932564?category=3"><span class="itsme rank">11</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">근데 진짜 남주혁 학폭은 어떻게 된거임?</span> <span class="cmt">47</span></a></div></div><div class="realchart_item rank_item_72">
+    <div class="realchart_item_a sbj r100142193">
+    <a href="https://www.instiz.net/name_enter/100142193?category=3"><span class="itsme rank">12</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">나 올해 넷플하고 좀 잘맞는듯</span> <span class="cmt">2</span></a></div></div><div class="realchart_item rank_item_73">
+    <div class="realchart_item_a sbj r100142322">
+    <a href="https://www.instiz.net/name_enter/100142322?category=3"><span class="itsme rank">13</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">배우 팬미 처음 가보는데</span> <span class="cmt">1</span></a></div></div><div class="realchart_item rank_item_74">
+    <div class="realchart_item_a sbj r100142301">
+    <a href="https://www.instiz.net/name_enter/100142301?category=3"><span class="itsme rank">14</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">여배는 헤메코중에 뭐가제일 중요한것같음?</span> <span class="cmt">1</span></a></div></div><div class="realchart_item rank_item_75">
+    <div class="realchart_item_a sbj r100141319">
+    <a href="https://www.instiz.net/name_enter/100141319?category=3"><span class="itsme rank">15</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title"><i class="fa-regular fa-image fa-image-custom"></i> 허남주ㄴ님 팬미 친구 잡아줬는데</span> <span class="cmt">13</span></a></div></div><div class="realchart_item rank_item_76">
+    <div class="realchart_item_a sbj r100142149">
+    <a href="https://www.instiz.net/name_enter/100142149?category=3"><span class="itsme rank">16</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">하 킬쇼 빡쳐서 못보겠음...</span> <span class="cmt">5</span></a></div></div><div class="realchart_item rank_item_77">
+    <div class="realchart_item_a sbj r100142219">
+    <a href="https://www.instiz.net/name_enter/100142219?category=3"><span class="itsme rank">17</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">지우학2는 언제나와?</span> <span class="cmt">2</span></a></div></div><div class="realchart_item rank_item_78">
+    <div class="realchart_item_a sbj r100139673">
+    <a href="https://www.instiz.net/name_enter/100139673?category=3"><span class="itsme rank">18</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">고경푴ㅋㅋ 진짜 망신살 좀 있나뫄...</span> <span class="cmt">17</span></a></div></div><div class="realchart_item rank_item_79">
+    <div class="realchart_item_a sbj r100141886">
+    <a href="https://www.instiz.net/name_enter/100141886?category=3"><span class="itsme rank">19</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">배라에 산딸기 메뉴 나오는거야?</span> <span class="cmt">2</span></a></div></div><div class="realchart_item rank_item_80">
+    <div class="realchart_item_a sbj r100139568">
+    <a href="https://www.instiz.net/name_enter/100139568?category=3"><span class="itsme rank">20</span>        <!--<span class="minitext">연예</span>&nbsp;-->
+    <span class="post_title">한소희 지금 나혼렙 찍는 중이야?</span> <span class="cmt">5</span></a></div></div></div>
+</div>
+</div>
+
+<div id="nvgt" class="realchart_pagination" style="display:none;">
+    <div>
+        <span id="greenl-sub" class="button4 button_left"><i class="fa-solid fa-angle-left"></i></span><span id="greenr-sub" class="button4 button_right"><i class="fa-solid fa-angle-right"></i></span>
+    </div>
+    <div id="swiper-pagination-sub" class="swiper-pagination"></div>
+</div>
+<style>
+@media screen and (min-width: 600px) {
+    #nvgt { display:block !important; }
+}
+</style>
+
+</div>
+</div>
+</div>
+
+<script>
+var tab1_startpage = 0;
+var tab2_startpage = 2;
+var tab3_startpage = 4;
+var tab4_startpage = 6;
+var total_swiper_total_count = 8; //총 면수
+var tab_startpages = [tab1_startpage, tab2_startpage, tab3_startpage, tab4_startpage];
+</script>
+
+
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div></span>
+
+<script type="text/javascript">
+function menuicon(mode){
+    var swiper = new Swiper('#swiper-container-sub', {
+        pagination: {
+            el: '#swiper-pagination-sub',
+        },
+        paginationClickable: true,
+        navigation: {
+            nextEl: '#greenr-sub',
+            prevEl: '#greenl-sub',
+        },
+        loop: true,
+
+        // 화면 너비에 따라 설정 변경
+        touchAngle: window.innerWidth <= 800 ? 70 : 45,
+        breakpoints: {
+            800: { // 화면 너비가 800px 이하일 때
+                slidesPerView: 1,
+                slidesPerGroup: 1,
+            },
+            801: { // 화면 너비가 800px 초과일 때
+                slidesPerView: 2,
+                slidesPerGroup: (total_swiper_total_count % 2 === 0) ? 2 : 1,
+                threshold: 20,
+            }
+        }
+    });
+
+    try {
+        swiper.on('slideChangeTransitionStart', function () {
+            const current = swiper.realIndex;
+
+            // 현재 슬라이드가 속한 탭 찾기
+            let currentTab = 0;
+            for (let i = tab_startpages.length - 1; i >= 0; i--) {
+                if (current >= tab_startpages[i]) {
+                    currentTab = i + 1; // tab1 ~ tab4는 1부터 시작
+                    break;
+                }
+            }
+
+            // 탭 클래스 변경
+            for (let i = 1; i <= 4; i++) {
+                if (i === currentTab) {
+                    $(`#tab${i}`).removeClass('topbtn2').addClass('topbtn1');
+                } else {
+                    $(`#tab${i}`).removeClass('topbtn1').addClass('topbtn2');
+                }
+            }
+        });
+
+        $('#tab1, #tab2, #tab3, #tab4').on('click', function () {
+            const tabIndex = parseInt($(this).attr('id').replace('tab', '')) - 1;
+            const slideIndex = tab_startpages[tabIndex];
+            swiper.slideToLoop(slideIndex); // 해당 탭의 실제 시작 슬라이드로 이동
+        });
+    } catch (e) {
+    }
+    
+        if(mode) aftermenu(mode);
+}
+
+menuicon_off=1;
+menuicon();
+searchhighnow();nowno();</script>
+<script type="text/javascript">
+$(document).ready(function () {
+try {
+    $("#memo_content_1").find("img").one("load", function () {
+    }).each(function () {
+        if (this.complete) {
+            $(this).css("background-image", '');
+        }
+    });
+} catch (e) {
+
+}
+})
+</script>
+
+<!--MO 인기글 아래-->
+<div class="hot_under">
+        <div style="margin:0 auto;text-align:center;min-height:250px;padding:20px 0;line-height:0;">
+        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3886779655816026" crossorigin="anonymous"></script>
+        <ins class="adsbygoogle mobile_ad_responsive" style="display:block"             data-ad-client="ca-pub-3886779655816026"
+             data-ad-slot="9757893647"
+                            data-ad-format="auto"
+                data-full-width-responsive="true"
+                    ></ins>
+        <script>
+            (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
+    </div>
+    </div>
+<br>
+
+<div class="content">
+    <div id="index_fullmenu">
+            </div>
+        <div class="copyright">
+        <span id="bottom_app_setup" class="button2"><a href="javascript:app();">인스티즈앱 설치</a></span>
+        <br>
+        <br>
+        <a href="https://www.instiz.net/about.htm">소개</a>&nbsp;&nbsp;&nbsp;<a href="javascript:mailto()">이용 문의</a>&nbsp;&nbsp;&nbsp;<a href="javascript:mailto(5)">광고/제휴</a>&nbsp;&nbsp;&nbsp;<a href="//www.wanted.co.kr/company/13415" target="_blank">채용</a>&nbsp;&nbsp;&nbsp;<br class="small_enter"><a href="https://www.instiz.net/notice/87">권리 침해</a>&nbsp;&nbsp;&nbsp;<a href="javascript:rule(6)" class="texthead_notice">개인정보취급방침</a>
+        <br>
+        <span class="minitext">(주)인스티즈&nbsp;&nbsp;&nbsp;사업자등록번호 : 655-86-00876&nbsp;&nbsp;&nbsp;<br class="small_enter">통신판매업신고 : <a href="javascript:op('http://www.ftc.go.kr/bizCommPop.do?wrkr_no=6558600876');">2017-서울강남-03991</a>&nbsp;&nbsp;&nbsp;대표 : 김준혁</span>
+        <br>
+        <br>
+        <span class="minitext3">© instiz Corporation</span>
+    </div>
+</div>
+
+<script type="text/javascript">
+    var userAgent = navigator.userAgent.toLowerCase();
+    if (userAgent.indexOf('instiz(inapp)') > -1) {
+        a = userAgent.split('instiz(inapp)_v2 ');
+        $('#bottom_app_setup').html('<a href="https://www.instiz.net/app">앱 버전 ' + a[1]+'</a>');
+    }
+</script></body>
+</html>

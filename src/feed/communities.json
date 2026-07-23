@@ -1,5 +1,5 @@
 {
-  "_comment": "Community resource registry. Data-driven so new sources are added here, not in code. `adapter.type` selects how items are fetched: 'seed' (bundled offline dataset), 'rss', 'reddit', 'json'. Non-seed adapters need a fetcher injected at runtime; offline they yield nothing but stay registered. `lang` drives translation. `adult` requires age verification.",
+  "_comment": "Community resource registry. Data-driven so new sources are added here, not in code. `adapter.type` selects how items are fetched: 'seed' (bundled offline dataset), 'rss', 'reddit', 'json', 'list' (jagei.co.kr-style best-board list page — parsed via adapter.list regex config in fetchers.js, title+url+time+public-metric only, no body/image collection). Non-seed adapters need a fetcher injected at runtime; offline they yield nothing but stay registered. `lang` drives translation. `adult` requires age verification.",
   "communities": [
     {
       "id": "bobae",
@@ -12,7 +12,18 @@
       "adult": false,
       "enabled": true,
       "adapter": {
-        "type": "seed"
+        "type": "list",
+        "url": "https://www.bobaedream.co.kr/list?code=best",
+        "note": "베스트글 리스트 페이지 파싱(jagei 모델). 공식 RSS/API 없음. 2026-07-23 검증(200, 실게시물 파싱 성공).",
+        "list": {
+          "urlBase": "https://www.bobaedream.co.kr",
+          "titleRegex": "class=\"bsubject\"[^>]*href=\"([^\"]+)\"[^>]*title=\"([^\"]+)\"",
+          "windowAfter": 500,
+          "dateRegex": "class=\"date\"[^>]*>([^<]+)<",
+          "scoreRegex": "class=\"recomm\">[\\s\\S]*?>(\\d+)<",
+          "commentRegex": "class=\"totreply\">(\\d+)<",
+          "max": 40
+        }
       }
     },
     {
@@ -70,7 +81,9 @@
       "adult": false,
       "enabled": true,
       "adapter": {
-        "type": "seed"
+        "type": "rss",
+        "url": "https://www.ppomppu.co.kr/rss.php?id=ppomppu",
+        "note": "공식 RSS(뽐뿌게시판 핫딜), 2026-07-23 검증"
       }
     },
     {
@@ -84,7 +97,9 @@
       "adult": false,
       "enabled": true,
       "adapter": {
-        "type": "seed"
+        "type": "rss",
+        "url": "https://bbs.ruliweb.com/best/board/300143/rss",
+        "note": "공식 RSS(베스트 유머판, board 300143). 302로 /community/board/300143/rss 로 리다이렉트되며 fetch가 자동 추적함 — 2026-07-23 검증(200, 유효 RSS)."
       }
     },
     {
@@ -112,7 +127,17 @@
       "adult": false,
       "enabled": true,
       "adapter": {
-        "type": "seed"
+        "type": "list",
+        "url": "https://web.humoruniv.com/board/humor/list.html?table=pds",
+        "note": "웃긴자료(table=pds) 리스트 파싱(jagei도 이 보드 사용). robots.txt가 /board/best/ 만 명시 차단하고 이 경로는 비차단 — 2026-07-23 robots 확인 + fetch 검증 완료. 페이지가 EUC-KR로 응답(헤더 charset 미표기)해 adapter.list.charset로 명시 디코딩.",
+        "list": {
+          "charset": "euc-kr",
+          "urlBase": "https://web.humoruniv.com/board/humor/",
+          "titleRegex": "<a href=\"(read\\.html\\?table=pds&number=\\d+)\"[\\s\\S]{0,260}?<span id=\"title_chk_pds-\\d+\">\\s*([^<]+?)\\s*</span>",
+          "windowAfter": 150,
+          "commentRegex": "list_comment_num[^>]*>\\s*\\[(\\d+)\\]",
+          "max": 40
+        }
       }
     },
     {
@@ -126,7 +151,8 @@
       "adult": false,
       "enabled": true,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "David 지시로 라이브 수집 제외 확정 (2026-07-23) — 개발 시드로만 유지, 라이브 어댑터 구현 금지."
       }
     },
     {
@@ -138,9 +164,12 @@
       "category": "culture",
       "size": "medium",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "adapter": {
-        "type": "seed"
+        "type": "list",
+        "url": "https://www.instiz.net/pt",
+        "note": "AJAX 로드형 리스트(ajaxload2('../include_gout_mb.php?id=pt...')) — 정적 HTML에 게시물 없음. include_gout_mb.php 직접 호출도 빈 응답(Referer/세션 필요 추정). 정규식 파싱 불가로 스킵. 2026-07-23 확인.",
+        "list": {}
       }
     },
     {
@@ -154,7 +183,20 @@
       "adult": false,
       "enabled": true,
       "adapter": {
-        "type": "seed"
+        "type": "list",
+        "url": "https://theqoo.net/hot",
+        "note": "핫게시판(HOT) 리스트 파싱(jagei 원조 모델). 공식 RSS 없음. 2026-07-23 검증(200, 실게시물 파싱 성공). 상단 공지/이벤트 행은 excludeRegex로 제외.",
+        "list": {
+          "urlBase": "https://theqoo.net",
+          "titleRegex": "<td class=\"title\">\\s*<a href=\"(/hot/\\d+)\"[^>]*>(?:<strong>)?(?:<span[^>]*>)?([^<]+)",
+          "windowBefore": 280,
+          "windowAfter": 300,
+          "commentRegex": "class=\"replyNum\">(\\d+)",
+          "scoreRegex": "class=\"m_no\">([\\d,]+)",
+          "dateRegex": "class=\"time\">\\s*([^<]+?)\\s*<",
+          "excludeRegex": "<tr class=\"notice[\\s\"]",
+          "max": 40
+        }
       }
     },
     {
@@ -168,7 +210,16 @@
       "adult": false,
       "enabled": true,
       "adapter": {
-        "type": "seed"
+        "type": "list",
+        "url": "https://mlbpark.donga.com/mp/b.php?b=bullpen",
+        "note": "불펜 게시판 리스트 파싱. robots.txt가 User-agent:* Disallow:/ (전면 차단)인 사이트 — David 절대원칙 2 개정(수집 계층 WARN 수용)에 따라 1회 fetch 시도, 200 성공(차단/CAPTCHA 없음). robots 저촉 WARN — 출시 전 변호사 검토 목록 포함. 추천/조회 지표는 이 리스트 뷰에 노출되지 않아 시각(상대시간)만 수집.",
+        "list": {
+          "titleRegex": "class='title'><a href='(https://mlbpark\\.donga\\.com/mp/b\\.php\\?b=bullpen[^']+)'>([^<]+)</a>",
+          "windowBefore": 250,
+          "dateRegex": "class='date'>([^<]+)<",
+          "dateIn": "before",
+          "max": 40
+        }
       }
     },
     {
@@ -186,6 +237,28 @@
       }
     },
     {
+      "id": "etoland",
+      "label": "이토랜드",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "humor",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "list",
+        "url": "https://etoland.co.kr/b/etohumor02/list",
+        "note": "유머게시판 리스트 파싱. 페이지의 JSON-LD ItemList(og 구조화 데이터)를 정규식으로 추출 — 본문 HTML 파싱보다 안정적. 공식 RSS 없음. robots.txt는 /private/ 만 차단, 이 경로는 허용. 2026-07-23 검증(200, 실게시물 파싱 성공). 구URL(bo_table=etohumor02)은 301로 이 URL로 리다이렉트됨.",
+        "list": {
+          "titleRegex": "\\{\"@type\":\"ListItem\",\"position\":\\d+,\"name\":\"((?:[^\"\\\\]|\\\\.)+)\",\"item\":\"(https://etoland\\.co\\.kr/b/etohumor02/view/[^\"]+)\"",
+          "urlGroup": 2,
+          "titleGroup": 1,
+          "max": 40
+        }
+      }
+    },
+    {
       "id": "fmkorea",
       "label": "에펨코리아",
       "country": "KR",
@@ -197,7 +270,8 @@
       "enabled": false,
       "adapter": {
         "type": "rss",
-        "url": ""
+        "url": "",
+        "note": "David 지시로 제외 확정 (2026-07-23) — 어댑터 구현/fetch 시도 금지."
       }
     },
     {
@@ -224,10 +298,20 @@
       "category": "humor",
       "size": "medium",
       "adult": false,
-      "enabled": false,
+      "enabled": true,
       "adapter": {
-        "type": "rss",
-        "url": ""
+        "type": "list",
+        "url": "https://www.todayhumor.co.kr/board/list.php?table=bestofbest",
+        "note": "베오베(bestofbest) 리스트 파싱. 공식 RSS 없음(연구 문서 확인). 2026-07-23 검증(200, 실게시물 파싱 성공).",
+        "list": {
+          "urlBase": "https://www.todayhumor.co.kr",
+          "titleRegex": "class=\"subject\"><a href=\"([^\"]+)\"[^>]*>([^<]+)</a>",
+          "windowAfter": 700,
+          "dateRegex": "class=\"date\">([^<]+)<",
+          "scoreRegex": "class=\"oknok\">([\\d,]+)<",
+          "commentRegex": "list_memo_count_span[^>]*>\\s*\\[(\\d+)\\]",
+          "max": 40
+        }
       }
     },
     {
@@ -241,8 +325,10 @@
       "adult": false,
       "enabled": false,
       "adapter": {
-        "type": "rss",
-        "url": ""
+        "type": "list",
+        "url": "https://www.slrclub.com/bbs/zboard.php?id=free",
+        "note": "JS/AJAX 렌더링 리스트(bbs_list.js가 클라이언트에서 게시물을 채움) — 정적 HTML에 게시물 행 없음, 정규식 파싱 불가로 스킵. 2026-07-23 확인(200이지만 콘텐츠 없음, 커뮤니티 연구 문서의 Cloudflare/차단 메모와 별개로 렌더링 문제).",
+        "list": {}
       }
     },
     {
@@ -272,7 +358,32 @@
       "enabled": false,
       "adapter": {
         "type": "rss",
-        "url": ""
+        "url": "",
+        "note": "David 지시로 제외 확정 (2026-07-23) — 어댑터 구현/fetch 시도 금지."
+      }
+    },
+    {
+      "id": "pann",
+      "label": "네이트판",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "culture",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "list",
+        "url": "https://pann.nate.com/talk/ranking/d",
+        "note": "톡커들의 선택(일간 명예의 전당) 리스트 파싱 — 사이트 자체 표기 그대로 \"톡커들의 선택 명예의 전당\". 공식 RSS 없음. 2026-07-23 검증(200, 실게시물 파싱 성공).",
+        "list": {
+          "urlBase": "https://pann.nate.com",
+          "titleRegex": "<a href=\"(/talk/\\d+)\"[^>]*title=\"([^\"]+)\"",
+          "windowAfter": 400,
+          "commentRegex": "class=\"reple-num\">\\((\\d+)\\)",
+          "scoreRegex": "class=\"rcm\">추천\\s*([\\d,]+)",
+          "max": 40
+        }
       }
     },
     {
@@ -316,10 +427,11 @@
       "category": "tech",
       "size": "large",
       "adult": false,
-      "enabled": false,
+      "enabled": true,
       "adapter": {
         "type": "json",
-        "url": ""
+        "url": "",
+        "note": "makeFetcher가 id==hackernews를 Algolia front_page API로 디스패치. 코드 기존 정상, 2026-07-23 검증 완료."
       }
     },
     {
