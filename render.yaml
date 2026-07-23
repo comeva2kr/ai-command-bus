@@ -1,0 +1,44 @@
+# Render Blueprint — 내 취향 피드
+#
+# Deploy: Render dashboard → New → Blueprint → connect this repo. Render reads
+# this file and provisions the service; only the VAPID keys need manual input
+# (generate locally with `npm run push:keys`).
+#
+# Free-tier notes:
+# - The instance spins down after ~15 min idle; the next request cold-starts it
+#   (a few seconds). Fine for validation, upgrade before real users.
+# - Persistent disks need a paid plan. Until then FEED_DB stays unset, so user
+#   data is in-memory and lost on deploy/restart. To persist, switch plan and
+#   uncomment the disk + FEED_DB lines below.
+services:
+  - type: web
+    name: taste-feed
+    runtime: node
+    plan: free
+    buildCommand: echo "zero-dependency — nothing to install"
+    startCommand: node src/feed/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: FEED_LIVE
+        value: "1"
+      - key: FEED_REFRESH_MS
+        value: "900000" # re-collect sources every 15 min
+      - key: PUSH_DIGEST_MS
+        value: "3600000" # hourly 관심글 digest push (needs VAPID keys)
+      - key: ADMIN_TOKEN
+        generateValue: true # find it in the Render dashboard → Environment
+      - key: VAPID_PUBLIC_KEY
+        sync: false # paste from `npm run push:keys`
+      - key: VAPID_PRIVATE_KEY
+        sync: false # paste from `npm run push:keys` (keep secret)
+      - key: VAPID_SUBJECT
+        sync: false # e.g. mailto:you@example.com
+      # --- paid plan only: persist users/posts across deploys ---
+      # - key: FEED_DB
+      #   value: /data/feed.json
+    # disk:
+    #   name: feed-data
+    #   mountPath: /data
+    #   sizeGB: 1

@@ -4,6 +4,9 @@
   "description": "A lightweight command bus for safe multi-agent AI workflows.",
   "type": "module",
   "main": "src/router.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "node --test test/*.test.js",
     "demo": "node src/router.js examples/task_queue.json",

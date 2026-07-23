@@ -32,9 +32,16 @@ docker run -p 4000:4000 \
 
 ## Platforms
 
-- **Render / Railway / Fly.io** — point at the repo; they detect the
-  `Dockerfile`. Set the env vars above; add a persistent disk mounted where
-  `FEED_DB` points if you want durable users. Health check path `/api/health`.
+- **Render (recommended — blueprint included)** — [`render.yaml`](../render.yaml)
+  provisions everything: dashboard → *New → Blueprint* → connect this repo.
+  Only the three `VAPID_*` env vars need manual input (`npm run push:keys`
+  locally, paste the output). `ADMIN_TOKEN` is auto-generated — read it in the
+  service's Environment tab to log into `/admin`. Free tier: cold-starts after
+  idle and has no persistent disk (user data resets on deploy); upgrade the
+  plan and uncomment the `disk`/`FEED_DB` lines in `render.yaml` to persist.
+- **Railway / Fly.io** — point at the repo; they detect the `Dockerfile`. Set
+  the env vars above; add a persistent disk mounted where `FEED_DB` points if
+  you want durable users. Health check path `/api/health`.
 - **A plain VPS** — `node src/feed/server.js` behind nginx/Caddy for TLS. HTTPS
   is required for the PWA service worker and Web Push to work.
 
