@@ -39,10 +39,11 @@
       "category": "auto",
       "size": "medium",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "구조적 수집불가(앱전용/거래플랫폼/robots) 2026-07-24 — enabled:false, 개발 시드로만 유지(FEED_DEV=1)."
       }
     },
     {
@@ -54,10 +55,11 @@
       "category": "auto",
       "size": "medium",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "구조적 수집불가(앱전용/거래플랫폼/robots) 2026-07-24 — enabled:false, 개발 시드로만 유지(FEED_DEV=1)."
       }
     },
     {
@@ -131,10 +133,11 @@
       "category": "gaming",
       "size": "large",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -199,11 +202,11 @@
       "category": "humor",
       "size": "large",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
         "type": "seed",
-        "note": "David 지시로 라이브 수집 제외 확정 (2026-07-23) — 개발 시드로만 유지, 라이브 어댑터 구현 금지."
+        "note": "David 지시로 라이브 수집 제외 확정 (2026-07-23) — 개발 시드로만 유지, 라이브 어댑터 구현 금지. enabled:false로 전환해 프로덕션 소스칩에서도 제외 (2026-07-24)."
       }
     },
     {
@@ -289,10 +292,11 @@
       "category": "life",
       "size": "medium",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -593,10 +597,11 @@
       "category": "humor",
       "size": "medium",
       "adult": true,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -608,10 +613,11 @@
       "category": "life",
       "size": "small",
       "adult": true,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -641,10 +647,11 @@
       "category": "tech",
       "size": "large",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -656,10 +663,11 @@
       "category": "auto",
       "size": "medium",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -671,10 +679,11 @@
       "category": "science",
       "size": "large",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -686,10 +695,11 @@
       "category": "business",
       "size": "medium",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -701,10 +711,11 @@
       "category": "sports",
       "size": "large",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -716,10 +727,11 @@
       "category": "culture",
       "size": "medium",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -731,10 +743,11 @@
       "category": "gaming",
       "size": "large",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {
@@ -746,10 +759,11 @@
       "category": "news",
       "size": "large",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "adapter": {
-        "type": "seed"
+        "type": "seed",
+        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
       }
     },
     {

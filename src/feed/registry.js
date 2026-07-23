@@ -40,7 +40,7 @@ export function query(registry, filter = {}) {
   });
 }
 
-// Build Source instances for every enabled community.
+// Build Source instances for every fetchable community.
 //
 // opts.fetcher(entry) -> Promise<rawItems[]>  : live ingestion for non-seed adapters
 // opts.seedItems                              : override the offline dataset (tests)
@@ -49,6 +49,14 @@ export function query(registry, filter = {}) {
 //                                               never reach a production feed
 // opts.translate: { targetLang, translateFn } : wrap non-target-lang sources so
 //                                               overseas boards arrive translated
+//
+// Seed (`adapter.type === "seed"`) entries are dev-only demo data: they are
+// gated purely by opts.seed (FEED_DEV), independent of the community's own
+// `enabled` flag. communities.json keeps every seed entry `enabled: false` so
+// they never surface as production source chips (GET /api/communities, the
+// source-chip bar) or count toward "enabled" anywhere else — but FEED_DEV=1
+// must still be able to reach them for the offline demo, so this loop does
+// not require `enabled` for the seed branch.
 export function buildSources(registry, opts = {}) {
   const includeSeed = opts.seed !== false;
   const seedItems = opts.seedItems || SEED_ITEMS;
@@ -56,15 +64,18 @@ export function buildSources(registry, opts = {}) {
   const translateFn = opts.translate ? opts.translate.translateFn : null;
 
   const sources = [];
-  for (const entry of query(registry, { enabled: true })) {
+  for (const entry of registry) {
+    const isSeed = Boolean(entry.adapter && entry.adapter.type === "seed");
     let source;
-    if (entry.adapter && entry.adapter.type === "seed") {
-      if (!includeSeed) continue;
+    if (isSeed) {
+      if (!includeSeed) continue; // production / no FEED_DEV — never touch seed
       // stamp registry metadata (lang/adult/category) onto seed items for this source
       const items = seedItems
         .filter((it) => it.source === entry.id)
         .map((it) => ({ lang: entry.lang, ...it, adult: it.adult || entry.adult === true }));
       source = new JsonSource(entry.id, async () => items, entry.kind);
+    } else if (!entry.enabled) {
+      continue; // disabled, non-seed — skip cleanly
     } else if (opts.fetcher) {
       // live adapter — delegate to the injected fetcher, tag with registry meta.
       // Stamp provenance so aggregated items are recognizable downstream (and
