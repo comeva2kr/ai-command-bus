@@ -905,15 +905,16 @@ test("parseListPage: 웃긴대학 웃긴자료(pds) — EUC-KR page decodes corr
   assert.ok(items.some((i) => i.commentCount > 0));
 });
 
-test("parseListPage: 이토랜드 유머게시판 — parses the page's own JSON-LD ItemList (url/title group order swapped)", async () => {
+test("parseListPage: 이토랜드 힛게시판(HIT, 사이트 전역 인기글) — parses the page's own JSON-LD ItemList (url/title group order swapped)", async () => {
   const { parseListPage } = await import("../src/feed/fetchers.js");
   const { loadRegistry } = await import("../src/feed/registry.js");
   const entry = loadRegistry().find((c) => c.id === "etoland");
+  assert.match(entry.adapter.url, /\/hit\/list$/, "David 2026-07-24: 최신순 일반 게시판(etohumor02) 대신 힛게시판으로 교체");
   assert.equal(entry.adapter.list.urlGroup, 2);
   assert.equal(entry.adapter.list.titleGroup, 1);
-  const items = parseListPage(fixture("etoland_humor.html"), entry.adapter.list);
+  const items = parseListPage(fixture("etoland_hit.html"), entry.adapter.list);
   assert.ok(items.length >= 20);
-  assert.ok(items.every((i) => i.url.startsWith("https://etoland.co.kr/b/etohumor02/view/")));
+  assert.ok(items.every((i) => i.url.startsWith("https://etoland.co.kr/hit/")), "HIT board urls (span multiple sub-boards)");
   assert.ok(items.every((i) => i.title && !i.title.startsWith("http")), "title/url groups not swapped");
 });
 
@@ -926,6 +927,21 @@ test("parseListPage: 네이트판 톡커들의 선택 — title attribute + reco
   assert.ok(items.length >= 20);
   assert.ok(items.every((i) => i.url.startsWith("https://pann.nate.com/talk/")));
   assert.ok(items.some((i) => i.score > 0 && i.commentCount > 0));
+});
+
+test("parseListPage: 뽐뿌 HOT게시글 (David 2026-07-24: 단일 핫딜게시판 대신 전 게시판 통합 인기랭킹으로 교체) — cross-board urls, EUC-KR decode", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "ppomppu");
+  assert.match(entry.adapter.url, /hot\.php$/, "switched from the single-board RSS to the site-wide HOT ranking");
+  assert.equal(entry.adapter.list.charset, "euc-kr");
+  const items = parseListPage(fixture("ppomppu_hot.html", "euc-kr"), entry.adapter.list);
+  assert.ok(items.length >= 15);
+  assert.ok(items.every((i) => i.url.startsWith("https://www.ppomppu.co.kr/zboard/")));
+  // the HOT ranking spans multiple boards (car/money/humor/freeboard/...), unlike the old single hotdeal-board RSS
+  const boardIds = new Set(items.map((i) => new URL(i.url).searchParams.get("id")));
+  assert.ok(boardIds.size >= 3, `expected posts from several boards, got ${[...boardIds]}`);
+  assert.ok(items.some((i) => i.commentCount > 0));
 });
 
 test("makeFetcher dispatches adapter.type 'list' through listFetcher, decoding bytes itself (not res.text())", async () => {
@@ -1271,4 +1287,83 @@ test("listFetcher stops paginating (without failing) once a source has no pageUr
   const rows = await listFetcher(noPageUrlEntry, fetchImpl)();
   assert.equal(calls, 1, "no pageUrl configured -> only page 1 is fetched, same as before multi-page support existed");
   assert.equal(rows.length, 1);
+});
+
+// --- mixed-content bug fix (2026-07-24): ppomppu's RSS hands back http://
+// links, which a frame viewer running on our https-served app hard-blocks —
+// normalizeItem upgrades those to https:// when the source is verified to
+// support it (raw.httpsOk, stamped by registry.js from communities.json). --
+
+test("normalizeItem upgrades http:// to https:// when raw.httpsOk === true", () => {
+  const item = normalizeItem({
+    source: "ppomppu",
+    title: "핫딜",
+    url: "http://www.ppomppu.co.kr/zboard/view.php?id=ppomppu&no=1",
+    httpsOk: true
+  });
+  assert.equal(item.url, "https://www.ppomppu.co.kr/zboard/view.php?id=ppomppu&no=1");
+});
+
+test("normalizeItem leaves http:// alone when httpsOk is false or unset (unverified source)", () => {
+  const untouched = normalizeItem({ source: "x", title: "t", url: "http://example.com/a", httpsOk: false });
+  assert.equal(untouched.url, "http://example.com/a", "explicit httpsOk:false never rewrites");
+
+  const unset = normalizeItem({ source: "me", title: "t", url: "http://example.com/b" });
+  assert.equal(unset.url, "http://example.com/b", "no httpsOk field at all (e.g. user posts/submissions) never rewrites");
+
+  const alreadyHttps = normalizeItem({ source: "ppomppu", title: "t", url: "https://example.com/c", httpsOk: true });
+  assert.equal(alreadyHttps.url, "https://example.com/c", "already-https urls pass through unchanged");
+});
+
+test("registry.js stamps httpsOk onto live-adapter items from the community entry's flag (default true, ppomppu explicit true, hackernews explicit false)", async () => {
+  const { loadRegistry, buildSources } = await import("../src/feed/registry.js");
+  const reg = loadRegistry();
+  const ppomppu = reg.find((c) => c.id === "ppomppu");
+  const hackernews = reg.find((c) => c.id === "hackernews");
+  assert.equal(ppomppu.httpsOk, true);
+  assert.equal(hackernews.httpsOk, false);
+
+  const fetcher = async (entry) => [{ title: "t", url: `http://${entry.id}.example/1` }];
+  const sources = buildSources([ppomppu, hackernews], { seed: false, fetcher });
+  const items = (await Promise.all(sources.map((s) => s.fetch()))).flat();
+  const ppItem = items.find((i) => i.source === "ppomppu");
+  const hnItem = items.find((i) => i.source === "hackernews");
+  assert.equal(ppItem.url, "https://ppomppu.example/1", "ppomppu (httpsOk:true) gets upgraded");
+  assert.equal(hnItem.url, "http://hackernews.example/1", "hackernews (httpsOk:false) is left as-is");
+});
+
+// --- best-board audit + new sources (David 2026-07-24) --------------------
+
+test("communities.json: humoruniv disabled (ClaudeBot robots Disallow: / re-confirmed)", async () => {
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const humoruniv = loadRegistry().find((c) => c.id === "humoruniv");
+  assert.equal(humoruniv.enabled, false);
+  assert.match(humoruniv.adapter.note, /ClaudeBot/);
+});
+
+test("parseRss: 긱뉴스 (GeekNews) Atom feed parses with the existing rss adapter — no code change needed", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "geeknews");
+  assert.equal(entry.enabled, true);
+  assert.equal(entry.adapter.type, "rss");
+  const items = parseRss(fixture("geeknews.xml"));
+  assert.ok(items.length >= 20);
+  assert.ok(items.every((i) => i.url.startsWith("https://news.hada.io/")));
+  assert.ok(items.every((i) => i.title));
+});
+
+test("parseListPage: 인벤 핫벤 (hot.inven.co.kr) — cross-game ranked list with recommend/comment counts", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "inven_hot");
+  assert.equal(entry.enabled, true);
+  const items = parseListPage(fixture("inven_hot.html"), entry.adapter.list);
+  assert.ok(items.length >= 30);
+  assert.ok(items.every((i) => i.url.startsWith("https://www.inven.co.kr/board/")));
+  assert.ok(items.some((i) => i.score > 0), "recommend counts (추천) captured");
+  assert.ok(items.some((i) => i.commentCount > 0));
+  // spans multiple games' boards, not a single-game feed
+  const boards = new Set(items.map((i) => i.url.split("/")[4]));
+  assert.ok(boards.size >= 3, `expected several game boards, got ${[...boards]}`);
 });

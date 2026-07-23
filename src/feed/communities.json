@@ -12,6 +12,7 @@
       "adult": false,
       "enabled": true,
       "frameable": true,
+      "httpsOk": true,
       "adapter": {
         "type": "list",
         "url": "https://www.bobaedream.co.kr/list?code=best",
@@ -70,6 +71,7 @@
       "adult": false,
       "enabled": true,
       "frameable": false,
+      "httpsOk": true,
       "adapter": {
         "type": "rss",
         "url": "https://feeds.feedburner.com/c_hot50",
@@ -87,10 +89,19 @@
       "adult": false,
       "enabled": true,
       "frameable": true,
+      "httpsOk": true,
       "adapter": {
-        "type": "rss",
-        "url": "https://www.ppomppu.co.kr/rss.php?id=ppomppu",
-        "note": "공식 RSS(뽐뿌게시판 핫딜), 2026-07-23 검증"
+        "type": "list",
+        "url": "https://www.ppomppu.co.kr/hot.php",
+        "note": "David 2026-07-24 지시로 교체: 기존 RSS(rss.php?id=ppomppu)는 '뽐뿌게시판'(핫딜) 단일 게시판이라 인기글 기준이 아니었음(그냥 최신순) — 사이트 자체 별도 인기게시판 /hot.php(\"HOT게시글\", 전 게시판 통합 화제글 랭킹, 상단 네비 \"HOT게시글\" 메뉴로 확인)로 교체. robots.txt 허용(General Allow, 개별 view.php?id=market* 류만 차단 — hot.php/일반 게시판 무관). 페이지네이션 없음(고정 랭킹 목록, 2026-07-24 확인 22개 중 19개 파싱 — 일부 행은 마크업이 살짝 달라 미매칭, 안전하게 스킵). urlBase가 https라 원천적으로 mixed-content 문제 없음(이전 RSS의 http:// 링크 버그는 httpsOk 폴백으로 별도 방어).",
+        "list": {
+          "urlBase": "https://www.ppomppu.co.kr",
+          "titleRegex": "<a href=\"(/zboard/(?:view|zboard)\\.php\\?id=[a-zA-Z0-9_]+&no=\\d+)\" class=\"baseList-title\"\\s*>(?:<img[^>]*>)?\\s*([^<]+)",
+          "windowAfter": 200,
+          "commentRegex": "class=\"list_comment2\">(\\d+)<",
+          "charset": "euc-kr",
+          "max": 40
+        }
       }
     },
     {
@@ -104,6 +115,7 @@
       "adult": false,
       "enabled": true,
       "frameable": false,
+      "httpsOk": true,
       "adapter": {
         "type": "rss",
         "url": "https://bbs.ruliweb.com/best/board/300143/rss",
@@ -126,6 +138,31 @@
       }
     },
     {
+      "id": "inven_hot",
+      "label": "인벤 핫벤",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "gaming",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "list",
+        "url": "https://hot.inven.co.kr/",
+        "note": "David 2026-07-24 신규 추가. 인벤 전 게임 게시판 통합 인기글 랭킹(핫벤). robots.txt 없음(404 — 명시 제약 없음, 2026-07-24 확인). 실제 글 링크는 inven.co.kr/board/{게임}/{보드id}/{글id} 형태. 페이지네이션 없음(?page=2도 동일 콘텐츠 반환 확인 — 고정 랭킹 목록). 2026-07-24 검증: 200, 40개 중 40개 파싱, 39개 추천수(reco) 확보.",
+        "list": {
+          "titleRegex": "<a href=\"(https://www\\.inven\\.co\\.kr/board/[^\"]+)\"[^>]*target=\"_blank\">[\\s\\S]{0,150}?<div class=\"cate\">[^<]*</div>\\s*([^<]+?)\\s*</div>",
+          "windowAfter": 450,
+          "commentRegex": "class=\"comment\">\\[(\\d+)\\]",
+          "scoreRegex": "class=\"reco\">([\\d,]+)",
+          "max": 40
+        }
+      }
+    },
+    {
       "id": "humoruniv",
       "label": "웃긴대학",
       "country": "KR",
@@ -134,20 +171,21 @@
       "category": "humor",
       "size": "medium",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": true,
+      "httpsOk": true,
       "adapter": {
         "type": "list",
-        "url": "https://web.humoruniv.com/board/humor/list.html?table=pds",
+        "url": "https://web.humoruniv.com/board/humor/list.html?table=pds&st=day",
         "pages": 3,
-        "note": "웃긴자료(table=pds) 리스트 파싱(jagei도 이 보드 사용). robots.txt가 /board/best/ 만 명시 차단하고 이 경로는 비차단 — 2026-07-23 robots 확인 + fetch 검증 완료. 페이지가 EUC-KR로 응답(헤더 charset 미표기)해 adapter.list.charset로 명시 디코딩. 2~3페이지는 &pg=N(0-based! pg=0이 1페이지) — 2026-07-24 검증.",
+        "note": "David 2026-07-24 지시로 제외: robots.txt에 'User-agent: ClaudeBot / Disallow: /' 명시 전면차단이 재확인됨(우리 커스텀 UA taste-feed/1.0이 문자열상 ClaudeBot과 다르다는 이유로 우회하지 않음 — robots 준수 원칙 위반으로 판단, enabled=false). 직전에 &st=day(오늘의 베스트)로 베스트게시판 교체까지 마쳤었으나(og:description '오늘의 베스트' 확인) 이 robots 재확인으로 전체 제외 결정. url/파싱 설정은 재활성 대비 보존.",
         "list": {
           "charset": "euc-kr",
           "urlBase": "https://web.humoruniv.com/board/humor/",
-          "titleRegex": "<a href=\"(read\\.html\\?table=pds(?:&pg=\\d+)?&number=\\d+)\"[\\s\\S]{0,260}?<span id=\"title_chk_pds-\\d+\">\\s*([^<]+?)\\s*</span>",
+          "titleRegex": "<a href=\"(read\\.html\\?table=pds[^\"]*?&number=\\d+)\"[\\s\\S]{0,260}?<span id=\"title_chk_pds-\\d+\">\\s*([^<]+?)\\s*</span>",
           "windowAfter": 150,
           "commentRegex": "list_comment_num[^>]*>\\s*\\[(\\d+)\\]",
-          "pageUrl": "https://web.humoruniv.com/board/humor/list.html?table=pds&pg={page0}",
+          "pageUrl": "https://web.humoruniv.com/board/humor/list.html?table=pds&st=day&pg={page0}",
           "max": 40
         }
       }
@@ -197,6 +235,7 @@
       "adult": false,
       "enabled": true,
       "frameable": true,
+      "httpsOk": true,
       "adapter": {
         "type": "list",
         "url": "https://theqoo.net/hot",
@@ -227,10 +266,11 @@
       "adult": false,
       "enabled": true,
       "frameable": false,
+      "httpsOk": true,
       "adapter": {
         "type": "list",
         "url": "https://mlbpark.donga.com/mp/b.php?b=bullpen",
-        "note": "불펜 게시판 리스트 파싱. robots.txt가 User-agent:* Disallow:/ (전면 차단)인 사이트 — David 절대원칙 2 개정(수집 계층 WARN 수용)에 따라 1회 fetch 시도, 200 성공(차단/CAPTCHA 없음). robots 저촉 WARN — 출시 전 변호사 검토 목록 포함. 추천/조회 지표는 이 리스트 뷰에 노출되지 않아 시각(상대시간)만 수집. 페이지네이션은 클라이언트 JS(pageIndex/pageSize 객체, 정적 page=/pg= 파라미터 없음)라 pageUrl 미설정 — 1페이지만 수집, 48h 롤링 축적으로 보완(2026-07-24 확인).",
+        "note": "불펜 게시판 리스트 파싱. robots.txt가 User-agent:* Disallow:/ (전면 차단)인 사이트 — David 절대원칙 2 개정(수집 계층 WARN 수용)에 따라 1회 fetch 시도, 200 성공(차단/CAPTCHA 없음). robots 저촉 WARN — 출시 전 변호사 검토 목록 포함. 추천/조회 지표는 이 리스트 뷰에 노출되지 않아 시각(상대시간)만 수집. 페이지네이션은 클라이언트 JS(pageIndex/pageSize 객체, 정적 page=/pg= 파라미터 없음)라 pageUrl 미설정 — 1페이지만 수집, 48h 롤링 축적으로 보완(2026-07-24 확인). **베스트게시판 감사(2026-07-24, David 지시)**: best.php?b=bullpen&m=like(최다추천)·m=view(최고조회) 둘 다 1회 fetch로 확인했으나 정적 HTML상 콘텐츠가 현재 bullpen 목록(PC_bullpen_today)과 완전히 동일 — 실제 랭킹 정렬은 JS/AJAX로만 렌더링되고 서버가 보내는 초기 HTML은 그냥 최신순이라 판단, 대체 불가. 현 상태(bullpen 최신순) 유지, 사유 기록.",
         "list": {
           "titleRegex": "class='title'><a href='(https://mlbpark\\.donga\\.com/mp/b\\.php\\?b=bullpen[^']+)'>([^<]+)</a>",
           "windowBefore": 250,
@@ -266,16 +306,17 @@
       "adult": false,
       "enabled": true,
       "frameable": false,
+      "httpsOk": true,
       "adapter": {
         "type": "list",
-        "url": "https://etoland.co.kr/b/etohumor02/list",
+        "url": "https://etoland.co.kr/hit/list",
         "pages": 3,
-        "note": "유머게시판 리스트 파싱. 페이지의 JSON-LD ItemList(og 구조화 데이터)를 정규식으로 추출 — 본문 HTML 파싱보다 안정적. 공식 RSS 없음. robots.txt는 /private/ 만 차단, 이 경로는 허용. 2026-07-23 검증(200, 실게시물 파싱 성공). 구URL(bo_table=etohumor02)은 301로 이 URL로 리다이렉트됨. 2~3페이지는 ?page=N (2026-07-24 검증).",
+        "note": "David 2026-07-24 지시로 교체: 유머게시판(etohumor02, 최신순 일반 게시판)은 '베스트/인기글' 기준에 안 맞아 힛게시판(/hit/list, 사이트 전역 인기글 HIT 랭킹)으로 교체. 같은 JSON-LD ItemList 구조 재사용, 게시물 URL 패턴만 /b/etohumor02/view/ → /hit/{보드}/view/ (여러 보드 혼재)로 일반화. robots.txt는 /private/만 차단(User-agent:* 기준 — 명시된 개별 봇 차단 목록과 무관), /hit/list 허용 확인. 2~3페이지는 ?page=N, 페이지마다 다른 랭킹 확인(2026-07-24 검증).",
         "list": {
-          "titleRegex": "\\{\"@type\":\"ListItem\",\"position\":\\d+,\"name\":\"((?:[^\"\\\\]|\\\\.)+)\",\"item\":\"(https://etoland\\.co\\.kr/b/etohumor02/view/[^\"]+)\"",
+          "titleRegex": "\\{\"@type\":\"ListItem\",\"position\":\\d+,\"name\":\"((?:[^\"\\\\]|\\\\.)+)\",\"item\":\"(https://etoland\\.co\\.kr/hit/[^\"]+)\"",
           "urlGroup": 2,
           "titleGroup": 1,
-          "pageUrl": "https://etoland.co.kr/b/etohumor02/list?page={page}",
+          "pageUrl": "https://etoland.co.kr/hit/list?page={page}",
           "max": 40
         }
       }
@@ -324,6 +365,7 @@
       "adult": false,
       "enabled": true,
       "frameable": true,
+      "httpsOk": true,
       "adapter": {
         "type": "list",
         "url": "https://www.todayhumor.co.kr/board/list.php?table=bestofbest",
@@ -403,6 +445,7 @@
       "adult": false,
       "enabled": true,
       "frameable": true,
+      "httpsOk": true,
       "adapter": {
         "type": "list",
         "url": "https://pann.nate.com/talk/ranking/d",
@@ -447,6 +490,7 @@
       "adult": false,
       "enabled": false,
       "frameable": false,
+      "httpsOk": false,
       "adapter": {
         "type": "reddit",
         "url": ""
@@ -464,10 +508,29 @@
       "adult": false,
       "enabled": true,
       "frameable": false,
+      "httpsOk": false,
       "adapter": {
         "type": "json",
         "url": "",
         "note": "makeFetcher가 id==hackernews를 Algolia front_page API로 디스패치. 코드 기존 정상, 2026-07-23 검증 완료."
+      }
+    },
+    {
+      "id": "geeknews",
+      "label": "긱뉴스",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "tech",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://news.hada.io/rss/news",
+        "note": "David 2026-07-24 신규 추가. 공식 Atom RSS(news.hada.io — GeekNews, 개발/기술/스타트업 뉴스, HN 한국형). robots.txt에 Claude-SearchBot·Claude-User·OAI-SearchBot 등이 명시 Allow: / (Content-Signal: ai-input=yes도 확인). 2026-07-24 검증: 200, Atom 50건 정상 파싱(기존 parseRss가 Atom 이미 지원, 코드 변경 없음). IT 인기글 큐레이션(투표 상위 노출) 성격이라 베스트 기준 충족."
       }
     },
     {
@@ -563,6 +626,7 @@
       "adult": true,
       "enabled": false,
       "frameable": false,
+      "httpsOk": false,
       "adapter": {
         "type": "reddit",
         "url": ""

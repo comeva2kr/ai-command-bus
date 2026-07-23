@@ -14,13 +14,8 @@ import { SEED_ITEMS } from "./seed-data.js";
 // Derive a STABLE id from an item's identifying content. Stability matters:
 // sources are re-collected periodically, and ratings/comments reference item
 // ids — a counter would reassign ids on every refresh and orphan that data.
-function stableId(raw, source) {
-  const basis = [
-    raw.url || "",
-    raw.source || (source ? source.id : ""),
-    raw.title || "",
-    raw.publishedAt || ""
-  ].join("|");
+function stableId(url, sourceId, title, publishedAt) {
+  const basis = [url || "", sourceId || "", title || "", publishedAt || ""].join("|");
   let h = 2166136261 >>> 0; // FNV-1a
   for (let i = 0; i < basis.length; i++) {
     h ^= basis.charCodeAt(i);
@@ -29,14 +24,30 @@ function stableId(raw, source) {
   return `it_${h.toString(36)}`;
 }
 
+// A source's own RSS/API sometimes hands back a plain http:// link even
+// though the site itself serves https fine (ppomppu's RSS does this — the
+// 2026-07-24 bug: our https-served app iframing an http:// original gets hard
+// mixed-content-blocked, which the frame viewer's 5s watchdog only surfaced
+// as a stall). Upgrading is opt-in per source (raw.httpsOk, stamped by
+// registry.js from the community entry's `httpsOk`, default true) so a
+// source we haven't actually verified never gets a link silently rewritten
+// to a URL that might not even exist. "me"/"submit"/"seed" items never carry
+// this field at all, so they're never touched by this.
+function upgradeToHttps(url, httpsOk) {
+  if (typeof url !== "string" || !url.startsWith("http://")) return url || null;
+  return httpsOk === true ? "https://" + url.slice("http://".length) : url;
+}
+
 // Normalize an arbitrary raw item into the canonical content shape. Adapters
 // pass their raw objects through this so downstream code sees one schema.
 export function normalizeItem(raw, source) {
   const category = isKnownCategory(raw.category) ? raw.category : "news";
+  const sourceId = raw.source || (source ? source.id : "unknown");
+  const url = upgradeToHttps(raw.url, raw.httpsOk);
   return {
-    id: raw.id || stableId(raw, source),
+    id: raw.id || stableId(url, sourceId, raw.title, raw.publishedAt),
     kind: raw.kind === "community" ? "community" : "news", // "news" | "community"
-    source: raw.source || (source ? source.id : "unknown"),
+    source: sourceId,
     // 19금(성인) 여부. 인증되지 않은 사용자에게는 엔진 단에서 절대 노출되지 않는다.
     adult: raw.adult === true,
     // language + translation metadata (overseas sources flow through translate.js)
@@ -53,7 +64,7 @@ export function normalizeItem(raw, source) {
       0,
       raw.via === "me" || raw.via === "seed" || !raw.via ? 1000 : 200
     ),
-    url: raw.url || null, // out-link to the original (required for aggregated items)
+    url: url || null, // out-link to the original (required for aggregated items) — https-upgraded above if applicable
     via: raw.via || "seed", // provenance: seed | rss | api | submit | me
     sourceLabel: raw.sourceLabel || null,
     image: raw.image || null,

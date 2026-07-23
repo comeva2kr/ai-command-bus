@@ -74,11 +74,17 @@ export function buildSources(registry, opts = {}) {
         entry.id,
         async () => {
           const rows = await opts.fetcher(entry);
+          // entry.httpsOk (default true) tells normalizeItem whether this
+          // source's own domain is known to serve https — gates the
+          // http://->https:// URL upgrade (see content.js) so a source we
+          // haven't verified never gets its links silently rewritten.
+          const httpsOk = entry.httpsOk !== false;
           return (Array.isArray(rows) ? rows : []).map((r) => ({
             lang: entry.lang,
             category: entry.category,
             adult: entry.adult === true,
             via,
+            httpsOk,
             ...r,
             source: entry.id
           }));
