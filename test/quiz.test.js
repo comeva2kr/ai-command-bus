@@ -12,6 +12,7 @@ import {
   templateQuiz,
   validateQuiz,
   quizSlug,
+  allTypeCodes,
   QUIZ_SCHEMA,
   DEFAULT_MODEL
 } from "../src/quiz/generate.js";
@@ -25,6 +26,10 @@ const NOW = Date.parse("2026-07-23T00:00:00Z");
 
 function tmpStore() {
   return new QuizStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "quiz-")) });
+}
+
+function sampleQuiz() {
+  return templateQuiz(pickWeeklyTopics(HOT_ITEMS, { now: NOW }), { weekLabel: "2026w30" });
 }
 
 // ---- topic picking -------------------------------------------------------
@@ -46,26 +51,67 @@ test("pickWeeklyTopics dedupes identical titles and caps at count", () => {
   assert.equal(new Set(topics.map((t) => t.title)).size, 3);
 });
 
+// ---- axis-based format ---------------------------------------------------
+
+test("templateQuiz produces a valid axis-based quiz meeting the design spec", () => {
+  const quiz = sampleQuiz();
+  assert.ok(validateQuiz(quiz));
+  // 설계 스펙: 축 2~4개, 문항 8~15개, 유형 수 = 2^축수
+  assert.ok(quiz.axes.length >= 2 && quiz.axes.length <= 4);
+  assert.ok(quiz.questions.length >= 8 && quiz.questions.length <= 15);
+  assert.equal(quiz.results.length, 2 ** quiz.axes.length);
+  // 80:20 — 강점 3~5, 성장 포인트 1~2, 궁합 지정
+  for (const r of quiz.results) {
+    assert.ok(r.strengths.length >= 3);
+    assert.ok(r.weaknesses.length >= 1 && r.weaknesses.length <= 2);
+    assert.ok(r.bestMatch && r.worstMatch);
+  }
+});
+
+test("allTypeCodes enumerates every pole combination in axis order", () => {
+  const quiz = sampleQuiz();
+  const codes = allTypeCodes(quiz.axes);
+  assert.equal(codes.length, 2 ** quiz.axes.length);
+  assert.ok(codes.includes("FS") && codes.includes("TK"));
+});
+
+test("validateQuiz enforces axis question balance and pole mixing", () => {
+  const quiz = sampleQuiz();
+  // 한 축의 문항이 3개 미만이면 거부 (총 문항 수는 유지한 채 축만 재배정)
+  const starved = structuredClone(quiz);
+  let kept = 0;
+  for (const q of starved.questions) {
+    if (q.axis === "sharing" && ++kept > 2) q.axis = "reaction";
+  }
+  assert.throws(() => validateQuiz(starved), /3개 미만/);
+  // 한쪽 극만 미는 문항 거부 (정답 냄새/역채점 균형 규칙)
+  const lopsided = structuredClone(quiz);
+  lopsided.questions[0].answers = lopsided.questions[0].answers.map((a) => ({ ...a, pole: "left" }));
+  assert.throws(() => validateQuiz(lopsided), /한쪽 극만/);
+  // 유형 조합 커버리지: 하나 빠지면 거부
+  const missing = structuredClone(quiz);
+  missing.results = missing.results.slice(1);
+  assert.throws(() => validateQuiz(missing), /결과가 없어요/);
+});
+
+test("validateQuiz enforces the 80:20 result copy rules", () => {
+  const flattery = structuredClone(sampleQuiz());
+  flattery.results[0].weaknesses = []; // 칭찬만 있는 결과는 가짜같이 느껴진다
+  assert.throws(() => validateQuiz(flattery), /성장 포인트/);
+  const selfMatch = structuredClone(sampleQuiz());
+  selfMatch.results[0].bestMatch = selfMatch.results[0].code;
+  assert.throws(() => validateQuiz(selfMatch), /bestMatch/);
+});
+
 // ---- generation ----------------------------------------------------------
 
-test("templateQuiz produces a valid quiz from topics", () => {
-  const topics = pickWeeklyTopics(HOT_ITEMS, { now: NOW });
-  const quiz = templateQuiz(topics, { weekLabel: "2026w30" });
-  assert.ok(validateQuiz(quiz));
-  assert.ok(quiz.questions.length >= 2);
-  assert.ok(quiz.questions[0].q.includes(topics[0].title));
-});
-
-test("validateQuiz rejects scores referencing unknown result ids", () => {
-  const quiz = templateQuiz(pickWeeklyTopics(HOT_ITEMS, { now: NOW }));
-  quiz.questions[0].answers[0].scores[0].result = "no-such-type";
-  assert.throws(() => validateQuiz(quiz), /없는 결과 유형/);
-});
-
-test("buildPrompt includes every topic title", () => {
+test("buildPrompt includes every topic title and the design rules", () => {
   const topics = pickWeeklyTopics(HOT_ITEMS, { now: NOW });
   const prompt = buildPrompt(topics, { weekLabel: "2026w30" });
   for (const t of topics) assert.ok(prompt.includes(t.title));
+  assert.ok(prompt.includes("심리 축"));
+  assert.ok(prompt.includes("상황 제시형"));
+  assert.ok(prompt.includes("80:20"));
 });
 
 test("generateQuizWithClaude sends the structured-output request and parses the reply", async () => {
@@ -112,21 +158,47 @@ test("generateQuiz falls back to the template when no API key is configured", as
   }
 });
 
-// ---- scoring -------------------------------------------------------------
+// ---- axis scoring --------------------------------------------------------
 
-test("scoreQuiz is deterministic and breaks ties by results order", () => {
-  const quiz = templateQuiz(pickWeeklyTopics(HOT_ITEMS, { now: NOW }));
-  const allFirst = quiz.questions.map(() => 0);
-  const a = scoreQuiz(quiz, allFirst);
-  const b = scoreQuiz(quiz, allFirst);
-  assert.equal(a.resultId, b.resultId);
-  // 모든 유형이 0점인 극단 케이스: 앞 순서 유형이 이긴다
-  const zero = { ...quiz, questions: quiz.questions.map((q) => ({ ...q, answers: q.answers.map((ans) => ({ ...ans, scores: [{ result: quiz.results[0].id, points: 0 }] })) })) };
-  assert.equal(scoreQuiz(zero, allFirst).resultId, quiz.results[0].id);
+test("scoreQuiz computes per-axis spectrum percentages and the type code", () => {
+  const quiz = sampleQuiz();
+  // 모든 문항에서 왼쪽 극(weight 최대) 답을 고르면 전축 left → 코드 FS
+  const allLeft = quiz.questions.map((q) => q.answers.findIndex((a) => a.pole === "left" && (a.weight || 1) === 2));
+  const scored = scoreQuiz(quiz, allLeft);
+  assert.equal(scored.code, "FS");
+  for (const axis of scored.axes) {
+    assert.equal(axis.leftPercent, 100);
+    assert.equal(axis.dominant, "left");
+  }
+  assert.equal(scored.result.code, "FS");
+});
+
+test("scoreQuiz is deterministic and resolves a 50:50 axis to the left pole", () => {
+  const quiz = sampleQuiz();
+  const picks = quiz.questions.map(() => 0);
+  assert.equal(scoreQuiz(quiz, picks).code, scoreQuiz(quiz, picks).code);
+  // 인위적 동점: 축 하나를 weight 1 좌/우 하나씩만 남긴 미니 퀴즈로 확인
+  const mini = structuredClone(quiz);
+  mini.questions = mini.questions.map((q) => ({
+    ...q,
+    answers: [
+      { text: "l", pole: "left", weight: 1 },
+      { text: "r", pole: "right", weight: 1 }
+    ]
+  }));
+  // 각 축의 문항 절반 left, 절반 right 선택 → 50:50 → left 확정
+  const perAxisSeen = {};
+  const tiePicks = mini.questions.map((q) => {
+    perAxisSeen[q.axis] = (perAxisSeen[q.axis] || 0) + 1;
+    return perAxisSeen[q.axis] % 2 === 1 ? 0 : 1;
+  });
+  // sharing/reaction 각 5문항(홀수)이라 정확한 동점은 아님 — leftPercent >= 50 확인
+  const tied = scoreQuiz(mini, tiePicks);
+  for (const axis of tied.axes) assert.equal(axis.dominant, axis.leftPercent >= 50 ? "left" : "right");
 });
 
 test("scoreQuiz rejects malformed answer arrays", () => {
-  const quiz = templateQuiz(pickWeeklyTopics(HOT_ITEMS, { now: NOW }));
+  const quiz = sampleQuiz();
   assert.throws(() => scoreQuiz(quiz, [0]), /답변 수/);
   assert.throws(() => scoreQuiz(quiz, quiz.questions.map(() => 99)), /답변 번호/);
 });
@@ -135,8 +207,7 @@ test("scoreQuiz rejects malformed answer arrays", () => {
 
 test("QuizStore: draft is not published until a human approves", () => {
   const store = tmpStore();
-  const quiz = templateQuiz(pickWeeklyTopics(HOT_ITEMS, { now: NOW }));
-  store.saveDraft("2026w30-abc", quiz, { week: "2026w30" });
+  store.saveDraft("2026w30-abc", sampleQuiz(), { week: "2026w30" });
 
   assert.equal(store.getPublished("2026w30-abc"), null);
   assert.equal(store.listDrafts().length, 1);
@@ -155,6 +226,28 @@ test("QuizStore rejects traversal-shaped slugs", () => {
 
 test("QuizStore.approve refuses when there is no draft", () => {
   assert.throws(() => tmpStore().approve("nope"), /초안/);
+});
+
+test("QuizStore response stats accumulate with Laplace smoothing", () => {
+  const store = tmpStore();
+  const quiz = sampleQuiz();
+  store.saveDraft("2026w30-s", quiz);
+  store.approve("2026w30-s");
+  const codes = quiz.results.map((r) => r.code);
+
+  // 응답 0건: 스무딩 덕에 모든 유형이 균등(25%)
+  let stats = store.statsFor("2026w30-s", codes);
+  assert.equal(stats.total, 0);
+  for (const c of codes) assert.equal(stats.share[c], 25);
+
+  for (let i = 0; i < 6; i++) store.recordResponse("2026w30-s", "FS");
+  stats = store.statsFor("2026w30-s", codes);
+  assert.equal(stats.total, 6);
+  assert.ok(stats.share.FS > stats.share.TK);
+
+  // 미발행/엉터리 코드 거부
+  assert.throws(() => store.recordResponse("2026w30-s", "XX"), /없는 유형/);
+  assert.throws(() => store.recordResponse("no-such", "FS"), /발행된/);
 });
 
 // ---- weekly pipeline -----------------------------------------------------
@@ -185,11 +278,11 @@ test("quizSlug is stable for the same title+week and url-safe", () => {
 
 // ---- server routes -------------------------------------------------------
 
-test("server serves published quizzes with OG tags; drafts stay hidden", async () => {
+test("server serves published quizzes with credibility devices; drafts stay hidden", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-srv-"));
   const store = new QuizStore({ dir });
-  const quiz = templateQuiz(pickWeeklyTopics(HOT_ITEMS, { now: NOW }), { weekLabel: "이번 주" });
+  const quiz = sampleQuiz();
   store.saveDraft("2026w30-live", quiz, { week: "2026w30" });
   store.saveDraft("2026w30-hidden", quiz, { week: "2026w30" });
   store.approve("2026w30-live");
@@ -198,21 +291,40 @@ test("server serves published quizzes with OG tags; drafts stay hidden", async (
   await new Promise((resolve) => server.listen(0, resolve));
   const base = `http://localhost:${server.address().port}`;
   try {
-    // 발행된 퀴즈 페이지: OG 태그 + 데이터 포함
+    // 퀴즈 페이지: OG + 축 소개(신뢰 프레이밍)
     const page = await (await fetch(`${base}/q/2026w30-live`)).text();
     assert.ok(page.includes('property="og:title"'));
     assert.ok(page.includes(quiz.title));
+    assert.ok(page.includes("성향 축"), "축 기반 채점 프레이밍 노출");
 
-    // 결과 공유 페이지: 결과별 고유 OG 타이틀 (바이럴 루프)
-    const rid = quiz.results[0].id;
-    const resultPage = await (await fetch(`${base}/q/2026w30-live/r/${rid}`)).text();
-    assert.ok(resultPage.includes(quiz.results[0].title));
-    assert.ok(resultPage.includes("나도 테스트 해보기"));
+    // 응답 집계 API
+    const post = await fetch(`${base}/api/quiz/2026w30-live/response`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: "FS" })
+    });
+    assert.equal(post.status, 200);
+    assert.equal((await fetch(`${base}/api/quiz/2026w30-live/response`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: "ZZ" }) })).status, 400);
 
-    // 초안은 서빙 금지
+    // 개인 결과 페이지 (?p=): 축 퍼센트 바 + 희소성 통계 + 강점/성장/궁합
+    const personal = await (await fetch(`${base}/q/2026w30-live/r/FS?p=80,60`)).text();
+    assert.ok(personal.includes("내 성향 스펙트럼"));
+    assert.ok(personal.includes("80%"));
+    assert.ok(personal.includes("응답자 중"), "희소성 통계 배지");
+    assert.ok(personal.includes("성장 포인트"));
+    assert.ok(personal.includes("환장의 케미"));
+    assert.ok(personal.includes("재미로 보는"), "면책 라벨");
+
+    // 공유 유입 (p 없음): 개인 바 대신 참여 훅
+    const shared = await (await fetch(`${base}/q/2026w30-live/r/FS`)).text();
+    assert.ok(shared.includes("직접 테스트하면"));
+    assert.ok(shared.includes('property="og:title"'));
+    assert.ok(shared.includes("나도 테스트 해보기"));
+
+    // 초안/엉터리 코드는 404
     assert.equal((await fetch(`${base}/q/2026w30-hidden`)).status, 404);
     assert.equal((await fetch(`${base}/q/no-such`)).status, 404);
-    assert.equal((await fetch(`${base}/q/2026w30-live/r/no-such-result`)).status, 404);
+    assert.equal((await fetch(`${base}/q/2026w30-live/r/ZZ`)).status, 404);
 
     // 인덱스/API에는 발행분만
     const api = await (await fetch(`${base}/api/quiz`)).json();

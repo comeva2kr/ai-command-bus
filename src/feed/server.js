@@ -520,6 +520,21 @@ export function createServer(opts = {}) {
         }));
         return send(res, 200, { quizzes: list });
       }
+
+      // 결과 집계: 클라이언트가 테스트 완료 시 유형 코드를 보고한다.
+      // "응답자 중 N%" 희소성 통계의 원천 — 발행된 퀴즈의 실존 코드만 허용.
+      {
+        const m = p.match(/^\/api\/quiz\/([^/]+)\/response$/);
+        if (m && req.method === "POST") {
+          const body = await readBody(req);
+          try {
+            const stats = quizStore.recordResponse(decodeURIComponent(m[1]), String(body.code || ""));
+            return send(res, 200, { ok: true, total: stats.total });
+          } catch (err) {
+            return send(res, 400, { error: String(err.message) });
+          }
+        }
+      }
       if (p.startsWith("/q") && req.method === "GET") {
         const proto = req.headers["x-forwarded-proto"] || "http";
         const origin = `${proto}://${req.headers.host}`;
@@ -534,9 +549,20 @@ export function createServer(opts = {}) {
           const record = quizStore.getPublished(decodeURIComponent(m[1]));
           if (!record) return send(res, 404, { error: "not found" });
           if (!m[2]) return html(200, renderQuizPage(record, origin));
-          const result = record.quiz.results.find((r) => r.id === decodeURIComponent(m[2]));
+          const result = record.quiz.results.find((r) => r.code === decodeURIComponent(m[2]));
           if (!result) return send(res, 404, { error: "not found" });
-          return html(200, renderResultPage(record, result, origin));
+          // ?p=64,40 — 본인 응답의 축별 퍼센트 (공유 링크에는 없음 → 개인 바
+          // 대신 "직접 해보면 내 퍼센트가 나온다" 훅으로 렌더링).
+          let percents = null;
+          const raw = url.searchParams.get("p");
+          if (raw) {
+            const nums = raw.split(",").map(Number);
+            if (nums.length === record.quiz.axes.length && nums.every((n) => Number.isFinite(n) && n >= 0 && n <= 100)) {
+              percents = nums;
+            }
+          }
+          const stats = quizStore.statsFor(record.slug, record.quiz.results.map((r) => r.code));
+          return html(200, renderResultPage(record, result, origin, { percents, stats }));
         }
       }
 

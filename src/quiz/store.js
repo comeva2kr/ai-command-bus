@@ -68,6 +68,42 @@ export class QuizStore {
     return this._list(this.publishedDir);
   }
 
+  // --- 응답 통계 -----------------------------------------------------------
+  // 결과 페이지의 "응답자 중 N%" 희소성 통계용. 실응답을 누적 집계하고,
+  // 표본이 작을 때는 라플라스 스무딩(코드당 +1)으로 극단값을 완화한다 —
+  // 초기엔 사전분포로 시딩하고 시간이 갈수록 실데이터가 지배.
+
+  recordResponse(slug, code) {
+    const s = QuizStore.safeSlug(slug);
+    const record = this.getPublished(s);
+    if (!record) throw new Error("발행된 테스트가 아니에요.");
+    if (!record.quiz.results.some((r) => r.code === code)) throw new Error("없는 유형 코드예요.");
+    const statsDir = path.join(this.dir, "stats");
+    fs.mkdirSync(statsDir, { recursive: true });
+    const file = path.join(statsDir, `${s}.json`);
+    const stats = this._read(file) || { counts: {}, total: 0 };
+    stats.counts[code] = (stats.counts[code] || 0) + 1;
+    stats.total += 1;
+    fs.writeFileSync(file, JSON.stringify(stats));
+    return stats;
+  }
+
+  // 유형별 점유율(%): (count+1) / (total+유형수) — 스무딩 포함.
+  statsFor(slug, codes) {
+    let s;
+    try {
+      s = QuizStore.safeSlug(slug);
+    } catch {
+      return null;
+    }
+    const stats = this._read(path.join(this.dir, "stats", `${s}.json`)) || { counts: {}, total: 0 };
+    const share = {};
+    for (const code of codes) {
+      share[code] = Math.round(((stats.counts[code] || 0) + 1) / (stats.total + codes.length) * 100);
+    }
+    return { share, total: stats.total };
+  }
+
   _read(file) {
     try {
       return JSON.parse(fs.readFileSync(file, "utf8"));

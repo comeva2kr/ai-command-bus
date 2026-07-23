@@ -76,6 +76,7 @@ every other external side effect. See [docs/viral-quiz.md](docs/viral-quiz.md).
 
 - [Architecture](docs/architecture.md)
 - [Weekly viral quiz pipeline](docs/viral-quiz.md)
+- [Quiz design spec (research-backed)](docs/quiz-design.md)
 - [Personalized community feed](docs/personalized-feed.md)
 - [Deploying the feed](docs/deploy.md)
 - [Example task queue](examples/task_queue.json)
