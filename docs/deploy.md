@@ -10,6 +10,7 @@ The server is zero-dependency Node (`src/feed/server.js`) and listens on
 | `PORT` | HTTP port | `4000` |
 | `FEED_DB` | JSON file to persist users/posts (set to a mounted volume path) | in-memory |
 | `FEED_LIVE` | `1` to enable live ingestion of enabled non-seed communities | off |
+| `FEED_DEV` | `1` to enable the bundled dev seed dataset (never use in production) | off |
 | `FEED_REFRESH_MS` | periodic re-collection interval in ms (e.g. `900000` = 15 min) | off |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push signing keys (see below) | push disabled |
 | `ADMIN_TOKEN` | token gating the admin console at `/admin` and `/api/admin/*` | `admin-dev` (insecure) |

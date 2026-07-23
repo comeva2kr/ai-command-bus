@@ -12,21 +12,23 @@
 2. **법적 안전 모델 유지** (`docs/legal.md`): 아웃링크 필수(프레이밍 금지), 발췌 ≤200자, 본문 복제 금지, 대량 크롤링 금지 — 공식 RSS/API·robots 허용·유저 제출만. 화제성은 공개 신호(추천/댓글 수)로만.
 3. 403 = 조직 네트워크 정책 거부 → 우회 금지, 보고만.
 
-## 현재 상태 (2026-07-23)
+## 현재 상태 (2026-07-23, 2차 갱신)
 
-- 앱 완성도: 프론트(모바일+PC 반응형) / 관리자(`/admin`, ADMIN_TOKEN) / 추천엔진(설문+암묵신호+협업필터링+탐색) / 19금 게이트 / PWA / 공유(OG) / 웹푸시 모듈 / 등급·룰 — 전부 구현·테스트됨. **테스트 57개 전부 통과** (`node --test test/*.test.js`).
+- 앱 완성도: 프론트(모바일+PC 반응형) / 관리자(`/admin`, ADMIN_TOKEN) / 추천엔진(설문+암묵신호+협업필터링+탐색) / 19금 게이트 / PWA / 공유(OG) / 웹푸시 모듈 / 등급·룰 — 전부 구현·테스트됨. **테스트 58개 전부 통과** (`node --test test/*.test.js`).
 - 적대적 실사용자 검수 2회 반영 완료 (설문 벽 제거→미리보기 우선, 닉네임 댓글, 화제성 뱃지, 아웃링크 상세, 엄지 조작성, 스킵 오학습 완화).
-- **막힌 것 딱 하나: 실데이터 수집 검증.** 이전 세션 환경은 Trusted 네트워크(콘텐츠 호스트 전부 403)라 실행 불가였음. 환경을 Full로 바꾼 새 세션에서 아래 TODO 수행.
+- **소스 헬스체크 완료 (2026-07-23)**: 샌드박스는 여전히 403이라 사용자 로컬(macOS) 터미널에서 실행. 결과: 라이브 소스 9개 전부 OK — clien(40건)·gnews(34)·gnews-auto(104)·gnews-tech(100)·gnews-biz(108)·gnews-sports(102)·gnews-ent(100)·gnews-science(102)·gnews-game(102). 죽은 피드 없음, 클리앙 feedburner `c_hot50` 검증 완료(communities.json note 갱신).
+- **시드 격리 완료**: `FEED_DEV=1`일 때만 seed 어댑터 활성. `buildSources`에 `seed` 옵션 추가(기본 true — 테스트 호환), `server.js`가 `FEED_DEV`로 게이트. `FEED_DEV`·`FEED_LIVE` 둘 다 꺼진 기본 실행은 유저 글만 노출 + 기동 경고. 격리 테스트 추가(58번째).
+- 참고: 세션 간 직접 통신(create_trigger persistent_session_id)은 조직 정책상 비활성 — 보고는 이 문서·PR #4 코멘트로.
 
 ## 다음 작업 (순서대로)
 
-1. **네트워크 확인**: `curl -s -o /dev/null -w "%{http_code}" "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko"` → 403이면 중단·보고. 200이면 계속.
-2. **소스 헬스체크**: `ADMIN_TOKEN=chk PORT=4600 node src/feed/server.js` 기동 → `curl -X POST localhost:4600/api/admin/check-sources -H "x-admin-token: chk"`. 소스별 ok/items/error 확인. (관리자 UI `/admin` → 커뮤니티 탭 → 🩺 수집 점검 버튼과 동일)
-3. **죽은 피드 교체**: 실패 소스(특히 클리앙 feedburner `c_hot50` — 서드파티, 미검증)는 WebSearch로 대체 조사 → `src/feed/communities.json` 수정. 신규 소스 추가 환영(원칙 2 준수).
-4. **실데이터 검증**: `FEED_LIVE=1`로 재기동 → `/api/session`+`/api/survey`로 유저 만들고 `/api/feed`에 `via:"rss"` 항목이 뜨는지 확인 → Playwright(전역 설치, `NODE_PATH=/opt/node22/lib/node_modules`, 브라우저 `/opt/pw-browsers`)로 스크린샷 증명.
-5. **시드 격리**: `FEED_DEV=1`일 때만 seed 어댑터 활성 (`registry.js`의 buildSources 또는 `server.js`에서 게이트). 기본 실행에 하드코딩 콘텐츠 노출 금지.
-6. 테스트 전부 통과 확인 → **같은 브랜치에 커밋·푸시** (main 금지).
-7. 그 다음 로드맵: 배포(Dockerfile·docs/deploy.md 준비됨) → 웹푸시 VAPID 실동작(push.js 구현됨, 서버 배선만) → 수익모델 설계.
+1. ~~네트워크 확인~~ ✅ 로컬 200 (샌드박스는 403 → 수집 검증은 로컬 위임)
+2. ~~소스 헬스체크~~ ✅ 9/9 OK (위 결과)
+3. ~~죽은 피드 교체~~ ✅ 해당 없음 (전부 정상)
+4. **실데이터 검증 (남음)**: 네트워크 되는 환경에서 `FEED_LIVE=1 ADMIN_TOKEN=chk PORT=4600 node src/feed/server.js` 기동 → `/api/session`+`/api/survey`로 유저 만들고 `/api/feed`에 `via:"rss"` 항목 확인 → 스크린샷/JSON 증빙. (샌드박스 403이면 로컬 명령 블록을 사용자에게 전달)
+5. ~~시드 격리~~ ✅ (`FEED_DEV` 게이트)
+6. ~~테스트·커밋·푸시~~ ✅ 이 커밋
+7. 로드맵: 배포(Dockerfile·docs/deploy.md 준비됨) → 웹푸시 VAPID 실동작(push.js 구현됨, 서버 배선만) → 수익모델 설계.
 
 ## 코드 지도 (src/feed/)
 

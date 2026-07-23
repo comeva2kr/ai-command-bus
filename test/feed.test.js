@@ -237,6 +237,24 @@ test("buildSources only emits fetchable sources and tags seed items", async () =
   }
 });
 
+test("seed isolation: buildSources({seed:false}) never emits dev seed content", async () => {
+  const reg = loadRegistry();
+  // without a fetcher there is nothing to serve — and no seed fallback either
+  assert.equal(buildSources(reg, { seed: false }).length, 0, "no seed fallback in production mode");
+  // with a live fetcher, only non-seed communities produce items
+  const seedIds = new Set(
+    query(reg, { enabled: true }).filter((c) => c.adapter.type === "seed").map((c) => c.id)
+  );
+  const sources = buildSources(reg, {
+    seed: false,
+    fetcher: async (e) => [{ id: `${e.id}-live-1`, title: "live item", url: "https://example.com/1" }]
+  });
+  assert.ok(sources.length > 0, "live adapters still build");
+  const items = (await Promise.all(sources.map((s) => s.fetch()))).flat();
+  assert.ok(items.length > 0, "live items flow");
+  assert.equal(items.some((i) => seedIds.has(i.source)), false, "no seed community content leaks");
+});
+
 test("TranslatingSource flags untranslated foreign items and translates when wired", async () => {
   const foreign = {
     id: "en1", kind: "community", async fetch() {

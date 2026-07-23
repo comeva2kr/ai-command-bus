@@ -44,9 +44,13 @@ export function query(registry, filter = {}) {
 //
 // opts.fetcher(entry) -> Promise<rawItems[]>  : live ingestion for non-seed adapters
 // opts.seedItems                              : override the offline dataset (tests)
+// opts.seed                                   : false disables seed adapters AND the
+//                                               offline fallback — the dev dataset must
+//                                               never reach a production feed
 // opts.translate: { targetLang, translateFn } : wrap non-target-lang sources so
 //                                               overseas boards arrive translated
 export function buildSources(registry, opts = {}) {
+  const includeSeed = opts.seed !== false;
   const seedItems = opts.seedItems || SEED_ITEMS;
   const targetLang = opts.translate ? opts.translate.targetLang || "ko" : null;
   const translateFn = opts.translate ? opts.translate.translateFn : null;
@@ -55,6 +59,7 @@ export function buildSources(registry, opts = {}) {
   for (const entry of query(registry, { enabled: true })) {
     let source;
     if (entry.adapter && entry.adapter.type === "seed") {
+      if (!includeSeed) continue;
       // stamp registry metadata (lang/adult/category) onto seed items for this source
       const items = seedItems
         .filter((it) => it.source === entry.id)
@@ -88,7 +93,7 @@ export function buildSources(registry, opts = {}) {
   }
 
   // guarantee at least the offline seed content if nothing else resolved
-  if (!sources.length) sources.push(new SeedSource(seedItems));
+  if (!sources.length && includeSeed) sources.push(new SeedSource(seedItems));
   return sources;
 }
 

@@ -125,7 +125,9 @@ not code — adding a community is a new row. Each entry carries `country`,
 | `json`). `registry.js` loads it and `buildSources()` turns enabled entries
 into runnable sources:
 
-- `seed` entries read the bundled offline dataset (runs with no network).
+- `seed` entries read the bundled offline dataset — **development only**. The
+  server activates them solely when `FEED_DEV=1` (`buildSources`'s `seed`
+  option); a default run never shows the hardcoded sample content.
 - non-`seed` entries need a `fetcher(entry)` injected at runtime; without one
   they stay registered but yield nothing, so the app is always runnable while
   ready to wire live ingestion.
@@ -142,7 +144,8 @@ the target domains. Behind a re-terminating proxy, set `NODE_EXTRA_CA_CERTS`
 to the CA bundle so `fetch` trusts it.
 
 > Note: some managed environments restrict outbound HTTP to an allowlist; there,
-> keep `FEED_LIVE` off and the app runs on the seed dataset.
+> keep `FEED_LIVE` off and use `FEED_DEV=1` if you need the dev seed dataset.
+> With both off, the feed contains only user posts (and warns at startup).
 
 The DB already registers domestic communities (large and small), overseas
 boards (Reddit, Hacker News, 5ch, …), and adult boards.

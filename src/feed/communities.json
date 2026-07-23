@@ -56,7 +56,7 @@
       "adapter": {
         "type": "rss",
         "url": "https://feeds.feedburner.com/c_hot50",
-        "note": "서드파티 핫글 피드(댓글50+) — 헬스체크로 유효성 검증"
+        "note": "서드파티 핫글 피드(댓글50+) — 2026-07-23 헬스체크 통과(40건 수집)"
       }
     },
     {

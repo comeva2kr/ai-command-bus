@@ -115,15 +115,22 @@ export function createServer(opts = {}) {
   // wrapped for translation when a translator is wired via opts.translate.
   let registry = [];
   let sources;
+  // FEED_DEV=1 enables the bundled dev seed dataset. Off by default: the
+  // hardcoded sample content must never appear in a real feed (원칙: 실데이터만).
+  const dev = opts.dev != null ? Boolean(opts.dev) : Boolean(process.env.FEED_DEV);
+  // FEED_LIVE turns on real ingestion for enabled non-seed communities.
+  const live = opts.fetcher || (process.env.FEED_LIVE ? makeFetcher : null);
   try {
     registry = loadRegistry();
-    // FEED_LIVE turns on real ingestion for enabled non-seed communities.
-    // Off by default so the app always runs on the offline seed dataset; where
-    // the network policy blocks these hosts, leave it off.
-    const live = opts.fetcher || (process.env.FEED_LIVE ? makeFetcher : null);
-    sources = buildSources(registry, { translate: opts.translate, fetcher: live ? (e) => live(e)() : undefined });
+    sources = buildSources(registry, { translate: opts.translate, seed: dev, fetcher: live ? (e) => live(e)() : undefined });
   } catch (err) {
-    sources = [new SeedSource()];
+    sources = dev ? [new SeedSource()] : [];
+  }
+  if (!dev && !live) {
+    console.warn(
+      "[feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. " +
+        "Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset."
+    );
   }
   sources.push(new StorePostsSource(store));
   const engine = new FeedEngine(store, opts.sources || sources);
