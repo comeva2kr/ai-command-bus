@@ -605,9 +605,20 @@ test("digest previews top unseen matches without consuming them", async () => {
   assert.ok(d.top.length > 0 && d.top.length <= 5);
   assert.ok(d.top[0].matchScore >= 1.0, "digest items clear the score threshold");
 
-  // digest must NOT consume items — the feed still serves them
-  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 5 });
-  assert.ok(feed.items.some((i) => i.id === d.top[0].id), "digest did not mark items seen");
+  // digest must NOT consume items — the user's seen set stays untouched
+  assert.ok(!store.getUser(user.id).seen.includes(d.top[0].id), "digest did not mark the item seen");
+
+  // ...and the item is still reachable through the feed. The home feed is now
+  // a diversity-first round-robin stream (David 2026-07-24), so digest's #1
+  // personalization pick isn't guaranteed to land on the very first page —
+  // page through until found instead of asserting it's in the first batch.
+  let found = false;
+  for (let c = 0; c < 10 && !found; c++) {
+    const feed = await engine.getFeed(user.id, { cursor: c * 10, limit: 10 });
+    if (feed.items.some((i) => i.id === d.top[0].id)) found = true;
+    if (feed.exhausted) break;
+  }
+  assert.ok(found, "digest's pick is still reachable by paging through the (unconsumed) feed");
 });
 
 test("push subscription persists and flips notify flag", async () => {
@@ -826,6 +837,12 @@ test("hotness ranks by public engagement + freshness only", async () => {
 // feed adds one more engagement cut on top, normalized *per source* (an HN
 // score and a Korean 추천수 aren't the same scale) rather than a single raw
 // threshold across every source.
+//
+// hotGate (below) is the original per-source percentile cut; it's kept as-is
+// and still powers digest(). getFeed's default (no `source`) path moved on
+// 2026-07-24 to a different shape — "게시판별 핫 + 다양성 라운드로빈": see the
+// ingest.rankBySource / topPerSource / roundRobinInterleave tests further
+// down and engine.js's getFeed for the replacement.
 
 test("hotGate keeps the top engagement items and cuts the low ones within the same source", async () => {
   const { hotGate } = await import("../src/feed/ingest.js");
@@ -897,17 +914,21 @@ test("hotGate respects HOT_MIN_PERCENTILE / HOT_TOP_N overrides", async () => {
   assert.equal(topN.filter((r) => r.hot).length, 2, "topN overrides the fraction and keeps exactly N");
 });
 
-test("default getFeed (no source) serves only hot-gated items — a source's low-engagement post never surfaces, its high-engagement ones do", async () => {
+test("default getFeed (no source) keeps only each source's top HOT_PER_SOURCE hottest items — items beyond that per-source cut never surface", async () => {
   const store = new FeedStore({ clock: fixedClock });
-  // top-60% (default HOT_MIN_PERCENTILE) of 3 items keeps exactly the top 2 —
-  // the single quiet post should never clear the cut.
+  // 10 items, one source, engagement 90..0 descending — default HOT_PER_SOURCE
+  // (6) keeps only the top 6; the bottom 4 are excluded from the home feed.
   const clien = new JsonSource(
     "clien",
-    async () => [
-      { id: "hot-a", title: "클리앙 화제글 A", url: "https://clien.net/a", category: "tech", score: 500, commentCount: 100, publishedAt: "2026-07-05T00:00:00Z" },
-      { id: "hot-b", title: "클리앙 화제글 B", url: "https://clien.net/b", category: "tech", score: 400, commentCount: 80, publishedAt: "2026-07-05T00:00:00Z" },
-      { id: "cold-a", title: "클리앙 조용한 글 A", url: "https://clien.net/c", category: "tech", score: 1, commentCount: 0, publishedAt: "2026-07-05T00:00:00Z" }
-    ],
+    async () =>
+      Array.from({ length: 10 }, (_, i) => ({
+        id: `c${i}`,
+        title: `클리앙 글 ${i}`,
+        url: `https://clien.net/${i}`,
+        category: "tech",
+        score: 90 - i * 10,
+        publishedAt: "2026-07-05T00:00:00Z"
+      })),
     "community"
   );
   const engine = new FeedEngine(store, [clien]);
@@ -920,14 +941,16 @@ test("default getFeed (no source) serves only hot-gated items — a source's low
     for (const i of f.items) seenIds.add(i.id);
     if (f.exhausted) break;
   }
-  assert.ok(seenIds.has("hot-a") && seenIds.has("hot-b"), "high-engagement posts surface in the default hot-only feed");
-  assert.ok(!seenIds.has("cold-a"), "the source's low-engagement post is gated out of the default feed");
+  for (let i = 0; i < 6; i++) assert.ok(seenIds.has(`c${i}`), `c${i} (top-${i + 1} engagement) clears the per-source cut`);
+  for (let i = 6; i < 10; i++) assert.ok(!seenIds.has(`c${i}`), `c${i} (below the source's top 6) is excluded from the default feed`);
 
-  // sanity check: the same source's cold post IS reachable through source=
-  // (the board-view chip bypasses the hot gate entirely) — proves this is a
-  // home-feed-only filter, not data loss.
-  const bySource = await engine.getFeed(user.id, { cursor: 0, limit: 10, source: "clien" });
-  assert.ok(bySource.items.some((i) => i.id === "cold-a"), "source= view still surfaces the same item the home feed gated out");
+  // sanity check: the same source's excluded posts ARE reachable through
+  // source= (the board-view chip bypasses the top-K cut entirely) — proves
+  // this is a home-feed-only cut, not data loss. Fresh user, since `user`
+  // above already has the top 6 marked seen from paging the default feed.
+  const u2 = store.createUser("hotfeed_u_src");
+  const bySource = await engine.getFeed(u2.id, { cursor: 0, limit: 10, source: "clien" });
+  assert.equal(bySource.items.length, 10, "source= view still surfaces every item the home feed cut down to top-6");
 });
 
 test("default getFeed still includes a signal-less source's items even when a louder source exists", async () => {
@@ -951,6 +974,134 @@ test("default getFeed still includes a signal-less source's items even when a lo
     if (f.exhausted) break;
   }
   assert.ok(seenIds.has("rss-1") && seenIds.has("rss-2"), "a source with no engagement counters at all is never dropped from the default feed");
+});
+
+// --- 게시판별 핫 + 다양성 라운드로빈 (David 2026-07-24 home feed redesign) -----
+// rankBySource / topPerSource / roundRobinInterleave (ingest.js) replace the
+// old hotGate+rankItems pipeline for getFeed's default (no `source`) path.
+// hotGate itself is untouched above and still backs digest().
+
+test("rankBySource sorts a source with real engagement numbers by that engagement, descending", async () => {
+  const { rankBySource } = await import("../src/feed/ingest.js");
+  const items = [10, 90, 40].map((score, i) =>
+    normalizeItem({ id: `e${i}`, source: "clien", title: `글 ${i}`, category: "tech", score })
+  );
+  const grouped = rankBySource(items);
+  const order = grouped.get("clien").map((r) => r.item.id);
+  assert.deepEqual(order, ["e1", "e2", "e0"], "90 > 40 > 10");
+  assert.ok(grouped.get("clien").every((r) => r.hasSignal === true));
+});
+
+test("rankBySource keeps a signal-less source's ORIGINAL collection order (sourceRank), never re-sorted by publishedAt — the core fix for '0점짜리가 최신순으로 섞임'", async () => {
+  const { rankBySource } = await import("../src/feed/ingest.js");
+  // sourceRank 0,1,2 = the board's own hot order (item 0 is hottest); dates
+  // are deliberately the REVERSE of that (item 2 is "newest") so a date-sort
+  // regression would flip this order and fail the assertion below.
+  const items = [
+    { id: "r0", sourceRank: 0, publishedAt: "2026-07-01T00:00:00Z" },
+    { id: "r1", sourceRank: 1, publishedAt: "2026-07-02T00:00:00Z" },
+    { id: "r2", sourceRank: 2, publishedAt: "2026-07-03T00:00:00Z" }
+  ].map((raw) => normalizeItem({ ...raw, source: "some-rss", title: raw.id, category: "news" }));
+  const grouped = rankBySource(items);
+  const order = grouped.get("some-rss").map((r) => r.item.id);
+  assert.deepEqual(order, ["r0", "r1", "r2"], "board's own collection order wins, not newest-first by date");
+  assert.ok(grouped.get("some-rss").every((r) => r.hasSignal === false));
+});
+
+test("topPerSource caps each source to its top K (default HOT_PER_SOURCE=6), never touching sources already under the cap", async () => {
+  const { rankBySource, topPerSource } = await import("../src/feed/ingest.js");
+  const many = Array.from({ length: 9 }, (_, i) =>
+    normalizeItem({ id: `m${i}`, source: "big", title: `글 ${i}`, category: "tech", score: 90 - i * 10 })
+  );
+  const few = [0, 1].map((i) => normalizeItem({ id: `f${i}`, source: "small", title: `글 ${i}`, category: "tech", score: 10 - i }));
+  const grouped = rankBySource([...many, ...few]);
+  const topK = topPerSource(grouped, 6);
+  assert.equal(topK.get("big").length, 6, "capped down to K");
+  assert.deepEqual(topK.get("big").map((r) => r.item.id), ["m0", "m1", "m2", "m3", "m4", "m5"], "kept the hottest K");
+  assert.equal(topK.get("small").length, 2, "a source already under K is untouched");
+});
+
+test("roundRobinInterleave alternates across sources (round 0 = every source's #1) and never repeats a source within minGap", async () => {
+  const { rankBySource, topPerSource, roundRobinInterleave } = await import("../src/feed/ingest.js");
+  const items = [];
+  for (const src of ["A", "B", "C"]) {
+    for (let i = 0; i < 3; i++) {
+      items.push(normalizeItem({ id: `${src}${i}`, source: src, title: `${src}-${i}`, category: "tech", score: 90 - i * 10 }));
+    }
+  }
+  const topK = topPerSource(rankBySource(items), 6);
+  const out = roundRobinInterleave(topK, { minGap: 1 }).map((it) => it.id);
+  // round 0 = each source's #1 (order among ties is scoreFn-driven, but the
+  // *set* of the first 3 must be exactly the three sources' #1 items)
+  assert.deepEqual(new Set(out.slice(0, 3)), new Set(["A0", "B0", "C0"]));
+  // no two consecutive items share a source anywhere in the stream
+  for (let i = 1; i < out.length; i++) {
+    const prevSrc = out[i - 1][0];
+    const curSrc = out[i][0];
+    assert.notEqual(prevSrc, curSrc, `consecutive same-source items at ${i - 1}/${i}: ${out[i - 1]}, ${out[i]}`);
+  }
+  assert.equal(out.length, 9, "every item from every source's top-K is eventually placed");
+});
+
+test("roundRobinInterleave: a genuine outlier's engagement can lead its own round without skipping ahead of an earlier round", async () => {
+  const { roundRobinInterleave } = await import("../src/feed/ingest.js");
+  // 3 sources, 2 items each. B's rank-1 item is a huge outlier, but
+  // round-robin structure means it can only win round 1 (be the first of
+  // round 1's three candidates placed), never jump into round 0 ahead of
+  // A0/B0/C0.
+  const mk = (id, src, rank) => ({ item: { id, source: src }, rank, hasSignal: true });
+  const topK = new Map([
+    ["A", [mk("A0", "A", 0), mk("A1", "A", 1)]],
+    ["B", [mk("B0", "B", 0), mk("B1", "B", 1)]],
+    ["C", [mk("C0", "C", 0), mk("C1", "C", 1)]]
+  ]);
+  const scoreFn = (item) => (item.id === "B1" ? 999 : -0); // B1 is the "outlier"
+  const out = roundRobinInterleave(topK, { minGap: 1, scoreFn }).map((it) => it.id);
+  assert.deepEqual(new Set(out.slice(0, 3)), new Set(["A0", "B0", "C0"]), "round 0 is still exactly the three sources' #1 items");
+  const round1 = out.slice(3);
+  assert.equal(round1[0], "B1", "the outlier wins round 1 (its own round) — first among A1/B1/C1 — not earlier");
+});
+
+test("getFeed home feed hits David's diversity target: first 15 span >=8 sources, no source exceeds 3, and each item is drawn from its own board's top ranks", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const sources = [];
+  for (let s = 0; s < 10; s++) {
+    const id = `src${s}`;
+    // half the sources carry real engagement numbers, half are signal-less
+    // (RSS-style) — mirrors the real mix of communities.json adapters.
+    const hasSignal = s % 2 === 0;
+    sources.push(
+      new JsonSource(
+        id,
+        async () =>
+          Array.from({ length: 8 }, (_, i) => ({
+            id: `${id}_${i}`,
+            title: `${id} 글 ${i}`,
+            url: `https://example.com/${id}/${i}`,
+            category: "tech",
+            ...(hasSignal ? { score: 100 - i * 10 } : {}),
+            publishedAt: "2026-07-05T00:00:00Z"
+          })),
+        "community"
+      )
+    );
+  }
+  const engine = new FeedEngine(store, sources);
+  const user = store.createUser("diversity_target_u");
+  store.saveSurvey(user.id, { categories: ["tech"] });
+
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 15 });
+  assert.equal(feed.items.length, 15);
+  const bySource = new Map();
+  for (const i of feed.items) bySource.set(i.source, (bySource.get(i.source) || 0) + 1);
+  assert.ok(bySource.size >= 8, `expected >=8 distinct sources in the first 15, got ${bySource.size}`);
+  for (const [src, count] of bySource) assert.ok(count <= 3, `${src} appeared ${count} times, exceeding the 3-per-source cap`);
+  // every served item must be within its own source's top HOT_PER_SOURCE (6)
+  // engagement/collection rank — never something the board itself buried.
+  for (const i of feed.items) {
+    const idx = Number(i.id.split("_")[1]);
+    assert.ok(idx < 6, `${i.id} is ranked ${idx} in its own board — outside the top-6 hot cut`);
+  }
 });
 
 test("GET /api/feed?source= still bypasses the hot gate entirely (latest+hotness order over the whole source, not a percentile cut)", async () => {

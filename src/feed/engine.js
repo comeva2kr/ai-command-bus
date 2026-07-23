@@ -7,10 +7,19 @@
 // navigation; the server just keeps handing out the next best unseen batch.
 
 import { collect, SeedSource, resolveCap } from "./content.js";
-import { rankItems, diversify, applyFeedback, applyImplicit, explain, specializationLevel, feedPhase } from "./recommender.js";
+import {
+  rankItems,
+  diversify,
+  applyFeedback,
+  applyImplicit,
+  explain,
+  specializationLevel,
+  feedPhase,
+  scoreItem
+} from "./recommender.js";
 import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
-import { hotness, hotGate } from "./ingest.js";
+import { hotness, hotGate, rawEngagement, rankBySource, topPerSource, roundRobinInterleave } from "./ingest.js";
 import { FILTERABLE_TOPICS } from "./topics.js";
 
 // How long a collected item stays in the rolling pool before it's eligible for
@@ -177,34 +186,56 @@ export class FeedEngine {
       const ranked = pool.map((item) => ({ item, score: hotness(item, now) })).sort((a, b) => b.score - a.score);
       unseen = ranked.filter((r) => !seen.has(r.item.id));
     } else {
+      // Unseen is filtered in up front (not after ranking, as the old
+      // hotGate/rankItems path did) so the round-robin/min-gap diversity
+      // guarantees below hold on *every* page of the infinite scroll, not
+      // just a fresh user's first load.
       const pool = items.filter(
         (i) =>
           (allowAdult || !i.adult) &&
           !muted.has(i.source) &&
           !disabled.has(i.source) &&
-          !topicsBlocked(i, showTopics)
+          !topicsBlocked(i, showTopics) &&
+          !seen.has(i.id)
       );
-      // "지금 핫한 것만": home = a single hot-only stream. Every active source
-      // is already a community's own best/hot board (or an overseas hot-topics
-      // feed) — this is one more engagement cut on top, normalized per source
-      // (see ingest.hotGate) so an HN score and a Korean 추천수 never compete
-      // on the same raw scale. Sources with no engagement signal at all still
-      // pass through (never excluded), just deprioritized. Personalization
-      // still runs on top of the hot-gated pool — "핫한 것 중에서 취향순", not a
-      // replacement for taste ranking.
-      const gated = pool.length ? hotGate(pool, now) : [];
-      const hotPool = gated.length ? gated.filter((r) => r.hot).map((r) => r.item) : pool;
-      // safety net: never let an over-strict gate empty the feed outright
-      const rankPool = hotPool.length ? hotPool : pool;
-      // collaborative boost: what similar-taste users liked (no-op with one user)
+      // "게시판별 핫 + 다양성 라운드로빈" (David 2026-07-24 redesign). Every
+      // active source is already a community's own best/hot board (see
+      // ingest.js's rankBySource header comment for why even a 0-engagement
+      // RSS source still has a meaningful hot rank — its own collection
+      // order). This: (1) ranks each source's items hot-first, (2) keeps only
+      // each source's top HOT_PER_SOURCE hottest, (3) interleaves round-robin
+      // across sources so the stream alternates boards instead of one board's
+      // list dominating. Personalization only breaks ties *within* a round —
+      // diversity wins over taste here by design ("다양성 > 개인화").
       collabBoosts = collaborativeBoosts(this.store, userId);
-      const ranked = rankItems(rankPool, user.preferences, { seenIds: seen, seed: cursor + 1, now, collabBoosts });
-      // drop already-seen items so the infinite scroll never repeats
-      unseen = ranked.filter((r) => !seen.has(r.item.id));
+      const rankedBySource = pool.length ? rankBySource(pool) : new Map();
+      const topK = topPerSource(rankedBySource);
+      const kBySource = new Map([...topK].map(([src, list]) => [src, list.length]));
+      const seed = cursor + 1;
+      const scoreFn = (item, rank, hasSignal) => {
+        const k = kBySource.get(item.source) || 1;
+        const base = k > 0 ? (k - rank) / k : 1; // 1 = this source's hottest slot in the round
+        const engagementScore = hasSignal
+          ? base + Math.log10(1 + rawEngagement(item)) / 6 // soft outlier boost — a real 초대박 can still lead its round
+          : base * 0.5; // no-signal sources rank a touch lower within the round, never excluded
+        const personal = user.preferences
+          ? Math.tanh(scoreItem(item, user.preferences, { now, seed, collabBoosts, explore: 0 }) / 4)
+          : 0;
+        return engagementScore + personal * 0.15; // diversity structure > taste — personalization is a tiebreak only
+      };
+      const minGap = Number(process.env.HOT_MIN_GAP ?? 1);
+      const interleaved = roundRobinInterleave(topK, { minGap, scoreFn });
+      unseen = interleaved.map((item) => ({
+        item,
+        score: user.preferences ? scoreItem(item, user.preferences, { now, seed, collabBoosts, explore: 0 }) : 0
+      }));
     }
     // diversify so a page isn't dominated by one source/category (a no-op
-    // when every candidate already shares the same `source`)
-    const fresh = diversify(unseen).slice(0, limit);
+    // when every candidate already shares the same `source`). For the home
+    // feed (no `source`), skip it: the round-robin interleave above already
+    // produced a hard-guaranteed diverse order, and re-running the softer MMR
+    // pass here would only undo that structure for no benefit.
+    const fresh = source ? diversify(unseen).slice(0, limit) : unseen.slice(0, limit);
 
     const level = specializationLevel(user.preferences, user.feedbackCount);
     const phase = feedPhase(level);

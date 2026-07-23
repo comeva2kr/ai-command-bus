@@ -274,3 +274,122 @@ export function hotGate(items, nowMs, opts = {}) {
   }
   return results;
 }
+
+// ---- Board-hot ranking + diversity round-robin (David 2026-07-24 redesign) ---
+//
+// The home feed's old shape (hotGate above, still used by digest()) cut each
+// source down by a raw-engagement percentile, then let one global
+// personalized ranking decide the final order. In practice most sources
+// (every RSS board, several list boards) parse with score=0/commentCount=0 —
+// there's no engagement number to normalize at all — so those items fell back
+// to being interleaved by *publish date*, which reads as "그냥 최신순 게시판
+// 나열," not "핫한 것." And because ranking was global rather than per-source,
+// whichever one or two sources scored highest (by raw count or by having a
+// tight recent cluster) could dominate the whole feed.
+//
+// The fix leans on an insight that's true of every adapter in fetchers.js: a
+// source is *already collected in its own board's hot/best order* — an RSS
+// feed's document order, a list-adapter's page-scan order top-to-bottom, HN's
+// front-page order, dev.to's top=N order, reddit's hot.json order. That
+// position is stamped onto each item as `sourceRank` at collection time (see
+// registry.js). So even a source with zero engagement numbers still has a
+// meaningful hot rank: where it sits in that original order. This lets every
+// source be ranked "hot first" on its own terms:
+//   - has real engagement anywhere in its current pool -> sort by that engagement
+//   - no engagement signal anywhere -> keep original collection order (never
+//     re-sorted by date/freshness, which would erase the board's own ranking)
+//
+// rankBySource groups + orders; topPerSource keeps each source's best K
+// ("게시판별로 가장 핫한 것만"); roundRobinInterleave alternates across sources
+// so the stream reads as many boards taking turns, not one board's list.
+
+// Group items by source and sort each group hot-first. Returns
+// Map<source, Array<{ item, rank, hasSignal }>> — `rank` is 0-based position
+// within that source's hot order (0 = that source's hottest item right now).
+export function rankBySource(items) {
+  const bySource = new Map();
+  items.forEach((item, i) => {
+    const src = item.source || "unknown";
+    if (!bySource.has(src)) bySource.set(src, []);
+    bySource.get(src).push({ item, i, raw: rawEngagement(item) });
+  });
+
+  const out = new Map();
+  for (const [src, group] of bySource) {
+    const hasSignal = group.some((x) => x.raw > 0);
+    // `order` is this item's position to sort by when there's nothing better:
+    // its stamped collection-time rank if present, else its arrival position
+    // in this call (stable fallback for items built without sourceRank, e.g.
+    // "me"/seed items or hand-built test fixtures).
+    const withOrder = group.map((x) => ({
+      ...x,
+      order: Number.isFinite(x.item.sourceRank) ? x.item.sourceRank : x.i
+    }));
+    withOrder.sort((a, b) => (hasSignal ? b.raw - a.raw || a.order - b.order : a.order - b.order));
+    out.set(
+      src,
+      withOrder.map((x, rank) => ({ item: x.item, rank, hasSignal }))
+    );
+  }
+  return out;
+}
+
+// Keep only each source's top K hottest items — "게시판별로 가장 핫한 것만" —
+// env HOT_PER_SOURCE (default 6). A source with fewer than K items keeps all
+// of them untouched (this is a ceiling, not a percentile cut).
+export function topPerSource(rankedBySource, k) {
+  const kk = k ?? Number(process.env.HOT_PER_SOURCE ?? 6);
+  const out = new Map();
+  for (const [src, list] of rankedBySource) {
+    out.set(src, kk > 0 ? list.slice(0, kk) : list.slice());
+  }
+  return out;
+}
+
+// Round-robin interleave across sources: round 0 = every source's #1 hottest
+// item, round 1 = every source's #2, and so on — so the stream alternates
+// between boards instead of exhausting one before moving to the next.
+//
+// Within a round, candidates are ordered by `opts.scoreFn(item, rank,
+// hasSignal)` (higher first) — the caller supplies this (engine.js blends
+// normalized engagement with a light personalization tiebreak) so a genuine
+// outlier can still float toward the front of *its own round* without
+// breaking the round-robin shape: it can win its round, never skip a round.
+//
+// `opts.minGap` (default 1) enforces that the same source never appears
+// within that many slots of its own last appearance. When every remaining
+// candidate in a round would violate the gap (few sources left with items),
+// the best one is placed anyway rather than stalling the feed.
+export function roundRobinInterleave(topKBySource, opts = {}) {
+  const minGap = opts.minGap ?? 1;
+  const scoreFn = opts.scoreFn || ((item, rank) => -rank);
+
+  const queues = new Map();
+  for (const [src, list] of topKBySource) if (list.length) queues.set(src, list.slice());
+
+  const out = [];
+  let remaining = 0;
+  for (const q of queues.values()) remaining += q.length;
+
+  while (remaining > 0) {
+    // this round's candidates: the current head of every non-empty queue
+    const round = [];
+    for (const [src, q] of queues) {
+      if (q.length) round.push({ src, entry: q[0] });
+    }
+    round.sort(
+      (a, b) => scoreFn(b.entry.item, b.entry.rank, b.entry.hasSignal) - scoreFn(a.entry.item, a.entry.rank, a.entry.hasSignal)
+    );
+
+    while (round.length) {
+      const recentSrcs = out.slice(-minGap).map((it) => it.source);
+      let idx = round.findIndex((c) => !recentSrcs.includes(c.src));
+      if (idx === -1) idx = 0; // every remaining candidate violates the gap — place the best anyway
+      const cand = round.splice(idx, 1)[0];
+      out.push(cand.entry.item);
+      queues.get(cand.src).shift();
+      remaining--;
+    }
+  }
+  return out;
+}
