@@ -138,3 +138,50 @@ export async function sendPush(subscription, payload, keys, opts = {}) {
   });
   return { status: res.status };
 }
+
+// --- digest push fan-out (server-side re-engagement job) ---
+
+// Check every subscribed user's non-consuming digest (engine.digest) and push
+// the ones that actually have unseen matches right now. `sendImpl` stands in
+// for sendPush in tests so this runs with no network access; production wiring
+// (server.js) leaves it unset and gets the real thing. The payload shape
+// { title, body, url } matches what public/sw.js's `push` handler expects:
+// title/body go straight into showNotification, url is carried through
+// notification.data so a click opens the right in-app deep link.
+export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
+  const send = opts.sendImpl || sendPush;
+  const limit = opts.limit || 5;
+  let sent = 0;
+  let failed = 0;
+  if (!vapidKeys || !vapidKeys.publicKey || !vapidKeys.privateKey) return { sent, failed };
+
+  for (const user of store.users.values()) {
+    const sub = user.pushSubscription;
+    if (!sub || !sub.endpoint) continue; // no real subscription (or the VAPID-less local-only fallback)
+
+    let digest;
+    try {
+      digest = await engine.digest(user.id, { limit });
+    } catch {
+      continue; // e.g. user disappeared mid-loop; skip rather than fail the whole batch
+    }
+    if (!digest || !digest.count) continue; // nothing new — stay quiet
+
+    // never put a 19금 title on a lock screen (same principle as the share
+    // page): preview the first non-adult match, or stay generic
+    const top = (digest.top || []).find((t) => !t.adult);
+    const payload = JSON.stringify({
+      title: "내 취향 피드",
+      body: `관심글 ${digest.count}개가 올라왔어요` + (top ? ` · ${top.title.slice(0, 30)}` : ""),
+      url: top ? `/#post-${top.id}` : "/"
+    });
+
+    try {
+      await send(sub, payload, vapidKeys, { subject: vapidKeys.subject });
+      sent += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { sent, failed };
+}

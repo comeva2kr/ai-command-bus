@@ -13,6 +13,8 @@ The server is zero-dependency Node (`src/feed/server.js`) and listens on
 | `FEED_DEV` | `1` to enable the bundled dev seed dataset (never use in production) | off |
 | `FEED_REFRESH_MS` | periodic re-collection interval in ms (e.g. `900000` = 15 min) | off |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push signing keys (see below) | push disabled |
+| `VAPID_SUBJECT` | contact URI (`mailto:`/`https:`) sent in the VAPID JWT | `mailto:admin@example.com` |
+| `PUSH_DIGEST_MS` | interval in ms to auto-send the 관심글 digest push to subscribers (e.g. `3600000` = hourly); needs VAPID configured | off |
 | `ADMIN_TOKEN` | token gating the admin console at `/admin` and `/api/admin/*` | `admin-dev` (insecure) |
 | `NODE_EXTRA_CA_CERTS` | CA bundle path if egress goes through a TLS-terminating proxy | — |
 
@@ -41,6 +43,15 @@ docker run -p 4000:4000 \
 1. Turn on live ingestion once the host's network policy allows the target
    domains: set `FEED_LIVE=1` and give the enabled non-seed communities real
    feed URLs in `src/feed/communities.json`.
-2. Generate VAPID keys and set them to enable real Web Push (see
-   [personalized-feed.md](personalized-feed.md)).
+2. Generate VAPID keys and set them to enable real Web Push:
+   ```bash
+   npm run push:keys
+   # prints VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT to set
+   ```
+   Once set, `GET /api/push/vapid-key` starts returning the public key and the
+   client's "🔔 알림 받기" button creates a real push subscription instead of a
+   local-only one. Set `PUSH_DIGEST_MS` to have the server proactively push the
+   관심글 digest on an interval (or trigger it once via
+   `POST /api/admin/push-digest`, `ADMIN_TOKEN`-gated). See
+   [personalized-feed.md](personalized-feed.md) for the full re-engagement flow.
 3. HTTPS is mandatory for install-to-home-screen and notifications.

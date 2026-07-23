@@ -21,6 +21,7 @@ import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
+import { sendDigestPushes } from "./push.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -146,6 +147,37 @@ export function createServer(opts = {}) {
   }
   const isAdmin = (req, url) =>
     (req.headers["x-admin-token"] || url.searchParams.get("token")) === ADMIN_TOKEN;
+
+  // Web Push (VAPID / RFC 8292). opts.vapid lets tests inject a keypair without
+  // env vars; production sets VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY (generate a
+  // pair with `npm run push:keys`). Missing keys just disable server-sent push
+  // — the in-app digest banner (GET /api/digest) still works without them.
+  const vapid = opts.vapid || (
+    process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY
+      ? {
+          publicKey: process.env.VAPID_PUBLIC_KEY,
+          privateKey: process.env.VAPID_PRIVATE_KEY,
+          subject: process.env.VAPID_SUBJECT || "mailto:admin@example.com"
+        }
+      : null
+  );
+  if (!vapid) {
+    console.warn(
+      "[push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled " +
+        "(in-app digest banner still works). Run `npm run push:keys` to generate a pair."
+    );
+  }
+
+  // 관심글 다이제스트 푸시: PUSH_DIGEST_MS(ms)가 설정되어 있으면 주기적으로 모든
+  // 구독자를 훑어 안 본 관심글이 있는 사람에게만 보낸다. VAPID가 없으면 보낼 수
+  // 없으니 그냥 꺼둔다.
+  const pushDigestMs = Number(opts.pushDigestMs || process.env.PUSH_DIGEST_MS || 0);
+  if (pushDigestMs > 0 && vapid) {
+    const pushTimer = setInterval(() => {
+      sendDigestPushes(store, engine, vapid, { sendImpl: opts.pushSendImpl }).catch(() => {});
+    }, pushDigestMs);
+    if (pushTimer.unref) pushTimer.unref();
+  }
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
@@ -303,6 +335,13 @@ export function createServer(opts = {}) {
         return send(res, 200, { ok: true, notifyEnabled: enabled });
       }
 
+      // The client's pushManager.subscribe() needs this as applicationServerKey
+      // (base64url → Uint8Array). null means the server has no VAPID keypair —
+      // the client degrades to local-only notifications.
+      if (p === "/api/push/vapid-key" && req.method === "GET") {
+        return send(res, 200, { key: vapid ? vapid.publicKey : null });
+      }
+
       if (p === "/api/item" && req.method === "GET") {
         const userId = url.searchParams.get("userId");
         const itemId = url.searchParams.get("itemId");
@@ -403,6 +442,12 @@ export function createServer(opts = {}) {
           const body = await readBody(req);
           const words = body.action === "remove" ? store.removeBannedWord(body.word) : store.addBannedWord(body.word);
           return send(res, 200, { ok: true, bannedWords: words });
+        }
+        // Manual trigger for the digest push job (normally run on PUSH_DIGEST_MS).
+        // Sends right away and reports how many subscribers got a push.
+        if (p === "/api/admin/push-digest" && req.method === "POST") {
+          const result = await sendDigestPushes(store, engine, vapid, { sendImpl: opts.pushSendImpl });
+          return send(res, 200, result);
         }
         return send(res, 404, { error: "not found" });
       }

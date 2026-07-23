@@ -21,23 +21,34 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Focus an existing tab (or open one) when a notification is clicked.
+// Focus an existing tab (or open one, at the notification's deep link) when
+// a notification is clicked.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       for (const c of clients) if ("focus" in c) return c.focus();
-      if (self.clients.openWindow) return self.clients.openWindow("/");
+      if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );
 });
 
-// Real Web Push would arrive here; a VAPID-signed server sends the payload.
+// Web Push arrives here — a VAPID-signed server (src/feed/push.js,
+// sendDigestPushes) sends a JSON payload { title, body, url }. `url` isn't
+// shown directly; it rides along as notification.data so notificationclick
+// above can open the right in-app deep link (e.g. /#post-<id>).
 self.addEventListener("push", (event) => {
-  let data = { title: "내 취향 피드", body: "관심글이 올라왔어요" };
-  try { if (event.data) data = event.data.json(); } catch {}
+  let data = { title: "내 취향 피드", body: "관심글이 올라왔어요", url: "/" };
+  try { if (event.data) data = { ...data, ...event.data.json() }; } catch {}
   event.waitUntil(
-    self.registration.showNotification(data.title, { body: data.body, icon: "/icon.svg", badge: "/icon.svg", tag: "feed-digest" })
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/icon.svg",
+      badge: "/icon.svg",
+      tag: "feed-digest",
+      data: { url: data.url || "/" }
+    })
   );
 });
 

@@ -676,6 +676,84 @@ test("web push: aes128gcm payload round-trips", async () => {
   assert.equal(out.toString("utf8"), "관심글 3개가 올라왔어요", "decrypted payload matches");
 });
 
+test("sendDigestPushes pushes only subscribers with a non-empty digest, payload matches sw.js's shape", async () => {
+  const { sendDigestPushes } = await import("../src/feed/push.js");
+  const store = new FeedStore({ clock: fixedClock });
+  const withItems = store.createUser("pd_with");
+  const empty = store.createUser("pd_empty");
+  store.createUser("pd_nosub"); // never subscribes — must never be pushed to
+  store.savePushSubscription(withItems.id, { endpoint: "https://push/with", keys: { p256dh: "p", auth: "a" } });
+  store.savePushSubscription(empty.id, { endpoint: "https://push/empty", keys: { p256dh: "p", auth: "a" } });
+
+  // engine is faked out here — sendDigestPushes only calls engine.digest(userId),
+  // so this isolates the fan-out/payload logic from ranking specifics.
+  const fakeEngine = {
+    async digest(userId) {
+      if (userId === withItems.id)
+        return {
+          count: 2,
+          top: [
+            { id: "item_19", title: "성인 콘텐츠 제목", adult: true }, // must never reach a lock screen
+            { id: "item_42", title: "전기차 시승기 첫인상" }
+          ]
+        };
+      return { count: 0, top: [] };
+    }
+  };
+  const sentTo = [];
+  const sendImpl = async (sub, payload) => { sentTo.push({ sub, payload }); return { status: 201 }; };
+  const vapidKeys = { publicKey: "pub", privateKey: "priv", subject: "mailto:a@b.c" };
+
+  const result = await sendDigestPushes(store, fakeEngine, vapidKeys, { sendImpl });
+
+  assert.equal(result.sent, 1, "only the subscriber with a non-empty digest gets pushed");
+  assert.equal(result.failed, 0);
+  assert.equal(sentTo.length, 1);
+  assert.equal(sentTo[0].sub.endpoint, "https://push/with");
+  const payload = JSON.parse(sentTo[0].payload);
+  assert.equal(payload.title, "내 취향 피드");
+  assert.match(payload.body, /관심글 2개가 올라왔어요/);
+  assert.match(payload.body, /전기차 시승기 첫인상/, "previews the first non-adult title");
+  assert.doesNotMatch(payload.body, /성인 콘텐츠/, "19금 title never appears in a notification");
+  assert.equal(payload.url, "/#post-item_42", "url deep-links to the previewed (non-adult) item");
+});
+
+test("sendDigestPushes is a no-op without VAPID keys (never even checks digests)", async () => {
+  const { sendDigestPushes } = await import("../src/feed/push.js");
+  const store = new FeedStore({ clock: fixedClock });
+  const u = store.createUser("pd_novapid");
+  store.savePushSubscription(u.id, { endpoint: "https://push/x", keys: { p256dh: "p", auth: "a" } });
+  let digestChecked = false;
+  const fakeEngine = { async digest() { digestChecked = true; return { count: 1, top: [{ id: "i1", title: "t" }] }; } };
+
+  const result = await sendDigestPushes(store, fakeEngine, null, { sendImpl: async () => ({ status: 201 }) });
+
+  assert.deepEqual(result, { sent: 0, failed: 0 });
+  assert.equal(digestChecked, false);
+});
+
+test("GET /api/push/vapid-key returns the injected public key, or null when unset", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+
+  const withKey = createServer({ vapid: { publicKey: "test-pub-key", privateKey: "test-priv-key" } });
+  await new Promise((resolve) => withKey.listen(0, resolve));
+  try {
+    const res = await fetch(`http://localhost:${withKey.address().port}/api/push/vapid-key`);
+    assert.deepEqual(await res.json(), { key: "test-pub-key" });
+  } finally {
+    withKey.close();
+  }
+
+  const withoutKey = createServer({}); // no opts.vapid, and no VAPID_* env vars in the test run
+  await new Promise((resolve) => withoutKey.listen(0, resolve));
+  try {
+    const res = await fetch(`http://localhost:${withoutKey.address().port}/api/push/vapid-key`);
+    assert.deepEqual(await res.json(), { key: null }, "no VAPID configured — client falls back to local notifications");
+  } finally {
+    withoutKey.close();
+  }
+});
+
 test("parseOpenGraph pulls title/excerpt/source from a page's own tags", async () => {
   const { parseOpenGraph } = await import("../src/feed/ingest.js");
   const html = `<html><head>

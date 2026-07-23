@@ -85,6 +85,26 @@ permission, a notification via the service worker. `POST /api/push/subscribe`
 persists a Web Push subscription; `sw.js` has a `push` handler ready for a
 VAPID-signed server to deliver payloads when the app is closed.
 
+The server side is fully wired (`src/feed/push.js`, zero-dependency VAPID/RFC
+8292 + aes128gcm/RFC 8291 on `node:crypto`):
+
+- `GET /api/push/vapid-key` returns the server's VAPID public key (`{ key }`,
+  `null` if `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` aren't set) for the client to
+  pass as `applicationServerKey` to `pushManager.subscribe()`. Without a key the
+  "🔔 알림 받기" button degrades to local-only notifications, same as before.
+- `sendDigestPushes(store, engine, vapidKeys, opts)` sweeps every subscriber,
+  checks `engine.digest(userId)`, and pushes only the ones with unseen matches
+  right now — payload `{ title, body, url }` (JSON), matching what `sw.js`'s
+  `push` handler expects: `title`/`body` go straight into `showNotification`,
+  `url` rides along as `notification.data` so a click opens the right in-app
+  deep link (`/#post-<id>`). `opts.sendImpl` swaps in a fake for tests.
+- `PUSH_DIGEST_MS` runs this on an interval (`setInterval`, `unref()`d);
+  `POST /api/admin/push-digest` (admin-token gated) runs it once on demand and
+  returns `{ sent, failed }`.
+- Generate a keypair with `npm run push:keys` (`src/feed/push-keys.js`) — it
+  prints the `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` env vars
+  to set. See [deploy.md](deploy.md) for the full production checklist.
+
 ## Shareable links (OG previews)
 
 `GET /p?id=<item>` server-renders Open Graph + Twitter-card tags so a shared
@@ -214,6 +234,7 @@ single-item fetch, so an unverified client can never pull an adult item.
 | `POST /api/signal`       | implicit signal `{ itemId, type, dwellMs }`    |
 | `GET  /api/digest`       | non-consuming preview of top unseen matches    |
 | `POST /api/push/subscribe` | store a Web Push subscription                |
+| `GET  /api/push/vapid-key` | VAPID public key for `pushManager.subscribe()` (`{ key: null }` if unset) |
 | `GET  /p?id=<item>`      | shareable page with Open Graph tags            |
 | `POST /api/comment`      | `{ itemId, body }`                             |
 | `POST /api/post`         | create a user post `{ title, summary, category }` |
@@ -225,6 +246,7 @@ single-item fetch, so an unverified client can never pull an adult item.
 | `POST /api/adult`        | toggle the 19금 view `{ on }` (requires verify) |
 | `GET  /admin`            | admin console (PC-first; token-gated)          |
 | `/api/admin/*`           | admin: stats, moderation, community + banned-word control (needs `ADMIN_TOKEN`) |
+| `POST /api/admin/push-digest` | admin: send the digest push to all subscribers now, returns `{ sent, failed }` |
 
 ## Web-first PWA
 
@@ -262,6 +284,8 @@ and comment. State persists per browser via a `userId` in `localStorage`.
 - `src/feed/rules.js` — space governance: post/comment rules, rate limits, levels
 - `src/feed/recommender.js` — scoring, online learning, specialization level
 - `src/feed/collab.js` — collaborative filtering (taste similarity + boosts)
+- `src/feed/push.js` — Web Push: VAPID (RFC 8292) + aes128gcm (RFC 8291) crypto, `sendDigestPushes` fan-out
+- `src/feed/push-keys.js` — `npm run push:keys`: prints a generated VAPID keypair
 - `src/feed/store.js` — users, posts, ratings, comments, JSON persistence
 - `src/feed/engine.js` — collection + ranking + cursor batches + auto-refresh
 - `src/feed/server.js` — zero-dependency HTTP API + static client

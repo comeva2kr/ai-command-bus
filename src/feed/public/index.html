@@ -320,6 +320,7 @@ const API = {
   async signal(userId, itemId, type, dwellMs) { return post("/api/signal", { userId, itemId, type, dwellMs }).catch(()=>{}); },
   async digest(userId) { return get(`/api/digest?userId=${userId}&limit=5`); },
   async subscribePush(userId, subscription) { return post("/api/push/subscribe", { userId, subscription }); },
+  async vapidKey() { return get("/api/push/vapid-key"); },
   async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
   async feed(userId, cursor, limit=10) { return get(`/api/feed?userId=${userId}&cursor=${cursor}&limit=${limit}`); },
   async item(userId, itemId) { return get(`/api/item?userId=${userId}&itemId=${encodeURIComponent(itemId)}`); },
@@ -412,15 +413,34 @@ async function showDigest(){
   // if already permitted, fire a real local notification via the service worker
   if("Notification" in window && Notification.permission === "granted") pushLocalNotification(d);
 }
+// VAPID public key comes base64url-encoded from the server; pushManager.subscribe
+// wants it as a raw Uint8Array (applicationServerKey).
+function urlBase64ToUint8Array(base64url){
+  const pad = "=".repeat((4 - base64url.length % 4) % 4);
+  const base64 = (base64url + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
 async function enableNotifications(){
   if(!("Notification" in window)){ toast("이 브라우저는 알림을 지원하지 않아요"); return; }
   const perm = await Notification.requestPermission();
   if(perm !== "granted"){ toast("알림이 거부되었어요"); return; }
-  // try to create a push subscription (needs VAPID in production; degrade gracefully)
+  // create a real push subscription when the server has VAPID configured
+  // (GET /api/push/vapid-key); without a key, degrade to local-only
+  // notifications like before — the digest banner still works either way.
   let sub = null;
   try {
     const reg = await navigator.serviceWorker.ready;
     sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      const { key } = await API.vapidKey().catch(()=>({ key: null }));
+      if(key){
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(key)
+        });
+      }
+    }
   } catch {}
   try { await API.subscribePush(state.userId, sub ? sub.toJSON() : { local: true }); } catch {}
   toast("알림을 켰어요");
