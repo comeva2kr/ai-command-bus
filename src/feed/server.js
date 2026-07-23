@@ -17,6 +17,7 @@ import { SURVEY, validateAnswers } from "./survey.js";
 import { CATEGORIES, SOURCE_CATALOG } from "./taxonomy.js";
 import { loadRegistry, buildSources, summarize } from "./registry.js";
 import { makeFetcher } from "./fetchers.js";
+import { TOPIC_CATALOG, FILTERABLE_TOPICS } from "./topics.js";
 import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
@@ -188,7 +189,7 @@ export function createServer(opts = {}) {
       if (p === "/api/health") return send(res, 200, { ok: true });
 
       if (p === "/api/config" && req.method === "GET") {
-        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: SOURCE_CATALOG });
+        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: SOURCE_CATALOG, topics: TOPIC_CATALOG });
       }
 
       if (p === "/api/communities" && req.method === "GET") {
@@ -261,6 +262,30 @@ export function createServer(opts = {}) {
         return send(res, 200, { ok: true, mutedSources: muted });
       }
 
+      // 콘텐츠 필터 토글: 정치/종교(기본 숨김, FILTERABLE_TOPICS) + 성인(adult).
+      // adult는 별도 상태를 새로 만들지 않고 기존 verify-age/adult 게이트를 그대로
+      // 호출한다 — /api/adult와 동작이 항상 일치하도록(중복 게이트 금지).
+      if (p === "/api/topics" && req.method === "POST") {
+        const body = await readBody(req);
+        const user = store.getUser(body.userId);
+        if (!user) return send(res, 400, { error: "unknown user" });
+        const topic = body.topic;
+        const on = body.on === true;
+
+        if (topic === "adult") {
+          if (on && user.ageVerified !== true) {
+            return send(res, 403, { error: "age verification required", ageVerified: false });
+          }
+          const showAdult = store.setShowAdult(body.userId, on);
+          return send(res, 200, { ok: true, topic, on: showAdult, showAdult, showTopics: user.showTopics || [] });
+        }
+        if (!FILTERABLE_TOPICS.includes(topic)) {
+          return send(res, 400, { error: "unknown topic", topics: FILTERABLE_TOPICS });
+        }
+        const showTopics = store.setTopicFilter(body.userId, topic, on);
+        return send(res, 200, { ok: true, topic, on: showTopics.includes(topic), showTopics });
+      }
+
       if (p === "/api/session" && req.method === "POST") {
         const body = await readBody(req);
         const user = store.createUser(body.userId);
@@ -270,7 +295,8 @@ export function createServer(opts = {}) {
           surveyed: user.surveyed,
           feedbackCount: user.feedbackCount,
           ageVerified: user.ageVerified === true,
-          showAdult: user.showAdult === true
+          showAdult: user.showAdult === true,
+          showTopics: user.showTopics || []
         });
       }
 

@@ -10,6 +10,7 @@ import { emptyPreferenceVector, buildPreferenceVector } from "./survey.js";
 import { inferFromHistory, mergeVectors } from "./history.js";
 import { validatePost, validateComment, userLevel, DEFAULT_RULES } from "./rules.js";
 import { nicknameFor } from "./nickname.js";
+import { FILTERABLE_TOPICS } from "./topics.js";
 
 function nowIso(clock) {
   // `clock` is injected so tests and reproducible runs don't depend on the
@@ -45,6 +46,9 @@ export class FeedStore {
       showAdult: false, // 19금 토글 상태 (인증된 경우에만 유효)
       saved: [], // 스크랩한 itemId 목록
       mutedSources: [], // 사용자가 피드에서 숨긴 소스
+      // 정치/종교처럼 기본값이 '숨김'인 토픽 중 사용자가 직접 켠 것들
+      // (FILTERABLE_TOPICS만 유효 — adult는 기존 ageVerified/showAdult 게이트 전용).
+      showTopics: [],
       ratings: {}, // itemId -> { signal, at }
       seen: [], // itemIds shown, most-recent last
       comments: [], // { id, itemId, body, at }
@@ -384,6 +388,27 @@ export class FeedStore {
     return new Set(user && user.mutedSources ? user.mutedSources : []);
   }
 
+  // Toggle a default-hidden topic filter (politics/religion). "adult" is
+  // deliberately rejected here — it stays on the existing verify-age +
+  // setShowAdult path so there's exactly one adult gate, not two.
+  setTopicFilter(userId, topic, on) {
+    const user = this.requireUser(userId);
+    if (!FILTERABLE_TOPICS.includes(topic)) {
+      throw new Error(`unknown filterable topic: ${topic}`);
+    }
+    user.showTopics = user.showTopics || [];
+    const has = user.showTopics.includes(topic);
+    if (on && !has) user.showTopics.push(topic);
+    if (!on && has) user.showTopics = user.showTopics.filter((t) => t !== topic);
+    this._persist();
+    return user.showTopics;
+  }
+
+  showTopicsSet(userId) {
+    const user = this.getUser(userId);
+    return new Set(user && user.showTopics ? user.showTopics : []);
+  }
+
   // "내 공간" — everything the user has created or reacted to in one place.
   mySpace(userId) {
     const user = this.requireUser(userId);
@@ -418,6 +443,7 @@ export class FeedStore {
       ratings: { total: ratings.length, liked, disliked, items: ratings },
       savedIds: user.saved || [],
       mutedSources: user.mutedSources || [],
+      showTopics: user.showTopics || [],
       level: userLevel(counts),
       counts
     };

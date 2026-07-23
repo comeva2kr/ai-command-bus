@@ -11,6 +11,7 @@ import { rankItems, diversify, applyFeedback, applyImplicit, explain, specializa
 import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { hotness } from "./ingest.js";
+import { FILTERABLE_TOPICS } from "./topics.js";
 
 // How long a collected item stays in the rolling pool before it's eligible for
 // eviction (David 2026-07-24: refresh should *accumulate*, not replace — a
@@ -18,6 +19,14 @@ import { hotness } from "./ingest.js";
 // Override with FEED_RETENTION_MS. "me"/"seed" pseudo-sources are exempt —
 // a user's own posts and the offline dev dataset never age out this way.
 const DEFAULT_RETENTION_MS = 48 * 60 * 60 * 1000;
+
+// 정치/종교처럼 기본 숨김인 토픽을 아이템이 갖고 있는데 유저가 아직 켜지 않았다면
+// true. "adult"는 FILTERABLE_TOPICS에 없으므로 여기서 절대 걸리지 않는다 — 그 쪽은
+// allowAdult(위)가 이미 기존 19금 게이트로 전담한다(중복 게이트 방지).
+function topicsBlocked(item, showTopicsSet) {
+  const topics = item.topics || [];
+  return topics.some((t) => FILTERABLE_TOPICS.includes(t) && !showTopicsSet.has(t));
+}
 
 // Turn a structured reason into a short human label for the "추천 이유" chip.
 function reasonLabel(r) {
@@ -147,19 +156,28 @@ export class FeedEngine {
     const allowAdult = user.ageVerified === true && user.showAdult === true;
     const muted = new Set(user.mutedSources || []);
     const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
+    const showTopics = new Set(user.showTopics || []);
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
 
     let unseen;
     let collabBoosts = new Map();
     if (source) {
       const pool = items.filter(
-        (i) => i.source === source && (allowAdult || !i.adult) && !disabled.has(i.source)
+        (i) =>
+          i.source === source &&
+          (allowAdult || !i.adult) &&
+          !disabled.has(i.source) &&
+          !topicsBlocked(i, showTopics)
       );
       const ranked = pool.map((item) => ({ item, score: hotness(item, now) })).sort((a, b) => b.score - a.score);
       unseen = ranked.filter((r) => !seen.has(r.item.id));
     } else {
       const pool = items.filter(
-        (i) => (allowAdult || !i.adult) && !muted.has(i.source) && !disabled.has(i.source)
+        (i) =>
+          (allowAdult || !i.adult) &&
+          !muted.has(i.source) &&
+          !disabled.has(i.source) &&
+          !topicsBlocked(i, showTopics)
       );
       // collaborative boost: what similar-taste users liked (no-op with one user)
       collabBoosts = collaborativeBoosts(this.store, userId);
@@ -274,8 +292,14 @@ export class FeedEngine {
     const allowAdult = user.ageVerified === true && user.showAdult === true;
     const muted = new Set(user.mutedSources || []);
     const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
+    const showTopics = new Set(user.showTopics || []);
     const pool = items.filter(
-      (i) => (allowAdult || !i.adult) && !muted.has(i.source) && !disabled.has(i.source) && !seen.has(i.id)
+      (i) =>
+        (allowAdult || !i.adult) &&
+        !muted.has(i.source) &&
+        !disabled.has(i.source) &&
+        !topicsBlocked(i, showTopics) &&
+        !seen.has(i.id)
     );
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     const ranked = rankItems(pool, user.preferences, { seed: 1, now, explore: 0 })

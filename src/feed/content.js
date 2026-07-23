@@ -10,6 +10,7 @@
 
 import { isKnownCategory } from "./taxonomy.js";
 import { SEED_ITEMS } from "./seed-data.js";
+import { classifyTopics } from "./topics.js";
 
 // Derive a STABLE id from an item's identifying content. Stability matters:
 // sources are re-collected periodically, and ratings/comments reference item
@@ -44,12 +45,18 @@ export function normalizeItem(raw, source) {
   const category = isKnownCategory(raw.category) ? raw.category : "news";
   const sourceId = raw.source || (source ? source.id : "unknown");
   const url = upgradeToHttps(raw.url, raw.httpsOk);
+  // 분류 태그(키워드+게시판 기반, AI 아님) — topics.js. politics/religion은
+  // 유저 토글로 기본 숨김(engine.js), adult는 아래에서 기존 19금 필드에 합류시켜
+  // 별도 게이트를 만들지 않고 기존 verify-age/adult 게이트 하나로 처리한다.
+  const topics = classifyTopics({ title: raw.title, url, sourceId });
   return {
     id: raw.id || stableId(url, sourceId, raw.title, raw.publishedAt),
     kind: raw.kind === "community" ? "community" : "news", // "news" | "community"
     source: sourceId,
     // 19금(성인) 여부. 인증되지 않은 사용자에게는 엔진 단에서 절대 노출되지 않는다.
-    adult: raw.adult === true,
+    // 게시판/키워드 분류가 adult로 판정한 경우도 같은 필드로 합류(중복 게이트 금지).
+    adult: raw.adult === true || topics.includes("adult"),
+    topics,
     // language + translation metadata (overseas sources flow through translate.js)
     lang: raw.lang || "ko",
     translated: raw.translated === true,

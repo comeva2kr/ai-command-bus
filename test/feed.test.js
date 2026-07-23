@@ -1408,3 +1408,205 @@ test("parseListPage: 인벤 핫벤 (hot.inven.co.kr) — cross-game ranked list 
   const boards = new Set(items.map((i) => i.url.split("/")[4]));
   assert.ok(boards.size >= 3, `expected several game boards, got ${[...boards]}`);
 });
+
+// --- 콘텐츠 필터 스위치 (정치/종교/성인) — 키워드+게시판 기반 분류, AI 아님 ------
+
+test("classifyTopics: keyword rules tag politics/religion/adult from the title alone", async () => {
+  const { classifyTopics } = await import("../src/feed/topics.js");
+  assert.deepEqual(
+    classifyTopics({ title: "이재명 국민의힘 총선 전망 분석", url: "https://x/1", sourceId: "clien" }),
+    ["politics"]
+  );
+  assert.deepEqual(
+    classifyTopics({ title: "신천지 목사 논란, 교회 측 입장 발표", url: "https://x/2", sourceId: "clien" }),
+    ["religion"]
+  );
+  assert.deepEqual(
+    classifyTopics({ title: "[19금] 성인인증 후 열람 가능한 후방주의 글", url: "https://x/3", sourceId: "clien" }),
+    ["adult"]
+  );
+  assert.deepEqual(
+    classifyTopics({ title: "오늘 점심 뭐 먹지 다들 추천좀", url: "https://x/4", sourceId: "clien" }),
+    []
+  );
+});
+
+test("classifyTopics: board-slug rules tag etoland 시사(sisabbs)/익명(anony) HIT-ranking items by their own url", async () => {
+  const { classifyTopics } = await import("../src/feed/topics.js");
+  assert.deepEqual(
+    classifyTopics({ title: "그냥 일상 잡담", url: "https://etoland.co.kr/hit/sisabbs01/view/12345", sourceId: "etoland" }),
+    ["politics"]
+  );
+  assert.deepEqual(
+    classifyTopics({ title: "그냥 일상 잡담", url: "https://etoland.co.kr/hit/anony3/view/12345", sourceId: "etoland" }),
+    ["adult"]
+  );
+  // a non-political etoland board stays untagged
+  assert.deepEqual(
+    classifyTopics({ title: "그냥 일상 잡담", url: "https://etoland.co.kr/hit/etohumor07/view/12345", sourceId: "etoland" }),
+    []
+  );
+  // the same url pattern on a different source must NOT match (source-scoped rules)
+  assert.deepEqual(
+    classifyTopics({ title: "그냥 일상 잡담", url: "https://etoland.co.kr/hit/sisabbs01/view/12345", sourceId: "clien" }),
+    []
+  );
+});
+
+test("classifyTopics: board-slug rules tag ppomppu 정치자유게시판/진보·보수공감 HOT-ranking items by id=", async () => {
+  const { classifyTopics } = await import("../src/feed/topics.js");
+  assert.deepEqual(
+    classifyTopics({ title: "화제의 이슈", url: "https://www.ppomppu.co.kr/zboard/view.php?id=issue&no=1", sourceId: "ppomppu" }),
+    ["politics"]
+  );
+  assert.deepEqual(
+    classifyTopics({ title: "화제의 이슈", url: "https://www.ppomppu.co.kr/zboard/view.php?id=pol_left&no=1", sourceId: "ppomppu" }),
+    ["politics"]
+  );
+  assert.deepEqual(
+    classifyTopics({ title: "핫딜 정보", url: "https://www.ppomppu.co.kr/zboard/view.php?id=freeboard&no=1", sourceId: "ppomppu" }),
+    []
+  );
+});
+
+test("normalizeItem folds an adult topic tag into the existing `adult` field — no separate gate", async () => {
+  const item = normalizeItem({
+    title: "익명 게시판 글",
+    url: "https://etoland.co.kr/hit/anony2/view/1",
+    source: "etoland"
+  });
+  assert.equal(item.adult, true, "board-detected adult topic upgrades item.adult");
+  assert.deepEqual(item.topics, ["adult"]);
+
+  // keyword-detected adult also upgrades the field, on a source that isn't registry-flagged adult
+  const item2 = normalizeItem({ title: "19금 후방주의 글", url: "https://x/z", source: "clien" });
+  assert.equal(item2.adult, true);
+
+  // a plain item stays untouched
+  const item3 = normalizeItem({ title: "오늘 날씨 좋네요", url: "https://x/y", source: "clien" });
+  assert.equal(item3.adult, false);
+  assert.deepEqual(item3.topics, []);
+});
+
+test("engine hides politics/religion items by default; per-user toggle (showTopics) reveals them", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const politicsItem = normalizeItem({ title: "이재명 국민의힘 관련 속보", url: "https://x/p1", source: "clien" });
+  const religionItem = normalizeItem({ title: "교회 목사 인터뷰", url: "https://x/r1", source: "clien" });
+  const plainItem = normalizeItem({ title: "오늘의 IT 뉴스 모음", url: "https://x/n1", source: "clien" });
+  const source = { id: "clien", kind: "community", async fetch() { return [politicsItem, religionItem, plainItem]; } };
+  const engine = new FeedEngine(store, [source]);
+
+  const user = store.createUser("topicfilter1");
+  store.saveSurvey(user.id, { categories: ["news", "tech"] });
+  const f1 = await engine.getFeed(user.id, { cursor: 0, limit: 20 });
+  const ids1 = f1.items.map((i) => i.id);
+  assert.ok(!ids1.includes(politicsItem.id), "politics hidden by default");
+  assert.ok(!ids1.includes(religionItem.id), "religion hidden by default");
+  assert.ok(ids1.includes(plainItem.id), "unrelated item still shows");
+
+  // toggle politics on for a fresh user (avoid seen-set masking from user 1)
+  const user2 = store.createUser("topicfilter2");
+  store.saveSurvey(user2.id, { categories: ["news", "tech"] });
+  store.setTopicFilter(user2.id, "politics", true);
+  const f2 = await engine.getFeed(user2.id, { cursor: 0, limit: 20 });
+  const ids2 = f2.items.map((i) => i.id);
+  assert.ok(ids2.includes(politicsItem.id), "politics shows once toggled on");
+  assert.ok(!ids2.includes(religionItem.id), "religion still hidden (only politics was toggled)");
+});
+
+test("topic filter also applies to the per-source board view (소스별 보기), not just the personalized feed", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const politicsItem = normalizeItem({ title: "무관한 제목", url: "https://etoland.co.kr/hit/sisabbs05/view/9", source: "etoland" });
+  const humorItem = normalizeItem({ title: "웃긴 짤", url: "https://etoland.co.kr/hit/etohumor07/view/9", source: "etoland" });
+  const source = { id: "etoland", kind: "community", async fetch() { return [politicsItem, humorItem]; } };
+  const engine = new FeedEngine(store, [source]);
+  const user = store.createUser("srcview1");
+
+  const f1 = await engine.getFeed(user.id, { cursor: 0, limit: 20, source: "etoland" });
+  const ids1 = f1.items.map((i) => i.id);
+  assert.ok(!ids1.includes(politicsItem.id), "politics-board item hidden even in the source-scoped 소스별 보기");
+  assert.ok(ids1.includes(humorItem.id));
+
+  store.setTopicFilter(user.id, "politics", true);
+  const f2 = await engine.getFeed(user.id, { cursor: 0, limit: 20, source: "etoland" });
+  assert.ok(f2.items.some((i) => i.id === politicsItem.id), "shows once the user turns politics on");
+});
+
+test("store.setTopicFilter rejects the adult topic — it must stay on the existing verify-age/adult gate", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const user = store.createUser("topicreject1");
+  assert.throws(() => store.setTopicFilter(user.id, "adult", true), /unknown filterable topic/);
+});
+
+test("POST /api/topics toggles politics/religion and is reflected in GET /api/feed and /api/me", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const politicsItem = normalizeItem({ title: "정청래 한동훈 관련 발언 논란", url: "https://x/api1", source: "clien" });
+  const source = { id: "clien", kind: "community", async fetch() { return [politicsItem]; } };
+  const server = createServer({ sources: [source] });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
+    assert.deepEqual(session.showTopics, []);
+
+    const before = await (await fetch(`${base}/api/feed?userId=${session.userId}&cursor=0&limit=20`)).json();
+    assert.ok(!before.items.some((i) => i.id === politicsItem.id), "politics hidden before toggling on");
+
+    const toggled = await (await fetch(`${base}/api/topics`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: session.userId, topic: "politics", on: true })
+    })).json();
+    assert.equal(toggled.ok, true);
+    assert.deepEqual(toggled.showTopics, ["politics"]);
+
+    const me = await (await fetch(`${base}/api/me?userId=${session.userId}`)).json();
+    assert.deepEqual(me.showTopics, ["politics"]);
+
+    const after = await (await fetch(`${base}/api/feed?userId=${session.userId}&cursor=0&limit=20`)).json();
+    assert.ok(after.items.some((i) => i.id === politicsItem.id), "politics visible after toggling on");
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /api/topics for adult requires age verification, exactly like /api/adult (no duplicate gate)", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({ sources: [] });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
+
+    const denied = await fetch(`${base}/api/topics`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: session.userId, topic: "adult", on: true })
+    });
+    assert.equal(denied.status, 403, "adult topic still requires age verification");
+
+    await fetch(`${base}/api/verify-age`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: session.userId, confirmAdult: true })
+    });
+    const allowed = await (await fetch(`${base}/api/topics`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: session.userId, topic: "adult", on: true })
+    })).json();
+    assert.equal(allowed.showAdult, true, "adult topic toggle flips the same showAdult flag /api/adult uses");
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/config exposes the topic catalog for the UI toggles", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({ sources: [] });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const res = await (await fetch(`http://localhost:${server.address().port}/api/config`)).json();
+    const ids = res.topics.map((t) => t.id).sort();
+    assert.deepEqual(ids, ["adult", "politics", "religion"]);
+    assert.ok(res.topics.every((t) => t.defaultVisible === false), "all three default to hidden");
+  } finally {
+    server.close();
+  }
+});

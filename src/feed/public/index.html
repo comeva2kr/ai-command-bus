@@ -351,6 +351,7 @@ const API = {
   async subscribePush(userId, subscription) { return post("/api/push/subscribe", { userId, subscription }); },
   async vapidKey() { return get("/api/push/vapid-key"); },
   async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
+  async setTopic(userId, topic, on) { return post("/api/topics", { userId, topic, on }); },
   async feed(userId, cursor, limit=10, source=null) {
     const q = new URLSearchParams({ userId, cursor, limit });
     if(source) q.set("source", source);
@@ -374,6 +375,9 @@ const state = {
   feedScrollY: 0, // remembered scroll position for exact back-restore
   cardsById: new Map(),
   ageVerified: false, showAdult: false,
+  // 정치/종교처럼 기본 숨김인 토픽 중 유저가 켠 것들. 서버가 진실의 원천이고
+  // (session/me 응답으로 매번 덮어써짐), localStorage는 다음 로드 전까지의 캐시일 뿐.
+  showTopics: JSON.parse(localStorage.getItem("feed_topics") || "[]"),
   readSet: new Set(JSON.parse(localStorage.getItem("feed_read")||"[]")),
   openedAt: 0, openItemId: null, // dwell timing for the open post
   openedSet: new Set(), skipSignaled: new Set(), // skip detection bookkeeping
@@ -424,6 +428,8 @@ syncHeaderHeight();
   state.config = config; state.rules = rulesRes.rules;
   state.userId = s.userId; localStorage.setItem("feed_uid", s.userId);
   state.ageVerified = s.ageVerified; state.showAdult = s.showAdult; state.nickname = s.nickname;
+  state.showTopics = Array.isArray(s.showTopics) ? s.showTopics : [];
+  localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
   state.surveyed = s.surveyed;
   // 소스 칩은 레지스트리에서 동적으로 — 하드코딩 목록 없음. 활성(enabled) + 비성인 소스만.
   state.registry = communitiesRes.communities || [];
@@ -596,6 +602,21 @@ function showAgeGate(){
     } catch(e){ toast("인증 실패: "+e.message); }
   };
 }
+// ---- 정치/종교 콘텐츠 필터 (기본 숨김, 유저가 켜면 노출) ----
+// 성인은 기존 19금 인증/토글(toggleAdult, showAgeGate)을 그대로 재사용한다.
+function topicLabel(id){
+  const t = state.config?.topics?.find(x=>x.id===id);
+  return t ? t.label : id;
+}
+async function toggleTopic(topic, on){
+  try {
+    const r = await API.setTopic(state.userId, topic, on);
+    state.showTopics = r.showTopics || state.showTopics;
+    localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
+    reloadFeedSilently();
+    toast(`${topicLabel(topic)} 글 ${on?"보기":"숨기기"}`);
+  } catch(e){ toast("전환 실패: "+e.message); }
+}
 // 19금 포함/제외가 바뀌면 후보군이 달라지므로 피드를 새로 로드
 function reloadFeed(msg){
   state.cursor = 0; state.exhausted = false; state.loading = false;
@@ -680,8 +701,11 @@ async function openSpace(){
         <div class="stat"><b>${s.counts.comments}</b><span>댓글</span></div>
       </div>
       <div class="space-sec"><h4>📊 내 취향 (학습된 결과)</h4>${tasteHtml(s.taste)}</div>
-      <div class="space-sec"><h4>설정</h4>
+      <div class="space-sec"><h4>콘텐츠 필터</h4>
+        <div class="muted-row">🗳️ 정치 글 보기 <button id="topicEntry-politics">${state.showTopics.includes("politics")?"숨기기":"보기"}</button></div>
+        <div class="muted-row">⛪ 종교 글 보기 <button id="topicEntry-religion">${state.showTopics.includes("religion")?"숨기기":"보기"}</button></div>
         <div class="muted-row">🔞 성인 콘텐츠(19금) 보기 <button id="adultEntry">${state.ageVerified?(state.showAdult?"끄기":"켜기"):"성인인증"}</button></div>
+        <p style="color:var(--muted);font-size:11.5px;line-height:1.5;margin:6px 0 0">정치·종교 글은 기본적으로 피드에서 숨겨져요. 위 버튼으로 켜고 끌 수 있어요.</p>
       </div>
       <div class="space-sec"><h4>🔖 스크랩</h4>${
         (s.saved&&s.saved.length) ? s.saved.map(p=>`<article class="card" data-id="${p.id}"><div class="card-top"><span class="dot" style="background:${srcColor(p.source)}"></span><span class="src">${srcLabel(p.source)}</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3></article>`).join("")
@@ -714,6 +738,14 @@ async function openSpace(){
       if(!state.ageVerified){ showAgeGate(); return; }
       toggleAdult(!state.showAdult); closeSpace();
     };
+    // 정치/종교 필터 토글
+    ["politics","religion"].forEach(topic=>{
+      const btn = body.querySelector(`#topicEntry-${topic}`);
+      if(btn) btn.onclick = async ()=>{
+        await toggleTopic(topic, !state.showTopics.includes(topic));
+        openSpace();
+      };
+    });
   } catch(e){ body.innerHTML = "<p>불러오기 실패: "+escapeHtml(e.message)+"</p>"; }
 }
 // refresh the underlying feed without scrolling the space away
@@ -886,6 +918,8 @@ function appendCard(item){
       <span>· ${item.categoryLabel}</span>
       ${hotBadge(item)}
       ${item.adult?'<span class="badge adult">19</span>':''}
+      ${(item.topics||[]).includes("politics")?'<span class="badge" style="background:var(--card-2);color:var(--muted)">🗳️ 정치</span>':''}
+      ${(item.topics||[]).includes("religion")?'<span class="badge" style="background:var(--card-2);color:var(--muted)">⛪ 종교</span>':''}
       ${item.translated?'<span class="badge trans">번역</span>':(item.needsTranslation?'<span class="badge trans">원문</span>':'')}
       <span class="badge ${item.kind}">${item.kind==="news"?"뉴스":"커뮤"}</span>
     </div>
