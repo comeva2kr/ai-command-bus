@@ -167,16 +167,110 @@ export async function normalizeSubmission(input, opts = {}) {
   };
 }
 
+// Raw public-engagement number behind "화제성" — recommends/score plus
+// comment volume (weighted 2x, comments being a stronger intent signal than a
+// passive upvote). Never derived from copied content, only from the counters
+// communities already surface publicly.
+export function rawEngagement(item) {
+  return Math.max(0, (item.score || 0) + (item.commentCount || item.comments || 0) * 2);
+}
+
+// Freshness decay in [0,1], ~2-day half-life. Items with no publish date
+// (some list-parsed adapters don't reliably carry one) get a neutral 0.5
+// rather than being penalized as either brand-new or stale.
+export function freshness(item, nowMs) {
+  const now = nowMs || Date.now();
+  if (!item.publishedAt) return 0.5;
+  const ageH = (now - (typeof item.publishedAt === "number" ? item.publishedAt : Date.parse(item.publishedAt))) / 3.6e6;
+  if (!Number.isFinite(ageH)) return 0.5;
+  return Math.exp(-Math.max(0, ageH) / 48);
+}
+
 // Hotness ("화제성") from public engagement signals only — never from copied
 // content. Blends recommends/score, comment volume, and freshness. Communities
 // already surface these numbers, so no body scraping is needed to rank.
 export function hotness(item, nowMs) {
-  const now = nowMs || Date.now();
-  const engagement = Math.log10(1 + Math.max(0, (item.score || 0) + (item.commentCount || item.comments || 0) * 2));
-  let fresh = 0.5;
-  if (item.publishedAt) {
-    const ageH = (now - (typeof item.publishedAt === "number" ? item.publishedAt : Date.parse(item.publishedAt))) / 3.6e6;
-    if (Number.isFinite(ageH)) fresh = Math.exp(-Math.max(0, ageH) / 48); // 2-day half-life
-  }
+  const engagement = Math.log10(1 + rawEngagement(item));
+  const fresh = freshness(item, nowMs);
   return Math.round((engagement * 0.7 + fresh * 0.6) * 1000) / 1000;
+}
+
+// ---- Home-feed hot gate (David 2026-07-24 UX overhaul) --------------------
+//
+// The home feed is meant to be "지금 핫한 것만" — one unified stream of only
+// the highest-engagement items across every active source. Every source is
+// already a community's own best/hot board (or an overseas hot-topics feed),
+// so this is one more cut on top of that, not a replacement for it.
+//
+// Raw engagement numbers aren't comparable across sources: an HN score of 40
+// is a big deal, a Korean board's "추천 40" is unremarkable, and a
+// list-parsed RSS item's "댓글 3" might be totally normal for that board. A
+// single global engagement threshold would just favor whichever source's
+// scale happens to run highest. So each item is ranked only against its own
+// source's *current* pool and cut by relative position within that group —
+// per-source normalization instead of a shared raw cutoff.
+//
+// Sources with literally no engagement signal at all right now (every item's
+// raw engagement is 0 — some sources only carry a title+link, no public
+// counters) are never gated out. Per the "이미 best보드 소속" rule they stay
+// in the stream, ranked by freshness alone, at a lower baseline priority than
+// anything that actually cleared its own source's engagement bar.
+//
+// Returns one { item, hot, percentile, hotScore, raw } record per input item
+// (order not guaranteed — callers sort/filter as needed).
+//   hot        : true if it clears its own source's engagement cut (or the
+//                source has no signal, so nothing to cut against)
+//   percentile : this item's relative rank within its own source, 0..1 (1 =
+//                the source's own top item right now); null when the source
+//                has no signal at all
+//   hotScore   : a single sortable number blending percentile + freshness —
+//                what the unified stream sorts by before personalization
+export function hotGate(items, nowMs, opts = {}) {
+  const now = nowMs || Date.now();
+  // Keep the top X fraction of each source's items by engagement (env
+  // HOT_MIN_PERCENTILE, default 0.6 = top 60%).
+  const minTopFraction = opts.minTopFraction ?? Number(process.env.HOT_MIN_PERCENTILE ?? 0.6);
+  // Alternative absolute cut: keep only the top N items per source (env
+  // HOT_TOP_N). Wins over minTopFraction when set.
+  const topNRaw = opts.topN ?? process.env.HOT_TOP_N;
+  const topN = topNRaw != null && topNRaw !== "" ? Number(topNRaw) : null;
+
+  const bySource = new Map();
+  for (const item of items) {
+    const src = item.source || "unknown";
+    if (!bySource.has(src)) bySource.set(src, []);
+    bySource.get(src).push(item);
+  }
+
+  const results = [];
+  for (const group of bySource.values()) {
+    const withRaw = group.map((item) => ({ item, raw: rawEngagement(item) }));
+    const hasSignal = withRaw.some((x) => x.raw > 0);
+
+    if (!hasSignal) {
+      // no engagement data anywhere in this source's current pool — never
+      // excluded, just deprioritized to a freshness-only baseline.
+      for (const { item } of withRaw) {
+        results.push({ item, hot: true, percentile: null, hotScore: freshness(item, now) * 0.5 });
+      }
+      continue;
+    }
+
+    // stable sort descending by raw engagement (ties keep arrival order)
+    const sorted = withRaw
+      .map((x, i) => ({ ...x, i }))
+      .sort((a, b) => b.raw - a.raw || a.i - b.i);
+    const n = sorted.length;
+    // at least 1 kept per source even at a strict fraction — "top 60% of 1
+    // item" should keep that item, not round down to zero.
+    const keepCount = topN != null ? Math.max(0, topN) : Math.max(1, Math.ceil(minTopFraction * n));
+
+    sorted.forEach(({ item }, rank) => {
+      const percentile = Math.round(((n - rank) / n) * 1000) / 1000; // 1 = this source's own top item
+      const hot = rank < keepCount;
+      const hotScore = Math.round((percentile * 0.7 + freshness(item, now) * 0.6) * 1000) / 1000;
+      results.push({ item, hot, percentile, hotScore });
+    });
+  }
+  return results;
 }

@@ -10,7 +10,7 @@ import { collect, SeedSource, resolveCap } from "./content.js";
 import { rankItems, diversify, applyFeedback, applyImplicit, explain, specializationLevel, feedPhase } from "./recommender.js";
 import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
-import { hotness } from "./ingest.js";
+import { hotness, hotGate } from "./ingest.js";
 import { FILTERABLE_TOPICS } from "./topics.js";
 
 // How long a collected item stays in the rolling pool before it's eligible for
@@ -184,9 +184,21 @@ export class FeedEngine {
           !disabled.has(i.source) &&
           !topicsBlocked(i, showTopics)
       );
+      // "지금 핫한 것만": home = a single hot-only stream. Every active source
+      // is already a community's own best/hot board (or an overseas hot-topics
+      // feed) — this is one more engagement cut on top, normalized per source
+      // (see ingest.hotGate) so an HN score and a Korean 추천수 never compete
+      // on the same raw scale. Sources with no engagement signal at all still
+      // pass through (never excluded), just deprioritized. Personalization
+      // still runs on top of the hot-gated pool — "핫한 것 중에서 취향순", not a
+      // replacement for taste ranking.
+      const gated = pool.length ? hotGate(pool, now) : [];
+      const hotPool = gated.length ? gated.filter((r) => r.hot).map((r) => r.item) : pool;
+      // safety net: never let an over-strict gate empty the feed outright
+      const rankPool = hotPool.length ? hotPool : pool;
       // collaborative boost: what similar-taste users liked (no-op with one user)
       collabBoosts = collaborativeBoosts(this.store, userId);
-      const ranked = rankItems(pool, user.preferences, { seenIds: seen, seed: cursor + 1, now, collabBoosts });
+      const ranked = rankItems(rankPool, user.preferences, { seenIds: seen, seed: cursor + 1, now, collabBoosts });
       // drop already-seen items so the infinite scroll never repeats
       unseen = ranked.filter((r) => !seen.has(r.item.id));
     }
@@ -307,7 +319,13 @@ export class FeedEngine {
         !seen.has(i.id)
     );
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
-    const ranked = rankItems(pool, user.preferences, { seed: 1, now, explore: 0 })
+    // Same hot-only gate as the main feed (see getFeed) — the digest previews
+    // "what you'd see if you opened the app now," so it must draw from the
+    // same hot-gated pool, not a superset of it.
+    const gated = pool.length ? hotGate(pool, now) : [];
+    const hotPool = gated.length ? gated.filter((r) => r.hot).map((r) => r.item) : pool;
+    const rankPool = hotPool.length ? hotPool : pool;
+    const ranked = rankItems(rankPool, user.preferences, { seed: 1, now, explore: 0 })
       .filter((r) => r.score >= minScore);
     return {
       count: ranked.length,

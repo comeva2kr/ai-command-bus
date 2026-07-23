@@ -12,7 +12,7 @@ import {
   specializationLevel,
   feedPhase
 } from "../src/feed/recommender.js";
-import { normalizeItem, SeedSource, collect } from "../src/feed/content.js";
+import { normalizeItem, SeedSource, collect, JsonSource } from "../src/feed/content.js";
 import { inferFromHistory, mergeVectors } from "../src/feed/history.js";
 import { FeedStore } from "../src/feed/store.js";
 import { FeedEngine } from "../src/feed/engine.js";
@@ -818,6 +818,164 @@ test("hotness ranks by public engagement + freshness only", async () => {
   const hot = hotness({ score: 800, commentCount: 300, publishedAt: "2026-07-06T09:00:00Z" }, now);
   const cold = hotness({ score: 5, commentCount: 1, publishedAt: "2026-07-01T00:00:00Z" }, now);
   assert.ok(hot > cold, "viral fresh post outranks a quiet old one");
+});
+
+// --- Hot-only home feed ranking (David 2026-07-24 UX overhaul) -------------
+// Every active source is already a community's own best/hot board; the home
+// feed adds one more engagement cut on top, normalized *per source* (an HN
+// score and a Korean 추천수 aren't the same scale) rather than a single raw
+// threshold across every source.
+
+test("hotGate keeps the top engagement items and cuts the low ones within the same source", async () => {
+  const { hotGate } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-06T10:00:00Z");
+  // 5 items, one source: engagement 100,80,40,5,1 — top 60% (default) keeps 3
+  const items = [100, 80, 40, 5, 1].map((score, i) =>
+    normalizeItem({ id: `s${i}`, source: "clien", title: `글 ${i}`, category: "tech", score, publishedAt: "2026-07-06T09:00:00Z" })
+  );
+  const results = hotGate(items, now);
+  const byId = Object.fromEntries(results.map((r) => [r.item.id, r]));
+  assert.equal(byId.s0.hot, true, "highest engagement clears the cut");
+  assert.equal(byId.s1.hot, true);
+  assert.equal(byId.s2.hot, true, "top 60% of 5 items = top 3");
+  assert.equal(byId.s3.hot, false, "low engagement excluded");
+  assert.equal(byId.s4.hot, false, "lowest engagement excluded");
+  assert.ok(byId.s0.hotScore > byId.s2.hotScore, "hotScore orders by engagement within the source");
+});
+
+test("hotGate never excludes a source with zero engagement signal — included but deprioritized", async () => {
+  const { hotGate } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-06T10:00:00Z");
+  // an RSS-only source where every item lacks score/commentCount entirely —
+  // "이미 best보드 소속" so it must never be gated out
+  const signalless = [0, 1, 2].map((i) =>
+    normalizeItem({ id: `rss${i}`, source: "some-rss", title: `기사 ${i}`, category: "news", publishedAt: "2026-07-06T09:30:00Z" })
+  );
+  const hotSourceTop = normalizeItem({ id: "clien-top", source: "clien", title: "화제글", category: "tech", score: 500, publishedAt: "2026-07-06T09:30:00Z" });
+  const results = hotGate([...signalless, hotSourceTop], now);
+  const byId = Object.fromEntries(results.map((r) => [r.item.id, r]));
+  assert.ok(signalless.every((i) => byId[i.id].hot === true), "signal-less source is never excluded");
+  assert.ok(signalless.every((i) => byId[i.id].percentile === null), "no percentile to report — no signal to rank against");
+  assert.ok(
+    byId["clien-top"].hotScore > byId["rss0"].hotScore,
+    "a real hot item still outranks the signal-less source's baseline priority"
+  );
+});
+
+test("hotGate normalizes per source — a small community's top post beats its cut despite a raw score far below a viral HN-scale post", async () => {
+  const { hotGate } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-06T10:00:00Z");
+  // hackernews-scale source: scores in the hundreds
+  const hn = [500, 10].map((score, i) =>
+    normalizeItem({ id: `hn${i}`, source: "hackernews", title: `HN ${i}`, category: "tech", score, publishedAt: "2026-07-06T09:00:00Z" })
+  );
+  // small Korean community: raw scores are tiny by comparison, but this is
+  // still that source's own best post right now
+  const small = [5, 1].map((score, i) =>
+    normalizeItem({ id: `sm${i}`, source: "tinyboard", title: `글 ${i}`, category: "life", score, publishedAt: "2026-07-06T09:00:00Z" })
+  );
+  const results = hotGate([...hn, ...small], now);
+  const byId = Object.fromEntries(results.map((r) => [r.item.id, r]));
+  assert.equal(byId.sm0.hot, true, "tinyboard's own top post clears its own source's cut despite a tiny raw score");
+  assert.equal(byId.hn0.hot, true, "hackernews' top post clears its own source's cut");
+  // both top-of-source items reach a comparable percentile even though their
+  // raw engagement numbers are worlds apart
+  assert.equal(byId.sm0.percentile, byId.hn0.percentile, "per-source percentile puts both sources' top posts on equal footing");
+});
+
+test("hotGate respects HOT_MIN_PERCENTILE / HOT_TOP_N overrides", async () => {
+  const { hotGate } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-06T10:00:00Z");
+  const items = [50, 40, 30, 20, 10].map((score, i) =>
+    normalizeItem({ id: `t${i}`, source: "clien", title: `글 ${i}`, category: "tech", score, publishedAt: "2026-07-06T09:00:00Z" })
+  );
+  const strict = hotGate(items, now, { minTopFraction: 0.2 });
+  assert.equal(strict.filter((r) => r.hot).length, 1, "a strict fraction keeps only the very top item");
+
+  const topN = hotGate(items, now, { topN: 2 });
+  assert.equal(topN.filter((r) => r.hot).length, 2, "topN overrides the fraction and keeps exactly N");
+});
+
+test("default getFeed (no source) serves only hot-gated items — a source's low-engagement post never surfaces, its high-engagement ones do", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  // top-60% (default HOT_MIN_PERCENTILE) of 3 items keeps exactly the top 2 —
+  // the single quiet post should never clear the cut.
+  const clien = new JsonSource(
+    "clien",
+    async () => [
+      { id: "hot-a", title: "클리앙 화제글 A", url: "https://clien.net/a", category: "tech", score: 500, commentCount: 100, publishedAt: "2026-07-05T00:00:00Z" },
+      { id: "hot-b", title: "클리앙 화제글 B", url: "https://clien.net/b", category: "tech", score: 400, commentCount: 80, publishedAt: "2026-07-05T00:00:00Z" },
+      { id: "cold-a", title: "클리앙 조용한 글 A", url: "https://clien.net/c", category: "tech", score: 1, commentCount: 0, publishedAt: "2026-07-05T00:00:00Z" }
+    ],
+    "community"
+  );
+  const engine = new FeedEngine(store, [clien]);
+  const user = store.createUser("hotfeed_u");
+  store.saveSurvey(user.id, { categories: ["tech"] });
+
+  const seenIds = new Set();
+  for (let c = 0; c < 6; c++) {
+    const f = await engine.getFeed(user.id, { cursor: c * 10, limit: 10 });
+    for (const i of f.items) seenIds.add(i.id);
+    if (f.exhausted) break;
+  }
+  assert.ok(seenIds.has("hot-a") && seenIds.has("hot-b"), "high-engagement posts surface in the default hot-only feed");
+  assert.ok(!seenIds.has("cold-a"), "the source's low-engagement post is gated out of the default feed");
+
+  // sanity check: the same source's cold post IS reachable through source=
+  // (the board-view chip bypasses the hot gate entirely) — proves this is a
+  // home-feed-only filter, not data loss.
+  const bySource = await engine.getFeed(user.id, { cursor: 0, limit: 10, source: "clien" });
+  assert.ok(bySource.items.some((i) => i.id === "cold-a"), "source= view still surfaces the same item the home feed gated out");
+});
+
+test("default getFeed still includes a signal-less source's items even when a louder source exists", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const rssOnly = new JsonSource(
+    "quiet-rss",
+    async () => [
+      { id: "rss-1", title: "제목만 있는 기사 1", url: "https://example.com/1", category: "news", publishedAt: "2026-07-05T00:00:00Z" },
+      { id: "rss-2", title: "제목만 있는 기사 2", url: "https://example.com/2", category: "news", publishedAt: "2026-07-05T00:00:00Z" }
+    ],
+    "news"
+  );
+  const engine = new FeedEngine(store, [rssOnly]);
+  const user = store.createUser("hotfeed_u2");
+  store.saveSurvey(user.id, { categories: ["news"] });
+
+  const seenIds = new Set();
+  for (let c = 0; c < 6; c++) {
+    const f = await engine.getFeed(user.id, { cursor: c * 10, limit: 10 });
+    for (const i of f.items) seenIds.add(i.id);
+    if (f.exhausted) break;
+  }
+  assert.ok(seenIds.has("rss-1") && seenIds.has("rss-2"), "a source with no engagement counters at all is never dropped from the default feed");
+});
+
+test("GET /api/feed?source= still bypasses the hot gate entirely (latest+hotness order over the whole source, not a percentile cut)", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const clien = new JsonSource(
+    "clien",
+    async () => [
+      { id: "loud", title: "클리앙 화제글", url: "https://clien.net/a", category: "tech", score: 500, publishedAt: "2026-07-05T00:00:00Z" },
+      { id: "quiet", title: "클리앙 조용한 글", url: "https://clien.net/b", category: "tech", score: 0, publishedAt: "2026-07-05T00:00:00Z" }
+    ],
+    "community"
+  );
+  const server = createServer({ sources: [clien] });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const res = await fetch(`${base}/api/feed?userId=${session.userId}&source=clien&limit=10`);
+    const feed = await res.json();
+    const ids = feed.items.map((i) => i.id);
+    assert.ok(ids.includes("loud") && ids.includes("quiet"), "source= view is unaffected by the home feed's hot gate — every item in the source is still reachable");
+  } finally {
+    server.close();
+  }
 });
 
 test("users get a stable anonymous nickname; comments carry it (never 나)", async () => {

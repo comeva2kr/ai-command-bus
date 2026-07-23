@@ -46,11 +46,38 @@
   .badge.trans { color: #0e0f13; background: #39c0d3; }
   .adult-btn.on#immBtn, #immBtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
+  /* ---------- hamburger menu + drawer (David 2026-07-24: home = feed only) ---------- */
+  .menu-btn { margin-left: auto; width: 36px; height: 32px; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--card-2); color: var(--text); font-size: 17px; line-height: 1; display: flex;
+    align-items: center; justify-content: center; }
+  .hot-tag { font-size: 11px; font-weight: 800; color: #f0a13d; background: rgba(240,161,61,.14);
+    border: 1px solid rgba(240,161,61,.32); border-radius: 999px; padding: 3px 9px; margin-left: 8px; white-space: nowrap; }
+
+  .drawer-back { position: fixed; inset: 0; z-index: 48; background: rgba(0,0,0,.5); opacity: 0;
+    pointer-events: none; transition: opacity .2s ease; }
+  .drawer-back.open { opacity: 1; pointer-events: auto; }
+  .drawer { position: fixed; top: 0; left: 0; bottom: 0; width: min(86vw, 340px); background: var(--card);
+    border-right: 1px solid var(--line); z-index: 49; transform: translateX(-100%);
+    transition: transform .22s ease; overflow-y: auto; }
+  .drawer.open { transform: translateX(0); }
+  .drawer-head { position: sticky; top: 0; background: var(--card); display: flex; align-items: center;
+    gap: 10px; padding: calc(14px + env(safe-area-inset-top)) 16px 12px; border-bottom: 1px solid var(--line); z-index: 2; }
+  .drawer-title { font-weight: 800; font-size: 16px; flex: 1; }
+  .drawer-close { background: none; border: none; color: var(--muted); font-size: 20px; padding: 4px 6px; }
+  .drawer-body { padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); }
+  .drawer-row { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 10px 0; font-size: 13.5px; }
+  .drawer-sec { margin-top: 20px; }
+  .drawer-sec h4 { margin: 0 0 10px; font-size: 12px; color: var(--muted); font-weight: 800;
+    text-transform: uppercase; letter-spacing: .03em; }
+  .drawer-link { width: 100%; text-align: left; background: var(--card-2); border: 1px solid var(--line);
+    color: var(--text); border-radius: 12px; padding: 12px 14px; font-size: 14px; font-weight: 700; }
+
   /* 몰입 모드: 한 글씩 세로 스와이프 (틱톡식 포맷, 콘텐츠는 글) */
   body.immersion { max-width: 100%; }
-  body.immersion header .chips, body.immersion .fab { display: none; }
-  body.immersion #feed { scroll-snap-type: y mandatory; height: calc(100vh - 96px); overflow-y: auto; padding: 0; }
-  body.immersion .card { scroll-snap-align: start; min-height: calc(100vh - 96px); margin: 0; border-radius: 0;
+  body.immersion .fab { display: none; }
+  body.immersion #feed { scroll-snap-type: y mandatory; height: calc(100vh - var(--header-h, 60px)); overflow-y: auto; padding: 0; }
+  body.immersion .card { scroll-snap-align: start; min-height: calc(100vh - var(--header-h, 60px)); margin: 0; border-radius: 0;
     border-left: none; border-right: none; display: flex; flex-direction: column; justify-content: center; padding: 30px 24px; }
   body.immersion .card h3 { font-size: 24px; line-height: 1.45; margin-bottom: 14px; }
   body.immersion .card p { font-size: 16px; line-height: 1.7; -webkit-line-clamp: 8; }
@@ -63,7 +90,6 @@
   .fab button { width: 52px; height: 52px; border-radius: 50%; border: none; font-size: 22px; color: #fff;
     box-shadow: 0 6px 18px rgba(0,0,0,.4); }
   .fab .compose { background: var(--accent); }
-  .fab .space { background: var(--card-2); border: 1px solid var(--line); font-size: 20px; }
   @media (min-width: 720px){ .fab { right: calc(50% - 360px + 16px); } }
 
   .field { margin-bottom: 12px; }
@@ -111,21 +137,12 @@
   .meter-bar { height: 6px; border-radius: 6px; background: var(--card-2); overflow: hidden; }
   .meter-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--like)); transition: width .4s ease; }
 
-  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 16px 4px; scrollbar-width: none; }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 4px; margin: 0; scrollbar-width: none; }
   .chips::-webkit-scrollbar { display: none; }
   /* source-select chip bar ("전체" + per-community/news chips, jagei-style board view) —
-     always a horizontal top bar, even on the desktop layout where the category
-     .chips become a sidebar list (see the min-width:1000px block below). Sticky
-     right under the (already-sticky) header — David 2026-07-24: stays visible
-     while the feed scrolls, never just scrolls away. `top` tracks the header's
-     real rendered height via --header-h (set by a ResizeObserver in the script,
-     so it never drifts if header content wraps to another line on a narrow
-     phone). `-webkit-sticky` first for older iOS Safari; a solid `background`
-     (not translucent, no backdrop-filter) avoids the iOS Safari repaint/flicker
-     that sticky + backdrop-filter can trigger on scroll. */
-  .src-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; margin: 0;
-    border-bottom: 1px solid var(--line); scrollbar-width: none; background: var(--bg);
-    position: -webkit-sticky; position: sticky; top: var(--header-h, 104px); z-index: 19; }
+     lives inside the ☰ drawer now (David 2026-07-24: home is the unified hot
+     feed only), so it's just a normal horizontal-scroll row, not sticky. */
+  .src-chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 4px; margin: 0; scrollbar-width: none; }
   .src-chips::-webkit-scrollbar { display: none; }
   .src-chip { flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
     background: var(--card-2); color: var(--muted); font-size: 13px; font-weight: 700; white-space: nowrap; }
@@ -232,32 +249,13 @@
   .digest button { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 8px 12px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
   .digest .dclose { background: none; color: var(--muted); padding: 6px; font-size: 16px; }
 
-  /* ---------- Desktop / PC layout (mobile-first above; this enhances wide screens) ---------- */
+  /* ---------- Desktop / PC (mobile-first above; the layout is the same single
+     centered column at every width now that the source chips / filters /
+     my-space live in the ☰ drawer instead of an always-visible sidebar —
+     David 2026-07-24: home is one clean feed everywhere, not just on mobile) ---------- */
   @media (min-width: 1000px) {
-    body { max-width: 940px; padding-bottom: 40px; }
-    /* header becomes a fixed left sidebar aligned to the body's left edge */
-    header { position: fixed; top: 0; left: calc(50% - 470px); width: 240px; height: 100vh;
-      border-bottom: none; border-right: 1px solid var(--line); background: transparent; backdrop-filter: none;
-      padding: 22px 20px 22px 0; display: flex; flex-direction: column; }
-    .brand { font-size: 20px; flex-wrap: wrap; }
-    .brand small { flex-basis: 100%; margin-top: 3px; }
-    #immBtn { margin-left: auto !important; }
-    #adultBtn { margin-left: 8px !important; }
-    header .meter { margin-top: 16px; }
-    header .chips { flex-direction: column; overflow: visible; padding: 18px 0 0; gap: 6px; }
-    header .chips .chip { width: 100%; text-align: left; }
-    /* main content column sits to the right of the sidebar */
-    /* desktop: header is a fixed left sidebar, not stacked above this column,
-       so the chip bar sticks to the viewport top directly (top:0) rather than
-       the mobile header's height. */
-    .src-chips { margin-left: 260px; max-width: 640px; border-bottom: none; top: 0; }
-    #digestBar { margin: 16px 0 0 260px; }
-    main#feed { margin-left: 260px; max-width: 640px; padding-top: 16px; }
-    .sentinel { margin-left: 260px; max-width: 640px; }
-    .card { padding: 16px 18px; }
     .card:hover { border-color: #33405e; }
-    .fab { left: calc(50% + 360px); right: auto; }
-    /* detail overlay: on desktop hide via visibility (the mobile slide-off doesn't fully clear a centered modal) */
+    /* detail overlay: on wide screens hide via visibility (the slide-off transform doesn't fully clear a centered panel once the viewport is much wider than it) */
     #detail { transition: opacity .15s ease; transform: none; visibility: hidden; opacity: 0; }
     #detail.open { transform: none; visibility: visible; opacity: 1; }
   }
@@ -266,25 +264,57 @@
 <body>
   <header>
     <div class="brand">🧭 내 취향 피드 <small id="phaseLabel">준비 중</small>
-      <button id="immBtn" class="adult-btn" style="margin-left:auto" title="몰입 모드">🎬</button>
-      <button id="adultBtn" class="adult-btn locked" style="margin-left:8px" title="19금 보기">19</button>
+      <span class="hot-tag">🔥 지금 핫</span>
+      <button id="menuBtn" class="menu-btn" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer">☰</button>
     </div>
-    <div class="meter">
-      <div class="meter-label"><span>취향 정확도</span><span id="levelPct">0%</span></div>
-      <div class="meter-bar"><div class="meter-fill" id="levelFill"></div></div>
-    </div>
-    <div class="chips" id="chips"></div>
   </header>
 
-  <div id="digestBar" class="digest hidden"></div>
+  <!-- 홈은 통합 핫 피드 하나만 — 소스별 선택 칩·필터 토글·내 공간·제출은 전부
+       여기 드로어 안으로 이동(삭제 아님). ☰로 열고 닫는다 (David 2026-07-24). -->
+  <div class="drawer-back" id="drawerBack"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <div class="drawer-title">메뉴</div>
+      <button class="drawer-close" id="drawerClose" aria-label="메뉴 닫기">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="meter">
+        <div class="meter-label"><span>취향 정확도</span><span id="levelPct">0%</span></div>
+        <div class="meter-bar"><div class="meter-fill" id="levelFill"></div></div>
+      </div>
 
-  <div class="src-chips" id="srcChips"></div>
+      <div class="drawer-row">
+        <span>🎬 몰입 모드 (한 글씩 넘겨보기)</span>
+        <button id="immBtn" class="adult-btn" title="몰입 모드">🎬</button>
+      </div>
+
+      <div class="drawer-sec">
+        <h4>카테고리</h4>
+        <div class="chips" id="chips"></div>
+      </div>
+
+      <div class="drawer-sec">
+        <h4>소스별 보기 · 링크 제출</h4>
+        <div class="src-chips" id="srcChips"></div>
+      </div>
+
+      <div class="drawer-sec">
+        <h4>콘텐츠 필터</h4>
+        <div id="drawerFilters"></div>
+      </div>
+
+      <div class="drawer-sec">
+        <button class="drawer-link" id="drawerSpaceBtn">👤 내 공간</button>
+      </div>
+    </div>
+  </aside>
+
+  <div id="digestBar" class="digest hidden"></div>
 
   <main id="feed"></main>
   <div class="sentinel" id="sentinel"></div>
 
   <div class="fab" id="fab">
-    <button class="space" id="spaceBtn" title="내 공간">👤</button>
     <button class="compose" id="composeBtn" title="글쓰기">✍️</button>
   </div>
 
@@ -438,7 +468,8 @@ syncHeaderHeight();
   // 소스 칩은 레지스트리에서 동적으로 — 하드코딩 목록 없음. 활성(enabled) + 비성인 소스만.
   state.registry = communitiesRes.communities || [];
   state.communities = state.registry.filter(c => c.enabled && !c.adult);
-  renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); setupCompose(); setupSpace(); setupSkipObserver();
+  renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
+  setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver();
   // Always show content first — a preview feed (popularity-ranked when no taste
   // yet). Personalization is invited, never a gate. (adversarial review #1)
   updateMeter(s); loadMore(); openFromHash();
@@ -526,6 +557,30 @@ async function pushLocalNotification(d){
   } catch {}
 }
 
+// ---- ☰ 드로어 (소스별 보기·필터·링크제출·내공간 — David 2026-07-24 UX 개편) ----
+// 홈은 통합 핫 피드 하나만 보이고, 나머지 메뉴는 전부 여기 안에서 열고 닫는다.
+function openDrawer(){
+  document.getElementById("drawer").classList.add("open");
+  document.getElementById("drawerBack").classList.add("open");
+  document.getElementById("drawer").setAttribute("aria-hidden","false");
+  document.getElementById("menuBtn").setAttribute("aria-expanded","true");
+}
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("drawerBack").classList.remove("open");
+  document.getElementById("drawer").setAttribute("aria-hidden","true");
+  document.getElementById("menuBtn").setAttribute("aria-expanded","false");
+}
+function setupDrawer(){
+  document.getElementById("menuBtn").onclick = openDrawer;
+  document.getElementById("drawerClose").onclick = closeDrawer;
+  document.getElementById("drawerBack").onclick = closeDrawer;
+  document.getElementById("drawerSpaceBtn").onclick = ()=>{ closeDrawer(); openSpace(); };
+  document.addEventListener("keydown", (e)=>{
+    if(e.key==="Escape" && document.getElementById("drawer").classList.contains("open")) closeDrawer();
+  });
+}
+
 // ---- 몰입 모드 (community × TikTok, but for text) ----
 let immObserver, immActive = null, immActiveAt = 0;
 function setupImmersion(){
@@ -561,16 +616,22 @@ function flushImmersionDwell(){
 function stopImmersionTracking(){ flushImmersionDwell(); if(immObserver){ immObserver.disconnect(); immObserver=null; } }
 
 // ---- 19금 toggle + 성인인증 ----
+// The always-visible header "19" quick-toggle was removed in the 2026-07-24
+// UX overhaul (home = feed only); adult access now lives in the ☰ drawer's
+// 콘텐츠 필터 section (renderDrawerFilters/contentFilterHtml below) and in
+// 내 공간. These two functions are kept as safe no-ops in case anything still
+// calls them, rather than deleting every call site.
 function renderAdultBtn(){
   const b = document.getElementById("adultBtn");
-  // keep the red 19 out of the first impression — only show it once verified
-  // (access lives in 내 공간 until then). (adversarial review: declutter)
+  if(!b) return;
   b.style.display = state.ageVerified ? "" : "none";
   b.classList.toggle("on", state.showAdult);
   b.title = state.showAdult ? "19금 숨기기" : "19금 보기";
 }
 function setupAdultToggle(){
-  document.getElementById("adultBtn").onclick = async ()=>{
+  const b = document.getElementById("adultBtn");
+  if(!b) return;
+  b.onclick = async ()=>{
     if(state.showAdult){                 // 켜져 있으면 끄기 (필터링)
       await toggleAdult(false); return;
     }
@@ -581,11 +642,12 @@ function setupAdultToggle(){
 async function toggleAdult(on){
   try {
     const r = await API.setAdult(state.userId, on);
-    state.showAdult = r.showAdult; renderAdultBtn();
+    state.showAdult = r.showAdult; renderAdultBtn(); refreshDrawerFilters();
     reloadFeed(on ? "19금 포함" : "19금 숨김");
   } catch(e){ toast("전환 실패: "+e.message); }
 }
 function showAgeGate(){
+  closeDrawer(); // avoid a double-dim backdrop if opened from inside the drawer
   const back = document.createElement("div"); back.className="modal-back";
   back.innerHTML = `
     <div class="modal">
@@ -606,6 +668,7 @@ function showAgeGate(){
     } catch(e){ toast("인증 실패: "+e.message); }
   };
 }
+
 // ---- 정치/종교 콘텐츠 필터 (기본 숨김, 유저가 켜면 노출) ----
 // 성인은 기존 19금 인증/토글(toggleAdult, showAgeGate)을 그대로 재사용한다.
 function topicLabel(id){
@@ -617,9 +680,48 @@ async function toggleTopic(topic, on){
     const r = await API.setTopic(state.userId, topic, on);
     state.showTopics = r.showTopics || state.showTopics;
     localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
-    reloadFeedSilently();
+    reloadFeedSilently(); refreshDrawerFilters();
     toast(`${topicLabel(topic)} 글 ${on?"보기":"숨기기"}`);
   } catch(e){ toast("전환 실패: "+e.message); }
+}
+
+// Shared "콘텐츠 필터" (정치/종교/19금) block — rendered both in 내 공간 and in
+// the ☰ drawer, driven by the same state/toggle functions above. Uses
+// data-attributes instead of ids so both places can render it at once without
+// id collisions.
+function contentFilterHtml(){
+  return `
+    <div class="muted-row">🗳️ 정치 글 보기 <button data-topic-toggle="politics">${state.showTopics.includes("politics")?"숨기기":"보기"}</button></div>
+    <div class="muted-row">⛪ 종교 글 보기 <button data-topic-toggle="religion">${state.showTopics.includes("religion")?"숨기기":"보기"}</button></div>
+    <div class="muted-row">🔞 성인 콘텐츠(19금) 보기 <button data-adult-toggle>${state.ageVerified?(state.showAdult?"끄기":"켜기"):"성인인증"}</button></div>
+    <p style="color:var(--muted);font-size:11.5px;line-height:1.5;margin:6px 0 0">정치·종교 글은 기본적으로 피드에서 숨겨져요. 위 버튼으로 켜고 끌 수 있어요.</p>`;
+}
+function wireContentFilterButtons(container, onAfter){
+  const ae = container.querySelector("[data-adult-toggle]");
+  if(ae) ae.onclick = ()=>{
+    if(!state.ageVerified){ showAgeGate(); return; }
+    toggleAdult(!state.showAdult);
+    if(onAfter) onAfter();
+  };
+  container.querySelectorAll("[data-topic-toggle]").forEach(btn=>{
+    btn.onclick = async ()=>{ await toggleTopic(btn.dataset.topicToggle, !state.showTopics.includes(btn.dataset.topicToggle)); if(onAfter) onAfter(); };
+  });
+}
+// re-render the drawer's own filter section in place (state may have changed
+// via 내 공간's copy of the same controls, or vice versa)
+function refreshDrawerFilters(){
+  const el = document.getElementById("drawerFilters");
+  if(!el) return;
+  el.innerHTML = contentFilterHtml();
+  wireContentFilterButtons(el, refreshDrawerFilters);
+}
+// same idea for 내 공간's copy — `spaceBody` is the #spaceBody element (passed
+// in since 내 공간 re-renders its whole panel rather than keeping a live ref)
+function refreshSpaceFilters(spaceBody){
+  const block = spaceBody.querySelector(".content-filter-block");
+  if(!block) return;
+  block.innerHTML = contentFilterHtml();
+  wireContentFilterButtons(block, ()=> refreshSpaceFilters(spaceBody));
 }
 // 19금 포함/제외가 바뀌면 후보군이 달라지므로 피드를 새로 로드
 function reloadFeed(msg){
@@ -677,7 +779,8 @@ function prependCard(item){
 
 // ---- 내 공간 (my space) ----
 function setupSpace(){
-  document.getElementById("spaceBtn").onclick = openSpace;
+  // entry point moved from a home FAB into the ☰ drawer (setupDrawer wires
+  // #drawerSpaceBtn) — David 2026-07-24 UX overhaul.
   document.getElementById("spaceBack").onclick = ()=>{
     if(location.hash.startsWith("#space")) history.back(); else closeSpace();
   };
@@ -705,12 +808,7 @@ async function openSpace(){
         <div class="stat"><b>${s.counts.comments}</b><span>댓글</span></div>
       </div>
       <div class="space-sec"><h4>📊 내 취향 (학습된 결과)</h4>${tasteHtml(s.taste)}</div>
-      <div class="space-sec"><h4>콘텐츠 필터</h4>
-        <div class="muted-row">🗳️ 정치 글 보기 <button id="topicEntry-politics">${state.showTopics.includes("politics")?"숨기기":"보기"}</button></div>
-        <div class="muted-row">⛪ 종교 글 보기 <button id="topicEntry-religion">${state.showTopics.includes("religion")?"숨기기":"보기"}</button></div>
-        <div class="muted-row">🔞 성인 콘텐츠(19금) 보기 <button id="adultEntry">${state.ageVerified?(state.showAdult?"끄기":"켜기"):"성인인증"}</button></div>
-        <p style="color:var(--muted);font-size:11.5px;line-height:1.5;margin:6px 0 0">정치·종교 글은 기본적으로 피드에서 숨겨져요. 위 버튼으로 켜고 끌 수 있어요.</p>
-      </div>
+      <div class="space-sec"><h4>콘텐츠 필터</h4><div class="content-filter-block">${contentFilterHtml()}</div></div>
       <div class="space-sec"><h4>🔖 스크랩</h4>${
         (s.saved&&s.saved.length) ? s.saved.map(p=>`<article class="card" data-id="${p.id}"><div class="card-top"><span class="dot" style="background:${srcColor(p.source)}"></span><span class="src">${srcLabel(p.source)}</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3></article>`).join("")
           : '<p style="color:var(--muted);font-size:13px">📑 버튼으로 나중에 볼 글을 저장해보세요.</p>'}
@@ -736,20 +834,9 @@ async function openSpace(){
     body.querySelectorAll(".space-sec .card[data-id]").forEach(c=>{
       c.onclick = ()=> openDetail(c.dataset.id);
     });
-    // 19금 access from settings (verify gate lives here, not the header)
-    const ae = body.querySelector("#adultEntry");
-    if(ae) ae.onclick = ()=>{
-      if(!state.ageVerified){ showAgeGate(); return; }
-      toggleAdult(!state.showAdult); closeSpace();
-    };
-    // 정치/종교 필터 토글
-    ["politics","religion"].forEach(topic=>{
-      const btn = body.querySelector(`#topicEntry-${topic}`);
-      if(btn) btn.onclick = async ()=>{
-        await toggleTopic(topic, !state.showTopics.includes(topic));
-        openSpace();
-      };
-    });
+    // 콘텐츠 필터 (정치/종교/19금) — shared with the ☰ drawer's copy of the
+    // same controls; re-renders this block in place after each toggle.
+    refreshSpaceFilters(body);
   } catch(e){ body.innerHTML = "<p>불러오기 실패: "+escapeHtml(e.message)+"</p>"; }
 }
 // refresh the underlying feed without scrolling the space away
@@ -848,6 +935,7 @@ function setCategory(cat, container, btn){
   state.activeCategory = cat;
   [...container.children].forEach(c=>c.classList.remove("active")); btn.classList.add("active");
   applyFilter();
+  closeDrawer(); // selection made — back to the clean home feed
 }
 
 // ---- source chips (server-driven board view, jagei-style) ----
@@ -866,7 +954,7 @@ function renderSourceChips(){
   const addBtn = document.createElement("button");
   addBtn.className = "src-chip"; addBtn.id = "submitLinkBtn"; addBtn.title = "링크 제출";
   addBtn.textContent = "＋ 링크제출";
-  addBtn.onclick = openSubmitModal;
+  addBtn.onclick = ()=>{ closeDrawer(); openSubmitModal(); };
   el.appendChild(addBtn);
 
   const all = document.createElement("button");
@@ -936,6 +1024,7 @@ function openSubmitModal(){
   urlEl.focus();
 }
 function setSource(id, container, btn){
+  closeDrawer(); // selection made — back to the clean home feed
   if(state.activeSource === id) return;
   state.activeSource = id;
   if(id) localStorage.setItem("feed_src", id); else localStorage.removeItem("feed_src");
@@ -1147,6 +1236,7 @@ document.getElementById("backBtn").onclick = ()=> history.back();
 window.addEventListener("popstate", (e)=>{
   if(document.getElementById("detail").classList.contains("open")) closeDetail();
   if(!document.getElementById("space").classList.contains("hidden")) closeSpace();
+  if(document.getElementById("drawer").classList.contains("open")) closeDrawer();
 });
 
 async function renderDetail(itemId){
