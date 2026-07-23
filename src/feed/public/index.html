@@ -170,6 +170,26 @@
   #detail { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto;
     max-width: 720px; margin: 0 auto; transform: translateX(100%); transition: transform .22s ease; }
   #detail.open { transform: translateX(0); }
+
+  /* frame viewer: slim top bar (menu stays ours) + full-height iframe of the
+     original — the jagei-style hybrid. Only used for sources verified
+     frame-embeddable; everything else still jumps out to a new tab. */
+  #frameViewer { position: fixed; inset: 0; z-index: 41; background: var(--bg);
+    max-width: 720px; margin: 0 auto; display: flex; flex-direction: column;
+    transform: translateX(100%); transition: transform .22s ease; }
+  #frameViewer.open { transform: translateX(0); }
+  .frame-head { flex: 0 0 auto; background: rgba(14,15,19,.92); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line); padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+    display: flex; align-items: center; gap: 10px; }
+  .frame-head .brand-mini { font-weight: 800; font-size: 14px; white-space: nowrap; }
+  .frame-head .frame-src { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .frame-head .frame-open-tab { flex: 0 0 auto; background: var(--card-2); border: 1px solid var(--line);
+    color: var(--text); border-radius: 8px; padding: 7px 10px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .frame-body { flex: 1 1 auto; min-height: 0; position: relative; background: #fff; }
+  .frame-body iframe { width: 100%; height: 100%; border: 0; display: block; }
+  .frame-body .frame-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--muted); font-size: 13px; gap: 8px; }
   .detail-head { position: sticky; top: 0; background: rgba(14,15,19,.92); backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--line); padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
     display: flex; align-items: center; gap: 12px; }
@@ -245,6 +265,8 @@
     /* detail overlay: on desktop hide via visibility (the mobile slide-off doesn't fully clear a centered modal) */
     #detail { transition: opacity .15s ease; transform: none; visibility: hidden; opacity: 0; }
     #detail.open { transform: none; visibility: visible; opacity: 1; }
+    #frameViewer { transition: opacity .15s ease; transform: none; visibility: hidden; opacity: 0; }
+    #frameViewer.open { transform: none; visibility: visible; opacity: 1; }
   }
 </style>
 </head>
@@ -290,6 +312,22 @@
       <button class="mute-btn" id="shareBtn" style="margin-left:8px">🔗 공유</button>
     </div>
     <div class="detail-body" id="detailBody"></div>
+  </section>
+
+  <!-- frame viewer: original page in an iframe, our slim bar stays on top
+       (frameable sources only — see openFrame/isFrameable) -->
+  <section id="frameViewer" aria-hidden="true">
+    <div class="frame-head">
+      <button class="back" id="frameBack" aria-label="뒤로">‹</button>
+      <span class="brand-mini">🧭</span>
+      <span class="frame-src" id="frameSrc"></span>
+      <a class="frame-open-tab" id="frameOpenTab" href="#" target="_blank" rel="noopener noreferrer">원문 새탭 열기 ↗</a>
+    </div>
+    <div class="frame-body">
+      <div class="frame-loading" id="frameLoading"><div class="spinner"></div> 원문 불러오는 중…</div>
+      <iframe id="frameIframe" title="원문" referrerpolicy="no-referrer"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
+    </div>
   </section>
 
   <!-- onboarding survey -->
@@ -357,6 +395,7 @@ const state = {
   userId: localStorage.getItem("feed_uid") || null,
   cursor: 0, loading: false, exhausted: false,
   activeCategory: null, config: null,
+  registry: [], // full /api/communities list (all sources, unfiltered) — labels + frameable lookups
   communities: [], activeSource: localStorage.getItem("feed_src") || null,
   feedScrollY: 0, // remembered scroll position for exact back-restore
   cardsById: new Map(),
@@ -373,7 +412,14 @@ history.scrollRestoration = "manual"; // we restore scroll ourselves, precisely
 const SRC_COLORS = {}; // stable color per source
 const PALETTE = ["#4f8cff","#e5566b","#3fb27f","#f0a13d","#a97bff","#39c0d3","#e871c0","#7fb0ff","#c0d34a"];
 function srcColor(id){ if(!SRC_COLORS[id]){ let h=0; for(const c of id) h=(h*31+c.charCodeAt(0))>>>0; SRC_COLORS[id]=PALETTE[h%PALETTE.length]; } return SRC_COLORS[id]; }
-function srcLabel(id){ if(id==="me") return "내 글"; const s = state.config?.sources.find(x=>x.id===id); return s? s.label : id; }
+function srcLabel(id){ if(id==="me") return "내 글";
+  const r = state.registry.find(x=>x.id===id); if(r) return r.labelKo || r.label;
+  const s = state.config?.sources.find(x=>x.id===id); return s? s.label : id; }
+// frameable per source (jagei-style hybrid): true only for sources verified
+// (2026-07-24, curl header check per source's real post URL) to allow being
+// embedded in our iframe. Everything else — including unknown/未등록 ids —
+// safely defaults to the out-link behavior.
+function isFrameable(sourceId){ const r = state.registry.find(x=>x.id===sourceId); return !!(r && r.frameable === true); }
 function timeAgo(iso){ if(!iso) return ""; const d=(Date.now()-new Date(iso))/1e3;
   if(d<3600) return Math.max(1,Math.floor(d/60))+"분 전"; if(d<86400) return Math.floor(d/3600)+"시간 전"; return Math.floor(d/86400)+"일 전"; }
 
@@ -393,7 +439,8 @@ function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg
   state.ageVerified = s.ageVerified; state.showAdult = s.showAdult; state.nickname = s.nickname;
   state.surveyed = s.surveyed;
   // 소스 칩은 레지스트리에서 동적으로 — 하드코딩 목록 없음. 활성(enabled) + 비성인 소스만.
-  state.communities = (communitiesRes.communities || []).filter(c => c.enabled && !c.adult);
+  state.registry = communitiesRes.communities || [];
+  state.communities = state.registry.filter(c => c.enabled && !c.adult);
   renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); setupCompose(); setupSpace(); setupSkipObserver();
   // Always show content first — a preview feed (popularity-ranked when no taste
   // yet). Personalization is invited, never a gate. (adversarial review #1)
@@ -867,16 +914,21 @@ function appendCard(item){
       </div>
     </div>`;
   if(state.readSet.has(item.id)) card.classList.add("read");
-  // Card body tap: collected items (via !== "me") jump straight to the
-  // original in a new tab — no in-app detail step (legal.md out-link model +
-  // David 2026-07-24: keep our tab's menu/scroll untouched). The user's own
-  // posts (via === "me") keep the existing in-app detail. Either way, the
-  // 💬 chip is a dedicated escape hatch into the in-app detail/comments —
-  // that access path must never disappear, even for collected items.
+  // Card body tap: collected items (via !== "me") leave our own detail
+  // overlay for the original — jagei's hybrid (legal.md out-link model +
+  // David 2026-07-24): frameable sources open in-app (our menu stays on top,
+  // openFrame), everything else jumps to a plain new tab (openOriginal), and
+  // either way our own tab's scroll/menu never moves. The user's own posts
+  // (via === "me") keep the existing in-app detail. Either way, the 💬 chip is
+  // a dedicated escape hatch into the in-app detail/comments — that access
+  // path must never disappear, even for collected items.
   card.addEventListener("click", (e)=>{
     if(e.target.closest(".rate")) return;
     if(e.target.closest(".open-detail")){ openDetail(item.id); return; }
-    if(item.via !== "me" && item.url){ openOriginal(item); return; }
+    if(item.via !== "me" && item.url){
+      if(isFrameable(item.source)) openFrame(item); else openOriginal(item);
+      return;
+    }
     openDetail(item.id);
   });
   card.addEventListener("keydown", (e)=>{
@@ -964,14 +1016,74 @@ function markOpened(itemId){
   const card = state.cardsById.get(itemId); if(card) card.classList.add("read");
 }
 
-// Collected items (via !== "me") leave straight to the source — no framing,
-// no in-app detail step — per legal.md's out-link model and David's 2026-07-24
-// instruction to keep our tab's menu/scroll position intact. rel=noopener
-// blocks the new tab from reaching back into window.opener.
+// Collected items (via !== "me") leave the app rather than opening our own
+// detail overlay — a jagei-style hybrid (see openFrame below): sources
+// verified frame-embeddable open in an in-app iframe with our menu still on
+// top; everything else (frameable===false, or the iframe failing to load)
+// falls back to this plain new-tab out-link. rel=noopener blocks the new tab
+// from reaching back into window.opener.
 function openOriginal(item){
   markOpened(item.id);
   window.open(item.url, "_blank", "noopener,noreferrer");
 }
+
+// Frame viewer: our slim top bar + the original full-height in an iframe,
+// as an SPA overlay (no page navigation) — only for sources verified
+// frameable (communities.json `frameable`, checked against real response
+// headers 2026-07-24; see report). A 5s watchdog covers what the static
+// header check can't: a site that changes its policy, or busts out via JS.
+// `sandbox` deliberately omits allow-top-navigation so a busting script can't
+// hijack our whole app — worst case the frame sits blank and the visible
+// "원문 새탭 열기" button is still a manual way out.
+const FRAME_LOAD_TIMEOUT_MS = 5000;
+let frameWatchdog = null;
+function openFrame(item){
+  state.feedScrollY = window.scrollY;
+  markOpened(item.id);
+  state.openedAt = Date.now(); state.openItemId = item.id;
+  history.pushState({ view:"frame", itemId: item.id }, "", "#post-"+encodeURIComponent(item.id));
+
+  document.getElementById("frameSrc").textContent = `${srcLabel(item.source)} · ${escapeHtml(item.title).slice(0,60)}`;
+  const openTab = document.getElementById("frameOpenTab"); openTab.href = item.url;
+  const loading = document.getElementById("frameLoading"); loading.style.display = "flex";
+  const iframe = document.getElementById("frameIframe");
+
+  clearTimeout(frameWatchdog);
+  const onLoad = () => { clearTimeout(frameWatchdog); loading.style.display = "none"; };
+  iframe.onload = onLoad;
+  iframe.onerror = () => fallBackToNewTab(item);
+  frameWatchdog = setTimeout(() => fallBackToNewTab(item), FRAME_LOAD_TIMEOUT_MS);
+  iframe.src = item.url;
+
+  const v = document.getElementById("frameViewer");
+  v.scrollTop = 0; v.classList.add("open"); v.setAttribute("aria-hidden","false");
+}
+// The iframe never loaded in time (blocked, timed out, network error) —
+// close the frame viewer and continue exactly as a non-frameable source
+// would: a fresh new tab. Doesn't re-send the open signal (already sent by
+// openFrame's markOpened) or double-count dwell (closeFrame guards on state).
+function fallBackToNewTab(item){
+  if(document.getElementById("frameViewer").getAttribute("aria-hidden")==="true") return; // already closed
+  closeFrame({ skipSignal: true });
+  window.open(item.url, "_blank", "noopener,noreferrer");
+  toast("이 사이트는 앱 안에서 열 수 없어 새 탭으로 열었어요");
+}
+function closeFrame(opts){
+  clearTimeout(frameWatchdog);
+  const v = document.getElementById("frameViewer");
+  // dwell signal — same learning signal the in-app detail overlay sends;
+  // "complete" isn't measurable across the cross-origin iframe boundary, so
+  // the frame viewer only ever reports plain dwell time.
+  if(!(opts && opts.skipSignal) && state.openItemId && state.openedAt){
+    const dwellMs = Date.now() - state.openedAt;
+    API.signal(state.userId, state.openItemId, "dwell", dwellMs);
+  }
+  state.openItemId = null; state.openedAt = 0;
+  document.getElementById("frameIframe").src = "about:blank";
+  v.classList.remove("open"); v.setAttribute("aria-hidden","true");
+  window.scrollTo(0, state.feedScrollY);
+}
+document.getElementById("frameBack").onclick = ()=> history.back();
 
 async function openDetail(itemId){
   state.feedScrollY = window.scrollY;             // remember exactly where we were
@@ -1006,6 +1118,7 @@ document.getElementById("backBtn").onclick = ()=> history.back();
 })();
 window.addEventListener("popstate", (e)=>{
   if(document.getElementById("detail").classList.contains("open")) closeDetail();
+  if(document.getElementById("frameViewer").classList.contains("open")) closeFrame();
   if(!document.getElementById("space").classList.contains("hidden")) closeSpace();
 });
 

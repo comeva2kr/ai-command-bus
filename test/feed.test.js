@@ -1078,3 +1078,51 @@ test("GET /api/feed?source= scopes to one source in latest+hotness order (not pe
     server.close();
   }
 });
+
+// --- frame viewer (jagei-style hybrid): every source carries a static
+// `frameable` flag, verified per-source against real response headers
+// (2026-07-24) and surfaced to the client via /api/communities ------------
+
+test("communities.json: every community carries a boolean `frameable` field", async () => {
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const reg = loadRegistry();
+  assert.ok(reg.length > 0);
+  for (const c of reg) {
+    assert.equal(typeof c.frameable, "boolean", `${c.id} is missing a boolean frameable flag`);
+  }
+});
+
+test("communities.json: frameable matches the 2026-07-24 header verification (jagei cross-check)", async () => {
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const byId = Object.fromEntries(loadRegistry().map((c) => [c.id, c]));
+  // Same-domain community boards where a static per-source flag is meaningful.
+  // jagei reported bobae/ppomppu/theqoo/pann/todayhumor as iframe-embedded and
+  // clien/ruliweb/etoland/mlbpark as direct-link; our verification agrees on
+  // all of these except humoruniv (see report for the discrepancy + the
+  // load-timeout fallback that covers it).
+  const expectFrameable = { bobae: true, ppomppu: true, theqoo: true, pann: true, todayhumor: true };
+  const expectNotFrameable = { clien: false, ruliweb: false, etoland: false, mlbpark: false };
+  for (const [id, want] of Object.entries({ ...expectFrameable, ...expectNotFrameable })) {
+    assert.equal(byId[id].frameable, want, `${id} frameable should be ${want}`);
+  }
+  // Heterogeneous-destination sources (each item links to a different external
+  // domain) can't carry a meaningful single flag — always out-link.
+  assert.equal(byId.hackernews.frameable, false);
+  assert.equal(byId.gnews.frameable, false);
+});
+
+test("GET /api/communities surfaces the frameable flag to the client (no server change needed — it's part of the registry passthrough)", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({ sources: [] });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const res = await fetch(`http://localhost:${server.address().port}/api/communities`);
+    const body = await res.json();
+    const theqoo = body.communities.find((c) => c.id === "theqoo");
+    const clien = body.communities.find((c) => c.id === "clien");
+    assert.equal(theqoo.frameable, true);
+    assert.equal(clien.frameable, false);
+  } finally {
+    server.close();
+  }
+});
