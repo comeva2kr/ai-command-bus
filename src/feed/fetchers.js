@@ -16,14 +16,22 @@
 
 const DEFAULT_UA = "ai-command-bus-feed/0.1 (+https://github.com/comeva2kr/ai-command-bus)";
 
+const FETCH_TIMEOUT_MS = 8000; // a slow feed must never stall collection
+
 async function getText(url, fetchImpl) {
-  const res = await fetchImpl(url, { headers: { "user-agent": DEFAULT_UA, accept: "*/*" } });
+  const res = await fetchImpl(url, {
+    headers: { "user-agent": DEFAULT_UA, accept: "*/*" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   return res.text();
 }
 
 async function getJson(url, fetchImpl) {
-  const res = await fetchImpl(url, { headers: { "user-agent": DEFAULT_UA, accept: "application/json" } });
+  const res = await fetchImpl(url, {
+    headers: { "user-agent": DEFAULT_UA, accept: "application/json" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   return res.json();
 }

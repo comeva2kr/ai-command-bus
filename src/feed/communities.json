@@ -1,45 +1,650 @@
 {
   "_comment": "Community resource registry. Data-driven so new sources are added here, not in code. `adapter.type` selects how items are fetched: 'seed' (bundled offline dataset), 'rss', 'reddit', 'json'. Non-seed adapters need a fetcher injected at runtime; offline they yield nothing but stay registered. `lang` drives translation. `adult` requires age verification.",
   "communities": [
-    { "id": "bobae", "label": "보배드림", "country": "KR", "lang": "ko", "kind": "community", "category": "auto", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "getcha", "label": "겟차", "country": "KR", "lang": "ko", "kind": "community", "category": "auto", "size": "medium", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "encar", "label": "엔카", "country": "KR", "lang": "ko", "kind": "community", "category": "auto", "size": "medium", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "clien", "label": "클리앙", "country": "KR", "lang": "ko", "kind": "community", "category": "tech", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "ppomppu", "label": "뽐뿌", "country": "KR", "lang": "ko", "kind": "community", "category": "business", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "ruliweb", "label": "루리웹", "country": "KR", "lang": "ko", "kind": "community", "category": "gaming", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "inven", "label": "인벤", "country": "KR", "lang": "ko", "kind": "community", "category": "gaming", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "humoruniv", "label": "웃긴대학", "country": "KR", "lang": "ko", "kind": "community", "category": "humor", "size": "medium", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "dcinside", "label": "디시인사이드", "country": "KR", "lang": "ko", "kind": "community", "category": "humor", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "instiz", "label": "인스티즈", "country": "KR", "lang": "ko", "kind": "community", "category": "culture", "size": "medium", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "theqoo", "label": "더쿠", "country": "KR", "lang": "ko", "kind": "community", "category": "culture", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "mlbpark", "label": "엠엘비파크", "country": "KR", "lang": "ko", "kind": "community", "category": "sports", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "82cook", "label": "82쿡", "country": "KR", "lang": "ko", "kind": "community", "category": "life", "size": "medium", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-
-    { "id": "fmkorea", "label": "에펨코리아", "country": "KR", "lang": "ko", "kind": "community", "category": "humor", "size": "large", "adult": false, "enabled": false, "adapter": { "type": "rss", "url": "" } },
-    { "id": "gasengi", "label": "가생이닷컴", "country": "KR", "lang": "ko", "kind": "community", "category": "news", "size": "small", "adult": false, "enabled": false, "adapter": { "type": "rss", "url": "" } },
-    { "id": "todayhumor", "label": "오늘의유머", "country": "KR", "lang": "ko", "kind": "community", "category": "humor", "size": "medium", "adult": false, "enabled": false, "adapter": { "type": "rss", "url": "" } },
-    { "id": "slrclub", "label": "SLR클럽", "country": "KR", "lang": "ko", "kind": "community", "category": "life", "size": "medium", "adult": false, "enabled": false, "adapter": { "type": "rss", "url": "" } },
-    { "id": "damoang", "label": "다모앙", "country": "KR", "lang": "ko", "kind": "community", "category": "tech", "size": "small", "adult": false, "enabled": false, "adapter": { "type": "rss", "url": "" } },
-    { "id": "arca", "label": "아카라이브", "country": "KR", "lang": "ko", "kind": "community", "category": "gaming", "size": "medium", "adult": false, "enabled": false, "adapter": { "type": "rss", "url": "" } },
-    { "id": "naverblog", "label": "네이버 블로그(자동차)", "country": "KR", "lang": "ko", "kind": "community", "category": "auto", "size": "large", "adult": false, "enabled": false, "adapter": { "type": "rss", "url": "" } },
-
-    { "id": "reddit", "label": "Reddit", "labelKo": "레딧", "country": "US", "lang": "en", "kind": "community", "category": "tech", "size": "large", "adult": false, "enabled": false, "adapter": { "type": "reddit", "url": "" } },
-    { "id": "hackernews", "label": "Hacker News", "labelKo": "해커뉴스", "country": "US", "lang": "en", "kind": "community", "category": "tech", "size": "large", "adult": false, "enabled": false, "adapter": { "type": "json", "url": "" } },
-    { "id": "4chan_g", "label": "4chan /g/", "labelKo": "포챈 기술판", "country": "US", "lang": "en", "kind": "community", "category": "tech", "size": "large", "adult": false, "enabled": false, "adapter": { "type": "json", "url": "" } },
-    { "id": "2ch", "label": "5ch", "labelKo": "5채널", "country": "JP", "lang": "ja", "kind": "community", "category": "humor", "size": "large", "adult": false, "enabled": false, "adapter": { "type": "rss", "url": "" } },
-    { "id": "pixiv_r", "label": "Pixiv Trends", "labelKo": "픽시브", "country": "JP", "lang": "ja", "kind": "community", "category": "culture", "size": "large", "adult": false, "enabled": false, "adapter": { "type": "json", "url": "" } },
-
-    { "id": "dc_adult", "label": "성인 유머 게시판", "country": "KR", "lang": "ko", "kind": "community", "category": "humor", "size": "medium", "adult": true, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "adult_life", "label": "성인 상담 게시판", "country": "KR", "lang": "ko", "kind": "community", "category": "life", "size": "small", "adult": true, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "reddit_nsfw", "label": "Reddit NSFW", "labelKo": "레딧 성인", "country": "US", "lang": "en", "kind": "community", "category": "culture", "size": "large", "adult": true, "enabled": false, "adapter": { "type": "reddit", "url": "" } },
-
-    { "id": "techwire", "label": "테크와이어", "country": "KR", "lang": "ko", "kind": "news", "category": "tech", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "autopost", "label": "오토포스트", "country": "KR", "lang": "ko", "kind": "news", "category": "auto", "size": "medium", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "sciencedaily", "label": "사이언스데일리", "country": "US", "lang": "en", "kind": "news", "category": "science", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "marketpost", "label": "마켓포스트", "country": "KR", "lang": "ko", "kind": "news", "category": "business", "size": "medium", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "sportsline", "label": "스포츠라인", "country": "KR", "lang": "ko", "kind": "news", "category": "sports", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "entnews", "label": "엔터뉴스", "country": "KR", "lang": "ko", "kind": "news", "category": "culture", "size": "medium", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "gamespot", "label": "게임스팟", "country": "US", "lang": "en", "kind": "news", "category": "gaming", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } },
-    { "id": "newswire", "label": "뉴스와이어", "country": "KR", "lang": "ko", "kind": "news", "category": "news", "size": "large", "adult": false, "enabled": true, "adapter": { "type": "seed" } }
+    {
+      "id": "bobae",
+      "label": "보배드림",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "auto",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "getcha",
+      "label": "겟차",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "auto",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "encar",
+      "label": "엔카",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "auto",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "clien",
+      "label": "클리앙",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://feeds.feedburner.com/c_hot50",
+        "note": "서드파티 핫글 피드(댓글50+) — 헬스체크로 유효성 검증"
+      }
+    },
+    {
+      "id": "ppomppu",
+      "label": "뽐뿌",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "ruliweb",
+      "label": "루리웹",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "gaming",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "inven",
+      "label": "인벤",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "gaming",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "humoruniv",
+      "label": "웃긴대학",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "humor",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "dcinside",
+      "label": "디시인사이드",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "humor",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "instiz",
+      "label": "인스티즈",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "culture",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "theqoo",
+      "label": "더쿠",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "mlbpark",
+      "label": "엠엘비파크",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "sports",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "82cook",
+      "label": "82쿡",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "life",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "fmkorea",
+      "label": "에펨코리아",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "humor",
+      "size": "large",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "rss",
+        "url": ""
+      }
+    },
+    {
+      "id": "gasengi",
+      "label": "가생이닷컴",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "news",
+      "size": "small",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "rss",
+        "url": ""
+      }
+    },
+    {
+      "id": "todayhumor",
+      "label": "오늘의유머",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "humor",
+      "size": "medium",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "rss",
+        "url": ""
+      }
+    },
+    {
+      "id": "slrclub",
+      "label": "SLR클럽",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "life",
+      "size": "medium",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "rss",
+        "url": ""
+      }
+    },
+    {
+      "id": "damoang",
+      "label": "다모앙",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "tech",
+      "size": "small",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "rss",
+        "url": ""
+      }
+    },
+    {
+      "id": "arca",
+      "label": "아카라이브",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "gaming",
+      "size": "medium",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "rss",
+        "url": ""
+      }
+    },
+    {
+      "id": "naverblog",
+      "label": "네이버 블로그(자동차)",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "auto",
+      "size": "large",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "rss",
+        "url": ""
+      }
+    },
+    {
+      "id": "reddit",
+      "label": "Reddit",
+      "labelKo": "레딧",
+      "country": "US",
+      "lang": "en",
+      "kind": "community",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "reddit",
+        "url": ""
+      }
+    },
+    {
+      "id": "hackernews",
+      "label": "Hacker News",
+      "labelKo": "해커뉴스",
+      "country": "US",
+      "lang": "en",
+      "kind": "community",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "json",
+        "url": ""
+      }
+    },
+    {
+      "id": "4chan_g",
+      "label": "4chan /g/",
+      "labelKo": "포챈 기술판",
+      "country": "US",
+      "lang": "en",
+      "kind": "community",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "json",
+        "url": ""
+      }
+    },
+    {
+      "id": "2ch",
+      "label": "5ch",
+      "labelKo": "5채널",
+      "country": "JP",
+      "lang": "ja",
+      "kind": "community",
+      "category": "humor",
+      "size": "large",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "rss",
+        "url": ""
+      }
+    },
+    {
+      "id": "pixiv_r",
+      "label": "Pixiv Trends",
+      "labelKo": "픽시브",
+      "country": "JP",
+      "lang": "ja",
+      "kind": "community",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": false,
+      "adapter": {
+        "type": "json",
+        "url": ""
+      }
+    },
+    {
+      "id": "dc_adult",
+      "label": "성인 유머 게시판",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "humor",
+      "size": "medium",
+      "adult": true,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "adult_life",
+      "label": "성인 상담 게시판",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "life",
+      "size": "small",
+      "adult": true,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "reddit_nsfw",
+      "label": "Reddit NSFW",
+      "labelKo": "레딧 성인",
+      "country": "US",
+      "lang": "en",
+      "kind": "community",
+      "category": "culture",
+      "size": "large",
+      "adult": true,
+      "enabled": false,
+      "adapter": {
+        "type": "reddit",
+        "url": ""
+      }
+    },
+    {
+      "id": "techwire",
+      "label": "테크와이어",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "autopost",
+      "label": "오토포스트",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "auto",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "sciencedaily",
+      "label": "사이언스데일리",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "science",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "marketpost",
+      "label": "마켓포스트",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "sportsline",
+      "label": "스포츠라인",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "sports",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "entnews",
+      "label": "엔터뉴스",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "culture",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "gamespot",
+      "label": "게임스팟",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "gaming",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "newswire",
+      "label": "뉴스와이어",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "news",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "seed"
+      }
+    },
+    {
+      "id": "gnews",
+      "label": "구글뉴스",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "news",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://news.google.com/rss?hl=ko&gl=KR&ceid=KR:ko"
+      }
+    },
+    {
+      "id": "gnews-auto",
+      "label": "구글뉴스 자동차",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "auto",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://news.google.com/rss/search?q=자동차&hl=ko&gl=KR&ceid=KR:ko"
+      }
+    },
+    {
+      "id": "gnews-tech",
+      "label": "구글뉴스 IT",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://news.google.com/rss/search?q=IT&hl=ko&gl=KR&ceid=KR:ko"
+      }
+    },
+    {
+      "id": "gnews-biz",
+      "label": "구글뉴스 경제",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://news.google.com/rss/search?q=경제&hl=ko&gl=KR&ceid=KR:ko"
+      }
+    },
+    {
+      "id": "gnews-sports",
+      "label": "구글뉴스 스포츠",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "sports",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://news.google.com/rss/search?q=스포츠&hl=ko&gl=KR&ceid=KR:ko"
+      }
+    },
+    {
+      "id": "gnews-ent",
+      "label": "구글뉴스 연예",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://news.google.com/rss/search?q=연예&hl=ko&gl=KR&ceid=KR:ko"
+      }
+    },
+    {
+      "id": "gnews-science",
+      "label": "구글뉴스 과학",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "science",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://news.google.com/rss/search?q=과학&hl=ko&gl=KR&ceid=KR:ko"
+      }
+    },
+    {
+      "id": "gnews-game",
+      "label": "구글뉴스 게임",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "gaming",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://news.google.com/rss/search?q=게임&hl=ko&gl=KR&ceid=KR:ko"
+      }
+    }
   ]
 }

@@ -368,6 +368,25 @@ export function createServer(opts = {}) {
           const body = await readBody(req);
           return send(res, 200, { ok: store.deleteComment(body.id) });
         }
+        // Source health check: actually fetch every enabled live adapter once
+        // and report per-source status. This is how candidate feed URLs get
+        // VERIFIED at runtime instead of being trusted blindly (no hardcoded
+        // assumptions — where the network is closed, this shows exactly that).
+        if (p === "/api/admin/check-sources" && req.method === "POST") {
+          const targets = registry.filter((c) => c.enabled && c.adapter && c.adapter.type !== "seed");
+          const results = [];
+          for (const entry of targets) {
+            const t0 = Date.now();
+            try {
+              const rows = await makeFetcher(entry)();
+              results.push({ id: entry.id, label: entry.label, ok: true, items: rows.length, ms: Date.now() - t0 });
+            } catch (err) {
+              results.push({ id: entry.id, label: entry.label, ok: false, error: String(err && err.message ? err.message : err).slice(0, 140), ms: Date.now() - t0 });
+            }
+          }
+          return send(res, 200, { checkedAt: new Date().toISOString(), results });
+        }
+
         if (p === "/api/admin/community" && req.method === "POST") {
           const body = await readBody(req);
           const list = store.setSourceDisabled(body.id, body.disabled === true);

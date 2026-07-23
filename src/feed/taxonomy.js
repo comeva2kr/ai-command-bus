@@ -86,7 +86,15 @@ export const SOURCE_CATALOG = [
   { id: "sportsline", label: "스포츠라인", kind: "news" },
   { id: "entnews", label: "엔터뉴스", kind: "news" },
   { id: "gamespot", label: "게임스팟", kind: "news" },
-  { id: "newswire", label: "뉴스와이어", kind: "news" }
+  { id: "newswire", label: "뉴스와이어", kind: "news" },
+  { id: "gnews", label: "구글뉴스", kind: "news" },
+  { id: "gnews-auto", label: "구글뉴스 자동차", kind: "news" },
+  { id: "gnews-tech", label: "구글뉴스 IT", kind: "news" },
+  { id: "gnews-biz", label: "구글뉴스 경제", kind: "news" },
+  { id: "gnews-sports", label: "구글뉴스 스포츠", kind: "news" },
+  { id: "gnews-ent", label: "구글뉴스 연예", kind: "news" },
+  { id: "gnews-science", label: "구글뉴스 과학", kind: "news" },
+  { id: "gnews-game", label: "구글뉴스 게임", kind: "news" }
 ];
 
 export function sourceLabel(id) {

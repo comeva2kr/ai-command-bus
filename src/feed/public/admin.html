@@ -142,8 +142,24 @@ async function renderCommunities(panel){
     <td>${c.enabled?'<span style="color:var(--ok)">등록</span>':'<span class="muted">비등록</span>'}</td>
     <td><button class="toggle ${c.disabled?'off':''}" onclick="toggleCommunity('${esc(c.id)}',${!c.disabled})">${c.disabled?'비활성(켜기)':'활성(끄기)'}</button></td>
   </tr>`).join("");
-  panel.innerHTML = `<p class="muted" style="font-size:12.5px">전역으로 끄면 모든 사용자 피드에서 해당 커뮤니티가 사라집니다.</p>
+  panel.innerHTML = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+      <p class="muted" style="font-size:12.5px;margin:0;flex:1">전역으로 끄면 모든 사용자 피드에서 해당 커뮤니티가 사라집니다.</p>
+      <button id="checkSrc" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600">🩺 수집 점검</button>
+    </div>
+    <div id="checkResult" style="margin-bottom:10px"></div>
     <table><thead><tr><th>커뮤니티</th><th>분류</th><th>수집</th><th>노출</th></tr></thead><tbody>${rows}</tbody></table>`;
+  document.getElementById("checkSrc").onclick = async ()=>{
+    const box = document.getElementById("checkResult");
+    box.innerHTML = '<span class="muted" style="font-size:12.5px">실제 피드에 접속해 확인하는 중…</span>';
+    try {
+      const { results } = await api("/api/admin/check-sources", { method:"POST", body:"{}" });
+      if(!results.length){ box.innerHTML = '<span class="muted">점검할 라이브 소스가 없습니다.</span>'; return; }
+      box.innerHTML = results.map(r => r.ok
+        ? `<div class="row-card" style="border-color:var(--ok)">✅ <b>${esc(r.label)}</b> — ${r.items}개 수신 (${r.ms}ms)</div>`
+        : `<div class="row-card" style="border-color:var(--danger)">❌ <b>${esc(r.label)}</b> — ${esc(r.error)} <span class="muted">(${r.ms}ms)</span></div>`
+      ).join("");
+    } catch(e){ box.innerHTML = '<span style="color:var(--danger);font-size:12.5px">점검 실패: '+esc(e.message)+'</span>'; }
+  };
 }
 async function toggleCommunity(id, disabled){
   await api("/api/admin/community",{method:"POST",body:JSON.stringify({id,disabled})}); render();
