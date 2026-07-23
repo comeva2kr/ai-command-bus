@@ -1824,3 +1824,103 @@ test("GET /api/feed?source=submit scopes to every via:submit item regardless of 
     server.close();
   }
 });
+
+// --- 2026-07-24 new sources: 44bits/yozm/outstanding/techmeme/slashdot/ddanzi/
+// slownews/newspeppermint (rss) + devto (json) + tildes (list) — offline,
+// fixture-driven per handoff.md's rule (real 1-time fetch captured the
+// fixture; tests never touch the network). Only a representative 4 are
+// exercised here (rss/RDF-variant, json custom mapper, list), matching the
+// existing "list adapter" fixture-test pattern above.
+
+test("parseRss: 44bits RSS 2.0 feed — plain feed parses via the registry's own adapter.url", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "44bits");
+  assert.equal(entry.adapter.type, "rss");
+  const items = parseRss(fixture("44bits_feed.xml"));
+  assert.ok(items.length >= 20, `expected many posts, got ${items.length}`);
+  assert.ok(items.every((i) => i.url && i.url.startsWith("https://www.44bits.io/")));
+  assert.ok(items.every((i) => i.title), "every item has a title");
+  assert.ok(items.some((i) => i.publishedAt), "dates parsed");
+});
+
+test("parseRss: 딴지일보 시사 큐레이션 RSS — title/link/date parse (429-sensitive source, note says low-frequency polling)", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "ddanzi");
+  assert.equal(entry.kind, "news", "news-kind source gets the tighter FEED_NEWS_CAP");
+  assert.match(entry.adapter.note, /429|저빈도/, "429 sensitivity documented so nobody re-polls this aggressively");
+  const items = parseRss(fixture("ddanzi_news.xml"));
+  assert.ok(items.length >= 10, `expected posts, got ${items.length}`);
+  assert.ok(items.every((i) => i.url && i.url.startsWith("https://www.ddanzi.com/")));
+  assert.ok(items.some((i) => i.publishedAt));
+});
+
+test("devtoFetcher maps dev.to's own field names (positive_reactions_count/comments_count/published_at/description) onto the canonical shape", async () => {
+  const { devtoFetcher } = await import("../src/feed/fetchers.js");
+  const raw = JSON.parse(fixture("devto_top.json"));
+  const fakeFetch = async (url) => {
+    assert.match(url, /^https:\/\/dev\.to\/api\/articles\?top=/);
+    return { ok: true, async json() { return raw; } };
+  };
+  const items = await devtoFetcher(fakeFetch)();
+  assert.equal(items.length, raw.length);
+  assert.equal(items[0].title, raw[0].title);
+  assert.equal(items[0].url, raw[0].url);
+  assert.equal(items[0].score, raw[0].positive_reactions_count);
+  assert.equal(items[0].commentCount, raw[0].comments_count);
+  assert.equal(items[0].publishedAt, raw[0].published_at);
+  assert.equal(items[0].lang, "en");
+
+  // wired through makeFetcher by entry.id, not adapter.url shape
+  const { makeFetcher } = await import("../src/feed/fetchers.js");
+  const viaMakeFetcher = await makeFetcher({ id: "devto", adapter: { type: "json", url: "https://dev.to/api/articles?top=7" } }, fakeFetch)();
+  assert.equal(viaMakeFetcher.length, raw.length);
+});
+
+test("parseListPage: Tildes 베스트(order=votes&period=all) — internal (relative /~group/id/slug) and external (absolute) links both resolve correctly, votes/comments never bleed across articles", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "tildes");
+  assert.equal(entry.adapter.type, "list");
+  assert.equal(entry.lang, "en", "overseas source flows through the translation pipeline");
+  const items = parseListPage(fixture("tildes_votes.html"), entry.adapter.list);
+  assert.ok(items.length >= 40, `expected many topics, got ${items.length}`);
+  // resolveUrl() must leave absolute (external out-link) hrefs untouched while
+  // still prefixing urlBase onto relative (Tildes' own self-post) hrefs
+  assert.ok(items.some((i) => i.url.startsWith("https://tildes.net/~")), "internal self-posts resolved against urlBase");
+  assert.ok(items.some((i) => !i.url.startsWith("https://tildes.net/")), "external out-links kept as-is, not mangled");
+  assert.ok(items.every((i) => i.score > 0), "every row's own vote count captured");
+  assert.ok(items.every((i) => i.commentCount > 0), "every row's own comment count captured");
+  // regression guard for the windowAfter bleed risk: scores must vary across
+  // rows (a bleed bug would show many rows collapsing onto a neighbor's number)
+  const uniqueScores = new Set(items.map((i) => i.score));
+  assert.ok(uniqueScores.size > 10, "vote counts vary per row, not bled from a neighboring article");
+});
+
+test("communities.json: all 10 sources added 2026-07-24 are registered, enabled, https, and lang-tagged for translation where overseas", async () => {
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const reg = loadRegistry();
+  const expected = {
+    "44bits": { lang: "ko", kind: "community", type: "rss" },
+    yozm: { lang: "ko", kind: "community", type: "rss" },
+    outstanding: { lang: "ko", kind: "community", type: "rss" },
+    techmeme: { lang: "en", kind: "community", type: "rss" },
+    slashdot: { lang: "en", kind: "community", type: "rss" },
+    ddanzi: { lang: "ko", kind: "news", type: "rss" },
+    slownews: { lang: "ko", kind: "news", type: "rss" },
+    newspeppermint: { lang: "ko", kind: "news", type: "rss" },
+    devto: { lang: "en", kind: "community", type: "json" },
+    tildes: { lang: "en", kind: "community", type: "list" }
+  };
+  for (const [id, exp] of Object.entries(expected)) {
+    const c = reg.find((x) => x.id === id);
+    assert.ok(c, `${id} registered`);
+    assert.equal(c.enabled, true, `${id} enabled`);
+    assert.equal(c.httpsOk, true, `${id} httpsOk`);
+    assert.equal(c.lang, exp.lang, `${id} lang`);
+    assert.equal(c.kind, exp.kind, `${id} kind`);
+    assert.equal(c.adapter.type, exp.type, `${id} adapter type`);
+    assert.ok(c.label, `${id} has a display label`);
+  }
+});

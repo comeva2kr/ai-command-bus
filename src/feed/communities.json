@@ -893,6 +893,195 @@
         "type": "rss",
         "url": "https://news.google.com/rss/search?q=게임&hl=ko&gl=KR&ceid=KR:ko"
       }
+    },
+    {
+      "id": "44bits",
+      "label": "44BITS",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "tech",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://44bits.io/feed.xml",
+        "note": "David 2026-07-24 신규 추가. IT/인프라 기술 블로그 공식 RSS(www.44bits.io로 301 리다이렉트, fetch가 자동 추적). robots.txt는 User-agent:* Allow:/ (전면 허용, ClaudeBot/anthropic-ai 개별 차단 없음). 2026-07-24 검증: 200, RSS 2.0 30건 파싱 성공(제목+링크+날짜 모두 확보)."
+      }
+    },
+    {
+      "id": "yozm",
+      "label": "요즘IT",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "tech",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://yozm.wishket.com/magazine/feed/",
+        "note": "David 2026-07-24 신규 추가. 위시켓 IT 매거진 공식 RSS. robots.txt는 /magazine/ 경로 Allow(개별 봇 차단 없음, Crawl-delay:5만 명시). 2026-07-24 검증: 200, RSS 2.0 30건 파싱 성공(제목+링크 확보). 주의: 이 피드는 항목별 pubDate가 없어 publishedAt이 전부 null로 들어옴 — 파싱 실패가 아니라 소스 자체의 피드 스펙 한계이며, recommender는 날짜 없을 때 기본 신선도 가중치로 안전하게 대체함(fetchers.js 기존 동작)."
+      }
+    },
+    {
+      "id": "outstanding",
+      "label": "아웃스탠딩",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "business",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://outstanding.kr/feed/",
+        "note": "David 2026-07-24 신규 추가. IT/스타트업 매체 공식 RSS(wp.outstanding.kr로 리다이렉트, fetch가 자동 추적). robots.txt에 ClaudeBot 명시 Allow:/ (login만 차단). 2026-07-24 검증: 200, RSS 2.0 10건 파싱 성공(제목+링크+날짜 모두 확보)."
+      }
+    },
+    {
+      "id": "techmeme",
+      "label": "Techmeme",
+      "country": "US",
+      "lang": "en",
+      "kind": "community",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.techmeme.com/feed.xml",
+        "note": "David 2026-07-24 신규 추가. 해외 테크 뉴스 큐레이션 공식 RSS. robots.txt에 Claude-User/Claude-SearchBot 명시 Allow:/ (검색/추적 관련 경로만 일반 차단, 피드/기사 무관). 2026-07-24 검증: 200, RSS 2.0 15건 파싱 성공(제목+링크+날짜 모두 확보). lang:en — 번역 파이프라인(translate.js) 대상, 번역기 미연결 시 원문+needsTranslation 플래그로 노출."
+      }
+    },
+    {
+      "id": "slashdot",
+      "label": "Slashdot",
+      "country": "US",
+      "lang": "en",
+      "kind": "community",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://rss.slashdot.org/Slashdot/slashdot/to",
+        "note": "David 2026-07-24 신규 추가. 해외 개발자 커뮤니티 공식 RSS(RDF/RSS 0.9 포맷 — Atom도 표준 RSS 2.0도 아니지만 <item><title>/<link> 구조가 동일해 기존 parseRss가 코드 변경 없이 파싱). robots.txt에 개별 봇 차단은 검색/제출/댓글 등 UI 경로뿐(피드 무관), llms.txt까지 Allow. 2026-07-24 검증: 200, 15건 파싱 성공(제목+링크 확보 — 이 피드는 pubDate/description 자체가 없어 날짜는 null, 요즘IT와 동일한 소스 스펙 한계). lang:en — 번역 파이프라인 대상."
+      }
+    },
+    {
+      "id": "ddanzi",
+      "label": "딴지일보",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "news",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.ddanzi.com/ddanziNews/rss",
+        "note": "David 2026-07-24 신규 추가. 시사 큐레이션 매체 공식 RSS. robots.txt는 User-agent:* 기준 전면 Disallow:/ 이지만 Allow:/ddanziNews 로 이 피드 경로만 명시 예외 허용(개별 봇 차단 없음). 2026-07-24 검증: 200, RSS 2.0 15건 파싱 성공(제목+링크+날짜 모두 확보). 주의: 요청 빈도에 민감(429 관찰 사례 있음) — 저빈도 폴링 권장, 헬스체크/재검증도 과도하게 반복하지 말 것."
+      }
+    },
+    {
+      "id": "slownews",
+      "label": "슬로우뉴스",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "news",
+      "size": "small",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://slownews.kr/feed/",
+        "note": "David 2026-07-24 신규 추가. 시사 매체 공식 RSS. robots.txt는 /wp-admin/만 차단(개별 봇 차단 없음). 2026-07-24 검증: 200, RSS 2.0 20건 파싱 성공(제목+링크+날짜 모두 확보)."
+      }
+    },
+    {
+      "id": "newspeppermint",
+      "label": "뉴스페퍼민트",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "news",
+      "size": "small",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://newspeppermint.com/feed/",
+        "note": "David 2026-07-24 신규 추가. 해외 기사 번역/큐레이션 매체(제작진이 직접 한국어로 번역해 싣는 국내 매체라 lang:ko) 공식 RSS. robots.txt는 /wp-admin/만 차단(개별 봇 차단 없음). 2026-07-24 검증: 200, RSS 2.0 10건 파싱 성공(제목+링크+날짜 모두 확보)."
+      }
+    },
+    {
+      "id": "devto",
+      "label": "dev.to",
+      "country": "US",
+      "lang": "en",
+      "kind": "community",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "json",
+        "url": "https://dev.to/api/articles?top=7",
+        "note": "David 2026-07-24 신규 추가. dev.to 공개 API(인증 불필요, JSON 배열). 필드명이 정규 스키마와 달라(positive_reactions_count/comments_count/published_at/description) makeFetcher의 범용 json 패스스루로는 못 맞춰 devtoFetcher(fetchers.js)를 전용 매핑기로 추가(hackerNewsFetcher와 동일 패턴, entry.id==='devto'로 디스패치). robots.txt에 개별 봇 차단 없음(관리/검색 등 UI 경로만 차단, /api/ 무관). 2026-07-24 검증: 200, 30건(top=7=최근7일 인기순, 개수 제한 아님) 파싱 성공(제목+링크+공개지표 확보). lang:en — 번역 파이프라인 대상."
+      }
+    },
+    {
+      "id": "tildes",
+      "label": "Tildes",
+      "country": "US",
+      "lang": "en",
+      "kind": "community",
+      "category": "tech",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "list",
+        "url": "https://tildes.net/?order=votes&period=all",
+        "pages": 1,
+        "note": "David 2026-07-24 신규 추가. 베스트(전체기간 득표순) 정적 HTML 리스트. robots.txt는 /login만 전면 차단, 개별 스크레이퍼 차단 목록(AhrefsBot/BLEXBot/MJ12bot 등)에 Claude/anthropic 계열 없음. <h1 class=\"topic-title\"> 내부 <a href>에서 제목+링크 파싱 — 자체글은 상대경로(/~group/id/slug), 외부링크는 절대 URL로 혼재하는데 기존 resolveUrl()이 절대 URL은 그대로 두고 상대경로만 urlBase를 붙이므로 코드 변경 없이 정확히 구분됨(2026-07-24 실측: 50건 중 external 32 / internal 18, 링크 스킴 오분류 없음 확인). 페이지네이션 없음(정렬 자체가 전체기간 베스트라 1페이지에 50건). windowAfter는 실측한 '제목→득표 span' 최대 거리(10306자)보다 넉넉히 크게(11000) 잡아, 여러 아티클을 걸치더라도 String.match가 항상 가장 가까운(=자기 자신의) span을 먼저 잡아 이웃 글 수치가 섞이지 않게 함. 2026-07-24 검증: 200, 50건 중 50건 파싱(제목+링크+득표+댓글수 전원 확보). lang:en — 번역 파이프라인 대상.",
+        "list": {
+          "urlBase": "https://tildes.net",
+          "titleRegex": "<h1 class=\"topic-title\">\\s*<a\\s+href=\"([^\"]+)\"\\s*>([^<]*)</a>",
+          "windowAfter": 11000,
+          "scoreRegex": "topic-voting-votes\">(\\d+)<",
+          "commentRegex": "<span>(\\d+) comments?</span>",
+          "max": 50
+        }
+      }
     }
   ]
 }

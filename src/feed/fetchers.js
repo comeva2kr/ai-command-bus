@@ -118,6 +118,32 @@ export function hackerNewsFetcher(fetchImpl = fetch, hitsPerPage = 30) {
   };
 }
 
+// --- dev.to (top articles API) --------------------------------------------
+//
+// dev.to's public API returns plain JSON (no auth), but its field names don't
+// match normalizeItem's expected shape (positive_reactions_count vs score,
+// comments_count vs commentCount, published_at vs publishedAt, description vs
+// summary) — so unlike a feed that's already normalized-ish, this needs the
+// same kind of dedicated mapping as hackerNewsFetcher/redditFetcher rather
+// than the generic makeFetcher "json" passthrough.
+export function devtoFetcher(fetchImpl = fetch, top = 7) {
+  const url = `https://dev.to/api/articles?top=${top}`;
+  return async () => {
+    const data = await getJson(url, fetchImpl);
+    return (Array.isArray(data) ? data : []).map((a) => ({
+      id: `devto_${a.id}`,
+      title: a.title,
+      summary: a.description ? stripHtml(a.description) : "",
+      url: a.url || (a.path ? `https://dev.to${a.path}` : null),
+      score: a.positive_reactions_count || 0,
+      commentCount: a.comments_count || 0,
+      author: (a.user && a.user.username) || null,
+      publishedAt: a.published_at || null,
+      lang: "en"
+    }));
+  };
+}
+
 // --- Reddit-style JSON listing -------------------------------------------
 
 export function redditFetcher(subreddit, fetchImpl = fetch, limit = 30) {
@@ -348,6 +374,7 @@ export function makeFetcher(entry, fetchImpl = fetch) {
       return listFetcher(entry, fetchImpl);
     case "json":
       if (entry.id === "hackernews") return hackerNewsFetcher(fetchImpl);
+      if (entry.id === "devto") return devtoFetcher(fetchImpl);
       if (!a.url) return async () => [];
       return async () => {
         const data = await getJson(a.url, fetchImpl);
