@@ -6,7 +6,9 @@
 // Returns real restaurants with WGS84 coordinates, so radius/location search and
 // deep links are accurate.
 
-import { classifyByPhone } from "../nopo.js";
+import { scoreNopo } from "../nopo.js";
+
+const THIS_YEAR = new Date().getFullYear();
 
 const ENDPOINT = "https://dapi.kakao.com/v2/local/search/keyword.json";
 const FOOD = "FD6"; // Kakao category group: 음식점
@@ -32,8 +34,11 @@ function normalize(doc) {
     lng: Number(doc.x),
     address: doc.road_address_name || doc.address_name,
     phone: doc.phone || null,
-    // 전화번호 자릿수 기반 '오래된 집(노포)' 신호 (지역번호 제외 가입자번호가 짧을수록 오래됨)
-    nopo: classifyByPhone(doc.phone),
+    // 다중 신호 노포 판별(전화 자릿수 + 상호 패턴 + 전통시장 + 업종). 전국 공통.
+    nopo: scoreNopo(
+      { name: doc.place_name, category: doc.category_name, address: doc.road_address_name || doc.address_name, phone: doc.phone },
+      THIS_YEAR
+    ),
     distanceM: doc.distance ? Number(doc.distance) : null,
     kakaoUrl: doc.place_url,
     naverUrl: naverLink(doc.place_name, doc.road_address_name || doc.address_name)
