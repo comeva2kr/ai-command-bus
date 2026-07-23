@@ -47,8 +47,12 @@ export function normalizeItem(raw, source) {
     category,
     tags: Array.isArray(raw.tags) ? raw.tags.slice(0, 12) : [],
     title: String(raw.title || "").slice(0, 300),
-    // excerpt only for aggregated/out-link items; user's own posts keep their body
-    summary: String(raw.summary || raw.body || "").slice(0, raw.via === "submit" || raw.via === "rss" ? 200 : 1000),
+    // excerpt only for aggregated/out-link items (법적 안전: 발췌 ≤200자);
+    // the user's own posts ("me") and the dev seed keep their full body
+    summary: String(raw.summary || raw.body || "").slice(
+      0,
+      raw.via === "me" || raw.via === "seed" || !raw.via ? 1000 : 200
+    ),
     url: raw.url || null, // out-link to the original (required for aggregated items)
     via: raw.via || "seed", // provenance: seed | rss | api | submit | me
     sourceLabel: raw.sourceLabel || null,

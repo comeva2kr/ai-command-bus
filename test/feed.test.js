@@ -247,12 +247,20 @@ test("seed isolation: buildSources({seed:false}) never emits dev seed content", 
   );
   const sources = buildSources(reg, {
     seed: false,
-    fetcher: async (e) => [{ id: `${e.id}-live-1`, title: "live item", url: "https://example.com/1" }]
+    fetcher: async (e) => [
+      { id: `${e.id}-live-1`, title: "live item", url: "https://example.com/1", body: "가".repeat(500) }
+    ]
   });
   assert.ok(sources.length > 0, "live adapters still build");
   const items = (await Promise.all(sources.map((s) => s.fetch()))).flat();
   assert.ok(items.length > 0, "live items flow");
   assert.equal(items.some((i) => seedIds.has(i.source)), false, "no seed community content leaks");
+  // aggregated provenance + legal excerpt cap: live items are never via:"seed"
+  // and their summaries stay within the 200-char out-link excerpt limit
+  for (const i of items) {
+    assert.ok(i.via === "rss" || i.via === "api", `${i.source} carries live provenance (got ${i.via})`);
+    assert.ok(i.summary.length <= 200, `${i.source} excerpt capped at 200 chars`);
+  }
 });
 
 test("TranslatingSource flags untranslated foreign items and translates when wired", async () => {

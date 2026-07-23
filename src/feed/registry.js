@@ -66,7 +66,10 @@ export function buildSources(registry, opts = {}) {
         .map((it) => ({ lang: entry.lang, ...it, adult: it.adult || entry.adult === true }));
       source = new JsonSource(entry.id, async () => items, entry.kind);
     } else if (opts.fetcher) {
-      // live adapter — delegate to the injected fetcher, tag with registry meta
+      // live adapter — delegate to the injected fetcher, tag with registry meta.
+      // Stamp provenance so aggregated items are recognizable downstream (and
+      // get the ≤200-char excerpt cap): rss feeds -> "rss", json/reddit -> "api".
+      const via = entry.adapter && entry.adapter.type === "rss" ? "rss" : "api";
       source = new JsonSource(
         entry.id,
         async () => {
@@ -75,6 +78,7 @@ export function buildSources(registry, opts = {}) {
             lang: entry.lang,
             category: entry.category,
             adult: entry.adult === true,
+            via,
             ...r,
             source: entry.id
           }));
