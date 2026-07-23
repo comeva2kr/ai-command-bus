@@ -35,6 +35,13 @@
    - **웹푸시 실동작** ✅ 검증 완료: 로컬 테스트 61/61 통과, 프로덕션 `/api/push/vapid-key` 200+키 반환, `/`·`sw.js`·`manifest` 200, `PUSH_DIGEST_MS` 배선 확인(server.js, VAPID 있을 때만 interval 가동). 실제 브라우저 구독→수신 E2E만 미실시(수동 확인 권장).
    - **수익모델 설계** ✅ `docs/monetization.md` 작성 — P0 제휴 커머스 카드(쿠팡파트너스, 표시광고법 고지·19금 제외) + AdFit, P1 프리미엄 구독(번역 무제한, FEED_DB 영속화 선행), P2 트렌드 리포트. 착수 전 blocking: 쿠팡파트너스 약관상 게재 방식 확인(David).
 
+## 프로덕션 소스 현황 (2026-07-23 22:40, 커밋 518c8af 배포 후)
+
+- **정상 수집**: clien·ppomppu·ruliweb(베스트유머)·theqoo·bobae·etoland·pann·hackernews + gnews 8종(소스당 30건 캡). 소스별 선택 칩 메뉴 동작 확인.
+- **프로덕션에서만 0건**: todayhumor·humoruniv·mlbpark — 로컬(한국 IP)에선 정상, Render(해외 데이터센터 IP)에서 차단 추정. 원칙대로 우회 금지, 현상만 기록. 해결 후보: 국내 리전 호스팅으로 이전 시 재검증.
+- slrclub(JS 렌더링)·instiz(AJAX+세션): 정적 파싱 불가로 비활성.
+- fmkorea·arca·dcinside·일베: David 지시로 제외 확정.
+
 ## 다음 착수 후보 (순서 제안)
 
 1. 실기기 웹푸시 E2E 수동 확인 (iPhone/Android 브라우저에서 알림 받기 → `/api/admin/push-digest` 수동 발사).
