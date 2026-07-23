@@ -141,6 +141,10 @@
   .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .card-meta { display: flex; align-items: center; gap: 14px; margin-top: 11px; font-size: 12.5px; color: var(--muted); }
+  /* dedicated in-app-detail entry point (comments etc.) — the card body itself
+     now leaves to the original for collected items, so this chip is the way in */
+  .card-meta .open-detail { cursor: pointer; }
+  .card-meta .open-detail:hover, .card-meta .open-detail:focus-visible { color: var(--text); }
   .actions { margin-left: auto; display: flex; gap: 8px; }
   .rate { border: 1px solid var(--line); background: var(--card-2); color: var(--muted);
     border-radius: 10px; padding: 10px 14px; min-height: 42px; font-size: 14px;
@@ -855,7 +859,7 @@ function appendCard(item){
     <p>${escapeHtml(item.summary)}</p>
     ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
     <div class="card-meta">
-      <span>▲ ${item.score}</span><span>💬 ${item.comments}</span><span>${timeAgo(item.publishedAt)}</span>
+      <span>▲ ${item.score}</span><span class="open-detail" role="button" tabindex="0" title="댓글 보기">💬 ${item.comments}</span><span>${timeAgo(item.publishedAt)}</span>
       <div class="actions">
         <button class="rate save ${item.saved?'on':''}" title="스크랩">${item.saved?'🔖':'📑'}</button>
         <button class="rate up ${item.myRating>0?'on':''}" data-s="1">👍</button>
@@ -863,8 +867,21 @@ function appendCard(item){
       </div>
     </div>`;
   if(state.readSet.has(item.id)) card.classList.add("read");
-  // open detail (but not when tapping action buttons)
-  card.addEventListener("click", (e)=>{ if(e.target.closest(".rate")) return; openDetail(item.id); });
+  // Card body tap: collected items (via !== "me") jump straight to the
+  // original in a new tab — no in-app detail step (legal.md out-link model +
+  // David 2026-07-24: keep our tab's menu/scroll untouched). The user's own
+  // posts (via === "me") keep the existing in-app detail. Either way, the
+  // 💬 chip is a dedicated escape hatch into the in-app detail/comments —
+  // that access path must never disappear, even for collected items.
+  card.addEventListener("click", (e)=>{
+    if(e.target.closest(".rate")) return;
+    if(e.target.closest(".open-detail")){ openDetail(item.id); return; }
+    if(item.via !== "me" && item.url){ openOriginal(item); return; }
+    openDetail(item.id);
+  });
+  card.addEventListener("keydown", (e)=>{
+    if((e.key==="Enter"||e.key===" ") && e.target.closest(".open-detail")){ e.preventDefault(); openDetail(item.id); }
+  });
   card.querySelector(".rate.up").onclick = (e)=>{ e.stopPropagation(); rate(item, card, 1); };
   card.querySelector(".rate.down").onclick = (e)=>{ e.stopPropagation(); rate(item, card, -1); };
   card.querySelector(".rate.save").onclick = async (e)=>{ e.stopPropagation();
@@ -935,13 +952,31 @@ function setupSkipObserver(){
 }
 
 // ---- detail + EXACT back-restore ----
-async function openDetail(itemId){
-  state.feedScrollY = window.scrollY;             // remember exactly where we were
+// Bookkeeping shared by both ways a post can be "opened": the in-app detail
+// overlay (user's own posts) and a direct new-tab jump to the original
+// (every collected item — via !== "me"). Both count as a weak positive signal
+// and a local "read" mark; only the overlay path can additionally measure
+// dwell (closeDetail), since a new tab gives us no close event to time against.
+function markOpened(itemId){
   markRead(itemId);
   state.openedSet.add(itemId);                    // opened → never counts as a skip
-  state.openedAt = Date.now(); state.openItemId = itemId;
-  API.signal(state.userId, itemId, "open");       // weak positive: chose to open
+  API.signal(state.userId, itemId, "open");        // weak positive: chose to open
   const card = state.cardsById.get(itemId); if(card) card.classList.add("read");
+}
+
+// Collected items (via !== "me") leave straight to the source — no framing,
+// no in-app detail step — per legal.md's out-link model and David's 2026-07-24
+// instruction to keep our tab's menu/scroll position intact. rel=noopener
+// blocks the new tab from reaching back into window.opener.
+function openOriginal(item){
+  markOpened(item.id);
+  window.open(item.url, "_blank", "noopener,noreferrer");
+}
+
+async function openDetail(itemId){
+  state.feedScrollY = window.scrollY;             // remember exactly where we were
+  markOpened(itemId);
+  state.openedAt = Date.now(); state.openItemId = itemId;
   history.pushState({ view:"detail", itemId }, "", "#post-"+encodeURIComponent(itemId));
   await renderDetail(itemId);
   const d = document.getElementById("detail");

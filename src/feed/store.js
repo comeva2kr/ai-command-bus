@@ -200,6 +200,8 @@ export class FeedStore {
       userId,
       kind: "community",
       source: "me",
+      via: "me", // provenance: a user's own post keeps its full body (see legal.md), and
+      // is the one card type the feed still opens in-app rather than out-linking (index.html)
       category: post.category || "life",
       tags: Array.isArray(post.tags) ? post.tags.slice(0, 8) : [],
       title: title.slice(0, 300),
