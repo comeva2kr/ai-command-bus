@@ -139,7 +139,15 @@ export function buildPrompt(topics, opts = {}) {
     "- shareText는 '나는 ○○! 너는 어떤 유형?' 처럼 클릭을 부르는 문장.",
     "",
     "## 금지",
-    "- 특정 인물 비방, 정치/종교/성인 소재. 상표는 일반 명사로 우회."
+    "- 특정 인물 비방, 정치/종교/성인 소재. 상표는 일반 명사로 우회.",
+    "- 격식체·상담봇 말투('물론입니다', '~하십시오', '여러분') — 전부 캐주얼한 구어체로.",
+    ...(Array.isArray(opts.feedback) && opts.feedback.length
+      ? [
+          "",
+          "## 이전 생성 시도가 게이트에서 반려됐다 — 아래 사유를 전부 해결하라",
+          ...opts.feedback.map((f) => `- ${f}`)
+        ]
+      : [])
   ].join("\n");
 }
 
@@ -179,7 +187,8 @@ export async function generateQuizWithClaude(topics, opts = {}) {
   } catch {
     throw new Error("퀴즈 응답이 올바른 JSON이 아니에요.");
   }
-  validateQuiz(quiz);
+  // 구조 검증은 여기서 던지지 않는다 — 루프게이트(G1)가 잡아서 반려 사유를
+  // 다음 생성 시도의 피드백으로 되돌린다 (src/quiz/gates.js, weekly.js).
   return quiz;
 }
 
@@ -202,6 +211,8 @@ export function templateQuiz(topics, opts = {}) {
       right: { code: "K", label: "수집가형" }
     }
   ];
+  // 문항마다 고유한 답변 세트 (G3 복붙-티 게이트: 같은 선택지 재사용 금지).
+  // 세트마다 좌/우 가중치 합을 3:3으로 맞춰 축 균형(G4)도 지킨다.
   const reactionAnswers = [
     [
       { text: "일단 클릭. 생각은 그 다음에", pole: "left", weight: 2 },
@@ -214,6 +225,24 @@ export function templateQuiz(topics, opts = {}) {
       { text: "비슷한 사례를 검색해본다", pole: "right", weight: 1 },
       { text: "우선 반응하고 나중에 정정한다", pole: "left", weight: 1 },
       { text: "첫인상이 곧 결론이다", pole: "left", weight: 2 }
+    ],
+    [
+      { text: "보자마자 소름이 쫙 온다", pole: "left", weight: 2 },
+      { text: "감은 오는데 확신은 반반", pole: "left", weight: 1 },
+      { text: "하루 묵혀두고 다시 본다", pole: "right", weight: 2 },
+      { text: "남들 반응을 먼저 살핀다", pole: "right", weight: 1 }
+    ],
+    [
+      { text: "3초 만에 내 의견이 생긴다", pole: "left", weight: 2 },
+      { text: "일단 웃고 시작한다", pole: "left", weight: 1 },
+      { text: "사실인지부터 의심한다", pole: "right", weight: 2 },
+      { text: "전후 맥락을 찾아본다", pole: "right", weight: 1 }
+    ],
+    [
+      { text: "심장이 먼저 뛴다", pole: "left", weight: 2 },
+      { text: "입이 먼저 나간다", pole: "left", weight: 1 },
+      { text: "머리로 한 바퀴 굴려본다", pole: "right", weight: 1 },
+      { text: "결론은 일주일 뒤에 낸다", pole: "right", weight: 2 }
     ]
   ];
   const sharingAnswers = [
@@ -225,9 +254,27 @@ export function templateQuiz(topics, opts = {}) {
     ],
     [
       { text: "짤로 만들어서 뿌린다", pole: "left", weight: 2 },
-      { text: "얘기가 나오면 그때 꺼낸다", pole: "right", weight: 1 },
       { text: "스토리에 슬쩍 올린다", pole: "left", weight: 1 },
+      { text: "얘기가 나오면 그때 꺼낸다", pole: "right", weight: 1 },
       { text: "모아뒀다가 몰아서 본다", pole: "right", weight: 2 }
+    ],
+    [
+      { text: "만나는 사람마다 얘기한다", pole: "left", weight: 2 },
+      { text: "오늘의 대화 주제로 쓴다", pole: "left", weight: 1 },
+      { text: "폴더 정리해서 보관한다", pole: "right", weight: 2 },
+      { text: "언젠가 써먹으려고 메모한다", pole: "right", weight: 1 }
+    ],
+    [
+      { text: "피드에 바로 공유 버튼", pole: "left", weight: 2 },
+      { text: "댓글창에서 한마디 얹는다", pole: "left", weight: 1 },
+      { text: "눈으로만 저장한다", pole: "right", weight: 1 },
+      { text: "캡처해서 보관함 직행", pole: "right", weight: 2 }
+    ],
+    [
+      { text: "이건 알려야 해, 사명감이 든다", pole: "left", weight: 2 },
+      { text: "궁금해할 사람 얼굴이 떠오른다", pole: "left", weight: 1 },
+      { text: "내 취향 아카이브에 추가", pole: "right", weight: 2 },
+      { text: "조용히 좋아요만 누른다", pole: "right", weight: 1 }
     ]
   ];
   const questions = topics.slice(0, 5).flatMap((t, i) => [

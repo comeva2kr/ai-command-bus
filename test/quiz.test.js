@@ -250,6 +250,95 @@ test("QuizStore response stats accumulate with Laplace smoothing", () => {
   assert.throws(() => store.recordResponse("no-such", "FS"), /발행된/);
 });
 
+// ---- loop gates ----------------------------------------------------------
+
+test("template quiz clears every loop gate (G1~G4)", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const report = runGates(sampleQuiz());
+  assert.deepEqual(report.failures, []);
+  assert.equal(report.pass, true);
+});
+
+test("G2 viral gate rejects thin result copy and missing I-got share text", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  quiz.results[0].description = "짧음";
+  quiz.results[1].shareText = "테스트 해보세요";
+  const report = runGates(quiz);
+  assert.equal(report.pass, false);
+  assert.ok(report.failures.some((f) => f.gate === "G2-viral" && f.message.includes("두 줄짜리")));
+  assert.ok(report.failures.some((f) => f.gate === "G2-viral" && f.message.includes("나는")));
+});
+
+test("G3 ai-tell gate rejects chatbot phrasing and duplicated answers", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const botty = structuredClone(sampleQuiz());
+  botty.results[0].description = "물론입니다. 당신은 트렌드에 밝은 유형으로, 정보를 빠르게 접하는 편입니다.";
+  let report = runGates(botty);
+  assert.ok(report.failures.some((f) => f.gate === "G3-ai-tell" && f.message.includes("물론")));
+
+  const copied = structuredClone(sampleQuiz());
+  const firstAnswers = copied.questions[0].answers;
+  for (const q of copied.questions) q.answers = structuredClone(firstAnswers);
+  report = runGates(copied);
+  assert.ok(report.failures.some((f) => f.gate === "G3-ai-tell" && f.message.includes("중복률")));
+});
+
+test("G4 scoring gate rejects lopsided axis weights", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const skewed = structuredClone(sampleQuiz());
+  for (const q of skewed.questions.filter((x) => x.axis === "sharing")) {
+    for (const a of q.answers) a.weight = a.pole === "left" ? 2 : 1;
+  }
+  const report = runGates(skewed);
+  assert.ok(report.failures.some((f) => f.gate === "G4-scoring" && f.message.includes("sharing")));
+});
+
+test("runWeekly loops on gate failure, feeding rejection reasons back into the prompt", async () => {
+  const store = tmpStore();
+  const good = sampleQuiz();
+  const bad = structuredClone(good);
+  bad.results[0].weaknesses = []; // G1 위반: 칭찬만 있는 결과문
+  const bodies = [];
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    const reply = bodies.length === 1 ? bad : good;
+    return {
+      ok: true,
+      async json() {
+        return { stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(reply) }] };
+      }
+    };
+  };
+  const { draft, via } = await runWeekly(HOT_ITEMS, { store, now: NOW, apiKey: "k", fetchImpl });
+  assert.equal(via, "claude");
+  assert.equal(bodies.length, 2, "1차 반려 → 2차 재생성");
+  const secondPrompt = bodies[1].messages[0].content;
+  assert.ok(secondPrompt.includes("반려"), "반려 사유 섹션이 프롬프트에 주입됨");
+  assert.ok(secondPrompt.includes("G1-structure"), "게이트 ID가 피드백에 포함됨");
+  assert.equal(draft.gate.attempts, 2);
+  assert.equal(draft.gate.history[0].pass, false);
+  assert.equal(draft.gate.history[1].pass, true);
+});
+
+test("runWeekly aborts with the gate report when retries are exhausted", async () => {
+  const store = tmpStore();
+  const bad = structuredClone(sampleQuiz());
+  bad.results[0].weaknesses = [];
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls++;
+    return { ok: true, async json() { return { stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(bad) }] }; } };
+  };
+  await assert.rejects(
+    () => runWeekly(HOT_ITEMS, { store, now: NOW, apiKey: "k", fetchImpl, maxAttempts: 2 }),
+    /루프게이트를 통과하지 못했/
+  );
+  assert.equal(calls, 2);
+  assert.equal(store.listDrafts().length, 0, "게이트 미통과 퀴즈는 초안조차 되지 않는다");
+});
+
 // ---- weekly pipeline -----------------------------------------------------
 
 test("runWeekly generates a draft and routes publishing to the decision queue", async () => {

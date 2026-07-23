@@ -7,12 +7,16 @@
 ## 흐름
 
 ```text
-핫토픽 수집(피드 수집기/JSON) → 브랜드 세이프 필터 + hotness 랭킹
+핫토픽 수집(피드 수집기/JSON) → G0 브랜드 세이프 필터 + hotness 랭킹
   → AI 퀴즈 생성 (Claude API, 키 없으면 템플릿 폴백)
+  → 루프게이트 G1~G4 (구조·바이럴·AI-티·채점 무결성 — 실패 시 사유를
+    피드백으로 최대 3회 재생성, 전부 통과해야 초안 자격)
   → drafts/ 초안 저장 + publish 작업을 decision_queue로 라우팅
-  → 사람 승인 (approve) → published/ 발행
+  → G5 사람 승인 (approve) → published/ 발행
   → /q/<slug> 퀴즈 페이지 → /q/<slug>/r/<유형> 결과 공유 페이지 (바이럴 루프)
 ```
+
+게이트 정의·플로우차트·루프 정책: [docs/quiz-loopgate.md](quiz-loopgate.md)
 
 ## 사용법
 
