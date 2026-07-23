@@ -162,9 +162,14 @@ export class FeedEngine {
     let unseen;
     let collabBoosts = new Map();
     if (source) {
+      // "submit" is a pseudo-source: every user-submitted out-link, grouped by
+      // provenance (via) rather than by the item's own out-link domain (which
+      // varies per submission, so there's no single registry source id to
+      // filter on).
+      const matchesSource = (i) => (source === "submit" ? i.via === "submit" : i.source === source);
       const pool = items.filter(
         (i) =>
-          i.source === source &&
+          matchesSource(i) &&
           (allowAdult || !i.adult) &&
           !disabled.has(i.source) &&
           !topicsBlocked(i, showTopics)

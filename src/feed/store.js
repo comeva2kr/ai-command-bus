@@ -173,12 +173,17 @@ export class FeedStore {
     return { ...DEFAULT_RULES, bannedWords: [...DEFAULT_RULES.bannedWords, ...this.adminBannedWords] };
   }
 
-  // Count a user's recent posts/comments within a window, for rate limiting.
+  // Count a user's recent posts/comments/submissions within a window, for rate limiting.
   recentActionCount(userId, type, windowMs) {
     const now = this._nowMs();
     if (type === "post") {
       return (this.posts || []).filter(
         (p) => p.userId === userId && now - Date.parse(p.publishedAt) < windowMs
+      ).length;
+    }
+    if (type === "submit") {
+      return (this.submissions || []).filter(
+        (s) => s.userId === userId && now - Date.parse(s.publishedAt) < windowMs
       ).length;
     }
     const user = this.getUser(userId);
@@ -235,6 +240,14 @@ export class FeedStore {
   addSubmission(userId, item) {
     const user = this.requireUser(userId);
     if (!item || !item.url) throw new Error("링크가 필요해요.");
+    // rate limit: reuses the same perWindow/windowMs shape as post/comment
+    const r = this._rules().submit;
+    const recent = this.recentActionCount(userId, "submit", r.windowMs);
+    if (recent >= r.perWindow) {
+      const err = new Error(`잠시 후에 다시 제출해주세요. (${r.windowMs / 60000}분에 ${r.perWindow}개까지)`);
+      err.rule = { rateLimited: true };
+      throw err;
+    }
     const record = {
       id: this._id("sub"),
       userId,

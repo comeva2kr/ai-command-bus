@@ -226,7 +226,8 @@ export function createServer(opts = {}) {
           engine.invalidate();
           return send(res, 200, rec);
         } catch (err) {
-          return send(res, 400, { error: String(err.message) });
+          const status = err.rule && err.rule.rateLimited ? 429 : 400;
+          return send(res, status, { error: String(err.message), rule: err.rule || null });
         }
       }
 
@@ -346,8 +347,11 @@ export function createServer(opts = {}) {
         // 소스별 보기 ("전체" 칩이 아닌 특정 소스 칩 선택 시): 존재하는 소스인지
         // 레지스트리로 확인 — 없으면 400 (오타/삭제된 소스로 조용히 빈 피드가
         // 나오는 것을 방지).
+        // "submit" is a pseudo-source (every via:"submit" item, whatever its
+        // own out-link domain is) — not a registry entry, so it's exempt from
+        // the registry-membership check below.
         const source = url.searchParams.get("source") || null;
-        if (source && !registry.some((c) => c.id === source)) {
+        if (source && source !== "submit" && !registry.some((c) => c.id === source)) {
           return send(res, 400, { error: "unknown source" });
         }
         const feed = await engine.getFeed(userId, { cursor, limit, source });

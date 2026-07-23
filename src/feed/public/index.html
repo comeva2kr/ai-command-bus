@@ -130,6 +130,9 @@
   .src-chip { flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
     background: var(--card-2); color: var(--muted); font-size: 13px; font-weight: 700; white-space: nowrap; }
   .src-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* link-submission entry point is an action, not a filter toggle — visually
+     distinct (accent outline) from the source chips beside it */
+  .src-chip#submitLinkBtn { border-color: var(--accent); color: var(--accent); font-weight: 800; }
   .chip { flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
     background: var(--card); color: var(--muted); font-size: 13px; }
   .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -344,6 +347,7 @@ const API = {
   async verifyAge(userId) { return post("/api/verify-age", { userId, confirmAdult: true }); },
   async setAdult(userId, on) { return post("/api/adult", { userId, on }); },
   async createPost(userId, p) { return post("/api/post", { userId, ...p }); },
+  async submitLink(userId, url, opts={}) { return post("/api/submit", { userId, url, ...opts }); },
   async mySpace(userId) { return get(`/api/me?userId=${userId}`); },
   async save(userId, itemId, on) { return post("/api/save", { userId, itemId, on }); },
   async signal(userId, itemId, type, dwellMs) { return post("/api/signal", { userId, itemId, type, dwellMs }).catch(()=>{}); },
@@ -852,15 +856,33 @@ function setCategory(cat, container, btn){
 // latest+화제성 order, not personalized ranking. Selection persists across visits.
 function renderSourceChips(){
   const el = document.getElementById("srcChips"); el.innerHTML = "";
-  // a source saved from a previous visit may have since been disabled/removed
-  if(state.activeSource && !state.communities.some(c=>c.id===state.activeSource)) {
+  // a source saved from a previous visit may have since been disabled/removed.
+  // "submit" is a pseudo-source (not in the registry) so it's exempt from
+  // this staleness check.
+  if(state.activeSource && state.activeSource!=="submit" && !state.communities.some(c=>c.id===state.activeSource)) {
     state.activeSource = null; localStorage.removeItem("feed_src");
   }
+  // link-submission entry point: always first, never a filter toggle itself
+  const addBtn = document.createElement("button");
+  addBtn.className = "src-chip"; addBtn.id = "submitLinkBtn"; addBtn.title = "링크 제출";
+  addBtn.textContent = "＋ 링크제출";
+  addBtn.onclick = openSubmitModal;
+  el.appendChild(addBtn);
+
   const all = document.createElement("button");
   all.className = "src-chip" + (state.activeSource ? "" : " active");
   all.textContent = "전체";
   all.onclick = () => setSource(null, el, all);
   el.appendChild(all);
+
+  // "제출" filter chip: everyone's user-submitted out-links, grouped by
+  // provenance (server-side via source="submit", not a registry id).
+  const sub = document.createElement("button");
+  sub.className = "src-chip" + (state.activeSource==="submit" ? " active" : "");
+  sub.textContent = "📮 제출";
+  sub.onclick = () => setSource("submit", el, sub);
+  el.appendChild(sub);
+
   for(const c of state.communities){
     const b = document.createElement("button");
     b.className = "src-chip" + (state.activeSource===c.id ? " active" : "");
@@ -868,6 +890,50 @@ function renderSourceChips(){
     b.onclick = () => setSource(c.id, el, b);
     el.appendChild(b);
   }
+}
+
+// ---- 링크 제출 (user link submission) ----
+function openSubmitModal(){
+  const back = document.createElement("div"); back.className="modal-back";
+  back.innerHTML = `
+    <div class="modal">
+      <h3>📮 링크 제출</h3>
+      <p>글 주소를 붙여넣으면 제목·미리보기를 자동으로 읽어와요. 본문 전체가 아니라 짧은 발췌와 원문 링크만 저장돼요.</p>
+      <div class="field"><label>주소 (URL)</label><input id="subUrl" type="url" placeholder="https://..." autocomplete="off"></div>
+      <div class="field"><label>제목 (선택 — 자동으로 못 읽었을 때만 사용돼요)</label><input id="subTitle" maxlength="120" placeholder="자동으로 읽어올게요"></div>
+      <div id="subErr" style="color:var(--dislike);font-size:12.5px;margin:-6px 0 12px;display:none"></div>
+      <div class="row">
+        <button class="cancel" id="subCancel">취소</button>
+        <button class="confirm" id="subOk" style="background:var(--accent)">제출</button>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+  const urlEl = back.querySelector("#subUrl"), titleEl = back.querySelector("#subTitle");
+  const errEl = back.querySelector("#subErr"), okBtn = back.querySelector("#subOk");
+  back.querySelector("#subCancel").onclick = ()=> back.remove();
+  okBtn.onclick = async ()=>{
+    const raw = urlEl.value.trim();
+    errEl.style.display = "none";
+    if(!raw){ errEl.textContent = "주소를 입력해주세요."; errEl.style.display=""; return; }
+    okBtn.disabled = true; okBtn.textContent = "제출 중…";
+    try {
+      const rec = await API.submitLink(state.userId, raw, titleEl.value.trim() ? { title: titleEl.value.trim() } : {});
+      back.remove();
+      toast("제출했어요. 피드에 반영됐어요");
+      // show it immediately at the top of the feed, whatever chip is active
+      // (own submission is always relevant to the person who just posted it)
+      prependCard({
+        ...rec,
+        categoryLabel: state.config.categories.find(c=>c.id===rec.category)?.label || rec.category,
+        myRating: 0, comments: 0, topics: rec.topics || []
+      });
+    } catch(e){
+      errEl.textContent = e.message || "제출에 실패했어요.";
+      errEl.style.display = "";
+      okBtn.disabled = false; okBtn.textContent = "제출";
+    }
+  };
+  urlEl.focus();
 }
 function setSource(id, container, btn){
   if(state.activeSource === id) return;
@@ -917,6 +983,7 @@ function appendCard(item){
       <span class="src">${srcLabel(item.source)}</span>
       <span>· ${item.categoryLabel}</span>
       ${hotBadge(item)}
+      ${item.via==="submit"?'<span class="badge" style="background:rgba(79,140,255,.18);color:#9fd0ff">📮 유저 제출</span>':''}
       ${item.adult?'<span class="badge adult">19</span>':''}
       ${(item.topics||[]).includes("politics")?'<span class="badge" style="background:var(--card-2);color:var(--muted)">🗳️ 정치</span>':''}
       ${(item.topics||[]).includes("religion")?'<span class="badge" style="background:var(--card-2);color:var(--muted)">⛪ 종교</span>':''}

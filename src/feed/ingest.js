@@ -46,6 +46,69 @@ function hostOf(url) {
   return m ? m[1].replace(/^www\./, "") : "";
 }
 
+// SSRF guard for user-submitted URLs: literal-hostname checks only (no DNS
+// resolution) — blocks the obvious loopback/private/link-local targets a
+// submission could point the server's own fetch at. Node's URL parser already
+// normalizes obfuscated IPv4 forms (hex/octal/decimal-integer) to dotted
+// decimal, so those collapse into the same checks. Not a full SSRF defense
+// (DNS rebinding — a hostname that resolves to a private IP only at fetch
+// time — is out of scope for this "simple host validation"), but it's the
+// meaningful low-cost bar per docs/legal.md's out-link-only intake model.
+function isBlockedHost(hostname) {
+  const h = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (!h) return true;
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return true;
+  if (h === "0.0.0.0" || h === "::" || h === "::1") return true;
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    if (a === 127) return true; // loopback
+    if (a === 10) return true; // private
+    if (a === 172 && b >= 16 && b <= 31) return true; // private
+    if (a === 192 && b === 168) return true; // private
+    if (a === 169 && b === 254) return true; // link-local (incl. cloud metadata 169.254.169.254)
+    if (a === 0) return true;
+  }
+  if (/^f[cd][0-9a-f]{2}:/i.test(h) || /^fe80:/i.test(h)) return true; // IPv6 unique-local / link-local
+  return false;
+}
+
+// Parse + validate a submitted URL. Returns the parsed URL on success; throws
+// a user-facing Korean error otherwise. Centralizes the http(s)-only +
+// SSRF-host checks so both normalizeSubmission and the server route the same
+// validation.
+export function validateSubmissionUrl(raw) {
+  let parsed;
+  try {
+    parsed = new URL(String(raw || "").trim());
+  } catch {
+    throw new Error("유효한 http(s) 링크가 아니에요.");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("유효한 http(s) 링크가 아니에요.");
+  }
+  if (isBlockedHost(parsed.hostname)) {
+    throw new Error("안전하지 않은 주소예요.");
+  }
+  return parsed;
+}
+
+// Wrap a fetchImpl call with a hard timeout so a slow/unresponsive submitted
+// URL can never stall the request. Any abort/network error is swallowed by
+// normalizeSubmission's existing try/catch and falls back to the
+// submitter-provided title, same as any other fetch failure.
+async function fetchWithTimeout(fetchImpl, url, init, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  if (timer.unref) timer.unref();
+  try {
+    return await fetchImpl(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Extract just the linkable metadata from a page. Pure string parsing.
 export function parseOpenGraph(html, url) {
   const title =
@@ -67,19 +130,24 @@ export function parseOpenGraph(html, url) {
 // whatever network policy the host allows). Falls back to any title/summary the
 // submitter provided. Always keeps the original URL for the out-link.
 export async function normalizeSubmission(input, opts = {}) {
-  const url = String(input.url || "").trim();
-  if (!/^https?:\/\//i.test(url)) throw new Error("유효한 http(s) 링크가 아니에요.");
+  const parsedUrl = validateSubmissionUrl(input.url); // http(s)-only + SSRF host check
+  const url = parsedUrl.toString();
 
   let og = { title: input.title || "", summary: input.summary || "", image: null, siteName: hostOf(url), url };
   if (opts.fetchImpl) {
     try {
-      const res = await opts.fetchImpl(url, { headers: { "user-agent": opts.userAgent || "feed-linkbot/0.1" } });
+      const res = await fetchWithTimeout(
+        opts.fetchImpl,
+        url,
+        { headers: { "user-agent": opts.userAgent || "feed-linkbot/0.1" } },
+        opts.timeoutMs || 5000
+      );
       if (res && res.ok) {
         const parsed = parseOpenGraph(await res.text(), url);
         og = { ...parsed, title: input.title || parsed.title, summary: input.summary || parsed.summary };
       }
     } catch {
-      // network/parse failure → fall back to submitter-provided fields
+      // network/parse/timeout failure → fall back to submitter-provided fields
     }
   }
   if (!og.title) throw new Error("제목을 찾지 못했어요. 제목을 직접 입력해 주세요.");

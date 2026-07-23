@@ -1610,3 +1610,217 @@ test("GET /api/config exposes the topic catalog for the UI toggles", async () =>
     server.close();
   }
 });
+
+// --- 유저 링크 제출 (user link submission) end-to-end -----------------------
+// createServer({}) with no `sources` override defaults to just the
+// store-backed source (registry-driven live/dev sources are both off in the
+// test env), so submitted items are the only content in the pool — exactly
+// what these tests need.
+
+test("POST /api/submit creates a via:submit out-link item that appears in the feed", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({});
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const userId = session.userId;
+
+    // FEED_LIVE is off in the test run, so the server never actually fetches
+    // OG tags — normalizeSubmission falls back to the submitter-provided title,
+    // exactly like the network-failure path already covered in ingest.js's unit test.
+    const res = await fetch(`${base}/api/submit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId, url: "https://example.com/cool-post", title: "테스트로 제출한 글" })
+    });
+    assert.equal(res.status, 200);
+    const rec = await res.json();
+    assert.equal(rec.via, "submit");
+    assert.equal(rec.url, "https://example.com/cool-post");
+    assert.equal(rec.title, "테스트로 제출한 글");
+    assert.ok(rec.summary.length <= 200);
+
+    const feed = await (await fetch(`${base}/api/feed?userId=${userId}&limit=10`)).json();
+    const found = feed.items.find((i) => i.id === rec.id);
+    assert.ok(found, "submitted item shows up in the personalized feed");
+    assert.equal(found.via, "submit");
+    assert.equal(found.url, "https://example.com/cool-post", "out-link preserved, never framed");
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /api/submit: a malformed URL is 400 with a Korean error, unknown user is 400", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({});
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+
+    const bad = await fetch(`${base}/api/submit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: session.userId, url: "not-a-url", title: "x" })
+    });
+    assert.equal(bad.status, 400);
+    assert.match((await bad.json()).error, /http\(s\)/);
+
+    const noUser = await fetch(`${base}/api/submit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: "ghost-user", url: "https://example.com/x", title: "x" })
+    });
+    assert.equal(noUser.status, 400);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /api/submit: SSRF guard rejects loopback/private-IP/localhost targets", async () => {
+  const { normalizeSubmission } = await import("../src/feed/ingest.js");
+  const { createServer } = await import("../src/feed/server.js");
+
+  // unit-level: every obvious internal target is blocked before any fetch happens
+  for (const url of [
+    "http://127.0.0.1/admin",
+    "http://localhost:4000/api",
+    "http://169.254.169.254/latest/meta-data", // cloud metadata endpoint
+    "http://10.0.0.5/internal",
+    "http://192.168.1.1/router",
+    "http://[::1]/x"
+  ]) {
+    await assert.rejects(
+      () => normalizeSubmission({ url, title: "x" }),
+      /안전하지 않은/,
+      `${url} should be rejected as unsafe`
+    );
+  }
+  // a normal public host is unaffected
+  await assert.doesNotReject(() => normalizeSubmission({ url: "https://example.com/x", title: "x" }));
+
+  // end-to-end: the API surfaces the same guard as a 400
+  const server = createServer({});
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const res = await fetch(`${base}/api/submit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: session.userId, url: "http://127.0.0.1:9999/steal", title: "x" })
+    });
+    assert.equal(res.status, 400);
+    assert.match((await res.json()).error, /안전하지 않은/);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /api/submit rate-limits a burst of submissions from one user (429)", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({});
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const userId = session.userId;
+
+    const submit = (i) =>
+      fetch(`${base}/api/submit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userId, url: `https://example.com/p${i}`, title: `글 ${i}` })
+      });
+
+    // DEFAULT_RULES.submit.perWindow === 5 — same shape as post/comment rate limits
+    for (let i = 0; i < 5; i++) {
+      const r = await submit(i);
+      assert.equal(r.status, 200, `submission ${i} should succeed`);
+    }
+    const sixth = await submit(5);
+    assert.equal(sixth.status, 429);
+    const body = await sixth.json();
+    assert.ok(body.rule && body.rule.rateLimited, "429 carries rule.rateLimited so the client can distinguish it");
+  } finally {
+    server.close();
+  }
+});
+
+test("submitted items are classified by topics.js like any other item — politics hidden by default, shown after the user's own toggle", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({});
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const userId = session.userId;
+
+    const sub = await fetch(`${base}/api/submit`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId, url: "https://example.com/politics-post", title: "이재명 관련 소식 정리" })
+    });
+    assert.equal(sub.status, 200);
+    const rec = await sub.json();
+
+    const hidden = await (await fetch(`${base}/api/feed?userId=${userId}&limit=20`)).json();
+    assert.ok(!hidden.items.some((i) => i.id === rec.id), "politics-tagged submission stays hidden by default, same as any other source");
+
+    await fetch(`${base}/api/topics`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId, topic: "politics", on: true })
+    });
+    const shown = await (await fetch(`${base}/api/feed?userId=${userId}&limit=20`)).json();
+    const found = shown.items.find((i) => i.id === rec.id);
+    assert.ok(found, "shows up once the user opts into politics");
+    assert.ok(found.topics.includes("politics"), "classifyTopics ran on the submitted item's title");
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/feed?source=submit scopes to every via:submit item regardless of its own out-link domain", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({});
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const userId = session.userId;
+
+    await fetch(`${base}/api/submit`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId, url: "https://siteA.example.com/x", title: "A 사이트 글" })
+    });
+    await fetch(`${base}/api/submit`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId, url: "https://siteB.example.com/y", title: "B 사이트 글" })
+    });
+
+    const res = await fetch(`${base}/api/feed?userId=${userId}&source=submit&limit=10`);
+    assert.equal(res.status, 200);
+    const feed = await res.json();
+    assert.equal(feed.items.length, 2, "both submissions appear even though their out-link domains differ");
+    assert.ok(feed.items.every((i) => i.via === "submit"));
+    // "submit" is a pseudo-source, not a registry id — a real unknown source id still 400s
+    const bad = await fetch(`${base}/api/feed?userId=${userId}&source=not-a-real-source`);
+    assert.equal(bad.status, 400);
+  } finally {
+    server.close();
+  }
+});

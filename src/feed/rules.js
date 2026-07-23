@@ -21,6 +21,12 @@ export const DEFAULT_RULES = {
     perWindow: 20,
     windowMs: 10 * 60 * 1000
   },
+  // 유저 링크 제출 (via: "submit"): looser than posting since it's just a link +
+  // optional note, but still capped so one user can't spam the shared pool.
+  submit: {
+    perWindow: 5,
+    windowMs: 10 * 60 * 1000
+  },
   // words that are blocked space-wide (kept deliberately small/illustrative)
   bannedWords: ["광고문의", "도박사이트", "불법", "스팸홍보"],
   // per-category posting norms surfaced to the composer (advisory, not blocking)
