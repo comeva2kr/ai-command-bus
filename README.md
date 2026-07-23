@@ -41,9 +41,25 @@ npm test
 node src/router.js examples/task_queue.json
 ```
 
+## Personalized Community Feed
+
+Beyond the command bus, this repo ships a **taste-driven community feed** — a
+personalized board that pulls best posts and news from across many communities
+and shows only what fits you, learning from a survey and your 👍/👎.
+
+```bash
+npm run feed        # http://localhost:4000 — survey, scroll, rate, comment
+```
+
+Highlights: warm-start from browsing history, onboarding survey, on-the-fly
+online learning, smooth infinite scroll, and exact scroll-position restore on
+back navigation. See [docs/personalized-feed.md](docs/personalized-feed.md).
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Personalized community feed](docs/personalized-feed.md)
+- [Deploying the feed](docs/deploy.md)
 - [Example task queue](examples/task_queue.json)
 - [Example worker submission](examples/submission.json)
 

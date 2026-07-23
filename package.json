@@ -4,14 +4,21 @@
   "description": "A lightweight command bus for safe multi-agent AI workflows.",
   "type": "module",
   "main": "src/router.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "demo": "node src/router.js examples/task_queue.json"
+    "demo": "node src/router.js examples/task_queue.json",
+    "feed": "node src/feed/server.js",
+    "push:keys": "node src/feed/push-keys.js"
   },
   "keywords": [
     "ai-agents",
     "task-router",
     "workflow-automation",
+    "personalized-feed",
+    "recommender",
     "codex",
     "open-source"
   ],

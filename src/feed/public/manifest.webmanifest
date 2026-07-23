@@ -1,0 +1,17 @@
+{
+  "name": "내 취향 피드",
+  "short_name": "취향피드",
+  "description": "취향에 맞는 커뮤니티·뉴스 글만 모아 보는 개인 맞춤 피드",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e0f13",
+  "theme_color": "#0e0f13",
+  "categories": ["news", "social", "lifestyle"],
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
