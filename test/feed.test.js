@@ -944,6 +944,47 @@ test("parseListPage: 뽐뿌 HOT게시글 (David 2026-07-24: 단일 핫딜게시�
   assert.ok(items.some((i) => i.commentCount > 0));
 });
 
+test("listFetcher decodes 'euc-kr' as the real-world CP949/UHC superset, not just strict EUC-KR — regression for mojibake like '앜ㅋㅋ'", async () => {
+  const { listFetcher } = await import("../src/feed/fetchers.js");
+  // Bytes captured from a live ppomppu HOT row (2026-07-24). The syllable
+  // "앜" (bytes 9d da) is outside strict KS X 1001 — Node's built-in
+  // TextDecoder('euc-kr') mangled it into "聞빱�" mojibake even with
+  // adapter.list.charset set correctly, which was the exact production
+  // symptom this test guards against (see cp949-table.js).
+  const asciiPre = Buffer.from(
+    '<a href="/zboard/view.php?id=hit&no=10052217" class="baseList-title" >',
+    "ascii"
+  );
+  const koreanBytes = Buffer.from(
+    "9ddaa4bba4bb20c0ccc0e7b8ed20b6c72078c1fa20bdc3c0dba4bba4bb",
+    "hex"
+  ); // "앜ㅋㅋ 이재명 또 x질 시작ㅋㅋ" as raw EUC-KR/CP949 bytes
+  const asciiPost = Buffer.from("</a>", "ascii");
+  const bytes = Buffer.concat([asciiPre, koreanBytes, asciiPost]);
+  const fetchImpl = async () => ({
+    ok: true,
+    async arrayBuffer() {
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    }
+  });
+  const entry = {
+    adapter: {
+      type: "list",
+      url: "https://www.ppomppu.co.kr/hot.php",
+      list: {
+        urlBase: "https://www.ppomppu.co.kr",
+        titleRegex:
+          '<a href="(/zboard/(?:view|zboard)\\.php\\?id=[a-zA-Z0-9_]+&no=\\d+)" class="baseList-title"\\s*>(?:<img[^>]*>)?\\s*([^<]+)',
+        charset: "euc-kr"
+      }
+    }
+  };
+  const items = await listFetcher(entry, fetchImpl)();
+  assert.equal(items.length, 1);
+  assert.equal(items[0].title, "앜ㅋㅋ 이재명 또 x질 시작ㅋㅋ");
+  assert.ok(!/�/.test(items[0].title), "no U+FFFD replacement characters");
+});
+
 test("makeFetcher dispatches adapter.type 'list' through listFetcher, decoding bytes itself (not res.text())", async () => {
   const { makeFetcher } = await import("../src/feed/fetchers.js");
   const html = fixture("theqoo_hot.html");

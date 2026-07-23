@@ -14,6 +14,8 @@
 // TLS note: behind a re-terminating proxy, set NODE_EXTRA_CA_CERTS to the CA
 // bundle so global fetch trusts the proxy (see the environment's proxy README).
 
+import { decodeCp949 } from "./cp949-table.js";
+
 const DEFAULT_UA = "ai-command-bus-feed/0.1 (+https://github.com/comeva2kr/ai-command-bus)";
 
 const FETCH_TIMEOUT_MS = 8000; // a slow feed must never stall collection
@@ -168,7 +170,9 @@ export function redditFetcher(subreddit, fetchImpl = fetch, limit = 30) {
 //   excludeRegex  if the row wrapper (before-window + the match itself)
 //                 matches this, skip the row (e.g. a pinned/notice class)
 //   charset       decode the fetched bytes with this charset (default utf-8;
-//                 e.g. "euc-kr" for legacy Korean boards that never send one)
+//                 "euc-kr" decodes via the full CP949/UHC table in
+//                 cp949-table.js — see that file for why the platform
+//                 TextDecoder isn't enough for real Korean boards)
 const LIST_UA = "taste-feed/1.0 (+https://taste-feed.onrender.com)";
 
 function resolveUrl(base, href) {
@@ -273,9 +277,19 @@ async function fetchListPage(url, cfg, fetchImpl) {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
   // Decode explicitly rather than res.text(): the Fetch spec's text() always
-  // assumes UTF-8, but a few legacy Korean boards still serve EUC-KR without
-  // declaring a charset — res.text() would silently mangle every title.
+  // assumes UTF-8, but a few legacy Korean boards still serve EUC-KR (or
+  // claim to) without declaring a charset — res.text() would silently
+  // mangle every title.
   const buf = new Uint8Array(await res.arrayBuffer());
+  if ((cfg.charset || "utf-8").toLowerCase() === "euc-kr") {
+    // Real-world Korean sites that label themselves "euc-kr" almost always
+    // actually serve the CP949/UHC superset (thousands of extra precomposed
+    // Hangul syllables used in everyday slang, e.g. "앜ㅋㅋ"). Node's
+    // built-in TextDecoder('euc-kr') only implements the strict KS X 1001
+    // subset and silently corrupts those extra syllables instead of
+    // throwing — see cp949-table.js for the reproduction and full mapping.
+    return decodeCp949(buf);
+  }
   return new TextDecoder(cfg.charset || "utf-8").decode(buf);
 }
 
