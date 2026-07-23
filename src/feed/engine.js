@@ -6,11 +6,18 @@
 // aggregator. The client keeps the rendered DOM and restores scroll on back
 // navigation; the server just keeps handing out the next best unseen batch.
 
-import { collect, SeedSource } from "./content.js";
+import { collect, SeedSource, resolveCap } from "./content.js";
 import { rankItems, diversify, applyFeedback, applyImplicit, explain, specializationLevel, feedPhase } from "./recommender.js";
 import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { hotness } from "./ingest.js";
+
+// How long a collected item stays in the rolling pool before it's eligible for
+// eviction (David 2026-07-24: refresh should *accumulate*, not replace — a
+// community board's items outlive any single 15-minute poll interval).
+// Override with FEED_RETENTION_MS. "me"/"seed" pseudo-sources are exempt —
+// a user's own posts and the offline dev dataset never age out this way.
+const DEFAULT_RETENTION_MS = 48 * 60 * 60 * 1000;
 
 // Turn a structured reason into a short human label for the "추천 이유" chip.
 function reasonLabel(r) {
@@ -29,32 +36,79 @@ export class FeedEngine {
   constructor(store, sources) {
     this.store = store;
     this.sources = sources && sources.length ? sources : [new SeedSource()];
-    this._cache = null; // collected items cache
+    this._cache = null; // collected items cache — the capped, ranked-over view of the pool
+    this._pool = new Map(); // id -> { item, firstSeenAt } — the rolling accumulation pool
     this._clock = store && store.clock ? store.clock : null; // injectable time for tests
   }
 
   async _items() {
-    if (!this._cache) {
-      const { items, errors } = await collect(this.sources);
-      this._cache = items;
-      this._errors = errors;
-    }
+    if (!this._cache) await this.refresh();
     return this._cache;
   }
 
   // Force a re-collection on next read (e.g. after wiring a live source).
+  // Only clears the *capped view* — the accumulation pool itself is untouched,
+  // so this still merges rather than starting the 48h window over.
   invalidate() {
     this._cache = null;
   }
 
-  // Re-collect from all sources now and swap the cache atomically. Stable item
-  // ids mean existing ratings/comments keep pointing at the right posts.
+  // Re-collect from all sources and merge into the rolling pool by stableId
+  // (a re-collected post keeps its id, so it just updates in place) rather
+  // than replacing the pool wholesale — a community board's items live far
+  // longer than one poll interval. Pool entries older than FEED_RETENTION_MS
+  // (since first seen, not their claimed publish date — many list-adapter
+  // items don't reliably carry one) are evicted, then each source is capped
+  // again post-accumulation, newest-first, so the pool can't grow unbounded
+  // over many refresh cycles even though a single collect() already capped
+  // each individual fetch batch.
   async refresh() {
-    const { items, errors } = await collect(this.sources);
-    this._cache = items;
+    const { items: freshItems, errors } = await collect(this.sources);
+    const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+
+    for (const item of freshItems) {
+      const prior = this._pool.get(item.id);
+      this._pool.set(item.id, { item, firstSeenAt: prior ? prior.firstSeenAt : now });
+    }
+
+    const retentionMs = Number(process.env.FEED_RETENTION_MS || DEFAULT_RETENTION_MS);
+    for (const [id, entry] of this._pool) {
+      const src = entry.item.source;
+      if (src === "seed" || src === "me") continue; // never age out a user's own posts or the dev dataset
+      if (now - entry.firstSeenAt > retentionMs) this._pool.delete(id);
+    }
+
+    const kindBySource = new Map(this.sources.map((s) => [s.id, s.kind]));
+    const bySource = new Map();
+    for (const entry of this._pool.values()) {
+      const src = entry.item.source || "unknown";
+      if (!bySource.has(src)) bySource.set(src, []);
+      bySource.get(src).push(entry);
+    }
+    const capped = [];
+    for (const [src, entries] of bySource) {
+      if (src === "seed" || src === "me") {
+        capped.push(...entries.map((e) => e.item));
+        continue;
+      }
+      // newest-first: prefer the item's own publish date, fall back to when
+      // we first saw it (covers list-adapter items with no reliable date)
+      entries.sort((a, b) => {
+        const at = (a.item.publishedAt && Date.parse(a.item.publishedAt)) || a.firstSeenAt;
+        const bt = (b.item.publishedAt && Date.parse(b.item.publishedAt)) || b.firstSeenAt;
+        return bt - at;
+      });
+      const cap = resolveCap(kindBySource.get(src), {});
+      capped.push(...(cap > 0 ? entries.slice(0, cap) : entries).map((e) => e.item));
+    }
+
+    this._cache = capped;
     this._errors = errors;
-    this.lastRefreshedAt = this._clock ? this._clock() : Date.now();
-    return { count: items.length, errors };
+    this.lastRefreshedAt = now;
+    // memory visibility: the pool can only grow across a 48h window, not forever —
+    // this is the number to watch if that ever needs revisiting.
+    console.log(`[feed] pool: ${this._pool.size} accumulated (${Math.round(retentionMs / 3.6e6)}h retention) -> ${capped.length} after per-source cap`);
+    return { count: capped.length, errors, poolSize: this._pool.size };
   }
 
   // Periodically update the DB from its sources ("정기적으로 찾으면서 db 업데이트").

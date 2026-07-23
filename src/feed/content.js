@@ -118,28 +118,43 @@ export class JsonSource {
   }
 }
 
-// Default per-source cap applied during collection. A single noisy source
-// (gnews' 100+ item RSS pages, for example) would otherwise flood the shared
-// pool and drown out communities that only ever surface a few dozen posts —
-// this keeps the mix balanced before ranking/diversify ever see the items.
-// Override with the FEED_SOURCE_CAP env var, or opts.perSourceCap for tests.
-const DEFAULT_SOURCE_CAP = 30;
+// Per-source caps applied during collection, tiered by source kind. News RSS
+// (gnews' 100+ item pages) is naturally high-volume but low-depth — capped
+// tight so it can't flood the shared pool. Community boards are the whole
+// point of "베스트게시판 글을 싹 가져와야" (David, 2026-07-24) — capped loose so a
+// multi-page list fetch (see fetchers.js) actually shows up in the feed.
+// FEED_SOURCE_CAP is kept as a blanket fallback for whichever tier doesn't
+// have its own env var set, for backward compatibility with earlier configs.
+const DEFAULT_COMMUNITY_CAP = 100;
+const DEFAULT_NEWS_CAP = 20;
+
+export function resolveCap(kind, opts) {
+  if (opts.perSourceCap != null) return opts.perSourceCap; // universal override wins outright
+  const isNews = kind === "news";
+  const specificOpt = isNews ? opts.newsCap : opts.communityCap;
+  if (specificOpt != null) return Number(specificOpt);
+  const specificEnv = isNews ? process.env.FEED_NEWS_CAP : process.env.FEED_COMMUNITY_CAP;
+  if (specificEnv != null) return Number(specificEnv);
+  if (process.env.FEED_SOURCE_CAP != null) return Number(process.env.FEED_SOURCE_CAP);
+  return isNews ? DEFAULT_NEWS_CAP : DEFAULT_COMMUNITY_CAP;
+}
 
 // Collect and merge items from many sources. Failures in one source never take
 // down the whole collection — the feed degrades gracefully to whatever loaded.
 export async function collect(sources, opts = {}) {
-  const cap = opts.perSourceCap != null ? opts.perSourceCap : Number(process.env.FEED_SOURCE_CAP || DEFAULT_SOURCE_CAP);
   const results = await Promise.allSettled(sources.map((s) => s.fetch()));
   const items = [];
   const errors = [];
   results.forEach((res, i) => {
     if (res.status === "fulfilled") {
       const list = Array.isArray(res.value) ? res.value : [];
+      const src = sources[i];
       // "seed" and "me" are aggregate pseudo-sources (the whole bundled dev
       // dataset / every user's own posts, respectively) — not a single noisy
       // feed, so the per-*community* cap doesn't apply to them.
-      const id = sources[i] && sources[i].id;
+      const id = src && src.id;
       const exempt = id === "seed" || id === "me";
+      const cap = resolveCap(src && src.kind, opts);
       items.push(...(cap > 0 && !exempt ? list.slice(0, cap) : list));
     } else {
       errors.push({ source: sources[i] && sources[i].id, error: String(res.reason) });

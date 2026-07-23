@@ -986,26 +986,74 @@ test("communities.json: fmkorea/arca stay disabled and dcinside stays seed-only 
 // --- Phase 3: per-source volume cap (gnews-style 100+ item sources must not
 // drown out communities that only ever surface a few dozen posts) ----------
 
-test("collect() caps each source at FEED_SOURCE_CAP (default 30) before merging", async () => {
-  const bigSource = {
+test("collect() applies tiered default caps: community sources 100, news sources 20 (David 2026-07-24: '베스트게시판 글을 싹 가져와야')", async () => {
+  const bigNews = {
     id: "gnews",
     kind: "news",
     async fetch() {
-      return Array.from({ length: 100 }, (_, i) => normalizeItem({ id: `g${i}`, source: "gnews", title: `기사 ${i}`, url: `https://n/${i}` }));
+      return Array.from({ length: 150 }, (_, i) => normalizeItem({ id: `g${i}`, source: "gnews", title: `기사 ${i}`, url: `https://n/${i}` }));
     }
   };
-  const smallSource = {
+  const bigCommunity = {
+    id: "theqoo",
+    kind: "community",
+    async fetch() {
+      return Array.from({ length: 150 }, (_, i) => normalizeItem({ id: `t${i}`, source: "theqoo", title: `글 ${i}`, url: `https://t/${i}` }));
+    }
+  };
+  const smallCommunity = {
     id: "clien",
     kind: "community",
     async fetch() {
       return [normalizeItem({ id: "c1", source: "clien", title: "글", url: "https://c/1" })];
     }
   };
-  const { items } = await collect([bigSource, smallSource]);
-  const fromGnews = items.filter((i) => i.source === "gnews");
-  const fromClien = items.filter((i) => i.source === "clien");
-  assert.equal(fromGnews.length, 30, "capped at the default of 30");
-  assert.equal(fromClien.length, 1, "small source unaffected by the cap");
+  const { items } = await collect([bigNews, bigCommunity, smallCommunity]);
+  assert.equal(items.filter((i) => i.source === "gnews").length, 20, "news defaults to FEED_NEWS_CAP=20");
+  assert.equal(items.filter((i) => i.source === "theqoo").length, 100, "community defaults to FEED_COMMUNITY_CAP=100");
+  assert.equal(items.filter((i) => i.source === "clien").length, 1, "small source unaffected by either cap");
+});
+
+test("collect() lets FEED_COMMUNITY_CAP / FEED_NEWS_CAP override their own tier independently, with FEED_SOURCE_CAP as a shared fallback", async () => {
+  const news = {
+    id: "gnews",
+    kind: "news",
+    async fetch() {
+      return Array.from({ length: 50 }, (_, i) => normalizeItem({ id: `n${i}`, source: "gnews", title: `t${i}`, url: `https://n/${i}` }));
+    }
+  };
+  const community = {
+    id: "theqoo",
+    kind: "community",
+    async fetch() {
+      return Array.from({ length: 50 }, (_, i) => normalizeItem({ id: `c${i}`, source: "theqoo", title: `t${i}`, url: `https://c/${i}` }));
+    }
+  };
+
+  const prevNews = process.env.FEED_NEWS_CAP;
+  const prevCommunity = process.env.FEED_COMMUNITY_CAP;
+  const prevSource = process.env.FEED_SOURCE_CAP;
+  try {
+    // tier-specific env vars override their own tier only
+    process.env.FEED_NEWS_CAP = "3";
+    process.env.FEED_COMMUNITY_CAP = "12";
+    delete process.env.FEED_SOURCE_CAP;
+    let r = await collect([news, community]);
+    assert.equal(r.items.filter((i) => i.source === "gnews").length, 3);
+    assert.equal(r.items.filter((i) => i.source === "theqoo").length, 12);
+
+    // with the tier-specific vars unset, FEED_SOURCE_CAP is a shared fallback for both tiers
+    delete process.env.FEED_NEWS_CAP;
+    delete process.env.FEED_COMMUNITY_CAP;
+    process.env.FEED_SOURCE_CAP = "9";
+    r = await collect([news, community]);
+    assert.equal(r.items.filter((i) => i.source === "gnews").length, 9);
+    assert.equal(r.items.filter((i) => i.source === "theqoo").length, 9);
+  } finally {
+    if (prevNews == null) delete process.env.FEED_NEWS_CAP; else process.env.FEED_NEWS_CAP = prevNews;
+    if (prevCommunity == null) delete process.env.FEED_COMMUNITY_CAP; else process.env.FEED_COMMUNITY_CAP = prevCommunity;
+    if (prevSource == null) delete process.env.FEED_SOURCE_CAP; else process.env.FEED_SOURCE_CAP = prevSource;
+  }
 });
 
 test("collect() honors FEED_SOURCE_CAP env override and opts.perSourceCap", async () => {
@@ -1125,4 +1173,102 @@ test("GET /api/communities surfaces the frameable flag to the client (no server 
   } finally {
     server.close();
   }
+});
+
+// --- 수집량 확대 (David 2026-07-24): rolling pool + multi-page list fetch ----
+
+test("engine.refresh accumulates into a rolling pool (merge by stableId) instead of replacing it, and evicts only past FEED_RETENTION_MS", async () => {
+  let clockMs = Date.parse("2026-07-06T00:00:00.000Z");
+  const clock = () => new Date(clockMs).toISOString();
+  const store = new FeedStore({ clock });
+
+  const raw1 = { source: "theqoo", title: "옛날 글", url: "https://t/1" };
+  const raw2 = { source: "theqoo", title: "새 글", url: "https://t/2" };
+  const id1 = normalizeItem(raw1).id;
+  const id2 = normalizeItem(raw2).id;
+
+  let batch = [raw1];
+  const source = { id: "theqoo", kind: "community", async fetch() { return batch.map((r) => normalizeItem(r, this)); } };
+  const engine = new FeedEngine(store, [source]);
+
+  await engine.refresh();
+  assert.deepEqual((await engine._items()).map((i) => i.id), [id1], "first refresh seeds the pool");
+
+  // 47h later, the source's own list page no longer shows item 1 (it scrolled
+  // off) — a naive replace would drop it, but the rolling pool must keep it
+  clockMs += 47 * 3600 * 1000;
+  batch = [raw2];
+  await engine.refresh();
+  let ids = (await engine._items()).map((i) => i.id);
+  assert.ok(ids.includes(id1) && ids.includes(id2), "item 1 survives a refresh that didn't re-return it (merge, not replace)");
+
+  // 2 more hours (item 1 is now 49h old, item 2 only 2h old) — only item 1 crosses FEED_RETENTION_MS
+  clockMs += 2 * 3600 * 1000;
+  await engine.refresh();
+  ids = (await engine._items()).map((i) => i.id);
+  assert.ok(!ids.includes(id1), "item 1 evicted once its age passes the 48h default retention");
+  assert.ok(ids.includes(id2), "item 2 (only 2h old) is unaffected");
+});
+
+test("engine.refresh never evicts a user's own posts (via 'me') even past the retention window", async () => {
+  let clockMs = Date.parse("2026-07-06T00:00:00.000Z");
+  const clock = () => new Date(clockMs).toISOString();
+  const store = new FeedStore({ clock });
+  const engine = new FeedEngine(store, [new StorePostsSource(store)]);
+  const author = store.createUser("author_ret");
+  const post = store.createPost(author.id, { title: "오래된 내 글", category: "life" });
+
+  await engine.refresh();
+  assert.ok((await engine._items()).some((i) => i.id === post.id));
+
+  clockMs += 100 * 3600 * 1000; // 100h — well past the 48h default
+  await engine.refresh();
+  assert.ok((await engine._items()).some((i) => i.id === post.id), "own posts are exempt from the 48h retention eviction");
+});
+
+test("listFetcher fetches adapter.pages sequential pages via pageUrl and merges them (page 1 always uses adapter.url as-is)", async () => {
+  const { listFetcher } = await import("../src/feed/fetchers.js");
+  const calls = [];
+  const fakeFetch = async (url) => {
+    calls.push(url);
+    const isPage2 = url.includes("page=2");
+    const html = isPage2
+      ? `<a href="/p/3">Title C</a>`
+      : `<a href="/p/1">Title A</a><a href="/p/2">Title B</a>`;
+    return { ok: true, async arrayBuffer() { return new TextEncoder().encode(html).buffer; } };
+  };
+  const entry = {
+    id: "test",
+    adapter: {
+      type: "list",
+      url: "https://x.example/list",
+      pages: 2,
+      list: {
+        urlBase: "https://x.example",
+        titleRegex: '<a href="(/p/\\d+)">([^<]+)</a>',
+        pageUrl: "https://x.example/list?page={page}"
+      }
+    }
+  };
+  const rows = await listFetcher(entry, fakeFetch)();
+  assert.equal(calls.length, 2, "fetched exactly adapter.pages=2 pages");
+  assert.equal(calls[0], "https://x.example/list", "page 1 uses adapter.url as-is, unchanged from single-page behavior");
+  assert.equal(calls[1], "https://x.example/list?page=2", "page 2 built from the pageUrl template");
+  assert.deepEqual(rows.map((r) => r.title), ["Title A", "Title B", "Title C"], "items from every page are merged");
+});
+
+test("listFetcher stops paginating (without failing) once a source has no pageUrl or a page returns nothing", async () => {
+  const { listFetcher } = await import("../src/feed/fetchers.js");
+  let calls = 0;
+  const noPageUrlEntry = {
+    id: "test2",
+    adapter: {
+      type: "list", url: "https://x.example/list", pages: 3,
+      list: { titleRegex: '<a href="(/p/\\d+)">([^<]+)</a>' } // no pageUrl configured
+    }
+  };
+  const fetchImpl = async () => { calls++; return { ok: true, async arrayBuffer() { return new TextEncoder().encode('<a href="/p/1">A</a>').buffer; } }; };
+  const rows = await listFetcher(noPageUrlEntry, fetchImpl)();
+  assert.equal(calls, 1, "no pageUrl configured -> only page 1 is fetched, same as before multi-page support existed");
+  assert.equal(rows.length, 1);
 });

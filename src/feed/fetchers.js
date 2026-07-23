@@ -259,23 +259,61 @@ export function parseListPage(html, cfg = {}) {
   return items;
 }
 
+const DEFAULT_LIST_PAGES = 3; // "베스트게시판 글을 싹 가져와야" — a single page was only 20~40 posts
+const LIST_PAGE_DELAY_MS = 500; // politeness gap between sequential page fetches
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchListPage(url, cfg, fetchImpl) {
+  const res = await fetchImpl(url, {
+    headers: { "user-agent": LIST_UA, accept: "text/html,*/*" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  // Decode explicitly rather than res.text(): the Fetch spec's text() always
+  // assumes UTF-8, but a few legacy Korean boards still serve EUC-KR without
+  // declaring a charset — res.text() would silently mangle every title.
+  const buf = new Uint8Array(await res.arrayBuffer());
+  return new TextDecoder(cfg.charset || "utf-8").decode(buf);
+}
+
+// Fetch adapter.pages (default 3) list pages in sequence, 500ms apart, and
+// concatenate what each page parses. Page 1 always uses adapter.url as-is
+// (unchanged from the single-page behavior). Pages 2+ need adapter.list.pageUrl
+// — a template with {page} (1-based: 2, 3, ...) and/or {page0} (0-based: 1, 2,
+// ...) placeholders, since boards number pages inconsistently. A source with
+// no pageUrl configured (or a page that fails/returns nothing) simply stops
+// there — this never turns a working single-page source into a failure.
 export function listFetcher(entry, fetchImpl = fetch) {
   const a = entry.adapter || {};
   const cfg = a.list || {};
-  const url = a.url;
+  const baseUrl = a.url;
+  const pages = Math.max(1, a.pages || DEFAULT_LIST_PAGES);
   return async () => {
-    if (!url) return [];
-    const res = await fetchImpl(url, {
-      headers: { "user-agent": LIST_UA, accept: "text/html,*/*" },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-    // Decode explicitly rather than res.text(): the Fetch spec's text() always
-    // assumes UTF-8, but a few legacy Korean boards still serve EUC-KR without
-    // declaring a charset — res.text() would silently mangle every title.
-    const buf = new Uint8Array(await res.arrayBuffer());
-    const html = new TextDecoder(cfg.charset || "utf-8").decode(buf);
-    return parseListPage(html, cfg);
+    if (!baseUrl) return [];
+    const collected = [];
+    for (let page = 1; page <= pages; page++) {
+      const pageUrl =
+        page === 1
+          ? baseUrl
+          : cfg.pageUrl
+          ? cfg.pageUrl.replace(/\{page0\}/g, String(page - 1)).replace(/\{page\}/g, String(page))
+          : null;
+      if (!pageUrl) break;
+      let html;
+      try {
+        html = await fetchListPage(pageUrl, cfg, fetchImpl);
+      } catch {
+        break; // a failed page stops pagination but keeps whatever pages already succeeded
+      }
+      const items = parseListPage(html, cfg);
+      if (!items.length) break; // ran off the end of the board
+      collected.push(...items);
+      if (page < pages && cfg.pageUrl) await sleep(LIST_PAGE_DELAY_MS);
+    }
+    return collected;
   };
 }
 

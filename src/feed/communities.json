@@ -15,7 +15,8 @@
       "adapter": {
         "type": "list",
         "url": "https://www.bobaedream.co.kr/list?code=best",
-        "note": "베스트글 리스트 페이지 파싱(jagei 모델). 공식 RSS/API 없음. 2026-07-23 검증(200, 실게시물 파싱 성공).",
+        "pages": 3,
+        "note": "베스트글 리스트 페이지 파싱(jagei 모델). 공식 RSS/API 없음. 2026-07-23 검증(200, 실게시물 파싱 성공). 2~3페이지는 pageUrl(정식 bulletin/list.php 경로 — 짧은 /list?code=best 경로는 page= 파라미터를 무시함, 2026-07-24 확인)로 수집.",
         "list": {
           "urlBase": "https://www.bobaedream.co.kr",
           "titleRegex": "class=\"bsubject\"[^>]*href=\"([^\"]+)\"[^>]*title=\"([^\"]+)\"",
@@ -23,6 +24,7 @@
           "dateRegex": "class=\"date\"[^>]*>([^<]+)<",
           "scoreRegex": "class=\"recomm\">[\\s\\S]*?>(\\d+)<",
           "commentRegex": "class=\"totreply\">(\\d+)<",
+          "pageUrl": "https://www.bobaedream.co.kr/board/bulletin/list.php?code=best&page={page}",
           "max": 40
         }
       }
@@ -137,13 +139,15 @@
       "adapter": {
         "type": "list",
         "url": "https://web.humoruniv.com/board/humor/list.html?table=pds",
-        "note": "웃긴자료(table=pds) 리스트 파싱(jagei도 이 보드 사용). robots.txt가 /board/best/ 만 명시 차단하고 이 경로는 비차단 — 2026-07-23 robots 확인 + fetch 검증 완료. 페이지가 EUC-KR로 응답(헤더 charset 미표기)해 adapter.list.charset로 명시 디코딩.",
+        "pages": 3,
+        "note": "웃긴자료(table=pds) 리스트 파싱(jagei도 이 보드 사용). robots.txt가 /board/best/ 만 명시 차단하고 이 경로는 비차단 — 2026-07-23 robots 확인 + fetch 검증 완료. 페이지가 EUC-KR로 응답(헤더 charset 미표기)해 adapter.list.charset로 명시 디코딩. 2~3페이지는 &pg=N(0-based! pg=0이 1페이지) — 2026-07-24 검증.",
         "list": {
           "charset": "euc-kr",
           "urlBase": "https://web.humoruniv.com/board/humor/",
-          "titleRegex": "<a href=\"(read\\.html\\?table=pds&number=\\d+)\"[\\s\\S]{0,260}?<span id=\"title_chk_pds-\\d+\">\\s*([^<]+?)\\s*</span>",
+          "titleRegex": "<a href=\"(read\\.html\\?table=pds(?:&pg=\\d+)?&number=\\d+)\"[\\s\\S]{0,260}?<span id=\"title_chk_pds-\\d+\">\\s*([^<]+?)\\s*</span>",
           "windowAfter": 150,
           "commentRegex": "list_comment_num[^>]*>\\s*\\[(\\d+)\\]",
+          "pageUrl": "https://web.humoruniv.com/board/humor/list.html?table=pds&pg={page0}",
           "max": 40
         }
       }
@@ -196,16 +200,18 @@
       "adapter": {
         "type": "list",
         "url": "https://theqoo.net/hot",
-        "note": "핫게시판(HOT) 리스트 파싱(jagei 원조 모델). 공식 RSS 없음. 2026-07-23 검증(200, 실게시물 파싱 성공). 상단 공지/이벤트 행은 excludeRegex로 제외.",
+        "pages": 3,
+        "note": "핫게시판(HOT) 리스트 파싱(jagei 원조 모델). 공식 RSS 없음. 2026-07-23 검증(200, 실게시물 파싱 성공). 상단 공지/이벤트 행은 excludeRegex로 제외. 2~3페이지는 ?page=N (2026-07-24 검증, 페이지별 다른 게시물 확인).",
         "list": {
           "urlBase": "https://theqoo.net",
-          "titleRegex": "<td class=\"title\">\\s*<a href=\"(/hot/\\d+)\"[^>]*>(?:<strong>)?(?:<span[^>]*>)?([^<]+)",
+          "titleRegex": "<td class=\"title\">\\s*<a href=\"(/hot/\\d+)(?:\\?[^\"]*)?\"[^>]*>(?:<strong>)?(?:<span[^>]*>)?([^<]+)",
           "windowBefore": 280,
           "windowAfter": 300,
           "commentRegex": "class=\"replyNum\">(\\d+)",
           "scoreRegex": "class=\"m_no\">([\\d,]+)",
           "dateRegex": "class=\"time\">\\s*([^<]+?)\\s*<",
           "excludeRegex": "<tr class=\"notice[\\s\"]",
+          "pageUrl": "https://theqoo.net/hot?page={page}",
           "max": 40
         }
       }
@@ -224,7 +230,7 @@
       "adapter": {
         "type": "list",
         "url": "https://mlbpark.donga.com/mp/b.php?b=bullpen",
-        "note": "불펜 게시판 리스트 파싱. robots.txt가 User-agent:* Disallow:/ (전면 차단)인 사이트 — David 절대원칙 2 개정(수집 계층 WARN 수용)에 따라 1회 fetch 시도, 200 성공(차단/CAPTCHA 없음). robots 저촉 WARN — 출시 전 변호사 검토 목록 포함. 추천/조회 지표는 이 리스트 뷰에 노출되지 않아 시각(상대시간)만 수집.",
+        "note": "불펜 게시판 리스트 파싱. robots.txt가 User-agent:* Disallow:/ (전면 차단)인 사이트 — David 절대원칙 2 개정(수집 계층 WARN 수용)에 따라 1회 fetch 시도, 200 성공(차단/CAPTCHA 없음). robots 저촉 WARN — 출시 전 변호사 검토 목록 포함. 추천/조회 지표는 이 리스트 뷰에 노출되지 않아 시각(상대시간)만 수집. 페이지네이션은 클라이언트 JS(pageIndex/pageSize 객체, 정적 page=/pg= 파라미터 없음)라 pageUrl 미설정 — 1페이지만 수집, 48h 롤링 축적으로 보완(2026-07-24 확인).",
         "list": {
           "titleRegex": "class='title'><a href='(https://mlbpark\\.donga\\.com/mp/b\\.php\\?b=bullpen[^']+)'>([^<]+)</a>",
           "windowBefore": 250,
@@ -263,11 +269,13 @@
       "adapter": {
         "type": "list",
         "url": "https://etoland.co.kr/b/etohumor02/list",
-        "note": "유머게시판 리스트 파싱. 페이지의 JSON-LD ItemList(og 구조화 데이터)를 정규식으로 추출 — 본문 HTML 파싱보다 안정적. 공식 RSS 없음. robots.txt는 /private/ 만 차단, 이 경로는 허용. 2026-07-23 검증(200, 실게시물 파싱 성공). 구URL(bo_table=etohumor02)은 301로 이 URL로 리다이렉트됨.",
+        "pages": 3,
+        "note": "유머게시판 리스트 파싱. 페이지의 JSON-LD ItemList(og 구조화 데이터)를 정규식으로 추출 — 본문 HTML 파싱보다 안정적. 공식 RSS 없음. robots.txt는 /private/ 만 차단, 이 경로는 허용. 2026-07-23 검증(200, 실게시물 파싱 성공). 구URL(bo_table=etohumor02)은 301로 이 URL로 리다이렉트됨. 2~3페이지는 ?page=N (2026-07-24 검증).",
         "list": {
           "titleRegex": "\\{\"@type\":\"ListItem\",\"position\":\\d+,\"name\":\"((?:[^\"\\\\]|\\\\.)+)\",\"item\":\"(https://etoland\\.co\\.kr/b/etohumor02/view/[^\"]+)\"",
           "urlGroup": 2,
           "titleGroup": 1,
+          "pageUrl": "https://etoland.co.kr/b/etohumor02/list?page={page}",
           "max": 40
         }
       }
@@ -319,7 +327,8 @@
       "adapter": {
         "type": "list",
         "url": "https://www.todayhumor.co.kr/board/list.php?table=bestofbest",
-        "note": "베오베(bestofbest) 리스트 파싱. 공식 RSS 없음(연구 문서 확인). 2026-07-23 검증(200, 실게시물 파싱 성공).",
+        "pages": 3,
+        "note": "베오베(bestofbest) 리스트 파싱. 공식 RSS 없음(연구 문서 확인). 2026-07-23 검증(200, 실게시물 파싱 성공). 2~3페이지는 &page=N (2026-07-24 검증).",
         "list": {
           "urlBase": "https://www.todayhumor.co.kr",
           "titleRegex": "class=\"subject\"><a href=\"([^\"]+)\"[^>]*>([^<]+)</a>",
@@ -327,6 +336,7 @@
           "dateRegex": "class=\"date\">([^<]+)<",
           "scoreRegex": "class=\"oknok\">([\\d,]+)<",
           "commentRegex": "list_memo_count_span[^>]*>\\s*\\[(\\d+)\\]",
+          "pageUrl": "https://www.todayhumor.co.kr/board/list.php?table=bestofbest&page={page}",
           "max": 40
         }
       }
@@ -396,13 +406,15 @@
       "adapter": {
         "type": "list",
         "url": "https://pann.nate.com/talk/ranking/d",
-        "note": "톡커들의 선택(일간 명예의 전당) 리스트 파싱 — 사이트 자체 표기 그대로 \"톡커들의 선택 명예의 전당\". 공식 RSS 없음. 2026-07-23 검증(200, 실게시물 파싱 성공).",
+        "pages": 2,
+        "note": "톡커들의 선택(일간 명예의 전당) 리스트 파싱 — 사이트 자체 표기 그대로 \"톡커들의 선택 명예의 전당\". 공식 RSS 없음. 2026-07-23 검증(200, 실게시물 파싱 성공). ?page=N으로 2페이지까지 확인(40+40, 중복 없음) — 2026-07-24 검증. page=3은 page=1과 동일 콘텐츠를 반환해(사이트가 일간 랭킹을 2페이지=80건으로 제한하는 것으로 추정) pages를 2로 고정, 48h 롤링 축적으로 보완.",
         "list": {
           "urlBase": "https://pann.nate.com",
           "titleRegex": "<a href=\"(/talk/\\d+)\"[^>]*title=\"([^\"]+)\"",
           "windowAfter": 400,
           "commentRegex": "class=\"reple-num\">\\((\\d+)\\)",
           "scoreRegex": "class=\"rcm\">추천\\s*([\\d,]+)",
+          "pageUrl": "https://pann.nate.com/talk/ranking/d?page={page}",
           "max": 40
         }
       }
