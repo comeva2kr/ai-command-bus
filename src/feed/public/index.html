@@ -81,6 +81,9 @@
   .lvbar { height: 6px; border-radius: 6px; background: var(--card-2); overflow: hidden; margin-top: 8px; }
   .lvfill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--like)); }
   .norm-hint { font-size: 12px; color: #f0a13d; margin-top: 8px; line-height: 1.5; }
+  .readmore { display: block; text-align: center; background: var(--accent); color: #fff !important;
+    border-radius: 12px; padding: 14px; font-weight: 700; font-size: 15px; margin: 4px 0 8px; }
+  .excerpt-note { text-align: center; color: var(--muted); font-size: 11.5px; margin-bottom: 14px; }
   .reasons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .why { font-size: 11px; color: #9fd0ff; background: rgba(79,140,255,.12); border: 1px solid rgba(79,140,255,.25);
     border-radius: 999px; padding: 3px 9px; }
@@ -131,7 +134,8 @@
   .card-meta { display: flex; align-items: center; gap: 14px; margin-top: 11px; font-size: 12.5px; color: var(--muted); }
   .actions { margin-left: auto; display: flex; gap: 8px; }
   .rate { border: 1px solid var(--line); background: var(--card-2); color: var(--muted);
-    border-radius: 10px; padding: 6px 11px; font-size: 13px; display: flex; align-items: center; gap: 5px; }
+    border-radius: 10px; padding: 10px 14px; min-height: 42px; font-size: 14px;
+    display: flex; align-items: center; gap: 5px; } /* ≥42px hit target for thumbs */
   .rate.up.on { color: #fff; background: var(--like); border-color: var(--like); }
   .rate.down.on { color: #fff; background: var(--dislike); border-color: var(--dislike); }
   .rate.save.on { color: #f0a13d; border-color: #f0a13d; }
@@ -844,9 +848,12 @@ function setupSkipObserver(){
   skipObserver = new IntersectionObserver((entries)=>{
     for(const e of entries){
       const id = e.target.dataset.id; if(!id) continue;
-      if(e.isIntersecting){ e.target._seenOnce = true; continue; }
-      // left viewport upward, was seen, never opened, not already counted
-      if(e.target._seenOnce && e.boundingClientRect.top < 0 &&
+      if(e.isIntersecting){ e.target._seenAt = Date.now(); continue; }
+      // Count as "not interested" only if the card was actually on screen long
+      // enough to be considered (≥1.2s) — fast flick-scrolling must not poison
+      // the taste vector (adversarial review: scroll speed ≠ dislike).
+      const dwelt = e.target._seenAt ? Date.now() - e.target._seenAt : 0;
+      if(dwelt >= 1200 && e.boundingClientRect.top < 0 &&
          !state.openedSet.has(id) && !state.skipSignaled.has(id)){
         state.skipSignaled.add(id);
         API.signal(state.userId, id, "skip");
@@ -882,6 +889,14 @@ function closeDetail(){
   window.scrollTo(0, state.feedScrollY);
 }
 document.getElementById("backBtn").onclick = ()=> history.back();
+// one-handed close: swipe right from the left edge (top-left ‹ is out of thumb reach)
+(function(){
+  const d = document.getElementById("detail");
+  let sx=0, sy=0, fromEdge=false;
+  d.addEventListener("touchstart", (e)=>{ const t=e.touches[0]; sx=t.clientX; sy=t.clientY; fromEdge=t.clientX<28; }, {passive:true});
+  d.addEventListener("touchend", (e)=>{ if(!fromEdge) return; const t=e.changedTouches[0];
+    if(t.clientX-sx>70 && Math.abs(t.clientY-sy)<60) history.back(); }, {passive:true});
+})();
 window.addEventListener("popstate", (e)=>{
   if(document.getElementById("detail").classList.contains("open")) closeDetail();
   if(!document.getElementById("space").classList.contains("hidden")) closeSpace();
@@ -921,6 +936,10 @@ async function renderDetail(itemId){
       ${item.url?`<a href="${item.url}" target="_blank" rel="noopener" style="color:var(--accent)">원문 →</a>`:""}
     </div>
     <p class="full">${escapeHtml(item.summary)}</p>
+    ${item.url && item.source!=="me" ? `
+      <a class="readmore" href="${item.url}" target="_blank" rel="noopener">원문에서 계속 읽기 →</a>
+      <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
+    `:""}
     <div class="detail-actions">
       <button class="rate up ${item.myRating>0?'on':''}" id="dUp">👍 좋아요</button>
       <button class="rate down ${item.myRating<0?'on':''}" id="dDown">👎 별로예요</button>
