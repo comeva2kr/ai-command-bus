@@ -19,6 +19,7 @@ import { FeedEngine } from "../src/feed/engine.js";
 import { StorePostsSource } from "../src/feed/content.js";
 import { loadRegistry, query, buildSources, summarize } from "../src/feed/registry.js";
 import { TranslatingSource, memoizedTranslator } from "../src/feed/translate.js";
+import { googleFreeTranslator } from "../src/feed/translator.js";
 
 const fixedClock = () => "2026-07-06T00:00:00.000Z";
 
@@ -2080,5 +2081,191 @@ test("communities.json: all 10 sources added 2026-07-24 are registered, enabled,
     assert.equal(c.kind, exp.kind, `${id} kind`);
     assert.equal(c.adapter.type, exp.type, `${id} adapter type`);
     assert.ok(c.label, `${id} has a display label`);
+  }
+});
+
+// --- googleFreeTranslator (src/feed/translator.js) -------------------------
+// All tests below run with a mocked fetchImpl — no real network access.
+
+test("googleFreeTranslator: parses a normal gtx response and hits the expected URL", async () => {
+  let calledUrl = null;
+  const fetchImpl = async (url) => {
+    calledUrl = url;
+    return {
+      ok: true,
+      async json() {
+        // real shape: data[0] is a list of [translatedChunk, originalChunk, ...] tuples
+        return [[["안녕 세상", "Hello world", null, null, 1]], null, "en"];
+      }
+    };
+  };
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(out, "안녕 세상");
+  assert.match(calledUrl, /^https:\/\/translate\.googleapis\.com\/translate_a\/single\?/);
+  assert.match(calledUrl, /sl=en/);
+  assert.match(calledUrl, /tl=ko/);
+  assert.match(calledUrl, /dt=t/);
+  assert.match(calledUrl, /q=Hello(%20|\+)world/);
+});
+
+test("googleFreeTranslator: joins multiple response chunks (long input split by Google)", async () => {
+  const fetchImpl = async () => ({
+    ok: true,
+    async json() {
+      return [[["첫 문장. ", null], ["둘째 문장.", null]], null, "en"];
+    }
+  });
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate("First sentence. Second sentence.", { from: "en", to: "ko" });
+  assert.equal(out, "첫 문장. 둘째 문장.");
+});
+
+test("googleFreeTranslator: falls back to the original text on a non-200 response", async () => {
+  const fetchImpl = async () => ({ ok: false, status: 429, async json() { return null; } });
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(out, "Hello world");
+});
+
+test("googleFreeTranslator: falls back to the original text on a network error (never throws)", async () => {
+  const fetchImpl = async () => { throw new Error("ECONNRESET"); };
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(out, "Hello world");
+});
+
+test("googleFreeTranslator: falls back to the original text on timeout (AbortSignal fires -> fetch rejects with AbortError)", async () => {
+  // AbortSignal.timeout's internal timer is unref'd, so actually waiting for
+  // a real one to fire in an otherwise-idle test can race the test runner's
+  // own event loop bookkeeping. Simulate what a real timeout produces instead
+  // (fetch rejecting with a DOMException named "AbortError") — the code path
+  // exercised (a blanket catch -> fall back to the original text) is identical.
+  const fetchImpl = async () => { throw new DOMException("The operation was aborted", "AbortError"); };
+  const translate = googleFreeTranslator({ fetchImpl, timeoutMs: 5 });
+  const out = await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(out, "Hello world");
+});
+
+test("googleFreeTranslator: falls back to the original text on an unexpected JSON shape", async () => {
+  const fetchImpl = async () => ({ ok: true, async json() { return { error: "unexpected" }; } });
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(out, "Hello world");
+});
+
+test("googleFreeTranslator: empty/falsy input passes through untouched, no fetch call", async () => {
+  let called = false;
+  const fetchImpl = async () => { called = true; return { ok: true, async json() { return [[["x"]]]; } }; };
+  const translate = googleFreeTranslator({ fetchImpl });
+  assert.equal(await translate("", { from: "en", to: "ko" }), "");
+  assert.equal(await translate(null, { from: "en", to: "ko" }), null);
+  assert.equal(called, false);
+});
+
+test("googleFreeTranslator + memoizedTranslator: identical text is only fetched once", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls++;
+    return { ok: true, async json() { return [[["번역됨"]]]; } };
+  };
+  const translate = memoizedTranslator(googleFreeTranslator({ fetchImpl }));
+  await translate("Hello world", { from: "en", to: "ko" });
+  await translate("Hello world", { from: "en", to: "ko" });
+  await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(calls, 1, "second/third call served from memoizedTranslator's cache");
+});
+
+test("TranslatingSource wired with googleFreeTranslator translates an en item end to end (mocked network)", async () => {
+  const foreign = {
+    id: "hackernews", kind: "community", async fetch() {
+      return [{ id: "hn1", title: "Show HN: a new database", summary: "we built a fast db", lang: "en", category: "tech", tags: [], source: "hackernews" }];
+    }
+  };
+  const fetchImpl = async (url) => {
+    const q = decodeURIComponent(new URL(url).searchParams.get("q"));
+    const table = {
+      "Show HN: a new database": "Show HN: 새로운 데이터베이스",
+      "we built a fast db": "빠른 db를 만들었습니다"
+    };
+    return { ok: true, async json() { return [[[table[q] || q, q, null, null, 1]]]; } };
+  };
+  const translateFn = memoizedTranslator(googleFreeTranslator({ fetchImpl }));
+  const out = await new TranslatingSource(foreign, translateFn, "ko").fetch();
+  assert.equal(out[0].translated, true);
+  assert.equal(out[0].lang, "ko");
+  assert.equal(out[0].title, "Show HN: 새로운 데이터베이스");
+  assert.equal(out[0].summary, "빠른 db를 만들었습니다");
+  assert.equal(out[0].originalTitle, "Show HN: a new database");
+  assert.equal(out[0].originalLang, "en");
+});
+
+test("createServer: opts.translate wiring flows through buildSources to the served feed", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const registry = loadRegistry();
+  const enEntry = registry.find((c) => c.enabled && c.lang === "en");
+  assert.ok(enEntry, "fixture assumption: an enabled overseas (en) source exists in communities.json");
+
+  // opts.fetcher stands in for FEED_LIVE's makeFetcher — only the target
+  // source yields an item, every other registry entry yields nothing so the
+  // feed stays small and deterministic.
+  const fetcher = (entry) => async () =>
+    entry.id === enEntry.id ? [{ title: "Hello world", summary: "a translation test post" }] : [];
+
+  const server = createServer({
+    dev: false,
+    fetcher,
+    translate: { targetLang: "ko", translateFn: memoizedTranslator(async (t) => `[번역] ${t}`) }
+  });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const feed = await (
+      await fetch(`${base}/api/feed?userId=${session.userId}&source=${enEntry.id}&cursor=0&limit=20`)
+    ).json();
+    const item = feed.items.find((i) => i.source === enEntry.id);
+    assert.ok(item, `an item from ${enEntry.id} is present in the feed`);
+    assert.equal(item.translated, true);
+    assert.match(item.title, /^\[번역\]/);
+  } finally {
+    server.close();
+  }
+});
+
+// opts.translate === undefined (not passed at all) means "let FEED_TRANSLATE decide" —
+// with the env var unset in the test run, this must behave exactly like today: items
+// pass through untouched and flagged needsTranslation, never silently translated.
+test("createServer: without FEED_TRANSLATE (env unset) and no opts.translate, overseas items stay untranslated", async () => {
+  assert.equal(process.env.FEED_TRANSLATE, undefined, "test assumption: FEED_TRANSLATE is unset in this run");
+  const { createServer } = await import("../src/feed/server.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const registry = loadRegistry();
+  const enEntry = registry.find((c) => c.enabled && c.lang === "en");
+  assert.ok(enEntry, "fixture assumption: an enabled overseas (en) source exists in communities.json");
+
+  const fetcher = (entry) => async () =>
+    entry.id === enEntry.id ? [{ title: "Hello world", summary: "a translation test post" }] : [];
+
+  const server = createServer({ dev: false, fetcher }); // no opts.translate at all
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const feed = await (
+      await fetch(`${base}/api/feed?userId=${session.userId}&source=${enEntry.id}&cursor=0&limit=20`)
+    ).json();
+    const item = feed.items.find((i) => i.source === enEntry.id);
+    assert.ok(item, `an item from ${enEntry.id} is present in the feed`);
+    assert.equal(item.translated, false);
+    assert.equal(item.needsTranslation, true);
+    assert.equal(item.title, "Hello world");
+  } finally {
+    server.close();
   }
 });

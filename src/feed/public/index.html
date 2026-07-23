@@ -166,6 +166,8 @@
     background: var(--card-2); color: var(--muted); }
   .badge.news { color: #7fb0ff; }
   .card h3 { margin: 0 0 6px; font-size: 16px; line-height: 1.4; font-weight: 700; }
+  .card .orig-title { margin: -3px 0 6px; font-size: 11.5px; color: var(--muted); font-style: italic;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .card-meta { display: flex; align-items: center; gap: 14px; margin-top: 11px; font-size: 12.5px; color: var(--muted); }
@@ -1080,6 +1082,7 @@ function appendCard(item){
       <span class="badge ${item.kind}">${item.kind==="news"?"뉴스":"커뮤"}</span>
     </div>
     <h3>${escapeHtml(item.title)}</h3>
+    ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>
     ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
     <div class="card-meta">
