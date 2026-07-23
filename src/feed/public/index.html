@@ -115,9 +115,17 @@
   .chips::-webkit-scrollbar { display: none; }
   /* source-select chip bar ("전체" + per-community/news chips, jagei-style board view) —
      always a horizontal top bar, even on the desktop layout where the category
-     .chips become a sidebar list (see the min-width:1000px block below). */
+     .chips become a sidebar list (see the min-width:1000px block below). Sticky
+     right under the (already-sticky) header — David 2026-07-24: stays visible
+     while the feed scrolls, never just scrolls away. `top` tracks the header's
+     real rendered height via --header-h (set by a ResizeObserver in the script,
+     so it never drifts if header content wraps to another line on a narrow
+     phone). `-webkit-sticky` first for older iOS Safari; a solid `background`
+     (not translucent, no backdrop-filter) avoids the iOS Safari repaint/flicker
+     that sticky + backdrop-filter can trigger on scroll. */
   .src-chips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px; margin: 0;
-    border-bottom: 1px solid var(--line); scrollbar-width: none; background: var(--bg); }
+    border-bottom: 1px solid var(--line); scrollbar-width: none; background: var(--bg);
+    position: -webkit-sticky; position: sticky; top: var(--header-h, 104px); z-index: 19; }
   .src-chips::-webkit-scrollbar { display: none; }
   .src-chip { flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
     background: var(--card-2); color: var(--muted); font-size: 13px; font-weight: 700; white-space: nowrap; }
@@ -181,7 +189,6 @@
   .frame-head { flex: 0 0 auto; background: rgba(14,15,19,.92); backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--line); padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
     display: flex; align-items: center; gap: 10px; }
-  .frame-head .brand-mini { font-weight: 800; font-size: 14px; white-space: nowrap; }
   .frame-head .frame-src { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .frame-head .frame-open-tab { flex: 0 0 auto; background: var(--card-2); border: 1px solid var(--line);
@@ -255,7 +262,10 @@
     header .chips { flex-direction: column; overflow: visible; padding: 18px 0 0; gap: 6px; }
     header .chips .chip { width: 100%; text-align: left; }
     /* main content column sits to the right of the sidebar */
-    .src-chips { margin-left: 260px; max-width: 640px; border-bottom: none; }
+    /* desktop: header is a fixed left sidebar, not stacked above this column,
+       so the chip bar sticks to the viewport top directly (top:0) rather than
+       the mobile header's height. */
+    .src-chips { margin-left: 260px; max-width: 640px; border-bottom: none; top: 0; }
     #digestBar { margin: 16px 0 0 260px; }
     main#feed { margin-left: 260px; max-width: 640px; padding-top: 16px; }
     .sentinel { margin-left: 260px; max-width: 640px; }
@@ -318,8 +328,7 @@
        (frameable sources only — see openFrame/isFrameable) -->
   <section id="frameViewer" aria-hidden="true">
     <div class="frame-head">
-      <button class="back" id="frameBack" aria-label="뒤로">‹</button>
-      <span class="brand-mini">🧭</span>
+      <button class="back" id="frameBack" aria-label="피드로 돌아가기" title="피드로 돌아가기">🏠</button>
       <span class="frame-src" id="frameSrc"></span>
       <a class="frame-open-tab" id="frameOpenTab" href="#" target="_blank" rel="noopener noreferrer">원문 새탭 열기 ↗</a>
     </div>
@@ -424,6 +433,24 @@ function timeAgo(iso){ if(!iso) return ""; const d=(Date.now()-new Date(iso))/1e
   if(d<3600) return Math.max(1,Math.floor(d/60))+"분 전"; if(d<86400) return Math.floor(d/3600)+"시간 전"; return Math.floor(d/86400)+"일 전"; }
 
 function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),1600); }
+
+// Keep --header-h in sync with the header's real rendered height, so the
+// sticky source-chip bar (.src-chips, top: var(--header-h)) sits flush under
+// it instead of at a guessed fixed pixel value — the header wraps to more
+// lines on a narrow phone, shows/hides the 19금 lock badge, etc. ResizeObserver
+// catches all of that automatically; the resize listener is just a fallback
+// for the rare engine without it.
+function syncHeaderHeight(){
+  const h = document.querySelector("header");
+  if(h) document.documentElement.style.setProperty("--header-h", h.offsetHeight + "px");
+}
+if("ResizeObserver" in window){
+  const headerEl = document.querySelector("header");
+  if(headerEl) new ResizeObserver(syncHeaderHeight).observe(headerEl);
+} else {
+  window.addEventListener("resize", syncHeaderHeight);
+}
+syncHeaderHeight();
 
 // ---- boot ----
 (async function boot(){
@@ -1064,7 +1091,7 @@ function openFrame(item){
 // openFrame's markOpened) or double-count dwell (closeFrame guards on state).
 function fallBackToNewTab(item){
   if(document.getElementById("frameViewer").getAttribute("aria-hidden")==="true") return; // already closed
-  closeFrame({ skipSignal: true });
+  returnToFeedFromFrame({ skipSignal: true });
   window.open(item.url, "_blank", "noopener,noreferrer");
   toast("이 사이트는 앱 안에서 열 수 없어 새 탭으로 열었어요");
 }
@@ -1083,7 +1110,20 @@ function closeFrame(opts){
   v.classList.remove("open"); v.setAttribute("aria-hidden","true");
   window.scrollTo(0, state.feedScrollY);
 }
-document.getElementById("frameBack").onclick = ()=> history.back();
+// The 🏠 button: unconditionally return to the feed — not "back one step"
+// (David 2026-07-24). closeFrame() handles the visible/scroll/dwell part;
+// this then normalizes the URL/history state directly (history.replaceState)
+// instead of relying on history.back() to land exactly where expected, so it
+// behaves the same regardless of how the frame viewer was reached. The
+// hardware back button still returns to the feed too — the popstate handler
+// below already just calls closeFrame() whenever the frame viewer is open.
+function returnToFeedFromFrame(opts){
+  closeFrame(opts);
+  if(history.state && history.state.view === "frame"){
+    history.replaceState({ view: "feed" }, "", location.pathname + location.search);
+  }
+}
+document.getElementById("frameBack").onclick = ()=> returnToFeedFromFrame();
 
 async function openDetail(itemId){
   state.feedScrollY = window.scrollY;             // remember exactly where we were
