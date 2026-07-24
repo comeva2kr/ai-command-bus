@@ -1508,7 +1508,12 @@ test("normalizeListDate: sanity guard nulls out future dates and 5+ year stale d
 
   // sane dates must still pass through untouched
   assert.equal(normalizeListDate("2026-07-23", now), "2026-07-23T00:00:00.000Z", "정상 최근 날짜는 그대로 통과");
-  assert.equal(normalizeListDate("11:30", now), "2026-07-24T02:30:00.000Z", "오늘 HH:MM(로컬 상대시간) 형식도 정상 통과 — sanity 가드에 걸리지 않음");
+  // "11:30" is parsed against the runner's local timezone (fetchers.js uses
+  // Date#setHours), so the expected instant must be derived the same way —
+  // a hardcoded UTC string here would only match on a KST runner.
+  const expectedLocal1130 = new Date(now());
+  expectedLocal1130.setHours(11, 30, 0, 0);
+  assert.equal(normalizeListDate("11:30", now), expectedLocal1130.toISOString(), "오늘 HH:MM(로컬 상대시간) 형식도 정상 통과 — sanity 가드에 걸리지 않음");
   const relDay = normalizeListDate("3일", now);
   assert.ok(relDay && Date.parse(relDay) < now(), "상대 날짜(N일 전)도 정상 통과");
 

@@ -25,6 +25,10 @@ import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { sendDigestPushes } from "./push.js";
+import { QuizStore } from "../quiz/store.js";
+import { renderIndexPage, renderQuizPage, renderResultPage } from "../quiz/render.js";
+import { renderOgCardSvg } from "../quiz/ogcard.js";
+import { renderOgCardPng } from "../quiz/ogrender.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -197,6 +201,10 @@ export function createServer(opts = {}) {
     }, pushDigestMs);
     if (pushTimer.unref) pushTimer.unref();
   }
+
+  // 주간 유형테스트: published/만 서빙 — 초안은 사람이 승인(approve)해야
+  // 공개된다 (src/quiz/store.js의 승인 게이트).
+  const quizStore = opts.quizStore || new QuizStore({ dir: opts.quizDir });
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
@@ -527,6 +535,105 @@ export function createServer(opts = {}) {
         res.writeHead(data ? 200 : 404, { "content-type": "text/html; charset=utf-8" });
         res.end(sharePage(data, origin, id));
         return;
+      }
+
+      // --- 주간 유형테스트 (published only) ---
+      if (p === "/api/quiz" && req.method === "GET") {
+        const list = quizStore.listPublished().map((r) => ({
+          slug: r.slug,
+          title: r.quiz.title,
+          description: r.quiz.description,
+          week: r.week || null,
+          publishedAt: r.publishedAt || null
+        }));
+        return send(res, 200, { quizzes: list });
+      }
+
+      // 결과 집계: 클라이언트가 테스트 완료 시 유형 코드를 보고한다.
+      // "응답자 중 N%" 희소성 통계의 원천 — 발행된 퀴즈의 실존 코드만 허용.
+      {
+        const m = p.match(/^\/api\/quiz\/([^/]+)\/response$/);
+        if (m && req.method === "POST") {
+          const body = await readBody(req);
+          try {
+            const stats = quizStore.recordResponse(decodeURIComponent(m[1]), String(body.code || ""));
+            return send(res, 200, { ok: true, total: stats.total });
+          } catch (err) {
+            return send(res, 400, { error: String(err.message) });
+          }
+        }
+      }
+      if (p.startsWith("/q") && req.method === "GET") {
+        const proto = req.headers["x-forwarded-proto"] || "http";
+        const origin = `${proto}://${req.headers.host}`;
+        const html = (status, body) => {
+          res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
+          res.end(body);
+        };
+        if (p === "/q" || p === "/q/") return html(200, renderIndexPage(quizStore.listPublished(), origin));
+
+        // OG 공유 카드 PNG: /q/<slug>/og/<code>.png ("cover"는 퀴즈 랜딩용).
+        // 카카오톡/페이스북/트위터 크롤러는 og:image로 SVG를 렌더하지 못하므로
+        // 여기서 실제 PNG로 래스터화해 내려준다 (src/quiz/ogcard.js + ogrender.js).
+        const ogMatch = p.match(/^\/q\/([^/]+)\/og\/([^/]+)\.png$/);
+        if (ogMatch) {
+          const record = quizStore.getPublished(decodeURIComponent(ogMatch[1]));
+          if (!record) return send(res, 404, { error: "not found" });
+          const codeParam = decodeURIComponent(ogMatch[2]);
+          const isCover = codeParam === "cover";
+          const result = isCover ? null : record.quiz.results.find((r) => r.code === codeParam);
+          if (!isCover && !result) return send(res, 404, { error: "not found" });
+
+          // 희소성 %는 5% 버킷으로 캐시 키에 포함 — 응답 통계가 조금씩 바뀔
+          // 때마다 재렌더하지 않도록.
+          let bucketKey = "cover";
+          let sharePercent;
+          if (!isCover) {
+            const stats = quizStore.statsFor(record.slug, record.quiz.results.map((r) => r.code));
+            sharePercent = (stats && stats.share && stats.share[codeParam]) || 0;
+            bucketKey = `p${Math.round(sharePercent / 5) * 5}`;
+          }
+
+          let png = quizStore.readOgCache(record.slug, codeParam, bucketKey);
+          if (!png) {
+            const svg = renderOgCardSvg(record.quiz, result, { sharePercent, origin });
+            png = await renderOgCardPng(svg).catch(() => null);
+            if (!png) {
+              // 렌더러(옵셔널 의존성) 미설치 — 실패 없이 정적 아이콘으로 폴백.
+              res.writeHead(302, { location: `${origin}/icon.svg` });
+              return res.end();
+            }
+            try {
+              quizStore.writeOgCache(record.slug, codeParam, bucketKey, png);
+            } catch {
+              // 캐시 쓰기 실패해도 이미 렌더된 png는 응답으로 나간다.
+            }
+          }
+          res.writeHead(200, { "content-type": "image/png", "cache-control": "public, max-age=3600" });
+          return res.end(png);
+        }
+
+        // /q/<slug> 또는 /q/<slug>/r/<resultId>
+        const m = p.match(/^\/q\/([^/]+)(?:\/r\/([^/]+))?$/);
+        if (m) {
+          const record = quizStore.getPublished(decodeURIComponent(m[1]));
+          if (!record) return send(res, 404, { error: "not found" });
+          if (!m[2]) return html(200, renderQuizPage(record, origin));
+          const result = record.quiz.results.find((r) => r.code === decodeURIComponent(m[2]));
+          if (!result) return send(res, 404, { error: "not found" });
+          // ?p=64,40 — 본인 응답의 축별 퍼센트 (공유 링크에는 없음 → 개인 바
+          // 대신 "직접 해보면 내 퍼센트가 나온다" 훅으로 렌더링).
+          let percents = null;
+          const raw = url.searchParams.get("p");
+          if (raw) {
+            const nums = raw.split(",").map(Number);
+            if (nums.length === record.quiz.axes.length && nums.every((n) => Number.isFinite(n) && n >= 0 && n <= 100)) {
+              percents = nums;
+            }
+          }
+          const stats = quizStore.statsFor(record.slug, record.quiz.results.map((r) => r.code));
+          return html(200, renderResultPage(record, result, origin, { percents, stats }));
+        }
       }
 
       // --- static client ---
