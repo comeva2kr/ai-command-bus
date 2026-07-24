@@ -274,11 +274,15 @@ test("pack manifest declares the WRC-standard contract blocks", async () => {
   assert.equal(CONTRACT.retry_budget, 3);
   // 구 ID 마이그레이션 표
   assert.equal(CONTRACT.gate_id_migration.G1, "QG1");
-  // identity 5필드 + packId 패턴
+  // identity 5필드 + WRC 계약 패턴 (2026-07-24 정합 검토 교정 반영):
+  // project:/driver-seat:/pack: 접두, enginePackId는 접두 없는 snake_case 엔진명
   for (const k of ["projectId", "driverSeatId", "packId", "enginePackId", "workflowSlug"]) {
     assert.ok(MANIFEST.identity[k], `identity 필드 누락: ${k}`);
   }
+  assert.match(MANIFEST.identity.projectId, /^project:[a-z0-9-]+$/);
+  assert.match(MANIFEST.identity.driverSeatId, /^driver-seat:[a-z0-9-]+$/);
   assert.match(MANIFEST.identity.packId, /^pack:[a-z0-9-]+$/);
+  assert.match(MANIFEST.identity.enginePackId, /^[a-z0-9_]+$/);
 });
 
 test("manifest is the single source for gate constants (no code drift)", async () => {

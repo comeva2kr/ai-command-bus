@@ -124,11 +124,12 @@
   },
 
   "identity": {
-    "projectId": "ai-command-bus",
-    "driverSeatId": "weekly-viral-quiz",
+    "projectId": "project:ai-command-bus",
+    "driverSeatId": "driver-seat:weekly-viral-quiz",
     "packId": "pack:weekly-viral-quiz",
-    "enginePackId": "pack:weekly-viral-quiz",
+    "enginePackId": "weekly_viral_quiz",
     "workflowSlug": "weekly-viral-quiz"
   },
-  "registration": { "isDefault": false, "displayOrder": 1 }
+  "registration": { "isDefault": true, "displayOrder": 20 },
+  "registration_note_ko": "운전석 등록 정본은 wrc-workflow-gate의 workflows/weekly_viral_quiz.yaml (2026-07-24 등록, 라이브 확인). 이 블록은 그 등록값의 미러다. identity 패턴은 WRC 계약 준수: project:/driver-seat:/pack: 접두, enginePackId는 접두 없는 snake_case 엔진명."
 }

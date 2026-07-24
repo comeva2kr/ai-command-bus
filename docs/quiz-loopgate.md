@@ -18,8 +18,12 @@
 > 접두 `QG`로 리네임 ③ 게이트별 등급(HARD/HOLD/GUIDE) + risk_policy 선언
 > ④ `runGates` 결과 봉투 고정(`{decision, reasons, gateResults}`) ⑤ 재시도
 > 예산 매니페스트 이관 + 소진 시 fail-loud ⑥ 회차 결박 + 원자적 쓰기
-> ⑦ `no_go: external_publish` 명문화. 잔여: 매니페스트 표준 정합 검토 1회,
-> 운전석 전용 메뉴 등록.
+> ⑦ `no_go: external_publish` 명문화. **정합 검토 결과 (2026-07-24):
+> PASS_WITH_3_CORRECTIONS** — 의도적 편차 3건(QG3 HOLD·slug-키 스토어·json)
+> 전부 수용, identity 패턴 교정 3건 반영 완료. **운전석 전용 메뉴 등록 완료**
+> (wrc-workflow-gate `workflows/weekly_viral_quiz.yaml`, 라이브 확인
+> `pack:weekly-viral-quiz`, activation `display_and_link_only` — 실행·산출물은
+> 이 레포가 정본).
 
 **게이트 ID 마이그레이션**: `G0→QG0, G1→QG1, G2→QG2, G3→QG3, G4→QG4,
 G5→QG5, G6→QG6` (WRC 컨벤션: 팩 접두 — 전 팩 공유 표면에서의 충돌 방지.
