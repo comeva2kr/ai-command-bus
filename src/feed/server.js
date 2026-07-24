@@ -207,7 +207,13 @@ export function createServer(opts = {}) {
       if (p === "/api/health") return send(res, 200, { ok: true });
 
       if (p === "/api/config" && req.method === "GET") {
-        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: SOURCE_CATALOG, topics: TOPIC_CATALOG });
+        // `monetization.enabled`: whether this deploy can ever show an
+        // affiliate/ad slot at all (real partner credential OR preview mode).
+        // Drives the client's one-time top-of-app disclosure banner — it must
+        // never show that banner on a deploy that will never actually serve
+        // an ad (docs/monetization.md "①앱 전역 상단 1회 통합 고지").
+        const monetization = { enabled: Boolean(process.env.COUPANG_PARTNER_ID) || Boolean(process.env.AD_PREVIEW) };
+        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: SOURCE_CATALOG, topics: TOPIC_CATALOG, monetization });
       }
 
       if (p === "/api/communities" && req.method === "GET") {
@@ -423,6 +429,20 @@ export function createServer(opts = {}) {
         return send(res, 200, result);
       }
 
+      // Ad/affiliate slot event logging (docs/monetization.md section D).
+      // Slot items are generated fresh per request (monetize.js) and never
+      // live in the engine's collected pool, so this goes straight to the
+      // store rather than through engine.signal (which does an item lookup
+      // that would always miss for a slot id).
+      if (p === "/api/ad-signal" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        const type = body.type === "click" || body.type === "impression" ? body.type : null;
+        if (!type) return send(res, 400, { error: "type must be impression or click" });
+        const stats = store.recordAdEvent(body.userId, body.itemId, type, { variant: body.variant });
+        return send(res, 200, { ok: true, stats });
+      }
+
       if (p === "/api/rate" && req.method === "POST") {
         const body = await readBody(req);
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
@@ -447,7 +467,7 @@ export function createServer(opts = {}) {
         if (!isAdmin(req, url)) return send(res, 401, { error: "admin auth required" });
 
         if (p === "/api/admin/stats" && req.method === "GET") {
-          return send(res, 200, { stats: store.adminStats(), communities: summarize(registry) });
+          return send(res, 200, { stats: store.adminStats(), communities: summarize(registry), ads: store.adminAdStats() });
         }
         if (p === "/api/admin/users" && req.method === "GET") {
           return send(res, 200, { users: store.adminUsers() });

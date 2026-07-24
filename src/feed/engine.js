@@ -21,6 +21,7 @@ import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams } from "./ingest.js";
 import { FILTERABLE_TOPICS } from "./topics.js";
+import { injectSlots, adParams, adaptiveEvery, pickAffiliateCandidates, assignVariant, applyVariant } from "./monetize.js";
 
 // How long a collected item stays in the rolling pool before it's eligible for
 // eviction (David 2026-07-24: refresh should *accumulate*, not replace — a
@@ -297,14 +298,48 @@ export class FeedEngine {
       }
     }
 
+    // ---- monetization: affiliate/ad slot insertion (docs/monetization.md) ----
+    // Applied AFTER seen/exposure bookkeeping above so slot items never touch
+    // the organic dedup/fairness ledgers — they're generated fresh per
+    // request (monetize.js), not drawn from the collected pool, and must
+    // never count as "an item this user has been shown" for personalization.
+    // `nextCursor` below stays based on `batch.length` (organic count only)
+    // so pagination is unaffected by however many slots got inserted.
+    //
+    // 19금/정치/종교 필터가 켜진 뷰에는 절대 노출하지 않는다 — 신뢰 훼손 방지
+    // + 광고 네트워크 계정정지 리스크 (docs/monetization.md Non-Goals).
+    const monetizeAllowed = !allowAdult && !showTopics.has("politics") && !showTopics.has("religion");
+    const displayItems = monetizeAllowed ? this._monetize(userId, user, batch, cursor).items : batch;
+
     return {
-      items: batch,
+      items: displayItems,
       nextCursor: cursor + batch.length,
       exhausted: batch.length < limit,
       phase,
       level,
       feedbackCount: user.feedbackCount
     };
+  }
+
+  // Insert affiliate/ad slots into an already-decorated organic batch. Thin
+  // glue: monetize.js owns the placement rules + candidate shaping — this
+  // wires in this request's user preference vector, this user's ad
+  // click-through history (for adaptive density), and their A/B variant.
+  // Returns { items, slots } (slots kept for callers that want placement
+  // metadata; getFeed above only uses .items).
+  _monetize(userId, user, batch, cursor) {
+    const partnerId = process.env.COUPANG_PARTNER_ID || null;
+    const preview = Boolean(process.env.AD_PREVIEW);
+    if (!partnerId && !preview) return { items: batch, slots: [] }; // 절대원칙1: dummy content 금지
+
+    const variant = assignVariant(userId);
+    const params = applyVariant(adParams(), variant);
+    const responsiveness = this.store.adResponsiveness ? this.store.adResponsiveness(userId) : null;
+    const every = adaptiveEvery(params.every, responsiveness);
+    const candidates = pickAffiliateCandidates(user.preferences, { partnerId, preview, seed: cursor + 1 }).map(
+      (c) => ({ ...c, variant })
+    );
+    return injectSlots(batch, candidates, { ...params, every, startIndex: cursor });
   }
 
   _decorate(item, score, user) {

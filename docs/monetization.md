@@ -142,3 +142,46 @@ jagei.co.kr HTML을 직접 분석한 결과, **우리가 하려는 것의 정답
 3. **Phase C (리텐션 확인 후)**: Render 유료 플랜 + FEED_DB 영속화 → 프리미엄 구독 출시.
 
 의존성: Phase C는 유료 플랜 전환(월 $7~)이 선행 — 구독 수익 전망이 이를 정당화할 때 진행.
+
+---
+
+## 구현 상세 (Phase A — 슬롯 삽입 엔진, 2026-07-25)
+
+Phase A(제휴 카드 슬롯 + 고지 + 19금 제외 + env 게이트)를 구현했다. `handoff.md` 절대원칙 1(더미 콘텐츠 금지)을 그대로 광고에 적용: **`COUPANG_PARTNER_ID`도 `AD_PREVIEW`도 없는 프로덕션 기본 실행은 제휴/광고 카드가 0개**다.
+
+### 설계 원리 → 구현 매핑
+
+| 심리·UX 원리 | 구현 |
+|---|---|
+| 동화(assimilation) + 명시(disclosure) | 슬롯 카드는 유기 카드와 동일한 `.card` 레이아웃·타이포. 단 상단에 대비색 "제휴"/"제휴 · 샘플" 배지(`ad-badge`), 하단에 쿠팡 법정 고지 문구를 항상 렌더 |
+| 첫 화면 보호 | `AD_SKIP_FIRST`(기본 4) 이전엔 슬롯 없음 — `injectSlots`가 세션 전체 누적 위치(`cursor`)를 기준으로 판단해 페이지가 넘어가도 규칙이 끊기지 않음 |
+| 딥존 가중(스크롤 중후반 배치) | 첫 슬롯이 `AD_SKIP_FIRST` 이후에만 등장 → 자연히 스크롤 초반보다 중후반에 배치됨. 이후 `AD_EVERY`(기본 9) 간격으로 반복 |
+| 세션 캡 | `AD_MAX_PER_PAGE`(기본 2) — 한 페이지(요청)당 슬롯 상한. 간격 계산상 더 넣을 자리가 있어도 여기서 멈춤 |
+| 적응형 밀도 | 유저별 제휴 클릭 반응성(관측 CTR ÷ `AD_BASELINE_CTR`)이 표본(`minSample=5`) 이상 쌓이면 `AD_EVERY`를 ±조정. 신호 부족 시 기본값 그대로(`adaptiveEvery(x, null) === x`) |
+| 관련성 게이팅 | 취향벡터의 top 카테고리 학습 가중치(`recommender.js`의 `WEIGHT_CLAMP=6` 스케일)를 relevance로 변환해 `AD_MIN_RELEVANCE`(기본 0.3) 미달이면 해당 슬롯을 **비운다**(강제 채움 없음). 취향 신호가 전혀 없는 콜드스타트 유저는 후보 자체가 0개 |
+| 앵커링 | 정가/할인가 병기(`priceOriginal`/`priceSale`) + 할인율. 실제 가격쌍이 없으면 아예 렌더하지 않음(가짜 할인 금지) |
+| 다크패턴 금지 | 카운트다운·가짜 구매자수 카운터 없음. 클릭 전엔 완전히 정적. 클릭 시 항상 새 탭(`noopener,noreferrer`), 자동이동 없음("납치광고" 회피) |
+| 19금/정치/종교 미노출 | `engine.js`의 `getFeed`가 `allowAdult`·`showTopics`(politics/religion)를 이미 계산해두므로, 그 상태를 그대로 재사용해 슬롯 삽입 자체를 건너뜀 |
+
+### 신규/변경 파일
+
+- **`src/feed/monetize.js`** (신규) — 슬롯 삽입 순수 함수 `injectSlots`, 적응형 밀도 `adaptiveEvery`/`adResponsivenessRatio`, A/B `assignVariant`/`applyVariant`, 후보 생성 `pickAffiliateCandidates`/`sampleAffiliateCandidates`, 슬롯 아이템 셰이핑 `makeSlotItem`. env 튜너블: `AD_EVERY`, `AD_SKIP_FIRST`, `AD_MAX_PER_PAGE`, `AD_MIN_RELEVANCE`, `AD_BASELINE_CTR`, `AD_AB`, `AD_PREVIEW`, `COUPANG_PARTNER_ID`.
+- **`src/feed/engine.js`** — `getFeed`에 `_monetize()` 훅 추가. seen/exposure 기록 **이후**에 슬롯을 끼워 넣어 슬롯 아이템이 개인화 학습·중복제거 로직을 절대 오염시키지 않게 함. `nextCursor`는 유기 아이템 개수만 기준(슬롯 유무와 무관하게 페이지네이션 안정).
+- **`src/feed/store.js`** — `recordAdEvent`(노출/클릭 카운터 + 원시 이벤트 로그, 최대 2000건), `adResponsiveness`(적응형 밀도 입력), `adminAdStats`(관리자 지표). `_persist`/`_load`에 `adEvents` 포함.
+- **`src/feed/server.js`** — `POST /api/ad-signal`(노출/클릭 로깅, 엔진 아이템 풀 조회 없이 스토어에 직접 기록 — 슬롯 아이템은 풀에 없음), `GET /api/config`에 `monetization.enabled` 플래그, `GET /api/admin/stats`에 `ads` 필드 추가.
+- **`src/feed/public/index.html`** — `appendAdCard`(전용 카드 렌더러: 배지·가격·이유·고지, 좋아요/스크랩 버튼 없음), `adImpressionObserver`(IntersectionObserver 기반 노출 로깅, threshold 0.5), 클릭 시 `ad-signal` click 로깅 후 새 탭 이동, 앱 전역 1회 고지 배너(`maybeShowAdNotice`, `feed_ad_notice_seen` localStorage 게이트).
+
+### 1차지표/가드레일 데이터
+
+`/api/ad-signal`이 노출·클릭을 유저별 카운터(`adStats`)와 원시 이벤트 로그(`adEvents`, userId/itemId/type/variant/timestamp)로 남긴다. 1차지표(세션당 수익 proxy = 클릭수)는 `adminAdStats().clicks`로 바로 집계된다. 가드레일("직후 유기카드 스크롤 지속 여부")은 이 원시 로그를 기존 `user.seen` 타임스탬프와 조인해 분석하는 것을 전제로 설계했다 — **이번 구현은 조인 없이 원시 데이터 수집까지만**이며, 자동 이탈률 계산은 후속 과제로 남겨둔다(과다구현 방지, WRC 효율 원칙).
+
+### 검증
+
+- `node --test test/*.test.js` — 179/179 통과 (`test/monetize.test.js` 30건 신규: 빈도·첫화면보호·세션캡·관련성게이팅·적응형밀도·A/B·프로덕션 0개·AD_PREVIEW 샘플·19금/정치 뷰 제외·커서 안정성·store 카운터·클라이언트 렌더 회귀가드).
+- 로컬 `AD_PREVIEW=1 FEED_LIVE=1` 실행 + 실제 브라우저(모바일 375×812)로 실측: 라이브 소스(HN/Techmeme/Ruliweb 등) 정상 수집 확인, 취향 학습 후 5번째 카드(= `AD_SKIP_FIRST` 이후) 위치에 "[샘플] 65W 초고속 멀티 충전기" 카드 노출 — 배지("제휴 · 샘플") + 정가 39,900원/할인가 24,900원/38%↓ + 추천이유("기술/IT 관심사와 맞아요") + 쿠팡 법정 고지 문구 전부 렌더 확인. 스크롤 진입 시 `/api/ad-signal`(impression) 자동 발화 → `/api/admin/stats`의 `ads.impressions`에 반영 확인. 첫 3장 카드에는 슬롯 없음(첫 화면 보호 확인).
+
+### 알려진 제약 / 후속 과제
+
+- 실제 쿠팡파트너스 상품 피드 연동은 미구현(약관 원문 확인이 David 확인 대기 — Open Questions 기존 항목 유지). `COUPANG_PARTNER_ID`를 설정해도 `opts.productFeed`를 별도로 넘기지 않으면 여전히 0개 — 반쪽짜리 크레덴셜이 카드를 만들어내지 않도록 의도적으로 막아둠.
+- 광고 CPC 네트워크(AdFit, P0 두 번째 항목)는 아직 미착수. `kind: "ad"`를 위한 필드는 마련해뒀지만 후보 생성기는 없음.
+- 리텐션 가드레일의 실제 이탈률 계산(로그 조인·집계)은 후속 과제.

@@ -201,6 +201,17 @@
     border-radius: 10px; padding: 9px 12px; margin-bottom: 8px; font-size: 13px; }
   .muted-row button { margin-left: auto; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 5px 11px; font-size: 12px; }
 
+  /* ---- 제휴/광고 슬롯 카드 (docs/monetization.md "동화+명시") — 레이아웃은
+     유기 카드와 동일, 배지+고지로만 구분한다 ---- */
+  .ad-card { border-color: rgba(240,161,61,.35); }
+  .ad-badge { background: #f0a13d; color: #0e0f13; font-weight: 800; }
+  .ad-price { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .ad-price .sale { font-weight: 800; font-size: 16px; color: #f0a13d; }
+  .ad-price .orig { font-size: 12.5px; color: var(--muted); text-decoration: line-through; }
+  .ad-price .off { font-size: 12px; color: var(--like); font-weight: 700; }
+  .ad-disclosure { margin-top: 10px; font-size: 10.5px; color: var(--muted); line-height: 1.4;
+    border-top: 1px solid var(--line); padding-top: 8px; }
+
   .sentinel { height: 40px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
   .spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--accent);
     border-radius: 50%; animation: spin .7s linear infinite; }
@@ -402,6 +413,7 @@ const API = {
   async subscribePush(userId, subscription) { return post("/api/push/subscribe", { userId, subscription }); },
   async vapidKey() { return get("/api/push/vapid-key"); },
   async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
+  async adSignal(userId, itemId, type, variant) { return post("/api/ad-signal", { userId, itemId, type, variant }).catch(()=>{}); },
   async setTopic(userId, topic, on) { return post("/api/topics", { userId, topic, on }); },
   async feed(userId, cursor, limit=10, source=null) {
     const q = new URLSearchParams({ userId, cursor, limit });
@@ -493,13 +505,26 @@ syncHeaderHeight();
   const anyLive = state.registry.some(c => (c.liveCount || 0) > 0);
   state.communities = state.registry.filter(c => c.enabled && !c.adult && (!anyLive || (c.liveCount || 0) > 0));
   renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
-  setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver();
+  setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver(); setupAdImpressionObserver();
   // Always show content first — a preview feed (popularity-ranked when no taste
   // yet). Personalization is invited, never a gate. (adversarial review #1)
   updateMeter(s); loadMore(); openFromHash();
   if(!s.surveyed) showPersonalizeBanner(); else showDigest();
+  maybeShowAdNotice();
   setupInfiniteScroll(); setupImmersion();
 })();
+
+// 앱 전역 상단 1회 통합 고지 (docs/monetization.md "①앱 전역 상단 1회 통합
+// 고지") — 이 배포에 제휴/광고가 아예 뜰 수 없으면(모니터라이즈 꺼짐) 보이지
+// 않는다. 한 번 닫으면 다시 뜨지 않는다(로컬 저장).
+function maybeShowAdNotice(){
+  if(!state.config || !state.config.monetization || !state.config.monetization.enabled) return;
+  if(localStorage.getItem("feed_ad_notice_seen")) return;
+  const bar=document.createElement("div"); bar.id="adNotice"; bar.className="digest";
+  bar.innerHTML = `<div class="dtext">이 피드에는 제휴 링크가 포함될 수 있어요 · 구매 시 일정액의 수수료를 받을 수 있어요</div><button class="dclose" id="adNoticeX">✕</button>`;
+  const feed=document.getElementById("feed"); feed.parentNode.insertBefore(bar, feed);
+  bar.querySelector("#adNoticeX").onclick=()=>{ bar.remove(); localStorage.setItem("feed_ad_notice_seen","1"); };
+}
 
 // Soft, dismissible invitation to personalize — replaces the old survey wall.
 function showPersonalizeBanner(){
@@ -1094,7 +1119,55 @@ function hotBadge(item){
 // (우리 앱 자체 댓글 스레드 길이, 대부분 0)만 보여줘 원 커뮤니티에 댓글이 아무리
 // 많아도 "💬 0"으로 표시되는 문제가 있었다 — 둘 중 큰 값을 보여준다.
 function commentCountFor(item){ return Math.max(item.commentCount||0, item.comments||0); }
+function isAdItem(item){ return item.kind === "ad" || item.kind === "affiliate"; }
+function fmtWon(n){ return Number(n||0).toLocaleString("ko-KR") + "원"; }
+function adPriceHtml(item){
+  if(item.priceOriginal==null || item.priceSale==null) return "";
+  const off = item.priceOriginal>0 ? Math.round((1 - item.priceSale/item.priceOriginal)*100) : 0;
+  return `<div class="ad-price"><span class="sale">${fmtWon(item.priceSale)}</span><span class="orig">${fmtWon(item.priceOriginal)}</span>${off>0?`<span class="off">${off}% ↓</span>`:""}</div>`;
+}
+// 제휴/광고 슬롯 카드 — "동화+명시": 레이아웃은 유기 카드와 동일하되 상단
+// 배지+하단 고지로 항상 구분한다. 좋아요/싫어요/스크랩 등 추천 학습 액션은
+// 아예 없다(슬롯 아이템은 엔진의 아이템 풀에 없어 애초에 학습되지 않지만,
+// UI에서도 혼동을 주지 않도록 버튼 자체를 노출하지 않는다).
+function appendAdCard(item){
+  const card = document.createElement("article"); card.className="card ad-card"; card.dataset.cat=item.category; card.dataset.id=item.id;
+  card.dataset.variant = item.variant || "";
+  card.innerHTML = `
+    <div class="card-top">
+      <span class="badge ad-badge">${escapeHtml(item.badgeLabel||"제휴")}</span>
+      <span class="src">${escapeHtml(item.sourceLabel||"제휴")}</span>
+    </div>
+    <h3>${escapeHtml(item.title)} <span class="newtab-hint" title="새 탭에서 이동해요" aria-hidden="true">↗</span></h3>
+    <p>${escapeHtml(item.summary)}</p>
+    ${adPriceHtml(item)}
+    ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
+    <div class="ad-disclosure">${escapeHtml(item.disclosure||"")}</div>`;
+  card.addEventListener("click", ()=>{
+    API.adSignal(state.userId, item.id, "click", item.variant);
+    window.open(item.url, "_blank", "noopener,noreferrer");
+  });
+  document.getElementById("feed").appendChild(card);
+  state.cardsById.set(item.id, card);
+  if(adImpressionObserver) adImpressionObserver.observe(card);
+}
+// 슬롯 노출 로깅 — 실제로 화면에 보였을 때만 1회 기록(전송됐다고 곧 "봤다"는
+// 아니므로 IntersectionObserver로 실측; skipObserver와 동일한 패턴).
+let adImpressionObserver;
+function setupAdImpressionObserver(){
+  const logged = new Set();
+  adImpressionObserver = new IntersectionObserver((entries)=>{
+    for(const e of entries){
+      if(!e.isIntersecting) continue;
+      const id = e.target.dataset.id; if(!id || logged.has(id)) continue;
+      logged.add(id);
+      API.adSignal(state.userId, id, "impression", e.target.dataset.variant);
+      adImpressionObserver.unobserve(e.target);
+    }
+  }, { threshold: 0.5 });
+}
 function appendCard(item){
+  if(isAdItem(item)) return appendAdCard(item);
   const card = document.createElement("article"); card.className="card"; card.dataset.cat=item.category; card.dataset.id=item.id;
   card.innerHTML = `
     <div class="card-top">

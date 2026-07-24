@@ -189,6 +189,62 @@ export class FeedStore {
     return (user && user.sourceExposure) || {};
   }
 
+  // ---- monetization: ad/affiliate slot event tracking (docs/monetization.md) ----
+  // Ad slot items are generated fresh per request (monetize.js) and never
+  // stored as feed items, so they can't flow through recordSignal/recordRating
+  // (both require a real item in the engine's collected pool). This is a
+  // small, separate counter+log — enough for the "세션당 수익 proxy"(클릭수)
+  // and for monetize.js's adaptive density (adResponsiveness below) without
+  // pulling in an analytics dependency.
+  recordAdEvent(userId, itemId, type, meta = {}) {
+    const user = this.requireUser(userId);
+    user.adStats = user.adStats || { impressions: 0, clicks: 0 };
+    if (type === "impression") user.adStats.impressions += 1;
+    else if (type === "click") user.adStats.clicks += 1;
+    else return user.adStats; // unknown type — no-op
+
+    this.adEvents = this.adEvents || [];
+    this.adEvents.push({ userId, itemId, type, variant: meta.variant || null, at: nowIso(this.clock) });
+    if (this.adEvents.length > 2000) this.adEvents = this.adEvents.slice(-2000); // cap memory, most-recent-last
+
+    this._persist();
+    return user.adStats;
+  }
+
+  // Observed click-through ratio for this user vs a reference CTR (see
+  // monetize.js's adaptiveEvery, which this feeds). null = not enough
+  // impressions yet — caller must treat that as "no signal, use the
+  // configured default density," never as "zero responsiveness."
+  adResponsiveness(userId, opts = {}) {
+    const user = this.getUser(userId);
+    const stats = user && user.adStats;
+    if (!stats || !stats.impressions) return null;
+    const minSample = opts.minSample ?? 5;
+    if (stats.impressions < minSample) return null;
+    const ctr = stats.clicks / stats.impressions;
+    const baseline = opts.baselineCtr ?? Number(process.env.AD_BASELINE_CTR || 0.02);
+    return baseline > 0 ? ctr / baseline : null;
+  }
+
+  // Aggregate ad stats for the admin console — the "1차지표=세션당 수익
+  // proxy(클릭수)" and a raw recent-event tail for the retention guardrail
+  // (직후 유기카드 스크롤 지속 여부 — joined against `seen` timestamps by an
+  // analyst; this store only needs to keep the raw log, not compute that join).
+  adminAdStats() {
+    let impressions = 0;
+    let clicks = 0;
+    for (const u of this.users.values()) {
+      impressions += (u.adStats && u.adStats.impressions) || 0;
+      clicks += (u.adStats && u.adStats.clicks) || 0;
+    }
+    return {
+      impressions,
+      clicks,
+      ctr: impressions ? Math.round((clicks / impressions) * 10000) / 10000 : 0,
+      recentEvents: (this.adEvents || []).slice(-50)
+    };
+  }
+
   // User-generated post. Becomes a first-class feed item (kind "community",
   // source "me"), so the space really behaves like a community built for you.
   _nowMs() {
@@ -531,7 +587,8 @@ export class FeedStore {
       posts: this.posts || [],
       submissions: this.submissions || [],
       adminDisabledSources: this.adminDisabledSources || [],
-      adminBannedWords: this.adminBannedWords || []
+      adminBannedWords: this.adminBannedWords || [],
+      adEvents: this.adEvents || []
     };
     fs.writeFileSync(this.file, JSON.stringify(data, null, 2));
   }
@@ -546,6 +603,7 @@ export class FeedStore {
       this.submissions = data.submissions || [];
       this.adminDisabledSources = data.adminDisabledSources || [];
       this.adminBannedWords = data.adminBannedWords || [];
+      this.adEvents = data.adEvents || [];
       for (const user of data.users || []) {
         if (!user.nickname) user.nickname = nicknameFor(user.id); // backfill
         this.users.set(user.id, user);
