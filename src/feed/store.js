@@ -46,6 +46,12 @@ export class FeedStore {
       showAdult: false, // 19금 토글 상태 (인증된 경우에만 유효)
       saved: [], // 스크랩한 itemId 목록
       mutedSources: [], // 사용자가 피드에서 숨긴 소스
+      // sourceId -> 지금까지 홈 피드에서 이 소스가 노출된 횟수 (David 2026-07-24
+      // 적대적 검수 #2 — 라운드로빈 페어니스의 근거. markSeen과 함께 매 getFeed
+      // 호출마다 누적되며, ingest.roundRobinInterleave가 "가장 적게 노출된 소스
+      // 우선"의 기준으로 사용한다. 세션이 끝나도 유저별로 유지되어야 특정 소스
+      // 독식이 여러 페이지에 걸쳐서도 재발하지 않는다.
+      sourceExposure: {},
       // 정치/종교처럼 기본값이 '숨김'인 토픽 중 사용자가 직접 켠 것들
       // (FILTERABLE_TOPICS만 유효 — adult는 기존 ageVerified/showAdult 게이트 전용).
       showTopics: [],
@@ -159,6 +165,28 @@ export class FeedStore {
   seenSet(userId) {
     const user = this.getUser(userId);
     return new Set(user ? user.seen : []);
+  }
+
+  // Record that a batch of sources was just shown to this user (one call per
+  // item, or pass the same source multiple times for multiple items) — the
+  // fairness ledger behind the home feed's round-robin (see ingest.js's
+  // roundRobinInterleave `exposure` option). Never throws on an unknown
+  // source id; a source that's since been removed from the registry just
+  // accumulates a harmless, unused count.
+  recordSourceExposure(userId, sources) {
+    const user = this.requireUser(userId);
+    user.sourceExposure = user.sourceExposure || {};
+    for (const src of sources) {
+      if (!src) continue;
+      user.sourceExposure[src] = (user.sourceExposure[src] || 0) + 1;
+    }
+    this._persist();
+    return user.sourceExposure;
+  }
+
+  sourceExposureFor(userId) {
+    const user = this.getUser(userId);
+    return (user && user.sourceExposure) || {};
   }
 
   // User-generated post. Becomes a first-class feed item (kind "community",

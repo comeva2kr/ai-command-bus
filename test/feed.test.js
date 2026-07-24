@@ -12,13 +12,14 @@ import {
   specializationLevel,
   feedPhase
 } from "../src/feed/recommender.js";
-import { normalizeItem, SeedSource, collect } from "../src/feed/content.js";
+import { normalizeItem, SeedSource, collect, JsonSource } from "../src/feed/content.js";
 import { inferFromHistory, mergeVectors } from "../src/feed/history.js";
 import { FeedStore } from "../src/feed/store.js";
 import { FeedEngine } from "../src/feed/engine.js";
 import { StorePostsSource } from "../src/feed/content.js";
 import { loadRegistry, query, buildSources, summarize } from "../src/feed/registry.js";
 import { TranslatingSource, memoizedTranslator } from "../src/feed/translate.js";
+import { googleFreeTranslator } from "../src/feed/translator.js";
 
 const fixedClock = () => "2026-07-06T00:00:00.000Z";
 
@@ -49,6 +50,37 @@ test("survey validation requires at least one category", () => {
   assert.equal(validateAnswers({ tags: ["cars"] }).ok, false);
   assert.equal(validateAnswers({ categories: ["auto"] }).ok, true);
   assert.equal(validateAnswers({ categories: ["auto"], depth: "nope" }).ok, false);
+});
+
+// David 2026-07-24 적대적 검수 #6: "즐겨 보는 커뮤니티" 설문 옵션이 taxonomy.js의
+// 정적 SOURCE_CATALOG(디시인사이드·겟차·엔카·테크와이어 등 15개 seed 더미 포함)를
+// 그대로 썼던 문제 — 실제 enabled && non-seed 소스만 동적으로 옵션에 나와야 한다.
+test("SURVEY's 'communities' question options are exactly the live (enabled, non-seed) registry sources — no seed dummies, nothing disabled", async () => {
+  const { SURVEY } = await import("../src/feed/survey.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const registry = loadRegistry();
+  const communitiesQ = SURVEY.find((q) => q.id === "communities");
+  assert.ok(communitiesQ, "communities question exists");
+
+  const optionIds = new Set(communitiesQ.options.map((o) => o.id));
+  const expectedLive = registry.filter((c) => c.enabled === true && (!c.adapter || c.adapter.type !== "seed"));
+  assert.ok(expectedLive.length > 0, "fixture assumption: at least one live source exists");
+  assert.equal(optionIds.size, expectedLive.length, "option count matches live-source count exactly");
+  for (const c of expectedLive) assert.ok(optionIds.has(c.id), `${c.id} (enabled, non-seed) is offered`);
+
+  // seed-only dummies (개발용, FEED_DEV 전용) must never appear as a survey option
+  const seedDummies = registry.filter((c) => c.adapter && c.adapter.type === "seed").map((c) => c.id);
+  assert.ok(seedDummies.includes("dcinside") && seedDummies.includes("getcha") && seedDummies.includes("techwire"), "fixture assumption: known seed dummies still exist in the registry");
+  for (const id of seedDummies) assert.ok(!optionIds.has(id), `seed dummy "${id}" must not be a survey option`);
+
+  // explicitly-disabled non-seed sources (e.g. pann/mlbpark/humoruniv, robots-blocked) must not appear either
+  const disabledLive = registry.filter((c) => c.enabled === false && (!c.adapter || c.adapter.type !== "seed")).map((c) => c.id);
+  for (const id of disabledLive) assert.ok(!optionIds.has(id), `disabled source "${id}" must not be a survey option`);
+
+  // validateAnswers must accept a live option and reject a stale seed-dummy id
+  const live = [...optionIds][0];
+  assert.equal(validateAnswers({ categories: ["tech"], communities: [live] }).ok, true);
+  assert.equal(validateAnswers({ categories: ["tech"], communities: ["dcinside"] }).ok, false, "dcinside is a seed dummy, not a valid survey answer");
 });
 
 test("recommender ranks items matching the user's taste higher", () => {
@@ -292,6 +324,55 @@ test("TranslatingSource flags untranslated foreign items and translates when wir
   assert.equal(done[0].lang, "ko");
   assert.match(done[0].title, /^\[번역\]/);
   assert.equal(done[0].originalTitle, "Hello world");
+});
+
+// David 2026-07-24 적대적 검수 #9: dev.to 등 소스 전체에 lang:"en"이 못박힌 항목 중
+// 실제로는 비영어(포르투갈어 등)인 글이 있어, sl을 고정 lang으로 강제하면 Google이
+// 오판해 반쪽만 번역되거나 전혀 안 되는 문제가 있었다.
+test("TranslatingSource always requests translation with sl=auto, never the source's stamped lang — a per-source lang tag doesn't reflect a single article's real language", async () => {
+  const foreign = {
+    id: "devto", kind: "community", async fetch() {
+      // dev.to 소스 전체는 communities.json에서 lang:"en"으로 못박혀 있지만
+      // 이 특정 글은 실제로는 포르투갈어다 (David 2026-07-24 리포트 재현)
+      return [{ id: "pt1", title: "Como usar async/await", summary: "Um guia rápido", lang: "en", category: "tech", tags: [], source: "devto" }];
+    }
+  };
+  const calls = [];
+  const tr = async (text, opts) => { calls.push(opts.from); return "[번역] " + text; };
+  await new TranslatingSource(foreign, tr, "ko").fetch();
+  assert.ok(calls.length > 0, "translator was called");
+  assert.ok(calls.every((from) => from === "auto"), `every translate call must pass sl=auto, got: ${calls.join(",")}`);
+});
+
+// 원자적 처리: 제목/요약 중 하나만 번역되고 나머지는 원문 그대로 돌아오면(엔드포인트가
+// 언어를 오판했거나 일부만 성공한 경우) 절반만 번역된 상태로 보여주지 않고 전체를
+// 원문+needsTranslation("원문" 배지)으로 되돌린다.
+test("TranslatingSource is atomic: if the translator silently no-ops on either title or summary, the WHOLE item falls back to original + needsTranslation, never half-translated", async () => {
+  const foreign = {
+    id: "devto", kind: "community", async fetch() {
+      return [{ id: "pt2", title: "Título em português", summary: "Resumo em português", lang: "en", category: "tech", tags: [], source: "devto" }];
+    }
+  };
+  // simulates the real bug: title translates fine, summary silently comes back untouched
+  // (e.g. googleFreeTranslator's own no-throw fallback path — see translator.js)
+  const partial = async (text) => (text.startsWith("Título") ? "번역된 제목" : text);
+  const out = await new TranslatingSource(foreign, partial, "ko").fetch();
+  assert.equal(out[0].translated, undefined, "must NOT be marked translated — it was only half-done");
+  assert.equal(out[0].needsTranslation, true, "falls back to the '원문' badge instead of a mixed-language card");
+  assert.equal(out[0].title, "Título em português", "title stays original too — atomic, not per-field");
+  assert.equal(out[0].summary, "Resumo em português");
+
+  // the inverse: summary translates but title doesn't — still atomic
+  const foreign2 = {
+    id: "devto", kind: "community", async fetch() {
+      return [{ id: "pt3", title: "Untranslatable Title", summary: "Resumo em português", lang: "en", category: "tech", tags: [], source: "devto" }];
+    }
+  };
+  const partial2 = async (text) => (text.startsWith("Resumo") ? "번역된 요약" : text);
+  const out2 = await new TranslatingSource(foreign2, partial2, "ko").fetch();
+  assert.equal(out2[0].translated, undefined);
+  assert.equal(out2[0].needsTranslation, true);
+  assert.equal(out2[0].summary, "Resumo em português", "summary reverted too, even though it alone translated fine");
 });
 
 test("user posts flow into the feed and into 내 공간", async () => {
@@ -604,9 +685,20 @@ test("digest previews top unseen matches without consuming them", async () => {
   assert.ok(d.top.length > 0 && d.top.length <= 5);
   assert.ok(d.top[0].matchScore >= 1.0, "digest items clear the score threshold");
 
-  // digest must NOT consume items — the feed still serves them
-  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 5 });
-  assert.ok(feed.items.some((i) => i.id === d.top[0].id), "digest did not mark items seen");
+  // digest must NOT consume items — the user's seen set stays untouched
+  assert.ok(!store.getUser(user.id).seen.includes(d.top[0].id), "digest did not mark the item seen");
+
+  // ...and the item is still reachable through the feed. The home feed is now
+  // a diversity-first round-robin stream (David 2026-07-24), so digest's #1
+  // personalization pick isn't guaranteed to land on the very first page —
+  // page through until found instead of asserting it's in the first batch.
+  let found = false;
+  for (let c = 0; c < 10 && !found; c++) {
+    const feed = await engine.getFeed(user.id, { cursor: c * 10, limit: 10 });
+    if (feed.items.some((i) => i.id === d.top[0].id)) found = true;
+    if (feed.exhausted) break;
+  }
+  assert.ok(found, "digest's pick is still reachable by paging through the (unconsumed) feed");
 });
 
 test("push subscription persists and flips notify flag", async () => {
@@ -820,6 +912,540 @@ test("hotness ranks by public engagement + freshness only", async () => {
   assert.ok(hot > cold, "viral fresh post outranks a quiet old one");
 });
 
+// --- Hot-only home feed ranking (David 2026-07-24 UX overhaul) -------------
+// Every active source is already a community's own best/hot board; the home
+// feed adds one more engagement cut on top, normalized *per source* (an HN
+// score and a Korean 추천수 aren't the same scale) rather than a single raw
+// threshold across every source.
+//
+// hotGate (below) is the original per-source percentile cut; it's kept as-is
+// and still powers digest(). getFeed's default (no `source`) path moved on
+// 2026-07-24 to a different shape — "게시판별 핫 + 다양성 라운드로빈": see the
+// ingest.rankBySource / topPerSource / roundRobinInterleave tests further
+// down and engine.js's getFeed for the replacement.
+
+test("hotGate keeps the top engagement items and cuts the low ones within the same source", async () => {
+  const { hotGate } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-06T10:00:00Z");
+  // 5 items, one source: engagement 100,80,40,5,1 — top 60% (default) keeps 3
+  const items = [100, 80, 40, 5, 1].map((score, i) =>
+    normalizeItem({ id: `s${i}`, source: "clien", title: `글 ${i}`, category: "tech", score, publishedAt: "2026-07-06T09:00:00Z" })
+  );
+  const results = hotGate(items, now);
+  const byId = Object.fromEntries(results.map((r) => [r.item.id, r]));
+  assert.equal(byId.s0.hot, true, "highest engagement clears the cut");
+  assert.equal(byId.s1.hot, true);
+  assert.equal(byId.s2.hot, true, "top 60% of 5 items = top 3");
+  assert.equal(byId.s3.hot, false, "low engagement excluded");
+  assert.equal(byId.s4.hot, false, "lowest engagement excluded");
+  assert.ok(byId.s0.hotScore > byId.s2.hotScore, "hotScore orders by engagement within the source");
+});
+
+test("hotGate never excludes a source with zero engagement signal — included but deprioritized", async () => {
+  const { hotGate } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-06T10:00:00Z");
+  // an RSS-only source where every item lacks score/commentCount entirely —
+  // "이미 best보드 소속" so it must never be gated out
+  const signalless = [0, 1, 2].map((i) =>
+    normalizeItem({ id: `rss${i}`, source: "some-rss", title: `기사 ${i}`, category: "news", publishedAt: "2026-07-06T09:30:00Z" })
+  );
+  const hotSourceTop = normalizeItem({ id: "clien-top", source: "clien", title: "화제글", category: "tech", score: 500, publishedAt: "2026-07-06T09:30:00Z" });
+  const results = hotGate([...signalless, hotSourceTop], now);
+  const byId = Object.fromEntries(results.map((r) => [r.item.id, r]));
+  assert.ok(signalless.every((i) => byId[i.id].hot === true), "signal-less source is never excluded");
+  assert.ok(signalless.every((i) => byId[i.id].percentile === null), "no percentile to report — no signal to rank against");
+  assert.ok(
+    byId["clien-top"].hotScore > byId["rss0"].hotScore,
+    "a real hot item still outranks the signal-less source's baseline priority"
+  );
+});
+
+test("hotGate normalizes per source — a small community's top post beats its cut despite a raw score far below a viral HN-scale post", async () => {
+  const { hotGate } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-06T10:00:00Z");
+  // hackernews-scale source: scores in the hundreds
+  const hn = [500, 10].map((score, i) =>
+    normalizeItem({ id: `hn${i}`, source: "hackernews", title: `HN ${i}`, category: "tech", score, publishedAt: "2026-07-06T09:00:00Z" })
+  );
+  // small Korean community: raw scores are tiny by comparison, but this is
+  // still that source's own best post right now
+  const small = [5, 1].map((score, i) =>
+    normalizeItem({ id: `sm${i}`, source: "tinyboard", title: `글 ${i}`, category: "life", score, publishedAt: "2026-07-06T09:00:00Z" })
+  );
+  const results = hotGate([...hn, ...small], now);
+  const byId = Object.fromEntries(results.map((r) => [r.item.id, r]));
+  assert.equal(byId.sm0.hot, true, "tinyboard's own top post clears its own source's cut despite a tiny raw score");
+  assert.equal(byId.hn0.hot, true, "hackernews' top post clears its own source's cut");
+  // both top-of-source items reach a comparable percentile even though their
+  // raw engagement numbers are worlds apart
+  assert.equal(byId.sm0.percentile, byId.hn0.percentile, "per-source percentile puts both sources' top posts on equal footing");
+});
+
+test("hotGate respects HOT_MIN_PERCENTILE / HOT_TOP_N overrides", async () => {
+  const { hotGate } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-06T10:00:00Z");
+  const items = [50, 40, 30, 20, 10].map((score, i) =>
+    normalizeItem({ id: `t${i}`, source: "clien", title: `글 ${i}`, category: "tech", score, publishedAt: "2026-07-06T09:00:00Z" })
+  );
+  const strict = hotGate(items, now, { minTopFraction: 0.2 });
+  assert.equal(strict.filter((r) => r.hot).length, 1, "a strict fraction keeps only the very top item");
+
+  const topN = hotGate(items, now, { topN: 2 });
+  assert.equal(topN.filter((r) => r.hot).length, 2, "topN overrides the fraction and keeps exactly N");
+});
+
+test("default getFeed (no source) keeps only each source's top HOT_PER_SOURCE hottest items — items beyond that per-source cut never surface", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  // 10 items, one source, engagement 90..0 descending — default HOT_PER_SOURCE
+  // (6) keeps only the top 6; the bottom 4 are excluded from the home feed.
+  const clien = new JsonSource(
+    "clien",
+    async () =>
+      Array.from({ length: 10 }, (_, i) => ({
+        id: `c${i}`,
+        title: `클리앙 글 ${i}`,
+        url: `https://clien.net/${i}`,
+        category: "tech",
+        score: 90 - i * 10,
+        publishedAt: "2026-07-05T00:00:00Z"
+      })),
+    "community"
+  );
+  const engine = new FeedEngine(store, [clien]);
+  const user = store.createUser("hotfeed_u");
+  store.saveSurvey(user.id, { categories: ["tech"] });
+
+  const seenIds = new Set();
+  for (let c = 0; c < 6; c++) {
+    const f = await engine.getFeed(user.id, { cursor: c * 10, limit: 10 });
+    for (const i of f.items) seenIds.add(i.id);
+    if (f.exhausted) break;
+  }
+  for (let i = 0; i < 6; i++) assert.ok(seenIds.has(`c${i}`), `c${i} (top-${i + 1} engagement) clears the per-source cut`);
+  for (let i = 6; i < 10; i++) assert.ok(!seenIds.has(`c${i}`), `c${i} (below the source's top 6) is excluded from the default feed`);
+
+  // sanity check: the same source's excluded posts ARE reachable through
+  // source= (the board-view chip bypasses the top-K cut entirely) — proves
+  // this is a home-feed-only cut, not data loss. Fresh user, since `user`
+  // above already has the top 6 marked seen from paging the default feed.
+  const u2 = store.createUser("hotfeed_u_src");
+  const bySource = await engine.getFeed(u2.id, { cursor: 0, limit: 10, source: "clien" });
+  assert.equal(bySource.items.length, 10, "source= view still surfaces every item the home feed cut down to top-6");
+});
+
+test("default getFeed still includes a signal-less source's items even when a louder source exists", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const rssOnly = new JsonSource(
+    "quiet-rss",
+    async () => [
+      { id: "rss-1", title: "제목만 있는 기사 1", url: "https://example.com/1", category: "news", publishedAt: "2026-07-05T00:00:00Z" },
+      { id: "rss-2", title: "제목만 있는 기사 2", url: "https://example.com/2", category: "news", publishedAt: "2026-07-05T00:00:00Z" }
+    ],
+    "news"
+  );
+  const engine = new FeedEngine(store, [rssOnly]);
+  const user = store.createUser("hotfeed_u2");
+  store.saveSurvey(user.id, { categories: ["news"] });
+
+  const seenIds = new Set();
+  for (let c = 0; c < 6; c++) {
+    const f = await engine.getFeed(user.id, { cursor: c * 10, limit: 10 });
+    for (const i of f.items) seenIds.add(i.id);
+    if (f.exhausted) break;
+  }
+  assert.ok(seenIds.has("rss-1") && seenIds.has("rss-2"), "a source with no engagement counters at all is never dropped from the default feed");
+});
+
+// --- 게시판별 핫 + 다양성 라운드로빈 (David 2026-07-24 home feed redesign) -----
+// rankBySource / topPerSource / roundRobinInterleave (ingest.js) replace the
+// old hotGate+rankItems pipeline for getFeed's default (no `source`) path.
+// hotGate itself is untouched above and still backs digest().
+
+test("rankBySource sorts a source with real engagement numbers by that engagement, descending", async () => {
+  const { rankBySource } = await import("../src/feed/ingest.js");
+  const items = [10, 90, 40].map((score, i) =>
+    normalizeItem({ id: `e${i}`, source: "clien", title: `글 ${i}`, category: "tech", score })
+  );
+  const grouped = rankBySource(items);
+  const order = grouped.get("clien").map((r) => r.item.id);
+  assert.deepEqual(order, ["e1", "e2", "e0"], "90 > 40 > 10");
+  assert.ok(grouped.get("clien").every((r) => r.hasSignal === true));
+});
+
+test("rankBySource keeps a signal-less source's ORIGINAL collection order (sourceRank), never re-sorted by publishedAt — the core fix for '0점짜리가 최신순으로 섞임'", async () => {
+  const { rankBySource } = await import("../src/feed/ingest.js");
+  // sourceRank 0,1,2 = the board's own hot order (item 0 is hottest); dates
+  // are deliberately the REVERSE of that (item 2 is "newest") so a date-sort
+  // regression would flip this order and fail the assertion below.
+  const items = [
+    { id: "r0", sourceRank: 0, publishedAt: "2026-07-01T00:00:00Z" },
+    { id: "r1", sourceRank: 1, publishedAt: "2026-07-02T00:00:00Z" },
+    { id: "r2", sourceRank: 2, publishedAt: "2026-07-03T00:00:00Z" }
+  ].map((raw) => normalizeItem({ ...raw, source: "some-rss", title: raw.id, category: "news" }));
+  const grouped = rankBySource(items);
+  const order = grouped.get("some-rss").map((r) => r.item.id);
+  assert.deepEqual(order, ["r0", "r1", "r2"], "board's own collection order wins, not newest-first by date");
+  assert.ok(grouped.get("some-rss").every((r) => r.hasSignal === false));
+});
+
+test("topPerSource caps each source to its top K (default HOT_PER_SOURCE=6), never touching sources already under the cap", async () => {
+  const { rankBySource, topPerSource } = await import("../src/feed/ingest.js");
+  const many = Array.from({ length: 9 }, (_, i) =>
+    normalizeItem({ id: `m${i}`, source: "big", title: `글 ${i}`, category: "tech", score: 90 - i * 10 })
+  );
+  const few = [0, 1].map((i) => normalizeItem({ id: `f${i}`, source: "small", title: `글 ${i}`, category: "tech", score: 10 - i }));
+  const grouped = rankBySource([...many, ...few]);
+  const topK = topPerSource(grouped, 6);
+  assert.equal(topK.get("big").length, 6, "capped down to K");
+  assert.deepEqual(topK.get("big").map((r) => r.item.id), ["m0", "m1", "m2", "m3", "m4", "m5"], "kept the hottest K");
+  assert.equal(topK.get("small").length, 2, "a source already under K is untouched");
+});
+
+test("roundRobinInterleave alternates across sources (round 0 = every source's #1) and never repeats a source within minGap", async () => {
+  const { rankBySource, topPerSource, roundRobinInterleave } = await import("../src/feed/ingest.js");
+  const items = [];
+  for (const src of ["A", "B", "C"]) {
+    for (let i = 0; i < 3; i++) {
+      items.push(normalizeItem({ id: `${src}${i}`, source: src, title: `${src}-${i}`, category: "tech", score: 90 - i * 10 }));
+    }
+  }
+  const topK = topPerSource(rankBySource(items), 6);
+  const out = roundRobinInterleave(topK, { minGap: 1 }).map((it) => it.id);
+  // round 0 = each source's #1 (order among ties is scoreFn-driven, but the
+  // *set* of the first 3 must be exactly the three sources' #1 items)
+  assert.deepEqual(new Set(out.slice(0, 3)), new Set(["A0", "B0", "C0"]));
+  // no two consecutive items share a source anywhere in the stream
+  for (let i = 1; i < out.length; i++) {
+    const prevSrc = out[i - 1][0];
+    const curSrc = out[i][0];
+    assert.notEqual(prevSrc, curSrc, `consecutive same-source items at ${i - 1}/${i}: ${out[i - 1]}, ${out[i]}`);
+  }
+  assert.equal(out.length, 9, "every item from every source's top-K is eventually placed");
+});
+
+test("roundRobinInterleave: a genuine outlier's engagement can lead its own round without skipping ahead of an earlier round", async () => {
+  const { roundRobinInterleave } = await import("../src/feed/ingest.js");
+  // 3 sources, 2 items each. B's rank-1 item is a huge outlier, but
+  // round-robin structure means it can only win round 1 (be the first of
+  // round 1's three candidates placed), never jump into round 0 ahead of
+  // A0/B0/C0.
+  const mk = (id, src, rank) => ({ item: { id, source: src }, rank, hasSignal: true });
+  const topK = new Map([
+    ["A", [mk("A0", "A", 0), mk("A1", "A", 1)]],
+    ["B", [mk("B0", "B", 0), mk("B1", "B", 1)]],
+    ["C", [mk("C0", "C", 0), mk("C1", "C", 1)]]
+  ]);
+  const scoreFn = (item) => (item.id === "B1" ? 999 : -0); // B1 is the "outlier"
+  const out = roundRobinInterleave(topK, { minGap: 1, scoreFn }).map((it) => it.id);
+  assert.deepEqual(new Set(out.slice(0, 3)), new Set(["A0", "B0", "C0"]), "round 0 is still exactly the three sources' #1 items");
+  const round1 = out.slice(3);
+  assert.equal(round1[0], "B1", "the outlier wins round 1 (its own round) — first among A1/B1/C1 — not earlier");
+});
+
+// David 2026-07-24 적대적 검수 #2: "홈 피드 8개 소스 독식" 회귀 픽스.
+// 근본원인: 매 getFeed 호출이 라운드로빈을 처음부터 재계산했고, round 0 하나에만도
+// (활성 소스 수만큼) limit(기본 10)보다 많은 후보가 들어있는 게 보통이라 매번 round 0의
+// scoreFn 상위 10개만 잘려나갔다 — 점수가 낮은 소스의 아이템은 항상 round 0에서 밀려나
+// (다음 round로 넘어가지도 못한 채) 다음 호출에서도 똑같이 밀리는 일이 반복돼 사실상
+// 영원히 노출되지 않았다. 반면 "시끄러운" 소스는 자기 아이템이 소진(seen)되는 족족
+// 다음 순위 아이템으로 채워져(역시 높은 점수) round 0을 계속 이겼다.
+// 수정: roundRobinInterleave가 exposure(지금까지 이 유저에게 노출된 횟수)를 1순위
+// 정렬 기준으로 삼는다 — engagement/개인화 점수는 노출 횟수가 비슷한 소스끼리의
+// 타이브레이크로만 작동한다.
+test("roundRobinInterleave: exposure (least-shown-first) overrides a raw engagement-score gap between sources", async () => {
+  const { roundRobinInterleave } = await import("../src/feed/ingest.js");
+  const mk = (id, src, rank) => ({ item: { id, source: src }, rank, hasSignal: true });
+  const topK = new Map([
+    ["loud", [mk("loud0", "loud", 0), mk("loud1", "loud", 1)]],
+    ["quiet", [mk("quiet0", "quiet", 0)]]
+  ]);
+  // "loud" wins every round on raw score alone
+  const scoreFn = (item) => (item.source === "loud" ? 999 : 1);
+  const noExposure = roundRobinInterleave(topK, { minGap: 1, scoreFn }).map((it) => it.id);
+  assert.equal(noExposure[0], "loud0", "sanity: with no exposure history, the higher score goes first");
+
+  // "loud" has already been shown to this user 20 times; "quiet" has never
+  // been shown. Despite the huge score gap, quiet0 must go first.
+  const exposure = new Map([["loud", 20], ["quiet", 0]]);
+  const withExposure = roundRobinInterleave(topK, { minGap: 1, scoreFn, exposure }).map((it) => it.id);
+  assert.equal(withExposure[0], "quiet0", "a never-shown source is prioritized over a much-higher-scoring, already-heavily-shown one");
+});
+
+// --- Hot curation v1 (David 2026-07-24) -------------------------------------
+// Ported-formula unit tests: robust z-score, the probit/Φ⁻¹ approximation
+// against known standard-normal quantiles, HN gravity decay (older always
+// loses to fresher holding signal constant), Bayesian small-sample shrinkage,
+// the engagement-less percentile path, and the specific production symptom
+// this whole pass exists to fix — a 434-day-old post sitting at a signal-less
+// source's rank-0 slot must NOT win over that same source's genuinely fresh
+// items just because nothing has displaced it from the board's top slot.
+
+test("robustZScores: known values (median/MAD) and the MAD=0 safe fallback", async () => {
+  const { robustZScores } = await import("../src/feed/ingest.js");
+  // median=30, absDevs=[20,10,0,10,20] -> MAD=10 -> scale=14.826
+  const z = robustZScores([10, 20, 30, 40, 50]);
+  assert.ok(Math.abs(z[2]) < 1e-9, "the median itself scores ~0");
+  assert.ok(z[0] < z[1] && z[1] < z[2] && z[2] < z[3] && z[3] < z[4], "monotonic with raw value");
+  assert.ok(Math.abs(z[4] - 1.34898) < 1e-3, "known z-score for the top of this distribution");
+  // every value identical -> MAD=0 -> no divide-by-zero, falls back to all 0
+  assert.deepEqual(robustZScores([5, 5, 5, 5]), [0, 0, 0, 0], "flat distribution never NaNs/Infinitys");
+  assert.deepEqual(robustZScores([]), [], "empty input is safe");
+});
+
+test("probit (Φ⁻¹) approximation matches known standard-normal quantiles within 1e-4", async () => {
+  const { probit } = await import("../src/feed/ingest.js");
+  assert.ok(Math.abs(probit(0.5) - 0) < 1e-9, "the median maps to z=0");
+  assert.ok(Math.abs(probit(0.975) - 1.959964) < 1e-4, "97.5th percentile -> ~1.96 (textbook 95% CI bound)");
+  assert.ok(Math.abs(probit(0.025) - -1.959964) < 1e-4, "2.5th percentile -> ~-1.96");
+  assert.ok(Math.abs(probit(0.9) - 1.281552) < 1e-4, "90th percentile -> ~1.2816");
+  assert.ok(Math.abs(probit(0.1) - -1.281552) < 1e-4, "10th percentile -> ~-1.2816");
+  assert.ok(probit(0.5 + 1e-9) > probit(0.5 - 1e-9), "monotonic increasing");
+  // boundary safety: exactly 0 or 1 (a real input here — a source's own top
+  // or bottom rank maps straight to a percentile of 1 or 0) must stay finite,
+  // never ±Infinity/NaN.
+  assert.ok(Number.isFinite(probit(1)), "p=1 clamped to a finite z, not +Infinity");
+  assert.ok(Number.isFinite(probit(0)), "p=0 clamped to a finite z, not -Infinity");
+  assert.ok(probit(1) > probit(0.999), "still ordered correctly right at the clamp boundary");
+});
+
+test("hnDecay: older always loses to fresher holding the signal constant, and gravity steepens the drop", async () => {
+  const { hnDecay } = await import("../src/feed/ingest.js");
+  const fresh = hnDecay(1, 1, 1.8);
+  const oneDayOld = hnDecay(1, 24, 1.8);
+  const veryOld = hnDecay(1, 434 * 24, 1.8); // the reported production case
+  assert.ok(fresh > oneDayOld, "1h old outranks 1 day old at equal signal");
+  assert.ok(oneDayOld > veryOld, "1 day old outranks 434 days old at equal signal");
+  assert.ok(fresh / veryOld > 1e6, "434-day staleness is a crushing, not a mild, penalty");
+  // higher gravity decays faster
+  assert.ok(hnDecay(1, 100, 3.0) < hnDecay(1, 100, 1.8), "a steeper gravity value decays the same age harder");
+});
+
+test("bayesianConfidence: small-sample items are shrunk toward neutral, large samples approach full trust", async () => {
+  const { bayesianConfidence } = await import("../src/feed/ingest.js");
+  const small = bayesianConfidence(5, 10); // "반응 5개 반짝"
+  const large = bayesianConfidence(1000, 10);
+  assert.ok(small < 0.5, "a handful of reactions is mostly shrunk toward neutral");
+  assert.ok(large > 0.95, "a large, trustworthy sample keeps nearly all its signal");
+  assert.ok(bayesianConfidence(0, 10) === 0, "zero reactions -> zero confidence, fully neutral");
+  assert.ok(bayesianConfidence(50, 10) > bayesianConfidence(5, 10), "monotonic in sample size");
+});
+
+test("sourceHotScores: engagement-less source path uses sourceRank->percentile->probit, still decayed by age", async () => {
+  const { sourceHotScores } = await import("../src/feed/ingest.js");
+  const { normalizeItem } = await import("../src/feed/content.js");
+  const now = Date.parse("2026-07-24T00:00:00Z");
+  const items = [0, 1, 2].map((rank) =>
+    normalizeItem({ id: `r${rank}`, source: "quiet-rss", sourceRank: rank, publishedAt: "2026-07-23T00:00:00Z" })
+  );
+  const scored = sourceHotScores(items, now);
+  assert.ok(scored.every((s) => s.hasSignal === false), "no engagement anywhere in this group");
+  assert.ok(scored.every((s) => s.confidence === 1), "no sample-size axis for a percentile-ranked source -> neutral confidence");
+  assert.ok(scored[0].hotScore > scored[1].hotScore && scored[1].hotScore > scored[2].hotScore, "board's own rank order preserved when age is equal");
+});
+
+test("sourceHotScores: THE core fix — a 434-day-old post at a quiet source's rank-0 loses to that same source's genuinely fresh items", async () => {
+  const { sourceHotScores } = await import("../src/feed/ingest.js");
+  const { normalizeItem } = await import("../src/feed/content.js");
+  const now = Date.parse("2026-07-24T00:00:00Z");
+  const hoursAgo = (h) => new Date(now - h * 3.6e6).toISOString();
+  // mirrors the reported bug exactly: rank 0 is a 434-day-old post, rank 1 is
+  // a 199-day-old post, and rank 2/3 are the source's genuinely fresh items —
+  // a signal-less RSS source where score/commentCount are 0 everywhere.
+  const items = [
+    normalizeItem({ id: "stale_434d", source: "low-activity-rss", sourceRank: 0, publishedAt: hoursAgo(434 * 24) }),
+    normalizeItem({ id: "stale_199d", source: "low-activity-rss", sourceRank: 1, publishedAt: hoursAgo(199 * 24) }),
+    normalizeItem({ id: "fresh_5h", source: "low-activity-rss", sourceRank: 2, publishedAt: hoursAgo(5) }),
+    normalizeItem({ id: "fresh_2h", source: "low-activity-rss", sourceRank: 3, publishedAt: hoursAgo(2) })
+  ];
+  const byId = Object.fromEntries(sourceHotScores(items, now).map((s) => [s.item.id, s]));
+  assert.ok(byId.fresh_2h.hotScore > byId.stale_434d.hotScore, "a 2h-old post outranks the board's stale rank-0 post");
+  assert.ok(byId.fresh_5h.hotScore > byId.stale_434d.hotScore, "a 5h-old post outranks the board's stale rank-0 post");
+  assert.ok(byId.fresh_2h.hotScore > byId.stale_199d.hotScore, "a fresh post also outranks a 199-day-old one");
+  assert.ok(byId.stale_434d.hotScore < 0.01, "the 434-day-old post's hotScore is crushed near zero, not merely lowered");
+});
+
+test("rankBySource: the same 434-day fix holds through the full grouping/sorting entry point", async () => {
+  const { rankBySource } = await import("../src/feed/ingest.js");
+  const { normalizeItem } = await import("../src/feed/content.js");
+  const now = Date.parse("2026-07-24T00:00:00Z");
+  const hoursAgo = (h) => new Date(now - h * 3.6e6).toISOString();
+  const items = [
+    normalizeItem({ id: "stale_434d", source: "low-activity-rss", sourceRank: 0, publishedAt: hoursAgo(434 * 24) }),
+    normalizeItem({ id: "fresh_2h", source: "low-activity-rss", sourceRank: 1, publishedAt: hoursAgo(2) })
+  ];
+  const order = rankBySource(items, now).get("low-activity-rss").map((r) => r.item.id);
+  assert.equal(order[0], "fresh_2h", "fresh item now ranks first despite its worse board-collection rank");
+});
+
+test("taste bias cannot reverse a large hotScore gap at default weight — 화제성 우선, 취향은 재정렬만", async () => {
+  const { sourceHotScores, hotParams } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-24T00:00:00Z");
+  const items = [
+    { id: "hot_fresh", source: "s", score: 500, commentCount: 50, publishedAt: new Date(now - 1 * 3.6e6).toISOString() },
+    { id: "cold_stale", source: "s", score: 1, commentCount: 0, publishedAt: new Date(now - 240 * 3.6e6).toISOString() }
+  ];
+  const byId = Object.fromEntries(sourceHotScores(items, now).map((s) => [s.item.id, s]));
+  const { tasteW } = hotParams();
+  const maxTasteSwing = 2 * tasteW; // taste term is tanh-bounded to (-1, 1) in engine.js
+  const gap = byId.hot_fresh.hotScore - byId.cold_stale.hotScore;
+  assert.ok(gap > maxTasteSwing, `hotScore gap (${gap}) must exceed the max possible taste swing (${maxTasteSwing}) for taste to never flip a real hot/cold pair`);
+  // even the worst case (taste maximally favors the cold item, maximally
+  // disfavors the hot one) cannot flip the order
+  assert.ok(byId.hot_fresh.hotScore + tasteW * -1 > byId.cold_stale.hotScore + tasteW * 1, "adversarial taste bias still can't flip a genuine hot/cold pair");
+});
+
+// End-to-end reproduction of the reported production symptom (260 items / 26
+// pages: 8 sources repeat every page, clien shows once, several sources never
+// appear at all) and the ticket's own acceptance target: with N active
+// sources, scrolling far enough must surface every one of them at least once,
+// and no top-8 clique may dominate more than 60% of the stream.
+test("getFeed home feed: scrolling far enough surfaces EVERY active source at least once, and the top 8 never exceed 60% of the stream (2026-07-24 round-robin starvation fix)", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const sources = [];
+  // 8 "loud" sources: real engagement numbers, plenty of items (mirrors
+  // theqoo/hackernews/pann/inven_hot/tildes/devto/bobae/ppomppu in the report)
+  for (let s = 0; s < 8; s++) {
+    const id = `loud${s}`;
+    sources.push(
+      new JsonSource(
+        id,
+        async () =>
+          Array.from({ length: 30 }, (_, i) => ({
+            id: `${id}_${i}`,
+            title: `${id} 글 ${i}`,
+            url: `https://example.com/${id}/${i}`,
+            category: "tech",
+            score: 500 - i, // consistently high engagement, refills every request
+            publishedAt: "2026-07-05T00:00:00Z"
+          })),
+        "community"
+      )
+    );
+  }
+  // 12 "quiet" sources: signal-less (no score/commentCount at all — mirrors a
+  // plain RSS board like clien/etoland/44bits/yozm/outstanding/slashdot/
+  // ddanzi/newspeppermint/...) but with just as many items available as the
+  // loud sources — the reported bug was never "these sources have nothing to
+  // show," clien had plenty; they just never got surfaced because the old
+  // scoreFn-only sort always lost to the loud sources' real engagement
+  // numbers. A small fixed pool would make "starvation" indistinguishable
+  // from ordinary pool exhaustion, so this deliberately matches loud's scale.
+  for (let s = 0; s < 12; s++) {
+    const id = `quiet${s}`;
+    sources.push(
+      new JsonSource(
+        id,
+        async () =>
+          Array.from({ length: 30 }, (_, i) => ({
+            id: `${id}_${i}`,
+            title: `${id} 글 ${i}`,
+            url: `https://example.com/${id}/${i}`,
+            category: "tech",
+            publishedAt: "2026-07-05T00:00:00Z" // no score/commentCount at all — signal-less RSS-style
+          })),
+        "news"
+      )
+    );
+  }
+  const engine = new FeedEngine(store, sources);
+  const user = store.createUser("fairness_u");
+  store.saveSurvey(user.id, { categories: ["tech"] });
+
+  const shown = [];
+  let cursor = 0;
+  for (let page = 0; page < 40 && shown.length < 260; page++) {
+    const f = await engine.getFeed(user.id, { cursor, limit: 10 });
+    cursor = f.nextCursor;
+    shown.push(...f.items.map((i) => i.source));
+    if (f.exhausted) break;
+  }
+
+  assert.ok(shown.length >= 100, `expected to accumulate a large sample, got ${shown.length}`);
+
+  const byCount = new Map();
+  for (const src of shown) byCount.set(src, (byCount.get(src) || 0) + 1);
+
+  // every registered active source must appear at least once
+  for (const s of sources) {
+    assert.ok(byCount.has(s.id), `${s.id} never appeared across ${shown.length} shown items — starved`);
+  }
+
+  // no top-8 clique dominates more than 60% of the stream
+  const top8Total = [...byCount.values()].sort((a, b) => b - a).slice(0, 8).reduce((a, b) => a + b, 0);
+  assert.ok(
+    top8Total / shown.length <= 0.6,
+    `top 8 sources account for ${Math.round((top8Total / shown.length) * 100)}% of the stream (want <=60%)`
+  );
+});
+
+test("getFeed home feed hits David's diversity target: first 15 span >=8 sources, no source exceeds 3, and each item is drawn from its own board's top ranks", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const sources = [];
+  for (let s = 0; s < 10; s++) {
+    const id = `src${s}`;
+    // half the sources carry real engagement numbers, half are signal-less
+    // (RSS-style) — mirrors the real mix of communities.json adapters.
+    const hasSignal = s % 2 === 0;
+    sources.push(
+      new JsonSource(
+        id,
+        async () =>
+          Array.from({ length: 8 }, (_, i) => ({
+            id: `${id}_${i}`,
+            title: `${id} 글 ${i}`,
+            url: `https://example.com/${id}/${i}`,
+            category: "tech",
+            ...(hasSignal ? { score: 100 - i * 10 } : {}),
+            publishedAt: "2026-07-05T00:00:00Z"
+          })),
+        "community"
+      )
+    );
+  }
+  const engine = new FeedEngine(store, sources);
+  const user = store.createUser("diversity_target_u");
+  store.saveSurvey(user.id, { categories: ["tech"] });
+
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 15 });
+  assert.equal(feed.items.length, 15);
+  const bySource = new Map();
+  for (const i of feed.items) bySource.set(i.source, (bySource.get(i.source) || 0) + 1);
+  assert.ok(bySource.size >= 8, `expected >=8 distinct sources in the first 15, got ${bySource.size}`);
+  for (const [src, count] of bySource) assert.ok(count <= 3, `${src} appeared ${count} times, exceeding the 3-per-source cap`);
+  // every served item must be within its own source's top HOT_PER_SOURCE (6)
+  // engagement/collection rank — never something the board itself buried.
+  for (const i of feed.items) {
+    const idx = Number(i.id.split("_")[1]);
+    assert.ok(idx < 6, `${i.id} is ranked ${idx} in its own board — outside the top-6 hot cut`);
+  }
+});
+
+test("GET /api/feed?source= still bypasses the hot gate entirely (latest+hotness order over the whole source, not a percentile cut)", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const clien = new JsonSource(
+    "clien",
+    async () => [
+      { id: "loud", title: "클리앙 화제글", url: "https://clien.net/a", category: "tech", score: 500, publishedAt: "2026-07-05T00:00:00Z" },
+      { id: "quiet", title: "클리앙 조용한 글", url: "https://clien.net/b", category: "tech", score: 0, publishedAt: "2026-07-05T00:00:00Z" }
+    ],
+    "community"
+  );
+  const server = createServer({ sources: [clien] });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const res = await fetch(`${base}/api/feed?userId=${session.userId}&source=clien&limit=10`);
+    const feed = await res.json();
+    const ids = feed.items.map((i) => i.id);
+    assert.ok(ids.includes("loud") && ids.includes("quiet"), "source= view is unaffected by the home feed's hot gate — every item in the source is still reachable");
+  } finally {
+    server.close();
+  }
+});
+
 test("users get a stable anonymous nickname; comments carry it (never 나)", async () => {
   const { nicknameFor } = await import("../src/feed/nickname.js");
   const store = new FeedStore({ clock: fixedClock });
@@ -854,6 +1480,47 @@ test("parseListPage: theqoo 핫게시판 — title/url/date/score/comment parse,
   assert.ok(items.some((i) => i.score > 0), "view counts captured as score");
   // the pinned/notice rows ("더쿠 이용 규칙" etc.) must not leak into the feed
   assert.ok(items.every((i) => !i.title.includes("더쿠 이용 규칙")), "pinned notices excluded");
+  // David 2026-07-24 적대적 검수 #1: 프로덕션에서 publishedAt이 2001-07-23(9132일
+  // 전 — 핀 고정 공지의 실제 작성일 오독 추정)으로 고정되던 오염 사례. 픽스처 자체는
+  // 정상 날짜만 담고 있으므로(오탐 재현 불가) 여기서는 실제 파싱 결과가 전부 최근
+  // 날짜(오늘 기준 5년 이내, 미래 아님)임을 재확인한다 — sanity 가드가 뚫리지 않는 한
+  // 이 값들은 항상 정상 범위여야 한다.
+  const now = Date.now();
+  const fiveYearsMs = 5 * 365.25 * 8.64e7;
+  assert.ok(items.every((i) => !i.publishedAt || (Date.parse(i.publishedAt) <= now && now - Date.parse(i.publishedAt) <= fiveYearsMs)),
+    "every parsed date is sane (not future, not 5+ years stale)");
+});
+
+// David 2026-07-24 적대적 검수 #1: fetchers.js의 날짜 정규화 sanity 가드.
+// theqoo 버그의 근본 방어선 — 어떤 파서/마크업 변경이 다른 행의 time 요소를 오탐해도
+// 미래이거나 5년 이상 과거인 날짜는 여기서 무조건 null로 걸러져 추천엔진의 freshness()가
+// 기본 0.5 가중치로 안전하게 폴백한다(ingest.js freshness: `if (!item.publishedAt) return 0.5`).
+test("normalizeListDate: sanity guard nulls out future dates and 5+ year stale dates — the last-resort backstop for a parser reading the wrong element", async () => {
+  const { normalizeListDate } = await import("../src/feed/fetchers.js");
+  const now = () => Date.parse("2026-07-24T12:00:00Z");
+
+  // the exact production bug: theqoo YY.MM.DD "01.07.23" misread as 2001-07-23
+  assert.equal(normalizeListDate("01.07.23", now), null, "9132일 전(2001) 같은 5년+ 과거 날짜는 null");
+  assert.equal(normalizeListDate("2001-07-23", now), null, "ISO 형식으로 와도 동일하게 걸러짐");
+  assert.equal(normalizeListDate("2019-01-01", now), null, "정확히 5년을 넘는 과거 날짜도 null");
+  assert.equal(normalizeListDate("2030-01-01", now), null, "미래 날짜는 null");
+  assert.equal(normalizeListDate("2027-01-01", now), null, "가까운 미래도 null (1시간 유예만 허용)");
+
+  // sane dates must still pass through untouched
+  assert.equal(normalizeListDate("2026-07-23", now), "2026-07-23T00:00:00.000Z", "정상 최근 날짜는 그대로 통과");
+  assert.equal(normalizeListDate("11:30", now), "2026-07-24T02:30:00.000Z", "오늘 HH:MM(로컬 상대시간) 형식도 정상 통과 — sanity 가드에 걸리지 않음");
+  const relDay = normalizeListDate("3일", now);
+  assert.ok(relDay && Date.parse(relDay) < now(), "상대 날짜(N일 전)도 정상 통과");
+
+  // clock-skew grace: a few minutes into the future must still pass (real
+  // relative-time parsing can round slightly ahead of `now()`) — uses the
+  // absolute-date parse path (timezone-independent) rather than the local-time
+  // HH:MM path, to keep this assertion stable across CI timezones.
+  assert.notEqual(
+    normalizeListDate("2026-07-24T12:30:00Z", () => Date.parse("2026-07-24T12:00:00Z")),
+    null,
+    "1시간 이내의 미세한 미래는 유예 범위 내에서 통과"
+  );
 });
 
 test("parseListPage: 보배드림 베스트 — title/url/comment parse via title attribute", async () => {
@@ -885,7 +1552,10 @@ test("parseListPage: 엠엘비파크 불펜 — date is read from BEFORE the tit
   const { parseListPage } = await import("../src/feed/fetchers.js");
   const { loadRegistry } = await import("../src/feed/registry.js");
   const entry = loadRegistry().find((c) => c.id === "mlbpark");
-  assert.equal(entry.enabled, true, "enabled despite robots Disallow:/ — WARN accepted per handoff.md 절대원칙 2");
+  // 적대적 검수 2026-07-24: robots.txt User-agent:* Disallow:/ 이고 화이트리스트에
+  // 없음 — 웃대(humoruniv)와 동일 기준으로 비활성 전환. 파싱 설정 자체는 재활성
+  // 대비 보존되므로 parseListPage 회귀 테스트는 그대로 유효.
+  assert.equal(entry.enabled, false, "robots Disallow:/ 위반, 웃대와 동일 기준 비활성 2026-07-24");
   assert.match(entry.adapter.note, /robots/);
   const items = parseListPage(fixture("mlbpark_bullpen.html"), entry.adapter.list);
   assert.ok(items.length >= 10);
@@ -922,7 +1592,11 @@ test("parseListPage: 네이트판 톡커들의 선택 — title attribute + reco
   const { parseListPage } = await import("../src/feed/fetchers.js");
   const { loadRegistry } = await import("../src/feed/registry.js");
   const entry = loadRegistry().find((c) => c.id === "pann");
-  assert.equal(entry.enabled, true);
+  // 적대적 검수 2026-07-24: robots.txt User-agent:* Disallow:/ 이고 화이트리스트에
+  // 없음 — 웃대(humoruniv)와 동일 기준으로 비활성 전환. 파싱 설정 자체는 재활성
+  // 대비 보존되므로 parseListPage 회귀 테스트는 그대로 유효.
+  assert.equal(entry.enabled, false, "robots Disallow:/ 위반, 웃대와 동일 기준 비활성 2026-07-24");
+  assert.match(entry.adapter.note, /robots/);
   const items = parseListPage(fixture("pann_talk_ranking.html"), entry.adapter.list);
   assert.ok(items.length >= 20);
   assert.ok(items.every((i) => i.url.startsWith("https://pann.nate.com/talk/")));
@@ -1227,6 +1901,38 @@ test("GET /api/communities surfaces the frameable flag to the client (no server 
     const clien = body.communities.find((c) => c.id === "clien");
     assert.equal(theqoo.frameable, true);
     assert.equal(clien.frameable, false);
+  } finally {
+    server.close();
+  }
+});
+
+// David 2026-07-24 적대적 검수 #5: "죽은 소스 칩 자동 숨김" — enabled=true인 소스가
+// 프로덕션에서 꾸준히 0건이어도(todayhumor의 해외IP 차단처럼 enabled는 유지해야 하는
+// 경우) 소스칩에서는 빠져야 클릭 시 빈 화면을 보는 당황을 막는다. 서버는 각 소스의
+// 현재 풀 내 아이템 수(liveCount)를 함께 내려주고, 실제 숨김 판단은 프론트(index.html
+// boot())가 한다 — 여기서는 그 판단의 근거가 되는 데이터 계약만 검증한다.
+test("GET /api/communities reports each source's current pool item count (liveCount) so the client can hide dead-source chips", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const withItems = new JsonSource(
+    "clien",
+    async () => [
+      { id: "c1", title: "글1", url: "https://clien.net/1", category: "tech", publishedAt: "2026-07-05T00:00:00Z" },
+      { id: "c2", title: "글2", url: "https://clien.net/2", category: "tech", publishedAt: "2026-07-05T00:00:00Z" }
+    ],
+    "community"
+  );
+  const empty = new JsonSource("theqoo", async () => [], "community");
+  const server = createServer({ sources: [withItems, empty] });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const res = await fetch(`http://localhost:${server.address().port}/api/communities`);
+    const body = await res.json();
+    const clien = body.communities.find((c) => c.id === "clien");
+    const theqoo = body.communities.find((c) => c.id === "theqoo");
+    const untouched = body.communities.find((c) => c.id === "ppomppu"); // no source wired for it at all in this test
+    assert.equal(clien.liveCount, 2, "counts items actually in the current pool");
+    assert.equal(theqoo.liveCount, 0, "a wired source that yields nothing reports 0, not undefined");
+    assert.equal(untouched.liveCount, 0, "a registry entry with no matching source at all also reports 0");
   } finally {
     server.close();
   }
@@ -1878,14 +2584,19 @@ test("devtoFetcher maps dev.to's own field names (positive_reactions_count/comme
   assert.equal(viaMakeFetcher.length, raw.length);
 });
 
-test("parseListPage: Tildes 베스트(order=votes&period=all) — internal (relative /~group/id/slug) and external (absolute) links both resolve correctly, votes/comments never bleed across articles", async () => {
+test("parseListPage: Tildes 베스트(order=votes&period=7d) — internal (relative /~group/id/slug) and external (absolute) links both resolve correctly, votes/comments never bleed across articles", async () => {
   const { parseListPage } = await import("../src/feed/fetchers.js");
   const { loadRegistry } = await import("../src/feed/registry.js");
   const entry = loadRegistry().find((c) => c.id === "tildes");
   assert.equal(entry.adapter.type, "list");
   assert.equal(entry.lang, "en", "overseas source flows through the translation pipeline");
+  // 적대적 검수 2026-07-24: period=all(전체기간 고정 명예의전당)은 화제글이 아니라
+  // 옛 글/운영 공지만 반복 노출됐음 — period=7d(최근 7일 득표순)로 교체. Tildes의
+  // period는 named bucket이 아니라 실측 폼 값(1h/12h/24h/3d/7d/all)만 허용하고
+  // period=week/day는 422로 거부됨(2026-07-24 실측 확인) — 반드시 7d여야 한다.
+  assert.match(entry.adapter.url, /period=7d/, "period=all의 고정 명예의전당 대신 최근 7일 화제글 정렬로 교체됨 (period=week는 사이트가 422로 거부)");
   const items = parseListPage(fixture("tildes_votes.html"), entry.adapter.list);
-  assert.ok(items.length >= 40, `expected many topics, got ${items.length}`);
+  assert.ok(items.length >= 20, `expected many topics, got ${items.length}`);
   // resolveUrl() must leave absolute (external out-link) hrefs untouched while
   // still prefixing urlBase onto relative (Tildes' own self-post) hrefs
   assert.ok(items.some((i) => i.url.startsWith("https://tildes.net/~")), "internal self-posts resolved against urlBase");
@@ -1896,6 +2607,12 @@ test("parseListPage: Tildes 베스트(order=votes&period=all) — internal (rela
   // rows (a bleed bug would show many rows collapsing onto a neighbor's number)
   const uniqueScores = new Set(items.map((i) => i.score));
   assert.ok(uniqueScores.size > 10, "vote counts vary per row, not bled from a neighboring article");
+  // ~tildes / ~tildes.official is the site's own meta/announcement group
+  // ("질문하세요"류 고정 안내글 포함) — never a real "화제글", must be excluded
+  assert.ok(
+    items.every((i) => !/tildes\.net\/~tildes(?:\.official)?\//.test(i.url)),
+    "~tildes/~tildes.official meta/announcement topics excluded"
+  );
 });
 
 test("communities.json: all 10 sources added 2026-07-24 are registered, enabled, https, and lang-tagged for translation where overseas", async () => {
@@ -1922,5 +2639,191 @@ test("communities.json: all 10 sources added 2026-07-24 are registered, enabled,
     assert.equal(c.kind, exp.kind, `${id} kind`);
     assert.equal(c.adapter.type, exp.type, `${id} adapter type`);
     assert.ok(c.label, `${id} has a display label`);
+  }
+});
+
+// --- googleFreeTranslator (src/feed/translator.js) -------------------------
+// All tests below run with a mocked fetchImpl — no real network access.
+
+test("googleFreeTranslator: parses a normal gtx response and hits the expected URL", async () => {
+  let calledUrl = null;
+  const fetchImpl = async (url) => {
+    calledUrl = url;
+    return {
+      ok: true,
+      async json() {
+        // real shape: data[0] is a list of [translatedChunk, originalChunk, ...] tuples
+        return [[["안녕 세상", "Hello world", null, null, 1]], null, "en"];
+      }
+    };
+  };
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(out, "안녕 세상");
+  assert.match(calledUrl, /^https:\/\/translate\.googleapis\.com\/translate_a\/single\?/);
+  assert.match(calledUrl, /sl=en/);
+  assert.match(calledUrl, /tl=ko/);
+  assert.match(calledUrl, /dt=t/);
+  assert.match(calledUrl, /q=Hello(%20|\+)world/);
+});
+
+test("googleFreeTranslator: joins multiple response chunks (long input split by Google)", async () => {
+  const fetchImpl = async () => ({
+    ok: true,
+    async json() {
+      return [[["첫 문장. ", null], ["둘째 문장.", null]], null, "en"];
+    }
+  });
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate("First sentence. Second sentence.", { from: "en", to: "ko" });
+  assert.equal(out, "첫 문장. 둘째 문장.");
+});
+
+test("googleFreeTranslator: falls back to the original text on a non-200 response", async () => {
+  const fetchImpl = async () => ({ ok: false, status: 429, async json() { return null; } });
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(out, "Hello world");
+});
+
+test("googleFreeTranslator: falls back to the original text on a network error (never throws)", async () => {
+  const fetchImpl = async () => { throw new Error("ECONNRESET"); };
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(out, "Hello world");
+});
+
+test("googleFreeTranslator: falls back to the original text on timeout (AbortSignal fires -> fetch rejects with AbortError)", async () => {
+  // AbortSignal.timeout's internal timer is unref'd, so actually waiting for
+  // a real one to fire in an otherwise-idle test can race the test runner's
+  // own event loop bookkeeping. Simulate what a real timeout produces instead
+  // (fetch rejecting with a DOMException named "AbortError") — the code path
+  // exercised (a blanket catch -> fall back to the original text) is identical.
+  const fetchImpl = async () => { throw new DOMException("The operation was aborted", "AbortError"); };
+  const translate = googleFreeTranslator({ fetchImpl, timeoutMs: 5 });
+  const out = await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(out, "Hello world");
+});
+
+test("googleFreeTranslator: falls back to the original text on an unexpected JSON shape", async () => {
+  const fetchImpl = async () => ({ ok: true, async json() { return { error: "unexpected" }; } });
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(out, "Hello world");
+});
+
+test("googleFreeTranslator: empty/falsy input passes through untouched, no fetch call", async () => {
+  let called = false;
+  const fetchImpl = async () => { called = true; return { ok: true, async json() { return [[["x"]]]; } }; };
+  const translate = googleFreeTranslator({ fetchImpl });
+  assert.equal(await translate("", { from: "en", to: "ko" }), "");
+  assert.equal(await translate(null, { from: "en", to: "ko" }), null);
+  assert.equal(called, false);
+});
+
+test("googleFreeTranslator + memoizedTranslator: identical text is only fetched once", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls++;
+    return { ok: true, async json() { return [[["번역됨"]]]; } };
+  };
+  const translate = memoizedTranslator(googleFreeTranslator({ fetchImpl }));
+  await translate("Hello world", { from: "en", to: "ko" });
+  await translate("Hello world", { from: "en", to: "ko" });
+  await translate("Hello world", { from: "en", to: "ko" });
+  assert.equal(calls, 1, "second/third call served from memoizedTranslator's cache");
+});
+
+test("TranslatingSource wired with googleFreeTranslator translates an en item end to end (mocked network)", async () => {
+  const foreign = {
+    id: "hackernews", kind: "community", async fetch() {
+      return [{ id: "hn1", title: "Show HN: a new database", summary: "we built a fast db", lang: "en", category: "tech", tags: [], source: "hackernews" }];
+    }
+  };
+  const fetchImpl = async (url) => {
+    const q = decodeURIComponent(new URL(url).searchParams.get("q"));
+    const table = {
+      "Show HN: a new database": "Show HN: 새로운 데이터베이스",
+      "we built a fast db": "빠른 db를 만들었습니다"
+    };
+    return { ok: true, async json() { return [[[table[q] || q, q, null, null, 1]]]; } };
+  };
+  const translateFn = memoizedTranslator(googleFreeTranslator({ fetchImpl }));
+  const out = await new TranslatingSource(foreign, translateFn, "ko").fetch();
+  assert.equal(out[0].translated, true);
+  assert.equal(out[0].lang, "ko");
+  assert.equal(out[0].title, "Show HN: 새로운 데이터베이스");
+  assert.equal(out[0].summary, "빠른 db를 만들었습니다");
+  assert.equal(out[0].originalTitle, "Show HN: a new database");
+  assert.equal(out[0].originalLang, "en");
+});
+
+test("createServer: opts.translate wiring flows through buildSources to the served feed", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const registry = loadRegistry();
+  const enEntry = registry.find((c) => c.enabled && c.lang === "en");
+  assert.ok(enEntry, "fixture assumption: an enabled overseas (en) source exists in communities.json");
+
+  // opts.fetcher stands in for FEED_LIVE's makeFetcher — only the target
+  // source yields an item, every other registry entry yields nothing so the
+  // feed stays small and deterministic.
+  const fetcher = (entry) => async () =>
+    entry.id === enEntry.id ? [{ title: "Hello world", summary: "a translation test post" }] : [];
+
+  const server = createServer({
+    dev: false,
+    fetcher,
+    translate: { targetLang: "ko", translateFn: memoizedTranslator(async (t) => `[번역] ${t}`) }
+  });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const feed = await (
+      await fetch(`${base}/api/feed?userId=${session.userId}&source=${enEntry.id}&cursor=0&limit=20`)
+    ).json();
+    const item = feed.items.find((i) => i.source === enEntry.id);
+    assert.ok(item, `an item from ${enEntry.id} is present in the feed`);
+    assert.equal(item.translated, true);
+    assert.match(item.title, /^\[번역\]/);
+  } finally {
+    server.close();
+  }
+});
+
+// opts.translate === undefined (not passed at all) means "let FEED_TRANSLATE decide" —
+// with the env var unset in the test run, this must behave exactly like today: items
+// pass through untouched and flagged needsTranslation, never silently translated.
+test("createServer: without FEED_TRANSLATE (env unset) and no opts.translate, overseas items stay untranslated", async () => {
+  assert.equal(process.env.FEED_TRANSLATE, undefined, "test assumption: FEED_TRANSLATE is unset in this run");
+  const { createServer } = await import("../src/feed/server.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const registry = loadRegistry();
+  const enEntry = registry.find((c) => c.enabled && c.lang === "en");
+  assert.ok(enEntry, "fixture assumption: an enabled overseas (en) source exists in communities.json");
+
+  const fetcher = (entry) => async () =>
+    entry.id === enEntry.id ? [{ title: "Hello world", summary: "a translation test post" }] : [];
+
+  const server = createServer({ dev: false, fetcher }); // no opts.translate at all
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const session = await (
+      await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    ).json();
+    const feed = await (
+      await fetch(`${base}/api/feed?userId=${session.userId}&source=${enEntry.id}&cursor=0&limit=20`)
+    ).json();
+    const item = feed.items.find((i) => i.source === enEntry.id);
+    assert.ok(item, `an item from ${enEntry.id} is present in the feed`);
+    assert.equal(item.translated, false);
+    assert.equal(item.needsTranslation, true);
+    assert.equal(item.title, "Hello world");
+  } finally {
+    server.close();
   }
 });

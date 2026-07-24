@@ -17,6 +17,8 @@ import { SURVEY, validateAnswers } from "./survey.js";
 import { CATEGORIES, SOURCE_CATALOG } from "./taxonomy.js";
 import { loadRegistry, buildSources, summarize } from "./registry.js";
 import { makeFetcher } from "./fetchers.js";
+import { memoizedTranslator } from "./translate.js";
+import { googleFreeTranslator } from "./translator.js";
 import { TOPIC_CATALOG, FILTERABLE_TOPICS } from "./topics.js";
 import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
@@ -124,9 +126,25 @@ export function createServer(opts = {}) {
   const dev = opts.dev != null ? Boolean(opts.dev) : Boolean(process.env.FEED_DEV);
   // FEED_LIVE turns on real ingestion for enabled non-seed communities.
   const live = opts.fetcher || (process.env.FEED_LIVE ? makeFetcher : null);
+  // FEED_TRANSLATE turns on free machine translation for overseas sources
+  // (techmeme, slashdot, hackernews, devto, tildes, ...). registry.js wraps
+  // every source whose lang !== targetLang ("ko") in TranslatingSource
+  // whenever a `translate` config is passed at all — that wrapping itself
+  // (title/summary pass-through + `needsTranslation` flag for the UI's "원문"
+  // badge, see translate.js) is always on, regardless of the env var. Only
+  // the *translateFn* is gated behind FEED_TRANSLATE=1, because the free
+  // endpoint (translator.js) is unofficial/no-SLA, so a deploy opts in
+  // explicitly to actually calling it. Off (default): TranslatingSource still
+  // wraps overseas sources but with no translateFn -> items pass through
+  // untouched, flagged `needsTranslation`, exactly like before this feature
+  // existed. On: the same wrapping now actually translates title+excerpt.
+  const translate =
+    opts.translate !== undefined
+      ? opts.translate
+      : { targetLang: "ko", translateFn: process.env.FEED_TRANSLATE ? memoizedTranslator(googleFreeTranslator()) : null };
   try {
     registry = loadRegistry();
-    sources = buildSources(registry, { translate: opts.translate, seed: dev, fetcher: live ? (e) => live(e)() : undefined });
+    sources = buildSources(registry, { translate, seed: dev, fetcher: live ? (e) => live(e)() : undefined });
   } catch (err) {
     sources = dev ? [new SeedSource()] : [];
   }
@@ -199,7 +217,15 @@ export function createServer(opts = {}) {
       }
 
       if (p === "/api/communities" && req.method === "GET") {
-        return send(res, 200, { summary: summarize(registry), communities: registry });
+        // liveCount: how many items this source currently has in the
+        // collected pool — lets the client hide a source chip once it's
+        // reliably yielding nothing (2026-07-24 adversarial review #5,
+        // "죽은 소스 칩 자동 숨김") without hand-flipping `enabled` for every
+        // source that goes quiet (some, like todayhumor's overseas-IP block,
+        // are expected to recover later).
+        const counts = await engine.sourceCounts();
+        const communities = registry.map((c) => ({ ...c, liveCount: counts[c.id] || 0 }));
+        return send(res, 200, { summary: summarize(registry), communities });
       }
 
       if (p === "/api/rules" && req.method === "GET") {

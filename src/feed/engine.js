@@ -7,10 +7,19 @@
 // navigation; the server just keeps handing out the next best unseen batch.
 
 import { collect, SeedSource, resolveCap } from "./content.js";
-import { rankItems, diversify, applyFeedback, applyImplicit, explain, specializationLevel, feedPhase } from "./recommender.js";
+import {
+  rankItems,
+  diversify,
+  applyFeedback,
+  applyImplicit,
+  explain,
+  specializationLevel,
+  feedPhase,
+  scoreItem
+} from "./recommender.js";
 import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
-import { hotness } from "./ingest.js";
+import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams } from "./ingest.js";
 import { FILTERABLE_TOPICS } from "./topics.js";
 
 // How long a collected item stays in the rolling pool before it's eligible for
@@ -53,6 +62,23 @@ export class FeedEngine {
   async _items() {
     if (!this._cache) await this.refresh();
     return this._cache;
+  }
+
+  // Per-source item counts in the current collected pool (David 2026-07-24
+  // adversarial review #5 — "죽은 소스 칩 자동 숨김"). A source can be
+  // `enabled` in the registry yet consistently return 0 items in production
+  // (e.g. todayhumor's overseas-IP block) — rather than hand-maintaining an
+  // enabled/disabled flag for every such case, the source-chip bar hides
+  // itself once there's nothing behind it. See server.js's GET
+  // /api/communities and public/index.html's chip-filtering.
+  async sourceCounts() {
+    const items = await this._items();
+    const counts = {};
+    for (const item of items) {
+      const src = item.source || "unknown";
+      counts[src] = (counts[src] || 0) + 1;
+    }
+    return counts;
   }
 
   // Force a re-collection on next read (e.g. after wiring a live source).
@@ -174,25 +200,79 @@ export class FeedEngine {
           !disabled.has(i.source) &&
           !topicsBlocked(i, showTopics)
       );
-      const ranked = pool.map((item) => ({ item, score: hotness(item, now) })).sort((a, b) => b.score - a.score);
+      // Same hot-curation pipeline as the home feed (2026-07-24 hot-curation
+      // v1) — HN-gravity time decay + robust-z/percentile normalization +
+      // Bayesian shrinkage — applied to the whole filtered pool as one flat
+      // group (this view is already scoped to a single source/provenance, so
+      // there's nothing to group further; "submit"'s pool spans many out-link
+      // domains but was already scored uniformly before this change too).
+      // This is what stops a stale-but-still-#1-ranked RSS item from sitting
+      // atop a board's own view forever, same as the home feed below.
+      const ranked = sourceHotScores(pool, now)
+        .map((s) => ({ item: s.item, score: s.hotScore }))
+        .sort((a, b) => b.score - a.score);
       unseen = ranked.filter((r) => !seen.has(r.item.id));
     } else {
+      // Unseen is filtered in up front (not after ranking, as the old
+      // hotGate/rankItems path did) so the round-robin/min-gap diversity
+      // guarantees below hold on *every* page of the infinite scroll, not
+      // just a fresh user's first load.
       const pool = items.filter(
         (i) =>
           (allowAdult || !i.adult) &&
           !muted.has(i.source) &&
           !disabled.has(i.source) &&
-          !topicsBlocked(i, showTopics)
+          !topicsBlocked(i, showTopics) &&
+          !seen.has(i.id)
       );
-      // collaborative boost: what similar-taste users liked (no-op with one user)
+      // "게시판별 핫 + 다양성 라운드로빈" (David 2026-07-24 redesign). Every
+      // active source is already a community's own best/hot board (see
+      // ingest.js's rankBySource header comment for why even a 0-engagement
+      // RSS source still has a meaningful hot rank — its own collection
+      // order). This: (1) ranks each source's items hot-first, (2) keeps only
+      // each source's top HOT_PER_SOURCE hottest, (3) interleaves round-robin
+      // across sources so the stream alternates boards instead of one board's
+      // list dominating. Personalization only breaks ties *within* a round —
+      // diversity wins over taste here by design ("다양성 > 개인화").
       collabBoosts = collaborativeBoosts(this.store, userId);
-      const ranked = rankItems(pool, user.preferences, { seenIds: seen, seed: cursor + 1, now, collabBoosts });
-      // drop already-seen items so the infinite scroll never repeats
-      unseen = ranked.filter((r) => !seen.has(r.item.id));
+      // hotScore (2026-07-24 hot-curation v1, ingest.js's rankBySource/
+      // sourceHotScores) is now each source's internal sort key — HN-gravity
+      // time decay + per-source robust-z/percentile normalization + Bayesian
+      // small-sample shrinkage, so a stale-but-still-rank-0 RSS item can no
+      // longer win its source's top-K cut just because nothing displaced it.
+      const rankedBySource = pool.length ? rankBySource(pool, now) : new Map();
+      const topK = topPerSource(rankedBySource);
+      const seed = cursor + 1;
+      const { tasteW } = hotParams();
+      const scoreFn = (item, rank, hasSignal, hotScoreVal) => {
+        const taste = user.preferences
+          ? Math.tanh(scoreItem(item, user.preferences, { now, seed, collabBoosts, explore: 0 }) / 4)
+          : 0;
+        // Lobsters-style additive taste bias: hotScore (objective "화제성")
+        // leads, taste only re-sorts within it — never flips a genuinely
+        // hotter item behind a merely on-taste one (tasteW default 0.15).
+        return (hotScoreVal ?? 0) + tasteW * taste;
+      };
+      const minGap = Number(process.env.HOT_MIN_GAP ?? 1);
+      // Fairness ledger: how many times each source has already been shown to
+      // this user across past getFeed calls (see store.recordSourceExposure).
+      // Primary sort key in roundRobinInterleave — this is what stops a
+      // handful of high-engagement sources from permanently dominating every
+      // page (2026-07-24 adversarial review #2). See ingest.js's
+      // roundRobinInterleave header for the full root-cause story.
+      const exposure = this.store.sourceExposureFor ? this.store.sourceExposureFor(userId) : {};
+      const interleaved = roundRobinInterleave(topK, { minGap, scoreFn, exposure });
+      unseen = interleaved.map((item) => ({
+        item,
+        score: user.preferences ? scoreItem(item, user.preferences, { now, seed, collabBoosts, explore: 0 }) : 0
+      }));
     }
     // diversify so a page isn't dominated by one source/category (a no-op
-    // when every candidate already shares the same `source`)
-    const fresh = diversify(unseen).slice(0, limit);
+    // when every candidate already shares the same `source`). For the home
+    // feed (no `source`), skip it: the round-robin interleave above already
+    // produced a hard-guaranteed diverse order, and re-running the softer MMR
+    // pass here would only undo that structure for no benefit.
+    const fresh = source ? diversify(unseen).slice(0, limit) : unseen.slice(0, limit);
 
     const level = specializationLevel(user.preferences, user.feedbackCount);
     const phase = feedPhase(level);
@@ -209,6 +289,12 @@ export class FeedEngine {
 
     if (markSeen && batch.length) {
       this.store.markSeen(userId, batch.map((b) => b.id));
+      // feed the round-robin fairness ledger (see the `exposure` block above)
+      // regardless of view — a source shown via source= should count too, so
+      // the home feed doesn't re-show it excessively right after.
+      if (this.store.recordSourceExposure) {
+        this.store.recordSourceExposure(userId, batch.map((b) => b.source));
+      }
     }
 
     return {
@@ -307,7 +393,13 @@ export class FeedEngine {
         !seen.has(i.id)
     );
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
-    const ranked = rankItems(pool, user.preferences, { seed: 1, now, explore: 0 })
+    // Same hot-only gate as the main feed (see getFeed) — the digest previews
+    // "what you'd see if you opened the app now," so it must draw from the
+    // same hot-gated pool, not a superset of it.
+    const gated = pool.length ? hotGate(pool, now) : [];
+    const hotPool = gated.length ? gated.filter((r) => r.hot).map((r) => r.item) : pool;
+    const rankPool = hotPool.length ? hotPool : pool;
+    const ranked = rankItems(rankPool, user.preferences, { seed: 1, now, explore: 0 })
       .filter((r) => r.score >= minScore);
     return {
       count: ranked.length,

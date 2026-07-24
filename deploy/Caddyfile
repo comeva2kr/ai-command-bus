@@ -1,0 +1,13 @@
+# Caddy가 도메인에 대해 Let's Encrypt HTTPS 인증서를 자동 발급/갱신.
+# DOMAIN 환경변수로 주입 (docker-compose.yml). 도메인이 없으면 아래 :80 블록만 사용.
+{$DOMAIN} {
+	reverse_proxy app:4000
+	encode gzip zstd
+}
+
+# 도메인 미보유 시 임시로 IP:80 직접 서빙 (HTTPS 없음 — PWA/푸시는 도메인 붙인 뒤 동작).
+# 도메인 연결 후에는 위 블록만 남기고 이 블록은 지워도 됨.
+:80 {
+	reverse_proxy app:4000
+	encode gzip zstd
+}

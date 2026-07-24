@@ -83,7 +83,17 @@ export function normalizeItem(raw, source) {
     length: Number.isFinite(raw.length)
       ? raw.length
       : String(raw.summary || raw.body || "").split(/\s+/).filter(Boolean).length,
-    publishedAt: raw.publishedAt || null
+    publishedAt: raw.publishedAt || null,
+    // Board-hot rank (David 2026-07-24 home-feed redesign): this item's
+    // 0-based position within its own source's *returned* order — RSS doc
+    // order, a list-adapter's page-scan order, HN's front-page order, etc.
+    // Stamped by registry.js at collection time, one source at a time, so it
+    // always means "this source's own hot/best board rank," never mixed
+    // across sources. null when the item didn't come through that stamping
+    // (seed/me items built directly, or tests constructing raw items by
+    // hand) — engine.js falls back to array position in that case. See
+    // ingest.js's rankBySource for how this is used.
+    sourceRank: Number.isFinite(raw.sourceRank) ? raw.sourceRank : null
   };
 }
 

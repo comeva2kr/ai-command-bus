@@ -69,10 +69,12 @@ export function buildSources(registry, opts = {}) {
     let source;
     if (isSeed) {
       if (!includeSeed) continue; // production / no FEED_DEV — never touch seed
-      // stamp registry metadata (lang/adult/category) onto seed items for this source
+      // stamp registry metadata (lang/adult/category) onto seed items for this
+      // source, plus their position in this source's own list as sourceRank
+      // (see content.js/ingest.js — the home feed's board-hot ranking signal)
       const items = seedItems
         .filter((it) => it.source === entry.id)
-        .map((it) => ({ lang: entry.lang, ...it, adult: it.adult || entry.adult === true }));
+        .map((it, idx) => ({ lang: entry.lang, sourceRank: idx, ...it, adult: it.adult || entry.adult === true }));
       source = new JsonSource(entry.id, async () => items, entry.kind);
     } else if (!entry.enabled) {
       continue; // disabled, non-seed — skip cleanly
@@ -90,12 +92,20 @@ export function buildSources(registry, opts = {}) {
           // http://->https:// URL upgrade (see content.js) so a source we
           // haven't verified never gets its links silently rewritten.
           const httpsOk = entry.httpsOk !== false;
-          return (Array.isArray(rows) ? rows : []).map((r) => ({
+          // Every fetcher (rss/list/hn/reddit/devto/json) already returns rows
+          // in that source's own hot/best-board order — see fetchers.js. Stamp
+          // that position as sourceRank *before* anything reorders the array,
+          // so a source with no engagement numbers at all (most RSS boards)
+          // still carries a meaningful "how hot is this" signal downstream
+          // (ingest.js's rankBySource) instead of falling back to a raw
+          // publish-date sort that would erase the board's own ranking.
+          return (Array.isArray(rows) ? rows : []).map((r, idx) => ({
             lang: entry.lang,
             category: entry.category,
             adult: entry.adult === true,
             via,
             httpsOk,
+            sourceRank: idx,
             ...r,
             source: entry.id
           }));

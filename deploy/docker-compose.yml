@@ -1,0 +1,41 @@
+# taste-feed 국내 서버 이전 — app + Caddy(자동 HTTPS) + 영속 볼륨.
+# 사용: DOMAIN=your.domain docker compose up -d   (또는 .env에 DOMAIN 지정)
+services:
+  app:
+    build: ..
+    restart: unless-stopped
+    environment:
+      - PORT=4000
+      - FEED_DB=/data/feed.json        # 영속화 (재시작에도 유저 데이터 유지)
+      - FEED_LIVE=1
+      - FEED_REFRESH_MS=900000         # 15분마다 재수집
+      - FEED_TRANSLATE=1               # 해외 소스 한글 번역
+      - PUSH_DIGEST_MS=3600000         # 시간당 관심글 digest push
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:comeva2kr@gmail.com}
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+    volumes:
+      - feed-data:/data
+    expose:
+      - "4000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  feed-data:
+  caddy-data:
+  caddy-config:
