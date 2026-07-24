@@ -21,7 +21,7 @@
 - 적대적 실사용자 검수 2회 반영 완료 (설문 벽 제거→미리보기 우선, 닉네임 댓글, 화제성 뱃지, 아웃링크 상세, 엄지 조작성, 스킵 오학습 완화).
 - **소스 헬스체크 완료 (2026-07-23)**: 샌드박스는 여전히 403이라 사용자 로컬(macOS) 터미널에서 실행. 결과: 라이브 소스 9개 전부 OK — clien(40건)·gnews(34)·gnews-auto(104)·gnews-tech(100)·gnews-biz(108)·gnews-sports(102)·gnews-ent(100)·gnews-science(102)·gnews-game(102). 죽은 피드 없음, 클리앙 feedburner `c_hot50` 검증 완료(communities.json note 갱신).
 - **시드 격리 완료**: `FEED_DEV=1`일 때만 seed 어댑터 활성. `buildSources`에 `seed` 옵션 추가(기본 true — 테스트 호환), `server.js`가 `FEED_DEV`로 게이트. `FEED_DEV`·`FEED_LIVE` 둘 다 꺼진 기본 실행은 유저 글만 노출 + 기동 경고. 격리 테스트 추가(58번째).
-- 참고: 세션 간 직접 통신(create_trigger persistent_session_id)은 조직 정책상 비활성 — 보고는 이 문서·PR #4 코멘트로.
+- 세션 통신 주의: 현재 조직 설정에서 비활성인 것은 `create_trigger(persistent_session_id)` 방식뿐이며, 세션 간 직접 통신 전체가 금지된 것은 아니다. David가 정확한 대상에 1회 전달을 지시한 경우 검증된 세션 관리 어댑터(`list_sessions` → `send_message`)가 있으면 사용하고 receipt/ACK를 확인한다. 어댑터가 없거나 별도 UI 승인이 필요하면 그 전송 공백을 그대로 보고하고 승인을 요청한다. 문서·PR 코멘트는 전달 기록의 보조 증거일 뿐 세션 수신이나 ACK를 대신하지 않는다.
 
 ## 다음 작업 (순서대로)
 
