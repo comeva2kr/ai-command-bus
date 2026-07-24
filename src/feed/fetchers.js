@@ -88,10 +88,36 @@ export function parseRss(xml) {
   return items;
 }
 
-function normalizeDate(s) {
+// ---- Date sanity guard (David 2026-07-24, adversarial review item 1) -----
+//
+// Any date-normalizing point in this file funnels through here before it's
+// trusted. A parsed date that's in the future or more than MAX_PAST_YEARS
+// years stale is almost never a real publish date — it's a parser reading
+// the wrong element (a neighboring row, a pinned/notice widget with its own
+// fixed date, a copyright/founding-year string, ...). The theqoo bug this
+// guards against: a pinned notice row's original post date ("01.07.23",
+// read as YY.MM.DD = 2001-07-23) leaking through when the notice-exclusion
+// regex misses a markup change, silently poisoning that item's freshness
+// score forever. Rather than trust a single fragile regex to catch every
+// such case, this is the last-resort backstop: an insane date is simply
+// dropped (null), which recommender/ingest.js's freshness() already treats
+// as "no date" and falls back to a neutral 0.5 weight — never a crash, never
+// a poisoned ranking.
+const MAX_PAST_YEARS = 5;
+const FUTURE_GRACE_MS = 60 * 60 * 1000; // 1h clock-skew tolerance before "future" kicks in
+
+function isSaneDate(ms, nowMs) {
+  if (!Number.isFinite(ms)) return false;
+  if (ms - nowMs > FUTURE_GRACE_MS) return false; // future date
+  if (nowMs - ms > MAX_PAST_YEARS * 365.25 * 8.64e7) return false; // 5+ years stale
+  return true;
+}
+
+function normalizeDate(s, now = () => Date.now()) {
   if (!s) return null;
   const t = Date.parse(s);
-  return Number.isNaN(t) ? null : new Date(t).toISOString();
+  if (Number.isNaN(t)) return null;
+  return isSaneDate(t, now()) ? new Date(t).toISOString() : null;
 }
 
 export function rssFetcher(url, fetchImpl = fetch) {
@@ -220,26 +246,28 @@ function toNumber(s) {
 // ("21:23", meaning "today"), and relative text ("5시간전", "6일"). We only
 // ever *add* a signal (freshness ranking) — an unparsed date safely yields
 // null and the recommender falls back to its default freshness weight.
-function normalizeListDate(raw, now = () => Date.now()) {
+export function normalizeListDate(raw, now = () => Date.now()) {
   if (!raw) return null;
   const s = raw.trim();
+  const nowMs = now();
+  const finish = (ms) => (isSaneDate(ms, nowMs) ? new Date(ms).toISOString() : null);
 
   const hm = s.match(/^(\d{1,2}):(\d{2})$/);
   if (hm) {
-    const d = new Date(now());
+    const d = new Date(nowMs);
     d.setHours(Number(hm[1]), Number(hm[2]), 0, 0);
-    return d.toISOString();
+    return finish(d.getTime());
   }
   const relH = s.match(/^(\d+)\s*시간\s*전$/);
-  if (relH) return new Date(now() - Number(relH[1]) * 3.6e6).toISOString();
+  if (relH) return finish(nowMs - Number(relH[1]) * 3.6e6);
   const relM = s.match(/^(\d+)\s*분\s*전$/);
-  if (relM) return new Date(now() - Number(relM[1]) * 6e4).toISOString();
+  if (relM) return finish(nowMs - Number(relM[1]) * 6e4);
   const relD = s.match(/^(\d+)\s*일\s*$/);
-  if (relD) return new Date(now() - Number(relD[1]) * 8.64e7).toISOString();
+  if (relD) return finish(nowMs - Number(relD[1]) * 8.64e7);
 
   const normalized = s.replace(/^(\d{2})[./](\d{2})[./](\d{2})(?:\s|$)/, "20$1-$2-$3 ").replace(/\./g, "-");
   const t = Date.parse(normalized);
-  return Number.isNaN(t) ? null : new Date(t).toISOString();
+  return Number.isNaN(t) ? null : finish(t);
 }
 
 export function parseListPage(html, cfg = {}) {

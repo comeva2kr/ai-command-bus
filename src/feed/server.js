@@ -211,7 +211,15 @@ export function createServer(opts = {}) {
       }
 
       if (p === "/api/communities" && req.method === "GET") {
-        return send(res, 200, { summary: summarize(registry), communities: registry });
+        // liveCount: how many items this source currently has in the
+        // collected pool — lets the client hide a source chip once it's
+        // reliably yielding nothing (2026-07-24 adversarial review #5,
+        // "죽은 소스 칩 자동 숨김") without hand-flipping `enabled` for every
+        // source that goes quiet (some, like todayhumor's overseas-IP block,
+        // are expected to recover later).
+        const counts = await engine.sourceCounts();
+        const communities = registry.map((c) => ({ ...c, liveCount: counts[c.id] || 0 }));
+        return send(res, 200, { summary: summarize(registry), communities });
       }
 
       if (p === "/api/rules" && req.method === "GET") {

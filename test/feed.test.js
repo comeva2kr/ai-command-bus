@@ -52,6 +52,37 @@ test("survey validation requires at least one category", () => {
   assert.equal(validateAnswers({ categories: ["auto"], depth: "nope" }).ok, false);
 });
 
+// David 2026-07-24 적대적 검수 #6: "즐겨 보는 커뮤니티" 설문 옵션이 taxonomy.js의
+// 정적 SOURCE_CATALOG(디시인사이드·겟차·엔카·테크와이어 등 15개 seed 더미 포함)를
+// 그대로 썼던 문제 — 실제 enabled && non-seed 소스만 동적으로 옵션에 나와야 한다.
+test("SURVEY's 'communities' question options are exactly the live (enabled, non-seed) registry sources — no seed dummies, nothing disabled", async () => {
+  const { SURVEY } = await import("../src/feed/survey.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const registry = loadRegistry();
+  const communitiesQ = SURVEY.find((q) => q.id === "communities");
+  assert.ok(communitiesQ, "communities question exists");
+
+  const optionIds = new Set(communitiesQ.options.map((o) => o.id));
+  const expectedLive = registry.filter((c) => c.enabled === true && (!c.adapter || c.adapter.type !== "seed"));
+  assert.ok(expectedLive.length > 0, "fixture assumption: at least one live source exists");
+  assert.equal(optionIds.size, expectedLive.length, "option count matches live-source count exactly");
+  for (const c of expectedLive) assert.ok(optionIds.has(c.id), `${c.id} (enabled, non-seed) is offered`);
+
+  // seed-only dummies (개발용, FEED_DEV 전용) must never appear as a survey option
+  const seedDummies = registry.filter((c) => c.adapter && c.adapter.type === "seed").map((c) => c.id);
+  assert.ok(seedDummies.includes("dcinside") && seedDummies.includes("getcha") && seedDummies.includes("techwire"), "fixture assumption: known seed dummies still exist in the registry");
+  for (const id of seedDummies) assert.ok(!optionIds.has(id), `seed dummy "${id}" must not be a survey option`);
+
+  // explicitly-disabled non-seed sources (e.g. pann/mlbpark/humoruniv, robots-blocked) must not appear either
+  const disabledLive = registry.filter((c) => c.enabled === false && (!c.adapter || c.adapter.type !== "seed")).map((c) => c.id);
+  for (const id of disabledLive) assert.ok(!optionIds.has(id), `disabled source "${id}" must not be a survey option`);
+
+  // validateAnswers must accept a live option and reject a stale seed-dummy id
+  const live = [...optionIds][0];
+  assert.equal(validateAnswers({ categories: ["tech"], communities: [live] }).ok, true);
+  assert.equal(validateAnswers({ categories: ["tech"], communities: ["dcinside"] }).ok, false, "dcinside is a seed dummy, not a valid survey answer");
+});
+
 test("recommender ranks items matching the user's taste higher", () => {
   const vec = buildPreferenceVector({ categories: ["auto"], tags: ["cars", "testdrive"] });
   const carItem = normalizeItem({ category: "auto", tags: ["cars", "testdrive"], title: "시승기", score: 10 });
@@ -293,6 +324,55 @@ test("TranslatingSource flags untranslated foreign items and translates when wir
   assert.equal(done[0].lang, "ko");
   assert.match(done[0].title, /^\[번역\]/);
   assert.equal(done[0].originalTitle, "Hello world");
+});
+
+// David 2026-07-24 적대적 검수 #9: dev.to 등 소스 전체에 lang:"en"이 못박힌 항목 중
+// 실제로는 비영어(포르투갈어 등)인 글이 있어, sl을 고정 lang으로 강제하면 Google이
+// 오판해 반쪽만 번역되거나 전혀 안 되는 문제가 있었다.
+test("TranslatingSource always requests translation with sl=auto, never the source's stamped lang — a per-source lang tag doesn't reflect a single article's real language", async () => {
+  const foreign = {
+    id: "devto", kind: "community", async fetch() {
+      // dev.to 소스 전체는 communities.json에서 lang:"en"으로 못박혀 있지만
+      // 이 특정 글은 실제로는 포르투갈어다 (David 2026-07-24 리포트 재현)
+      return [{ id: "pt1", title: "Como usar async/await", summary: "Um guia rápido", lang: "en", category: "tech", tags: [], source: "devto" }];
+    }
+  };
+  const calls = [];
+  const tr = async (text, opts) => { calls.push(opts.from); return "[번역] " + text; };
+  await new TranslatingSource(foreign, tr, "ko").fetch();
+  assert.ok(calls.length > 0, "translator was called");
+  assert.ok(calls.every((from) => from === "auto"), `every translate call must pass sl=auto, got: ${calls.join(",")}`);
+});
+
+// 원자적 처리: 제목/요약 중 하나만 번역되고 나머지는 원문 그대로 돌아오면(엔드포인트가
+// 언어를 오판했거나 일부만 성공한 경우) 절반만 번역된 상태로 보여주지 않고 전체를
+// 원문+needsTranslation("원문" 배지)으로 되돌린다.
+test("TranslatingSource is atomic: if the translator silently no-ops on either title or summary, the WHOLE item falls back to original + needsTranslation, never half-translated", async () => {
+  const foreign = {
+    id: "devto", kind: "community", async fetch() {
+      return [{ id: "pt2", title: "Título em português", summary: "Resumo em português", lang: "en", category: "tech", tags: [], source: "devto" }];
+    }
+  };
+  // simulates the real bug: title translates fine, summary silently comes back untouched
+  // (e.g. googleFreeTranslator's own no-throw fallback path — see translator.js)
+  const partial = async (text) => (text.startsWith("Título") ? "번역된 제목" : text);
+  const out = await new TranslatingSource(foreign, partial, "ko").fetch();
+  assert.equal(out[0].translated, undefined, "must NOT be marked translated — it was only half-done");
+  assert.equal(out[0].needsTranslation, true, "falls back to the '원문' badge instead of a mixed-language card");
+  assert.equal(out[0].title, "Título em português", "title stays original too — atomic, not per-field");
+  assert.equal(out[0].summary, "Resumo em português");
+
+  // the inverse: summary translates but title doesn't — still atomic
+  const foreign2 = {
+    id: "devto", kind: "community", async fetch() {
+      return [{ id: "pt3", title: "Untranslatable Title", summary: "Resumo em português", lang: "en", category: "tech", tags: [], source: "devto" }];
+    }
+  };
+  const partial2 = async (text) => (text.startsWith("Resumo") ? "번역된 요약" : text);
+  const out2 = await new TranslatingSource(foreign2, partial2, "ko").fetch();
+  assert.equal(out2[0].translated, undefined);
+  assert.equal(out2[0].needsTranslation, true);
+  assert.equal(out2[0].summary, "Resumo em português", "summary reverted too, even though it alone translated fine");
 });
 
 test("user posts flow into the feed and into 내 공간", async () => {
@@ -1062,6 +1142,119 @@ test("roundRobinInterleave: a genuine outlier's engagement can lead its own roun
   assert.equal(round1[0], "B1", "the outlier wins round 1 (its own round) — first among A1/B1/C1 — not earlier");
 });
 
+// David 2026-07-24 적대적 검수 #2: "홈 피드 8개 소스 독식" 회귀 픽스.
+// 근본원인: 매 getFeed 호출이 라운드로빈을 처음부터 재계산했고, round 0 하나에만도
+// (활성 소스 수만큼) limit(기본 10)보다 많은 후보가 들어있는 게 보통이라 매번 round 0의
+// scoreFn 상위 10개만 잘려나갔다 — 점수가 낮은 소스의 아이템은 항상 round 0에서 밀려나
+// (다음 round로 넘어가지도 못한 채) 다음 호출에서도 똑같이 밀리는 일이 반복돼 사실상
+// 영원히 노출되지 않았다. 반면 "시끄러운" 소스는 자기 아이템이 소진(seen)되는 족족
+// 다음 순위 아이템으로 채워져(역시 높은 점수) round 0을 계속 이겼다.
+// 수정: roundRobinInterleave가 exposure(지금까지 이 유저에게 노출된 횟수)를 1순위
+// 정렬 기준으로 삼는다 — engagement/개인화 점수는 노출 횟수가 비슷한 소스끼리의
+// 타이브레이크로만 작동한다.
+test("roundRobinInterleave: exposure (least-shown-first) overrides a raw engagement-score gap between sources", async () => {
+  const { roundRobinInterleave } = await import("../src/feed/ingest.js");
+  const mk = (id, src, rank) => ({ item: { id, source: src }, rank, hasSignal: true });
+  const topK = new Map([
+    ["loud", [mk("loud0", "loud", 0), mk("loud1", "loud", 1)]],
+    ["quiet", [mk("quiet0", "quiet", 0)]]
+  ]);
+  // "loud" wins every round on raw score alone
+  const scoreFn = (item) => (item.source === "loud" ? 999 : 1);
+  const noExposure = roundRobinInterleave(topK, { minGap: 1, scoreFn }).map((it) => it.id);
+  assert.equal(noExposure[0], "loud0", "sanity: with no exposure history, the higher score goes first");
+
+  // "loud" has already been shown to this user 20 times; "quiet" has never
+  // been shown. Despite the huge score gap, quiet0 must go first.
+  const exposure = new Map([["loud", 20], ["quiet", 0]]);
+  const withExposure = roundRobinInterleave(topK, { minGap: 1, scoreFn, exposure }).map((it) => it.id);
+  assert.equal(withExposure[0], "quiet0", "a never-shown source is prioritized over a much-higher-scoring, already-heavily-shown one");
+});
+
+// End-to-end reproduction of the reported production symptom (260 items / 26
+// pages: 8 sources repeat every page, clien shows once, several sources never
+// appear at all) and the ticket's own acceptance target: with N active
+// sources, scrolling far enough must surface every one of them at least once,
+// and no top-8 clique may dominate more than 60% of the stream.
+test("getFeed home feed: scrolling far enough surfaces EVERY active source at least once, and the top 8 never exceed 60% of the stream (2026-07-24 round-robin starvation fix)", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const sources = [];
+  // 8 "loud" sources: real engagement numbers, plenty of items (mirrors
+  // theqoo/hackernews/pann/inven_hot/tildes/devto/bobae/ppomppu in the report)
+  for (let s = 0; s < 8; s++) {
+    const id = `loud${s}`;
+    sources.push(
+      new JsonSource(
+        id,
+        async () =>
+          Array.from({ length: 30 }, (_, i) => ({
+            id: `${id}_${i}`,
+            title: `${id} 글 ${i}`,
+            url: `https://example.com/${id}/${i}`,
+            category: "tech",
+            score: 500 - i, // consistently high engagement, refills every request
+            publishedAt: "2026-07-05T00:00:00Z"
+          })),
+        "community"
+      )
+    );
+  }
+  // 12 "quiet" sources: signal-less (no score/commentCount at all — mirrors a
+  // plain RSS board like clien/etoland/44bits/yozm/outstanding/slashdot/
+  // ddanzi/newspeppermint/...) but with just as many items available as the
+  // loud sources — the reported bug was never "these sources have nothing to
+  // show," clien had plenty; they just never got surfaced because the old
+  // scoreFn-only sort always lost to the loud sources' real engagement
+  // numbers. A small fixed pool would make "starvation" indistinguishable
+  // from ordinary pool exhaustion, so this deliberately matches loud's scale.
+  for (let s = 0; s < 12; s++) {
+    const id = `quiet${s}`;
+    sources.push(
+      new JsonSource(
+        id,
+        async () =>
+          Array.from({ length: 30 }, (_, i) => ({
+            id: `${id}_${i}`,
+            title: `${id} 글 ${i}`,
+            url: `https://example.com/${id}/${i}`,
+            category: "tech",
+            publishedAt: "2026-07-05T00:00:00Z" // no score/commentCount at all — signal-less RSS-style
+          })),
+        "news"
+      )
+    );
+  }
+  const engine = new FeedEngine(store, sources);
+  const user = store.createUser("fairness_u");
+  store.saveSurvey(user.id, { categories: ["tech"] });
+
+  const shown = [];
+  let cursor = 0;
+  for (let page = 0; page < 40 && shown.length < 260; page++) {
+    const f = await engine.getFeed(user.id, { cursor, limit: 10 });
+    cursor = f.nextCursor;
+    shown.push(...f.items.map((i) => i.source));
+    if (f.exhausted) break;
+  }
+
+  assert.ok(shown.length >= 100, `expected to accumulate a large sample, got ${shown.length}`);
+
+  const byCount = new Map();
+  for (const src of shown) byCount.set(src, (byCount.get(src) || 0) + 1);
+
+  // every registered active source must appear at least once
+  for (const s of sources) {
+    assert.ok(byCount.has(s.id), `${s.id} never appeared across ${shown.length} shown items — starved`);
+  }
+
+  // no top-8 clique dominates more than 60% of the stream
+  const top8Total = [...byCount.values()].sort((a, b) => b - a).slice(0, 8).reduce((a, b) => a + b, 0);
+  assert.ok(
+    top8Total / shown.length <= 0.6,
+    `top 8 sources account for ${Math.round((top8Total / shown.length) * 100)}% of the stream (want <=60%)`
+  );
+});
+
 test("getFeed home feed hits David's diversity target: first 15 span >=8 sources, no source exceeds 3, and each item is drawn from its own board's top ranks", async () => {
   const store = new FeedStore({ clock: fixedClock });
   const sources = [];
@@ -1164,6 +1357,47 @@ test("parseListPage: theqoo 핫게시판 — title/url/date/score/comment parse,
   assert.ok(items.some((i) => i.score > 0), "view counts captured as score");
   // the pinned/notice rows ("더쿠 이용 규칙" etc.) must not leak into the feed
   assert.ok(items.every((i) => !i.title.includes("더쿠 이용 규칙")), "pinned notices excluded");
+  // David 2026-07-24 적대적 검수 #1: 프로덕션에서 publishedAt이 2001-07-23(9132일
+  // 전 — 핀 고정 공지의 실제 작성일 오독 추정)으로 고정되던 오염 사례. 픽스처 자체는
+  // 정상 날짜만 담고 있으므로(오탐 재현 불가) 여기서는 실제 파싱 결과가 전부 최근
+  // 날짜(오늘 기준 5년 이내, 미래 아님)임을 재확인한다 — sanity 가드가 뚫리지 않는 한
+  // 이 값들은 항상 정상 범위여야 한다.
+  const now = Date.now();
+  const fiveYearsMs = 5 * 365.25 * 8.64e7;
+  assert.ok(items.every((i) => !i.publishedAt || (Date.parse(i.publishedAt) <= now && now - Date.parse(i.publishedAt) <= fiveYearsMs)),
+    "every parsed date is sane (not future, not 5+ years stale)");
+});
+
+// David 2026-07-24 적대적 검수 #1: fetchers.js의 날짜 정규화 sanity 가드.
+// theqoo 버그의 근본 방어선 — 어떤 파서/마크업 변경이 다른 행의 time 요소를 오탐해도
+// 미래이거나 5년 이상 과거인 날짜는 여기서 무조건 null로 걸러져 추천엔진의 freshness()가
+// 기본 0.5 가중치로 안전하게 폴백한다(ingest.js freshness: `if (!item.publishedAt) return 0.5`).
+test("normalizeListDate: sanity guard nulls out future dates and 5+ year stale dates — the last-resort backstop for a parser reading the wrong element", async () => {
+  const { normalizeListDate } = await import("../src/feed/fetchers.js");
+  const now = () => Date.parse("2026-07-24T12:00:00Z");
+
+  // the exact production bug: theqoo YY.MM.DD "01.07.23" misread as 2001-07-23
+  assert.equal(normalizeListDate("01.07.23", now), null, "9132일 전(2001) 같은 5년+ 과거 날짜는 null");
+  assert.equal(normalizeListDate("2001-07-23", now), null, "ISO 형식으로 와도 동일하게 걸러짐");
+  assert.equal(normalizeListDate("2019-01-01", now), null, "정확히 5년을 넘는 과거 날짜도 null");
+  assert.equal(normalizeListDate("2030-01-01", now), null, "미래 날짜는 null");
+  assert.equal(normalizeListDate("2027-01-01", now), null, "가까운 미래도 null (1시간 유예만 허용)");
+
+  // sane dates must still pass through untouched
+  assert.equal(normalizeListDate("2026-07-23", now), "2026-07-23T00:00:00.000Z", "정상 최근 날짜는 그대로 통과");
+  assert.equal(normalizeListDate("11:30", now), "2026-07-24T02:30:00.000Z", "오늘 HH:MM(로컬 상대시간) 형식도 정상 통과 — sanity 가드에 걸리지 않음");
+  const relDay = normalizeListDate("3일", now);
+  assert.ok(relDay && Date.parse(relDay) < now(), "상대 날짜(N일 전)도 정상 통과");
+
+  // clock-skew grace: a few minutes into the future must still pass (real
+  // relative-time parsing can round slightly ahead of `now()`) — uses the
+  // absolute-date parse path (timezone-independent) rather than the local-time
+  // HH:MM path, to keep this assertion stable across CI timezones.
+  assert.notEqual(
+    normalizeListDate("2026-07-24T12:30:00Z", () => Date.parse("2026-07-24T12:00:00Z")),
+    null,
+    "1시간 이내의 미세한 미래는 유예 범위 내에서 통과"
+  );
 });
 
 test("parseListPage: 보배드림 베스트 — title/url/comment parse via title attribute", async () => {
@@ -1195,7 +1429,10 @@ test("parseListPage: 엠엘비파크 불펜 — date is read from BEFORE the tit
   const { parseListPage } = await import("../src/feed/fetchers.js");
   const { loadRegistry } = await import("../src/feed/registry.js");
   const entry = loadRegistry().find((c) => c.id === "mlbpark");
-  assert.equal(entry.enabled, true, "enabled despite robots Disallow:/ — WARN accepted per handoff.md 절대원칙 2");
+  // 적대적 검수 2026-07-24: robots.txt User-agent:* Disallow:/ 이고 화이트리스트에
+  // 없음 — 웃대(humoruniv)와 동일 기준으로 비활성 전환. 파싱 설정 자체는 재활성
+  // 대비 보존되므로 parseListPage 회귀 테스트는 그대로 유효.
+  assert.equal(entry.enabled, false, "robots Disallow:/ 위반, 웃대와 동일 기준 비활성 2026-07-24");
   assert.match(entry.adapter.note, /robots/);
   const items = parseListPage(fixture("mlbpark_bullpen.html"), entry.adapter.list);
   assert.ok(items.length >= 10);
@@ -1232,7 +1469,11 @@ test("parseListPage: 네이트판 톡커들의 선택 — title attribute + reco
   const { parseListPage } = await import("../src/feed/fetchers.js");
   const { loadRegistry } = await import("../src/feed/registry.js");
   const entry = loadRegistry().find((c) => c.id === "pann");
-  assert.equal(entry.enabled, true);
+  // 적대적 검수 2026-07-24: robots.txt User-agent:* Disallow:/ 이고 화이트리스트에
+  // 없음 — 웃대(humoruniv)와 동일 기준으로 비활성 전환. 파싱 설정 자체는 재활성
+  // 대비 보존되므로 parseListPage 회귀 테스트는 그대로 유효.
+  assert.equal(entry.enabled, false, "robots Disallow:/ 위반, 웃대와 동일 기준 비활성 2026-07-24");
+  assert.match(entry.adapter.note, /robots/);
   const items = parseListPage(fixture("pann_talk_ranking.html"), entry.adapter.list);
   assert.ok(items.length >= 20);
   assert.ok(items.every((i) => i.url.startsWith("https://pann.nate.com/talk/")));
@@ -1537,6 +1778,38 @@ test("GET /api/communities surfaces the frameable flag to the client (no server 
     const clien = body.communities.find((c) => c.id === "clien");
     assert.equal(theqoo.frameable, true);
     assert.equal(clien.frameable, false);
+  } finally {
+    server.close();
+  }
+});
+
+// David 2026-07-24 적대적 검수 #5: "죽은 소스 칩 자동 숨김" — enabled=true인 소스가
+// 프로덕션에서 꾸준히 0건이어도(todayhumor의 해외IP 차단처럼 enabled는 유지해야 하는
+// 경우) 소스칩에서는 빠져야 클릭 시 빈 화면을 보는 당황을 막는다. 서버는 각 소스의
+// 현재 풀 내 아이템 수(liveCount)를 함께 내려주고, 실제 숨김 판단은 프론트(index.html
+// boot())가 한다 — 여기서는 그 판단의 근거가 되는 데이터 계약만 검증한다.
+test("GET /api/communities reports each source's current pool item count (liveCount) so the client can hide dead-source chips", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const withItems = new JsonSource(
+    "clien",
+    async () => [
+      { id: "c1", title: "글1", url: "https://clien.net/1", category: "tech", publishedAt: "2026-07-05T00:00:00Z" },
+      { id: "c2", title: "글2", url: "https://clien.net/2", category: "tech", publishedAt: "2026-07-05T00:00:00Z" }
+    ],
+    "community"
+  );
+  const empty = new JsonSource("theqoo", async () => [], "community");
+  const server = createServer({ sources: [withItems, empty] });
+  await new Promise((resolve) => server.listen(0, resolve));
+  try {
+    const res = await fetch(`http://localhost:${server.address().port}/api/communities`);
+    const body = await res.json();
+    const clien = body.communities.find((c) => c.id === "clien");
+    const theqoo = body.communities.find((c) => c.id === "theqoo");
+    const untouched = body.communities.find((c) => c.id === "ppomppu"); // no source wired for it at all in this test
+    assert.equal(clien.liveCount, 2, "counts items actually in the current pool");
+    assert.equal(theqoo.liveCount, 0, "a wired source that yields nothing reports 0, not undefined");
+    assert.equal(untouched.liveCount, 0, "a registry entry with no matching source at all also reports 0");
   } finally {
     server.close();
   }
@@ -2188,14 +2461,19 @@ test("devtoFetcher maps dev.to's own field names (positive_reactions_count/comme
   assert.equal(viaMakeFetcher.length, raw.length);
 });
 
-test("parseListPage: Tildes 베스트(order=votes&period=all) — internal (relative /~group/id/slug) and external (absolute) links both resolve correctly, votes/comments never bleed across articles", async () => {
+test("parseListPage: Tildes 베스트(order=votes&period=7d) — internal (relative /~group/id/slug) and external (absolute) links both resolve correctly, votes/comments never bleed across articles", async () => {
   const { parseListPage } = await import("../src/feed/fetchers.js");
   const { loadRegistry } = await import("../src/feed/registry.js");
   const entry = loadRegistry().find((c) => c.id === "tildes");
   assert.equal(entry.adapter.type, "list");
   assert.equal(entry.lang, "en", "overseas source flows through the translation pipeline");
+  // 적대적 검수 2026-07-24: period=all(전체기간 고정 명예의전당)은 화제글이 아니라
+  // 옛 글/운영 공지만 반복 노출됐음 — period=7d(최근 7일 득표순)로 교체. Tildes의
+  // period는 named bucket이 아니라 실측 폼 값(1h/12h/24h/3d/7d/all)만 허용하고
+  // period=week/day는 422로 거부됨(2026-07-24 실측 확인) — 반드시 7d여야 한다.
+  assert.match(entry.adapter.url, /period=7d/, "period=all의 고정 명예의전당 대신 최근 7일 화제글 정렬로 교체됨 (period=week는 사이트가 422로 거부)");
   const items = parseListPage(fixture("tildes_votes.html"), entry.adapter.list);
-  assert.ok(items.length >= 40, `expected many topics, got ${items.length}`);
+  assert.ok(items.length >= 20, `expected many topics, got ${items.length}`);
   // resolveUrl() must leave absolute (external out-link) hrefs untouched while
   // still prefixing urlBase onto relative (Tildes' own self-post) hrefs
   assert.ok(items.some((i) => i.url.startsWith("https://tildes.net/~")), "internal self-posts resolved against urlBase");
@@ -2206,6 +2484,12 @@ test("parseListPage: Tildes 베스트(order=votes&period=all) — internal (rela
   // rows (a bleed bug would show many rows collapsing onto a neighbor's number)
   const uniqueScores = new Set(items.map((i) => i.score));
   assert.ok(uniqueScores.size > 10, "vote counts vary per row, not bled from a neighboring article");
+  // ~tildes / ~tildes.official is the site's own meta/announcement group
+  // ("질문하세요"류 고정 안내글 포함) — never a real "화제글", must be excluded
+  assert.ok(
+    items.every((i) => !/tildes\.net\/~tildes(?:\.official)?\//.test(i.url)),
+    "~tildes/~tildes.official meta/announcement topics excluded"
+  );
 });
 
 test("communities.json: all 10 sources added 2026-07-24 are registered, enabled, https, and lang-tagged for translation where overseas", async () => {

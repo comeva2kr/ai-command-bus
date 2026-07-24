@@ -360,12 +360,44 @@ export function topPerSource(rankedBySource, k) {
 // within that many slots of its own last appearance. When every remaining
 // candidate in a round would violate the gap (few sources left with items),
 // the best one is placed anyway rather than stalling the feed.
+//
+// `opts.exposure` (Map<source, count> or plain object) — how many times each
+// source has ALREADY been shown to this user before this call (persisted
+// across requests; see engine.js/store.js's sourceExposureFor). This is the
+// 2026-07-24 adversarial-review fix for "8개 소스가 매 페이지 반복, 나머지는
+// 0회": every getFeed call used to rebuild this interleave from scratch and
+// only ever slice off the front of round 0 (see engine.js's getFeed —
+// `unseen.slice(0, limit)`). Because round 0 alone typically holds one item
+// per *every* active source (more than `limit`), whichever handful of
+// sources scored highest under the old scoreFn-only sort would win the slice
+// every single time, while lower-scoring sources' round-0 item just sat
+// there unconsumed — and since a "loud" source's items keep getting marked
+// seen and replaced by its own next-hottest item (also scoring well), it
+// re-wins forever. The fix: exposure-so-far is now the PRIMARY sort key
+// (ascending — least-shown source goes first), with scoreFn only breaking
+// ties among similarly-exposed sources. A source nobody has seen yet always
+// sorts to the front of its round regardless of engagement score, so it
+// surfaces almost immediately instead of being starved indefinitely; loud
+// sources naturally fall back once their exposure count catches up.
 export function roundRobinInterleave(topKBySource, opts = {}) {
   const minGap = opts.minGap ?? 1;
   const scoreFn = opts.scoreFn || ((item, rank) => -rank);
+  const exposure = opts.exposure || null;
+  const exposureOf = (src) => {
+    if (!exposure) return 0;
+    const v = typeof exposure.get === "function" ? exposure.get(src) : exposure[src];
+    return Number.isFinite(v) ? v : 0;
+  };
 
   const queues = new Map();
   for (const [src, list] of topKBySource) if (list.length) queues.set(src, list.slice());
+
+  // Local running count, seeded from prior exposure and incremented as items
+  // are placed *within this call* too — so a source that wins one slot in
+  // this page doesn't keep winning every subsequent slot in the same page
+  // ahead of sources that haven't appeared at all yet.
+  const localExposure = new Map();
+  for (const src of queues.keys()) localExposure.set(src, exposureOf(src));
 
   const out = [];
   let remaining = 0;
@@ -377,9 +409,11 @@ export function roundRobinInterleave(topKBySource, opts = {}) {
     for (const [src, q] of queues) {
       if (q.length) round.push({ src, entry: q[0] });
     }
-    round.sort(
-      (a, b) => scoreFn(b.entry.item, b.entry.rank, b.entry.hasSignal) - scoreFn(a.entry.item, a.entry.rank, a.entry.hasSignal)
-    );
+    round.sort((a, b) => {
+      const expDiff = localExposure.get(a.src) - localExposure.get(b.src);
+      if (expDiff !== 0) return expDiff; // fairness first: least-exposed source goes first
+      return scoreFn(b.entry.item, b.entry.rank, b.entry.hasSignal) - scoreFn(a.entry.item, a.entry.rank, a.entry.hasSignal);
+    });
 
     while (round.length) {
       const recentSrcs = out.slice(-minGap).map((it) => it.source);
@@ -388,6 +422,7 @@ export function roundRobinInterleave(topKBySource, opts = {}) {
       const cand = round.splice(idx, 1)[0];
       out.push(cand.entry.item);
       queues.get(cand.src).shift();
+      localExposure.set(cand.src, localExposure.get(cand.src) + 1);
       remaining--;
     }
   }

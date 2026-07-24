@@ -5,7 +5,21 @@
 // (category weights + tag weights). From there the recommender takes over and
 // refines those weights from like/dislike feedback.
 
-import { CATEGORIES, TAGS, SOURCE_CATALOG } from "./taxonomy.js";
+import { CATEGORIES, TAGS } from "./taxonomy.js";
+import { loadRegistry } from "./registry.js";
+
+// "즐겨 보는 커뮤니티" 설문 옵션 = 실제 enabled && non-seed 소스만 (David 2026-07-24
+// 적대적 검수 #6). 이전엔 taxonomy.js의 정적 SOURCE_CATALOG(디시인사이드·겟차·엔카·
+// 테크와이어 등 15개 seed 더미 포함, 대부분 프로덕션에서 라이브 수집이 전혀 안 되는
+// 소스)를 그대로 썼음 — 유저가 온보딩에서 고른 소스가 실제로는 죽은 소스일 수 있었다.
+// communities.json이 진실의 원천이므로 매 프로세스 시작 시(모듈 로드 시점) 여기서
+// 필터링해 옵션을 만든다: enabled=true이고 adapter.type이 "seed"(개발용 더미, FEED_DEV
+// 전용)가 아닌 실 소스만.
+function liveSourceOptions() {
+  return loadRegistry()
+    .filter((c) => c.enabled === true && (!c.adapter || c.adapter.type !== "seed"))
+    .map((c) => ({ id: c.id, label: c.labelKo || c.label }));
+}
 
 // Each question maps user choices to weight deltas. `multi` questions accept an
 // array of selected option ids; single questions accept one option id.
@@ -60,7 +74,7 @@ export const SURVEY = [
     id: "communities",
     type: "multi",
     prompt: "즐겨 보는 커뮤니티가 있나요? 인기글을 우선 챙겨드려요. (선택)",
-    options: SOURCE_CATALOG.map((s) => ({ id: s.id, label: s.label })),
+    options: liveSourceOptions(),
     apply(selected, vec) {
       for (const id of selected) {
         vec.sources[id] = (vec.sources[id] || 0) + 1.5;

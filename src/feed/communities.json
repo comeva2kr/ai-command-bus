@@ -243,7 +243,7 @@
         "type": "list",
         "url": "https://theqoo.net/hot",
         "pages": 3,
-        "note": "핫게시판(HOT) 리스트 파싱(jagei 원조 모델). 공식 RSS 없음. 2026-07-23 검증(200, 실게시물 파싱 성공). 상단 공지/이벤트 행은 excludeRegex로 제외. 2~3페이지는 ?page=N (2026-07-24 검증, 페이지별 다른 게시물 확인).",
+        "note": "핫게시판(HOT) 리스트 파싱(jagei 원조 모델). 공식 RSS 없음. 2026-07-23 검증(200, 실게시물 파싱 성공). 상단 공지/이벤트 행은 excludeRegex로 제외. 2~3페이지는 ?page=N (2026-07-24 검증, 페이지별 다른 게시물 확인). 적대적 검수 2026-07-24: 프로덕션에서 publishedAt이 2001-07-23(핀 고정 공지의 실제 작성일, YY.MM.DD '01.07.23' 오독 추정)으로 오염되는 사례 확인 — <tr class=\"notice\"> 마크업 변경 시 excludeRegex가 놓칠 수 있어 공지 제목 키워드를 OR로 추가해 이중 방어(제목 기반 exclude는 m[0]에 제목이 포함되므로 동일 excludeRegex로 매치 가능). 근본 방어는 fetchers.js normalizeListDate의 미래/5년+ 과거 sanity 가드(2026-07-24 추가) — 이 excludeRegex가 뚫려도 날짜 오염은 가드가 최종 차단.",
         "list": {
           "urlBase": "https://theqoo.net",
           "titleRegex": "<td class=\"title\">\\s*<a href=\"(/hot/\\d+)(?:\\?[^\"]*)?\"[^>]*>(?:<strong>)?(?:<span[^>]*>)?([^<]+)",
@@ -252,7 +252,7 @@
           "commentRegex": "class=\"replyNum\">(\\d+)",
           "scoreRegex": "class=\"m_no\">([\\d,]+)",
           "dateRegex": "class=\"time\">\\s*([^<]+?)\\s*<",
-          "excludeRegex": "<tr class=\"notice[\\s\"]",
+          "excludeRegex": "<tr class=\"notice[\\s\"]|필독|비밀번호\\s*변경|이용\\s*규칙|공지가\\s*길다면",
           "pageUrl": "https://theqoo.net/hot?page={page}",
           "max": 40
         }
@@ -267,13 +267,13 @@
       "category": "sports",
       "size": "large",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": false,
       "httpsOk": true,
       "adapter": {
         "type": "list",
         "url": "https://mlbpark.donga.com/mp/b.php?b=bullpen",
-        "note": "불펜 게시판 리스트 파싱. robots.txt가 User-agent:* Disallow:/ (전면 차단)인 사이트 — David 절대원칙 2 개정(수집 계층 WARN 수용)에 따라 1회 fetch 시도, 200 성공(차단/CAPTCHA 없음). robots 저촉 WARN — 출시 전 변호사 검토 목록 포함. 추천/조회 지표는 이 리스트 뷰에 노출되지 않아 시각(상대시간)만 수집. 페이지네이션은 클라이언트 JS(pageIndex/pageSize 객체, 정적 page=/pg= 파라미터 없음)라 pageUrl 미설정 — 1페이지만 수집, 48h 롤링 축적으로 보완(2026-07-24 확인). **베스트게시판 감사(2026-07-24, David 지시)**: best.php?b=bullpen&m=like(최다추천)·m=view(최고조회) 둘 다 1회 fetch로 확인했으나 정적 HTML상 콘텐츠가 현재 bullpen 목록(PC_bullpen_today)과 완전히 동일 — 실제 랭킹 정렬은 JS/AJAX로만 렌더링되고 서버가 보내는 초기 HTML은 그냥 최신순이라 판단, 대체 불가. 현 상태(bullpen 최신순) 유지, 사유 기록.",
+        "note": "불펜 게시판 리스트 파싱. robots.txt가 User-agent:* Disallow:/ (전면 차단)인 사이트 — 이전에는 David 절대원칙 2 개정(수집 계층 WARN 수용)에 따라 1회 fetch 시도로 enabled 유지했으나, 적대적 검수 2026-07-24로 화이트리스트에 없는 robots Disallow:/ 위반, 웃대(humoruniv)와 동일 기준 비활성 2026-07-24 — enabled:false 전환. 추천/조회 지표는 이 리스트 뷰에 노출되지 않아 시각(상대시간)만 수집. 페이지네이션은 클라이언트 JS(pageIndex/pageSize 객체, 정적 page=/pg= 파라미터 없음)라 pageUrl 미설정. **베스트게시판 감사(2026-07-24, David 지시)**: best.php?b=bullpen&m=like(최다추천)·m=view(최고조회) 둘 다 1회 fetch로 확인했으나 정적 HTML상 콘텐츠가 현재 bullpen 목록(PC_bullpen_today)과 완전히 동일 — 실제 랭킹 정렬은 JS/AJAX로만 렌더링되고 서버가 보내는 초기 HTML은 그냥 최신순이라 판단, 대체 불가. url/파싱 설정은 재활성 대비 보존.",
         "list": {
           "titleRegex": "class='title'><a href='(https://mlbpark\\.donga\\.com/mp/b\\.php\\?b=bullpen[^']+)'>([^<]+)</a>",
           "windowBefore": 250,
@@ -447,14 +447,14 @@
       "category": "culture",
       "size": "medium",
       "adult": false,
-      "enabled": true,
+      "enabled": false,
       "frameable": true,
       "httpsOk": true,
       "adapter": {
         "type": "list",
         "url": "https://pann.nate.com/talk/ranking/d",
         "pages": 2,
-        "note": "톡커들의 선택(일간 명예의 전당) 리스트 파싱 — 사이트 자체 표기 그대로 \"톡커들의 선택 명예의 전당\". 공식 RSS 없음. 2026-07-23 검증(200, 실게시물 파싱 성공). ?page=N으로 2페이지까지 확인(40+40, 중복 없음) — 2026-07-24 검증. page=3은 page=1과 동일 콘텐츠를 반환해(사이트가 일간 랭킹을 2페이지=80건으로 제한하는 것으로 추정) pages를 2로 고정, 48h 롤링 축적으로 보완.",
+        "note": "톡커들의 선택(일간 명예의 전당) 리스트 파싱 — 사이트 자체 표기 그대로 \"톡커들의 선택 명예의 전당\". 공식 RSS 없음. 2026-07-23 검증(200, 실게시물 파싱 성공). ?page=N으로 2페이지까지 확인(40+40, 중복 없음) — 2026-07-24 검증. page=3은 page=1과 동일 콘텐츠를 반환해(사이트가 일간 랭킹을 2페이지=80건으로 제한하는 것으로 추정) pages를 2로 고정, 48h 롤링 축적으로 보완. 적대적 검수 2026-07-24: robots.txt가 User-agent:* Disallow:/ (전면 차단)이고 화이트리스트에 없음, 웃대(humoruniv)와 동일 기준 비활성 2026-07-24 — robots Disallow:/ 위반, 웃대와 동일 기준 비활성 2026-07-24. url/파싱 설정은 재활성 대비 보존.",
         "list": {
           "urlBase": "https://pann.nate.com",
           "titleRegex": "<a href=\"(/talk/\\d+)\"[^>]*title=\"([^\"]+)\"",
@@ -1070,15 +1070,16 @@
       "httpsOk": true,
       "adapter": {
         "type": "list",
-        "url": "https://tildes.net/?order=votes&period=all",
+        "url": "https://tildes.net/?order=votes&period=7d",
         "pages": 1,
-        "note": "David 2026-07-24 신규 추가. 베스트(전체기간 득표순) 정적 HTML 리스트. robots.txt는 /login만 전면 차단, 개별 스크레이퍼 차단 목록(AhrefsBot/BLEXBot/MJ12bot 등)에 Claude/anthropic 계열 없음. <h1 class=\"topic-title\"> 내부 <a href>에서 제목+링크 파싱 — 자체글은 상대경로(/~group/id/slug), 외부링크는 절대 URL로 혼재하는데 기존 resolveUrl()이 절대 URL은 그대로 두고 상대경로만 urlBase를 붙이므로 코드 변경 없이 정확히 구분됨(2026-07-24 실측: 50건 중 external 32 / internal 18, 링크 스킴 오분류 없음 확인). 페이지네이션 없음(정렬 자체가 전체기간 베스트라 1페이지에 50건). windowAfter는 실측한 '제목→득표 span' 최대 거리(10306자)보다 넉넉히 크게(11000) 잡아, 여러 아티클을 걸치더라도 String.match가 항상 가장 가까운(=자기 자신의) span을 먼저 잡아 이웃 글 수치가 섞이지 않게 함. 2026-07-24 검증: 200, 50건 중 50건 파싱(제목+링크+득표+댓글수 전원 확보). lang:en — 번역 파이프라인 대상.",
+        "note": "David 2026-07-24 신규 추가. 적대적 검수 2026-07-24로 period=all → period=7d 교체: 전체기간 득표순은 사이트 개설 이래 고정 명예의전당(옛 글 반복 노출, ~tildes/~tildes.official 운영 공지·메타글 포함)이라 '지금 화제글'이 아니었음. 참고: Tildes의 period 파라미터는 named bucket(day/week/...)이 아니라 실측 폼(select#period, data-js-time-period-select)의 값(1h/12h/24h/3d/7d/all)만 허용 — period=week/day는 422 Unprocessable Entity로 거부됨(2026-07-24 실측 확인). 최근 7일 득표순(period=7d)으로 바꿔 실제 화제글이 나오게 하고, excludeRegex로 ~tildes/~tildes.official 그룹(운영 공지/메타 — 각 토픽 자기 자신의 href만 검사하므로 windowBefore 불필요) 글도 배제. robots.txt는 /login만 전면 차단, 개별 스크레이퍼 차단 목록(AhrefsBot/BLEXBot/MJ12bot 등)에 Claude/anthropic 계열 없음. <h1 class=\"topic-title\"> 내부 <a href>에서 제목+링크 파싱 — 자체글은 상대경로(/~group/id/slug), 외부링크는 절대 URL로 혼재하는데 기존 resolveUrl()이 절대 URL은 그대로 두고 상대경로만 urlBase를 붙이므로 코드 변경 없이 정확히 구분됨. windowAfter는 실측한 '제목→득표 span' 최대 거리보다 넉넉히 크게(11000) 잡아, 여러 아티클을 걸치더라도 String.match가 항상 가장 가까운(=자기 자신의) span을 먼저 잡아 이웃 글 수치가 섞이지 않게 함. 2026-07-24 실측: 200, 50건 중 50건 파싱, ~tildes/~tildes.official 0건 leak. lang:en — 번역 파이프라인 대상.",
         "list": {
           "urlBase": "https://tildes.net",
           "titleRegex": "<h1 class=\"topic-title\">\\s*<a\\s+href=\"([^\"]+)\"\\s*>([^<]*)</a>",
           "windowAfter": 11000,
           "scoreRegex": "topic-voting-votes\">(\\d+)<",
           "commentRegex": "<span>(\\d+) comments?</span>",
+          "excludeRegex": "/~tildes(?:\\.official)?/",
           "max": 50
         }
       }

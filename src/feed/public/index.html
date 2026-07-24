@@ -53,6 +53,12 @@
   .hot-tag { font-size: 11px; font-weight: 800; color: #f0a13d; background: rgba(240,161,61,.14);
     border: 1px solid rgba(240,161,61,.32); border-radius: 999px; padding: 3px 9px; margin-left: 8px; white-space: nowrap; }
 
+  /* 앱 정체성 한 줄 — 온보딩 모달 안이 아니라 항상 보이게 (David 2026-07-24
+     적대적 검수 #7). header 안에 두면 --header-h가 header.offsetHeight로
+     자동 측정되므로(syncHeaderHeight) sticky한 src-chips 위치도 따로 손댈
+     필요가 없다. */
+  .tagline { font-size: 12px; color: var(--muted); margin: 4px 0 0; line-height: 1.4; }
+
   .drawer-back { position: fixed; inset: 0; z-index: 48; background: rgba(0,0,0,.5); opacity: 0;
     pointer-events: none; transition: opacity .2s ease; }
   .drawer-back.open { opacity: 1; pointer-events: auto; }
@@ -166,6 +172,10 @@
     background: var(--card-2); color: var(--muted); }
   .badge.news { color: #7fb0ff; }
   .card h3 { margin: 0 0 6px; font-size: 16px; line-height: 1.4; font-weight: 700; }
+  /* "새 탭에서 원문 열림" 시각 신호 (David 2026-07-24 적대적 검수 #7) — 카드 탭 시
+     낯선 사이트로 튕기는 당황을 줄이려고 제목 옆에 항상 붙는 작은 화살표. 유저 본인
+     글(via==="me")은 인앱 상세로 열리므로 표시하지 않는다. */
+  .newtab-hint { color: var(--muted); font-weight: 400; font-size: 0.85em; margin-left: 2px; }
   .card .orig-title { margin: -3px 0 6px; font-size: 11.5px; color: var(--muted); font-style: italic;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5;
@@ -269,6 +279,7 @@
       <span class="hot-tag">🔥 지금 핫</span>
       <button id="menuBtn" class="menu-btn" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer">☰</button>
     </div>
+    <p class="tagline">여러 커뮤니티·뉴스의 인기글을 한곳에 모아드려요. 카드를 누르면 원문 사이트 새 탭으로 열려요.</p>
   </header>
 
   <!-- 홈은 통합 핫 피드 하나만 — 소스별 선택 칩·필터 토글·내 공간·제출은 전부
@@ -468,8 +479,15 @@ syncHeaderHeight();
   localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
   state.surveyed = s.surveyed;
   // 소스 칩은 레지스트리에서 동적으로 — 하드코딩 목록 없음. 활성(enabled) + 비성인 소스만.
+  // 추가로 죽은 소스 칩 자동 숨김(David 2026-07-24 적대적 검수 #5): liveCount(현재
+  // 수집 풀에 있는 이 소스 아이템 수)가 0인 소스는 칩에서 뺀다 — todayhumor처럼
+  // enabled는 유지하되(해외IP 차단, 국내 이전 시 부활 예정) 프로덕션에서 꾸준히
+  // 0건이면 눌러도 빈 화면만 보이는 당황을 막는다. 단, anyLive가 false면(로컬
+  // FEED_LIVE 꺼진 개발/오프라인 모드 — 사실상 모든 라이브 소스가 0건) 이 필터를
+  // 건너뛴다 — 그렇지 않으면 개발 환경에서 칩이 전부 사라져 버린다.
   state.registry = communitiesRes.communities || [];
-  state.communities = state.registry.filter(c => c.enabled && !c.adult);
+  const anyLive = state.registry.some(c => (c.liveCount || 0) > 0);
+  state.communities = state.registry.filter(c => c.enabled && !c.adult && (!anyLive || (c.liveCount || 0) > 0));
   renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
   setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver();
   // Always show content first — a preview feed (popularity-ranked when no taste
@@ -1066,6 +1084,12 @@ function hotBadge(item){
   if(ageH<3) return '<span class="badge" style="background:#3fb27f;color:#0e0f13">🆕 방금</span>';
   return '';
 }
+// 댓글수 배지 (David 2026-07-24 적대적 검수 #8) — list 어댑터 커뮤글은 법적 제약으로
+// summary(본문 요약)가 비어 제목만 나오는 경우가 많다. 원 커뮤니티의 추천수/댓글수
+// (item.score/item.commentCount)는 이미 있으니 그걸로 보완한다. 이전엔 item.comments
+// (우리 앱 자체 댓글 스레드 길이, 대부분 0)만 보여줘 원 커뮤니티에 댓글이 아무리
+// 많아도 "💬 0"으로 표시되는 문제가 있었다 — 둘 중 큰 값을 보여준다.
+function commentCountFor(item){ return Math.max(item.commentCount||0, item.comments||0); }
 function appendCard(item){
   const card = document.createElement("article"); card.className="card"; card.dataset.cat=item.category; card.dataset.id=item.id;
   card.innerHTML = `
@@ -1081,12 +1105,12 @@ function appendCard(item){
       ${item.translated?'<span class="badge trans">번역</span>':(item.needsTranslation?'<span class="badge trans">원문</span>':'')}
       <span class="badge ${item.kind}">${item.kind==="news"?"뉴스":"커뮤"}</span>
     </div>
-    <h3>${escapeHtml(item.title)}</h3>
+    <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ' <span class="newtab-hint" title="새 탭에서 원문이 열려요" aria-hidden="true">↗</span>' : ''}</h3>
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>
     ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
     <div class="card-meta">
-      <span>▲ ${item.score}</span><span class="open-detail" role="button" tabindex="0" title="댓글 보기">💬 ${item.comments}</span><span>${timeAgo(item.publishedAt)}</span>
+      <span title="추천수">▲ ${item.score||0}</span><span class="open-detail" role="button" tabindex="0" title="댓글 보기">💬 ${commentCountFor(item)}</span><span>${timeAgo(item.publishedAt)}</span>
       <div class="actions">
         <button class="rate save ${item.saved?'on':''}" title="스크랩">${item.saved?'🔖':'📑'}</button>
         <button class="rate up ${item.myRating>0?'on':''}" data-s="1">👍</button>
@@ -1272,7 +1296,7 @@ async function renderDetail(itemId){
   body.innerHTML = `
     <h2>${escapeHtml(item.title)}</h2>
     <div class="card-meta" style="margin-bottom:16px">
-      <span>▲ ${item.score}</span><span>💬 ${item.thread.length}</span><span>${timeAgo(item.publishedAt)}</span>
+      <span title="추천수">▲ ${item.score||0}</span><span>💬 ${commentCountFor(item)}</span><span>${timeAgo(item.publishedAt)}</span>
       ${item.url?`<a href="${item.url}" target="_blank" rel="noopener" style="color:var(--accent)">원문 →</a>`:""}
     </div>
     <p class="full">${escapeHtml(item.summary)}</p>
@@ -1301,7 +1325,7 @@ async function renderDetail(itemId){
   document.getElementById("cSend").onclick = async ()=>{
     const ta=document.getElementById("cInput"); const txt=ta.value.trim(); if(!txt) return;
     try { const c=await API.comment(state.userId,item.id,txt); item.thread.push(c); ta.value=""; renderComments(item.thread);
-      document.querySelector(".comments h4").textContent="댓글 "+item.thread.length; syncCardComments(item.id,item.thread.length); }
+      document.querySelector(".comments h4").textContent="댓글 "+item.thread.length; syncCardComments(item.id,item.thread.length,item.commentCount); }
     catch(e){ toast("댓글 실패: "+e.message); }
   };
 }
@@ -1322,9 +1346,9 @@ function syncCard(itemId, signal){
   card.querySelector(".rate.up").classList.toggle("on", signal>0);
   card.querySelector(".rate.down").classList.toggle("on", signal<0);
 }
-function syncCardComments(itemId, n){
+function syncCardComments(itemId, n, sourceCommentCount){
   const card = state.cardsById.get(itemId); if(!card) return;
-  const meta = card.querySelectorAll(".card-meta > span")[1]; if(meta) meta.textContent = "💬 "+n;
+  const meta = card.querySelectorAll(".card-meta > span")[1]; if(meta) meta.textContent = "💬 "+Math.max(sourceCommentCount||0, n||0);
 }
 
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c])); }

@@ -64,6 +64,23 @@ export class FeedEngine {
     return this._cache;
   }
 
+  // Per-source item counts in the current collected pool (David 2026-07-24
+  // adversarial review #5 — "죽은 소스 칩 자동 숨김"). A source can be
+  // `enabled` in the registry yet consistently return 0 items in production
+  // (e.g. todayhumor's overseas-IP block) — rather than hand-maintaining an
+  // enabled/disabled flag for every such case, the source-chip bar hides
+  // itself once there's nothing behind it. See server.js's GET
+  // /api/communities and public/index.html's chip-filtering.
+  async sourceCounts() {
+    const items = await this._items();
+    const counts = {};
+    for (const item of items) {
+      const src = item.source || "unknown";
+      counts[src] = (counts[src] || 0) + 1;
+    }
+    return counts;
+  }
+
   // Force a re-collection on next read (e.g. after wiring a live source).
   // Only clears the *capped view* — the accumulation pool itself is untouched,
   // so this still merges rather than starting the 48h window over.
@@ -224,7 +241,14 @@ export class FeedEngine {
         return engagementScore + personal * 0.15; // diversity structure > taste — personalization is a tiebreak only
       };
       const minGap = Number(process.env.HOT_MIN_GAP ?? 1);
-      const interleaved = roundRobinInterleave(topK, { minGap, scoreFn });
+      // Fairness ledger: how many times each source has already been shown to
+      // this user across past getFeed calls (see store.recordSourceExposure).
+      // Primary sort key in roundRobinInterleave — this is what stops a
+      // handful of high-engagement sources from permanently dominating every
+      // page (2026-07-24 adversarial review #2). See ingest.js's
+      // roundRobinInterleave header for the full root-cause story.
+      const exposure = this.store.sourceExposureFor ? this.store.sourceExposureFor(userId) : {};
+      const interleaved = roundRobinInterleave(topK, { minGap, scoreFn, exposure });
       unseen = interleaved.map((item) => ({
         item,
         score: user.preferences ? scoreItem(item, user.preferences, { now, seed, collabBoosts, explore: 0 }) : 0
@@ -252,6 +276,12 @@ export class FeedEngine {
 
     if (markSeen && batch.length) {
       this.store.markSeen(userId, batch.map((b) => b.id));
+      // feed the round-robin fairness ledger (see the `exposure` block above)
+      // regardless of view — a source shown via source= should count too, so
+      // the home feed doesn't re-show it excessively right after.
+      if (this.store.recordSourceExposure) {
+        this.store.recordSourceExposure(userId, batch.map((b) => b.source));
+      }
     }
 
     return {
