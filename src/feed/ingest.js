@@ -195,6 +195,219 @@ export function hotness(item, nowMs) {
   return Math.round((engagement * 0.7 + fresh * 0.6) * 1000) / 1000;
 }
 
+// ---- Hot curation v1 (David 2026-07-24) ------------------------------------
+//
+// Problem this section fixes: rankBySource (further below) used to sort a
+// signal-less source (score=0/commentCount=0 everywhere — every RSS/list
+// board that doesn't expose public counters) purely by sourceRank — its
+// position in that board's own scan order. That's a fine proxy for "hot"
+// *at collection time*, but it has no notion of time passing afterward: if a
+// low-traffic board's #1 slot doesn't change for weeks, a 434-day-old post
+// can sit at rank 0 forever and keep winning that source's top-K cut. The
+// fix below is "지금 검증된 화제" — every item, regardless of source type,
+// always gets HN-style age decay applied on top of its normalized signal, so
+// staleness always drags a score down.
+//
+// Ported, well-known formulas, adapted (not copied verbatim) to this
+// project's data shape:
+//   1. robust (median/MAD) z-score       — per-source scale normalization
+//   2. probit (inverse normal CDF)       — bridges a percentile rank onto
+//                                           the same z-scale as real counters
+//   3. Hacker News "gravity" time decay  — signal / (age_hours + 2) ^ G
+//   4. IMDB-style Bayesian shrinkage     — n / (n + m), small-sample penalty
+//   5. engagement-per-hour "velocity"    — v1 proxy, see the note below
+//
+// All tunables are env-overridable (opts.* wins over env wins over default),
+// mirroring the pattern hotGate/topPerSource already use elsewhere in this
+// file:
+//   HOT_GRAVITY      default 1.8   — HN decay steepness (bigger = faster drop)
+//   HOT_BAYES_M      default 10    — Bayesian shrinkage pseudo-count
+//   HOT_VEL_W        default 0.3   — weight of the velocity-proxy bonus
+//   HOT_TASTE_W      default 0.15  — weight of the taste bias engine.js adds
+//                                    on top of hotScore (Lobsters-style: base
+//                                    ranking is objective "화제성", taste only
+//                                    re-sorts, never dominates)
+//   HOT_NEUTRAL_AGE_H default 12   — age (hours) assigned when publishedAt is
+//                                    missing/unparseable, so a dateless item
+//                                    is neither favored nor punished
+const HOT_GRAVITY_DEFAULT = 1.8;
+const HOT_BAYES_M_DEFAULT = 10;
+const HOT_VEL_W_DEFAULT = 0.3;
+const HOT_TASTE_W_DEFAULT = 0.15; // read by engine.js, exported below too
+const HOT_NEUTRAL_AGE_H_DEFAULT = 12;
+
+function envNum(name, dflt) {
+  const v = process.env[name];
+  return v != null && v !== "" ? Number(v) : dflt;
+}
+
+// How this call's tunables resolve: opts.<key> > env HOT_<KEY> > default.
+export function hotParams(opts = {}) {
+  return {
+    gravity: opts.gravity ?? envNum("HOT_GRAVITY", HOT_GRAVITY_DEFAULT),
+    bayesM: opts.bayesM ?? envNum("HOT_BAYES_M", HOT_BAYES_M_DEFAULT),
+    velW: opts.velW ?? envNum("HOT_VEL_W", HOT_VEL_W_DEFAULT),
+    tasteW: opts.tasteW ?? envNum("HOT_TASTE_W", HOT_TASTE_W_DEFAULT),
+    neutralAgeH: opts.neutralAgeH ?? envNum("HOT_NEUTRAL_AGE_H", HOT_NEUTRAL_AGE_H_DEFAULT)
+  };
+}
+
+function median(sortedAsc) {
+  const n = sortedAsc.length;
+  if (!n) return 0;
+  const mid = n >> 1;
+  return n % 2 ? sortedAsc[mid] : (sortedAsc[mid - 1] + sortedAsc[mid]) / 2;
+}
+
+// Robust per-group z-score: z = (raw - median) / (1.4826 * MAD). 1.4826 is
+// the standard consistency constant that makes MAD estimate the same scale
+// as a normal distribution's standard deviation, so these z-scores are
+// comparable across sources with wildly different raw scales (an HN score of
+// 40 vs a Korean board's 추천수 40). MAD=0 (every value identical, or a
+// single-item group) has nothing to normalize against — falls back to 0 for
+// every item rather than dividing by zero.
+export function robustZScores(values) {
+  if (!values.length) return [];
+  const med = median(values.slice().sort((a, b) => a - b));
+  const absDevs = values.map((v) => Math.abs(v - med)).sort((a, b) => a - b);
+  const mad = median(absDevs);
+  const scale = 1.4826 * mad;
+  if (!(scale > 0)) return values.map(() => 0);
+  return values.map((v) => (v - med) / scale);
+}
+
+// Inverse standard normal CDF (probit / Φ⁻¹), Peter Acklam's rational
+// approximation (relative error < 1.15e-9 across (0,1), no external
+// dependency). p is clamped to [1e-6, 1-1e-6] first — a percentile of
+// exactly 0 or 1 (the top/bottom rank of a source) would otherwise diverge
+// to ±Infinity, which is a numerically real edge case here since
+// engagement-less sources map their sourceRank straight to a percentile.
+const AKM_A = [-3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2, 1.383577518672690e2, -3.066479806614716e1, 2.506628277459239e0];
+const AKM_B = [-5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2, 6.680131188771972e1, -1.328068155288572e1];
+const AKM_C = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838e0, -2.549732539343734e0, 4.374664141464968e0, 2.938163982698783e0];
+const AKM_D = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996e0, 3.754408661907416e0];
+const PROBIT_EPS = 1e-6;
+const PROBIT_LOW = 0.02425;
+const PROBIT_HIGH = 1 - PROBIT_LOW;
+
+export function probit(p) {
+  const x = Math.min(1 - PROBIT_EPS, Math.max(PROBIT_EPS, p));
+  if (x < PROBIT_LOW) {
+    const q = Math.sqrt(-2 * Math.log(x));
+    return (((((AKM_C[0] * q + AKM_C[1]) * q + AKM_C[2]) * q + AKM_C[3]) * q + AKM_C[4]) * q + AKM_C[5]) /
+      ((((AKM_D[0] * q + AKM_D[1]) * q + AKM_D[2]) * q + AKM_D[3]) * q + 1);
+  }
+  if (x <= PROBIT_HIGH) {
+    const q = x - 0.5;
+    const r = q * q;
+    return (((((AKM_A[0] * r + AKM_A[1]) * r + AKM_A[2]) * r + AKM_A[3]) * r + AKM_A[4]) * r + AKM_A[5]) * q /
+      (((((AKM_B[0] * r + AKM_B[1]) * r + AKM_B[2]) * r + AKM_B[3]) * r + AKM_B[4]) * r + 1);
+  }
+  const q = Math.sqrt(-2 * Math.log(1 - x));
+  return -(((((AKM_C[0] * q + AKM_C[1]) * q + AKM_C[2]) * q + AKM_C[3]) * q + AKM_C[4]) * q + AKM_C[5]) /
+    ((((AKM_D[0] * q + AKM_D[1]) * q + AKM_D[2]) * q + AKM_D[3]) * q + 1);
+}
+
+// IMDB-style Bayesian shrinkage confidence, conf = n / (n + m). n = this
+// item's own raw engagement count (its "sample size" — how many reactions it
+// actually has), m = HOT_BAYES_M. A post with 5 reactions gets conf≈0.33
+// (mostly shrunk toward neutral) so "반응 5개 반짝" can't outrank a post with
+// genuinely large, trustworthy engagement (conf→1 as n grows). Sources with
+// no engagement concept at all (percentile-ranked) have no sample-size axis,
+// so callers pass conf=1 (neutral, per the spec) for that path instead.
+export function bayesianConfidence(n, m) {
+  const nn = Math.max(0, n || 0);
+  const mm = m > 0 ? m : HOT_BAYES_M_DEFAULT;
+  return nn / (nn + mm);
+}
+
+function hoursSincePublished(item, nowMs, neutralAgeH) {
+  if (item.publishedAt == null) return neutralAgeH;
+  const t = typeof item.publishedAt === "number" ? item.publishedAt : Date.parse(item.publishedAt);
+  if (!Number.isFinite(t)) return neutralAgeH;
+  return Math.max(0, (nowMs - t) / 3.6e6);
+}
+
+// HN-style "gravity" decay: signal / (age_hours + 2) ^ gravity. Exported
+// standalone (in addition to being folded into sourceHotScores below) so the
+// decay behavior itself — "older always loses to fresher, holding the signal
+// constant" — can be unit-tested directly.
+export function hnDecay(signal, ageHours, gravity) {
+  const g = gravity > 0 ? gravity : HOT_GRAVITY_DEFAULT;
+  return signal / Math.pow(Math.max(0, ageHours) + 2, g);
+}
+
+// The full v1 hot-curation pipeline for ONE source's current item pool (or
+// any single flat group the caller wants scored together — see engine.js's
+// source= view, which treats its whole filtered pool as one group exactly
+// like the old plain hotness() call it replaces).
+//
+//   1. normalize this group's raw engagement to a z-score (robust z), or —
+//      if the group has no engagement numbers anywhere — map each item's
+//      sourceRank to a percentile and probit that onto the same z-axis.
+//   2. shrink engagement z-scores by Bayesian confidence (small-sample
+//      posts pulled toward neutral); percentile-path items get conf=1.
+//   3. turn the (confidence-weighted) z-score positive (Math.exp — always
+//      >0, strictly order-preserving) and apply HN gravity decay by age.
+//   4. add a small velocity-proxy bonus (engagement/hour, log-scaled so a
+//      single viral outlier's raw count can't swamp the decay term).
+//
+// Returns items in the SAME order as input, each annotated with hotScore
+// (what callers sort by) plus the intermediate numbers for inspection/tests.
+export function sourceHotScores(items, nowMs, opts = {}) {
+  const now = nowMs || Date.now();
+  const { gravity, bayesM, velW, neutralAgeH } = hotParams(opts);
+  const n = items.length;
+  const raws = items.map((item) => rawEngagement(item));
+  const hasSignal = raws.some((r) => r > 0);
+
+  let norms;
+  let confs;
+  if (hasSignal) {
+    norms = robustZScores(raws);
+    confs = raws.map((r) => bayesianConfidence(r, bayesM));
+  } else {
+    // No engagement anywhere in this group — this source's own hot/best-board
+    // collection order (sourceRank) is the only ranking signal available.
+    // rank 0 (this source's own top item right now) -> percentile 1 -> the
+    // top of the z-axis; the last item -> percentile 0 -> the bottom.
+    norms = items.map((item, i) => {
+      const order = Number.isFinite(item.sourceRank) ? item.sourceRank : i;
+      const pct = 1 - order / Math.max(n - 1, 1);
+      return probit(pct);
+    });
+    confs = items.map(() => 1); // no sample-size concept to shrink against — neutral
+  }
+
+  return items.map((item, i) => {
+    const raw = raws[i];
+    const normScore = norms[i] * confs[i];
+    const shifted = Math.exp(normScore); // always positive, monotonic in normScore
+    const age = hoursSincePublished(item, now, neutralAgeH);
+    const decayed = hnDecay(shifted, age, gravity);
+    // v1 velocity proxy: engagement/hour, NOT true Δreaction/Δt (that needs
+    // periodic snapshots stored over time so a real delta can be computed —
+    // out of scope for this pass; see the plan for a v2 that persists
+    // per-item engagement snapshots and derives real velocity from them).
+    // log10-scaled and weighted small so it nudges rather than dominates.
+    const vel = hasSignal ? raw / (age + 2) : 0;
+    const hotScoreVal = decayed + velW * Math.log10(1 + vel);
+    return {
+      item,
+      raw,
+      hasSignal,
+      normScore,
+      confidence: confs[i],
+      age,
+      decayed,
+      vel,
+      hotScore: Math.round(hotScoreVal * 1e6) / 1e6
+    };
+  });
+}
+
+export { HOT_TASTE_W_DEFAULT };
+
 // ---- Home-feed hot gate (David 2026-07-24 UX overhaul) --------------------
 //
 // The home feed is meant to be "지금 핫한 것만" — one unified stream of only
@@ -304,31 +517,42 @@ export function hotGate(items, nowMs, opts = {}) {
 // so the stream reads as many boards taking turns, not one board's list.
 
 // Group items by source and sort each group hot-first. Returns
-// Map<source, Array<{ item, rank, hasSignal }>> — `rank` is 0-based position
-// within that source's hot order (0 = that source's hottest item right now).
-export function rankBySource(items) {
+// Map<source, Array<{ item, rank, hasSignal, hotScore, normScore }>> —
+// `rank` is 0-based position within that source's hot order (0 = that
+// source's hottest item right now).
+//
+// The sort key is `hotScore` from sourceHotScores (see above) — HN-gravity
+// time-decayed, Bayesian-shrunk, per-source-normalized engagement (or, for a
+// signal-less source, its sourceRank's probit-mapped percentile, same decay
+// applied). This replaced a plain raw-engagement/sourceRank sort on
+// 2026-07-24: that sort had no time axis at all, so a low-activity source's
+// rank-0 item could be a months-old post that simply never got displaced from
+// the top of that board's own scan order — hotScore always decays it by age
+// regardless of source type, on top of whatever `nowMs` the caller supplies
+// (real time by default; injectable for deterministic tests).
+export function rankBySource(items, nowMs, opts = {}) {
+  const now = nowMs || Date.now();
   const bySource = new Map();
   items.forEach((item, i) => {
     const src = item.source || "unknown";
     if (!bySource.has(src)) bySource.set(src, []);
-    bySource.get(src).push({ item, i, raw: rawEngagement(item) });
+    bySource.get(src).push(item);
   });
 
   const out = new Map();
   for (const [src, group] of bySource) {
-    const hasSignal = group.some((x) => x.raw > 0);
-    // `order` is this item's position to sort by when there's nothing better:
-    // its stamped collection-time rank if present, else its arrival position
-    // in this call (stable fallback for items built without sourceRank, e.g.
-    // "me"/seed items or hand-built test fixtures).
-    const withOrder = group.map((x) => ({
-      ...x,
-      order: Number.isFinite(x.item.sourceRank) ? x.item.sourceRank : x.i
-    }));
-    withOrder.sort((a, b) => (hasSignal ? b.raw - a.raw || a.order - b.order : a.order - b.order));
+    const scored = sourceHotScores(group, now, opts)
+      .map((s, i) => ({ ...s, i })) // stable tie-break on original arrival order
+      .sort((a, b) => b.hotScore - a.hotScore || a.i - b.i);
     out.set(
       src,
-      withOrder.map((x, rank) => ({ item: x.item, rank, hasSignal }))
+      scored.map((s, rank) => ({
+        item: s.item,
+        rank,
+        hasSignal: s.hasSignal,
+        hotScore: s.hotScore,
+        normScore: s.normScore
+      }))
     );
   }
   return out;
@@ -381,7 +605,12 @@ export function topPerSource(rankedBySource, k) {
 // sources naturally fall back once their exposure count catches up.
 export function roundRobinInterleave(topKBySource, opts = {}) {
   const minGap = opts.minGap ?? 1;
-  const scoreFn = opts.scoreFn || ((item, rank) => -rank);
+  // scoreFn(item, rank, hasSignal, hotScore) — hotScore (from rankBySource,
+  // when present) is the default tie-break so callers that don't supply
+  // their own scoreFn still order by the objective hot-curation score rather
+  // than raw rank; falls back to -rank for hand-built entries without it
+  // (e.g. tests constructing topKBySource directly).
+  const scoreFn = opts.scoreFn || ((item, rank, hasSignal, hotScore) => (hotScore ?? -rank));
   const exposure = opts.exposure || null;
   const exposureOf = (src) => {
     if (!exposure) return 0;
@@ -412,7 +641,10 @@ export function roundRobinInterleave(topKBySource, opts = {}) {
     round.sort((a, b) => {
       const expDiff = localExposure.get(a.src) - localExposure.get(b.src);
       if (expDiff !== 0) return expDiff; // fairness first: least-exposed source goes first
-      return scoreFn(b.entry.item, b.entry.rank, b.entry.hasSignal) - scoreFn(a.entry.item, a.entry.rank, a.entry.hasSignal);
+      return (
+        scoreFn(b.entry.item, b.entry.rank, b.entry.hasSignal, b.entry.hotScore) -
+        scoreFn(a.entry.item, a.entry.rank, a.entry.hasSignal, a.entry.hotScore)
+      );
     });
 
     while (round.length) {

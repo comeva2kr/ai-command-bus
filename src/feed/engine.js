@@ -19,7 +19,7 @@ import {
 } from "./recommender.js";
 import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
-import { hotness, hotGate, rawEngagement, rankBySource, topPerSource, roundRobinInterleave } from "./ingest.js";
+import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams } from "./ingest.js";
 import { FILTERABLE_TOPICS } from "./topics.js";
 
 // How long a collected item stays in the rolling pool before it's eligible for
@@ -200,7 +200,17 @@ export class FeedEngine {
           !disabled.has(i.source) &&
           !topicsBlocked(i, showTopics)
       );
-      const ranked = pool.map((item) => ({ item, score: hotness(item, now) })).sort((a, b) => b.score - a.score);
+      // Same hot-curation pipeline as the home feed (2026-07-24 hot-curation
+      // v1) — HN-gravity time decay + robust-z/percentile normalization +
+      // Bayesian shrinkage — applied to the whole filtered pool as one flat
+      // group (this view is already scoped to a single source/provenance, so
+      // there's nothing to group further; "submit"'s pool spans many out-link
+      // domains but was already scored uniformly before this change too).
+      // This is what stops a stale-but-still-#1-ranked RSS item from sitting
+      // atop a board's own view forever, same as the home feed below.
+      const ranked = sourceHotScores(pool, now)
+        .map((s) => ({ item: s.item, score: s.hotScore }))
+        .sort((a, b) => b.score - a.score);
       unseen = ranked.filter((r) => !seen.has(r.item.id));
     } else {
       // Unseen is filtered in up front (not after ranking, as the old
@@ -225,20 +235,23 @@ export class FeedEngine {
       // list dominating. Personalization only breaks ties *within* a round —
       // diversity wins over taste here by design ("다양성 > 개인화").
       collabBoosts = collaborativeBoosts(this.store, userId);
-      const rankedBySource = pool.length ? rankBySource(pool) : new Map();
+      // hotScore (2026-07-24 hot-curation v1, ingest.js's rankBySource/
+      // sourceHotScores) is now each source's internal sort key — HN-gravity
+      // time decay + per-source robust-z/percentile normalization + Bayesian
+      // small-sample shrinkage, so a stale-but-still-rank-0 RSS item can no
+      // longer win its source's top-K cut just because nothing displaced it.
+      const rankedBySource = pool.length ? rankBySource(pool, now) : new Map();
       const topK = topPerSource(rankedBySource);
-      const kBySource = new Map([...topK].map(([src, list]) => [src, list.length]));
       const seed = cursor + 1;
-      const scoreFn = (item, rank, hasSignal) => {
-        const k = kBySource.get(item.source) || 1;
-        const base = k > 0 ? (k - rank) / k : 1; // 1 = this source's hottest slot in the round
-        const engagementScore = hasSignal
-          ? base + Math.log10(1 + rawEngagement(item)) / 6 // soft outlier boost — a real 초대박 can still lead its round
-          : base * 0.5; // no-signal sources rank a touch lower within the round, never excluded
-        const personal = user.preferences
+      const { tasteW } = hotParams();
+      const scoreFn = (item, rank, hasSignal, hotScoreVal) => {
+        const taste = user.preferences
           ? Math.tanh(scoreItem(item, user.preferences, { now, seed, collabBoosts, explore: 0 }) / 4)
           : 0;
-        return engagementScore + personal * 0.15; // diversity structure > taste — personalization is a tiebreak only
+        // Lobsters-style additive taste bias: hotScore (objective "화제성")
+        // leads, taste only re-sorts within it — never flips a genuinely
+        // hotter item behind a merely on-taste one (tasteW default 0.15).
+        return (hotScoreVal ?? 0) + tasteW * taste;
       };
       const minGap = Number(process.env.HOT_MIN_GAP ?? 1);
       // Fairness ledger: how many times each source has already been shown to

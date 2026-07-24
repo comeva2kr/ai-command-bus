@@ -1171,6 +1171,129 @@ test("roundRobinInterleave: exposure (least-shown-first) overrides a raw engagem
   assert.equal(withExposure[0], "quiet0", "a never-shown source is prioritized over a much-higher-scoring, already-heavily-shown one");
 });
 
+// --- Hot curation v1 (David 2026-07-24) -------------------------------------
+// Ported-formula unit tests: robust z-score, the probit/Φ⁻¹ approximation
+// against known standard-normal quantiles, HN gravity decay (older always
+// loses to fresher holding signal constant), Bayesian small-sample shrinkage,
+// the engagement-less percentile path, and the specific production symptom
+// this whole pass exists to fix — a 434-day-old post sitting at a signal-less
+// source's rank-0 slot must NOT win over that same source's genuinely fresh
+// items just because nothing has displaced it from the board's top slot.
+
+test("robustZScores: known values (median/MAD) and the MAD=0 safe fallback", async () => {
+  const { robustZScores } = await import("../src/feed/ingest.js");
+  // median=30, absDevs=[20,10,0,10,20] -> MAD=10 -> scale=14.826
+  const z = robustZScores([10, 20, 30, 40, 50]);
+  assert.ok(Math.abs(z[2]) < 1e-9, "the median itself scores ~0");
+  assert.ok(z[0] < z[1] && z[1] < z[2] && z[2] < z[3] && z[3] < z[4], "monotonic with raw value");
+  assert.ok(Math.abs(z[4] - 1.34898) < 1e-3, "known z-score for the top of this distribution");
+  // every value identical -> MAD=0 -> no divide-by-zero, falls back to all 0
+  assert.deepEqual(robustZScores([5, 5, 5, 5]), [0, 0, 0, 0], "flat distribution never NaNs/Infinitys");
+  assert.deepEqual(robustZScores([]), [], "empty input is safe");
+});
+
+test("probit (Φ⁻¹) approximation matches known standard-normal quantiles within 1e-4", async () => {
+  const { probit } = await import("../src/feed/ingest.js");
+  assert.ok(Math.abs(probit(0.5) - 0) < 1e-9, "the median maps to z=0");
+  assert.ok(Math.abs(probit(0.975) - 1.959964) < 1e-4, "97.5th percentile -> ~1.96 (textbook 95% CI bound)");
+  assert.ok(Math.abs(probit(0.025) - -1.959964) < 1e-4, "2.5th percentile -> ~-1.96");
+  assert.ok(Math.abs(probit(0.9) - 1.281552) < 1e-4, "90th percentile -> ~1.2816");
+  assert.ok(Math.abs(probit(0.1) - -1.281552) < 1e-4, "10th percentile -> ~-1.2816");
+  assert.ok(probit(0.5 + 1e-9) > probit(0.5 - 1e-9), "monotonic increasing");
+  // boundary safety: exactly 0 or 1 (a real input here — a source's own top
+  // or bottom rank maps straight to a percentile of 1 or 0) must stay finite,
+  // never ±Infinity/NaN.
+  assert.ok(Number.isFinite(probit(1)), "p=1 clamped to a finite z, not +Infinity");
+  assert.ok(Number.isFinite(probit(0)), "p=0 clamped to a finite z, not -Infinity");
+  assert.ok(probit(1) > probit(0.999), "still ordered correctly right at the clamp boundary");
+});
+
+test("hnDecay: older always loses to fresher holding the signal constant, and gravity steepens the drop", async () => {
+  const { hnDecay } = await import("../src/feed/ingest.js");
+  const fresh = hnDecay(1, 1, 1.8);
+  const oneDayOld = hnDecay(1, 24, 1.8);
+  const veryOld = hnDecay(1, 434 * 24, 1.8); // the reported production case
+  assert.ok(fresh > oneDayOld, "1h old outranks 1 day old at equal signal");
+  assert.ok(oneDayOld > veryOld, "1 day old outranks 434 days old at equal signal");
+  assert.ok(fresh / veryOld > 1e6, "434-day staleness is a crushing, not a mild, penalty");
+  // higher gravity decays faster
+  assert.ok(hnDecay(1, 100, 3.0) < hnDecay(1, 100, 1.8), "a steeper gravity value decays the same age harder");
+});
+
+test("bayesianConfidence: small-sample items are shrunk toward neutral, large samples approach full trust", async () => {
+  const { bayesianConfidence } = await import("../src/feed/ingest.js");
+  const small = bayesianConfidence(5, 10); // "반응 5개 반짝"
+  const large = bayesianConfidence(1000, 10);
+  assert.ok(small < 0.5, "a handful of reactions is mostly shrunk toward neutral");
+  assert.ok(large > 0.95, "a large, trustworthy sample keeps nearly all its signal");
+  assert.ok(bayesianConfidence(0, 10) === 0, "zero reactions -> zero confidence, fully neutral");
+  assert.ok(bayesianConfidence(50, 10) > bayesianConfidence(5, 10), "monotonic in sample size");
+});
+
+test("sourceHotScores: engagement-less source path uses sourceRank->percentile->probit, still decayed by age", async () => {
+  const { sourceHotScores } = await import("../src/feed/ingest.js");
+  const { normalizeItem } = await import("../src/feed/content.js");
+  const now = Date.parse("2026-07-24T00:00:00Z");
+  const items = [0, 1, 2].map((rank) =>
+    normalizeItem({ id: `r${rank}`, source: "quiet-rss", sourceRank: rank, publishedAt: "2026-07-23T00:00:00Z" })
+  );
+  const scored = sourceHotScores(items, now);
+  assert.ok(scored.every((s) => s.hasSignal === false), "no engagement anywhere in this group");
+  assert.ok(scored.every((s) => s.confidence === 1), "no sample-size axis for a percentile-ranked source -> neutral confidence");
+  assert.ok(scored[0].hotScore > scored[1].hotScore && scored[1].hotScore > scored[2].hotScore, "board's own rank order preserved when age is equal");
+});
+
+test("sourceHotScores: THE core fix — a 434-day-old post at a quiet source's rank-0 loses to that same source's genuinely fresh items", async () => {
+  const { sourceHotScores } = await import("../src/feed/ingest.js");
+  const { normalizeItem } = await import("../src/feed/content.js");
+  const now = Date.parse("2026-07-24T00:00:00Z");
+  const hoursAgo = (h) => new Date(now - h * 3.6e6).toISOString();
+  // mirrors the reported bug exactly: rank 0 is a 434-day-old post, rank 1 is
+  // a 199-day-old post, and rank 2/3 are the source's genuinely fresh items —
+  // a signal-less RSS source where score/commentCount are 0 everywhere.
+  const items = [
+    normalizeItem({ id: "stale_434d", source: "low-activity-rss", sourceRank: 0, publishedAt: hoursAgo(434 * 24) }),
+    normalizeItem({ id: "stale_199d", source: "low-activity-rss", sourceRank: 1, publishedAt: hoursAgo(199 * 24) }),
+    normalizeItem({ id: "fresh_5h", source: "low-activity-rss", sourceRank: 2, publishedAt: hoursAgo(5) }),
+    normalizeItem({ id: "fresh_2h", source: "low-activity-rss", sourceRank: 3, publishedAt: hoursAgo(2) })
+  ];
+  const byId = Object.fromEntries(sourceHotScores(items, now).map((s) => [s.item.id, s]));
+  assert.ok(byId.fresh_2h.hotScore > byId.stale_434d.hotScore, "a 2h-old post outranks the board's stale rank-0 post");
+  assert.ok(byId.fresh_5h.hotScore > byId.stale_434d.hotScore, "a 5h-old post outranks the board's stale rank-0 post");
+  assert.ok(byId.fresh_2h.hotScore > byId.stale_199d.hotScore, "a fresh post also outranks a 199-day-old one");
+  assert.ok(byId.stale_434d.hotScore < 0.01, "the 434-day-old post's hotScore is crushed near zero, not merely lowered");
+});
+
+test("rankBySource: the same 434-day fix holds through the full grouping/sorting entry point", async () => {
+  const { rankBySource } = await import("../src/feed/ingest.js");
+  const { normalizeItem } = await import("../src/feed/content.js");
+  const now = Date.parse("2026-07-24T00:00:00Z");
+  const hoursAgo = (h) => new Date(now - h * 3.6e6).toISOString();
+  const items = [
+    normalizeItem({ id: "stale_434d", source: "low-activity-rss", sourceRank: 0, publishedAt: hoursAgo(434 * 24) }),
+    normalizeItem({ id: "fresh_2h", source: "low-activity-rss", sourceRank: 1, publishedAt: hoursAgo(2) })
+  ];
+  const order = rankBySource(items, now).get("low-activity-rss").map((r) => r.item.id);
+  assert.equal(order[0], "fresh_2h", "fresh item now ranks first despite its worse board-collection rank");
+});
+
+test("taste bias cannot reverse a large hotScore gap at default weight — 화제성 우선, 취향은 재정렬만", async () => {
+  const { sourceHotScores, hotParams } = await import("../src/feed/ingest.js");
+  const now = Date.parse("2026-07-24T00:00:00Z");
+  const items = [
+    { id: "hot_fresh", source: "s", score: 500, commentCount: 50, publishedAt: new Date(now - 1 * 3.6e6).toISOString() },
+    { id: "cold_stale", source: "s", score: 1, commentCount: 0, publishedAt: new Date(now - 240 * 3.6e6).toISOString() }
+  ];
+  const byId = Object.fromEntries(sourceHotScores(items, now).map((s) => [s.item.id, s]));
+  const { tasteW } = hotParams();
+  const maxTasteSwing = 2 * tasteW; // taste term is tanh-bounded to (-1, 1) in engine.js
+  const gap = byId.hot_fresh.hotScore - byId.cold_stale.hotScore;
+  assert.ok(gap > maxTasteSwing, `hotScore gap (${gap}) must exceed the max possible taste swing (${maxTasteSwing}) for taste to never flip a real hot/cold pair`);
+  // even the worst case (taste maximally favors the cold item, maximally
+  // disfavors the hot one) cannot flip the order
+  assert.ok(byId.hot_fresh.hotScore + tasteW * -1 > byId.cold_stale.hotScore + tasteW * 1, "adversarial taste bias still can't flip a genuine hot/cold pair");
+});
+
 // End-to-end reproduction of the reported production symptom (260 items / 26
 // pages: 8 sources repeat every page, clien shows once, several sources never
 // appear at all) and the ticket's own acceptance target: with N active
