@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Weekly quiz pipeline — step 1 of 2 (see quiz-weekly-cron.sh for step 2).
+// Weekly quiz pipeline — step 1 (see docs/quiz-cron.md for the full sequence:
+// dump → `weekly.js prompt` → Claude Code scheduled session generates the
+// quiz → `weekly.js submit`).
 //
 // Collects real hot items from the live feed pipeline (src/feed) and dumps
 // them in the item shape src/quiz/topics.js's pickWeeklyTopics expects:

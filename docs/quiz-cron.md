@@ -1,124 +1,136 @@
-# 주간 유형테스트 파이프라인 — cron 자동화
+# 주간 유형테스트 파이프라인 — 주간 예약 실행
 
-이 문서는 **실데이터 수집 → 초안 생성 → 승인 대기열 등록**까지 무인 자동화하는
-launchd cron 킷의 설치/운영 가이드다. 게이트 설계 자체(QG0~QG6)는
-[quiz-loopgate.md](quiz-loopgate.md)가 정본이고, 이 문서는 그 파이프라인을
-"누가 몇 시에 돌리는가"만 다룬다.
+이 문서는 **실데이터 수집 → 퀴즈 생성 → 루프게이트 통과 → 승인 대기열
+등록**까지, Claude Code 예약 세션이 무인으로 수행하는 주간 실행의 구조와
+절차를 다룬다. 게이트 설계 자체(QG0~QG6)는 [quiz-loopgate.md](quiz-loopgate.md)가
+정본이고, 이 문서는 "누가 어떻게 돌리는가"만 다룬다.
 
-## 자동화 범위 (경계)
+> **생성 주체가 바뀌었다.** 예전에는 launchd cron이 macOS Keychain에서
+> `ANTHROPIC_API_KEY`를 읽어 `src/quiz/generate.js`가 API를 직접 호출했다.
+> **지금은 Claude Code 예약 세션이 자신의 모델로 퀴즈 JSON을 직접 생성해
+> 파이프라인에 "제출"한다.** API 키/launchd/Keychain 킷은 철거했다 — 과금은
+> 세션의 구독으로 처리되고, 이 저장소 어디에도 API 키가 필요 없다. (키를
+> 쓰는 수동/테스트 경로는 `weekly.js run`으로 옵션 존치 — 아래 [부록](#부록-api-키수동-run-경로) 참고.)
 
-- **자동화됨**: 실데이터 핫아이템 수집(`scripts/quiz-dump-hot-items.js`) →
-  AI 퀴즈 초안 생성 + 루프게이트(QG1~QG4) 통과 → `decision_queue` 승인 대기열
-  등록(`node src/quiz/weekly.js run`).
-- **자동화되지 않음 — 사람 전용**: 발행(`node src/quiz/weekly.js approve
-  <slug>`). QG5는 매니페스트에 `no_go: external_publish`로 고정돼 있고,
-  `quiz-weekly-cron.sh`는 `approve`를 어떤 경로로도 호출하지 않는다. 초안이
-  쌓이면 David가 직접 검토 후 승인해야 `/q/<slug>`로 공개된다.
-- cron이 실패해도(수집 0건, 루프게이트 예산 소진 등) 자동으로 재시도하거나
-  우회하지 않는다 — 실패 알림만 뜨고, 사람이 원인을 보고 다음 주기 또는
-  수동 재실행을 판단한다.
+## 구조
 
-## 전제
+- **생성기 = Claude Code 예약 세션.** 세션이 `weekly.js prompt`로 생성
+  프롬프트(토픽 + 설계 규칙, `buildPrompt()`가 단일 원본)를 받아 자기 모델로
+  퀴즈 JSON을 만들고, `weekly.js submit`으로 게이트 루프에 제출한다.
+- **게이트 루프는 그대로다.** `submit`은 `run`이 쓰던 것과 **동일한 계약**
+  (`runGates` → PASS면 `saveDraft` + `routeTask('publish quiz')`
+  → `decision_queue`, 아니면 반려)을 CLI 왕복 형태로 노출할 뿐이다 —
+  `src/quiz/gates.js`·`manifest.js`·`topics.js`·`generate.js`의 게이트 로직은
+  단 한 줄도 바뀌지 않았다.
+- **재시도는 세션이 프로세스 밖에서 돈다.** `run`이 in-process 루프
+  (생성 → 게이트 → 실패 시 프롬프트에 사유 주입 → 재생성)를 돌리던 것을,
+  예약 세션은 `submit`이 exit 2로 반려하면 저장된 reasons 파일을
+  `prompt --feedback`으로 되먹여 자기 턴에서 재생성한다. 예산은 동일하게
+  매니페스트 `pack_contract.retry_budget`(현재 3)이 정본이다.
+- **과금/키**: 세션은 David의 Claude 구독으로 실행된다 — 이 저장소는
+  `ANTHROPIC_API_KEY`도, launchd/Keychain 설정도 요구하지 않는다.
 
-- 이 저장소가 재부팅에도 살아남는 **영구 클론 경로**에 있어야 한다 (아래
-  `__REPO_DIR__`가 그 경로). 스크래치/임시 디렉토리에 두면 launchd가 매번
-  존재하지 않는 경로를 호출하게 된다.
-- macOS, Node.js >= 22 (package.json `engines.node`), `launchctl`/`security`/
-  `plutil`은 시스템 기본 제공.
-- 승인 대기 알림은 `osascript display notification`을 쓰므로, cron을 실행하는
-  사용자 세션에 GUI 로그인이 돼 있어야 알림이 실제로 뜬다(완전 헤드리스
-  서버에서는 알림이 조용히 실패하지만 파이프라인 자체는 계속 진행된다).
+## 예약 세션이 따를 절차 (사람이 읽는 계약서)
 
-## 1) Keychain에 Anthropic API 키 저장 (David, 최초 1회)
+예약 세션은 매주 아래 순서를 그대로 따른다. 각 단계의 실패 처리까지 계약의
+일부다 — 임의로 순서를 바꾸거나 단계를 생략하지 않는다.
 
-`quiz-weekly-cron.sh`는 매 실행 시 macOS Keychain에서
-`security find-generic-password -s wrc-quiz-anthropic -w`로 키를 읽어
-`ANTHROPIC_API_KEY`로 export한다. 키가 없으면 경고만 남기고
-`src/quiz/generate.js`의 결정적 템플릿 폴백으로 계속 진행한다(파이프라인은
-막히지 않음 — 다만 AI 생성 대신 템플릿 퀴즈가 나온다).
+1. **`git pull`** — 이 저장소의 영구 클론 경로에서 최신 상태로 갱신한다.
+2. **덤프**: `node scripts/quiz-dump-hot-items.js` — 실데이터 소스에서
+   핫아이템을 수집해 `data/quiz/hot_items-<weekLabel>.json`에 저장한다.
+   수집 0건이면 이 스크립트가 exit 1로 실패한다 — 세션은 여기서 멈추고
+   실패로 보고한다(다음 단계로 진행하지 않는다).
+3. **프롬프트 받기**: `node src/quiz/weekly.js prompt <dump.json>` — stdout에
+   찍히는 프롬프트를 그대로 자신의 생성 입력으로 쓴다. stderr에는 이번 주
+   통과 토픽 요약이 참고용으로 나온다.
+4. **세션이 퀴즈 JSON을 생성**한다 — 프롬프트의 설계 규칙(축 2~4개 톱다운
+   설계, 문항 8~15개, 유형 = 극 조합 전체, 80:20 서술 등)을 그대로 따르고,
+   퀴즈 스키마(`QUIZ_SCHEMA`, `src/quiz/generate.js`)와 일치하는 JSON 파일로
+   저장한다.
+5. **제출**: `node src/quiz/weekly.js submit <quiz.json> <dump.json>`
+   - **exit 0** — 루프게이트(QG1~QG4) 통과. 초안이 `data/quiz/drafts/`에
+     저장되고 발행 작업이 `decision_queue`로 라우팅됐다는 뜻. 세션은
+     `osascript`로 "주간 퀴즈 초안 — 승인 대기: <제목> (<slug>)" 알림을
+     띄우고 종료한다.
+   - **exit 2** — 게이트 반려. stderr에 `[QG…] 사유`가 한 줄씩 찍히고,
+     동일한 사유가 `data/quiz/last_reject_reasons.json`(기본 경로,
+     `--reasons-out`로 변경 가능)에 JSON 배열로 저장된다. 세션은 그 파일을
+     `--feedback`으로 4번 단계(프롬프트 재수신)에 되먹여 재생성한다.
+6. **재시도 예산**: 4~5단계를 **최대 3회**(매니페스트
+   `pack_contract.retry_budget`)까지 반복한다. 3회 모두 반려되면 **fail-loud
+   실패로 종료** — 조용히 템플릿으로 대체 발행하지 않는다. `osascript`로
+   "주간 퀴즈 생성 실패 — 예산 소진, 사람이 토픽 교체 판단" 알림을 띄운다.
 
-터미널에서 아래 명령을 실행하고 **프롬프트가 뜨면 그때 키를 입력**한다.
-커맨드라인 인자로 키를 넘기면 셸 히스토리/프로세스 목록에 평문으로 남으니
-절대 그렇게 하지 말 것:
+의사코드로 요약하면:
 
-```sh
-security add-generic-password -s wrc-quiz-anthropic -a "$USER" -w
+```
+git pull
+dump = quiz-dump-hot-items.js
+prompt = weekly.js prompt dump
+for attempt in 1..3:
+  quiz = <세션이 prompt(+feedback)로 생성>
+  result = weekly.js submit quiz dump --attempt attempt
+  if result.exit == 0: notify(성공, slug); break
+  if result.exit == 2:
+    feedback = read(reasons_file)
+    prompt = weekly.js prompt dump --feedback reasons_file
+    continue
+else:
+  notify(실패, "예산 소진")
 ```
 
-(`-w` 뒤에 값을 안 주면 터미널이 값을 프롬프트로 요청한다. 키가 이미
-있으면 `-U` 플래그를 추가해 갱신: `security add-generic-password -s
-wrc-quiz-anthropic -a "$USER" -U -w`)
+## 경계 (반드시 지킬 것)
 
-확인:
+- **`approve`는 세션이 절대 호출하지 않는다.** QG5는 매니페스트에
+  `no_go: external_publish`로 고정돼 있다. 초안이 쌓이면 David가 직접
+  검토 후 `node src/quiz/weekly.js approve <slug>`를 실행해야 `/q/<slug>`로
+  공개된다.
+- **`git push`도 세션이 하지 않는다.** 예약 세션의 산출물(덤프 파일, 초안,
+  reasons 파일)은 로컬 데이터 디렉토리(`data/quiz/`)에만 쓰인다 — 저장소
+  코드를 커밋/푸시하는 동작은 이 계약에 없다.
+- **우회 인자 없음.** `submit`에 게이트를 건너뛰는 옵션은 없다 — 반려는
+  항상 exit 2 + reasons 파일로만 처리된다.
+- **예산 소진은 성공으로 위장하지 않는다.** 템플릿 폴백으로 대체 발행하지
+  않고 실패로 끝낸다(`pack_contract.generation.scheduled_policy_ko`).
 
-```sh
-security find-generic-password -s wrc-quiz-anthropic -w
-```
+## 수동 실행법
 
-## 2) plist 설치
-
-`scripts/com.wrc.quiz-weekly.plist`는 템플릿이다 — `__REPO_DIR__`와
-`__HOME__` 플레이스홀더를 실제 경로로 치환한 사본을 만들어 설치한다.
-
-```sh
-REPO_DIR="/절대/경로/ai-command-bus"     # 이 저장소의 영구 클론 경로
-PLIST_NAME="com.wrc.quiz-weekly"
-
-sed -e "s#__REPO_DIR__#${REPO_DIR}#g" -e "s#__HOME__#${HOME}#g" \
-  "${REPO_DIR}/scripts/${PLIST_NAME}.plist" \
-  > "${HOME}/Library/LaunchAgents/${PLIST_NAME}.plist"
-
-plutil -lint "${HOME}/Library/LaunchAgents/${PLIST_NAME}.plist"   # 문법 확인
-
-launchctl bootstrap "gui/$(id -u)" "${HOME}/Library/LaunchAgents/${PLIST_NAME}.plist"
-```
-
-실행 주기: 매주 **월요일 09:30 (로컬 시간대 = KST)**. `RunAtLoad`는
-`false`이므로 설치 직후 즉시 실행되지 않는다 — 다음 월요일 09:30에 처음
-돈다. 지금 당장 한 번 돌려보고 싶다면 [수동 실행](#수동-실행--진단)을 쓴다.
-
-## 3) plist 제거
+launchd 스케줄이 없으므로, 지금 당장 한 번 돌려보고 싶으면 위 절차를
+터미널에서 그대로 따라 하면 된다:
 
 ```sh
-PLIST_NAME="com.wrc.quiz-weekly"
-launchctl bootout "gui/$(id -u)" "${HOME}/Library/LaunchAgents/${PLIST_NAME}.plist"
-rm -f "${HOME}/Library/LaunchAgents/${PLIST_NAME}.plist"
+cd "${REPO_DIR}"                                   # 이 저장소의 클론 경로
+node scripts/quiz-dump-hot-items.js                # 1) 실데이터 덤프
+node src/quiz/weekly.js prompt data/quiz/hot_items-<주label>.json   # 2) 프롬프트 확인
+# 3) 프롬프트를 사람이 직접 모델에 넣어 퀴즈 JSON을 만들고 파일로 저장 (quiz.json)
+node src/quiz/weekly.js submit quiz.json data/quiz/hot_items-<주label>.json  # 4) 제출
 ```
 
-## 로그 위치
-
-`~/Library/Logs/quiz-weekly.log` — launchd가 stdout/stderr를 그대로
-리다이렉트한다. `quiz-weekly-cron.sh`는 수집 소스별 건수, 통과한 토픽,
-루프게이트 판정, 초안 slug까지 전부 이 로그 한 파일에 남긴다. 여러 주가
-쌓이며 로그가 계속 append되므로, 필요하면 `logrotate`류나 수동 정리를
-David가 별도로 판단한다(이 킷은 로테이션을 하지 않는다).
-
-## 수동 실행 / 진단
-
-launchd 스케줄을 기다리지 않고 지금 바로 한 번 돌려보려면:
+반려되면(exit 2) 안내된 대로 재생성:
 
 ```sh
-"${REPO_DIR}/scripts/quiz-weekly-cron.sh"
+node src/quiz/weekly.js prompt data/quiz/hot_items-<주label>.json \
+  --feedback data/quiz/last_reject_reasons.json
 ```
 
-이 스크립트는 자기 위치 기준으로 `REPO_DIR`을 계산하므로 어느 디렉토리에서
-실행해도 무방하다. 성공하면 macOS 알림("주간 퀴즈 초안" — 승인 대기 제목/
-slug 포함)이 뜨고, 실패하면 실패 알림 + non-zero exit로 끝난다.
-
-승인 대기 목록만 다시 보고 싶으면:
+승인 대기 목록 확인:
 
 ```sh
 cd "${REPO_DIR}" && node src/quiz/weekly.js queue
 ```
 
-승인(사람만 실행 — 스크립트가 절대 대신 호출하지 않음):
+승인(사람만 실행):
 
 ```sh
 cd "${REPO_DIR}" && node src/quiz/weekly.js approve <slug>
 ```
 
-launchd에 등록된 작업이 다음에 언제 도는지 확인:
+## 부록: API 키/수동 `run` 경로
 
-```sh
-launchctl print "gui/$(id -u)/com.wrc.quiz-weekly"
-```
+`node src/quiz/weekly.js run <hot_items.json>`은 예전 in-process 경로를
+그대로 보존한다 — `ANTHROPIC_API_KEY` 환경변수가 있으면 API를 직접 호출해
+생성하고, 없으면 결정적 템플릿 퀴즈로 폴백해 루프게이트를 자체적으로
+통과시킨 뒤 초안을 저장한다. 이 경로는 **수동 실행·테스트 전용**이며,
+정본 주간 실행 경로가 아니다. 키를 넣고 싶다면 터미널 세션 환경변수로만
+export하고(셸 히스토리에 평문으로 남지 않도록 인자로 넘기지 말 것),
+launchd/Keychain 같은 상시 저장 킷은 두지 않는다.

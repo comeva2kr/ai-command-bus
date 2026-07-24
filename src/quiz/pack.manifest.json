@@ -16,7 +16,7 @@
   "pipeline": [
     { "id": "hot_items_input", "labelKo": "핫아이템 수집", "kind": "auto", "gateIds": [], "fileKey": "hot_items", "detailKo": "피드 수집기/JSON 덤프 — 제목·공개 참여지표만" },
     { "id": "topic_gate", "labelKo": "토픽 게이트", "kind": "gate", "gateIds": ["QG0"], "fileKey": null, "detailKo": "정치·종교·성인 제외 + hotness 랭킹 top N + 제목 중복 제거" },
-    { "id": "ai_generation", "labelKo": "AI 생성", "kind": "auto", "gateIds": [], "fileKey": null, "detailKo": "축 설계 → 문항 → 유형 (structured outputs / 키 없으면 결정적 템플릿 폴백)" },
+    { "id": "ai_generation", "labelKo": "AI 생성", "kind": "auto", "gateIds": [], "fileKey": null, "detailKo": "Claude Code 예약 세션 생성 → submit 계약 (API/템플릿은 수동·테스트 폴백)" },
     { "id": "loop_gate", "labelKo": "루프게이트", "kind": "gate", "gateIds": ["QG1", "QG2", "QG3", "QG4"], "fileKey": "quiz_draft", "detailKo": "실패 시 [게이트ID] 사유를 프롬프트에 주입해 재생성, retry_budget 소진 시 fail-loud (조용한 드롭 금지)" },
     { "id": "human_approval_pending", "labelKo": "사람 승인", "kind": "david", "gateIds": ["QG5"], "fileKey": "published_quiz", "detailKo": "routeTask → decision_queue 경유. approve 실행 전에는 david_pending 정지 — 우회 인자 없음" },
     { "id": "share_loop_measurement", "labelKo": "발행 후 루프", "kind": "gate", "gateIds": ["QG6"], "fileKey": "response_stats", "detailKo": "실응답 누적 → 희소성 통계 강화(라플라스 스무딩), 공유 → 재유입 루프" }
@@ -73,6 +73,15 @@
         "unique_answer_ratio_min": 0.8
       },
       "scoring": { "axis_balance_min": 0.35, "axis_balance_max": 0.65 }
+    },
+    "generation": {
+      "order": ["claude_code_scheduled_session", "anthropic_api", "template"],
+      "scheduled_policy_ko": "예약 실행에서 생성 실패/예산 소진은 fail-loud — 템플릿으로 대체 발행하지 않는다",
+      "submit_contract": {
+        "command": "node src/quiz/weekly.js submit <quiz.json> <items.json>",
+        "reject_exit_code": 2,
+        "reasons_file": "data/quiz/last_reject_reasons.json"
+      }
     }
   },
 
@@ -104,12 +113,20 @@
       "formulas_ko": ["excluded_topics 분류기 + hotness(공개 참여신호만) 랭킹 top N + 제목 중복 제거"],
       "doc_refs": ["docs/quiz-design.md"]
     },
+    "ai_generation": {
+      "formulas_ko": [
+        "정본 경로: `weekly.js prompt`가 buildPrompt() 프롬프트를 stdout에 내보내고, Claude Code 예약 세션이 자기 모델로 퀴즈 JSON을 생성해 `weekly.js submit`으로 제출",
+        "폴백 경로(수동/테스트): `weekly.js run`이 API 키가 있으면 generateQuizWithClaude, 없으면 결정적 template으로 자체 생성"
+      ],
+      "doc_refs": ["docs/quiz-cron.md", "docs/quiz-design.md"]
+    },
     "loop_gate": {
       "formulas_ko": [
         "QG1 축 2~4·문항 8~15·축당 3+·강점80:약점20·궁합 상호지정 (validateQuiz)",
         "QG2 제목 훅 8~40자·I-got 공유문구·결과문 40자+·한 줄 답변",
         "QG3 상담봇 관용구 금지·선택지 고유율 80%+·유형명 중복 금지",
-        "QG4 축별 선택지 가중치 35:65 균형"
+        "QG4 축별 선택지 가중치 35:65 균형",
+        "submit 반려 시(exit 2) 사유를 reasons_file(JSON 배열)로 남기고, 예약 세션이 그 파일을 prompt --feedback으로 되먹여 재생성 (예산은 retry_budget, run 경로의 인프로세스 루프와 동일한 예산·사유 형식 공유)"
       ],
       "doc_refs": ["docs/quiz-loopgate.md", "docs/quiz-design.md"]
     },

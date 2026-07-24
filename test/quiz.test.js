@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 import { pickWeeklyTopics } from "../src/quiz/topics.js";
 import {
@@ -24,6 +26,20 @@ import { renderOgCardSvg } from "../src/quiz/ogcard.js";
 
 const HOT_ITEMS = JSON.parse(fs.readFileSync(new URL("../examples/hot_items.json", import.meta.url), "utf8"));
 const NOW = Date.parse("2026-07-23T00:00:00Z");
+
+// weekly.js를 실제 CLI로 실행하기 위한 경로들 — prompt/submit은 자식 프로세스
+// 계약(exit code·stdout/stderr)이 곧 스펙이라 함수 호출로는 그 계약을 검증할
+// 수 없다.
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const WEEKLY_JS = path.join(REPO_ROOT, "src", "quiz", "weekly.js");
+
+function runWeeklyCli(args, env = {}) {
+  return spawnSync(process.execPath, [WEEKLY_JS, ...args], {
+    cwd: REPO_ROOT,
+    env: { ...process.env, ...env },
+    encoding: "utf8"
+  });
+}
 
 function tmpStore() {
   return new QuizStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "quiz-")) });
@@ -445,6 +461,125 @@ test("runWeekly generates a draft and routes publishing to the decision queue", 
 test("router treats quiz publish tasks as approval-required even without the flag", () => {
   const routed = routeTask({ title: "publish quiz: 아무거나", status: "ready" });
   assert.equal(routed.nextQueue, "decision_queue");
+});
+
+// ---- Claude Code scheduled-session submit contract (weekly.js CLI) -------
+// The generation authority moved from launchd+API-key to a Claude Code
+// scheduled session that generates the quiz JSON itself and hands it to the
+// pipeline through `prompt`/`submit`. These are child-process tests (not
+// direct function calls) because the exit code and stdout/stderr shape ARE
+// the contract a scheduled session drives against.
+
+test("weekly.js submit: PASS saves a claude-code draft and routes publish to decision_queue", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-submit-pass-"));
+  const itemsPath = path.join(dir, "items.json");
+  fs.writeFileSync(itemsPath, JSON.stringify(HOT_ITEMS));
+  const quiz = sampleQuiz();
+  const quizPath = path.join(dir, "quiz.json");
+  fs.writeFileSync(quizPath, JSON.stringify(quiz));
+
+  const result = runWeeklyCli(["submit", quizPath, itemsPath], { QUIZ_DIR: dir });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /decision_queue/);
+  assert.match(result.stdout, /초안 생성 \(claude-code\)/);
+
+  const store = new QuizStore({ dir });
+  const drafts = store.listDrafts();
+  assert.equal(drafts.length, 1);
+  assert.equal(drafts[0].via, "claude-code");
+  assert.equal(drafts[0].quiz.title, quiz.title);
+  assert.ok(Array.isArray(drafts[0].topics) && drafts[0].topics.length > 0);
+  assert.equal(drafts[0].gate.decision, "PASS");
+  assert.equal(drafts[0].gate.attempts, 1);
+  assert.equal(drafts[0].gate.history.length, 1);
+  assert.equal(drafts[0].gate.history[0].via, "claude-code");
+  assert.equal(store.listPublished().length, 0, "submit never auto-publishes");
+});
+
+test("weekly.js submit: honors --attempt for the recorded gate history", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-submit-attempt-"));
+  const itemsPath = path.join(dir, "items.json");
+  fs.writeFileSync(itemsPath, JSON.stringify(HOT_ITEMS));
+  const quiz = sampleQuiz();
+  const quizPath = path.join(dir, "quiz.json");
+  fs.writeFileSync(quizPath, JSON.stringify(quiz));
+
+  const result = runWeeklyCli(["submit", quizPath, itemsPath, "--attempt", "2"], { QUIZ_DIR: dir });
+  assert.equal(result.status, 0, result.stderr);
+
+  const store = new QuizStore({ dir });
+  const [draft] = store.listDrafts();
+  assert.equal(draft.gate.attempts, 2);
+  assert.equal(draft.gate.history[0].attempt, 2);
+});
+
+test("weekly.js submit: gate rejection exits 2, reports [게이트ID] reasons, and never drafts", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-submit-reject-"));
+  const itemsPath = path.join(dir, "items.json");
+  fs.writeFileSync(itemsPath, JSON.stringify(HOT_ITEMS));
+  const bad = structuredClone(sampleQuiz());
+  bad.results[0].weaknesses = []; // QG1-structure 위반 (칭찬만 있는 결과)
+  const quizPath = path.join(dir, "quiz.json");
+  fs.writeFileSync(quizPath, JSON.stringify(bad));
+
+  const result = runWeeklyCli(["submit", quizPath, itemsPath], { QUIZ_DIR: dir });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /\[QG1-structure\]/);
+
+  const reasonsPath = path.join(dir, "last_reject_reasons.json");
+  const reasons = JSON.parse(fs.readFileSync(reasonsPath, "utf8"));
+  assert.ok(Array.isArray(reasons) && reasons.length > 0);
+  assert.ok(reasons.every((r) => typeof r === "string"));
+  assert.ok(reasons.some((r) => r.startsWith("[QG1-structure]")));
+
+  const store = new QuizStore({ dir });
+  assert.equal(store.listDrafts().length, 0, "rejected quiz never becomes a draft");
+});
+
+test("weekly.js submit: --reasons-out overrides the default reasons file path", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-submit-reasonsout-"));
+  const itemsPath = path.join(dir, "items.json");
+  fs.writeFileSync(itemsPath, JSON.stringify(HOT_ITEMS));
+  const bad = structuredClone(sampleQuiz());
+  bad.results[0].weaknesses = [];
+  const quizPath = path.join(dir, "quiz.json");
+  fs.writeFileSync(quizPath, JSON.stringify(bad));
+  const customReasonsPath = path.join(dir, "custom-reasons.json");
+
+  const result = runWeeklyCli(["submit", quizPath, itemsPath, "--reasons-out", customReasonsPath], { QUIZ_DIR: dir });
+  assert.equal(result.status, 2);
+  assert.ok(fs.existsSync(customReasonsPath));
+  assert.ok(!fs.existsSync(path.join(dir, "last_reject_reasons.json")));
+});
+
+test("weekly.js prompt: stdout carries the single-source generation prompt (topics + design rules)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-prompt-"));
+  const itemsPath = path.join(dir, "items.json");
+  fs.writeFileSync(itemsPath, JSON.stringify(HOT_ITEMS));
+
+  const result = runWeeklyCli(["prompt", itemsPath], { QUIZ_DIR: dir });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.stdout.includes("심리 축"));
+  assert.ok(result.stdout.includes("상황 제시형"));
+  const topics = pickWeeklyTopics(HOT_ITEMS, {});
+  for (const t of topics) assert.ok(result.stdout.includes(t.title));
+  assert.ok(!result.stdout.includes("반려됐다"), "no feedback section without --feedback");
+  // topic summary/hints are stderr-only, not mixed into the reusable prompt
+  assert.ok(result.stderr.includes("토픽"));
+});
+
+test("weekly.js prompt: --feedback injects the rejection section for re-generation", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-prompt-feedback-"));
+  const itemsPath = path.join(dir, "items.json");
+  fs.writeFileSync(itemsPath, JSON.stringify(HOT_ITEMS));
+  const reasons = ["[QG1-structure] 테스트용 반려 사유"];
+  const reasonsPath = path.join(dir, "reasons.json");
+  fs.writeFileSync(reasonsPath, JSON.stringify(reasons));
+
+  const result = runWeeklyCli(["prompt", itemsPath, "--feedback", reasonsPath], { QUIZ_DIR: dir });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.stdout.includes("반려됐다"));
+  assert.ok(result.stdout.includes("[QG1-structure] 테스트용 반려 사유"));
 });
 
 test("quizSlug is stable for the same title+week and url-safe", () => {
