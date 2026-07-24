@@ -205,6 +205,10 @@
   .spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--accent);
     border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  /* 첫 로드/콜드스타트 시 중앙 로딩 상태 (검은 화면 대신) */
+  .loading-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 64px 16px; }
+  .loading-wrap .spinner { width: 30px; height: 30px; border-width: 3px; }
+  .loading-msg { color: var(--muted); font-size: 14px; text-align: center; }
 
   /* detail overlay */
   #detail { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto;
@@ -418,7 +422,7 @@ const state = {
   cursor: 0, loading: false, exhausted: false,
   activeCategory: null, config: null,
   registry: [], // full /api/communities list (all sources, unfiltered) — labels + frameable lookups
-  communities: [], activeSource: localStorage.getItem("feed_src") || null,
+  communities: [], activeSource: null, // 홈은 항상 "전체"로 시작 (필터 선택이 저장돼 갇히지 않게 — David 2026-07-24)
   feedScrollY: 0, // remembered scroll position for exact back-restore
   cardsById: new Map(),
   ageVerified: false, showAdult: false,
@@ -1175,7 +1179,15 @@ function updateMeter(info){
 
 function setSentinel(loading, msg){
   const s = document.getElementById("sentinel");
-  s.innerHTML = loading ? '<div class="spinner"></div>' : (msg || "");
+  if(loading){
+    // 첫 로드(피드 비어있음, 콜드스타트 포함)엔 중앙 스피너+안내, 이후 스크롤엔 작은 스피너
+    const first = state.cardsById.size === 0;
+    s.innerHTML = first
+      ? '<div class="loading-wrap"><div class="spinner"></div><div class="loading-msg">지금 핫한 글을 모으는 중…<br>잠시만요 (첫 접속은 조금 걸려요)</div></div>'
+      : '<div class="spinner"></div>';
+  } else {
+    s.innerHTML = msg || "";
+  }
 }
 function setupInfiniteScroll(){
   const io = new IntersectionObserver((entries)=>{
