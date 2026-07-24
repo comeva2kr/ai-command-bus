@@ -16,6 +16,7 @@ import { pickWeeklyTopics } from "./topics.js";
 import { generateQuiz, quizSlug } from "./generate.js";
 import { runGates } from "./gates.js";
 import { QuizStore } from "./store.js";
+import { CONTRACT } from "./manifest.js";
 
 // ISO week label like "2026w30" — stable across a week so re-runs collide
 // visibly instead of silently stacking near-duplicate drafts.
@@ -31,12 +32,13 @@ export async function runWeekly(items, opts = {}) {
   const store = opts.store || new QuizStore(opts);
   const label = opts.weekLabel || weekLabel(opts.now ? new Date(opts.now) : new Date());
 
-  const topics = pickWeeklyTopics(items, { count: opts.topicCount || 5, now: opts.now });
-  if (topics.length === 0) throw new Error("브랜드 세이프한 핫토픽이 없어요."); // G0 토픽 게이트
+  const topics = pickWeeklyTopics(items, { count: opts.topicCount, now: opts.now });
+  if (topics.length === 0) throw new Error("브랜드 세이프한 핫토픽이 없어요."); // QG0 토픽 게이트
 
   // 루프게이트: 생성 → 게이트 검사 → 실패 사유를 피드백으로 재생성.
-  // 모든 게이트(G1~G4)를 통과한 퀴즈만 초안이 될 수 있다 (docs/quiz-loopgate.md).
-  const maxAttempts = opts.maxAttempts || 3;
+  // 모든 게이트(QG1~QG4)를 통과한 퀴즈만 초안이 될 수 있다. 재시도 예산은
+  // 매니페스트 선언(pack_contract.retry_budget)이 원본이다 (docs/quiz-loopgate.md).
+  const maxAttempts = opts.maxAttempts || CONTRACT.retry_budget;
   let quiz = null;
   let via = null;
   let gate = null;
@@ -45,26 +47,35 @@ export async function runWeekly(items, opts = {}) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     ({ quiz, via } = await generateQuiz(topics, { ...opts, weekLabel: label, feedback }));
     gate = runGates(quiz);
-    gateHistory.push({ attempt, via, pass: gate.pass, failures: gate.failures });
+    gateHistory.push({ attempt, via, decision: gate.decision, pass: gate.pass, failures: gate.failures });
     if (gate.pass) break;
-    feedback = gate.failures.map((f) => `[${f.gate}] ${f.message}`);
+    feedback = gate.reasons; // "[게이트ID] 사유" 형식 (retry_policy.feedback_format)
     if (via === "template") break; // 결정적 폴백은 재시도해도 같은 결과
   }
   if (!gate.pass) {
-    throw new Error(
-      `퀴즈가 루프게이트를 통과하지 못했어요 (${gateHistory.length}회 시도):\n` +
-        gate.failures.map((f) => `  [${f.gate}] ${f.message}`).join("\n")
+    // 예산 소진은 조용한 드롭이 아니라 fail-loud: 판정과 [게이트ID] 사유 전체를
+    // 실어 중단하고 사람이 토픽 교체를 판단한다 (retry_policy.on_exhaustion).
+    const err = new Error(
+      `퀴즈가 루프게이트를 통과하지 못했어요 (${gateHistory.length}회 시도, 판정 ${gate.decision}):\n` +
+        gate.reasons.map((r) => `  ${r}`).join("\n")
     );
+    err.decision = gate.decision;
+    err.reasons = gate.reasons;
+    throw err;
   }
 
   const slug = quizSlug(quiz, label);
+  // 회차 키: 같은 회차·같은 콘텐츠 재실행은 동일 slug에 원자적 덮어쓰기로
+  // 수렴해 중복 산출이 없다 (run_binding).
+  const runId = `${label}-${slug}`;
 
   const draft = store.saveDraft(slug, quiz, {
     createdAt: opts.now ? new Date(opts.now).toISOString() : new Date().toISOString(),
     week: label,
+    run: { id: runId, week: label },
     via,
     topics,
-    gate: { attempts: gateHistory.length, history: gateHistory }
+    gate: { decision: gate.decision, attempts: gateHistory.length, history: gateHistory }
   });
 
   // 발행은 승인 게이트를 지나야 한다. routeTask가 제목의 "publish"를 보고
@@ -96,7 +107,7 @@ async function main() {
     const { draft, publishTask, topics, via } = await runWeekly(items, {});
     console.log(`[quiz] 이번 주 토픽 ${topics.length}건:`);
     for (const t of topics) console.log(`  - ${t.title} (${t.source}, hot ${t.score})`);
-    console.log(`[quiz] 루프게이트 통과 (시도 ${draft.gate.attempts}회, 게이트 G1~G4 전체)`);
+    console.log(`[quiz] 루프게이트 통과 (시도 ${draft.gate.attempts}회, 게이트 QG1~QG4 전체, 판정 ${draft.gate.decision})`);
     console.log(`[quiz] 초안 생성 (${via}): "${draft.quiz.title}" → drafts/${draft.slug}.json`);
     console.log(`[quiz] 발행 작업 라우팅: ${publishTask.nextQueue} (${publishTask.reason})`);
     console.log(`[quiz] ${QUEUE_HINT}`);

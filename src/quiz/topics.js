@@ -12,8 +12,10 @@
 
 import { classifyTopics } from "../feed/topics.js";
 import { hotness } from "../feed/ingest.js";
+import { CONTRACT } from "./manifest.js";
 
-export const EXCLUDED_TOPICS = new Set(["politics", "religion", "adult"]);
+// QG0 제외 토픽 — 선언 원본은 매니페스트 (pack_contract.excluded_topics).
+export const EXCLUDED_TOPICS = new Set(CONTRACT.excluded_topics);
 
 function isBrandSafe(item) {
   const topics = classifyTopics({
@@ -27,7 +29,7 @@ function isBrandSafe(item) {
 // Pick the week's top quiz-worthy topics: brand-safe, deduplicated by title,
 // ranked by engagement hotness. Returns [{title, url, source, score}].
 export function pickWeeklyTopics(items, opts = {}) {
-  const count = opts.count || 5;
+  const count = opts.count || CONTRACT.checks.topics.count;
   const now = opts.now || Date.now();
 
   const seen = new Set();

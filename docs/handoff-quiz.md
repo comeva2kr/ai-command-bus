@@ -22,6 +22,16 @@
 - **main과의 병합**: main이 앞서갔지만(`2e78270`까지 — 피드 랭킹/번역/UI 대개편) `git merge-tree --write-tree origin/main HEAD` 기준 **충돌 없음**. 단, main의 `src/feed/server.js` 대규모 리팩터와 이 브랜치의 퀴즈 라우트 추가가 같은 파일이라 병합 후 `/q` 라우트 동작을 테스트로 재확인할 것.
 - 데모: `npm run quiz:weekly` → `node src/quiz/weekly.js approve <slug>` → `npm run feed` → http://localhost:4000/q
 
+> **2026-07-24 갱신 (로컬 세션): 1순위 임무 완료.** 로컬 도구함의 세션
+> 어댑터(`list_sessions` → `send_message`)로 WRC Workflow Gate 세션에 문의
+> 3건을 1회 전달했고 정식 ACK + 회신을 수신했다. 회신(표준 = 선언식 팩
+> 매니페스트, QG 접두, 등급/재시도예산/봉투/멱등성 계약)은 전부 반영됨 —
+> `src/quiz/pack.manifest.json` 신설, `docs/quiz-loopgate.md` 참고. 잔여:
+> WRC 측 매니페스트 정합 검토 1회, 운전석 전용 메뉴 등록(요청 발송됨).
+> David 범위 확정(07-24): 이 팩의 목적은 외부 업로드가 아니라 **활용 가능한
+> 퀴즈 페이지까지** — SNS 발행·트래픽 유도는 다른 팩들이 이 페이지를
+> 소비하는 방식으로 한다 (`no_go: external_publish` 유지).
+
 ## 1순위 임무: WRC 워크플로우 게이트 세션과 소통 완결
 
 David 지시: 루프게이트 플로우차트 팩을 WRC 세션의 표준 형식에 맞춰야 함.

@@ -187,7 +187,7 @@ export async function generateQuizWithClaude(topics, opts = {}) {
   } catch {
     throw new Error("퀴즈 응답이 올바른 JSON이 아니에요.");
   }
-  // 구조 검증은 여기서 던지지 않는다 — 루프게이트(G1)가 잡아서 반려 사유를
+  // 구조 검증은 여기서 던지지 않는다 — 루프게이트(QG1)가 잡아서 반려 사유를
   // 다음 생성 시도의 피드백으로 되돌린다 (src/quiz/gates.js, weekly.js).
   return quiz;
 }
@@ -211,8 +211,8 @@ export function templateQuiz(topics, opts = {}) {
       right: { code: "K", label: "수집가형" }
     }
   ];
-  // 문항마다 고유한 답변 세트 (G3 복붙-티 게이트: 같은 선택지 재사용 금지).
-  // 세트마다 좌/우 가중치 합을 3:3으로 맞춰 축 균형(G4)도 지킨다.
+  // 문항마다 고유한 답변 세트 (QG3 복붙-티 게이트: 같은 선택지 재사용 금지).
+  // 세트마다 좌/우 가중치 합을 3:3으로 맞춰 축 균형(QG4)도 지킨다.
   const reactionAnswers = [
     [
       { text: "일단 클릭. 생각은 그 다음에", pole: "left", weight: 2 },

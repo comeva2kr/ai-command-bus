@@ -29,7 +29,7 @@ export class QuizStore {
     const s = QuizStore.safeSlug(slug);
     const record = { slug: s, status: "draft", ...meta, quiz };
     fs.mkdirSync(this.draftsDir, { recursive: true });
-    fs.writeFileSync(path.join(this.draftsDir, `${s}.json`), JSON.stringify(record, null, 2));
+    this._writeAtomic(path.join(this.draftsDir, `${s}.json`), JSON.stringify(record, null, 2));
     return record;
   }
 
@@ -49,7 +49,7 @@ export class QuizStore {
     if (!draft) throw new Error(`승인할 초안이 없어요: ${s}`);
     const record = { ...draft, status: "published", publishedAt: meta.publishedAt || new Date().toISOString() };
     fs.mkdirSync(this.publishedDir, { recursive: true });
-    fs.writeFileSync(path.join(this.publishedDir, `${s}.json`), JSON.stringify(record, null, 2));
+    this._writeAtomic(path.join(this.publishedDir, `${s}.json`), JSON.stringify(record, null, 2));
     fs.unlinkSync(path.join(this.draftsDir, `${s}.json`));
     return record;
   }
@@ -84,7 +84,7 @@ export class QuizStore {
     const stats = this._read(file) || { counts: {}, total: 0 };
     stats.counts[code] = (stats.counts[code] || 0) + 1;
     stats.total += 1;
-    fs.writeFileSync(file, JSON.stringify(stats));
+    this._writeAtomic(file, JSON.stringify(stats));
     return stats;
   }
 
@@ -102,6 +102,14 @@ export class QuizStore {
       share[code] = Math.round(((stats.counts[code] || 0) + 1) / (stats.total + codes.length) * 100);
     }
     return { share, total: stats.total };
+  }
+
+  // 원자적 쓰기 (tmp→rename): 같은 회차 재실행이나 동시 응답 기록이 파일을
+  // 반쯤 쓴 상태로 남기지 않는다 (매니페스트 run_binding.atomic_write).
+  _writeAtomic(file, data) {
+    const tmp = `${file}.tmp-${process.pid}`;
+    fs.writeFileSync(tmp, data);
+    fs.renameSync(tmp, file);
   }
 
   _read(file) {

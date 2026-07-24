@@ -1,0 +1,134 @@
+{
+  "_note_ko": "이 파일이 주간 바이럴 유형테스트 팩의 단일 진실원(기계 정본)이다. docs/quiz-loopgate.md는 파생 뷰 — 조건 값을 문서에서 손편집하지 말 것. WRC Workflow Gate 표준 스키마(google_blogger.yaml v1.2)를 미러링한 선언 매니페스트이며, 게이트 등급·재시도 예산·제외 토픽·게이트 임계값·산출물 규약은 코드 상수가 아니라 전부 여기서 로드된다.",
+  "project": "weekly_viral_quiz",
+  "version": 1,
+  "pack": "weekly_viral_quiz",
+  "display_name_ko": "주간 바이럴 유형테스트",
+  "theme_accent": "#7C5CFF",
+
+  "activation": {
+    "enabled": true,
+    "external_actions_enabled": false,
+    "mode": "draft_generation_human_publish_gate",
+    "no_go": ["external_publish", "auto_approve", "gate_bypass_args", "excluded_topic_override"]
+  },
+
+  "pipeline": [
+    { "id": "hot_items_input", "labelKo": "핫아이템 수집", "kind": "auto", "gateIds": [], "fileKey": "hot_items", "detailKo": "피드 수집기/JSON 덤프 — 제목·공개 참여지표만" },
+    { "id": "topic_gate", "labelKo": "토픽 게이트", "kind": "gate", "gateIds": ["QG0"], "fileKey": null, "detailKo": "정치·종교·성인 제외 + hotness 랭킹 top N + 제목 중복 제거" },
+    { "id": "ai_generation", "labelKo": "AI 생성", "kind": "auto", "gateIds": [], "fileKey": null, "detailKo": "축 설계 → 문항 → 유형 (structured outputs / 키 없으면 결정적 템플릿 폴백)" },
+    { "id": "loop_gate", "labelKo": "루프게이트", "kind": "gate", "gateIds": ["QG1", "QG2", "QG3", "QG4"], "fileKey": "quiz_draft", "detailKo": "실패 시 [게이트ID] 사유를 프롬프트에 주입해 재생성, retry_budget 소진 시 fail-loud (조용한 드롭 금지)" },
+    { "id": "human_approval_pending", "labelKo": "사람 승인", "kind": "david", "gateIds": ["QG5"], "fileKey": "published_quiz", "detailKo": "routeTask → decision_queue 경유. approve 실행 전에는 david_pending 정지 — 우회 인자 없음" },
+    { "id": "share_loop_measurement", "labelKo": "발행 후 루프", "kind": "gate", "gateIds": ["QG6"], "fileKey": "response_stats", "detailKo": "실응답 누적 → 희소성 통계 강화(라플라스 스무딩), 공유 → 재유입 루프" }
+  ],
+
+  "pack_contract": {
+    "schema_version": "weekly-viral-quiz-pack-1",
+    "required_gate_ids": ["QG0", "QG1", "QG2", "QG3", "QG4", "QG5", "QG6"],
+    "gate_id_migration": { "G0": "QG0", "G1": "QG1", "G2": "QG2", "G3": "QG3", "G4": "QG4", "G5": "QG5", "G6": "QG6" },
+    "gate_grades": { "QG0": "HARD", "QG1": "HARD", "QG2": "HOLD", "QG3": "HOLD", "QG4": "HARD", "QG6": "GUIDE" },
+    "gate_grades_note_ko": "QG5는 등급 대상이 아니라 kind: david 사람 게이트(재시도 없음, 대기만). QG3은 WRC 예상치(GUIDE)와 달리 HOLD로 선언 — 'AI 티 제거'가 이 팩의 핵심 약속이라 발행 전 차단을 유지한다. 표준 정합 검토 요청 항목.",
+    "risk_tier_by_grade": { "HARD": "BLOCK", "HOLD": "HOLD", "GUIDE": "WARN" },
+    "retry_budget": 3,
+    "retry_policy": {
+      "template_fallback_attempts": 1,
+      "on_exhaustion": "fail_loud_no_silent_drop",
+      "feedback_format": "[게이트ID] 사유",
+      "human_gate_retry": "none_wait_only"
+    },
+    "excluded_topics": ["politics", "religion", "adult"],
+    "gate_checkers": {
+      "QG0": "brand_safe_topics",
+      "QG1": "validate_quiz_structure",
+      "QG2": "viral_conditions",
+      "QG3": "ai_tell_scan",
+      "QG4": "axis_weight_balance",
+      "QG5": "human_approval_queue",
+      "QG6": "response_stats_loop"
+    },
+    "loss_vectors": ["ad_account", "brand", "distribution", "editorial"],
+    "risk_policy": {
+      "QG0": { "loss_vectors": ["ad_account", "brand"], "expected_loss_path": "논란 소재 테스트 발행으로 광고 계정 정지·브랜드 손상", "minimum_release_inputs": ["brand_safe_topic_set"] },
+      "QG1": { "loss_vectors": ["distribution", "editorial"], "expected_loss_path": "축·유형 구조 결함으로 결과 신뢰 붕괴·저품질 판정", "minimum_release_inputs": ["valid_axis_structure"] },
+      "QG2": { "loss_vectors": ["distribution"], "expected_loss_path": "공유 조건 미달로 확산 계수 붕괴 — 트래픽·광고 수익 모델 무산", "minimum_release_inputs": ["share_hook_fields"] },
+      "QG3": { "loss_vectors": ["brand", "distribution"], "expected_loss_path": "AI 티·양산형 인상으로 공유 사망(BuzzFeed 말기 안티패턴)", "minimum_release_inputs": ["human_voice_texts"] },
+      "QG4": { "loss_vectors": ["editorial", "brand"], "expected_loss_path": "유형 쏠림('다 이거 나오던데')으로 조작 티·재참여 상실", "minimum_release_inputs": ["balanced_axis_weights"] },
+      "QG5": { "loss_vectors": ["brand", "ad_account"], "expected_loss_path": "사람 승인 없는 발행으로 통제 불능 콘텐츠 노출", "minimum_release_inputs": ["human_approval_record"] },
+      "QG6": { "loss_vectors": ["editorial"], "expected_loss_path": "응답 데이터 미반영으로 희소성 통계·차주 보정 루프 상실", "minimum_release_inputs": ["response_stats_accumulation"] }
+    },
+    "checks": {
+      "topics": { "count": 5 },
+      "viral": {
+        "title_chars_min": 8,
+        "title_chars_max": 40,
+        "desc_chars_min": 20,
+        "desc_chars_max": 90,
+        "result_desc_chars_min": 40,
+        "answer_chars_max": 40,
+        "i_got_marker": "나는",
+        "call_out_markers": ["?", "너"]
+      },
+      "ai_tell": {
+        "phrases": ["AI", "인공지능", "언어 모델", "물론입니다", "도움이 되", "여러분", "하십시오", "습니까", "알아보겠습니다", "살펴보겠습니다", "~에 대해", "다음과 같"],
+        "unique_answer_ratio_min": 0.8
+      },
+      "scoring": { "axis_balance_min": 0.35, "axis_balance_max": 0.65 }
+    }
+  },
+
+  "files": {
+    "hot_items": "hot_items.json (입력 덤프, 예: examples/hot_items.json)",
+    "quiz_draft": "data/quiz/drafts/<slug>.json (게이트 이력 gate.history·run 결박 동봉)",
+    "published_quiz": "data/quiz/published/<slug>.json (approve 경유만 생성 가능)",
+    "response_stats": "data/quiz/stats/<slug>.json"
+  },
+  "files_note_ko": "번호 접두(00_…) run-root 규약 대신 slug-키 스토어 레이아웃을 유지 — 서버 라우트(/q/<slug>)와 결합돼 있음. 표준 정합 검토 요청 항목.",
+
+  "run_binding": {
+    "run_id_format": "<weekLabel>-<slug>",
+    "idempotency_ko": "같은 회차·같은 콘텐츠 재실행은 동일 slug에 원자적 덮어쓰기(tmp→rename) — 중복 산출 0",
+    "atomic_write": true
+  },
+
+  "node_owner_map": {
+    "hot_items_input": "feed_engine",
+    "topic_gate": "quiz_engine",
+    "ai_generation": "quiz_engine",
+    "loop_gate": "quiz_engine",
+    "human_approval_pending": "david_review",
+    "share_loop_measurement": "quiz_engine"
+  },
+
+  "algo_map": {
+    "topic_gate": {
+      "formulas_ko": ["excluded_topics 분류기 + hotness(공개 참여신호만) 랭킹 top N + 제목 중복 제거"],
+      "doc_refs": ["docs/quiz-design.md"]
+    },
+    "loop_gate": {
+      "formulas_ko": [
+        "QG1 축 2~4·문항 8~15·축당 3+·강점80:약점20·궁합 상호지정 (validateQuiz)",
+        "QG2 제목 훅 8~40자·I-got 공유문구·결과문 40자+·한 줄 답변",
+        "QG3 상담봇 관용구 금지·선택지 고유율 80%+·유형명 중복 금지",
+        "QG4 축별 선택지 가중치 35:65 균형"
+      ],
+      "doc_refs": ["docs/quiz-loopgate.md", "docs/quiz-design.md"]
+    },
+    "human_approval_pending": {
+      "formulas_ko": ["routeTask('publish quiz')→decision_queue, approve 전 david_pending 정지 — 자동 승인 경로 없음"],
+      "doc_refs": ["docs/quiz-loopgate.md"]
+    },
+    "share_loop_measurement": {
+      "formulas_ko": ["라플라스 스무딩 (count+1)/(total+유형수) 희소성 통계, 유형별 공유 → 재유입 루프"],
+      "doc_refs": ["docs/quiz-design.md"]
+    }
+  },
+
+  "identity": {
+    "projectId": "ai-command-bus",
+    "driverSeatId": "weekly-viral-quiz",
+    "packId": "pack:weekly-viral-quiz",
+    "enginePackId": "pack:weekly-viral-quiz",
+    "workflowSlug": "weekly-viral-quiz"
+  },
+  "registration": { "isDefault": false, "displayOrder": 1 }
+}

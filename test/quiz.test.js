@@ -250,55 +250,123 @@ test("QuizStore response stats accumulate with Laplace smoothing", () => {
   assert.throws(() => store.recordResponse("no-such", "FS"), /발행된/);
 });
 
+// ---- pack manifest (WRC 표준 미러) ----------------------------------------
+
+test("pack manifest declares the WRC-standard contract blocks", async () => {
+  const { MANIFEST, CONTRACT } = await import("../src/quiz/manifest.js");
+  // 필수 블록
+  for (const key of ["project", "pack", "display_name_ko", "activation", "pipeline", "pack_contract", "files", "node_owner_map", "algo_map", "identity", "registration"]) {
+    assert.ok(MANIFEST[key] != null, `매니페스트 필수 블록 누락: ${key}`);
+  }
+  // 발행은 external action — no_go로 명문화 (fail-closed)
+  assert.ok(MANIFEST.activation.no_go.includes("external_publish"));
+  assert.equal(MANIFEST.activation.external_actions_enabled, false);
+  // 게이트 계약: QG 접두, 사람 게이트는 kind: david (등급 아님)
+  assert.deepEqual(CONTRACT.required_gate_ids, ["QG0", "QG1", "QG2", "QG3", "QG4", "QG5", "QG6"]);
+  for (const id of ["QG0", "QG1", "QG2", "QG3", "QG4", "QG6"]) {
+    assert.ok(["HARD", "HOLD", "GUIDE"].includes(CONTRACT.gate_grades[id]), `등급 미선언: ${id}`);
+    assert.ok(CONTRACT.risk_policy[id], `risk_policy 미선언: ${id}`);
+  }
+  assert.equal(CONTRACT.gate_grades.QG5, undefined, "QG5는 등급이 아니라 사람 게이트");
+  const davidNode = MANIFEST.pipeline.find((n) => n.gateIds.includes("QG5"));
+  assert.equal(davidNode.kind, "david");
+  // 재시도 예산은 매니페스트가 원본
+  assert.equal(CONTRACT.retry_budget, 3);
+  // 구 ID 마이그레이션 표
+  assert.equal(CONTRACT.gate_id_migration.G1, "QG1");
+  // identity 5필드 + packId 패턴
+  for (const k of ["projectId", "driverSeatId", "packId", "enginePackId", "workflowSlug"]) {
+    assert.ok(MANIFEST.identity[k], `identity 필드 누락: ${k}`);
+  }
+  assert.match(MANIFEST.identity.packId, /^pack:[a-z0-9-]+$/);
+});
+
+test("manifest is the single source for gate constants (no code drift)", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  const { EXCLUDED_TOPICS } = await import("../src/quiz/topics.js");
+  assert.deepEqual([...EXCLUDED_TOPICS].sort(), [...CONTRACT.excluded_topics].sort());
+  const { GATES } = await import("../src/quiz/gates.js");
+  for (const gate of GATES) {
+    assert.equal(gate.grade, CONTRACT.gate_grades[gate.key], `게이트 ${gate.key} 등급이 매니페스트와 다름`);
+  }
+});
+
 // ---- loop gates ----------------------------------------------------------
 
-test("template quiz clears every loop gate (G1~G4)", async () => {
+test("template quiz clears every loop gate (QG1~QG4)", async () => {
   const { runGates } = await import("../src/quiz/gates.js");
   const report = runGates(sampleQuiz());
   assert.deepEqual(report.failures, []);
   assert.equal(report.pass, true);
 });
 
-test("G2 viral gate rejects thin result copy and missing I-got share text", async () => {
+test("runGates returns the WRC result envelope (decision/reasons/gateResults)", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const good = runGates(sampleQuiz());
+  assert.equal(good.decision, "PASS");
+  assert.deepEqual(good.reasons, []);
+  assert.equal(good.gateResults.length, 4);
+  for (const g of good.gateResults) {
+    assert.match(g.id, /^QG[1-4]-/);
+    assert.ok(["HARD", "HOLD"].includes(g.grade));
+    assert.equal(g.pass, true);
+  }
+
+  // HARD 게이트(QG1 구조) 실패 → BLOCK
+  const broken = structuredClone(sampleQuiz());
+  broken.results[0].weaknesses = [];
+  const blocked = runGates(broken);
+  assert.equal(blocked.decision, "BLOCK");
+  assert.ok(blocked.reasons.some((r) => r.startsWith("[QG1-structure]")));
+
+  // HOLD 게이트(QG2 바이럴)만 실패 → HOLD
+  const thin = structuredClone(sampleQuiz());
+  thin.results[0].shareText = "결과를 확인해 보라구? 너도 해봐"; // I-got 누락, 나머지 통과
+  const held = runGates(thin);
+  assert.equal(held.decision, "HOLD");
+  assert.ok(held.reasons.every((r) => r.startsWith("[QG2-viral]")));
+});
+
+test("QG2 viral gate rejects thin result copy and missing I-got share text", async () => {
   const { runGates } = await import("../src/quiz/gates.js");
   const quiz = structuredClone(sampleQuiz());
   quiz.results[0].description = "짧음";
   quiz.results[1].shareText = "테스트 해보세요";
   const report = runGates(quiz);
   assert.equal(report.pass, false);
-  assert.ok(report.failures.some((f) => f.gate === "G2-viral" && f.message.includes("두 줄짜리")));
-  assert.ok(report.failures.some((f) => f.gate === "G2-viral" && f.message.includes("나는")));
+  assert.ok(report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("두 줄짜리")));
+  assert.ok(report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("나는")));
 });
 
-test("G3 ai-tell gate rejects chatbot phrasing and duplicated answers", async () => {
+test("QG3 ai-tell gate rejects chatbot phrasing and duplicated answers", async () => {
   const { runGates } = await import("../src/quiz/gates.js");
   const botty = structuredClone(sampleQuiz());
   botty.results[0].description = "물론입니다. 당신은 트렌드에 밝은 유형으로, 정보를 빠르게 접하는 편입니다.";
   let report = runGates(botty);
-  assert.ok(report.failures.some((f) => f.gate === "G3-ai-tell" && f.message.includes("물론")));
+  assert.ok(report.failures.some((f) => f.gate === "QG3-ai-tell" && f.message.includes("물론")));
 
   const copied = structuredClone(sampleQuiz());
   const firstAnswers = copied.questions[0].answers;
   for (const q of copied.questions) q.answers = structuredClone(firstAnswers);
   report = runGates(copied);
-  assert.ok(report.failures.some((f) => f.gate === "G3-ai-tell" && f.message.includes("중복률")));
+  assert.ok(report.failures.some((f) => f.gate === "QG3-ai-tell" && f.message.includes("중복률")));
 });
 
-test("G4 scoring gate rejects lopsided axis weights", async () => {
+test("QG4 scoring gate rejects lopsided axis weights", async () => {
   const { runGates } = await import("../src/quiz/gates.js");
   const skewed = structuredClone(sampleQuiz());
   for (const q of skewed.questions.filter((x) => x.axis === "sharing")) {
     for (const a of q.answers) a.weight = a.pole === "left" ? 2 : 1;
   }
   const report = runGates(skewed);
-  assert.ok(report.failures.some((f) => f.gate === "G4-scoring" && f.message.includes("sharing")));
+  assert.ok(report.failures.some((f) => f.gate === "QG4-scoring" && f.message.includes("sharing")));
 });
 
 test("runWeekly loops on gate failure, feeding rejection reasons back into the prompt", async () => {
   const store = tmpStore();
   const good = sampleQuiz();
   const bad = structuredClone(good);
-  bad.results[0].weaknesses = []; // G1 위반: 칭찬만 있는 결과문
+  bad.results[0].weaknesses = []; // QG1 위반: 칭찬만 있는 결과문
   const bodies = [];
   const fetchImpl = async (url, init) => {
     const body = JSON.parse(init.body);
@@ -316,7 +384,7 @@ test("runWeekly loops on gate failure, feeding rejection reasons back into the p
   assert.equal(bodies.length, 2, "1차 반려 → 2차 재생성");
   const secondPrompt = bodies[1].messages[0].content;
   assert.ok(secondPrompt.includes("반려"), "반려 사유 섹션이 프롬프트에 주입됨");
-  assert.ok(secondPrompt.includes("G1-structure"), "게이트 ID가 피드백에 포함됨");
+  assert.ok(secondPrompt.includes("QG1-structure"), "게이트 ID가 피드백에 포함됨");
   assert.equal(draft.gate.attempts, 2);
   assert.equal(draft.gate.history[0].pass, false);
   assert.equal(draft.gate.history[1].pass, true);
@@ -333,10 +401,26 @@ test("runWeekly aborts with the gate report when retries are exhausted", async (
   };
   await assert.rejects(
     () => runWeekly(HOT_ITEMS, { store, now: NOW, apiKey: "k", fetchImpl, maxAttempts: 2 }),
-    /루프게이트를 통과하지 못했/
+    (err) => {
+      // fail-loud: 조용한 드롭 없이 판정과 [게이트ID] 사유가 실려 나온다
+      assert.match(err.message, /루프게이트를 통과하지 못했/);
+      assert.equal(err.decision, "BLOCK"); // QG1(HARD) 위반
+      assert.ok(err.reasons.some((r) => r.startsWith("[QG1-structure]")));
+      return true;
+    }
   );
   assert.equal(calls, 2);
   assert.equal(store.listDrafts().length, 0, "게이트 미통과 퀴즈는 초안조차 되지 않는다");
+});
+
+test("runWeekly re-run of the same week converges on one draft (run binding)", async () => {
+  const store = tmpStore();
+  const first = await runWeekly(HOT_ITEMS, { store, now: NOW, apiKey: null });
+  const second = await runWeekly(HOT_ITEMS, { store, now: NOW, apiKey: null });
+  // 같은 회차·같은 콘텐츠 → 같은 slug/run id로 원자적 덮어쓰기, 중복 산출 0
+  assert.equal(first.draft.slug, second.draft.slug);
+  assert.equal(second.draft.run.id, `${second.draft.week}-${second.draft.slug}`);
+  assert.equal(store.listDrafts().length, 1);
 });
 
 // ---- weekly pipeline -----------------------------------------------------
