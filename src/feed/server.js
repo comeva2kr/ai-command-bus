@@ -27,6 +27,8 @@ import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { sendDigestPushes } from "./push.js";
 import { QuizStore } from "../quiz/store.js";
 import { renderIndexPage, renderQuizPage, renderResultPage } from "../quiz/render.js";
+import { renderOgCardSvg } from "../quiz/ogcard.js";
+import { renderOgCardPng } from "../quiz/ogrender.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -569,6 +571,48 @@ export function createServer(opts = {}) {
           res.end(body);
         };
         if (p === "/q" || p === "/q/") return html(200, renderIndexPage(quizStore.listPublished(), origin));
+
+        // OG 공유 카드 PNG: /q/<slug>/og/<code>.png ("cover"는 퀴즈 랜딩용).
+        // 카카오톡/페이스북/트위터 크롤러는 og:image로 SVG를 렌더하지 못하므로
+        // 여기서 실제 PNG로 래스터화해 내려준다 (src/quiz/ogcard.js + ogrender.js).
+        const ogMatch = p.match(/^\/q\/([^/]+)\/og\/([^/]+)\.png$/);
+        if (ogMatch) {
+          const record = quizStore.getPublished(decodeURIComponent(ogMatch[1]));
+          if (!record) return send(res, 404, { error: "not found" });
+          const codeParam = decodeURIComponent(ogMatch[2]);
+          const isCover = codeParam === "cover";
+          const result = isCover ? null : record.quiz.results.find((r) => r.code === codeParam);
+          if (!isCover && !result) return send(res, 404, { error: "not found" });
+
+          // 희소성 %는 5% 버킷으로 캐시 키에 포함 — 응답 통계가 조금씩 바뀔
+          // 때마다 재렌더하지 않도록.
+          let bucketKey = "cover";
+          let sharePercent;
+          if (!isCover) {
+            const stats = quizStore.statsFor(record.slug, record.quiz.results.map((r) => r.code));
+            sharePercent = (stats && stats.share && stats.share[codeParam]) || 0;
+            bucketKey = `p${Math.round(sharePercent / 5) * 5}`;
+          }
+
+          let png = quizStore.readOgCache(record.slug, codeParam, bucketKey);
+          if (!png) {
+            const svg = renderOgCardSvg(record.quiz, result, { sharePercent, origin });
+            png = await renderOgCardPng(svg).catch(() => null);
+            if (!png) {
+              // 렌더러(옵셔널 의존성) 미설치 — 실패 없이 정적 아이콘으로 폴백.
+              res.writeHead(302, { location: `${origin}/icon.svg` });
+              return res.end();
+            }
+            try {
+              quizStore.writeOgCache(record.slug, codeParam, bucketKey, png);
+            } catch {
+              // 캐시 쓰기 실패해도 이미 렌더된 png는 응답으로 나간다.
+            }
+          }
+          res.writeHead(200, { "content-type": "image/png", "cache-control": "public, max-age=3600" });
+          return res.end(png);
+        }
+
         // /q/<slug> 또는 /q/<slug>/r/<resultId>
         const m = p.match(/^\/q\/([^/]+)(?:\/r\/([^/]+))?$/);
         if (m) {

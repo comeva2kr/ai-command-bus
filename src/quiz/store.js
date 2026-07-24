@@ -104,6 +104,32 @@ export class QuizStore {
     return { share, total: stats.total };
   }
 
+  // --- OG 공유 카드 PNG 캐시 -------------------------------------------------
+  // 파일명 자체가 캐시 키(슬러그-코드-희소성버킷). code는 "cover" 또는 결과
+  // 코드(영숫자)만 허용 — 경로 탈출 방지.
+
+  ogCachePath(slug, code, bucketKey) {
+    const s = QuizStore.safeSlug(slug);
+    if (!/^[A-Za-z0-9]+$/.test(String(code))) throw new Error("잘못된 유형 코드예요.");
+    if (!/^[A-Za-z0-9]+$/.test(String(bucketKey))) throw new Error("잘못된 캐시 키예요.");
+    return path.join(this.dir, "og", `${s}-${code}-${bucketKey}.png`);
+  }
+
+  readOgCache(slug, code, bucketKey) {
+    try {
+      return fs.readFileSync(this.ogCachePath(slug, code, bucketKey));
+    } catch {
+      return null;
+    }
+  }
+
+  writeOgCache(slug, code, bucketKey, buffer) {
+    const file = this.ogCachePath(slug, code, bucketKey);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    this._writeAtomic(file, buffer);
+    return file;
+  }
+
   // 원자적 쓰기 (tmp→rename): 같은 회차 재실행이나 동시 응답 기록이 파일을
   // 반쯤 쓴 상태로 남기지 않는다 (매니페스트 run_binding.atomic_write).
   _writeAtomic(file, data) {

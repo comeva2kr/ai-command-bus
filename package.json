@@ -25,5 +25,8 @@
     "open-source"
   ],
   "author": "Hyundong Hwang",
-  "license": "MIT"
+  "license": "MIT",
+  "optionalDependencies": {
+    "@resvg/resvg-js": "^2"
+  }
 }

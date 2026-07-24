@@ -20,6 +20,7 @@ import { scoreQuiz } from "../src/quiz/engine.js";
 import { QuizStore } from "../src/quiz/store.js";
 import { runWeekly, weekLabel } from "../src/quiz/weekly.js";
 import { routeTask } from "../src/router.js";
+import { renderOgCardSvg } from "../src/quiz/ogcard.js";
 
 const HOT_ITEMS = JSON.parse(fs.readFileSync(new URL("../examples/hot_items.json", import.meta.url), "utf8"));
 const NOW = Date.parse("2026-07-23T00:00:00Z");
@@ -506,6 +507,194 @@ test("server serves published quizzes with credibility devices; drafts stay hidd
     // 인덱스/API에는 발행분만
     const api = await (await fetch(`${base}/api/quiz`)).json();
     assert.deepEqual(api.quizzes.map((q) => q.slug), ["2026w30-live"]);
+  } finally {
+    server.close();
+  }
+});
+
+// ---- OG share card: SVG generation (src/quiz/ogcard.js) -------------------
+// Kakao/Facebook/Twitter link crawlers don't rasterize SVG, so og:image needs
+// a PNG — but the SVG algorithm itself is dependency-free and fully
+// deterministic, so it's tested directly here (no resvg needed).
+
+test("renderOgCardSvg produces the same SVG for the same input (deterministic)", () => {
+  const quiz = sampleQuiz();
+  const result = quiz.results[0];
+  const a = renderOgCardSvg(quiz, result, { sharePercent: 12, origin: "https://example.com" });
+  const b = renderOgCardSvg(quiz, result, { sharePercent: 12, origin: "https://example.com" });
+  assert.equal(a, b);
+  const coverA = renderOgCardSvg(quiz, null, { origin: "https://example.com" });
+  const coverB = renderOgCardSvg(quiz, null, { origin: "https://example.com" });
+  assert.equal(coverA, coverB);
+});
+
+test("renderOgCardSvg escapes XML-special characters in titles/labels", () => {
+  const quiz = structuredClone(sampleQuiz());
+  quiz.title = `제목 <b>강조</b> & "인용" 태그`;
+  quiz.results[0].title = `유형 <script>alert(1)</script>`;
+  const svg = renderOgCardSvg(quiz, quiz.results[0], {});
+  assert.ok(!svg.includes("<b>강조</b>"), "raw HTML tag from title must not leak unescaped");
+  assert.ok(!svg.includes("<script>"), "raw script tag from type title must not leak unescaped");
+  assert.ok(svg.includes("&lt;b&gt;") || svg.includes("&amp;lt;b&amp;gt;"), "title tag should be escaped");
+  assert.ok(svg.includes("&amp;"), "ampersand should be escaped");
+  assert.ok(svg.includes("&quot;"), "double quote should be escaped");
+  // the SVG itself must still be well-formed enough to not contain a bare '<' followed by a tag-looking word from user content
+  assert.ok(!/<script>/.test(svg));
+});
+
+test("renderOgCardSvg gives each result type a distinct hue (golden-angle stepping)", () => {
+  const quiz = sampleQuiz();
+  const hueOf = (svg) => svg.match(/hsl\((\d+(?:\.\d+)?), 85%, 62%\)/)[1];
+  const h0 = hueOf(renderOgCardSvg(quiz, quiz.results[0], {}));
+  const h1 = hueOf(renderOgCardSvg(quiz, quiz.results[1], {}));
+  const h2 = hueOf(renderOgCardSvg(quiz, quiz.results[2], {}));
+  assert.notEqual(h0, h1);
+  assert.notEqual(h1, h2);
+  assert.notEqual(h0, h2);
+});
+
+test("renderOgCardSvg wraps and scales down long type names, keeping a floor of 48px", () => {
+  const quiz = structuredClone(sampleQuiz());
+  quiz.results[0].title = "완전히 극단적으로 길고 긴 유형 이름 테스트용";
+  const svg = renderOgCardSvg(quiz, quiz.results[0], {});
+  const sizes = [...svg.matchAll(/font-weight="800" fill="#ffffff">/g)];
+  assert.ok(sizes.length >= 2, "long title should wrap to two lines");
+  const fontSizeMatch = svg.match(/font-size="(\d+)" font-weight="800"/);
+  const size = Number(fontSizeMatch[1]);
+  assert.ok(size < 76, "font should scale down below the 76px base");
+  assert.ok(size >= 48, "font should never go below the 48px floor");
+
+  // a short type name stays single-line at the base size
+  const short = structuredClone(sampleQuiz());
+  short.results[0].title = "짧은유형";
+  const shortSvg = renderOgCardSvg(short, short.results[0], {});
+  const shortSize = Number(shortSvg.match(/font-size="(\d+)" font-weight="800"/)[1]);
+  assert.equal(shortSize, 76);
+});
+
+test("renderOgCardSvg cover card reflects the actual number of result types", () => {
+  const quiz = sampleQuiz();
+  const svg = renderOgCardSvg(quiz, null, {});
+  assert.ok(svg.includes(`${quiz.results.length}가지 유형 중 넌 뭐야?`));
+});
+
+test("renderOgCardSvg rarity badge appears only with sharePercent, 'rare' label only at <=15%", () => {
+  const quiz = sampleQuiz();
+  const rare = renderOgCardSvg(quiz, quiz.results[0], { sharePercent: 8 });
+  assert.ok(rare.includes("응답자 중 8%"));
+  assert.ok(rare.includes("희귀 유형"));
+
+  const common = renderOgCardSvg(quiz, quiz.results[0], { sharePercent: 40 });
+  assert.ok(common.includes("응답자 중 40%"));
+  assert.ok(!common.includes("희귀 유형"));
+
+  const noStat = renderOgCardSvg(quiz, quiz.results[0], {});
+  assert.ok(!noStat.includes("응답자 중"), "no rarity badge without sharePercent");
+
+  // cover card never shows a rarity badge, even if sharePercent were passed
+  const cover = renderOgCardSvg(quiz, null, { sharePercent: 5 });
+  assert.ok(!cover.includes("응답자 중"));
+});
+
+test("renderOgCardSvg never fabricates per-user axis percentages on the pole chips", () => {
+  const quiz = sampleQuiz();
+  const result = quiz.results[0];
+  // no opts.sharePercent → no rarity badge, so any "%" left would have to be
+  // an invented per-axis number, which the design explicitly forbids.
+  const svg = renderOgCardSvg(quiz, result, {});
+  assert.ok(!svg.includes("응답자 중"), "no rarity badge without sharePercent");
+  // exclude SVG-internal percentages (gradient stops like "hsl(..,62%,22%)")
+  // and only check for a rendered "NN%" *text* — the shape a fabricated
+  // per-user axis number would take.
+  assert.ok(!/>\s*\d{1,3}%/.test(svg), "no invented percentage numbers rendered as text on the card");
+  // the pole labels themselves ARE present — that's the real evidence we have
+  quiz.axes.forEach((axis, i) => {
+    const code = result.code[i];
+    const pole = code === axis.left.code ? axis.left : axis.right;
+    assert.ok(svg.includes(`>${pole.label}<`), `expected pole label "${pole.label}" chip on the card`);
+  });
+});
+
+// ---- OG share card: PNG route + rasterizer (optional dependency) ---------
+
+test("GET /q/<slug>/og/<code>.png and /og/cover.png serve real PNGs; bad slug/code 404", async (t) => {
+  let resvgAvailable = true;
+  try {
+    await import("@resvg/resvg-js");
+  } catch {
+    resvgAvailable = false;
+  }
+
+  const { createServer } = await import("../src/feed/server.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-og-"));
+  const store = new QuizStore({ dir });
+  const quiz = sampleQuiz();
+  store.saveDraft("2026w30-og", quiz, { week: "2026w30" });
+  store.approve("2026w30-og");
+  for (let i = 0; i < 4; i++) store.recordResponse("2026w30-og", quiz.results[0].code);
+
+  const server = createServer({ sources: [], quizDir: dir });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const base = `http://localhost:${server.address().port}`;
+  try {
+    // redirect: "manual" — fetch() follows 302s by default, which would hide
+    // the fallback status behind the icon.svg response it redirects to.
+    const typeRes = await fetch(`${base}/q/2026w30-og/og/${quiz.results[0].code}.png`, { redirect: "manual" });
+    const coverRes = await fetch(`${base}/q/2026w30-og/og/cover.png`, { redirect: "manual" });
+
+    if (!resvgAvailable) {
+      // renderer not installed: fail-open to the static icon, never crash.
+      assert.equal(typeRes.status, 302);
+      assert.equal(typeRes.headers.get("location"), `${base}/icon.svg`);
+      assert.equal(coverRes.status, 302);
+      t.skip("@resvg/resvg-js not installed — verified 302 fallback only");
+    } else {
+      assert.equal(typeRes.status, 200);
+      assert.equal(typeRes.headers.get("content-type"), "image/png");
+      assert.equal(typeRes.headers.get("cache-control"), "public, max-age=3600");
+      const typeBuf = Buffer.from(await typeRes.arrayBuffer());
+      assert.deepEqual(typeBuf.subarray(0, 8), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      assert.ok(typeBuf.length > 5000, "rendered PNG should be more than a blank stub");
+
+      assert.equal(coverRes.status, 200);
+      const coverBuf = Buffer.from(await coverRes.arrayBuffer());
+      assert.deepEqual(coverBuf.subarray(0, 8), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+
+      // cache file materialized on disk (5%-bucketed key)
+      const ogFiles = fs.readdirSync(path.join(dir, "og"));
+      assert.ok(ogFiles.some((f) => f.startsWith(`2026w30-og-${quiz.results[0].code}-p`)));
+      assert.ok(ogFiles.some((f) => f.startsWith("2026w30-og-cover-cover")));
+    }
+
+    // unpublished slug and bogus type code both 404 (never leak drafts/typos)
+    store.saveDraft("2026w30-hidden-og", quiz, { week: "2026w30" });
+    assert.equal((await fetch(`${base}/q/2026w30-hidden-og/og/cover.png`)).status, 404);
+    assert.equal((await fetch(`${base}/q/2026w30-og/og/ZZ.png`)).status, 404);
+    assert.equal((await fetch(`${base}/q/no-such-slug/og/cover.png`)).status, 404);
+  } finally {
+    server.close();
+  }
+});
+
+test("result page HTML points og:image at the PNG route and offers a save-card link", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-ogmeta-"));
+  const store = new QuizStore({ dir });
+  const quiz = sampleQuiz();
+  store.saveDraft("2026w30-meta", quiz, { week: "2026w30" });
+  store.approve("2026w30-meta");
+
+  const server = createServer({ sources: [], quizDir: dir });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const base = `http://localhost:${server.address().port}`;
+  try {
+    const code = quiz.results[0].code;
+    const page = await (await fetch(`${base}/q/2026w30-meta/r/${code}`)).text();
+    assert.ok(page.includes(`property="og:image" content="${base}/q/2026w30-meta/og/${code}.png"`));
+    assert.ok(page.includes(`/q/2026w30-meta/og/${code}.png" download`), "share area should offer a downloadable card link");
+
+    const quizPage = await (await fetch(`${base}/q/2026w30-meta`)).text();
+    assert.ok(quizPage.includes(`property="og:image" content="${base}/q/2026w30-meta/og/cover.png"`));
   } finally {
     server.close();
   }

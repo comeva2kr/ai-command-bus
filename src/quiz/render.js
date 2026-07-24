@@ -65,7 +65,11 @@ ul.plain li{margin:6px 0}
 a{color:#4f8cff}
 `;
 
-function head(title, desc, url, origin) {
+// ogImage: absolute URL of a PNG (카카오톡/페이스북/트위터 크롤러는 SVG를
+// 렌더하지 못한다 — 기본값은 /icon.svg인데 그건 SVG라 실질적으로 미리보기가
+// 깨져 있었다). 지정 없으면 기존처럼 icon.svg로 (인덱스 페이지 등).
+function head(title, desc, url, origin, ogImage) {
+  const image = ogImage || `${origin}/icon.svg`;
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)}</title>
@@ -74,8 +78,8 @@ function head(title, desc, url, origin) {
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:url" content="${esc(url)}">
-<meta property="og:image" content="${esc(origin)}/icon.svg">
-<meta name="twitter:card" content="summary_large_image">
+<meta property="og:image" content="${esc(image)}">
+${ogImage ? `<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n` : ""}<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(desc)}">
 <style>${STYLE}</style></head><body><div class="wrap">`;
@@ -114,7 +118,7 @@ export function renderQuizPage(record, origin) {
   // 클라이언트 스크립트가 쓸 데이터. </script> 이탈 방지 이스케이프.
   const payload = JSON.stringify({ slug, axes: quiz.axes, questions: quiz.questions }).replace(/</g, "\\u003c");
   return (
-    head(quiz.title, quiz.description, url, origin) +
+    head(quiz.title, quiz.description, url, origin, `${origin}/q/${esc(slug)}/og/cover.png`) +
     `<div id="intro">
 <h1>${esc(quiz.title)}</h1>
 <p class="desc">${esc(quiz.description)}</p>
@@ -184,6 +188,7 @@ export function renderResultPage(record, result, origin, opts = {}) {
   const { percents = null, stats = null } = opts;
   const url = `${origin}/q/${esc(slug)}/r/${esc(result.code)}`;
   const ogTitle = `나는 "${result.title}"! — ${quiz.title}`;
+  const ogImageUrl = `${origin}/q/${esc(slug)}/og/${esc(result.code)}.png`;
   const color = typeColor(result.code);
   const byCode = new Map(quiz.results.map((r) => [r.code, r]));
   const best = byCode.get(result.bestMatch);
@@ -211,7 +216,7 @@ export function renderResultPage(record, result, origin, opts = {}) {
     .join("\n");
 
   return (
-    head(ogTitle, result.shareText, url, origin) +
+    head(ogTitle, result.shareText, url, origin, ogImageUrl) +
     `<div class="card result-card" style="border-color:${color}">
 <p class="desc" style="font-size:.85rem">${esc(quiz.title)}</p>
 <h1 style="color:${color}">${esc(result.title)}</h1>
@@ -249,6 +254,7 @@ ${AD}
 <button onclick="shareLink()">🔗 링크 복사</button>
 <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(result.shareText)}&url=${encodeURIComponent(url)}" target="_blank" rel="noopener">X에 공유</a>
 <button onclick="webShare()">📱 공유하기</button>
+<a href="${esc(ogImageUrl)}" download target="_blank" rel="noopener">🖼️ 결과 카드 저장</a>
 </div>
 </div>
 <p style="text-align:center"><a class="big" href="/q/${esc(slug)}">나도 테스트 해보기 →</a></p>
