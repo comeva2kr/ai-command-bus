@@ -57,7 +57,7 @@
       "QG6": { "loss_vectors": ["editorial"], "expected_loss_path": "응답 데이터 미반영으로 희소성 통계·차주 보정 루프 상실", "minimum_release_inputs": ["response_stats_accumulation"] }
     },
     "checks": {
-      "topics": { "count": 5, "max_per_source": 2 },
+      "topics": { "count": 5, "max_per_source": 2, "hangul_chars_min": 4 },
       "topic_safety": {
         "celebrity_private_life": ["열애", "연인", "스킨십", "결별", "파경", "이혼", "재혼", "핑크빛", "데이트 포착"],
         "fear_disaster": ["가지 말라", "참사", "사망", "지진", "방사능", "경보", "전염", "공포"],

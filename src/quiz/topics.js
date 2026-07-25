@@ -29,6 +29,16 @@ const UNSAFE_TITLE_KEYWORDS = [
   ...(TOPIC_SAFETY.fear_disaster || [])
 ];
 
+// 한국어 대중 퀴즈 소재 조건: 제목에 한글이 최소 N자 있어야 한다 — 출처
+// 다양화 캡이 hackernews 같은 영문 소스를 끌어올릴 때, 영문 제목이 그대로
+// 문항·결과에 인용되는 것을 막는다 (선언 원본: checks.topics.hangul_chars_min).
+const HANGUL_CHARS_MIN = CONTRACT.checks.topics.hangul_chars_min || 0;
+
+function hangulCount(s) {
+  const m = String(s || "").match(/[가-힣]/g);
+  return m ? m.length : 0;
+}
+
 function isBrandSafe(item) {
   const topics = classifyTopics({
     title: item.title,
@@ -38,6 +48,7 @@ function isBrandSafe(item) {
   if (topics.some((t) => EXCLUDED_TOPICS.has(t)) || item.adult === true) return false;
   const title = String(item.title || "");
   if (UNSAFE_TITLE_KEYWORDS.some((kw) => title.includes(kw))) return false;
+  if (hangulCount(title) < HANGUL_CHARS_MIN) return false;
   return true;
 }
 

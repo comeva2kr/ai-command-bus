@@ -1103,3 +1103,13 @@ test("result page HTML points og:image at the PNG route and offers a save-card l
     server.close();
   }
 });
+
+test("pickWeeklyTopics filters non-Korean titles (hangul_chars_min)", () => {
+  const items = [
+    { title: "Startup founders urge U.S. government not to shut off AI", source: "hackernews", score: 900 },
+    { title: "요즘 편의점 신상 조합 근황", source: "clien", score: 10 }
+  ];
+  const topics = pickWeeklyTopics(items, { count: 2, now: NOW });
+  assert.equal(topics.length, 1, "영문 제목 소재는 제외");
+  assert.ok(topics[0].title.includes("편의점"));
+});
