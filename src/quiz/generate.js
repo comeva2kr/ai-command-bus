@@ -12,9 +12,15 @@
 // because per-axis percentages are explainable, personal, and absorb
 // borderline results ("52:48 균형형") instead of feeling arbitrary.
 
+import { CONTRACT } from "./manifest.js";
+
 const API_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
 export const DEFAULT_MODEL = "claude-opus-4-8";
+
+// 용어 친숙도 3등급 — 선언 원본은 매니페스트 (pack_contract.familiarity_tiers).
+// David 실사용 피드백(2026-07-25): "이걸 40대 직장인이 알까?"가 기준.
+const FAMILIARITY_TIERS = CONTRACT.familiarity_tiers.tiers;
 
 // Structured-outputs schema for the generated quiz (validated further by
 // validateQuiz — the API schema can't express cross-references like
@@ -22,20 +28,38 @@ export const DEFAULT_MODEL = "claude-opus-4-8";
 export const QUIZ_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "description", "axes", "questions", "results"],
+  required: ["title", "description", "weeklyBrief", "axes", "questions", "results"],
   properties: {
     title: { type: "string", description: "테스트 제목 (호기심을 자극하는 한국어)" },
     description: { type: "string", description: "한 줄 소개 (공유 미리보기에 쓰임)" },
+    // 사전설명(브리핑) — David 실사용 피드백(2026-07-25): 퀴즈가 커뮤니티
+    // 내부자 전보체로 나와서 모르는 사람은 못 알아듣는다는 지적 반영. 소재
+    // 수만큼, 처음 듣는 친구에게 말해주듯 한 줄로 무슨 일이 있었는지 설명한다.
+    weeklyBrief: {
+      type: "array",
+      description: "이번 주 소재 사전설명 — 소재 수만큼. 처음 듣는 친구에게 말해주듯 한 줄 설명.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["topic", "intro", "tier"],
+        properties: {
+          topic: { type: "string", description: "소재 핵심 키워드" },
+          intro: { type: "string", description: "처음 듣는 친구에게 말해주듯 한 줄 설명 (커뮤니티 은어 없이, 무슨 일이 있었는지가 문장 안에 다 들어가게, 15~90자)" },
+          tier: { type: "string", enum: FAMILIARITY_TIERS, description: "이 소재/용어의 친숙도 등급 — '이걸 40대 직장인이 알까?'가 기준" }
+        }
+      }
+    },
     axes: {
       type: "array",
       description: "심리 축 2~4개. 문항/유형은 전부 이 축에서 파생된다.",
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["id", "name", "left", "right"],
+        required: ["id", "name", "intro", "left", "right"],
         properties: {
           id: { type: "string", description: "축 식별자 (영문 소문자)" },
           name: { type: "string", description: "축 이름 (예: 에너지 방향)" },
+          intro: { type: "string", description: "이 축이 뭘 확인하는지 처음 온 사람에게 말해주는 친절 한 줄 (예: '이슈를 보면 바로 퍼뜨리는 편인지, 혼자 간직하는 편인지를 봐.', 15~70자)" },
           left: {
             type: "object",
             additionalProperties: false,
@@ -140,17 +164,22 @@ export function buildPrompt(topics, opts = {}) {
     "① 이 소재가 왜 웃긴가 / 어떤 감정을 건드리나",
     "② 이 소재에서 실제로 일어날 수 있는 행동 목록 (그 소재라서 가능한 구체적 행동만)",
     "③ 이 소재를 모르는 사람도 고를 수 있는 반응은 뭔가",
+    "④ 이 소재를 하나도 모르는 친구에게 말해주듯 한 줄 설명을 써라(이게 weeklyBrief가 된다) — 커뮤니티 은어 없이, 무슨 일이 있었는지가 문장 안에 다 들어가게.",
     "**여기서 정리한 행동 목록에 없는 행동을 뒤 단계에서 그 소재에 붙이면 실패다.** (2차 검수 최다 적발 사례: 봉화군 소재 글에 다른 소재의 '재고 확인'을 그대로 갖다 붙인 짜깁기 — 소재별 행동은 서로 섞이면 안 된다.)",
+    "- 각 소재와 그 안의 핵심 용어를 [국민상식/대중화제/커뮤내수] 3등급으로 분류하라 — '이걸 40대 직장인이 알까?'가 기준. **커뮤내수 등급 용어는: 브리핑에서 반드시 설명하고, 문항 첫 등장 시 문장 안에서 풀어쓰고, 제목에는 쓰지 마라.** (weeklyBrief 각 항목의 tier 필드로 남긴다.)",
     "",
     "## [1단계 — 컨셉]",
     "- 이 소재에 맞는 심리 축 3개를 정의한다 (축마다 양극에 코드 1글자 + 매력적인 극 이름).",
     "- 축 이름·극 이름은 이번 소재들에서 자연스럽게 나와야지, 아무 주에나 쓸 수 있는 범용어면 약하다.",
     "- 문항과 유형은 전부 그 축에서 파생시킨다. 유형 수 = 2^축수 (3축이면 8유형, 코드는 축 순서대로 조합).",
+    "- 축마다 intro를 써라 — 이 축이 뭘 확인하는지 처음 온 사람에게 말해주는 친절 한 줄이다(예: '이슈를 보면 바로 퍼뜨리는 편인지, 혼자 간직하는 편인지를 봐.', 15~70자).",
     "- 제목에 이번 주 토픽의 핵심 단어를 최소 1개 그대로 넣어라 (예: '고소영 단발 뜬 날, 너는 몇 초 만에 퍼뜨림?'). 아무 주에나 쓸 수 있는 범용 제목 금지.",
+    "- **제목에는 소재를 1개만** 넣어라 — 밈 여러 개를 이어붙인 압축 제목 금지, 상황 하나를 완결 문장으로.",
     "",
     "## [2단계 — 문항 초고]",
     "- 총 9~12문항, 축당 3~4문항 (홀수 권장 — 동점 방지), 선택지는 문항당 정확히 4개.",
     "- 9문항 중 최소 6개는 토픽에서 직접 파생시켜라 (범용 필러 최소화).",
+    "- **문항 첫 문장은 그 소재를 처음 듣는 사람도 상황을 이해할 수 있게 쓴다** — '봉화군 까임 글 보고' 같은 축약 금지, '봉화군이 맥도날드에 협업하자고 했다가 거절당했다는 글을 보고'처럼. 한 번 설명된 소재는 이후 문항에서 짧게 불러도 된다.",
     "- 직접 자기보고('당신은 외향적입니까?') 금지. 토픽 상황에 던져넣는 상황 제시형으로:",
     "  좋은 예: \"금요일 밤 단톡방에 '지금 나올 사람?'이 뜬다. 나는 → ① 이미 신발 신는 중 ② 누가 나오는지부터 확인 ③ 읽고 침대에 더 파고든다\"",
     "- '정답' 냄새 금지: 모든 선택지가 각자 매력 있거나 각자 웃겨야 한다. 사회적으로 바람직한 답이 하나뿐인 문항은 실패작.",
@@ -163,6 +192,7 @@ export function buildPrompt(topics, opts = {}) {
     "- 첫 1~2문항은 가장 쉽고 웃긴 훅으로.",
     "",
     "## [3단계 — 결과 초고]",
+    "- **전보체 금지**: 조사·주어를 잘라낸 압축문 대신 완결 문장. 드립은 유지하되 문장은 친절하게.",
     "- 유형 이름은 점수 언어가 아니라 정체성 언어로, 대화에서 짧게 부를 수 있는 별칭이 되게 (예: '계획으로 세상을 지키는 큐레이터형' — 어휘가 밈이 되면 테스트로 재유입된다).",
     "- 각 유형 서술 첫 문장은 이번 주 토픽 고유명사를 직접 넣은 생활 장면으로 시작하라 (예: '고소영 단발 짤 뜨자마자 단톡 세 군데에 뿌린 게 너다').",
     "- 서술은 220자 이내 — 길수록 AI 티다.",
@@ -190,6 +220,8 @@ export function buildPrompt(topics, opts = {}) {
     "⑥ 극마다 다른 조언인데, 전부 반대 극이 되라는 말로 수렴하지 않는가",
     "⑦ 자랑할 맛 없는 '꽝' 유형은 없는가",
     "⑧ 상표: 토픽 제목에 이미 등장한 상표명은 그대로 써도 된다(공개 화제 인용). 토픽에 없는 상표는 일반 명사로 우회하라.",
+    "⑨ 이번 주 커뮤니티를 하나도 안 본 친구에게 소리 내어 읽어줬을 때, 브리핑→제목→문항→결과 순서로 전부 이해되는가. 막히는 문장은 그 자리에서 풀어써라.",
+    "⑩ 커뮤내수 등급 용어가 설명 없이 노출된 곳이 한 군데라도 있나.",
     "",
     "## [5단계 — 제출]",
     "완성본 JSON 하나만 출력한다.",
@@ -257,12 +289,14 @@ export function templateQuiz(topics, opts = {}) {
     {
       id: "reaction",
       name: "반응 속도",
+      intro: "이슈를 보면 바로 반응하는 편인지, 곱씹고 나서 움직이는 편인지를 봐.",
       left: { code: "F", label: "직진 반응형" },
       right: { code: "T", label: "곱씹는 관찰형" }
     },
     {
       id: "sharing",
       name: "확산 본능",
+      intro: "알게 된 걸 바로 퍼뜨리는 편인지, 혼자 챙겨두는 편인지를 봐.",
       left: { code: "S", label: "확성기형" },
       right: { code: "K", label: "수집가형" }
     }
@@ -407,9 +441,19 @@ export function templateQuiz(topics, opts = {}) {
       shareText: "나는 느긋한 큐레이터 — 유행 지나고 정주행하는 편. 너는?"
     }
   ];
+  // 주간 브리핑 — David 실사용 피드백(2026-07-25): 소재 수만큼, 처음 듣는
+  // 친구에게 말해주듯 한 줄 설명(커뮤니티 은어 없이, 무슨 일이 있었는지가
+  // 문장 안에 다 들어가게). tier는 결정적 템플릿이라 "대중화제"로 고정 —
+  // 실제 등급 판정은 Claude 생성 경로가 buildPrompt 0단계에서 매긴다.
+  const weeklyBrief = topics.map((t) => ({
+    topic: t.title.slice(0, 12),
+    intro: `"${t.title.slice(0, 20)}" 얘기가 이번 주 커뮤니티에서 크게 돌았어.`,
+    tier: "대중화제"
+  }));
   const quiz = {
     title: `"${w0}" 뜬 날 내 반응 유형은?`,
     description: `이번 주 "${w0}" 같은 화제들 앞에서 네 반응 축 2개를 재본다. 4가지 중 넌 어디?`,
+    weeklyBrief,
     axes,
     questions,
     results
@@ -434,7 +478,26 @@ export function validateQuiz(quiz) {
   if (!quiz || typeof quiz !== "object") throw new Error("퀴즈가 비어 있어요.");
   if (!quiz.title || !quiz.description) throw new Error("퀴즈 제목/설명이 없어요.");
 
-  // 축: 2~4개, id/극코드 유일
+  // 주간 브리핑 — David 실사용 피드백(2026-07-25): 소재를 하나도 모르는
+  // 사람도 시작 전에 이해하게. 존재·intro 15~90자·비어있지 않음·친숙도
+  // 등급(tier)이 매니페스트 선언 목록 안에 있는지 검증 (개수를 몇 개
+  // 채웠는지는 토픽 컨텍스트가 필요해 gates.js QG2가 담당).
+  if (!Array.isArray(quiz.weeklyBrief) || quiz.weeklyBrief.length === 0) {
+    throw new Error("주간 브리핑(weeklyBrief)이 없어요.");
+  }
+  for (const b of quiz.weeklyBrief) {
+    if (!b || !b.topic || !String(b.topic).trim()) throw new Error("weeklyBrief의 topic이 비었어요.");
+    const intro = String((b && b.intro) || "").trim();
+    if (!intro) throw new Error(`weeklyBrief "${b.topic}"의 intro가 비었어요.`);
+    if (intro.length < 15 || intro.length > 90) {
+      throw new Error(`weeklyBrief "${b.topic}"의 intro가 ${intro.length}자 — 15~90자여야 해요.`);
+    }
+    if (!FAMILIARITY_TIERS.includes(b.tier)) {
+      throw new Error(`weeklyBrief "${b.topic}"의 tier가 잘못됐어요 (${FAMILIARITY_TIERS.join("/")} 중 하나여야 해요).`);
+    }
+  }
+
+  // 축: 2~4개, id/극코드 유일, intro(이 축이 뭘 확인하는지 설명) 필수
   if (!Array.isArray(quiz.axes) || quiz.axes.length < 2 || quiz.axes.length > 4) {
     throw new Error("심리 축은 2~4개여야 해요.");
   }
@@ -444,6 +507,13 @@ export function validateQuiz(quiz) {
     if (!axis.id || !axis.name) throw new Error("축 id/이름이 비었어요.");
     if (axisIds.has(axis.id)) throw new Error(`축 id가 중복돼요: ${axis.id}`);
     axisIds.add(axis.id);
+    // David 실사용 피드백(2026-07-25): "이 테스트가 뭘 확인하는지" 처음
+    // 온 사람에게 설명하고 시작해야 한다.
+    const axisIntro = String(axis.intro || "").trim();
+    if (!axisIntro) throw new Error(`축 ${axis.id}의 intro(이 축이 뭘 확인하는지 설명)가 없어요.`);
+    if (axisIntro.length < 15 || axisIntro.length > 70) {
+      throw new Error(`축 ${axis.id}의 intro가 ${axisIntro.length}자 — 15~70자여야 해요.`);
+    }
     for (const pole of [axis.left, axis.right]) {
       if (!pole || !pole.code || !pole.label) throw new Error(`축 ${axis.id}의 극 정보가 비었어요.`);
       if (poleCodes.has(pole.code)) throw new Error(`극 코드가 중복돼요: ${pole.code}`);

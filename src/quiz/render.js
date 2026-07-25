@@ -24,6 +24,29 @@ import { CONTRACT } from "./manifest.js";
 // 8팀 적대 검수: "환장의 케미"가 밈 오용(뜻이 반대로 읽힘)이라 "상극 케미"로 교체.
 const LABELS = CONTRACT.result_labels_ko;
 
+// 복붙 공유 블록 템플릿 — 선언 원본은 매니페스트 (pack_contract.share_block_template_ko).
+// David 실사용 피드백(2026-07-25): shareText 한 줄만 복사되면 받는 사람이
+// 무슨 테스트/유형인지, 어디를 눌러야 하는지 모른다 — 붙여넣으면 그 자체로
+// 완결되는 여러 줄 블록으로 조립한다.
+const SHARE_BLOCK_TEMPLATE = CONTRACT.share_block_template_ko;
+
+// 템플릿 줄 배열 + 변수 → 완성된 블록 문자열. {sharePercent}가 없으면(공유
+// 유입 등 응답 통계 미제공) 그 줄에서 "— 응답자 중 {sharePercent}%"처럼
+// em-dash로 이어진 절 전체를 들어낸다 — 빈 괄호/빈 퍼센트를 남기지 않는다.
+export function buildShareBlock(templateLines, vars = {}) {
+  const lines = (Array.isArray(templateLines) ? templateLines : []).map((line) => {
+    let out = String(line);
+    if (vars.sharePercent == null && out.includes("{sharePercent}")) {
+      out = out.replace(/\s*—\s*[^{}]*\{sharePercent\}[^{}]*/gu, "").trimEnd();
+    }
+    for (const [key, val] of Object.entries(vars)) {
+      out = out.split(`{${key}}`).join(val == null ? "" : String(val));
+    }
+    return out;
+  });
+  return lines.join("\n");
+}
+
 function esc(s) {
   return String(s || "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
@@ -71,6 +94,7 @@ ul.plain li{margin:6px 0}
 .fineprint{font-size:.75rem;color:#4a5164;text-align:center;margin-top:24px}
 .hidden{display:none}
 a{color:#4f8cff}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1d2230;border:1px solid #2c3350;color:#e8eaf0;padding:10px 16px;border-radius:10px;font-size:.9rem;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
 `;
 
 // ogImage: absolute URL of a PNG (카카오톡/페이스북/트위터 크롤러는 SVG를
@@ -123,6 +147,29 @@ export function renderQuizPage(record, origin) {
   const axisChips = quiz.axes
     .map((a) => `<span class="badge">${esc(a.name)}: ${esc(a.left.label)} ↔ ${esc(a.right.label)}</span>`)
     .join(" ");
+  // 소요 시간 — 문항수 기반 올림 처리 단일 값(이전엔 min~max round가 같은
+  // 값끼리 겹쳐 "약 2~2분" 같은 티가 나는 버그가 있었다. 분 계산 로직을
+  // 범위 대신 올림 한 값으로 고쳤다).
+  const estMinutes = Math.max(1, Math.ceil(qCount / 5));
+  // 이 테스트가 알아보는 것 — David 실사용 피드백(2026-07-25): 시작 전에
+  // "이 테스트가 뭘 확인하는지"를 설명한다. intro 없는 과거 데이터(하위호환)는
+  // 조용히 생략한다.
+  const axesWithIntro = quiz.axes.filter((a) => a && a.intro);
+  const axisIntroSection = axesWithIntro.length
+    ? `<div class="card">
+<h2>이 테스트가 알아보는 것</h2>
+<ul class="plain">${axesWithIntro.map((a) => `<li><b>${esc(a.name)}</b> — ${esc(a.intro)}</li>`).join("")}</ul>
+</div>`
+    : "";
+  // 30초 브리핑 — 소재를 하나도 모르는 사람도 시작 전에 무슨 일이 있었는지
+  // 알 수 있게. weeklyBrief 없는 과거 데이터(하위호환)는 카드 자체를 생략한다.
+  const brief = Array.isArray(quiz.weeklyBrief) ? quiz.weeklyBrief : [];
+  const briefSection = brief.length
+    ? `<div class="card">
+<h2>들어가기 전 30초 브리핑</h2>
+<ul class="plain">${brief.map((b) => `<li><b>${esc(b.topic)}</b> — ${esc(b.intro)}</li>`).join("")}</ul>
+</div>`
+    : "";
   // 클라이언트 스크립트가 쓸 데이터. </script> 이탈 방지 이스케이프.
   const payload = JSON.stringify({ slug, axes: quiz.axes, questions: quiz.questions }).replace(/</g, "\\u003c");
   return (
@@ -133,8 +180,10 @@ export function renderQuizPage(record, origin) {
 <div class="card">
 <p class="desc" style="font-size:.85rem">이 테스트는 성향 축 ${quiz.axes.length}개를 각각 스펙트럼으로 측정해 ${quiz.results.length}가지 유형으로 판정합니다.</p>
 <p style="margin-top:8px">${axisChips}</p>
-<p class="desc" style="font-size:.85rem;margin-top:8px">${qCount}문항 · 약 ${Math.max(1, Math.round(qCount / 5))}~${Math.max(2, Math.round(qCount / 4))}분 · 정답은 없어요</p>
+<p class="desc" style="font-size:.85rem;margin-top:8px">${qCount}문항 · 약 ${estMinutes}분 · 정답은 없어요</p>
 </div>
+${axisIntroSection}
+${briefSection}
 ${AD}
 <div class="card" style="text-align:center"><button class="big" onclick="start()">테스트 시작하기 →</button></div>
 </div>
@@ -202,10 +251,19 @@ export function renderResultPage(record, result, origin, opts = {}) {
   const best = byCode.get(result.bestMatch);
   const worst = byCode.get(result.worstMatch);
 
-  const rarity =
-    stats && stats.share && stats.share[result.code] != null
-      ? `<span class="badge">지금까지 응답자 중 ${stats.share[result.code]}%가 이 유형</span>`
-      : "";
+  const sharePercent = stats && stats.share && stats.share[result.code] != null ? stats.share[result.code] : null;
+  const rarity = sharePercent != null ? `<span class="badge">지금까지 응답자 중 ${sharePercent}%가 이 유형</span>` : "";
+
+  // 복붙 공유 블록 — 붙여넣으면 그 자체로 완결(무슨 테스트/유형인지 + 링크).
+  const shareBlock = buildShareBlock(SHARE_BLOCK_TEMPLATE, {
+    title: quiz.title,
+    typeTitle: result.title,
+    sharePercent,
+    shareText: result.shareText,
+    url
+  });
+  // X는 글자수 제약 때문에 축약형: "{typeTitle} — {shareText} {url}".
+  const tweetText = `${result.title} — ${result.shareText} ${url}`;
 
   const axisBars = quiz.axes
     .map((a, i) => {
@@ -259,8 +317,8 @@ ${AD}
 <div class="card" style="text-align:center">
 <p class="desc">${esc(result.shareText)}</p>
 <div class="share">
-<button onclick="shareLink()">🔗 링크 복사</button>
-<a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(result.shareText)}&url=${encodeURIComponent(url)}" target="_blank" rel="noopener">X에 공유</a>
+<button onclick="shareLink()">📋 결과 복사</button>
+<a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}" target="_blank" rel="noopener">X에 공유</a>
 <button onclick="webShare()">📱 공유하기</button>
 <a href="${esc(ogImageUrl)}" download target="_blank" rel="noopener">🖼️ 결과 카드 저장</a>
 </div>
@@ -269,10 +327,12 @@ ${AD}
 <p style="text-align:center;margin-top:12px"><a href="/q">다른 테스트 보기</a></p>
 ${AD}
 ${FINEPRINT}
+<div id="toast"></div>
 <script>
-const URL_=${JSON.stringify(url)},TEXT=${JSON.stringify(result.shareText).replace(/</g, "\\u003c")};
-function shareLink(){navigator.clipboard.writeText(URL_).then(()=>alert('링크를 복사했어요!'));}
-function webShare(){if(navigator.share)navigator.share({title:document.title,text:TEXT,url:URL_});else shareLink();}
+const URL_=${JSON.stringify(url)},BLOCK=${JSON.stringify(shareBlock).replace(/</g, "\\u003c")};
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.style.opacity='1';clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>{el.style.opacity='0';},2200);}
+function shareLink(){navigator.clipboard.writeText(BLOCK).then(()=>toast('복사됐어요! 붙여넣으면 카드처럼 보여요'));}
+function webShare(){if(navigator.share)navigator.share({title:document.title,text:BLOCK});else shareLink();}
 </script>` +
     FOOT
   );

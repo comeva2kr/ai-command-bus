@@ -1,7 +1,7 @@
 {
   "_note_ko": "이 파일이 주간 바이럴 유형테스트 팩의 단일 진실원(기계 정본)이다. docs/quiz-loopgate.md는 파생 뷰 — 조건 값을 문서에서 손편집하지 말 것. WRC Workflow Gate 표준 스키마(google_blogger.yaml v1.2)를 미러링한 선언 매니페스트이며, 게이트 등급·재시도 예산·제외 토픽·게이트 임계값·산출물 규약은 코드 상수가 아니라 전부 여기서 로드된다.",
   "project": "weekly_viral_quiz",
-  "version": 3,
+  "version": 4,
   "pack": "weekly_viral_quiz",
   "display_name_ko": "주간 바이럴 유형테스트",
   "theme_accent": "#7C5CFF",
@@ -57,7 +57,8 @@
       "QG6": { "loss_vectors": ["editorial"], "expected_loss_path": "응답 데이터 미반영으로 희소성 통계·차주 보정 루프 상실", "minimum_release_inputs": ["response_stats_accumulation"] }
     },
     "checks": {
-      "topics": { "count": 5, "max_per_source": 2, "hangul_chars_min": 4 },
+      "topics": { "count": 5, "max_per_source": 2, "hangul_chars_min": 4, "cross_source_bonus": 0.5, "max_single_source_topics": 2 },
+      "topics_note_ko": "cross_source_bonus/max_single_source_topics — David 실사용 피드백(2026-07-25): 퀴즈가 커뮤니티 내부자 전보체로 나온다는 지적 반영. 다른 출처 제목과 핵심 토큰이 2개+ 겹치는 소재(여러 커뮤니티에서 동시에 화제 = 대중성 신호)에 hotness 가산점을 주고, 그런 신호가 없는(단일 커뮤 내수) 소재는 최종 선정에서 max_single_source_topics개로 캡을 건다(후보 부족 시에만 완화해 개수 보장) — topics.js pickWeeklyTopics.",
       "topic_safety": {
         "celebrity_private_life": ["열애", "연인", "스킨십", "결별", "파경", "이혼", "재혼", "핑크빛", "데이트 포착"],
         "fear_disaster": ["가지 말라", "참사", "사망", "지진", "방사능", "경보", "전염", "공포"],
@@ -80,7 +81,8 @@
         "share_text_similarity_max": 0.55,
         "result_topic_coverage_required": true,
         "question_topic_bound_min_ratio": 0.6,
-        "share_text_question_ending_max_ratio": 0.5
+        "share_text_question_ending_max_ratio": 0.5,
+        "weekly_brief_topic_coverage_required": true
       },
       "ai_tell": {
         "phrases": ["AI", "인공지능", "언어 모델", "물론입니다", "도움이 되", "여러분", "하십시오", "습니까", "알아보겠습니다", "살펴보겠습니다", "~에 대해", "다음과 같", "합니다", "습니다", "입니다", "됩니다", "드립니다", "하세요", "해보세요", "습관 들이기"],
@@ -101,6 +103,20 @@
       "best_match": "잘 맞는 케미",
       "worst_match": "상극 케미"
     },
+    "familiarity_tiers": {
+      "tiers": ["국민상식", "대중화제", "커뮤내수"],
+      "policy_ko": "국민상식=설명 없이 사용 가능 / 대중화제=첫 등장 시 짧은 맥락 / 커뮤내수=브리핑 설명 필수 + 문항 첫 등장 시 문장 안에서 풀어쓰기 + 제목 사용 금지",
+      "note_ko": "David 실사용 피드백(2026-07-25): 커뮤니티 은어를 아는 사람 기준이 아니라 '이걸 40대 직장인이 알까?'를 기준으로 소재·용어를 3등급으로 분류해, 커뮤내수 등급은 weeklyBrief에서 반드시 설명하게 강제한다 — buildPrompt 0단계, generate.js validateQuiz(weeklyBrief.tier)."
+    },
+    "share_block_template_ko": [
+      "🧪 {title}",
+      "",
+      "나는 「{typeTitle}」 — 응답자 중 {sharePercent}%",
+      "{shareText}",
+      "",
+      "👉 나도 해보기: {url}"
+    ],
+    "share_block_template_note_ko": "David 실사용 피드백(2026-07-25): 결과 복사가 shareText 한 줄뿐이라 받는 사람이 무슨 테스트/유형인지, 어디를 눌러야 하는지 모른다 — 붙여넣으면 그 자체로 완결된 여러 줄 블록으로 바꾼다. {sharePercent}는 응답 통계가 없으면(공유 유입 등) 해당 줄 전체를 자연스럽게 생략한다(빈 괄호/빈 퍼센트 금지) — render.js buildShareBlock.",
     "generation": {
       "order": ["claude_code_scheduled_session", "anthropic_api", "template"],
       "scheduled_policy_ko": "예약 실행에서 생성 실패/예산 소진은 fail-loud — 템플릿으로 대체 발행하지 않는다",

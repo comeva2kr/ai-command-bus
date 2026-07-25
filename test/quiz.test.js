@@ -45,6 +45,12 @@ function tmpStore() {
   return new QuizStore({ dir: fs.mkdtempSync(path.join(os.tmpdir(), "quiz-")) });
 }
 
+// render.js의 esc()와 동일한 규칙 (private이라 여기선 로컬 재구현) — 렌더된
+// HTML에서 원문 문자열을 비교할 때 escaped 형태로 맞춰본다.
+function escHtml(s) {
+  return String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 function sampleQuiz() {
   return templateQuiz(pickWeeklyTopics(HOT_ITEMS, { now: NOW }), { weekLabel: "2026w30" });
 }
@@ -97,6 +103,77 @@ test("pickWeeklyTopics caps picks per source but backfills from overflow to stil
   const starved = pickWeeklyTopics(dominant, { count: 5, now: NOW });
   assert.equal(starved.length, 5, "대체 출처가 없을 때도 개수는 보장돼야 한다");
   assert.equal(starved.filter((t) => t.source === "theqoo").length, 5);
+});
+
+// David 실사용 피드백(2026-07-25): 다른 출처 제목과 핵심 토큰이 2개+
+// 겹치면(여러 커뮤니티에서 동시에 화제 = 대중성 신호) hotness에 가산점을
+// 준다 — 신호 없는 후보가 raw hotness로는 앞서도, 신호 있는 후보 쌍이
+// 가산점으로 역전해 최종 선정 멤버십이 바뀌어야 한다.
+test("pickWeeklyTopics boosts topics that share 2+ title tokens with a different source (cross-source popularity signal)", () => {
+  const now = NOW;
+  const signalA = {
+    title: "국민 간식 즉석떡볶이 맛집 총정리",
+    url: "https://example.com/s1",
+    source: "boardA",
+    score: 100,
+    commentCount: 50,
+    publishedAt: new Date(now).toISOString()
+  };
+  const signalB = {
+    title: "국민 간식 즉석떡볶이 골목 탐방",
+    url: "https://example.com/s2",
+    source: "boardB",
+    score: 100,
+    commentCount: 50,
+    publishedAt: new Date(now).toISOString()
+  };
+  const soloHigher = {
+    title: "요가원에서 생긋 미소짓는 고양이",
+    url: "https://example.com/s3",
+    source: "boardC",
+    score: 150,
+    commentCount: 50,
+    publishedAt: new Date(now).toISOString()
+  };
+
+  const picked = pickWeeklyTopics([signalA, signalB, soloHigher], { count: 2, now });
+  const titles = picked.map((t) => t.title);
+  assert.ok(titles.includes(signalA.title) && titles.includes(signalB.title), "교차 출처 신호가 있는 두 소재가 함께 선정돼야 한다");
+  assert.ok(!titles.includes(soloHigher.title), "raw hotness가 더 높아도 교차 출처 신호가 없는 단일 소재는 밀려나야 한다");
+});
+
+// David 실사용 피드백(2026-07-25): 교차 출처 신호가 없는(단일 커뮤 내수)
+// 소재는 최종 선정에서 max_single_source_topics개로 캡을 건다 — 신호가
+// 있는 소재는 이 캡에서 면제된다. 대체 후보가 부족하면 캡을 완화해서라도
+// 요청 개수(count)는 보장한다.
+test("pickWeeklyTopics caps solo (no cross-source signal) topics at max_single_source_topics, replacing overflow with signal topics", () => {
+  const now = NOW;
+  const iso = new Date(now).toISOString();
+  // 서로 다른 출처지만 토큰 2개+ 겹쳐 교차 출처 신호를 가진 한 쌍.
+  const signalX = { title: "동네 빵집 신메뉴 소보로", url: "https://example.com/x1", source: "sig1", score: 60, commentCount: 30, publishedAt: iso };
+  const signalY = { title: "동네 빵집 오픈런 후기", url: "https://example.com/x2", source: "sig2", score: 60, commentCount: 30, publishedAt: iso };
+  // 신호 없는(단일 출처) 소재 4개 — raw hotness는 신호 쌍보다 훨씬 높게.
+  const solos = [
+    { title: "헬스장 러닝머신 예약 전쟁", url: "https://example.com/o1", source: "solo1", score: 900, commentCount: 100, publishedAt: iso },
+    { title: "야식 배달 대기 시간 실측", url: "https://example.com/o2", source: "solo2", score: 800, commentCount: 100, publishedAt: iso },
+    { title: "지하철 막차 놓친 사연", url: "https://example.com/o3", source: "solo3", score: 700, commentCount: 100, publishedAt: iso },
+    { title: "사무실 탕비실 간식 취향", url: "https://example.com/o4", source: "solo4", score: 600, commentCount: 100, publishedAt: iso }
+  ];
+
+  // 캡 적용: count=4 — solo가 4개 다 raw hotness로는 이기지만, 단일 출처
+  // 캡(2)에 걸려 상위 2개(solo1,solo2)만 남고, 신호 쌍(signalX,signalY)이
+  // 나머지 자리를 채운다.
+  const capped = pickWeeklyTopics([signalX, signalY, ...solos], { count: 4, now });
+  const cappedTitles = capped.map((t) => t.title);
+  assert.equal(cappedTitles.length, 4);
+  assert.ok(cappedTitles.includes(signalX.title) && cappedTitles.includes(signalY.title), "신호 있는 소재는 캡에서 면제돼 항상 선정된다");
+  assert.ok(cappedTitles.includes(solos[0].title) && cappedTitles.includes(solos[1].title), "단일 출처 소재는 상위 max_single_source_topics개까지만");
+  assert.ok(!cappedTitles.includes(solos[2].title) && !cappedTitles.includes(solos[3].title), "캡 초과분은 raw hotness가 높아도 밀려난다");
+
+  // 완화: 신호 있는 대체 후보가 아예 없으면(solo만 존재) 캡을 넘겨서라도
+  // 요청 개수를 채운다 — max_per_source 캡의 기존 완화 규칙과 동일한 원칙.
+  const starved = pickWeeklyTopics(solos, { count: 4, now });
+  assert.equal(starved.length, 4, "대체할 신호 소재가 없을 때도 개수는 보장돼야 한다");
 });
 
 // ---- axis-based format ---------------------------------------------------
@@ -174,6 +251,68 @@ test("validateQuiz requires non-empty bestMatchReason/worstMatchReason within 40
   }
 });
 
+// David 실사용 피드백(2026-07-25): 퀴즈가 커뮤니티 내부자 전보체로 나온다는
+// 지적 반영 — 사전설명(weeklyBrief)이 스키마 필수 필드가 됐다.
+test("validateQuiz requires weeklyBrief with non-empty topic/intro (15~90자) and a valid familiarity tier", () => {
+  const missingBrief = structuredClone(sampleQuiz());
+  delete missingBrief.weeklyBrief;
+  assert.throws(() => validateQuiz(missingBrief), /주간 브리핑\(weeklyBrief\)이 없어요/);
+
+  const emptyBrief = structuredClone(sampleQuiz());
+  emptyBrief.weeklyBrief = [];
+  assert.throws(() => validateQuiz(emptyBrief), /주간 브리핑\(weeklyBrief\)이 없어요/);
+
+  const emptyIntro = structuredClone(sampleQuiz());
+  emptyIntro.weeklyBrief[0].intro = "";
+  assert.throws(() => validateQuiz(emptyIntro), /intro가 비었어요/);
+
+  const shortIntro = structuredClone(sampleQuiz());
+  shortIntro.weeklyBrief[0].intro = "너무 짧다";
+  assert.throws(() => validateQuiz(shortIntro), /15~90자여야 해요/);
+
+  const longIntro = structuredClone(sampleQuiz());
+  longIntro.weeklyBrief[0].intro = "가".repeat(91);
+  assert.throws(() => validateQuiz(longIntro), /15~90자여야 해요/);
+
+  const badTier = structuredClone(sampleQuiz());
+  badTier.weeklyBrief[0].tier = "밈이해도";
+  assert.throws(() => validateQuiz(badTier), /tier가 잘못됐어요/);
+
+  const missingTier = structuredClone(sampleQuiz());
+  delete missingTier.weeklyBrief[0].tier;
+  assert.throws(() => validateQuiz(missingTier), /tier가 잘못됐어요/);
+
+  // 템플릿은 항상 통과해야 한다.
+  const quiz = sampleQuiz();
+  assert.ok(Array.isArray(quiz.weeklyBrief) && quiz.weeklyBrief.length > 0);
+  for (const b of quiz.weeklyBrief) {
+    assert.ok(b.topic && b.intro.length >= 15 && b.intro.length <= 90);
+    assert.ok(["국민상식", "대중화제", "커뮤내수"].includes(b.tier));
+  }
+});
+
+// David 실사용 피드백(2026-07-25): "이 테스트가 뭘 확인하는지" 처음 온
+// 사람에게 설명하고 시작해야 한다 — 축마다 intro가 필수다.
+test("validateQuiz requires a friendly axis intro (15~70자) explaining what the axis measures", () => {
+  const missingIntro = structuredClone(sampleQuiz());
+  delete missingIntro.axes[0].intro;
+  assert.throws(() => validateQuiz(missingIntro), /intro\(이 축이 뭘 확인하는지 설명\)가 없어요/);
+
+  const shortIntro = structuredClone(sampleQuiz());
+  shortIntro.axes[0].intro = "짧음";
+  assert.throws(() => validateQuiz(shortIntro), /15~70자여야 해요/);
+
+  const longIntro = structuredClone(sampleQuiz());
+  longIntro.axes[0].intro = "가".repeat(71);
+  assert.throws(() => validateQuiz(longIntro), /15~70자여야 해요/);
+
+  // 템플릿은 항상 통과해야 한다.
+  const quiz = sampleQuiz();
+  for (const a of quiz.axes) {
+    assert.ok(a.intro && a.intro.length >= 15 && a.intro.length <= 70);
+  }
+});
+
 // ---- generation ----------------------------------------------------------
 
 test("buildPrompt includes every topic title and the design rules", () => {
@@ -199,6 +338,20 @@ test("buildPrompt walks the generator through the 5-stage professional workflow 
   // 상표 규칙 충돌 해소: "일반 명사로 우회"가 4단계 셀프 검수 항목 하나로만 존재
   assert.ok(prompt.includes("일반 명사로"));
   assert.ok(prompt.includes("이미 등장한 상표명은 그대로"));
+});
+
+// David 실사용 피드백(2026-07-25): 사전설명(브리핑)·친절 문장·용어 친숙도
+// 등급·축 intro 규칙이 실제로 프롬프트에 들어가야 한다.
+test("buildPrompt instructs the generator to write weeklyBrief, familiarity tiers, plain sentences, and axis intros", () => {
+  const topics = pickWeeklyTopics(HOT_ITEMS, { now: NOW });
+  const prompt = buildPrompt(topics, { weekLabel: "2026w30" });
+  assert.ok(prompt.includes("weeklyBrief"), "브리핑 필드 이름이 명시돼야 한다");
+  assert.ok(prompt.includes("국민상식") && prompt.includes("대중화제") && prompt.includes("커뮤내수"), "친숙도 3등급이 명시돼야 한다");
+  assert.ok(prompt.includes("전보체 금지"), "전보체 금지 규칙이 있어야 한다");
+  assert.ok(prompt.includes("제목에는 소재를 1개만"), "제목 소재 1개 규칙이 있어야 한다");
+  assert.ok(prompt.includes("처음 듣는 사람도 상황을 이해할 수 있게"), "문항 첫 문장 이해 가능성 규칙이 있어야 한다");
+  assert.ok(prompt.includes("축마다 intro"), "축 intro 작성 규칙이 있어야 한다");
+  assert.ok(prompt.includes("소리 내어 읽어줬을 때"), "4단계 셀프 검수에 낭독 체크가 있어야 한다");
 });
 
 test("generateQuizWithClaude sends the structured-output request and parses the reply", async () => {
@@ -370,6 +523,21 @@ test("pack manifest declares the WRC-standard contract blocks", async () => {
   assert.match(MANIFEST.identity.driverSeatId, /^driver-seat:[a-z0-9-]+$/);
   assert.match(MANIFEST.identity.packId, /^pack:[a-z0-9-]+$/);
   assert.match(MANIFEST.identity.enginePackId, /^[a-z0-9_]+$/);
+});
+
+// David 실사용 피드백(2026-07-25) 4건: 브리핑·친숙도·축 설명·공유 블록 —
+// 전부 선언식 매니페스트가 원본이어야 한다(하드코딩 금지 원칙).
+test("pack manifest declares the David-feedback contract blocks (familiarity tiers, share block, popularity signal)", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  assert.ok(Array.isArray(CONTRACT.familiarity_tiers.tiers) && CONTRACT.familiarity_tiers.tiers.length === 3);
+  assert.deepEqual(CONTRACT.familiarity_tiers.tiers, ["국민상식", "대중화제", "커뮤내수"]);
+  assert.ok(CONTRACT.familiarity_tiers.policy_ko);
+  assert.ok(Array.isArray(CONTRACT.share_block_template_ko) && CONTRACT.share_block_template_ko.length > 0);
+  assert.ok(CONTRACT.share_block_template_ko.some((line) => line.includes("{url}")));
+  assert.ok(CONTRACT.share_block_template_ko.some((line) => line.includes("{sharePercent}")));
+  assert.equal(typeof CONTRACT.checks.topics.cross_source_bonus, "number");
+  assert.equal(typeof CONTRACT.checks.topics.max_single_source_topics, "number");
+  assert.equal(CONTRACT.checks.viral.weekly_brief_topic_coverage_required, true);
 });
 
 test("manifest is the single source for gate constants (no code drift)", async () => {
@@ -563,6 +731,42 @@ test("QG2 viral gate rejects result copy that covers too few distinct topics (to
   );
 });
 
+// David 실사용 피드백(2026-07-25): weeklyBrief가 토픽 수만큼 있고, 소재마다
+// 실제로 설명됐는지 — 빠진 소재가 있으면 이름을 명시해 반려한다.
+test("QG2 viral gate rejects a weeklyBrief that doesn't cover every topic when topics context is given", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  const topics = sampleTopics();
+  // 브리핑 전체를 토픽과 무관한 문장으로 덮어써 소재 커버리지를 깨뜨린다.
+  quiz.weeklyBrief = [{ topic: "무관한 소재", intro: "이건 이번 주 토픽 어디와도 상관없는 순수 범용 설명 문장이다.", tier: "대중화제" }];
+  const report = runGates(quiz, { topics });
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("주간 브리핑") && f.message.includes("다루지 않은 소재")),
+    "브리핑이 토픽을 다루지 않으면 반려돼야 한다"
+  );
+});
+
+test("QG2 viral gate rejects a weeklyBrief that's shorter than the topic count when topics context is given", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  const topics = sampleTopics();
+  quiz.weeklyBrief = quiz.weeklyBrief.slice(0, 1); // 소재는 여러 개인데 브리핑은 1개뿐
+  const report = runGates(quiz, { topics });
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG2-viral" && /주간 브리핑\(weeklyBrief\)이 \d+\/\d+개/.test(f.message)),
+    "브리핑 개수가 토픽 수보다 적으면 개수를 명시해 반려돼야 한다"
+  );
+});
+
+test("template quiz's weeklyBrief already clears the QG2 briefing coverage gate", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const topics = sampleTopics();
+  const quiz = templateQuiz(topics, { weekLabel: "2026w30" });
+  assert.equal(quiz.weeklyBrief.length, topics.length);
+  const report = runGates(quiz, { topics });
+  assert.ok(!report.failures.some((f) => f.message.includes("주간 브리핑")), "템플릿 브리핑은 커버리지 게이트를 통과해야 한다");
+});
+
 // 2차 검수: "9문항 중 최소 6개는 토픽에서 직접 파생(범용 필러 최소화)".
 test("QG2 viral gate rejects a question set where too few questions are topic-derived (question topic-bound ratio)", async () => {
   const { runGates } = await import("../src/quiz/gates.js");
@@ -614,6 +818,28 @@ test("QG3 ai-tell gate rejects formal '~합니다'-style endings from the expand
   );
 });
 
+// David 실사용 피드백(2026-07-25): weeklyBrief/축 intro도 사용자 노출
+// 텍스트라 AI-티 게이트 대상이다 — 격식체는 잡히고, 친절한 반말 설명톤은
+// 통과해야 한다(둘 다 막으면 브리핑 자체를 쓸 수 없다).
+test("QG3 ai-tell gate scans weeklyBrief intros for formal phrasing but passes friendly casual explanations", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const formal = structuredClone(sampleQuiz());
+  formal.weeklyBrief[0].intro = "이 소재는 이번 주 커뮤니티에서 화제가 되었습니다. 많은 분들이 반응했습니다.";
+  const formalReport = runGates(formal);
+  assert.ok(
+    formalReport.failures.some((f) => f.gate === "QG3-ai-tell" && f.message.includes("브리핑")),
+    "브리핑의 격식체는 QG3에서 잡혀야 한다"
+  );
+
+  const casual = structuredClone(sampleQuiz());
+  casual.weeklyBrief[0].intro = "이 얘기가 이번 주 커뮤니티에서 완전 크게 돌았어 — 다들 이거 하나로 난리 난 거야.";
+  const casualReport = runGates(casual);
+  assert.ok(
+    !casualReport.failures.some((f) => f.gate === "QG3-ai-tell" && f.message.includes("브리핑")),
+    "친절한 반말 설명톤(~돌았어/~된 거야)은 AI-티로 잡히면 안 된다"
+  );
+});
+
 test("runGates skips context-dependent QG2 checks when called without a topics context", async () => {
   const { runGates } = await import("../src/quiz/gates.js");
   const quiz = structuredClone(sampleQuiz());
@@ -648,6 +874,109 @@ test("renderResultPage displays bestMatchReason/worstMatchReason under the chemi
   assert.ok(html.includes(result.bestMatchReason), "bestMatchReason이 렌더링돼야 한다");
   assert.ok(html.includes(result.worstMatchReason), "worstMatchReason이 렌더링돼야 한다");
   assert.match(html, /class="reason"/, "궁합 이유는 기존 스타일(.reason)로 작게 표시돼야 한다");
+});
+
+// ---- David 실사용 피드백(2026-07-25): 사전설명 + 축 intro 렌더 ----------
+
+test("renderQuizPage shows a '이 테스트가 알아보는 것' section listing each axis name + intro above the start button", async () => {
+  const { renderQuizPage } = await import("../src/quiz/render.js");
+  const quiz = sampleQuiz();
+  const html = renderQuizPage({ slug: "2026w30-axisintro", quiz }, "https://example.com");
+  assert.ok(html.includes("이 테스트가 알아보는 것"));
+  for (const a of quiz.axes) {
+    assert.ok(html.includes(escHtml(a.name)), `축 이름 "${a.name}"이 노출돼야 한다`);
+    assert.ok(html.includes(escHtml(a.intro)), `축 intro "${a.intro}"가 노출돼야 한다`);
+  }
+  // 섹션이 시작 버튼보다 앞에 나와야 한다.
+  assert.ok(html.indexOf("이 테스트가 알아보는 것") < html.indexOf("테스트 시작하기"));
+});
+
+test("renderQuizPage shows a '들어가기 전 30초 브리핑' card listing each weeklyBrief topic + intro above the start button", async () => {
+  const { renderQuizPage } = await import("../src/quiz/render.js");
+  const quiz = sampleQuiz();
+  const html = renderQuizPage({ slug: "2026w30-brief", quiz }, "https://example.com");
+  assert.ok(html.includes("들어가기 전 30초 브리핑"));
+  for (const b of quiz.weeklyBrief) {
+    assert.ok(html.includes(escHtml(b.topic)), `브리핑 토픽 "${b.topic}"이 노출돼야 한다`);
+    assert.ok(html.includes(escHtml(b.intro)), `브리핑 intro "${b.intro}"가 노출돼야 한다`);
+  }
+  assert.ok(html.indexOf("들어가기 전 30초 브리핑") < html.indexOf("테스트 시작하기"));
+});
+
+test("renderQuizPage omits the briefing card and axis-intro section for legacy quizzes without them (backward compat)", async () => {
+  const { renderQuizPage } = await import("../src/quiz/render.js");
+  const legacy = structuredClone(sampleQuiz());
+  delete legacy.weeklyBrief;
+  for (const a of legacy.axes) delete a.intro;
+  const html = renderQuizPage({ slug: "2026w30-legacy", quiz: legacy }, "https://example.com");
+  assert.ok(!html.includes("들어가기 전 30초 브리핑"));
+  assert.ok(!html.includes("이 테스트가 알아보는 것"));
+  // 나머지 랜딩은 그대로 렌더돼야 한다 (에러 없이 하위호환).
+  assert.ok(html.includes("테스트 시작하기"));
+});
+
+// David 실사용 피드백(2026-07-25): "약 2~2분"처럼 최소~최대가 같아지는
+// 분 계산 버그 — 문항수 기반 단일 값(올림)으로 고쳤는지 확인.
+test("renderQuizPage shows a single ceil-based minute estimate, never a duplicated range like '약 N~N분'", async () => {
+  const { renderQuizPage } = await import("../src/quiz/render.js");
+  for (const qCount of [8, 9, 10, 11, 12, 13, 14, 15]) {
+    const quiz = structuredClone(sampleQuiz());
+    // qCount만큼 문항을 복제해 원하는 문항 수를 만든다(축 태그는 유지).
+    quiz.questions = Array.from({ length: qCount }, (_, i) => structuredClone(quiz.questions[i % quiz.questions.length]));
+    const html = renderQuizPage({ slug: `2026w30-min${qCount}`, quiz }, "https://example.com");
+    assert.ok(!/약\s*\d+\s*~\s*\d+\s*분/.test(html), `${qCount}문항에서 분 범위 표기가 남아있으면 안 된다`);
+    const match = html.match(/약\s*(\d+)\s*분/);
+    assert.ok(match, `${qCount}문항에서 단일 분 표기가 있어야 한다`);
+    assert.equal(Number(match[1]), Math.max(1, Math.ceil(qCount / 5)));
+  }
+});
+
+// ---- David 실사용 피드백(2026-07-25): 복붙 공유 블록 --------------------
+
+test("buildShareBlock fills every placeholder and omits the sharePercent clause entirely when no stat is given", async () => {
+  const { buildShareBlock } = await import("../src/quiz/render.js");
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  const template = CONTRACT.share_block_template_ko;
+
+  const withPercent = buildShareBlock(template, {
+    title: "테스트 제목",
+    typeTitle: "유형 이름",
+    sharePercent: 12,
+    shareText: "나는 이거다",
+    url: "https://example.com/q/w-slug/r/CODE"
+  });
+  assert.ok(withPercent.includes("테스트 제목"));
+  assert.ok(withPercent.includes("유형 이름"));
+  assert.ok(withPercent.includes("12%"));
+  assert.ok(withPercent.includes("나는 이거다"));
+  assert.ok(withPercent.includes("https://example.com/q/w-slug/r/CODE"));
+  assert.ok(!withPercent.includes("{"), "치환되지 않은 플레이스홀더가 남으면 안 된다");
+
+  const withoutPercent = buildShareBlock(template, {
+    title: "테스트 제목",
+    typeTitle: "유형 이름",
+    sharePercent: null,
+    shareText: "나는 이거다",
+    url: "https://example.com/q/w-slug/r/CODE"
+  });
+  assert.ok(!withoutPercent.includes("%"), "퍼센트 통계가 없으면 그 절 전체가 빠져야 한다");
+  assert.ok(!withoutPercent.includes("()"), "빈 괄호를 남기면 안 된다");
+  assert.ok(withoutPercent.includes("유형 이름"), "퍼센트가 빠져도 나머지 줄(유형 이름)은 그대로 남아야 한다");
+  assert.ok(!withoutPercent.includes("{"), "치환되지 않은 플레이스홀더가 남으면 안 된다");
+});
+
+test("renderResultPage injects the manifest share-block template into the copy button's payload", async () => {
+  const { renderResultPage } = await import("../src/quiz/render.js");
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  const quiz = sampleQuiz();
+  const result = quiz.results[0];
+  const html = renderResultPage({ slug: "2026w30-shareblock", quiz }, result, "https://example.com", {});
+  assert.ok(html.includes("결과 복사"), "버튼 라벨이 '결과 복사'로 바뀌어야 한다");
+  assert.ok(html.includes("👉 나도 해보기"), "매니페스트 공유 블록 템플릿 문구가 주입돼야 한다");
+  assert.ok(html.includes(result.title), "내 유형 제목이 블록에 들어가야 한다");
+  assert.ok(html.includes(quiz.title.replace(/"/g, "&quot;")) || html.includes(quiz.title), "테스트 제목이 페이지 어딘가에 있어야 한다(주입 확인)");
+  assert.ok(html.includes("붙여넣으면 카드처럼 보여요"), "복사 후 안내 문구가 있어야 한다");
+  assert.ok(Array.isArray(CONTRACT.share_block_template_ko) && CONTRACT.share_block_template_ko.length > 0);
 });
 
 test("runWeekly loops on gate failure, feeding rejection reasons back into the prompt", async () => {

@@ -40,6 +40,14 @@ G5→QG5, G6→QG6` (WRC 컨벤션: 팩 접두 — 전 팩 공유 표면에서�
 > 게이트(QG0~QG4)가 담당**한다. 하드코딩 금지 원칙에 따라 이번 신규 검사도
 > 값은 전부 매니페스트 `pack_contract.checks` 선언이다(코드 상수 없음).
 
+> **사전설명·친절문장 원칙 (David 실사용 피드백 2026-07-25)**: 생성된 퀴즈가
+> 커뮤니티 내부자 전보체로 나와서 모르는 사람은 못 알아듣는다는 지적 —
+> ① 시작 전 사전설명(weeklyBrief)이 있어야 하고 ② 문장이 완결형으로
+> 친절해야 하며(전보체 금지) ③ 소재는 대중성 신호(여러 커뮤니티 동시 화제)를
+> 우대해야 한다. 전부 매니페스트 선언값으로 강제한다 — weeklyBrief 15~90자
+> +친숙도 등급(familiarity_tiers), 축 intro 15~70자("이 테스트가 뭘
+> 확인하는지"), topics.js의 cross_source_bonus/max_single_source_topics.
+
 ## 플로우차트
 
 ```mermaid
@@ -76,10 +84,10 @@ flowchart TD
 
 | 게이트 | 등급 | 조건 (전부 충족해야 통과) | 실패 시 | 코드 |
 |---|---|---|---|---|
-| **QG0 토픽** | HARD | `excluded_topics`(정치·종교·성인) 제외 · `topic_safety`(연예인 사생활·재난공포 키워드 제목 매칭) 제외 · **출처(source)당 최대 `max_per_source`개 캡(후보 부족 시에만 캡 초과 허용해 개수 보장 — 실패 대신 채움, 2차 검수: theqoo 단일 출처 편중 해소)** · hotness 상위 N · 제목 중복 제거 | 소재 폐기, 전부 탈락 시 실행 중단 | `topics.js` |
-| **QG1 구조** | HARD | 축 2~4개(극 코드 유일) · 문항 8~15개 · 축당 3문항+ · 문항당 1축 · 답변에 양극 혼합(정답 냄새/조작 방지) · 유형 = 극 조합 전체 커버 · 강점 3~5 + 성장 포인트 1~2(80:20) · 조언 1~3 · 궁합 상호 지정(자기 자신 금지) · **궁합 이유(bestMatchReason/worstMatchReason) 비어있지 않음 + 40자 이내** · **문항별 답변 개수 통일** · **문항 쌍별 유사도 ≤ `question_similarity_max`(같은 소재/문장 재탕 금지)** · **축별 1번 답 pole 혼합(역채점 균형, 전부 같은 극이면 반려)** · **결과 서술 오프닝 종결 최빈 패턴 비율 ≤ `opening_pattern_max_ratio`(2차 검수: "~게 너다" 8/8 템플릿 티 방지)** | 반려 → 재생성 피드백 | `generate.js` `validateQuiz`, `gates.js` QG1 |
-| **QG2 바이럴** | HOLD | 제목 8~40자(미리보기 훅) · 소개 20~90자 · 유형 서술 40자 이상 `result_desc_chars_max`(220자) 이하 · 공유 문구에 "나는 ○○"(I-got) + 상대 호명 훅 · 공유 문구 `share_text_chars_max`(60자) 이내 · 답변 40자 이내(한 줄) · **(topics 컨텍스트 있을 때) 제목+소개에 이번 주 토픽 어절 최소 1개** · **(topics 컨텍스트 있을 때) 각 결과 서술에 토픽 어절 최소 1개(유형 code 명시)** · **(topics 컨텍스트 있을 때) 결과 서술 전체의 토픽 커버리지 ≥ min(토픽 수, 유형 수) — 미달 시 빠진 토픽 명시(2차 검수: 한두 토픽만 우려먹지 않게)** · **(topics 컨텍스트 있을 때) 문항 토픽 파생 비율 ≥ `question_topic_bound_min_ratio`(범용 필러 최소화)** · **공유 문구 쌍별 유사도 ≤ `share_text_similarity_max`(템플릿 복붙 금지)** · **공유 문구 물음표 종결 비율 ≤ `share_text_question_ending_max_ratio`(반문형 일색 금지 — 감탄·선언·도발형 혼합)** | 반려 → 재생성 피드백 | `gates.js` QG2 |
-| **QG3 AI-티** | HOLD | 격식체·상담봇 관용구 금지("물론입니다", "여러분", "하십시오", "~합니다/습니다/입니다/됩니다/드립니다", "~하세요/해보세요", "습관 들이기"…) · 선택지 고유율 80%+(복붙 티 금지) · 유형 이름 중복 금지 | 반려 → 재생성 피드백 | `gates.js` QG3 |
+| **QG0 토픽** | HARD | `excluded_topics`(정치·종교·성인) 제외 · `topic_safety`(연예인 사생활·재난공포 키워드 제목 매칭) 제외 · **출처(source)당 최대 `max_per_source`개 캡(후보 부족 시에만 캡 초과 허용해 개수 보장 — 실패 대신 채움, 2차 검수: theqoo 단일 출처 편중 해소)** · **다른 출처 제목과 핵심 토큰 2개+ 겹치는 후보에 `cross_source_bonus` 가산점(대중성 신호), 신호 없는(단일 커뮤 내수) 후보는 `max_single_source_topics`개로 별도 캡(후보 부족 시에만 완화 — David 실사용 피드백)** · hotness 상위 N · 제목 중복 제거 | 소재 폐기, 전부 탈락 시 실행 중단 | `topics.js` |
+| **QG1 구조** | HARD | 축 2~4개(극 코드 유일) · **축마다 intro(이 축이 뭘 확인하는지 처음 온 사람에게 설명, 15~70자) 필수** · 문항 8~15개 · 축당 3문항+ · 문항당 1축 · 답변에 양극 혼합(정답 냄새/조작 방지) · 유형 = 극 조합 전체 커버 · 강점 3~5 + 성장 포인트 1~2(80:20) · 조언 1~3 · 궁합 상호 지정(자기 자신 금지) · **궁합 이유(bestMatchReason/worstMatchReason) 비어있지 않음 + 40자 이내** · **주간 브리핑(weeklyBrief) 존재 + 항목별 topic/intro(15~90자)/tier(친숙도 등급, familiarity_tiers 목록 중 하나) 필수** · **문항별 답변 개수 통일** · **문항 쌍별 유사도 ≤ `question_similarity_max`(같은 소재/문장 재탕 금지)** · **축별 1번 답 pole 혼합(역채점 균형, 전부 같은 극이면 반려)** · **결과 서술 오프닝 종결 최빈 패턴 비율 ≤ `opening_pattern_max_ratio`(2차 검수: "~게 너다" 8/8 템플릿 티 방지)** | 반려 → 재생성 피드백 | `generate.js` `validateQuiz`, `gates.js` QG1 |
+| **QG2 바이럴** | HOLD | 제목 8~40자(미리보기 훅) · 소개 20~90자 · 유형 서술 40자 이상 `result_desc_chars_max`(220자) 이하 · 공유 문구에 "나는 ○○"(I-got) + 상대 호명 훅 · 공유 문구 `share_text_chars_max`(60자) 이내 · 답변 40자 이내(한 줄) · **(topics 컨텍스트 있을 때) 제목+소개에 이번 주 토픽 어절 최소 1개** · **(topics 컨텍스트 있을 때) 각 결과 서술에 토픽 어절 최소 1개(유형 code 명시)** · **(topics 컨텍스트 있을 때) 결과 서술 전체의 토픽 커버리지 ≥ min(토픽 수, 유형 수) — 미달 시 빠진 토픽 명시(2차 검수: 한두 토픽만 우려먹지 않게)** · **(topics 컨텍스트 있을 때) 문항 토픽 파생 비율 ≥ `question_topic_bound_min_ratio`(범용 필러 최소화)** · **(topics 컨텍스트 있을 때) 주간 브리핑(weeklyBrief)이 토픽 수만큼 있고 소재마다 토큰이 브리핑에 커버되는지 — 미달 시 빠진 소재 명시(David 실사용 피드백)** · **공유 문구 쌍별 유사도 ≤ `share_text_similarity_max`(템플릿 복붙 금지)** · **공유 문구 물음표 종결 비율 ≤ `share_text_question_ending_max_ratio`(반문형 일색 금지 — 감탄·선언·도발형 혼합)** | 반려 → 재생성 피드백 | `gates.js` QG2 |
+| **QG3 AI-티** | HOLD | 격식체·상담봇 관용구 금지("물론입니다", "여러분", "하십시오", "~합니다/습니다/입니다/됩니다/드립니다", "~하세요/해보세요", "습관 들이기"…) · **주간 브리핑(weeklyBrief)·축 intro도 검사 대상(단 친절한 반말 설명톤 "~했어/~된 거야"는 통과)** · 선택지 고유율 80%+(복붙 티 금지) · 유형 이름 중복 금지 | 반려 → 재생성 피드백 | `gates.js` QG3 |
 | **QG4 채점 무결성** | HARD | 축별 선택지 가중치 좌:우 = 35:65 이내("다 이거 나오던데" 쏠림 방지) | 반려 → 재생성 피드백 | `gates.js` QG4 |
 | **QG5 사람 승인** | kind: david | `publish quiz:` 작업이 `routeTask()`로 `decision_queue` 경유, `approve` 실행해야 발행. 재시도 없음(대기만), 우회 인자 없음 | 초안 유지(공개 경로 없음) | `store.js` `approve`, `router.js` |
 | **QG6 발행 후 루프** | GUIDE | 실응답 누적 → 희소성 통계 강화(라플라스 스무딩) · 공유 유입 → 재참여 루프 | — (지속 피드백) | `store.js` stats, `render.js` |
@@ -146,3 +154,10 @@ flowchart TD
 전문가 절차로 재설계 + QG0 출처 캡 · QG1 오프닝 종결 쏠림 · QG2 결과 전체
 토픽 커버리지/문항 토픽 비율/공유 문구 물음표 비율 · 궁합 이유
 (bestMatchReason/worstMatchReason) 신설.
+2026-07-25 David 실사용 피드백 반영(매니페스트 버전 4): 사전설명(weeklyBrief
++ QG1 존재·형식 검사 + QG2 토픽 커버리지 검사) · 용어 친숙도 3등급
+(familiarity_tiers, weeklyBrief.tier) · 축 intro("이 테스트가 뭘 확인하는지",
+QG1 필수) · 소재 대중성 신호(topics.js cross_source_bonus/
+max_single_source_topics) · 복붙 공유 블록(share_block_template_ko,
+render.js buildShareBlock — 결과 페이지 렌더 문서화는 [quiz-design.md](quiz-design.md)
+참고) 신설.

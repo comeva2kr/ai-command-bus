@@ -94,6 +94,11 @@ function endingPattern(text) {
 function* userFacingTexts(quiz) {
   yield ["제목", quiz.title];
   yield ["소개", quiz.description];
+  // weeklyBrief/축 intro도 사용자에게 그대로 노출되는 텍스트다 — 친절한
+  // 반말 설명톤("~했어", "~된 거야")은 통과하고, 격식체·상담봇 관용구만
+  // 잡힌다 (David 실사용 피드백 2026-07-25).
+  for (const b of quiz.weeklyBrief || []) yield [`브리핑 "${b && b.topic}"`, b && b.intro];
+  for (const a of quiz.axes || []) yield [`축 ${a && a.id} 설명`, a && a.intro];
   for (const q of quiz.questions || []) {
     yield ["문항", q.q];
     for (const a of q.answers || []) yield ["답변", a.text];
@@ -190,7 +195,7 @@ export const GATES = [
     key: "QG2",
     id: "QG2-viral",
     name: "바이럴 게이트",
-    desc: "공유 미리보기·결과문이 퍼질 조건을 갖췄는가 (제목 훅, I-got 공유 문구, 결과문 분량, 한 줄 답변, 토픽 소재 인용, 결과 전체 토픽 커버리지, 문항 토픽 파생 비율, 공유 문구 다양성·종결 다양성)",
+    desc: "공유 미리보기·결과문이 퍼질 조건을 갖췄는가 (제목 훅, I-got 공유 문구, 결과문 분량, 한 줄 답변, 토픽 소재 인용, 결과 전체 토픽 커버리지, 문항 토픽 파생 비율, 공유 문구 다양성·종결 다양성, 주간 브리핑 커버리지)",
     run(quiz, context = {}) {
       const v = CHECKS.viral;
       const fails = [];
@@ -275,6 +280,22 @@ export const GATES = [
                 `결과 서술 전체에서 이번 주 토픽이 ${covered.length}/${requiredCoverage}개만 등장 — 빠진 토픽: ${missing.join(", ")} (한두 토픽만 우려먹지 말고 고르게 인용하라).`
               );
             }
+          }
+        }
+        // 주간 브리핑 커버리지 — David 실사용 피드백(2026-07-25): 브리핑이
+        // 토픽 수만큼 있고, 소재마다 실제로 설명됐는지(토큰 매칭)를 본다.
+        // 개수 부족·소재 누락 둘 다 사유에 명시해서 반려한다.
+        if (v.weekly_brief_topic_coverage_required) {
+          const brief = Array.isArray(quiz.weeklyBrief) ? quiz.weeklyBrief : [];
+          if (brief.length < topics.length) {
+            fails.push(`주간 브리핑(weeklyBrief)이 ${brief.length}/${topics.length}개 — 소재 수만큼 채워야 한다.`);
+          }
+          const briefText = brief.map((b) => `${(b && b.topic) || ""} ${(b && b.intro) || ""}`).join(" ");
+          const missingFromBrief = topics.filter((t) => !tokensForOneTopic(t).some((tok) => briefText.includes(tok)));
+          if (missingFromBrief.length) {
+            fails.push(
+              `주간 브리핑에서 다루지 않은 소재가 있다: ${missingFromBrief.map((t) => t.title).join(", ")} — 소재마다 브리핑 설명을 채워라.`
+            );
           }
         }
       }

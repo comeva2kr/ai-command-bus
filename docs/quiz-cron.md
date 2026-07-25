@@ -51,6 +51,11 @@
    스스로 체크리스트를 거쳐 잡아야 한다 — 건너뛰면 게이트를 통과해도 저품질
    결과물이 나온다. 완성본은 퀴즈 스키마(`QUIZ_SCHEMA`, `src/quiz/generate.js`,
    `bestMatchReason`/`worstMatchReason` 포함)와 일치하는 JSON 파일로 저장한다.
+   **2026-07-25 David 실사용 피드백 이후**: 스키마에 `weeklyBrief`(소재 사전설명
+   — 소재 수만큼, topic/intro/tier)와 `axes[].intro`(그 축이 뭘 확인하는지
+   설명)가 최상위 필수 필드로 추가됐다 — 0단계 소재 해부에서 브리핑과 친숙도
+   등급(국민상식/대중화제/커뮤내수)까지 함께 정리해야 4단계 셀프 검수와
+   QG1~QG2 게이트를 통과한다 ([quiz-loopgate.md](quiz-loopgate.md) 참고).
 5. **제출**: `node src/quiz/weekly.js submit <quiz.json> <dump.json>`
    - **exit 0** — 루프게이트(QG1~QG4) 통과. 초안이 `data/quiz/drafts/`에
      저장되고 발행 작업이 `decision_queue`로 라우팅됐다는 뜻. 세션은
