@@ -1452,3 +1452,13 @@ test("pickWeeklyTopics excludes crime/scandal titles (topic_safety.crime_scandal
   assert.equal(topics.length, 1, "범죄·스캔들 소재 제외");
   assert.ok(topics[0].title.includes("편의점"));
 });
+
+test("pickWeeklyTopics excludes politics titles the feed classifier misses (politics_extra)", () => {
+  const items = [
+    { title: "유시민 당대표는 대통령 부하 아냐 발언", source: "bobae", score: 900 },
+    { title: "요즘 편의점 신상 조합 근황", source: "clien", score: 10 }
+  ];
+  const topics = pickWeeklyTopics(items, { count: 2, now: NOW });
+  assert.equal(topics.length, 1, "정치 소재 제외 (퀴즈팩 보강 키워드)");
+  assert.ok(topics[0].title.includes("편의점"));
+});
