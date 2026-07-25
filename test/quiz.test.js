@@ -383,6 +383,126 @@ test("QG4 scoring gate rejects lopsided axis weights", async () => {
   assert.ok(report.failures.some((f) => f.gate === "QG4-scoring" && f.message.includes("sharing")));
 });
 
+// ---- 8팀 적대 검수 반영(v2) — QG0 소재 세이프티 + QG1/QG2/QG3 확장 ----------
+
+function sampleTopics() {
+  return pickWeeklyTopics(HOT_ITEMS, { now: NOW });
+}
+
+test("pickWeeklyTopics excludes celebrity-private-life and disaster-fear titled items (topic_safety)", () => {
+  const risky = [
+    { title: "김하늘 이민호 열애설 스킨십 포착", url: "https://example.com/r1", source: "theqoo", score: 9999, commentCount: 500, publishedAt: "2026-07-22T09:00:00Z" },
+    { title: "동해안 지진 경보, 가지 말라는 이유", url: "https://example.com/r2", source: "clien", score: 9998, commentCount: 500, publishedAt: "2026-07-22T09:00:00Z" }
+  ];
+  const topics = pickWeeklyTopics([...risky, ...HOT_ITEMS], { count: 10, now: NOW });
+  const titles = topics.map((t) => t.title);
+  assert.ok(!titles.some((t) => t.includes("열애")), "연예인 사생활 소재 제외");
+  assert.ok(!titles.some((t) => t.includes("지진")), "재난공포 소재 제외");
+});
+
+test("QG1 structure gate rejects non-uniform answer counts per question", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  quiz.questions[0].answers.pop(); // Q1만 3개로 줄인다 — 나머지는 4개
+  const report = runGates(quiz);
+  const fail = report.failures.find((f) => f.gate === "QG1-structure" && f.message.includes("답변 개수"));
+  assert.ok(fail, "답변 개수 불일치가 잡혀야 한다");
+  assert.match(fail.message, /Q1=3개/, "문항 번호와 개수가 사유에 명시돼야 한다");
+});
+
+test("QG1 structure gate rejects near-duplicate question text (same topic/sentence reused)", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  quiz.questions[2].q = quiz.questions[0].q; // Q1·Q3을 완전히 같은 문장으로
+  const report = runGates(quiz);
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG1-structure" && f.message.includes("Q1") && f.message.includes("Q3") && f.message.includes("재탕")),
+    "같은 문장을 재탕한 문항 쌍이 지목돼야 한다"
+  );
+});
+
+test("QG1 structure gate rejects an axis whose questions all lead with the same pole (reverse-scoring balance)", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  for (const q of quiz.questions) {
+    if (q.axis === "reaction") q.answers[0].pole = "left"; // 전 문항 1번 답을 강제로 같은 극에 몰아넣는다
+  }
+  const report = runGates(quiz);
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG1-structure" && f.message.includes("reaction") && f.message.includes("역채점")),
+    "한 축의 1번 답이 전부 같은 극이면 역채점 균형 위반으로 잡혀야 한다"
+  );
+});
+
+test("QG2 viral gate rejects a title/description with no topic keyword when topics context is given", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  // 토픽 어절과 겹치지 않는 순수 범용 문장 ("유형" 등은 실제 토픽 제목의
+  // 어절이라 일부러 피한다 — 우연히 걸리면 이 테스트 자체가 거짓양성이 된다).
+  quiz.title = "아무 날이나 봐도 똑같은 심심풀이 문답";
+  quiz.description = "누구한테나 뻔하게 들어맞는 흔해빠진 답만 나온다";
+  const report = runGates(quiz, { topics: sampleTopics() });
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("토픽 키워드")),
+    "토픽 컨텍스트가 있을 때 범용 제목/소개는 반려돼야 한다"
+  );
+});
+
+test("QG2 viral gate rejects a result description with no topic mention when topics context is given", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  quiz.results[0].description = "이 결과는 누가 봐도 무난하고 흔해서 딱히 특별할 게 없는 반응이다.";
+  const report = runGates(quiz, { topics: sampleTopics() });
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes(quiz.results[0].code) && f.message.includes("토픽 소재 인용")),
+    "결과 서술에 토픽 소재 인용이 없으면 유형 code와 함께 반려돼야 한다"
+  );
+});
+
+test("QG2 viral gate rejects share texts that share the same template (low diversity across types)", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  quiz.results[1].shareText = quiz.results[0].shareText; // 두 유형이 똑같은 공유 문구
+  const report = runGates(quiz);
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("템플릿 복붙")),
+    "공유 문구가 같은 틀이면 반려돼야 한다"
+  );
+});
+
+test("QG3 ai-tell gate rejects formal '~합니다'-style endings from the expanded phrase list", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  quiz.results[0].description = "이 유형은 트렌드에 민감하게 반응합니다. 정보를 빠르게 접하는 편입니다.";
+  const report = runGates(quiz);
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG3-ai-tell" && (f.message.includes("합니다") || f.message.includes("입니다"))),
+    "확장된 관용구 목록의 '~합니다'체가 잡혀야 한다"
+  );
+});
+
+test("runGates skips context-dependent QG2 checks when called without a topics context", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  quiz.title = "아무 날이나 봐도 똑같은 심심풀이 문답";
+  quiz.description = "누구한테나 뻔하게 들어맞는 흔해빠진 답만 나온다";
+  const withoutContext = runGates(quiz);
+  const withContext = runGates(quiz, { topics: sampleTopics() });
+  assert.ok(!withoutContext.failures.some((f) => f.message.includes("토픽 키워드")), "컨텍스트 없이는 토픽 키워드 검사가 스킵된다");
+  assert.ok(withContext.failures.some((f) => f.message.includes("토픽 키워드")), "컨텍스트가 있으면 같은 퀴즈가 반려된다");
+});
+
+test("renderResultPage shows the manifest-declared result labels (팩폭 포인트 / 상극 케미)", async () => {
+  const { renderResultPage } = await import("../src/quiz/render.js");
+  const quiz = sampleQuiz();
+  const html = renderResultPage({ slug: "2026w30-labeltest", quiz }, quiz.results[0], "https://example.com", {});
+  assert.ok(html.includes("팩폭 포인트"));
+  assert.ok(html.includes("상극 케미"));
+  assert.ok(html.includes("이건 인정"));
+  assert.ok(html.includes("이럴 땐 이렇게"));
+  assert.ok(html.includes("잘 맞는 케미"));
+});
+
 test("runWeekly loops on gate failure, feeding rejection reasons back into the prompt", async () => {
   const store = tmpStore();
   const good = sampleQuiz();
@@ -607,7 +727,9 @@ test("server serves published quizzes with credibility devices; drafts stay hidd
     // 퀴즈 페이지: OG + 축 소개(신뢰 프레이밍)
     const page = await (await fetch(`${base}/q/2026w30-live`)).text();
     assert.ok(page.includes('property="og:title"'));
-    assert.ok(page.includes(quiz.title));
+    // 템플릿 제목이 토픽을 큰따옴표로 인용해서(QG2 토픽 인용 규칙) HTML에서는
+    // esc()가 " → &quot;로 이스케이프한다 — escaped 형태로 비교.
+    assert.ok(page.includes(quiz.title.replace(/"/g, "&quot;")));
     assert.ok(page.includes("성향 축"), "축 기반 채점 프레이밍 노출");
 
     // 응답 집계 API
@@ -624,8 +746,8 @@ test("server serves published quizzes with credibility devices; drafts stay hidd
     assert.ok(personal.includes("내 성향 스펙트럼"));
     assert.ok(personal.includes("80%"));
     assert.ok(personal.includes("응답자 중"), "희소성 통계 배지");
-    assert.ok(personal.includes("성장 포인트"));
-    assert.ok(personal.includes("환장의 케미"));
+    assert.ok(personal.includes("팩폭 포인트"), "매니페스트 result_labels_ko.weaknesses");
+    assert.ok(personal.includes("상극 케미"), "매니페스트 result_labels_ko.worst_match (환장의 케미 밈 오용 교체)");
     assert.ok(personal.includes("재미로 보는"), "면책 라벨");
 
     // 공유 유입 (p 없음): 개인 바 대신 참여 훅

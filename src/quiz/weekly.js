@@ -61,7 +61,7 @@ export async function runWeekly(items, opts = {}) {
   const gateHistory = [];
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     ({ quiz, via } = await generateQuiz(topics, { ...opts, weekLabel: label, feedback }));
-    gate = runGates(quiz);
+    gate = runGates(quiz, { topics });
     gateHistory.push({ attempt, via, decision: gate.decision, pass: gate.pass, failures: gate.failures });
     if (gate.pass) break;
     feedback = gate.reasons; // "[게이트ID] 사유" 형식 (retry_policy.feedback_format)
@@ -185,7 +185,7 @@ async function main() {
 
     const label = weekLabel();
     const topics = pickWeeklyTopics(items, {});
-    const gate = runGates(quiz);
+    const gate = runGates(quiz, { topics });
     const via = "claude-code";
 
     if (!gate.pass) {

@@ -9,13 +9,20 @@
 // The result page carries the credibility devices from docs/quiz-design.md:
 //   - 축별 퍼센트 바 (개인 응답 기반 — ?p= 쿼리로 전달; 공유 링크에는 없음)
 //   - "응답자 중 N%" 희소성 통계 (실응답 누적)
-//   - 강점 4 + 성장 포인트 1~2 (80:20 — 칭찬만 하면 가짜같이 느껴진다)
-//   - 궁합 (잘 맞는/환장의 케미 유형, 두 번째 참여자를 부르는 장치)
+//   - 강점("이건 인정") 4 + 성장 포인트("팩폭 포인트") 1~2 (80:20 — 칭찬만 하면 가짜같이 느껴진다)
+//   - 궁합 (잘 맞는/상극 케미 유형, 두 번째 참여자를 부르는 장치) — 헤딩 라벨은
+//     pack.manifest.json의 result_labels_ko가 원본, 이 파일은 그걸 로드만 한다.
 //   - 스크린샷 완결형 결과 카드 (유형색 + 제목 + 테스트명이 한 화면에)
 //   - "재미로 보는" 면책 라벨
 //
 // Ad slots are placeholder <div>s (.ad-slot) between screens; swap in the ad
 // network snippet at deploy time.
+
+import { CONTRACT } from "./manifest.js";
+
+// 결과 페이지 헤딩 라벨 — 선언 원본은 매니페스트 (pack_contract.result_labels_ko).
+// 8팀 적대 검수: "환장의 케미"가 밈 오용(뜻이 반대로 읽힘)이라 "상극 케미"로 교체.
+const LABELS = CONTRACT.result_labels_ko;
 
 function esc(s) {
   return String(s || "").replace(/[&<>"']/g, (c) =>
@@ -231,19 +238,19 @@ ${percents ? "" : `<p class="desc" style="font-size:.85rem;margin-top:8px">직�
 </div>
 ${AD}
 <div class="card">
-<h2>강점</h2>
+<h2>${esc(LABELS.strengths)}</h2>
 <ul class="plain">${result.strengths.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
-<h2>성장 포인트</h2>
+<h2>${esc(LABELS.weaknesses)}</h2>
 <ul class="plain">${result.weaknesses.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
-<h2>이 유형을 위한 조언</h2>
+<h2>${esc(LABELS.advice)}</h2>
 <ul class="plain">${result.advice.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
 </div>
 
 <div class="card">
 <h2>유형 케미</h2>
 <div class="match">
-<div><p class="tag">잘 맞는 케미</p><p><a href="/q/${esc(slug)}/r/${esc(result.bestMatch)}">${esc(best ? best.title : result.bestMatch)}</a></p></div>
-<div><p class="tag">환장의 케미</p><p><a href="/q/${esc(slug)}/r/${esc(result.worstMatch)}">${esc(worst ? worst.title : result.worstMatch)}</a></p></div>
+<div><p class="tag">${esc(LABELS.best_match)}</p><p><a href="/q/${esc(slug)}/r/${esc(result.bestMatch)}">${esc(best ? best.title : result.bestMatch)}</a></p></div>
+<div><p class="tag">${esc(LABELS.worst_match)}</p><p><a href="/q/${esc(slug)}/r/${esc(result.worstMatch)}">${esc(worst ? worst.title : result.worstMatch)}</a></p></div>
 </div>
 <p class="desc" style="font-size:.85rem;margin-top:10px">친구 결과랑 비교해보세요 — 케미가 맞는지 바로 나옵니다.</p>
 </div>

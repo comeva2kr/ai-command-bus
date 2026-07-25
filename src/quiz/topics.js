@@ -9,6 +9,11 @@
 // 브랜드 세이프티: 유형테스트는 광고 지면과 SNS 공유가 목적이라, 기존 토픽
 // 분류기(politics/religion/adult)에 걸리는 항목은 소재에서 제외한다 — 논란
 // 소재로 만든 테스트는 광고 계정 정지 리스크가 있다.
+//
+// 8팀 적대 검수 반영: 실존인물 사생활(열애·결별 등)·재난공포 소재는 기존
+// politics/religion/adult 분류기로는 안 걸리지만 광고 지면 정책 리스크가
+// 동일하게 있다 — 매니페스트 topic_safety 키워드로 제목을 직접 매칭해
+// 제외한다 (pack_contract.checks.topic_safety).
 
 import { classifyTopics } from "../feed/topics.js";
 import { hotness } from "../feed/ingest.js";
@@ -17,13 +22,23 @@ import { CONTRACT } from "./manifest.js";
 // QG0 제외 토픽 — 선언 원본은 매니페스트 (pack_contract.excluded_topics).
 export const EXCLUDED_TOPICS = new Set(CONTRACT.excluded_topics);
 
+// QG0 소재 세이프티 키워드 — 선언 원본은 매니페스트 (pack_contract.checks.topic_safety).
+const TOPIC_SAFETY = CONTRACT.checks.topic_safety || {};
+const UNSAFE_TITLE_KEYWORDS = [
+  ...(TOPIC_SAFETY.celebrity_private_life || []),
+  ...(TOPIC_SAFETY.fear_disaster || [])
+];
+
 function isBrandSafe(item) {
   const topics = classifyTopics({
     title: item.title,
     url: item.url,
     sourceId: item.sourceId || item.source
   });
-  return !topics.some((t) => EXCLUDED_TOPICS.has(t)) && item.adult !== true;
+  if (topics.some((t) => EXCLUDED_TOPICS.has(t)) || item.adult === true) return false;
+  const title = String(item.title || "");
+  if (UNSAFE_TITLE_KEYWORDS.some((kw) => title.includes(kw))) return false;
+  return true;
 }
 
 // Pick the week's top quiz-worthy topics: brand-safe, deduplicated by title,
