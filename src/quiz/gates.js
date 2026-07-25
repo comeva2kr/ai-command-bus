@@ -110,6 +110,7 @@ function* userFacingTexts(quiz) {
     for (const s of r.weaknesses || []) yield [`유형 ${r.code} 성장 포인트`, s];
     for (const s of r.advice || []) yield [`유형 ${r.code} 조언`, s];
     yield [`유형 ${r.code} 공유 문구`, r.shareText];
+    yield [`유형 ${r.code} 이번 주 픽`, r.weeklyPick];
   }
 }
 
@@ -233,9 +234,59 @@ export const GATES = [
       // 컨텍스트 의존 검사: context.topics가 주어질 때만 실행 (매니페스트
       // gate_context_note_ko — run/submit 경로는 항상 제공, 컨텍스트 없는
       // 호출은 이 부분만 스킵된다).
+      //
+      // David 실사용 피드백(2026-07-26, "주제 자체가 별로"): 기계 선정은
+      // 이제 후보 풀(candidate_pool_size개)만 추리고, 최종 채택은 생성자가
+      // buildPrompt [0단계]에서 quiz_fit_criteria로 직접 고른다. 그래서
+      // context.topics는 더 이상 "이번 주 확정 소재"가 아니라 "후보 풀"이고,
+      // 실제 채택 소재 집합은 quiz.weeklyBrief의 topic들로 정의한다 —
+      // ① 브리핑 개수가 채택 개수(checks.topics.count, 풀이 그보다 작으면
+      // 그 개수)와 같은지 ② 브리핑 각 topic이 풀 안의 후보 제목과 토큰
+      // 매칭되는지(풀 밖 소재 발명 금지)를 먼저 검사하고, ③ 제목·문항
+      // 비율·결과 커버리지 검사의 기준 토큰은 전체 풀이 아니라 이렇게 확인된
+      // "채택 소재"에서만 추출한다.
       const topics = Array.isArray(context.topics) ? context.topics : null;
       if (topics && topics.length) {
-        const tokens = topicTokens(topics);
+        const brief = Array.isArray(quiz.weeklyBrief) ? quiz.weeklyBrief : [];
+        const requiredCount = Math.min(CHECKS.topics.count, topics.length);
+        if (v.weekly_brief_topic_coverage_required && brief.length !== requiredCount) {
+          fails.push(`주간 브리핑(weeklyBrief)이 ${brief.length}개 — 후보 풀에서 정확히 ${requiredCount}개를 채택해야 한다.`);
+        }
+
+        // ② 브리핑 topic ↔ 후보 풀 토큰 매칭. 매칭된 후보만 "채택 소재"로
+        // 인정 — 풀에 없는 소재를 지어내면 반려한다. 겹치는 토큰이 하나라도
+        // 있는 첫 후보가 아니라, 토큰 겹침이 "가장 많은" 후보를 고른다 —
+        // 안 그러면 "요즘 편의점…"과 "요즘 헬스장…"처럼 흔한 단어 하나만
+        // 공유하는 서로 다른 후보가 둘 다 같은(먼저 나온) 후보로 오매칭된다.
+        const adopted = [];
+        const invented = [];
+        for (const b of brief) {
+          const briefTokens = tokensForOneTopic({ title: b && b.topic });
+          let match = null;
+          let bestOverlap = 0;
+          for (const t of topics) {
+            const overlap = tokensForOneTopic(t).filter((tok) => briefTokens.includes(tok)).length;
+            if (overlap > bestOverlap) {
+              bestOverlap = overlap;
+              match = t;
+            }
+          }
+          if (match) {
+            if (!adopted.some((a) => a.title === match.title)) adopted.push(match);
+          } else if (b && b.topic) {
+            invented.push(b.topic);
+          }
+        }
+        if (v.weekly_brief_topic_coverage_required && invented.length) {
+          fails.push(`주간 브리핑 소재가 후보 풀에 없다: ${invented.join(", ")} — 후보 풀 밖 소재를 발명하면 안 된다, 채택은 후보 목록 안에서만.`);
+        }
+
+        // ③ 이하 검사는 전체 풀이 아니라 위에서 확인된 채택 소재에서 추출한
+        // 토큰을 기준으로 한다(풀에 15개가 있어도 5개만 채택했으면 5개 기준
+        // 으로 판정) — 매칭이 하나도 안 됐으면(브리핑이 완전히 깨진 경우)
+        // 풀 전체로 완화해 아래 검사가 과도하게 관대해지지 않게 한다.
+        const effectiveTopics = adopted.length ? adopted : topics;
+        const tokens = topicTokens(effectiveTopics);
         if (tokens.length) {
           if (v.title_topic_keyword_required && !mentionsAnyTopicToken(title + desc, tokens)) {
             fails.push("제목+소개에 이번 주 토픽 키워드가 하나도 없다 — 아무 주에나 쓸 수 있는 범용 제목/소개는 실패.");
@@ -248,8 +299,8 @@ export const GATES = [
             }
           }
           // 문항 토픽 파생 비율 — 2차 검수: "9문항 중 최소 6개는 토픽에서
-          // 직접 파생" 프롬프트 지침을 코드로도 강제한다. 토픽 어절을 포함한
-          // 문항 비율이 임계값 미만이면 범용 필러 문항이 너무 많다는 뜻.
+          // 직접 파생" 프롬프트 지침을 코드로도 강제한다. 채택 소재 어절을
+          // 포함한 문항 비율이 임계값 미만이면 범용 필러 문항이 너무 많다는 뜻.
           if (v.question_topic_bound_min_ratio) {
             const qs = Array.isArray(quiz.questions) ? quiz.questions : [];
             if (qs.length) {
@@ -263,39 +314,23 @@ export const GATES = [
             }
           }
         }
-        // 결과 전체 토픽 커버리지 — 2차 검수: 결과 8종 서술이 한두 토픽만
-        // 우려먹지 않고 이번 주 토픽을 최대한 고르게 인용했는지. 토큰이 빈
-        // 토픽(2자 미만 제목 등)도 "커버 안 됨"으로 셀 수 있어 tokens.length
-        // 가드 없이, 토픽별로 직접 계산한다.
+        // 결과 전체 토픽 커버리지 — 2차 검수: 결과 8종 서술이 한두 소재만
+        // 우려먹지 않고 채택 소재를 최대한 고르게 인용했는지. 토큰이 빈
+        // 소재(2자 미만 제목 등)도 "커버 안 됨"으로 셀 수 있어 tokens.length
+        // 가드 없이, 소재별로 직접 계산한다.
         if (v.result_topic_coverage_required) {
           const results = quiz.results || [];
-          const requiredCoverage = Math.min(topics.length, results.length);
+          const requiredCoverage = Math.min(effectiveTopics.length, results.length);
           if (requiredCoverage > 0) {
             const allDescText = results.map((r) => String((r && r.description) || "")).join(" ");
-            const covered = topics.filter((t) => tokensForOneTopic(t).some((tok) => allDescText.includes(tok)));
+            const covered = effectiveTopics.filter((t) => tokensForOneTopic(t).some((tok) => allDescText.includes(tok)));
             if (covered.length < requiredCoverage) {
               const coveredTitles = new Set(covered.map((t) => t.title));
-              const missing = topics.filter((t) => !coveredTitles.has(t.title)).map((t) => t.title);
+              const missing = effectiveTopics.filter((t) => !coveredTitles.has(t.title)).map((t) => t.title);
               fails.push(
                 `결과 서술 전체에서 이번 주 토픽이 ${covered.length}/${requiredCoverage}개만 등장 — 빠진 토픽: ${missing.join(", ")} (한두 토픽만 우려먹지 말고 고르게 인용하라).`
               );
             }
-          }
-        }
-        // 주간 브리핑 커버리지 — David 실사용 피드백(2026-07-25): 브리핑이
-        // 토픽 수만큼 있고, 소재마다 실제로 설명됐는지(토큰 매칭)를 본다.
-        // 개수 부족·소재 누락 둘 다 사유에 명시해서 반려한다.
-        if (v.weekly_brief_topic_coverage_required) {
-          const brief = Array.isArray(quiz.weeklyBrief) ? quiz.weeklyBrief : [];
-          if (brief.length < topics.length) {
-            fails.push(`주간 브리핑(weeklyBrief)이 ${brief.length}/${topics.length}개 — 소재 수만큼 채워야 한다.`);
-          }
-          const briefText = brief.map((b) => `${(b && b.topic) || ""} ${(b && b.intro) || ""}`).join(" ");
-          const missingFromBrief = topics.filter((t) => !tokensForOneTopic(t).some((tok) => briefText.includes(tok)));
-          if (missingFromBrief.length) {
-            fails.push(
-              `주간 브리핑에서 다루지 않은 소재가 있다: ${missingFromBrief.map((t) => t.title).join(", ")} — 소재마다 브리핑 설명을 채워라.`
-            );
           }
         }
       }

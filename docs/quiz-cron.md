@@ -42,20 +42,29 @@
    실패로 보고한다(다음 단계로 진행하지 않는다).
 3. **프롬프트 받기**: `node src/quiz/weekly.js prompt <dump.json>` — stdout에
    찍히는 프롬프트를 그대로 자신의 생성 입력으로 쓴다. stderr에는 이번 주
-   통과 토픽 요약이 참고용으로 나온다.
+   **후보 풀**(candidate_pool_size=15개, 2026-07-26 개편 — 예전엔 최종 개수
+   5개만 나왔다) 요약이 참고용으로 나온다. 최종 채택은 세션이 4번 단계에서
+   직접 고른다.
 4. **세션이 퀴즈 JSON을 생성**한다 — 프롬프트가 `buildPrompt()`(`src/quiz/generate.js`)의
-   5단계 전문가 작업 절차(0.소재 해부 → 1.컨셉 → 2.문항 초고 → 3.결과 초고 →
-   4.셀프 검수 → 5.제출)로 되어 있다. **4단계 셀프 검수를 생략하지 말 것** —
-   코드 게이트(QG1~QG4)는 글자수·비율·유사도 같은 형식 조건만 잡고, 소재-행동
-   짜깁기·오프닝 템플릿화·극 조언 수렴 같은 의미 정합은 이 단계에서 세션이
-   스스로 체크리스트를 거쳐 잡아야 한다 — 건너뛰면 게이트를 통과해도 저품질
-   결과물이 나온다. 완성본은 퀴즈 스키마(`QUIZ_SCHEMA`, `src/quiz/generate.js`,
-   `bestMatchReason`/`worstMatchReason` 포함)와 일치하는 JSON 파일로 저장한다.
+   5단계 전문가 작업 절차(0.소재 해부+채택 → 1.컨셉 → 2.문항 초고 → 3.결과 초고 →
+   4.셀프 검수 → 5.제출)로 되어 있다. **0단계에서 15개 후보 풀 중 정확히 5개를
+   `quiz_fit_criteria_ko`(자기투영·성향 갈림·감정취향 자극·설명 부담) 기준으로
+   채택**하는 것이 이번 개편의 핵심이다 — 화제성 순위가 높아도 퀴즈감이 없으면
+   버리고, 채택한 5개만 weeklyBrief·문항·결과에 쓴다(자세한 파이프라인은
+   [quiz-topic-selection.md](quiz-topic-selection.md)). **4단계 셀프 검수를
+   생략하지 말 것** — 코드 게이트(QG1~QG4)는 글자수·비율·유사도 같은 형식
+   조건만 잡고, 소재-행동 짜깁기·오프닝 템플릿화·극 조언 수렴 같은 의미 정합은
+   이 단계에서 세션이 스스로 체크리스트를 거쳐 잡아야 한다 — 건너뛰면 게이트를
+   통과해도 저품질 결과물이 나온다. 완성본은 퀴즈 스키마(`QUIZ_SCHEMA`,
+   `src/quiz/generate.js`, `bestMatchReason`/`worstMatchReason`/`weeklyPick`
+   포함)와 일치하는 JSON 파일로 저장한다.
    **2026-07-25 David 실사용 피드백 이후**: 스키마에 `weeklyBrief`(소재 사전설명
-   — 소재 수만큼, topic/intro/tier)와 `axes[].intro`(그 축이 뭘 확인하는지
+   — 채택 개수만큼, topic/intro/tier)와 `axes[].intro`(그 축이 뭘 확인하는지
    설명)가 최상위 필수 필드로 추가됐다 — 0단계 소재 해부에서 브리핑과 친숙도
    등급(국민상식/대중화제/커뮤내수)까지 함께 정리해야 4단계 셀프 검수와
-   QG1~QG2 게이트를 통과한다 ([quiz-loopgate.md](quiz-loopgate.md) 참고).
+   QG1~QG2 게이트를 통과한다. **2026-07-26 이후**: `weeklyBrief`가 곧 "채택
+   소재" 선언이라 QG2가 개수(=채택 개수)·풀 소속(15개 후보 중 하나여야 함)을
+   검증한다 ([quiz-loopgate.md](quiz-loopgate.md) 참고).
 5. **제출**: `node src/quiz/weekly.js submit <quiz.json> <dump.json>`
    - **exit 0** — 루프게이트(QG1~QG4) 통과. 초안이 `data/quiz/drafts/`에
      저장되고 발행 작업이 `decision_queue`로 라우팅됐다는 뜻. 세션은

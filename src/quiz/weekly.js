@@ -43,11 +43,19 @@ export function weekLabel(d = new Date()) {
   return `${date.getUTCFullYear()}w${String(week).padStart(2, "0")}`;
 }
 
+// 후보 풀 크기 — David 실사용 피드백(2026-07-26, "주제 자체가 별로"): 기계
+// 선정(hotness 랭킹)은 이제 최종 채택자가 아니라 후보 풀만 추린다. 최종
+// count개는 buildPrompt [0단계]에서 생성자가 quiz_fit_criteria로 직접
+// 고른다 (pack_contract.checks.topics.candidate_pool_size).
+function candidatePoolSize(opts = {}) {
+  return opts.topicCount || CONTRACT.checks.topics.candidate_pool_size;
+}
+
 export async function runWeekly(items, opts = {}) {
   const store = opts.store || new QuizStore(opts);
   const label = opts.weekLabel || weekLabel(opts.now ? new Date(opts.now) : new Date());
 
-  const topics = pickWeeklyTopics(items, { count: opts.topicCount, now: opts.now });
+  const topics = pickWeeklyTopics(items, { count: candidatePoolSize(opts), now: opts.now });
   if (topics.length === 0) throw new Error("브랜드 세이프한 핫토픽이 없어요."); // QG0 토픽 게이트
 
   // 루프게이트: 생성 → 게이트 검사 → 실패 사유를 피드백으로 재생성.
@@ -147,7 +155,7 @@ async function main() {
     }
     const items = JSON.parse(fs.readFileSync(path.resolve(arg), "utf8"));
     const label = weekLabel();
-    const topics = pickWeeklyTopics(items, {});
+    const topics = pickWeeklyTopics(items, { count: candidatePoolSize() });
     if (topics.length === 0) throw new Error("브랜드 세이프한 핫토픽이 없어요."); // QG0 토픽 게이트
 
     let feedback = null;
@@ -157,7 +165,7 @@ async function main() {
 
     const prompt = buildPrompt(topics, { weekLabel: label, feedback });
 
-    console.error(`[quiz] 이번 주(${label}) 토픽 ${topics.length}건:`);
+    console.error(`[quiz] 이번 주(${label}) 토픽 후보 풀 ${topics.length}건 (최종 채택은 생성자가 [0단계]에서 quiz_fit_criteria로 직접 고른다):`);
     for (const t of topics) console.error(`  - ${t.title} (${t.source}, hot ${t.score})`);
     if (feedback && feedback.length) {
       console.error(`[quiz] 이전 반려 사유 ${feedback.length}건을 프롬프트에 재주입했어요.`);
@@ -184,7 +192,7 @@ async function main() {
       : path.join(store.dir, "last_reject_reasons.json");
 
     const label = weekLabel();
-    const topics = pickWeeklyTopics(items, {});
+    const topics = pickWeeklyTopics(items, { count: candidatePoolSize() });
     const gate = runGates(quiz, { topics });
     const via = "claude-code";
 
@@ -235,7 +243,7 @@ async function main() {
     }
     const items = JSON.parse(fs.readFileSync(path.resolve(arg), "utf8"));
     const { draft, publishTask, topics, via } = await runWeekly(items, {});
-    console.log(`[quiz] 이번 주 토픽 ${topics.length}건:`);
+    console.log(`[quiz] 이번 주 토픽 후보 풀 ${topics.length}건 (채택된 소재는 초안의 weeklyBrief 참고):`);
     for (const t of topics) console.log(`  - ${t.title} (${t.source}, hot ${t.score})`);
     console.log(`[quiz] 루프게이트 통과 (시도 ${draft.gate.attempts}회, 게이트 QG1~QG4 전체, 판정 ${draft.gate.decision})`);
     console.log(`[quiz] 초안 생성 (${via}): "${draft.quiz.title}" → drafts/${draft.slug}.json`);

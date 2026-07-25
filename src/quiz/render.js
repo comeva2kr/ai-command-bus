@@ -281,6 +281,19 @@ export function renderResultPage(record, result, origin, opts = {}) {
     })
     .join("\n");
 
+  // 이번 주 네 픽 — R2(리서치 제안): 유형별 실용 추천물, 결과문 3층 구조의
+  // 3번째 층. weeklyPick 없는 과거 데이터(하위호환)는 조용히 생략한다.
+  const weeklyPick = result.weeklyPick
+    ? `<p class="desc" style="font-size:.85rem;margin-top:8px">📌 이번 주 네 픽 — ${esc(result.weeklyPick)}</p>`
+    : "";
+
+  // 공유 인센티브 슬롯(R7) — 매니페스트 share_incentive.enabled 확인 후에만
+  // 표시. 기본값 false면 아무것도 렌더하지 않는다(David 별도 결정 대기).
+  const shareIncentive =
+    CONTRACT.share_incentive && CONTRACT.share_incentive.enabled
+      ? `<p class="desc" style="font-size:.85rem;margin-top:8px">🎁 공유하면 기부에 동참해요</p>`
+      : "";
+
   return (
     head(ogTitle, result.shareText, url, origin, ogImageUrl) +
     `<div class="card result-card" style="border-color:${color}">
@@ -288,6 +301,7 @@ export function renderResultPage(record, result, origin, opts = {}) {
 <h1 style="color:${color}">${esc(result.title)}</h1>
 ${rarity}
 <p style="margin-top:10px">${esc(result.description)}</p>
+${weeklyPick}
 </div>
 
 <div class="card">
@@ -319,20 +333,38 @@ ${AD}
 <div class="share">
 <button onclick="shareLink()">📋 결과 복사</button>
 <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}" target="_blank" rel="noopener">X에 공유</a>
+<button onclick="kakaoShare()">💬 카카오톡으로 공유</button>
 <button onclick="webShare()">📱 공유하기</button>
 <a href="${esc(ogImageUrl)}" download target="_blank" rel="noopener">🖼️ 결과 카드 저장</a>
 </div>
+${shareIncentive}
 </div>
-<p style="text-align:center"><a class="big" href="/q/${esc(slug)}">나도 테스트 해보기 →</a></p>
+<p style="text-align:center"><a class="big" href="/q/${esc(slug)}" onclick="ctaClick()">나도 테스트 해보기 →</a></p>
 <p style="text-align:center;margin-top:12px"><a href="/q">다른 테스트 보기</a></p>
 ${AD}
 ${FINEPRINT}
 <div id="toast"></div>
 <script>
-const URL_=${JSON.stringify(url)},BLOCK=${JSON.stringify(shareBlock).replace(/</g, "\\u003c")};
+const URL_=${JSON.stringify(url)},BLOCK=${JSON.stringify(shareBlock).replace(/</g, "\\u003c")},SLUG_=${JSON.stringify(slug)};
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.style.opacity='1';clearTimeout(window.__toastTimer);window.__toastTimer=setTimeout(()=>{el.style.opacity='0';},2200);}
 function shareLink(){navigator.clipboard.writeText(BLOCK).then(()=>toast('복사됐어요! 붙여넣으면 카드처럼 보여요'));}
 function webShare(){if(navigator.share)navigator.share({title:document.title,text:BLOCK});else shareLink();}
+// 카카오톡 공유(R4) — Kakao SDK 앱키 미등록(매니페스트 share_channels.
+// kakao_sdk_enabled=false) 상태에서는 시스템 공유 시트(모바일에서 카톡 포함)
+// 로 대체하고, 공유 시트가 없는 환경(대부분 데스크톱)은 복붙 블록 복사로
+// 폴백한다.
+function kakaoShare(){
+  if(navigator.share){navigator.share({title:document.title,text:BLOCK,url:URL_}).catch(()=>{});}
+  else{navigator.clipboard.writeText(BLOCK).then(()=>toast('복사됐어요 — 카톡에 붙여넣으면 끝'));}
+}
+// CTA 계측(R6) — 클릭을 막지 않는 fire-and-forget. sendBeacon 우선, 없으면
+// keepalive fetch 폴백. 실패해도 이동은 그대로 진행된다.
+function ctaClick(){
+  try{
+    if(navigator.sendBeacon){navigator.sendBeacon('/api/quiz/'+SLUG_+'/cta');}
+    else{fetch('/api/quiz/'+SLUG_+'/cta',{method:'POST',keepalive:true}).catch(()=>{});}
+  }catch(e){}
+}
 </script>` +
     FOOT
   );

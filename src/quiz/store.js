@@ -96,12 +96,28 @@ export class QuizStore {
     } catch {
       return null;
     }
-    const stats = this._read(path.join(this.dir, "stats", `${s}.json`)) || { counts: {}, total: 0 };
+    const stats = this._read(path.join(this.dir, "stats", `${s}.json`)) || { counts: {}, total: 0, cta: 0 };
     const share = {};
     for (const code of codes) {
       share[code] = Math.round(((stats.counts[code] || 0) + 1) / (stats.total + codes.length) * 100);
     }
-    return { share, total: stats.total };
+    return { share, total: stats.total, cta: stats.cta || 0 };
+  }
+
+  // R6(리서치 제안) — 결과 페이지 "나도 테스트 해보기" CTA 클릭 계측.
+  // 핀플리 GA 실측 상한 벤치마크(참여자의 1/3) 대비 우리 CTA 클릭률을 재는
+  // 원천 데이터 — 매니페스트 pack_contract.metrics.cta_click_benchmark_ratio.
+  recordCta(slug) {
+    const s = QuizStore.safeSlug(slug);
+    const record = this.getPublished(s);
+    if (!record) throw new Error("발행된 테스트가 아니에요.");
+    const statsDir = path.join(this.dir, "stats");
+    fs.mkdirSync(statsDir, { recursive: true });
+    const file = path.join(statsDir, `${s}.json`);
+    const stats = this._read(file) || { counts: {}, total: 0, cta: 0 };
+    stats.cta = (stats.cta || 0) + 1;
+    this._writeAtomic(file, JSON.stringify(stats));
+    return stats;
   }
 
   // --- OG 공유 카드 PNG 캐시 -------------------------------------------------

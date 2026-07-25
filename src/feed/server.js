@@ -563,6 +563,22 @@ export function createServer(opts = {}) {
           }
         }
       }
+
+      // CTA 계측(리서치 제안 R6): 결과 페이지 "나도 테스트 해보기" 클릭을
+      // fire-and-forget으로 집계한다. 발행된 퀴즈만 — 초안/엉터리 슬러그는 404.
+      {
+        const m = p.match(/^\/api\/quiz\/([^/]+)\/cta$/);
+        if (m && req.method === "POST") {
+          const slug = decodeURIComponent(m[1]);
+          if (!quizStore.getPublished(slug)) return send(res, 404, { error: "not found" });
+          try {
+            const stats = quizStore.recordCta(slug);
+            return send(res, 200, { ok: true, cta: stats.cta });
+          } catch (err) {
+            return send(res, 400, { error: String(err.message) });
+          }
+        }
+      }
       if (p.startsWith("/q") && req.method === "GET") {
         const proto = req.headers["x-forwarded-proto"] || "http";
         const origin = `${proto}://${req.headers.host}`;

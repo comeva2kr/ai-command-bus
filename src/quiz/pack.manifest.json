@@ -1,7 +1,7 @@
 {
   "_note_ko": "이 파일이 주간 바이럴 유형테스트 팩의 단일 진실원(기계 정본)이다. docs/quiz-loopgate.md는 파생 뷰 — 조건 값을 문서에서 손편집하지 말 것. WRC Workflow Gate 표준 스키마(google_blogger.yaml v1.2)를 미러링한 선언 매니페스트이며, 게이트 등급·재시도 예산·제외 토픽·게이트 임계값·산출물 규약은 코드 상수가 아니라 전부 여기서 로드된다.",
   "project": "weekly_viral_quiz",
-  "version": 4,
+  "version": 5,
   "pack": "weekly_viral_quiz",
   "display_name_ko": "주간 바이럴 유형테스트",
   "theme_accent": "#7C5CFF",
@@ -57,8 +57,22 @@
       "QG6": { "loss_vectors": ["editorial"], "expected_loss_path": "응답 데이터 미반영으로 희소성 통계·차주 보정 루프 상실", "minimum_release_inputs": ["response_stats_accumulation"] }
     },
     "checks": {
-      "topics": { "count": 5, "max_per_source": 2, "hangul_chars_min": 4, "cross_source_bonus": 0.5, "max_single_source_topics": 2 },
+      "topics": {
+        "count": 5,
+        "max_per_source": 2,
+        "hangul_chars_min": 4,
+        "cross_source_bonus": 0.5,
+        "max_single_source_topics": 2,
+        "candidate_pool_size": 15,
+        "quiz_fit_criteria_ko": [
+          "자기투영 — 읽는 사람이 '내 얘기'로 만들 수 있는 소재",
+          "성향 갈림 — 사람마다 반응이 갈리는 소재 (사실 전달형 뉴스는 탈락)",
+          "감정·취향 자극 — 웃음, 로망, 공감, 논쟁 없는 취향 대립",
+          "설명 부담 — 한 줄 설명으로 이해 가능한 소재 우선"
+        ]
+      },
       "topics_note_ko": "cross_source_bonus/max_single_source_topics — David 실사용 피드백(2026-07-25): 퀴즈가 커뮤니티 내부자 전보체로 나온다는 지적 반영. 다른 출처 제목과 핵심 토큰이 2개+ 겹치는 소재(여러 커뮤니티에서 동시에 화제 = 대중성 신호)에 hotness 가산점을 주고, 그런 신호가 없는(단일 커뮤 내수) 소재는 최종 선정에서 max_single_source_topics개로 캡을 건다(후보 부족 시에만 완화해 개수 보장) — topics.js pickWeeklyTopics.",
+      "quiz_fit_criteria_note_ko": "David 실사용 피드백(2026-07-26, '주제 자체가 별로'): 기계 선정(hotness 랭킹)을 최종 채택자로 두지 않는다 — hotness는 candidate_pool_size개짜리 후보 풀만 추리고, 최종 count개는 buildPrompt [0단계]에서 생성자(전문가 절차)가 quiz_fit_criteria_ko 기준으로 직접 채택한다. 화제성 랭킹이 높아도 퀴즈감(자기투영·성향 갈림)이 없으면 버려진다 — gates.js QG2가 weeklyBrief를 '채택 소재' 집합으로 정의해 이 채택이 실제로 일어났는지(개수·풀 소속) 검증한다.",
       "topic_safety": {
         "celebrity_private_life": ["열애", "연인", "스킨십", "결별", "파경", "이혼", "재혼", "핑크빛", "데이트 포착"],
         "fear_disaster": ["가지 말라", "참사", "사망", "지진", "방사능", "경보", "전염", "공포"],
@@ -122,11 +136,25 @@
     "generation": {
       "order": ["claude_code_scheduled_session", "anthropic_api", "template"],
       "scheduled_policy_ko": "예약 실행에서 생성 실패/예산 소진은 fail-loud — 템플릿으로 대체 발행하지 않는다",
+      "axes_count": 4,
+      "axes_count_note_ko": "리서치 제안 R1(핀플리 128유형 사례) — buildPrompt가 이 값을 참조해 '심리 축 정확히 {n}개 → 유형 2^{n}개, 문항 축당 3개+ = 총 {3n}~{4n}개'로 지시한다. 프롬프트 지시값일 뿐 validateQuiz의 하한(2축)을 강제로 올리지 않는다 — templateQuiz(테스트·폴백 경로)는 2축을 유지한다.",
       "submit_contract": {
         "command": "node src/quiz/weekly.js submit <quiz.json> <items.json>",
         "reject_exit_code": 2,
         "reasons_file": "data/quiz/last_reject_reasons.json"
       }
+    },
+    "share_channels": {
+      "kakao_sdk_enabled": false,
+      "note_ko": "Kakao SDK 앱키 등록은 David 결정 — 등록 전에는 시스템 공유 시트/복사 폴백. render.js의 '카카오톡으로 공유' 버튼은 navigator.share가 있으면 공유 시트(카톡 포함)를, 없으면 복붙 공유 블록 복사+토스트로 대체한다."
+    },
+    "metrics": {
+      "cta_click_benchmark_ratio": 0.33,
+      "note_ko": "핀플리 GA 실측 상한 벤치마크(docs/quiz-hit-corpus-research.md) — 결과 화면 단일 CTA('나도 테스트 해보기') 클릭률이 참여자의 이 비율에 얼마나 근접하는지가 계측 목표. store.js recordCta/statsFor, POST /api/quiz/:slug/cta."
+    },
+    "share_incentive": {
+      "enabled": false,
+      "note_ko": "LU42 공유당 기부 모델(docs/quiz-hit-corpus-research.md R7) — 실행은 David 별도 결정, enabled=false면 렌더 없음(render.js가 이 플래그를 확인만 하고 표시하지 않는다)."
     }
   },
 

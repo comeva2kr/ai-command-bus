@@ -731,30 +731,36 @@ test("QG2 viral gate rejects result copy that covers too few distinct topics (to
   );
 });
 
-// David 실사용 피드백(2026-07-25): weeklyBrief가 토픽 수만큼 있고, 소재마다
-// 실제로 설명됐는지 — 빠진 소재가 있으면 이름을 명시해 반려한다.
-test("QG2 viral gate rejects a weeklyBrief that doesn't cover every topic when topics context is given", async () => {
+// David 실사용 피드백(2026-07-26, "주제 자체가 별로"): 기계 선정(hotness
+// 랭킹)은 이제 후보 풀만 추리고, 최종 채택은 quiz.weeklyBrief로 정의된다 —
+// 풀 밖 소재를 지어내면(어떤 후보와도 토큰이 안 겹치면) 반려돼야 한다.
+test("QG2 viral gate rejects a weeklyBrief topic that doesn't match any candidate in the pool (invented topic)", async () => {
   const { runGates } = await import("../src/quiz/gates.js");
   const quiz = structuredClone(sampleQuiz());
-  const topics = sampleTopics();
-  // 브리핑 전체를 토픽과 무관한 문장으로 덮어써 소재 커버리지를 깨뜨린다.
-  quiz.weeklyBrief = [{ topic: "무관한 소재", intro: "이건 이번 주 토픽 어디와도 상관없는 순수 범용 설명 문장이다.", tier: "대중화제" }];
+  const topics = sampleTopics(); // 후보 풀
+  // 풀 후보 제목 어디와도 토큰이 겹치지 않는 완전히 새 소재로 덮어쓴다.
+  quiz.weeklyBrief[0] = { topic: "완전히 없는 소재 이름", intro: quiz.weeklyBrief[0].intro, tier: quiz.weeklyBrief[0].tier };
   const report = runGates(quiz, { topics });
   assert.ok(
-    report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("주간 브리핑") && f.message.includes("다루지 않은 소재")),
-    "브리핑이 토픽을 다루지 않으면 반려돼야 한다"
+    report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("후보 풀에 없다")),
+    "브리핑 소재가 후보 풀 밖이면 반려돼야 한다"
   );
 });
 
-test("QG2 viral gate rejects a weeklyBrief that's shorter than the topic count when topics context is given", async () => {
+// 채택 개수는 checks.topics.count(풀이 더 작으면 그 개수)와 정확히 같아야
+// 한다 — 후보 풀에서 몇 개를 고르든 상관없이 '아무 개수'가 아니라 채택
+// 절차를 실제로 거쳤는지 확인하는 장치다.
+test("QG2 viral gate rejects a weeklyBrief whose length doesn't equal the adoption count (checks.topics.count)", async () => {
   const { runGates } = await import("../src/quiz/gates.js");
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
   const quiz = structuredClone(sampleQuiz());
   const topics = sampleTopics();
-  quiz.weeklyBrief = quiz.weeklyBrief.slice(0, 1); // 소재는 여러 개인데 브리핑은 1개뿐
+  quiz.weeklyBrief = quiz.weeklyBrief.slice(0, 1); // 채택 개수는 여러 개인데 브리핑은 1개뿐
   const report = runGates(quiz, { topics });
+  const requiredCount = Math.min(CONTRACT.checks.topics.count, topics.length);
   assert.ok(
-    report.failures.some((f) => f.gate === "QG2-viral" && /주간 브리핑\(weeklyBrief\)이 \d+\/\d+개/.test(f.message)),
-    "브리핑 개수가 토픽 수보다 적으면 개수를 명시해 반려돼야 한다"
+    report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes(`정확히 ${requiredCount}개`)),
+    "브리핑 개수가 채택 개수와 다르면 반려돼야 한다"
   );
 });
 
@@ -1461,4 +1467,258 @@ test("pickWeeklyTopics excludes politics titles the feed classifier misses (poli
   const topics = pickWeeklyTopics(items, { count: 2, now: NOW });
   assert.equal(topics.length, 1, "정치 소재 제외 (퀴즈팩 보강 키워드)");
   assert.ok(topics[0].title.includes("편의점"));
+});
+
+// ===========================================================================
+// David 실사용 피드백(2026-07-26, "주제 자체가 별로") — 기계 선정을 후보
+// 풀로 낮추고 최종 선정은 생성자가 하도록 개편(매니페스트 version 4→5).
+// ===========================================================================
+
+// 15개 브랜드세이프 후보 — 상위 5개(primary)는 서로 뚜렷이 다른 문장이라야
+// templateQuiz가 채택했을 때 QG1 문항 유사도 게이트를 통과한다(같은 문구에
+// 숫자만 바뀌면 bigram 유사도가 87%까지 치솟아 반려된다 — 실제로 처음
+// 시도에서 걸린 버그). 각 primary는 낮은 점수의 echo와 핵심 토큰 2개+를
+// 공유해 cross-source 신호를 얻어 max_single_source_topics 캡을 피하고,
+// 나머지 5개는 캡을 채우는 필러다. 합쳐서 정확히 15개 = candidate_pool_size.
+function manyBrandSafeItems() {
+  const primaries = [
+    "동네빵집 크루아상 시식 후기",
+    "헬스장 러닝머신 예약 전쟁 후기",
+    "편의점 신상 디저트 조합 발견",
+    "카페 신메뉴 시럽 라떼 리뷰",
+    "분식집 떡볶이 신메뉴 출시"
+  ];
+  const echoes = [
+    "동네빵집 크루아상 신상 소식",
+    "헬스장 러닝머신 이용 후기 공유",
+    "편의점 신상 디저트 인기 폭발",
+    "카페 신메뉴 라떼 맛집 추천",
+    "분식집 떡볶이 맛집 순위 공개"
+  ];
+  const fillers = [
+    "동네 도서관 열람실 자리 경쟁",
+    "지하철 막차 시간표 변경 공지",
+    "아파트 단지 택배함 교체 안내",
+    "주말 등산로 단풍 절정 소식",
+    "동네 세탁소 가격 인상 후기"
+  ];
+  const iso = new Date(NOW).toISOString();
+  const items = [];
+  primaries.forEach((title, i) => items.push({ title, url: `https://example.com/p${i}`, source: `primary${i}`, score: 1000 - i, commentCount: 10, publishedAt: iso }));
+  echoes.forEach((title, i) => items.push({ title, url: `https://example.com/e${i}`, source: `echo${i}`, score: 500 - i, commentCount: 10, publishedAt: iso }));
+  fillers.forEach((title, i) => items.push({ title, url: `https://example.com/f${i}`, source: `filler${i}`, score: 50 - i, commentCount: 10, publishedAt: iso }));
+  return items;
+}
+
+test("runWeekly's candidate pool scales up to candidate_pool_size while the template still adopts exactly checks.topics.count", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  const { runGates } = await import("../src/quiz/gates.js");
+  const store = tmpStore();
+  const items = manyBrandSafeItems();
+  const { draft, topics } = await runWeekly(items, { store, now: NOW, apiKey: null });
+  assert.equal(topics.length, CONTRACT.checks.topics.candidate_pool_size, "후보 풀은 candidate_pool_size(15)까지 커진다");
+  assert.equal(draft.quiz.weeklyBrief.length, CONTRACT.checks.topics.count, "최종 채택은 checks.topics.count(5)로 유지된다");
+  const report = runGates(draft.quiz, { topics });
+  assert.equal(report.pass, true, "채택 소재가 실제 풀 후보와 매칭돼 QG2를 통과해야 한다");
+});
+
+test("buildPrompt tells the generator to adopt exactly checks.topics.count from the candidate pool using quiz_fit_criteria (Part A)", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  const topics = pickWeeklyTopics(HOT_ITEMS, { now: NOW });
+  const prompt = buildPrompt(topics, { weekLabel: "2026w30" });
+  assert.ok(prompt.includes("후보"), "후보 풀 표현이 있어야 한다");
+  assert.ok(prompt.includes(`정확히 ${CONTRACT.checks.topics.count}개를 채택`));
+  assert.ok(prompt.includes("화제성 순위가 높아도"), "화제성이 높아도 퀴즈감 없으면 버리라는 지침이 있어야 한다");
+  for (const c of CONTRACT.checks.topics.quiz_fit_criteria_ko) {
+    assert.ok(prompt.includes(c), `퀴즈감 채택 기준이 프롬프트에 포함돼야 한다: ${c}`);
+  }
+});
+
+// 리서치 제안 R1 — 4축 16유형: 매니페스트 generation.axes_count를 buildPrompt가 참조.
+test("buildPrompt references generation.axes_count for the axis/type-count formula (R1)", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  const topics = pickWeeklyTopics(HOT_ITEMS, { now: NOW });
+  const prompt = buildPrompt(topics, { weekLabel: "2026w30" });
+  const n = CONTRACT.generation.axes_count;
+  assert.equal(n, 4);
+  assert.ok(prompt.includes(`심리 축 정확히 ${n}개`));
+  assert.ok(prompt.includes(`유형 2^${n}개`));
+  assert.ok(prompt.includes(`${n * 3}~${n * 4}개`));
+});
+
+test("validateQuiz still accepts 2~4 axes and templateQuiz keeps 2 axes as the fallback/test path (axes_count is a prompt directive, not a validateQuiz floor)", () => {
+  const quiz = sampleQuiz();
+  assert.equal(quiz.axes.length, 2, "템플릿 경로는 2축을 유지한다");
+  assert.ok(validateQuiz(quiz));
+});
+
+// 리서치 제안 R5 — 문항 상황은 타깃의 공유된 일상 경험이어야 한다.
+test("buildPrompt requires question vignettes to be a shared everyday experience for the community/SNS 2030 target (R5)", () => {
+  const topics = pickWeeklyTopics(HOT_ITEMS, { now: NOW });
+  const prompt = buildPrompt(topics, { weekLabel: "2026w30" });
+  assert.ok(prompt.includes("공유된 일상 경험"));
+  assert.ok(prompt.includes("아 이거 나잖아"));
+});
+
+test("pack manifest declares checks.topics.candidate_pool_size and quiz_fit_criteria_ko (Part A)", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  assert.equal(CONTRACT.checks.topics.candidate_pool_size, 15);
+  assert.ok(Array.isArray(CONTRACT.checks.topics.quiz_fit_criteria_ko) && CONTRACT.checks.topics.quiz_fit_criteria_ko.length === 4);
+  assert.ok(CONTRACT.checks.quiz_fit_criteria_note_ko, "채택 기준의 근거 note가 선언돼야 한다");
+});
+
+test("pack manifest declares generation.axes_count = 4 with a note (R1)", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  assert.equal(CONTRACT.generation.axes_count, 4);
+  assert.ok(CONTRACT.generation.axes_count_note_ko);
+});
+
+// E2E — 완료 기준: examples/hot_items.json run(템플릿 경로, 풀→앞 5개 채택) PASS.
+test("weekly.js run on examples/hot_items.json passes the loop gate end-to-end via the template path (E2E)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-run-e2e-"));
+  const result = runWeeklyCli(["run", path.join(REPO_ROOT, "examples", "hot_items.json")], { QUIZ_DIR: dir });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /초안 생성 \(template\)/);
+  assert.match(result.stdout, /decision_queue/);
+  const store = new QuizStore({ dir });
+  const drafts = store.listDrafts();
+  assert.equal(drafts.length, 1);
+  const draft = drafts[0];
+  assert.equal(draft.gate.decision, "PASS");
+  assert.equal(draft.quiz.weeklyBrief.length, 5, "후보 풀에서 정확히 5개(checks.topics.count)를 채택");
+  assert.ok(Array.isArray(draft.topics) && draft.topics.length >= draft.quiz.weeklyBrief.length, "후보 풀은 채택 개수 이상");
+});
+
+// ---- 리서치 제안 R2: weeklyPick(유형별 실용 추천물) ------------------------
+
+test("QUIZ_SCHEMA and validateQuiz require a non-empty weeklyPick (<=60자) on every result (R2)", () => {
+  assert.ok(QUIZ_SCHEMA.properties.results.items.required.includes("weeklyPick"));
+
+  const missing = structuredClone(sampleQuiz());
+  delete missing.results[0].weeklyPick;
+  assert.throws(() => validateQuiz(missing), /weeklyPick이 비었어요/);
+
+  const empty = structuredClone(sampleQuiz());
+  empty.results[0].weeklyPick = "";
+  assert.throws(() => validateQuiz(empty), /weeklyPick이 비었어요/);
+
+  const tooLong = structuredClone(sampleQuiz());
+  tooLong.results[0].weeklyPick = "가".repeat(61);
+  assert.throws(() => validateQuiz(tooLong), /weeklyPick이 60자를 넘어요/);
+
+  const quiz = sampleQuiz();
+  for (const r of quiz.results) assert.ok(r.weeklyPick && r.weeklyPick.length <= 60);
+});
+
+test("renderResultPage shows '이번 주 네 픽' with the result's weeklyPick (R2)", async () => {
+  const { renderResultPage } = await import("../src/quiz/render.js");
+  const quiz = sampleQuiz();
+  const result = quiz.results[0];
+  const html = renderResultPage({ slug: "2026w30-pick", quiz }, result, "https://example.com", {});
+  assert.ok(html.includes("이번 주 네 픽"));
+  assert.ok(html.includes(escHtml(result.weeklyPick)));
+});
+
+// ---- 리서치 제안 R3: OG 카드 강점 + 케미 보강 ------------------------------
+
+test("renderOgCardSvg type card includes a top strength and the best-match chemistry line (R3)", () => {
+  const quiz = sampleQuiz();
+  const result = quiz.results[0];
+  const svg = renderOgCardSvg(quiz, result, {});
+  const bestMatchResult = quiz.results.find((r) => r.code === result.bestMatch);
+  assert.ok(svg.includes("잘 맞는 케미"));
+  assert.ok(svg.includes(bestMatchResult.title.slice(0, 8)), "베스트 매치 유형 제목 일부가 카드에 있어야 한다");
+  assert.ok(svg.includes(result.strengths[0].slice(0, 8)), "1강점 일부가 카드에 있어야 한다");
+});
+
+// ---- 리서치 제안 R4: 카카오톡 공유 --------------------------------------
+
+test("renderResultPage offers a '카카오톡으로 공유' button that falls back to navigator.share or clipboard copy (R4)", async () => {
+  const { renderResultPage } = await import("../src/quiz/render.js");
+  const quiz = sampleQuiz();
+  const html = renderResultPage({ slug: "2026w30-kakao", quiz }, quiz.results[0], "https://example.com", {});
+  assert.ok(html.includes("카카오톡으로 공유"));
+  assert.ok(html.includes("function kakaoShare()"));
+  assert.ok(html.includes("navigator.share"));
+  assert.ok(html.includes("복사됐어요 — 카톡에 붙여넣으면 끝"));
+});
+
+test("pack manifest declares share_channels with kakao_sdk_enabled=false (R4)", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  assert.equal(CONTRACT.share_channels.kakao_sdk_enabled, false);
+  assert.ok(CONTRACT.share_channels.note_ko);
+});
+
+// ---- 리서치 제안 R6: CTA 계측 --------------------------------------------
+
+test("QuizStore.recordCta increments the cta count and statsFor reports it (R6)", () => {
+  const store = tmpStore();
+  const quiz = sampleQuiz();
+  store.saveDraft("2026w30-cta", quiz);
+  store.approve("2026w30-cta");
+
+  let stats = store.statsFor("2026w30-cta", quiz.results.map((r) => r.code));
+  assert.equal(stats.cta, 0);
+
+  store.recordCta("2026w30-cta");
+  store.recordCta("2026w30-cta");
+  stats = store.statsFor("2026w30-cta", quiz.results.map((r) => r.code));
+  assert.equal(stats.cta, 2);
+
+  assert.throws(() => store.recordCta("no-such"), /발행된/);
+});
+
+test("POST /api/quiz/:slug/cta increments the CTA counter for published quizzes only (R6)", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quiz-cta-"));
+  const store = new QuizStore({ dir });
+  const quiz = sampleQuiz();
+  store.saveDraft("2026w30-ctaroute", quiz, { week: "2026w30" });
+  store.saveDraft("2026w30-ctahidden", quiz, { week: "2026w30" });
+  store.approve("2026w30-ctaroute");
+
+  const server = createServer({ sources: [], quizDir: dir });
+  await new Promise((resolve) => server.listen(0, resolve));
+  const base = `http://localhost:${server.address().port}`;
+  try {
+    const res = await fetch(`${base}/api/quiz/2026w30-ctaroute/cta`, { method: "POST" });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.cta, 1);
+
+    assert.equal((await fetch(`${base}/api/quiz/2026w30-ctahidden/cta`, { method: "POST" })).status, 404, "초안은 404");
+    assert.equal((await fetch(`${base}/api/quiz/no-such/cta`, { method: "POST" })).status, 404, "없는 슬러그도 404");
+  } finally {
+    server.close();
+  }
+});
+
+test("pack manifest declares metrics.cta_click_benchmark_ratio (R6)", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  assert.equal(CONTRACT.metrics.cta_click_benchmark_ratio, 0.33);
+  assert.ok(CONTRACT.metrics.note_ko);
+});
+
+test("renderResultPage's CTA link fires a fire-and-forget beacon/fetch on click (R6)", async () => {
+  const { renderResultPage } = await import("../src/quiz/render.js");
+  const quiz = sampleQuiz();
+  const html = renderResultPage({ slug: "2026w30-ctaclick", quiz }, quiz.results[0], "https://example.com", {});
+  assert.ok(html.includes('onclick="ctaClick()"'));
+  assert.ok(html.includes("function ctaClick()"));
+  assert.ok(html.includes("sendBeacon"));
+  assert.ok(html.includes("/api/quiz/'+SLUG_+'/cta"));
+});
+
+// ---- 리서치 제안 R7: 공유 인센티브 슬롯 (선언만) --------------------------
+
+test("pack manifest declares share_incentive disabled by default, and render shows nothing while disabled (R7)", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  assert.equal(CONTRACT.share_incentive.enabled, false);
+  assert.ok(CONTRACT.share_incentive.note_ko);
+
+  const { renderResultPage } = await import("../src/quiz/render.js");
+  const quiz = sampleQuiz();
+  const html = renderResultPage({ slug: "2026w30-incentive", quiz }, quiz.results[0], "https://example.com", {});
+  assert.ok(!html.includes("기부에 동참"), "공유 인센티브는 enabled=false면 렌더되지 않아야 한다");
 });

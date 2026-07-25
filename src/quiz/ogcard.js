@@ -150,6 +150,15 @@ function ctaBar(accent, origin) {
 ${domain ? `<text x="${MARGIN_X}" y="${barY + barH / 2 + 26}" font-size="20" fill="#ffffff" opacity="0.7">${esc(domain)}</text>` : ""}`;
 }
 
+// R3(리서치 제안) — 카드 폭 안에 담기도록 문자 수 기준으로 자르고
+// 말줄임(…)을 붙인다. resvg가 실제 글자 폭을 그리므로 이건 대략치면 된다
+// (chipRow의 textWidth 추정과 같은 수준의 정밀도).
+function truncateEllipsis(text, maxChars) {
+  const chars = Array.from(String(text || ""));
+  if (chars.length <= maxChars) return chars.join("");
+  return `${chars.slice(0, maxChars).join("")}…`;
+}
+
 function domainOf(origin) {
   try {
     return new URL(origin).host;
@@ -219,6 +228,19 @@ function renderTypeCard(quiz, result, opts) {
     fontSize: 22
   });
   body += chips.svg;
+  y += chips.height + 22;
+
+  // 5) top strength + best-match chemistry line (리서치 제안 R3: 핀플리/MaBTI
+  // 공통 패턴 — 결과 1장 이미지 카드에 강점·궁합 정보량을 보강한다).
+  const topStrength = Array.isArray(result.strengths) ? result.strengths[0] : null;
+  if (topStrength) {
+    body += `<text x="${MARGIN_X}" y="${y}" font-size="24" fill="#ffffff" opacity="0.85">💪 ${esc(truncateEllipsis(topStrength, 26))}</text>`;
+    y += 34;
+  }
+  const bestMatchResult = quiz.results.find((r) => r.code === result.bestMatch);
+  if (bestMatchResult) {
+    body += `<text x="${MARGIN_X}" y="${y}" font-size="24" fill="#ffffff" opacity="0.85">🔗 잘 맞는 케미: ${esc(truncateEllipsis(bestMatchResult.title, 18))}</text>`;
+  }
 
   body += ctaBar(accent, opts.origin);
 
