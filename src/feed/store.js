@@ -203,12 +203,69 @@ export class FeedStore {
     else if (type === "click") user.adStats.clicks += 1;
     else return user.adStats; // unknown type — no-op
 
+    // 라운드1 검수 #1: which sample product ids this user has actually seen,
+    // so monetize.js's rotation can skip forward past them instead of
+    // re-serving the same one. Small rolling window (not the full 2000-entry
+    // adEvents log) so a product can cycle back in after enough scrolling —
+    // see sampleAffiliateCandidates' `excludeIds` doc comment.
+    if (type === "impression" && itemId) {
+      user.adSeenIds = user.adSeenIds || [];
+      user.adSeenIds = user.adSeenIds.filter((id) => id !== itemId);
+      user.adSeenIds.push(itemId);
+      if (user.adSeenIds.length > 6) user.adSeenIds = user.adSeenIds.slice(-6);
+    }
+
     this.adEvents = this.adEvents || [];
     this.adEvents.push({ userId, itemId, type, variant: meta.variant || null, at: nowIso(this.clock) });
     if (this.adEvents.length > 2000) this.adEvents = this.adEvents.slice(-2000); // cap memory, most-recent-last
 
     this._persist();
     return user.adStats;
+  }
+
+  // Recently-impressed ad/affiliate sample ids for this user (see
+  // recordAdEvent above) — monetize.js's sampleAffiliateCandidates rotates
+  // past these instead of re-picking the same product back-to-back.
+  adSeenIdsFor(userId) {
+    const user = this.getUser(userId);
+    return new Set((user && user.adSeenIds) || []);
+  }
+
+  // Monotonic per-user counter, advanced once per _monetize() call
+  // (engine.js) regardless of the request's `cursor` step size. Fixes the
+  // 라운드1 검수 #1 root cause: deriving the rotation seed from `cursor`
+  // meant an even paging `limit` (e.g. 10) kept the seed's parity fixed
+  // forever. This counter always advances, even/odd steps alike.
+  nextAdSeed(userId) {
+    const user = this.requireUser(userId);
+    user.adSeedSeq = (user.adSeedSeq || 0) + 1;
+    this._persist();
+    return user.adSeedSeq;
+  }
+
+  // ---- monetization: session-total slot cap (라운드1 검수 #7) ----
+  // AD_MAX_PER_PAGE only bounds a single request/page — without this, an
+  // endlessly-scrolling session accumulates unlimited ad slots over time.
+  // Tracked as a rolling window (default 24h, since this app has no explicit
+  // login-session boundary — userId persists across requests) rather than an
+  // ever-growing lifetime count, so a returning user isn't permanently capped.
+  recordAdSlotsServed(userId, n) {
+    const user = this.requireUser(userId);
+    if (!n) return this.adSlotsServedCount(userId);
+    user.adServedAt = user.adServedAt || [];
+    const now = this._nowMs();
+    for (let i = 0; i < n; i++) user.adServedAt.push(now);
+    if (user.adServedAt.length > 500) user.adServedAt = user.adServedAt.slice(-500); // cap memory
+    this._persist();
+    return this.adSlotsServedCount(userId);
+  }
+
+  adSlotsServedCount(userId, opts = {}) {
+    const user = this.getUser(userId);
+    if (!user || !user.adServedAt || !user.adServedAt.length) return 0;
+    const windowMs = opts.windowMs ?? Number(process.env.AD_SESSION_WINDOW_MS || 24 * 60 * 60 * 1000);
+    const now = this._nowMs();
+    return user.adServedAt.filter((t) => now - t < windowMs).length;
   }
 
   // Observed click-through ratio for this user vs a reference CTR (see

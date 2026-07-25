@@ -84,6 +84,9 @@ jagei.co.kr HTML을 직접 분석한 결과, **우리가 하려는 것의 정답
   - [ ] 카드 클릭도 아웃링크 (제휴 링크로 이동, 프레이밍 없음)
   - [ ] 슬롯 빈도는 env로 조절 가능, 0이면 완전 비활성
   - [ ] 제휴 카드는 추천 학습 신호(skip/dwell)에서 제외 — 오학습 방지
+  - [ ] **(라운드1 검수 #10, 실연동 acceptance)** `opts.productFeed`로 실제 쿠팡파트너스 상품 피드를 연동할 때: 카드 `title`이 링크하는 곳은 카테고리/검색 페이지가 아니라 **정확한 상품 상세 URL**이어야 하고, `priceOriginal`(정가)은 **실제로 최근 관측된 가격**이어야 한다(추정치·과거 캐시값·임의 부풀림 금지). `monetize.js`의 `pickAffiliateCandidates` 코드 주석에도 명문화함.
+  - [ ] **(라운드2 검수 #1, 실연동 acceptance 추가)** 카드의 매칭 이유(`reason`)는 **실제로 매칭된 카테고리만** 이름을 댈 수 있다 — 유저의 top 카테고리에 해당하는 실제 재고가 없다고 다른 카테고리 재고로 조용히 대체(폴백)하면서 원래 카테고리명을 그대로 문구에 남기는 것은 금지. 매칭 재고가 없으면 그 슬롯은 비운다(강제 채움 금지, 관련성 게이팅과 동일 원칙). `sampleAffiliateCandidates`가 이미 이 기준을 지킨다(`SAMPLE_PRODUCT_TEMPLATES`에 없는 카테고리는 후보 자체를 만들지 않음) — 실연동 `productFeed`도 동일하게 구현해야 한다.
+  - [ ] **(라운드2 검수 #2, acceptance)** 정치/종교/성인 카테고리는 어떤 경로(sample/실연동 `productFeed`)로도 광고 후보에 포함될 수 없다 — 유저의 19금/정치/종교 콘텐츠-노출 토글 상태와 **무관하게** 항상 배제. `pickAffiliateCandidates`가 반환 직전에 `BANNED_AD_CATEGORIES`로 강제 필터링.
 
 ### P0 — 광고 네트워크 (Kakao AdFit → AdSense)
 
@@ -153,23 +156,25 @@ Phase A(제휴 카드 슬롯 + 고지 + 19금 제외 + env 게이트)를 구현�
 
 | 심리·UX 원리 | 구현 |
 |---|---|
-| 동화(assimilation) + 명시(disclosure) | 슬롯 카드는 유기 카드와 동일한 `.card` 레이아웃·타이포. 단 상단에 대비색 "제휴"/"제휴 · 샘플" 배지(`ad-badge`), 하단에 쿠팡 법정 고지 문구를 항상 렌더 |
-| 첫 화면 보호 | `AD_SKIP_FIRST`(기본 4) 이전엔 슬롯 없음 — `injectSlots`가 세션 전체 누적 위치(`cursor`)를 기준으로 판단해 페이지가 넘어가도 규칙이 끊기지 않음 |
+| 동화(assimilation) + 명시(disclosure) | 슬롯 카드는 유기 카드와 동일한 `.card` 레이아웃·타이포. 단 상단 **좌측**에 전용 색(보라, `--ad`) "제휴광고"/"제휴광고 · 샘플" 배지(`ad-badge`), 배지 바로 아래 축약 고지, 하단에 쿠팡 법정 고지 전문을 항상 렌더 |
+| 첫 화면 보호 | `AD_SKIP_FIRST`(기본 6) 이전엔 슬롯 없음 — `injectSlots`가 세션 전체 누적 위치(`cursor`)를 기준으로 판단해 페이지가 넘어가도 규칙이 끊기지 않음 |
 | 딥존 가중(스크롤 중후반 배치) | 첫 슬롯이 `AD_SKIP_FIRST` 이후에만 등장 → 자연히 스크롤 초반보다 중후반에 배치됨. 이후 `AD_EVERY`(기본 9) 간격으로 반복 |
-| 세션 캡 | `AD_MAX_PER_PAGE`(기본 2) — 한 페이지(요청)당 슬롯 상한. 간격 계산상 더 넣을 자리가 있어도 여기서 멈춤 |
+| 페이지당 상한 | `AD_MAX_PER_PAGE`(기본 2) — 한 페이지(요청 1건)당 슬롯 상한. 간격 계산상 더 넣을 자리가 있어도 여기서 멈춤. **세션 전체 총량 상한은 별도 `AD_MAX_PER_SESSION`**(아래 참고) |
+| 세션 총량 상한 | `AD_MAX_PER_SESSION`(기본 6, 24h 롤링). **0 = 광고 완전 비활성**(즉시 0개, `AD_EVERY=0`과 동일한 "차단" 의미로 통일), **양수 = 그 값이 캡**, **음수 = 무제한**(캡 미적용, 명시적 옵트아웃) — 라운드2 검수 #4 |
 | 적응형 밀도 | 유저별 제휴 클릭 반응성(관측 CTR ÷ `AD_BASELINE_CTR`)이 표본(`minSample=5`) 이상 쌓이면 `AD_EVERY`를 ±조정. 신호 부족 시 기본값 그대로(`adaptiveEvery(x, null) === x`) |
-| 관련성 게이팅 | 취향벡터의 top 카테고리 학습 가중치(`recommender.js`의 `WEIGHT_CLAMP=6` 스케일)를 relevance로 변환해 `AD_MIN_RELEVANCE`(기본 0.3) 미달이면 해당 슬롯을 **비운다**(강제 채움 없음). 취향 신호가 전혀 없는 콜드스타트 유저는 후보 자체가 0개 |
-| 앵커링 | 정가/할인가 병기(`priceOriginal`/`priceSale`) + 할인율. 실제 가격쌍이 없으면 아예 렌더하지 않음(가짜 할인 금지) |
+| 관련성 게이팅 | 취향벡터의 top 카테고리 학습 가중치(`recommender.js`의 `WEIGHT_CLAMP=6` 스케일)를 relevance로 변환해 `AD_MIN_RELEVANCE`(기본 0.3) 미달이면 해당 슬롯을 **비운다**(강제 채움 없음). 취향 신호가 전혀 없는 콜드스타트 유저는 후보 자체가 0개. relevance ≥0.6이면 "잘 맞아요", 미만이면 "관련있어요"로 문구 톤만 가볍게 차등(수치 자체는 UI에 노출하지 않음). **매칭 템플릿/재고가 없는 카테고리는 다른 카테고리로 조용히 대체하지 않고 그 슬롯을 비운다**(라운드2 검수 #1 — 거짓 매칭 문구 방지) |
+| 다중 카테고리 로테이션 | 유저의 top 카테고리가 여러 개면(예: tech/auto/gaming), 후보 배열의 시작 오프셋을 `store.nextAdSeed` 기반 seed로 회전시켜 세션에 걸쳐 슬롯이 카테고리별로 고르게 로테이션되게 함(라운드2 검수 #3) — 이전엔 페이지당 due 슬롯이 보통 1개뿐이라 사실상 항상 1위 카테고리만 노출됐음 |
+| 앵커링 | 정가/할인가 병기(`priceOriginal`/`priceSale`) + 할인율(전용 색 `--discount`, 좋아요 색과 분리). 실제 가격쌍이 없으면 아예 렌더하지 않음(가짜 할인 금지) |
 | 다크패턴 금지 | 카운트다운·가짜 구매자수 카운터 없음. 클릭 전엔 완전히 정적. 클릭 시 항상 새 탭(`noopener,noreferrer`), 자동이동 없음("납치광고" 회피) |
-| 19금/정치/종교 미노출 | `engine.js`의 `getFeed`가 `allowAdult`·`showTopics`(politics/religion)를 이미 계산해두므로, 그 상태를 그대로 재사용해 슬롯 삽입 자체를 건너뜀 |
+| 19금/정치/종교 미노출 | 이중 게이트: (1) `engine.js`의 `getFeed`가 `allowAdult`·`showTopics`(politics/religion) **토글** 상태를 이미 계산해두므로, 그 상태를 그대로 재사용해 슬롯 삽입 자체를 건너뜀(뷰 단위 차단). (2) **그와 별개로** `monetize.js`의 `pickAffiliateCandidates`가 후보의 **카테고리** 자체가 politics/religion/adult면 토글 여부와 무관하게 항상 배제(`BANNED_AD_CATEGORIES`) — 유저가 정치를 "관심 카테고리"로만 고르고 토글은 안 켠 경우까지 막는 원천 배제(라운드2 검수 #2) |
 
 ### 신규/변경 파일
 
-- **`src/feed/monetize.js`** (신규) — 슬롯 삽입 순수 함수 `injectSlots`, 적응형 밀도 `adaptiveEvery`/`adResponsivenessRatio`, A/B `assignVariant`/`applyVariant`, 후보 생성 `pickAffiliateCandidates`/`sampleAffiliateCandidates`, 슬롯 아이템 셰이핑 `makeSlotItem`. env 튜너블: `AD_EVERY`, `AD_SKIP_FIRST`, `AD_MAX_PER_PAGE`, `AD_MIN_RELEVANCE`, `AD_BASELINE_CTR`, `AD_AB`, `AD_PREVIEW`, `COUPANG_PARTNER_ID`.
-- **`src/feed/engine.js`** — `getFeed`에 `_monetize()` 훅 추가. seen/exposure 기록 **이후**에 슬롯을 끼워 넣어 슬롯 아이템이 개인화 학습·중복제거 로직을 절대 오염시키지 않게 함. `nextCursor`는 유기 아이템 개수만 기준(슬롯 유무와 무관하게 페이지네이션 안정).
-- **`src/feed/store.js`** — `recordAdEvent`(노출/클릭 카운터 + 원시 이벤트 로그, 최대 2000건), `adResponsiveness`(적응형 밀도 입력), `adminAdStats`(관리자 지표). `_persist`/`_load`에 `adEvents` 포함.
+- **`src/feed/monetize.js`** (신규) — 슬롯 삽입 순수 함수 `injectSlots`, 적응형 밀도 `adaptiveEvery`/`adResponsivenessRatio`, A/B `assignVariant`/`applyVariant`, 좁은 소스뷰 밀도 완화 `applyNarrowSourceDensity`, 후보 생성 `pickAffiliateCandidates`/`sampleAffiliateCandidates`, 슬롯 아이템 셰이핑 `makeSlotItem`. env 튜너블: `AD_EVERY`, `AD_SKIP_FIRST`, `AD_MAX_PER_PAGE`, `AD_MAX_PER_SESSION`, `AD_MIN_RELEVANCE`, `AD_BASELINE_CTR`, `AD_AB`, `AD_NARROW_EVERY_MULT`, `AD_PREVIEW`, `COUPANG_PARTNER_ID`.
+- **`src/feed/engine.js`** — `getFeed`에 `_monetize()` 훅 추가. seen/exposure 기록 **이후**에 슬롯을 끼워 넣어 슬롯 아이템이 개인화 학습·중복제거 로직을 절대 오염시키지 않게 함. `nextCursor`는 유기 아이템 개수만 기준(슬롯 유무와 무관하게 페이지네이션 안정). `source=` 뷰는 `applyNarrowSourceDensity`로 빈도를 완화하고, 세션 총량 캡(`AD_MAX_PER_SESSION`)을 넘으면 슬롯을 아예 넣지 않음.
+- **`src/feed/store.js`** — `recordAdEvent`(노출/클릭 카운터 + 원시 이벤트 로그, 최대 2000건 + 유저별 최근 노출 상품 id 롤링 윈도우 `adSeenIds`), `adResponsiveness`(적응형 밀도 입력), `adSeenIdsFor`/`nextAdSeed`(로테이션용), `recordAdSlotsServed`/`adSlotsServedCount`(세션 총량 캡, 24h 롤링), `adminAdStats`(관리자 지표). `_persist`/`_load`에 `adEvents` 포함.
 - **`src/feed/server.js`** — `POST /api/ad-signal`(노출/클릭 로깅, 엔진 아이템 풀 조회 없이 스토어에 직접 기록 — 슬롯 아이템은 풀에 없음), `GET /api/config`에 `monetization.enabled` 플래그, `GET /api/admin/stats`에 `ads` 필드 추가.
-- **`src/feed/public/index.html`** — `appendAdCard`(전용 카드 렌더러: 배지·가격·이유·고지, 좋아요/스크랩 버튼 없음), `adImpressionObserver`(IntersectionObserver 기반 노출 로깅, threshold 0.5), 클릭 시 `ad-signal` click 로깅 후 새 탭 이동, 앱 전역 1회 고지 배너(`maybeShowAdNotice`, `feed_ad_notice_seen` localStorage 게이트).
+- **`src/feed/public/index.html`** — `appendAdCard`(전용 카드 렌더러: 좌측 정렬 배지·상단 축약고지·가격·전용 매칭이유 칩(`ad-why`)·하단 전문 고지, 좋아요/스크랩 버튼 없음), `adImpressionObserver`(IntersectionObserver 기반 노출 로깅, threshold 0.5, **DOM 카드 인스턴스 기준 dedup** — 같은 상품 id가 다시 노출돼도 새 카드 인스턴스는 별도로 기록), 클릭 시 `ad-signal` click 로깅 후 새 탭 이동, 앱 전역 1회 고지 배너(`maybeShowAdNotice`, `feed_ad_notice_seen` localStorage 게이트).
 
 ### 1차지표/가드레일 데이터
 
@@ -177,11 +182,43 @@ Phase A(제휴 카드 슬롯 + 고지 + 19금 제외 + env 게이트)를 구현�
 
 ### 검증
 
-- `node --test test/*.test.js` — 179/179 통과 (`test/monetize.test.js` 30건 신규: 빈도·첫화면보호·세션캡·관련성게이팅·적응형밀도·A/B·프로덕션 0개·AD_PREVIEW 샘플·19금/정치 뷰 제외·커서 안정성·store 카운터·클라이언트 렌더 회귀가드).
-- 로컬 `AD_PREVIEW=1 FEED_LIVE=1` 실행 + 실제 브라우저(모바일 375×812)로 실측: 라이브 소스(HN/Techmeme/Ruliweb 등) 정상 수집 확인, 취향 학습 후 5번째 카드(= `AD_SKIP_FIRST` 이후) 위치에 "[샘플] 65W 초고속 멀티 충전기" 카드 노출 — 배지("제휴 · 샘플") + 정가 39,900원/할인가 24,900원/38%↓ + 추천이유("기술/IT 관심사와 맞아요") + 쿠팡 법정 고지 문구 전부 렌더 확인. 스크롤 진입 시 `/api/ad-signal`(impression) 자동 발화 → `/api/admin/stats`의 `ads.impressions`에 반영 확인. 첫 3장 카드에는 슬롯 없음(첫 화면 보호 확인).
+- `node --test test/*.test.js` — 212건 중 211 통과 (`test/monetize.test.js` 63건: 빈도·첫화면보호·페이지당 상한·관련성게이팅·적응형밀도·A/B·좁은 소스뷰 밀도완화·프로덕션 0개·AD_PREVIEW 샘플·19금/정치 뷰 제외·커서 안정성·로테이션(홀/짝 커서 모두)·세션 총량 캡·store 카운터·배지/색/칩 시각 분리 회귀가드·클라이언트 렌더 회귀가드·**폴백 카테고리 거짓 매칭 방지(라운드2 #1)**·**정치 카테고리 원천 배제(라운드2 #2)**·**다중 카테고리 로테이션(라운드2 #3)**·**maxPerSession=0 차단(라운드2 #4)**·**배지 WCAG AA 대비(라운드2 #5)**). 나머지 실패 1건(`test/*adapters*.test.js`의 theqoo 파서 테스트)은 이번 모니터라이제이션 변경과 무관 — 라운드2 착수 전 베이스라인(main HEAD)에서도 동일하게 실패하는 사전 존재 결함(픽스처/파서 드리프트로 추정, 별도 이슈).
+- 로컬 `AD_PREVIEW=1 FEED_LIVE=1` 실행 + 실제 브라우저(모바일 375×812)로 실측: 라이브 소스(HN/Techmeme/Ruliweb 등) 정상 수집 확인, 취향 학습 후 첫 슬롯(= `AD_SKIP_FIRST` 이후) 위치에 "[샘플] 무선 노이즈캔슬링 이어버드" 카드 노출 — 좌측 정렬 보라 배지("제휴광고 · 샘플") + 배지 아래 축약 고지("쿠팡파트너스 제휴 · 수수료 수취", 13px) + 정가 89,000원/할인가 52,900원/41%↓(할인율 전용 색) + 매칭이유 칩("🛒 기술/IT 관심사와 잘 맞아요", 전용 색) + 쿠팡 법정 고지 문구 전부 렌더 확인. `GET /api/feed`를 `limit=10`(짝수)으로 cursor=0,10,20,...을 순회하며 상품이 "무선 노이즈캔슬링 이어버드" → "65W 초고속 멀티 충전기" → "보조배터리" 순으로 로테이션되는 것을 확인(라운드1 검수 #1 재현 시나리오 그대로 검증) — 6번째 요청(cursor=60)부터는 `AD_MAX_PER_SESSION`(기본 6) 도달로 슬롯이 0개로 떨어지는 것도 확인(검수 #7).
+- **라운드2 실측**(FeedStore+FeedEngine+실제 SeedSource 콘텐츠를 실행하는 스크립트로, HTTP 계층만 우회하고 프로덕션과 동일한 엔진 코드 경로 실행): (1) `news`/`humor`를 top 카테고리로 학습시킨 유저 — 6페이지 순회, 광고 노출 0건(템플릿이 없는 카테고리라 슬롯이 비었고, 거짓 매칭 문구도 당연히 없음). `news`+`tech`를 함께 학습시킨 유저는 `tech` 슬롯만("기술/IT 관심사와 잘 맞아요") 나오고 `news`는 조용히 드롭됨(문구에 "뉴스" 언급 없음) — 라운드2 #1 확인. (2) `politics`를 top 카테고리로 학습시키고 `showTopics` 토글은 **켜지 않은** 유저 — 6페이지 순회, 광고 노출 0건 — 라운드2 #2 확인. (3) `tech`/`auto`/`gaming`을 동일 가중치로 학습시킨 유저, `AD_EVERY=9`(페이지당 due 슬롯 1개)로 6페이지 순회 — 카테고리가 `auto, tech, gaming, auto, tech, gaming` 순으로 고르게 로테이션됨(1위 카테고리 고착 없음) — 라운드2 #3 확인. (4) `AD_MAX_PER_SESSION=0` + `AD_EVERY=1`(최대 밀도)로 6페이지 순회 — 누적 광고 0건 — 라운드2 #4 확인.
+
+### 라운드1 검수 수정 (2026-07-25)
+
+수익화 페르소나 검수(라운드1)에서 발견된 결함을 일괄 수정:
+
+- **(치명) 같은 광고 무한 반복**: `sampleAffiliateCandidates`의 로테이션 seed를 `cursor+1`에서 분리 — `store.nextAdSeed(userId)`가 호출마다(커서 스텝 크기와 무관하게) 항상 전진하는 카운터를 제공. 추가로 `store.adSeenIdsFor(userId)`(최근 노출 상품 id, 롤링 윈도우 6개)를 후보 선택에서 제외/뒤로 미루도록 반영. 카테고리당 샘플 템플릿을 2개→3개로 확대. 회귀 테스트: 짝수 스텝(`limit=10`)과 홀수 스텝(`limit=7`) 커서 양쪽 모두에서 로테이션이 일어나는지 커버.
+- **(치명) 적응형 밀도 미작동**: 클라이언트의 노출 dedup을 `item.id` 기준 `Set`에서 **DOM 카드 인스턴스**(`el.dataset.impressionLogged`) 기준으로 변경 — 같은 상품 id가 여러 카드 인스턴스로 다시 노출돼도 각각 별도로 기록되어 `adaptiveEvery`의 `minSample`이 정상적으로 채워짐.
+- **(중대) 광고 배지 시각 분리**: 전용 색(`--ad`, 보라 계열)으로 교체해 🔥화제 배지(#f0a13d)와 색이 겹치지 않게 함. `.badge{margin-left:auto}`로 우측으로 밀리던 것을 `.card-top .ad-badge{margin-left:0}`로 좌측 고정. 배지 문구 "제휴"→"제휴광고"(샘플은 "제휴광고 · 샘플")로 명시 강화.
+- **(중대) 추천이유 칩 분리**: 광고 카드의 매칭이유 칩을 전용 클래스(`ad-why`)로 분리 — 유기 카드의 `.why`(파랑, "✓" 접두)와 색·아이콘("🛒" 접두) 모두 다르게.
+- **(중대) 고지문 상단화+가독성**: 배지 바로 아래에 축약 고지("쿠팡파트너스 제휴 · 수수료 수취", `disclosureShort` 필드, 13px)를 추가. 하단 전체 법정문구는 유지하되 폰트를 10.5px→12px로 키움.
+- **(중대) 할인색 분리**: `.ad-price .off`(할인율)를 좋아요 색(`--like`)에서 전용 색(`--discount`, 오렌지 계열)으로 분리.
+- **(중대) 세션 총량 캡**: `AD_MAX_PER_PAGE`는 페이지당 상한일 뿐이었음을 명칭으로 명확히 하고, 세션(24h 롤링, `store.adSlotsServedCount`) 총 노출 상한 `AD_MAX_PER_SESSION`(기본 6)을 신설.
+- **(중대) 좁은 소스 뷰 광고 빈도**: `applyNarrowSourceDensity` — `source=` 뷰는 `AD_NARROW_EVERY_MULT`(기본 1.6배) 만큼 `every`를 늘려(성글게) 완화.
+- **(경미) 첫화면 보호 기본값**: `AD_SKIP_FIRST` 4→6.
+- **(경미) 실연동 acceptance**: `pickAffiliateCandidates`의 `opts.productFeed` 요구사항에 "카드 제목=정확한 상품 상세 URL" + "정가=실제 최근가 검증"을 코드 주석 + 위 P0 수용 기준에 명문화(위 "수익원 우선순위" 섹션 참고).
+- **(경미) 관련성 톤 차등**: relevance ≥0.6은 "~와 잘 맞아요", 미만은 "~와 관련있어요"로 매칭이유 문구만 가볍게 차등(수치 자체는 노출하지 않음 — 과설계 방지).
+
+### 라운드2 검수 수정 (2026-07-25)
+
+수익화 페르소나 검수(라운드2)에서 발견된 결함을 일괄 수정:
+
+- **(치명) 가짜 관련성 문구(거짓 개인화)**: `SAMPLE_PRODUCT_TEMPLATES`는 tech/auto/science/business/gaming/sports/culture/life 8개 카테고리만 커버하는데, taxonomy엔 news/humor/politics도 있다. 이전 코드는 매칭 템플릿이 없으면 `life` 템플릿으로 "조용히" 폴백하면서도 reason 문구엔 실제 카테고리명(예: "정치")을 그대로 박아 "정치 관심사와 관련있어요"라 말하며 실은 청소기(life 상품)를 보여주는 거짓 매칭 주장이 발생했다. `sampleAffiliateCandidates`가 매칭 템플릿이 없는 카테고리는 후보를 아예 만들지 않도록 수정(폴백 제거) — 실제 매칭된 카테고리에 대해서만 reason이 쓰인다. `pickAffiliateCandidates`의 acceptance criteria에도 "실연동 productFeed도 매칭 근거 없이 카테고리명을 주장하면 안 된다"를 명문화.
+- **(치명) 정치 게이트 갭**: `engine.js`의 `monetizeAllowed`는 `showTopics`(정치/종교 콘텐츠 노출 **토글**) 상태만 봤다 — 유저가 "정치"를 **관심 카테고리**로만 고르고(토글은 미설정 상태로 둔 채) 취향을 학습시킨 경우, 그 카테고리에 매칭되는 광고 후보가 만들어질 수 있는 경로가 남아 있었다. `monetize.js`에 `BANNED_AD_CATEGORIES`(politics/religion/adult)를 신설해 `pickAffiliateCandidates`가 반환 직전 후보의 **카테고리** 자체로 한 번 더 강제 필터링 — 토글 상태와 무관하게 항상 적용되며, sample/실연동 productFeed 양쪽 경로 모두를 커버하는 단일 체크포인트.
+- **(중대) 다중 카테고리 유저 → 항상 1위만**: `injectSlots`는 `poolIdx=0`부터 순차 소비하는데, 기본 설정에서 페이지당 due 슬롯이 보통 1개뿐이라(`AD_EVERY=9`) 매 호출(=매 페이지)마다 `pool[0]`(=취향 1위 카테고리)만 뽑혀, tech/auto/gaming을 골고루 선호하는 유저도 세션 내내 사실상 1위 카테고리 광고만 봤다. `sampleAffiliateCandidates`가 후보 배열의 시작 오프셋을 `opts.seed`(engine.js가 `store.nextAdSeed`로 호출마다 전진시키는 카운터, 템플릿 로테이션에 이미 쓰던 값)로 회전시키도록 수정 — 세션에 걸쳐 top 카테고리들이 고르게 로테이션된다.
+- **(중대) `AD_MAX_PER_SESSION=0` = 무제한 버그**: `engine.js`의 세션 캡 체크가 `if (maxPerSession > 0) {...}`였다 — 0이면 이 블록 자체가 스킵돼 캡이 사실상 무제한이 됐다(`AD_EVERY=0`이 "완전 비활성"인 것과 비대칭). 0은 이제 "광고 0개"(즉시 차단)로 명시 처리, 음수는 "무제한"(캡 미적용)으로 명확히 구분.
+- **(치명) 광고 배지 색 대비 WCAG AA 미달**: `--ad`(#8b6cf0) 배경 + 흰 11px 굵은 글자의 실측 대비는 3.82:1로 소형 텍스트 AA 기준(4.5:1) 미달 — "이거 광고" 신호가 저시력 유저에게 잘 안 읽혔다. 배지 전용 토큰 `--ad-badge-bg`(#6a4fd1, 흰 글자 대비 5.75:1)를 신설해 `.card-top .ad-badge` 배경만 교체(`--ad` 자체는 다른 곳에서 계속 쓰이므로 값 유지). 🔥화제·좋아요·뉴스 배지와는 여전히 색이 겹치지 않는다.
+- **(경미) `ad-why` 칩 배경 대비 약함**: 카드 배경 대비 기존 배경(alpha .14)이 1.19:1로 사실상 안 보여 "칩 형태"로 인지되지 않았다. 배경 alpha `.14→.22`, 테두리 alpha `.32→.5`로 살짝 강화(텍스트 자체는 원래도 읽혔으므로 과하지 않게).
+- **(경미) 샘플 고지 위치**: "[샘플]·실제 판매 아님" 고지가 `summary` 문자열 속에 묻혀 있어 (a) `.card p`가 2줄로 클램프되면 잘릴 수 있고 (b) 가격만 훑는 유저는 안 볼 수 있었다. `makeSlotItem`에 `sampleNote` 전용 필드를 신설, `summary`에선 제거하고 `adPriceHtml`(가격 줄)에 바로 붙여 렌더하도록 이동.
 
 ### 알려진 제약 / 후속 과제
 
 - 실제 쿠팡파트너스 상품 피드 연동은 미구현(약관 원문 확인이 David 확인 대기 — Open Questions 기존 항목 유지). `COUPANG_PARTNER_ID`를 설정해도 `opts.productFeed`를 별도로 넘기지 않으면 여전히 0개 — 반쪽짜리 크레덴셜이 카드를 만들어내지 않도록 의도적으로 막아둠.
 - 광고 CPC 네트워크(AdFit, P0 두 번째 항목)는 아직 미착수. `kind: "ad"`를 위한 필드는 마련해뒀지만 후보 생성기는 없음.
 - 리텐션 가드레일의 실제 이탈률 계산(로그 조인·집계)은 후속 과제.
+- 세션 총량 캡(`AD_MAX_PER_SESSION`)은 로그인 세션 개념이 없는 앱 구조상 "24h 롤링 윈도우"로 근사 구현했다 — 진짜 브라우저 세션 경계가 필요해지면 재검토. 값 의미: 0=완전 비활성, 양수=그 값이 캡, 음수=무제한(라운드2 검수 #4).
+- `SAMPLE_PRODUCT_TEMPLATES`가 news/humor/politics 카테고리를 커버하지 않으므로(politics는 애초에 `BANNED_AD_CATEGORIES`로도 배제), 그 카테고리가 top 취향인 유저는 다른 top 카테고리가 없으면 프리뷰 광고를 아예 못 본다 — 의도된 동작(라운드2 검수 #1, 거짓 매칭보다 슬롯 공백이 낫다는 원칙)이지만, 실연동 재고 확보 시 재검토 여지는 있음.
+- 로테이션의 "최근 노출 제외" 윈도우(6개)는 카테고리당 템플릿 수(3개)보다 크게 잡아 완전 소진 시 재순환하도록 설계했지만, 같은 카테고리 슬롯이 매우 짧은 간격으로 반복되는 극단적 시나리오에선 그래도 재노출이 발생할 수 있음(하드 캡 아님, best-effort).

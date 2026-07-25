@@ -21,7 +21,15 @@ import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams } from "./ingest.js";
 import { FILTERABLE_TOPICS } from "./topics.js";
-import { injectSlots, adParams, adaptiveEvery, pickAffiliateCandidates, assignVariant, applyVariant } from "./monetize.js";
+import {
+  injectSlots,
+  adParams,
+  adaptiveEvery,
+  pickAffiliateCandidates,
+  assignVariant,
+  applyVariant,
+  applyNarrowSourceDensity
+} from "./monetize.js";
 
 // How long a collected item stays in the rolling pool before it's eligible for
 // eviction (David 2026-07-24: refresh should *accumulate*, not replace — a
@@ -309,7 +317,9 @@ export class FeedEngine {
     // 19금/정치/종교 필터가 켜진 뷰에는 절대 노출하지 않는다 — 신뢰 훼손 방지
     // + 광고 네트워크 계정정지 리스크 (docs/monetization.md Non-Goals).
     const monetizeAllowed = !allowAdult && !showTopics.has("politics") && !showTopics.has("religion");
-    const displayItems = monetizeAllowed ? this._monetize(userId, user, batch, cursor).items : batch;
+    const displayItems = monetizeAllowed
+      ? this._monetize(userId, user, batch, cursor, Boolean(source)).items
+      : batch;
 
     return {
       items: displayItems,
@@ -324,22 +334,57 @@ export class FeedEngine {
   // Insert affiliate/ad slots into an already-decorated organic batch. Thin
   // glue: monetize.js owns the placement rules + candidate shaping — this
   // wires in this request's user preference vector, this user's ad
-  // click-through history (for adaptive density), and their A/B variant.
+  // click-through history (for adaptive density), their recently-shown ad ids
+  // (rotation), their A/B variant, and the session-total slot cap.
   // Returns { items, slots } (slots kept for callers that want placement
   // metadata; getFeed above only uses .items).
-  _monetize(userId, user, batch, cursor) {
+  //
+  // `narrowSource`: true when this call is for a source=-scoped view (a single
+  // community/board), not the home feed — 라운드1 검수 #8: a niche view feels
+  // ad-denser at the same cadence, so applyNarrowSourceDensity thins it out.
+  _monetize(userId, user, batch, cursor, narrowSource = false) {
     const partnerId = process.env.COUPANG_PARTNER_ID || null;
     const preview = Boolean(process.env.AD_PREVIEW);
     if (!partnerId && !preview) return { items: batch, slots: [] }; // 절대원칙1: dummy content 금지
 
     const variant = assignVariant(userId);
-    const params = applyVariant(adParams(), variant);
+    let params = applyVariant(adParams(), variant);
+    params = applyNarrowSourceDensity(params, narrowSource);
+
+    // 세션(24h 롤링) 총량 캡 — 라운드1 검수 #7. AD_MAX_PER_PAGE는 "이 요청
+    // 1건"의 상한일 뿐이라, 이게 없으면 스크롤을 계속하는 세션은 노출이
+    // 무제한으로 누적된다.
+    //
+    // 2026-07-25 라운드2 검수 #4 (중대, "AD_MAX_PER_SESSION=0 = 무제한 버그"):
+    // 기존엔 `maxPerSession>0`일 때만 이 블록이 실행됐다 — 0이면 조건이
+    // 거짓이라 블록 전체가 스킵되고 세션 캡이 사실상 무제한이 됐다. AD_EVERY
+    // 등 다른 튜너블에서 0/이하는 "완전 비활성"인 것과 비대칭이었다. 이제
+    // 0은 명시적으로 "광고 0개"(즉시 차단)로, 음수는 명시적으로 "무제한"
+    // (캡 미적용)으로 처리한다 — docs/monetization.md에도 반영.
+    if (params.maxPerSession === 0) return { items: batch, slots: [] };
+    if (params.maxPerSession > 0) {
+      const already = this.store.adSlotsServedCount ? this.store.adSlotsServedCount(userId) : 0;
+      if (already >= params.maxPerSession) return { items: batch, slots: [] };
+      params.maxPerPage = Math.min(params.maxPerPage, params.maxPerSession - already);
+    }
+    // params.maxPerSession < 0 → "무제한": 캡 로직을 적용하지 않고 통과.
+
     const responsiveness = this.store.adResponsiveness ? this.store.adResponsiveness(userId) : null;
     const every = adaptiveEvery(params.every, responsiveness);
-    const candidates = pickAffiliateCandidates(user.preferences, { partnerId, preview, seed: cursor + 1 }).map(
+    // 라운드1 검수 #1: seed는 더 이상 cursor에서 유도하지 않는다(짝수 스텝
+    // 커서가 seed 패리티를 고정시켜 같은 상품만 반복되던 원인) — 호출마다
+    // 항상 전진하는 store 카운터를 쓴다. excludeIds로 최근 노출 상품도
+    // 로테이션에서 건너뛴다.
+    const seed = this.store.nextAdSeed ? this.store.nextAdSeed(userId) : cursor + 1;
+    const excludeIds = this.store.adSeenIdsFor ? this.store.adSeenIdsFor(userId) : undefined;
+    const candidates = pickAffiliateCandidates(user.preferences, { partnerId, preview, seed, excludeIds }).map(
       (c) => ({ ...c, variant })
     );
-    return injectSlots(batch, candidates, { ...params, every, startIndex: cursor });
+    const result = injectSlots(batch, candidates, { ...params, every, startIndex: cursor });
+    if (result.slots.length && this.store.recordAdSlotsServed) {
+      this.store.recordAdSlotsServed(userId, result.slots.length);
+    }
+    return result;
   }
 
   _decorate(item, score, user) {
