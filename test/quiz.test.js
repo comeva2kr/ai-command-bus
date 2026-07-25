@@ -1442,3 +1442,13 @@ test("pickWeeklyTopics filters non-Korean titles (hangul_chars_min)", () => {
   assert.equal(topics.length, 1, "영문 제목 소재는 제외");
   assert.ok(topics[0].title.includes("편의점"));
 });
+
+test("pickWeeklyTopics excludes crime/scandal titles (topic_safety.crime_scandal)", () => {
+  const items = [
+    { title: "사직한 여중생 성매매 시의원 급여 챙겨감", source: "ppomppu", score: 900 },
+    { title: "요즘 편의점 신상 조합 근황", source: "clien", score: 10 }
+  ];
+  const topics = pickWeeklyTopics(items, { count: 2, now: NOW });
+  assert.equal(topics.length, 1, "범죄·스캔들 소재 제외");
+  assert.ok(topics[0].title.includes("편의점"));
+});

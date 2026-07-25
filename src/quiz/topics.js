@@ -26,7 +26,8 @@ export const EXCLUDED_TOPICS = new Set(CONTRACT.excluded_topics);
 const TOPIC_SAFETY = CONTRACT.checks.topic_safety || {};
 const UNSAFE_TITLE_KEYWORDS = [
   ...(TOPIC_SAFETY.celebrity_private_life || []),
-  ...(TOPIC_SAFETY.fear_disaster || [])
+  ...(TOPIC_SAFETY.fear_disaster || []),
+  ...(TOPIC_SAFETY.crime_scandal || [])
 ];
 
 // 한국어 대중 퀴즈 소재 조건: 제목에 한글이 최소 N자 있어야 한다 — 출처
