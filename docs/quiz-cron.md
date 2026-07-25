@@ -43,10 +43,14 @@
 3. **프롬프트 받기**: `node src/quiz/weekly.js prompt <dump.json>` — stdout에
    찍히는 프롬프트를 그대로 자신의 생성 입력으로 쓴다. stderr에는 이번 주
    통과 토픽 요약이 참고용으로 나온다.
-4. **세션이 퀴즈 JSON을 생성**한다 — 프롬프트의 설계 규칙(축 2~4개 톱다운
-   설계, 문항 8~15개, 유형 = 극 조합 전체, 80:20 서술 등)을 그대로 따르고,
-   퀴즈 스키마(`QUIZ_SCHEMA`, `src/quiz/generate.js`)와 일치하는 JSON 파일로
-   저장한다.
+4. **세션이 퀴즈 JSON을 생성**한다 — 프롬프트가 `buildPrompt()`(`src/quiz/generate.js`)의
+   5단계 전문가 작업 절차(0.소재 해부 → 1.컨셉 → 2.문항 초고 → 3.결과 초고 →
+   4.셀프 검수 → 5.제출)로 되어 있다. **4단계 셀프 검수를 생략하지 말 것** —
+   코드 게이트(QG1~QG4)는 글자수·비율·유사도 같은 형식 조건만 잡고, 소재-행동
+   짜깁기·오프닝 템플릿화·극 조언 수렴 같은 의미 정합은 이 단계에서 세션이
+   스스로 체크리스트를 거쳐 잡아야 한다 — 건너뛰면 게이트를 통과해도 저품질
+   결과물이 나온다. 완성본은 퀴즈 스키마(`QUIZ_SCHEMA`, `src/quiz/generate.js`,
+   `bestMatchReason`/`worstMatchReason` 포함)와 일치하는 JSON 파일로 저장한다.
 5. **제출**: `node src/quiz/weekly.js submit <quiz.json> <dump.json>`
    - **exit 0** — 루프게이트(QG1~QG4) 통과. 초안이 `data/quiz/drafts/`에
      저장되고 발행 작업이 `decision_queue`로 라우팅됐다는 뜻. 세션은

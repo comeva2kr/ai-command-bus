@@ -1,7 +1,7 @@
 {
   "_note_ko": "이 파일이 주간 바이럴 유형테스트 팩의 단일 진실원(기계 정본)이다. docs/quiz-loopgate.md는 파생 뷰 — 조건 값을 문서에서 손편집하지 말 것. WRC Workflow Gate 표준 스키마(google_blogger.yaml v1.2)를 미러링한 선언 매니페스트이며, 게이트 등급·재시도 예산·제외 토픽·게이트 임계값·산출물 규약은 코드 상수가 아니라 전부 여기서 로드된다.",
   "project": "weekly_viral_quiz",
-  "version": 2,
+  "version": 3,
   "pack": "weekly_viral_quiz",
   "display_name_ko": "주간 바이럴 유형테스트",
   "theme_accent": "#7C5CFF",
@@ -57,11 +57,12 @@
       "QG6": { "loss_vectors": ["editorial"], "expected_loss_path": "응답 데이터 미반영으로 희소성 통계·차주 보정 루프 상실", "minimum_release_inputs": ["response_stats_accumulation"] }
     },
     "checks": {
-      "topics": { "count": 5 },
+      "topics": { "count": 5, "max_per_source": 2 },
       "topic_safety": {
         "celebrity_private_life": ["열애", "연인", "스킨십", "결별", "파경", "이혼", "재혼", "핑크빛", "데이트 포착"],
         "fear_disaster": ["가지 말라", "참사", "사망", "지진", "방사능", "경보", "전염", "공포"],
-        "note_ko": "실존인물 사생활·재난공포 소재는 광고 지면 정책 리스크 — QG0에서 제목 매칭 시 제외. 완화는 이 목록 수정으로."
+        "note_ko": "실존인물 사생활·재난공포 소재는 광고 지면 정책 리스크 — QG0에서 제목 매칭 시 제외. 완화는 이 목록 수정으로.",
+        "trademark_policy_ko": "토픽 제목에 이미 등장한 상표명은 공개 화제 인용으로 허용, 그 외 상표는 일반 명사로 우회 — 게이트 검사는 없음(프롬프트 4단계 셀프 검수 + QG5 사람 판단), 정직하게 note로만 선언."
       },
       "viral": {
         "title_chars_min": 8,
@@ -76,7 +77,10 @@
         "result_topic_mention_required": true,
         "share_text_chars_max": 60,
         "result_desc_chars_max": 220,
-        "share_text_similarity_max": 0.55
+        "share_text_similarity_max": 0.55,
+        "result_topic_coverage_required": true,
+        "question_topic_bound_min_ratio": 0.6,
+        "share_text_question_ending_max_ratio": 0.5
       },
       "ai_tell": {
         "phrases": ["AI", "인공지능", "언어 모델", "물론입니다", "도움이 되", "여러분", "하십시오", "습니까", "알아보겠습니다", "살펴보겠습니다", "~에 대해", "다음과 같", "합니다", "습니다", "입니다", "됩니다", "드립니다", "하세요", "해보세요", "습관 들이기"],
@@ -86,7 +90,8 @@
       "structure": {
         "answers_per_question_uniform": true,
         "question_similarity_max": 0.5,
-        "first_answer_pole_mix_required": true
+        "first_answer_pole_mix_required": true,
+        "opening_pattern_max_ratio": 0.5
       }
     },
     "result_labels_ko": {
@@ -114,7 +119,7 @@
     "response_stats": "data/quiz/stats/<slug>.json"
   },
   "files_note_ko": "번호 접두(00_…) run-root 규약 대신 slug-키 스토어 레이아웃을 유지 — 서버 라우트(/q/<slug>)와 결합돼 있음. 표준 정합 검토 요청 항목.",
-  "gate_context_note_ko": "제목 키워드·결과 소재 인용 검사는 runGates에 topics 컨텍스트가 주어질 때만 실행 (run/submit 경로는 항상 제공)",
+  "gate_context_note_ko": "제목 키워드·결과 소재 인용·결과 전체 토픽 커버리지·문항 토픽 비율 검사는 runGates에 topics 컨텍스트가 주어질 때만 실행 (run/submit 경로는 항상 제공). shareText 물음표 비율·오프닝 종결 패턴 검사는 컨텍스트 없이도 항상 실행.",
 
   "run_binding": {
     "run_id_format": "<weekLabel>-<slug>",
@@ -139,7 +144,8 @@
     "ai_generation": {
       "formulas_ko": [
         "정본 경로: `weekly.js prompt`가 buildPrompt() 프롬프트를 stdout에 내보내고, Claude Code 예약 세션이 자기 모델로 퀴즈 JSON을 생성해 `weekly.js submit`으로 제출",
-        "폴백 경로(수동/테스트): `weekly.js run`이 API 키가 있으면 generateQuizWithClaude, 없으면 결정적 template으로 자체 생성"
+        "폴백 경로(수동/테스트): `weekly.js run`이 API 키가 있으면 generateQuizWithClaude, 없으면 결정적 template으로 자체 생성",
+        "생성 알고리즘 = 5단계 전문가 작업 절차(0.소재 해부 → 1.컨셉 → 2.문항 초고 → 3.결과 초고 → 4.셀프 검수 → 5.제출) — buildPrompt()가 단일 원본. 의미 정합(소재-행동 짜깁기, 오프닝/조언 수렴, 상표 오남용 등)은 4단계 셀프 검수 + QG5 사람 판단이 담당하고, 형식 조건만 코드 게이트(QG1~QG4)가 담당한다"
       ],
       "doc_refs": ["docs/quiz-cron.md", "docs/quiz-design.md"]
     },
@@ -150,7 +156,8 @@
         "QG3 상담봇 관용구 금지·선택지 고유율 80%+·유형명 중복 금지",
         "QG4 축별 선택지 가중치 35:65 균형",
         "submit 반려 시(exit 2) 사유를 reasons_file(JSON 배열)로 남기고, 예약 세션이 그 파일을 prompt --feedback으로 되먹여 재생성 (예산은 retry_budget, run 경로의 인프로세스 루프와 동일한 예산·사유 형식 공유)",
-        "8팀 적대 검수 반영(v2): QG1 답변개수 통일·문항 유사도·역채점 극혼합, QG2 제목/결과문 토픽 인용·글자수 상한·공유문구 유사도, QG3 관용구 확장 — 전부 매니페스트 checks 선언값"
+        "8팀 적대 검수 반영(v2): QG1 답변개수 통일·문항 유사도·역채점 극혼합, QG2 제목/결과문 토픽 인용·글자수 상한·공유문구 유사도, QG3 관용구 확장 — 전부 매니페스트 checks 선언값",
+        "2차 적대 검수 반영(v3, 전문가 5그룹+이용자 20명): topics.max_per_source 출처 편중 캡(topics.js), QG2 결과 전체 토픽 커버리지·문항 토픽 파생 비율·shareText 물음표 종결 비율, QG1 오프닝 종결 패턴 쏠림 — 전부 매니페스트 checks 선언값. bestMatchReason/worstMatchReason 궁합 이유 필드도 신설(QUIZ_SCHEMA·validateQuiz)"
       ],
       "doc_refs": ["docs/quiz-loopgate.md", "docs/quiz-design.md"]
     },

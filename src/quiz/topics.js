@@ -43,8 +43,13 @@ function isBrandSafe(item) {
 
 // Pick the week's top quiz-worthy topics: brand-safe, deduplicated by title,
 // ranked by engagement hotness. Returns [{title, url, source, score}].
+//
+// 2차 적대 검수(v3): theqoo 같은 단일 출처 편중을 막기 위해 출처(source)당
+// 최대 max_per_source개로 캡을 건다 — 단, 캡 때문에 요청 개수(count)를 못
+// 채우면 실패 대신 캡을 넘겨서라도 채운다(개수 보장이 편중 방지보다 우선).
 export function pickWeeklyTopics(items, opts = {}) {
   const count = opts.count || CONTRACT.checks.topics.count;
+  const maxPerSource = opts.maxPerSource || CONTRACT.checks.topics.max_per_source;
   const now = opts.now || Date.now();
 
   const seen = new Set();
@@ -63,5 +68,25 @@ export function pickWeeklyTopics(items, opts = {}) {
   }
 
   candidates.sort((a, b) => b.score - a.score);
-  return candidates.slice(0, count);
+
+  if (!maxPerSource) return candidates.slice(0, count);
+
+  const selected = [];
+  const overflow = [];
+  const perSourceCount = {};
+  for (const c of candidates) {
+    if (selected.length >= count) break;
+    const n = perSourceCount[c.source] || 0;
+    if (n >= maxPerSource) {
+      overflow.push(c); // 캡 초과분 — 개수가 모자랄 때만 채움용으로 재사용
+      continue;
+    }
+    selected.push(c);
+    perSourceCount[c.source] = n + 1;
+  }
+  for (const c of overflow) {
+    if (selected.length >= count) break;
+    selected.push(c); // 후보 부족 시에만 캡 초과 허용 (실패 대신 채움)
+  }
+  return selected;
 }

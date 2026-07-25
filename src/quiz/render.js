@@ -67,6 +67,7 @@ ul.plain li{margin:6px 0}
 .match{display:flex;gap:12px}
 .match>div{flex:1;background:#1d2230;border:1px solid #2c3350;border-radius:10px;padding:12px;text-align:center}
 .match .tag{font-size:.75rem;color:#9aa3b2}
+.match .reason{font-size:.72rem;color:#6b7280;margin-top:4px}
 .fineprint{font-size:.75rem;color:#4a5164;text-align:center;margin-top:24px}
 .hidden{display:none}
 a{color:#4f8cff}
@@ -249,8 +250,8 @@ ${AD}
 <div class="card">
 <h2>유형 케미</h2>
 <div class="match">
-<div><p class="tag">${esc(LABELS.best_match)}</p><p><a href="/q/${esc(slug)}/r/${esc(result.bestMatch)}">${esc(best ? best.title : result.bestMatch)}</a></p></div>
-<div><p class="tag">${esc(LABELS.worst_match)}</p><p><a href="/q/${esc(slug)}/r/${esc(result.worstMatch)}">${esc(worst ? worst.title : result.worstMatch)}</a></p></div>
+<div><p class="tag">${esc(LABELS.best_match)}</p><p><a href="/q/${esc(slug)}/r/${esc(result.bestMatch)}">${esc(best ? best.title : result.bestMatch)}</a></p>${result.bestMatchReason ? `<p class="reason">${esc(result.bestMatchReason)}</p>` : ""}</div>
+<div><p class="tag">${esc(LABELS.worst_match)}</p><p><a href="/q/${esc(slug)}/r/${esc(result.worstMatch)}">${esc(worst ? worst.title : result.worstMatch)}</a></p>${result.worstMatchReason ? `<p class="reason">${esc(result.worstMatchReason)}</p>` : ""}</div>
 </div>
 <p class="desc" style="font-size:.85rem;margin-top:10px">친구 결과랑 비교해보세요 — 케미가 맞는지 바로 나옵니다.</p>
 </div>

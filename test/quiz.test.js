@@ -68,6 +68,37 @@ test("pickWeeklyTopics dedupes identical titles and caps at count", () => {
   assert.equal(new Set(topics.map((t) => t.title)).size, 3);
 });
 
+// 2차 적대 검수(v3): theqoo 단일 출처 편중 해소 — 출처당 캡은 지키되, 후보가
+// 부족할 때만 캡을 넘겨서라도 요청 개수를 채운다(실패 대신 채움).
+test("pickWeeklyTopics caps picks per source but backfills from overflow to still guarantee the requested count", () => {
+  const dominant = Array.from({ length: 6 }, (_, i) => ({
+    title: `테오쿠 몰빵 소재 ${i}`,
+    url: `https://example.com/dom${i}`,
+    source: "theqoo",
+    score: 9000 - i,
+    commentCount: 100,
+    publishedAt: "2026-07-22T09:00:00Z"
+  }));
+  const others = [
+    { title: "다른 출처 인생 야식", url: "https://example.com/o1", source: "ppomppu", score: 500, commentCount: 50, publishedAt: "2026-07-21T09:00:00Z" },
+    { title: "다른 출처 헬스장 빌런", url: "https://example.com/o2", source: "mlbpark", score: 400, commentCount: 40, publishedAt: "2026-07-21T09:00:00Z" }
+  ];
+
+  // 분산 확인: 대체 후보가 충분하면 한 출처가 요청 개수를 독점하지 못한다.
+  const spread = pickWeeklyTopics([...dominant, ...others], { count: 4, now: NOW });
+  assert.equal(spread.length, 4);
+  const bySource = {};
+  for (const t of spread) bySource[t.source] = (bySource[t.source] || 0) + 1;
+  assert.ok(bySource.theqoo <= 2, `theqoo가 캡(2)을 넘었다: ${bySource.theqoo}`);
+  assert.equal(bySource.ppomppu, 1);
+  assert.equal(bySource.mlbpark, 1);
+
+  // 개수 보장: 대체 출처가 아예 없으면 캡을 넘겨서라도(overflow) 요청 개수를 채운다.
+  const starved = pickWeeklyTopics(dominant, { count: 5, now: NOW });
+  assert.equal(starved.length, 5, "대체 출처가 없을 때도 개수는 보장돼야 한다");
+  assert.equal(starved.filter((t) => t.source === "theqoo").length, 5);
+});
+
 // ---- axis-based format ---------------------------------------------------
 
 test("templateQuiz produces a valid axis-based quiz meeting the design spec", () => {
@@ -120,6 +151,29 @@ test("validateQuiz enforces the 80:20 result copy rules", () => {
   assert.throws(() => validateQuiz(selfMatch), /bestMatch/);
 });
 
+// 2차 검수: 케미(bestMatch/worstMatch)가 코드 조합만 보여주고 근거가 없다는
+// 지적 반영 — 왜 맞는지/왜 부딪히는지 한 줄 상황극(40자 이내)을 필수화.
+test("validateQuiz requires non-empty bestMatchReason/worstMatchReason within 40 chars", () => {
+  const missingBest = structuredClone(sampleQuiz());
+  delete missingBest.results[0].bestMatchReason;
+  assert.throws(() => validateQuiz(missingBest), /bestMatchReason이 비었어요/);
+
+  const missingWorst = structuredClone(sampleQuiz());
+  missingWorst.results[0].worstMatchReason = "";
+  assert.throws(() => validateQuiz(missingWorst), /worstMatchReason이 비었어요/);
+
+  const tooLong = structuredClone(sampleQuiz());
+  tooLong.results[0].bestMatchReason = "가".repeat(41);
+  assert.throws(() => validateQuiz(tooLong), /bestMatchReason이 40자를 넘어요/);
+
+  // 템플릿 자체는 정상적으로 채워져 있어야 한다.
+  const quiz = sampleQuiz();
+  for (const r of quiz.results) {
+    assert.ok(r.bestMatchReason && r.bestMatchReason.length <= 40);
+    assert.ok(r.worstMatchReason && r.worstMatchReason.length <= 40);
+  }
+});
+
 // ---- generation ----------------------------------------------------------
 
 test("buildPrompt includes every topic title and the design rules", () => {
@@ -129,6 +183,22 @@ test("buildPrompt includes every topic title and the design rules", () => {
   assert.ok(prompt.includes("심리 축"));
   assert.ok(prompt.includes("상황 제시형"));
   assert.ok(prompt.includes("80:20"));
+});
+
+// 2차 검수 반영: buildPrompt가 룰 나열이 아니라 5단계 전문가 작업 절차로
+// 재편됐는지 — 특히 "소재 해부"(0단계, 소재-행동 짜깁기 방지)와
+// "셀프 검수"(4단계, 의미 정합을 코드 게이트 대신 생성 시점에 스스로 잡게
+// 하는 핵심 단계)가 실제로 프롬프트에 포함돼야 한다.
+test("buildPrompt walks the generator through the 5-stage professional workflow (소재 해부 → 셀프 검수)", () => {
+  const topics = pickWeeklyTopics(HOT_ITEMS, { now: NOW });
+  const prompt = buildPrompt(topics, { weekLabel: "2026w30" });
+  assert.ok(prompt.includes("소재 해부"), "0단계 소재 해부가 있어야 한다");
+  assert.ok(prompt.includes("셀프 검수"), "4단계 셀프 검수가 있어야 한다");
+  assert.ok(prompt.includes("행동 목록"), "소재별 행동 목록 개념이 있어야 한다(소재-행동 짜깁기 방지)");
+  assert.ok(prompt.includes("[0단계") && prompt.includes("[1단계") && prompt.includes("[2단계") && prompt.includes("[3단계") && prompt.includes("[4단계") && prompt.includes("[5단계"), "6단계(0~5)가 모두 번호로 명시돼야 한다");
+  // 상표 규칙 충돌 해소: "일반 명사로 우회"가 4단계 셀프 검수 항목 하나로만 존재
+  assert.ok(prompt.includes("일반 명사로"));
+  assert.ok(prompt.includes("이미 등장한 상표명은 그대로"));
 });
 
 test("generateQuizWithClaude sends the structured-output request and parses the reply", async () => {
@@ -434,6 +504,21 @@ test("QG1 structure gate rejects an axis whose questions all lead with the same 
   );
 });
 
+// 2차 검수(전문가 5그룹+이용자 20명): "8개가 전부 '~게 너다'로 끝나면 템플릿
+// 티" — 결과 서술 오프닝 종결 패턴이 한 틀로 쏠리면 반려돼야 한다.
+test("QG1 structure gate rejects results whose opening sentences all share the same ending pattern (template opening)", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  for (const r of quiz.results) {
+    r.description = "이건 확실히 게 너다. 나머지 설명은 여기 붙어서 결과문 최소 글자 수 조건도 넉넉하게 채운다.";
+  }
+  const report = runGates(quiz);
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG1-structure" && f.message.includes("오프닝 종결")),
+    "결과 전부가 같은 오프닝 종결이면 반려돼야 한다"
+  );
+});
+
 test("QG2 viral gate rejects a title/description with no topic keyword when topics context is given", async () => {
   const { runGates } = await import("../src/quiz/gates.js");
   const quiz = structuredClone(sampleQuiz());
@@ -459,6 +544,40 @@ test("QG2 viral gate rejects a result description with no topic mention when top
   );
 });
 
+// 2차 검수: "결과 8종에 이번 주 토픽이 최대한 고르게 — 서로 다른 토픽 최소
+// min(토픽 수, 유형 수)개 등장". 개별 결과는 토픽을 인용하더라도(그래서
+// result_topic_mention_required는 통과), 전부 같은 토픽 하나만 우려먹으면
+// 커버리지 게이트가 따로 잡아야 한다.
+test("QG2 viral gate rejects result copy that covers too few distinct topics (topic coverage)", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  const topics = sampleTopics();
+  const onlyTopic = topics[0].title;
+  for (const r of quiz.results) {
+    r.description = `"${onlyTopic}" 얘기만 계속 우려먹는 결과 서술이다. 다른 토픽은 전혀 언급하지 않고 이 얘기만 반복해서 채운다.`;
+  }
+  const report = runGates(quiz, { topics });
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("빠진 토픽")),
+    "결과 서술 전체가 한 토픽만 인용하면 빠진 토픽을 명시해 반려돼야 한다"
+  );
+});
+
+// 2차 검수: "9문항 중 최소 6개는 토픽에서 직접 파생(범용 필러 최소화)".
+test("QG2 viral gate rejects a question set where too few questions are topic-derived (question topic-bound ratio)", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  const topics = sampleTopics();
+  for (let i = 0; i < quiz.questions.length; i++) {
+    quiz.questions[i].q = `아무 때나 던져도 되는 순수 범용 문항 번호 ${i}`;
+  }
+  const report = runGates(quiz, { topics });
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("토픽에서 직접 파생")),
+    "토픽 어절을 포함한 문항 비율이 낮으면 반려돼야 한다"
+  );
+});
+
 test("QG2 viral gate rejects share texts that share the same template (low diversity across types)", async () => {
   const { runGates } = await import("../src/quiz/gates.js");
   const quiz = structuredClone(sampleQuiz());
@@ -467,6 +586,20 @@ test("QG2 viral gate rejects share texts that share the same template (low diver
   assert.ok(
     report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("템플릿 복붙")),
     "공유 문구가 같은 틀이면 반려돼야 한다"
+  );
+});
+
+// 2차 검수: "8개 중 물음표 반문형은 절반 이하 — 감탄·선언·도발형을 섞어라".
+test("QG2 viral gate rejects share texts that end with '?' too often (question-ending ratio)", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(sampleQuiz());
+  for (const r of quiz.results) {
+    r.shareText = `나는 ${r.title} 그 자체다 — 너는?`;
+  }
+  const report = runGates(quiz);
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG2-viral" && f.message.includes("물음표로 끝나는 비율")),
+    "공유 문구 전부가 물음표로 끝나면 반려돼야 한다"
   );
 });
 
@@ -501,6 +634,20 @@ test("renderResultPage shows the manifest-declared result labels (팩폭 포인�
   assert.ok(html.includes("이건 인정"));
   assert.ok(html.includes("이럴 땐 이렇게"));
   assert.ok(html.includes("잘 맞는 케미"));
+});
+
+// 2차 검수: 케미가 코드 조합만 보여주고 근거가 없다는 지적 반영 — 결과
+// 페이지에도 bestMatchReason/worstMatchReason이 유형명 아래 작은 텍스트로
+// 노출돼야 한다 (기존 렌더러 스타일 재사용, 신규 카드/서머리 제작 금지).
+test("renderResultPage displays bestMatchReason/worstMatchReason under the chemistry section", async () => {
+  const { renderResultPage } = await import("../src/quiz/render.js");
+  const quiz = sampleQuiz();
+  const result = quiz.results[0];
+  const html = renderResultPage({ slug: "2026w30-reasontest", quiz }, result, "https://example.com", {});
+  assert.ok(result.bestMatchReason && result.worstMatchReason, "샘플 데이터에 궁합 이유가 있어야 테스트가 유효하다");
+  assert.ok(html.includes(result.bestMatchReason), "bestMatchReason이 렌더링돼야 한다");
+  assert.ok(html.includes(result.worstMatchReason), "worstMatchReason이 렌더링돼야 한다");
+  assert.match(html, /class="reason"/, "궁합 이유는 기존 스타일(.reason)로 작게 표시돼야 한다");
 });
 
 test("runWeekly loops on gate failure, feeding rejection reasons back into the prompt", async () => {

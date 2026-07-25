@@ -60,9 +60,35 @@ function topicTokens(topics) {
   }
   return [...tokens];
 }
+// 토픽 1개만의 토큰 — 결과 서술 전체의 "토픽 커버리지"(어떤 토픽이 실제로
+// 등장했는지) 판정에 쓴다. topicTokens(전체)와 달리 토픽별로 따로 계산한다.
+function tokensForOneTopic(topic) {
+  const tokens = [];
+  const title = String((topic && topic.title) || "");
+  for (const raw of title.split(/\s+/)) {
+    const cleaned = raw.replace(/[^\p{L}\p{N}]/gu, "");
+    if (cleaned.length >= 2) tokens.push(cleaned);
+  }
+  return tokens;
+}
 function mentionsAnyTopicToken(text, tokens) {
   const t = String(text || "");
   return tokens.some((tok) => t.includes(tok));
+}
+
+// 결과 서술 첫 문장의 종결 골격 — 마지막 문장부호(.!?) 앞까지를 첫 문장으로
+// 보고, 공백/문장부호를 지운 뒤 마지막 3글자를 취한다. "~게 너다"류 오프닝이
+// 8개 결과 전부에서 겹치는 템플릿 티를 잡는다 (structure.opening_pattern_max_ratio).
+function firstSentence(text) {
+  const s = String(text || "");
+  const m = s.match(/^[^.!?]*[.!?]?/);
+  return (m ? m[0] : s).trim();
+}
+function endingPattern(text) {
+  const sentence = firstSentence(text)
+    .replace(/[.!?]+$/, "")
+    .replace(/[\s\p{P}\p{S}]/gu, "");
+  return sentence.slice(-3);
 }
 
 function* userFacingTexts(quiz) {
@@ -87,7 +113,7 @@ export const GATES = [
     key: "QG1",
     id: "QG1-structure",
     name: "구조 게이트",
-    desc: "축 2~4개 · 문항 8~15개(축당 3+) · 극 혼합 · 유형 조합 커버리지 · 강점 80:약점 20 · 궁합 상호지정 (validateQuiz) · 답변 개수 통일 · 문항 유사도 · 역채점 극 혼합",
+    desc: "축 2~4개 · 문항 8~15개(축당 3+) · 극 혼합 · 유형 조합 커버리지 · 강점 80:약점 20 · 궁합 상호지정 (validateQuiz) · 답변 개수 통일 · 문항 유사도 · 역채점 극 혼합 · 결과 오프닝 종결 패턴 쏠림",
     run(quiz) {
       const fails = [];
       try {
@@ -134,6 +160,29 @@ export const GATES = [
         }
       }
 
+      // ④ 결과 서술 오프닝 종결 패턴 쏠림 — 2차 검수 반영: 8개 결과가 전부
+      // "~게 너다" 같은 같은 문형으로 끝나면 프롬프트가 강제한 3종 이상
+      // 오프닝 다양성이 지켜지지 않은 것이다. 최빈 패턴 비율이 임계값을
+      // 넘으면 반려한다 (structure.opening_pattern_max_ratio).
+      if (STRUCTURE.opening_pattern_max_ratio) {
+        const results = Array.isArray(quiz.results) ? quiz.results : [];
+        if (results.length > 1) {
+          const counts = {};
+          for (const r of results) {
+            const pattern = endingPattern(r.description);
+            counts[pattern] = (counts[pattern] || 0) + 1;
+          }
+          const entries = Object.entries(counts);
+          const [topPattern, topCount] = entries.reduce((a, b) => (b[1] > a[1] ? b : a), entries[0] || ["", 0]);
+          const ratio = topCount / results.length;
+          if (ratio > STRUCTURE.opening_pattern_max_ratio) {
+            fails.push(
+              `결과 ${results.length}개 중 ${topCount}개가 같은 오프닝 종결("…${topPattern}")로 끝난다 (${Math.round(ratio * 100)}%) — 오프닝 문형을 최소 3종 이상 섞어라.`
+            );
+          }
+        }
+      }
+
       return fails;
     }
   },
@@ -141,7 +190,7 @@ export const GATES = [
     key: "QG2",
     id: "QG2-viral",
     name: "바이럴 게이트",
-    desc: "공유 미리보기·결과문이 퍼질 조건을 갖췄는가 (제목 훅, I-got 공유 문구, 결과문 분량, 한 줄 답변, 토픽 소재 인용, 공유 문구 다양성)",
+    desc: "공유 미리보기·결과문이 퍼질 조건을 갖췄는가 (제목 훅, I-got 공유 문구, 결과문 분량, 한 줄 답변, 토픽 소재 인용, 결과 전체 토픽 커버리지, 문항 토픽 파생 비율, 공유 문구 다양성·종결 다양성)",
     run(quiz, context = {}) {
       const v = CHECKS.viral;
       const fails = [];
@@ -192,6 +241,55 @@ export const GATES = [
                 fails.push(`유형 ${r.code}의 서술에 이번 주 토픽 소재 인용이 없다 — 범용 결과문은 실패.`);
               }
             }
+          }
+          // 문항 토픽 파생 비율 — 2차 검수: "9문항 중 최소 6개는 토픽에서
+          // 직접 파생" 프롬프트 지침을 코드로도 강제한다. 토픽 어절을 포함한
+          // 문항 비율이 임계값 미만이면 범용 필러 문항이 너무 많다는 뜻.
+          if (v.question_topic_bound_min_ratio) {
+            const qs = Array.isArray(quiz.questions) ? quiz.questions : [];
+            if (qs.length) {
+              const bound = qs.filter((q) => mentionsAnyTopicToken(q.q, tokens)).length;
+              const ratio = bound / qs.length;
+              if (ratio < v.question_topic_bound_min_ratio) {
+                fails.push(
+                  `토픽 어절을 포함한 문항이 ${bound}/${qs.length}개(${Math.round(ratio * 100)}%) — 최소 ${Math.round(v.question_topic_bound_min_ratio * 100)}%는 토픽에서 직접 파생돼야 한다(범용 필러 최소화).`
+                );
+              }
+            }
+          }
+        }
+        // 결과 전체 토픽 커버리지 — 2차 검수: 결과 8종 서술이 한두 토픽만
+        // 우려먹지 않고 이번 주 토픽을 최대한 고르게 인용했는지. 토큰이 빈
+        // 토픽(2자 미만 제목 등)도 "커버 안 됨"으로 셀 수 있어 tokens.length
+        // 가드 없이, 토픽별로 직접 계산한다.
+        if (v.result_topic_coverage_required) {
+          const results = quiz.results || [];
+          const requiredCoverage = Math.min(topics.length, results.length);
+          if (requiredCoverage > 0) {
+            const allDescText = results.map((r) => String((r && r.description) || "")).join(" ");
+            const covered = topics.filter((t) => tokensForOneTopic(t).some((tok) => allDescText.includes(tok)));
+            if (covered.length < requiredCoverage) {
+              const coveredTitles = new Set(covered.map((t) => t.title));
+              const missing = topics.filter((t) => !coveredTitles.has(t.title)).map((t) => t.title);
+              fails.push(
+                `결과 서술 전체에서 이번 주 토픽이 ${covered.length}/${requiredCoverage}개만 등장 — 빠진 토픽: ${missing.join(", ")} (한두 토픽만 우려먹지 말고 고르게 인용하라).`
+              );
+            }
+          }
+        }
+      }
+
+      // shareText 종결 다양성 — 물음표 반문형 일색이면 템플릿 티. 절반 이하만
+      // "?"로 끝나야 한다(2차 검수: 감탄·선언·도발형을 섞으라는 지침).
+      if (v.share_text_question_ending_max_ratio) {
+        const shareTexts = (quiz.results || []).map((r) => String((r && r.shareText) || ""));
+        if (shareTexts.length) {
+          const questionEnders = shareTexts.filter((s) => s.trim().endsWith("?")).length;
+          const ratio = questionEnders / shareTexts.length;
+          if (ratio > v.share_text_question_ending_max_ratio) {
+            fails.push(
+              `공유 문구 중 물음표로 끝나는 비율이 ${questionEnders}/${shareTexts.length}개(${Math.round(ratio * 100)}%) — ${Math.round(v.share_text_question_ending_max_ratio * 100)}% 이하로, 감탄·선언·도발형을 섞어라.`
+            );
           }
         }
       }
