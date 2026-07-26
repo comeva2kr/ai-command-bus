@@ -26,6 +26,11 @@ export const DEFAULT_MODEL = "claude-opus-4-8";
 // David 실사용 피드백(2026-07-25): "이걸 40대 직장인이 알까?"가 기준.
 const FAMILIARITY_TIERS = CONTRACT.familiarity_tiers.tiers;
 
+// 문항 교묘화(라벨 누출·자기보고 동사 금지·evidenceLine 회수) — 선언 원본은
+// 매니페스트 (pack_contract.checks.item_design). David 실사용 지적
+// (2026-07-26): 문항은 성향을 가리고, 결과에서 밝힌다.
+const ITEM_DESIGN = CONTRACT.checks.item_design || {};
+
 // Structured-outputs schema for the generated quiz (validated further by
 // validateQuiz — the API schema can't express cross-references like "results
 // must cover every band/style combination" or "format determines axis count").
@@ -157,7 +162,8 @@ export const QUIZ_SCHEMA = {
           "bestMatchReason",
           "worstMatchReason",
           "shareText",
-          "weeklyPick"
+          "weeklyPick",
+          "evidenceLine"
         ],
         properties: {
           code: { type: "string", description: "combo_types: 극 코드 조합(축 순서대로). level_bands: 밴드code(+스타일극code)." },
@@ -171,7 +177,12 @@ export const QUIZ_SCHEMA = {
           bestMatchReason: { type: "string", description: "왜 잘 맞는지 한 줄 상황극 (40자 이내)" },
           worstMatchReason: { type: "string", description: "왜 부딪히는지 한 줄 상황극 (40자 이내)" },
           shareText: { type: "string", description: "결과 공유용 한 줄 (SNS에 뿌려질 문구, level_bands는 수치 자랑 허용)" },
-          weeklyPick: { type: "string", description: "이 성향이 제일 티 나는 순간(60자 이내)" }
+          weeklyPick: { type: "string", description: "이 성향이 제일 티 나는 순간(60자 이내)" },
+          evidenceLine: {
+            type: "string",
+            description:
+              "이 유형이 나온 결정적 응답 회수(70자 이내) — '카페 문항에서 짐부터 챙긴다고 답한 게 이미 답이었다' 식으로, 가려둔 문항 상황을 되짚어 준다. 성향 이름을 그대로 반복하지 말고 그 사람이 고른 행동을 인용할 것."
+          }
         }
       }
     }
@@ -257,8 +268,11 @@ export function buildPrompt(opts = {}) {
     "## [2단계 — 문항 초고]",
     "- combo_types는 총 12~16문항(축당 3~4문항, 홀수 권장 — 동점 방지), level_bands는 총 9~12문항. 선택지는 문항당 정확히 4개.",
     "- **문항 상황은 이 성향이 실제로 드러나는 공유된 일상 경험이어야 한다** — 사전지식 없이 누구나 '아 이거 나잖아' 하고 답할 수 있는 장면.",
-    "- 직접 자기보고('당신은 외향적입니까?') 금지. 상황 제시형으로:",
-    "  좋은 예: \"금요일 밤 단톡방에 '지금 나올 사람?'이 뜬다. 나는 → ① 이미 신발 신는 중 ② 누가 나오는지부터 확인 ③ 읽고 침대에 더 파고든다\"",
+    "- **문항은 성향을 직접 묻지 않는다.** '너는 눈치가 빠르니?'를 상황으로 포장한 것도 자기보고다 — 예: '무슨 일 났다는 걸 바로 느낀다'는 실패작이다(자기보고 냄새가 그대로 남는다).",
+    "- **행동 프록시**: 그 성향 자체가 아니라, 그 성향을 가진 사람이 만들어내는 **부산물**을 물어라. 예(눈치력): '단톡방이 조용해졌다. 내가 제일 먼저 확인하는 건? ① 마지막 메시지를 누가 보냈는지 ② 읽음 표시 숫자 ③ 딱히 안 봄, 알림 끄고 잔다 ④ 최근에 누가 프사 바꿨는지' — 답하는 사람은 자기가 뭘 드러내는지 모른다.",
+    "- **강제 선택**: 네 선택지 전부 사회적으로 무난해야 한다. 고르기 부끄러운 선택지가 하나라도 있으면 사람들은 솔직하게 답하지 않고 결과가 쏠린다.",
+    "- **관찰 가능한 행동만**: 선택지에 '느낀다/알아챈다/신경 쓰인다/~한 편이다' 같은 내적 상태·자기규정 서술 금지. 손이 무엇을 하는지, 눈이 어디를 보는지, 무엇을 먼저 확인하는지로 써라.",
+    "- **라벨 숨기기**: 축 이름·극 이름에 쓴 단어를 선택지에 그대로 쓰지 마라(예: 축이 '눈치 감지력'이면 선택지에 '눈치' 금지).",
     "- '정답' 냄새 금지: 모든 선택지가 각자 매력 있거나 각자 웃겨야 한다. 사회적으로 바람직한 답이 하나뿐인 문항은 실패작.",
     "- 문항당 정확히 1축만 측정. 한 문항의 답변들에 left/right가 골고루 섞여야 한다.",
     "- 같은 상황을 두 문항에 쓰지 마라 — 문항마다 서로 다른 장면으로.",
@@ -284,6 +298,7 @@ export function buildPrompt(opts = {}) {
     "- 유형마다 bestMatch(잘 맞는 케미)와 worstMatch(상극 케미)를 다른 유형 code로 지정.",
     "- advice는 '이런 날엔 이렇게' 식의 실행 가능한 조언 2~3개.",
     "- ⑦ weeklyPick 필드: 이 성향이 제일 티 나는 순간을 60자 이내로 채워라 (예: '후배가 다른 방식으로 일할 때 젤 먼저 티 나는 성향이다').",
+    "- ⑧ **결과에서 회수하라** — evidenceLine에 '어느 문항에서 어떤 행동을 골랐는지'를 되짚어 준다. 문항에서 가려둔 의미를 여기서 밝혀주는 게 '전문가가 만든 테스트' 인상의 핵심이다(예: '카페 문항에서 짐부터 챙긴다고 답한 게 이미 답이었다'). 성향 이름을 그대로 반복하지 말고 그 사람이 고른 행동을 인용하라. 70자 이내.",
     "",
     "## [4단계 — 전문가 셀프 검수]",
     "완성본을 제출하기 전에 아래 체크리스트를 하나씩 확인하라. 걸리면 그 자리에서 고치고 다시 검수하라 (걸린 채로 넘어가지 마라):",
@@ -297,6 +312,8 @@ export function buildPrompt(opts = {}) {
     "⑧ 이 테마를 하나도 모르는 친구에게 소리 내어 읽어줬을 때, 브리핑→제목→문항→결과 순서로 전부 이해되는가. 막히는 문장은 그 자리에서 풀어써라.",
     "⑨ 커뮤내수 등급 용어가 설명 없이 노출된 곳이 한 군데라도 있나.",
     "⑩ **전 문항·결과가 테마 하나만 재는가** — 다른 성향이 섞여 들어오지 않았는가(테스트 하나 = 성향 하나 원칙 위반 여부).",
+    "⑪ **선택지만 보고 어느 극인지 바로 알 수 있는 문항이 있나** — 있으면 행동 프록시로 다시 써라.",
+    "⑫ **고르기 부끄러운 선택지가 있나** — 있으면 무난하게 고쳐라.",
     "",
     "## [5단계 — 제출]",
     "완성본 JSON 하나만 출력한다.",
@@ -358,6 +375,13 @@ export async function generateQuizWithClaude(opts = {}) {
 // Deterministic offline fallback: a real level_bands quiz built from the
 // pool's first level_bands theme (꼰대력), so the pipeline demos end-to-end
 // without network or a key. 주 축 1(레벨) + 스타일 축 1, 밴드 3, 결과 6.
+//
+// David 실사용 지적(2026-07-26) 반영: 문항은 성향을 직접 묻지 않고 행동
+// 프록시로 재작성했다 — 자기보고 동사(item_design.self_report_verbs) 0개,
+// 축 이름·극 이름 어절이 선택지에 노출되는 라벨 누출(item_design.
+// label_leak_forbidden) 0개. 축 intro도 답변과 겹치는 흔한 단어를 피해서
+// 썼다(예: "나 때는" 같은 리터럴 인용 제거 — "때는" 토큰이 답변에 그대로
+// 남아있으면 라벨이 새기 때문).
 export function templateQuiz(opts = {}) {
   const theme = CONTRACT.theme.pool.find((t) => t.suggested_format === "level_bands") || CONTRACT.theme.pool[0];
 
@@ -365,14 +389,14 @@ export function templateQuiz(opts = {}) {
     {
       id: "level",
       name: theme.name_ko,
-      intro: "친구·후배에게 '나 때는' 소리가 얼마나 자주 나오는지를 본다.",
+      intro: "타인의 낯선 태도 앞에서 몸이 먼저 반응하는 정도를 잰다.",
       left: { code: "K", label: "라떼 발동" },
       right: { code: "N", label: "쿨내 진동" }
     },
     {
       id: "style",
       name: "잔소리 스타일",
-      intro: "하고 싶은 말이 생겼을 때 돌려 말하는지 바로 던지는지를 본다.",
+      intro: "지적할 타이밍에 입이 먼저 열리는지, 경로를 돌아가는지를 잰다.",
       left: { code: "D", label: "직설파" },
       right: { code: "E", label: "돌려말파" }
     }
@@ -384,101 +408,102 @@ export function templateQuiz(opts = {}) {
     { code: "L3", min: 67, max: 100, label_ko: "인증된 꼰대" }
   ];
 
-  // 레벨 축(K/N) 문항 6개 — 첫 답변 극을 문항마다 섞어 역채점 균형(QG1)을
-  // 지킨다. 각 세트 좌우 가중치 합 3:3으로 축 균형(QG4)도 지킨다.
+  // 레벨 축(K/N) 문항 6개 — 성향을 직접 묻지 않고 행동 프록시로 재작성.
+  // 첫 답변 극을 문항마다 섞어 역채점 균형(QG1)을 지킨다. 각 세트 좌우
+  // 가중치 합 3:3으로 축 균형(QG4)도 지킨다.
   const levelQuestions = [
     {
-      q: "후배가 나와 다른 방식으로 일을 처리하는 걸 보면 나는?",
+      q: "후배가 나와 다른 방법으로 보고서를 쓴 걸 봤다. 손이 먼저 가는 곳은?",
       axis: "level",
       answers: [
-        { text: "나 때는 이렇게 안 했다고 한마디 한다", pole: "left", weight: 2 },
-        { text: "물어보면 그때 알려준다", pole: "left", weight: 1 },
-        { text: "결과만 좋으면 신경 안 쓴다", pole: "right", weight: 1 },
-        { text: "오히려 배울 점을 찾는다", pole: "right", weight: 2 }
+        { text: "빨간펜부터 꺼내 고칠 곳을 표시한다", pole: "left", weight: 2 },
+        { text: "메신저를 열어 한마디를 남긴다", pole: "left", weight: 1 },
+        { text: "그대로 저장 버튼을 누른다", pole: "right", weight: 1 },
+        { text: "엄지척 이모티콘부터 보낸다", pole: "right", weight: 2 }
       ]
     },
     {
-      q: "단톡방에 처음 보는 신조어가 올라오면 나는?",
+      q: "단톡방에 처음 보는 신조어가 올라왔다. 다음 손가락 동작은?",
       axis: "level",
       answers: [
-        { text: "찾아보고 자연스럽게 써먹는다", pole: "right", weight: 2 },
-        { text: "모르면 그냥 넘어간다", pole: "right", weight: 1 },
-        { text: "무슨 뜻인지 꼭 물어서 확인한다", pole: "left", weight: 1 },
-        { text: "요즘 애들은 이런다고 한마디 얹는다", pole: "left", weight: 2 }
+        { text: "검색창부터 열어 뜻을 찾는다", pole: "right", weight: 2 },
+        { text: "그냥 스크롤을 내린다", pole: "right", weight: 1 },
+        { text: "물음표를 붙여 되묻는 메시지를 보낸다", pole: "left", weight: 1 },
+        { text: "캡처부터 해서 저장해둔다", pole: "left", weight: 2 }
       ]
     },
     {
-      q: "회식 자리에서 나는?",
+      q: "회식 자리에서 술잔이 아직 한 바퀴 안 돌았다. 내 손이 하는 일은?",
       axis: "level",
       answers: [
-        { text: "다들 한 잔씩 받아야 한다고 생각한다", pole: "left", weight: 2 },
-        { text: "건배사는 순서대로 해야 맛이라 본다", pole: "left", weight: 1 },
-        { text: "각자 알아서 마시게 둔다", pole: "right", weight: 1 },
-        { text: "먼저 일어나도 뭐라 안 한다", pole: "right", weight: 2 }
+        { text: "잔을 채워 옆으로 돌린다", pole: "left", weight: 2 },
+        { text: "건배사 순서표를 만든다", pole: "left", weight: 1 },
+        { text: "각자 잔을 알아서 채우게 둔다", pole: "right", weight: 1 },
+        { text: "자리에서 먼저 일어난다", pole: "right", weight: 2 }
       ]
     },
     {
-      q: "옷차림이 예전과 확 달라진 후배를 보면 나는?",
+      q: "후배 옷차림이 확 달라졌다. 내 눈이 가는 곳은?",
       axis: "level",
       answers: [
-        { text: "요즘 스타일이네 하고 넘어간다", pole: "right", weight: 1 },
-        { text: "오히려 어디서 샀는지 물어본다", pole: "right", weight: 2 },
-        { text: "그렇게 입고 다니냐고 한마디 한다", pole: "left", weight: 2 },
-        { text: "속으로만 생각하고 넘긴다", pole: "left", weight: 1 }
+        { text: "브랜드 이름을 검색해본다", pole: "right", weight: 2 },
+        { text: "그냥 웃으며 넘어간다", pole: "right", weight: 1 },
+        { text: "복장 규정표를 다시 꺼내본다", pole: "left", weight: 2 },
+        { text: "위아래를 한 번 훑는다", pole: "left", weight: 1 }
       ]
     },
     {
-      q: "메신저 답장이 한참 늦게 오면 나는?",
+      q: "메신저 답장이 반나절 늦게 왔다. 내가 누르는 버튼은?",
       axis: "level",
       answers: [
-        { text: "예의가 없다고 느낀다", pole: "left", weight: 2 },
-        { text: "왜 늦었는지 궁금해진다", pole: "left", weight: 1 },
-        { text: "바빴나 보다 하고 넘긴다", pole: "right", weight: 1 },
-        { text: "나도 늦게 답하는 편이라 신경 안 쓴다", pole: "right", weight: 2 }
+        { text: "느낌표 세 개짜리 재촉 문자를 보낸다", pole: "left", weight: 2 },
+        { text: "읽씹이냐고 캡처를 보낸다", pole: "left", weight: 1 },
+        { text: "하던 일을 계속한다", pole: "right", weight: 1 },
+        { text: "이모티콘 하나로 짧게 답한다", pole: "right", weight: 2 }
       ]
     },
     {
-      q: "새로 나온 프로그램·앱을 꼭 써야 할 때 나는?",
+      q: "새 협업 툴을 당장 써야 한다. 내 다음 클릭은?",
       axis: "level",
       answers: [
-        { text: "귀찮아도 일단 써본다", pole: "right", weight: 1 },
-        { text: "오히려 먼저 나서서 배운다", pole: "right", weight: 2 },
-        { text: "예전 방식이 더 편하다고 버틴다", pole: "left", weight: 2 },
-        { text: "일단 배워는 보되 투덜댄다", pole: "left", weight: 1 }
+        { text: "예전에 쓰던 방법을 검색해본다", pole: "left", weight: 2 },
+        { text: "매뉴얼 없이 이것저것 눌러본다", pole: "left", weight: 1 },
+        { text: "튜토리얼 영상부터 재생한다", pole: "right", weight: 1 },
+        { text: "동료한테 화면을 넘긴다", pole: "right", weight: 2 }
       ]
     }
   ];
 
-  // 스타일 축(D/E) 문항 3개.
+  // 스타일 축(D/E) 문항 3개 — 역시 행동 프록시로 재작성.
   const styleQuestions = [
     {
-      q: "잔소리하고 싶은 상황이 생기면 나는?",
+      q: "친구 표정이 굳어 있다. 내가 여는 입은?",
       axis: "style",
       answers: [
-        { text: "바로 이야기해서 확실히 짚는다", pole: "left", weight: 2 },
-        { text: "여러 번 생각한 뒤 직접 말한다", pole: "left", weight: 1 },
-        { text: "다른 사람 통해 슬쩍 흘린다", pole: "right", weight: 1 },
-        { text: "그냥 눈치껏 알아채길 바란다", pole: "right", weight: 2 }
+        { text: "무슨 일이냐고 곧장 묻는다", pole: "left", weight: 2 },
+        { text: "카페인부터 건네며 운을 뗀다", pole: "left", weight: 1 },
+        { text: "다른 화제를 슬쩍 얹어본다", pole: "right", weight: 1 },
+        { text: "그냥 옆에 앉아 시간을 보낸다", pole: "right", weight: 2 }
       ]
     },
     {
-      q: "후배 실수를 지적할 일이 생기면 나는?",
+      q: "회의 중 팀장 낯빛이 달라졌다. 내가 던지는 첫마디는?",
       axis: "style",
       answers: [
-        { text: "티 안 나게 돌려서 알려준다", pole: "right", weight: 2 },
-        { text: "다음에 지나가듯 언급한다", pole: "right", weight: 1 },
-        { text: "따로 불러서 직접 말한다", pole: "left", weight: 1 },
-        { text: "그 자리에서 바로 짚어준다", pole: "left", weight: 2 }
+        { text: "메신저로 다른 사람에게 슬쩍 물어본다", pole: "right", weight: 1 },
+        { text: "회의 안건을 가벼운 걸로 바꿔 던진다", pole: "left", weight: 1 },
+        { text: "무슨 일 있으시냐고 대놓고 여쭤본다", pole: "left", weight: 2 },
+        { text: "자리에서 서류만 조용히 넘긴다", pole: "right", weight: 2 }
       ]
     },
     {
-      q: "의견이 다를 때 나는?",
+      q: "친구 커플 사이에 냉기가 돈다. 내가 먼저 꺼내는 말은?",
       axis: "style",
       answers: [
-        { text: "생각을 그대로 말한다", pole: "left", weight: 2 },
-        { text: "요점만 정리해서 말한다", pole: "left", weight: 1 },
-        { text: "분위기 봐가며 살짝 얹는다", pole: "right", weight: 1 },
-        { text: "굳이 말 안 하고 넘어간다", pole: "right", weight: 2 }
+        { text: "무슨 일 있었냐고 직접 물어본다", pole: "left", weight: 2 },
+        { text: "장난스럽게 놀리며 운을 뗀다", pole: "left", weight: 1 },
+        { text: "다른 친구한테 살짝 물어본다", pole: "right", weight: 1 },
+        { text: "화제를 슬쩍 다른 데로 돌린다", pole: "right", weight: 2 }
       ]
     }
   ];
@@ -499,7 +524,8 @@ export function templateQuiz(opts = {}) {
       bestMatchReason: "둘 다 직설파라 대화가 빠르고 시원하다",
       worstMatchReason: "L3E는 돌려 말하는데 훈수까지 많아 답답하다",
       shareText: "나는 무해한 새싹! 참견은 없고 할 말은 바로 한다 — 너 이거 인정하지",
-      weeklyPick: "후배가 다른 방식으로 일할 때 젤 먼저 티 나는 성향이다"
+      weeklyPick: "후배가 다른 방식으로 일할 때 젤 먼저 티 나는 성향이다",
+      evidenceLine: "협업 툴 문항에서 동료한테 화면부터 넘겼고, 표정 문항에서도 곧장 물어본 게 답이었다"
     },
     {
       code: "L1E",
@@ -514,7 +540,8 @@ export function templateQuiz(opts = {}) {
       bestMatchReason: "둘 다 돌려 말해서 부딪힐 일이 없다",
       worstMatchReason: "L3D는 훈수도 많고 직설적이라 부담스럽다",
       shareText: "나는 돌려 말하는 무해한 새싹이다 — 너도 이 스타일이지",
-      weeklyPick: "신조어 못 알아들어도 티 안 내고 슬쩍 찾아보는 타입이다"
+      weeklyPick: "신조어 못 알아들어도 티 안 내고 슬쩍 찾아보는 타입이다",
+      evidenceLine: "신조어 문항에서 검색창부터 열었고, 팀장 문항에서 서류만 조용히 넘긴 게 답이었다"
     },
     {
       code: "L2D",
@@ -529,7 +556,8 @@ export function templateQuiz(opts = {}) {
       bestMatchReason: "L1D는 가볍게 받아주니 대화가 편하다",
       worstMatchReason: "L3E는 돌려 말하면서 은근히 세게 나온다",
       shareText: "나는 은근 있음, 평소엔 조용하다 훅 들어간다! 인정?",
-      weeklyPick: "회식 자리에서 술잔 순서 챙길 때 제일 티 나는 성향이다"
+      weeklyPick: "회식 자리에서 술잔 순서 챙길 때 제일 티 나는 성향이다",
+      evidenceLine: "옷차림 문항에서 복장 규정표부터 꺼냈고, 팀장 문항에서 대놓고 여쭤본 게 답이었다"
     },
     {
       code: "L2E",
@@ -544,7 +572,8 @@ export function templateQuiz(opts = {}) {
       bestMatchReason: "둘 다 돌려 말해서 편하게 흘러간다",
       worstMatchReason: "L3D는 직설로 세게 들어와 부담스럽다",
       shareText: "나는 은근 있음 돌려말파, 다 챙기지만 티는 안 낸다 — 너는?",
-      weeklyPick: "메신저 답장 늦으면 은근 서운해도 티 안 내는 타입이다"
+      weeklyPick: "메신저 답장 늦으면 은근 서운해도 티 안 내는 타입이다",
+      evidenceLine: "메신저 문항에서 캡처부터 보냈고, 커플 문항에서 다른 친구한테 슬쩍 물어본 게 답이었다"
     },
     {
       code: "L3D",
@@ -559,7 +588,8 @@ export function templateQuiz(opts = {}) {
       bestMatchReason: "L2D는 훈수를 어느 정도 받아준다",
       worstMatchReason: "L1E는 훈수 자체를 안 좋아해서 부딪힌다",
       shareText: "나는 인증된 꼰대, 할 말은 절대 못 참는다 — 인정 못 해?",
-      weeklyPick: "새 앱 쓰라고 할 때 예전 방식 고집하는 게 제일 티 난다"
+      weeklyPick: "새 앱 쓰라고 할 때 예전 방식 고집하는 게 제일 티 난다",
+      evidenceLine: "회식 문항에서 잔부터 채워 돌렸고, 커플 문항에서 곧장 캐물은 게 답이었다"
     },
     {
       code: "L3E",
@@ -574,7 +604,8 @@ export function templateQuiz(opts = {}) {
       bestMatchReason: "L2E는 돌려 말하는 결을 이해해준다",
       worstMatchReason: "L1D는 직설이라 돌려 말하면 답답해한다",
       shareText: "나는 인증된 꼰대인데 돌려서 말한다 — 너만 몰랐지",
-      weeklyPick: "회식에서 다들 마셔야 한다고 은근 압박 주는 게 티 난다"
+      weeklyPick: "회식에서 다들 마셔야 한다고 은근 압박 주는 게 티 난다",
+      evidenceLine: "협업 툴 문항에서 예전 방법부터 찾았고, 커플 문항에서 슬쩍 물어본 게 답이었다"
     }
   ];
 
@@ -761,6 +792,13 @@ export function validateQuiz(quiz) {
     if (String(r.worstMatchReason).length > 40) throw new Error(`유형 ${r.code}의 worstMatchReason이 40자를 넘어요.`);
     if (!r.weeklyPick || !String(r.weeklyPick).trim()) throw new Error(`유형 ${r.code}의 weeklyPick이 비었어요.`);
     if (String(r.weeklyPick).length > 60) throw new Error(`유형 ${r.code}의 weeklyPick이 60자를 넘어요.`);
+    // evidenceLine — David 확정(2026-07-26): "문항은 가리고 결과에서
+    // 밝힌다" 원칙의 회수 문장. 매니페스트 checks.item_design.evidence_line_required
+    // 가 false면(선언 없으면) 검사를 건너뛴다.
+    if (ITEM_DESIGN.evidence_line_required) {
+      if (!r.evidenceLine || !String(r.evidenceLine).trim()) throw new Error(`유형 ${r.code}의 evidenceLine이 비었어요.`);
+      if (String(r.evidenceLine).length > 70) throw new Error(`유형 ${r.code}의 evidenceLine이 70자를 넘어요.`);
+    }
   }
   return true;
 }

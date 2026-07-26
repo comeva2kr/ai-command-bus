@@ -319,6 +319,14 @@ export function renderResultPage(record, result, origin, opts = {}) {
     ? `<p class="desc" style="font-size:.85rem;margin-top:8px">📌 ${esc(LABELS.weekly_pick)} — ${esc(result.weeklyPick)}</p>`
     : "";
 
+  // 회수 문장(evidenceLine) — David 확정(2026-07-26): "문항은 가리고 결과에서
+  // 밝힌다" 원칙의 핵심 장치. 결과 카드 서술 바로 아래 작은 강조 줄로 보여준다.
+  // 라벨은 매니페스트 result_labels_ko.evidence_line이 원본. evidenceLine
+  // 없는 과거 데이터(하위호환)는 조용히 생략한다.
+  const evidenceLine = result.evidenceLine
+    ? `<p class="desc" style="font-size:.85rem;margin-top:8px">🔍 ${esc(LABELS.evidence_line)} — ${esc(result.evidenceLine)}</p>`
+    : "";
+
   // 공유 인센티브 슬롯(R7) — 매니페스트 share_incentive.enabled 확인 후에만
   // 표시. 기본값 false면 아무것도 렌더하지 않는다(David 별도 결정 대기).
   const shareIncentive =
@@ -334,6 +342,7 @@ export function renderResultPage(record, result, origin, opts = {}) {
 ${levelHeadline}
 ${rarity}
 <p style="margin-top:10px">${esc(result.description)}</p>
+${evidenceLine}
 ${weeklyPick}
 </div>
 

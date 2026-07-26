@@ -1,7 +1,7 @@
 {
   "_note_ko": "이 파일이 주간 바이럴 유형테스트 팩의 단일 진실원(기계 정본)이다. docs/quiz-loopgate.md는 파생 뷰 — 조건 값을 문서에서 손편집하지 말 것. WRC Workflow Gate 표준 스키마(google_blogger.yaml v1.2)를 미러링한 선언 매니페스트이며, 게이트 등급·재시도 예산·제외 토픽·게이트 임계값·산출물 규약은 코드 상수가 아니라 전부 여기서 로드된다.",
   "project": "weekly_viral_quiz",
-  "version": 6,
+  "version": 7,
   "pack": "weekly_viral_quiz",
   "display_name_ko": "주간 바이럴 유형테스트",
   "theme_accent": "#7C5CFF",
@@ -457,6 +457,19 @@
         "question_similarity_max": 0.5,
         "first_answer_pole_mix_required": true,
         "opening_pattern_max_ratio": 0.5
+      },
+      "item_design": {
+        "label_leak_forbidden": true,
+        "label_leak_stopwords": ["바로", "그냥", "계속", "다시", "조금", "일단", "먼저", "진짜", "완전", "약간", "본다"],
+        "label_leak_stopwords_note_ko": "'본다'는 '~하는지 본다' 축 intro 관용구(buildPrompt가 이 어투를 지시)의 종결어일 뿐인데, '물어본다/살펴본다/알아본다' 같은 흔한 보조동사 어미와 겹쳐 실제 검증(comboSampleQuiz 픽스처)에서 대량 오탐이 확인돼 추가함 — 조사·일반어 오탐 방지라는 스톱워드 취지에 부합.",
+        "self_report_verbs": [
+          "느낀다", "느껴진다", "알아챈다", "눈치챈다", "눈치 못", "신경 쓰인다", "신경쓰인다",
+          "생각한다", "파악한다", "의심한다", "믿어준다", "궁금하다", "관심 없다", "상관없다",
+          "개의치 않는다", "신경 안 쓴다", "티가 난다", "성격이다", "스타일이다", "타입이다", "편이다"
+        ],
+        "self_report_note_ko": "David 실사용 지적(2026-07-26): 생성된 눈치력 테스트 Q1~Q6이 전부 '나 눈치 있음 vs 없음' 자기보고였고(예: '무슨 일 났다는 걸 바로 느낀다' ↔ '원래 조용한 방인 줄 안다'), 축·극 라벨 어절이 선택지에 그대로 노출된 문항이 4/12였다. 문제는 ① 사회적 바람직성 편향으로 응답이 쏠리고 ② 자기발견 보상이 제로('우와 나 이런 타입'이 안 나옴)이며 ③ 전문성 인상이 떨어진다는 것 — 원칙은 '문항은 가리고, 결과에서 밝힌다'.",
+        "evidence_line_required": true,
+        "forced_choice_note_ko": "한 문항의 선택지는 전부 사회적으로 무난해야 한다(명백히 열등한 선택지 금지) — 기계 검사 불가, 프롬프트 [2단계]+셀프검수⑪+QG5 사람 판단 몫."
       }
     },
     "result_labels_ko": {
@@ -465,7 +478,8 @@
       "advice": "이럴 땐 이렇게",
       "best_match": "잘 맞는 케미",
       "worst_match": "상극 케미",
-      "weekly_pick": "이 성향이 제일 티 나는 순간"
+      "weekly_pick": "이 성향이 제일 티 나는 순간",
+      "evidence_line": "이게 결정적이었어"
     },
     "weekly_pick_label_note_ko": "David 확정(2026-07-26): weeklyPick의 의미가 '이번 주 소재 추천물'에서 '이 성향이 제일 티 나는 순간'으로 전환됐다 — 테마가 주인이 되면서 주간 소재 종속성이 사라졌다. render.js가 이 라벨을 로드만 한다.",
     "familiarity_tiers": {

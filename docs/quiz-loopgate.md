@@ -112,9 +112,9 @@ flowchart TD
 | 게이트 | 등급 | 조건 (전부 충족해야 통과) | 실패 시 | 코드 |
 |---|---|---|---|---|
 | **QG0 세이프티** | HARD | `excluded_topics`(정치·종교·성인) 제외 · `topic_safety`(연예인 사생활·재난공포 키워드 제목 매칭) 제외 — **2026-07-26 이후: 최종 소재 채택이 아니라 유행 테스트 신호 후보(`trend_signal_keywords` 매칭, hotness 상위 `trend_signal_top_n`)에 적용**. `pickWeeklyTopics`(구 채택 파이프라인)는 함수로는 남아있지만 `weekly.js`가 더 이상 호출하지 않는다 | 신호 폐기 (테마 선정 자체는 막지 않음) | `topics.js` |
-| **QG1 구조** | HARD | **테마(theme) 필수** — id/name_ko/format(combo_types\|level_bands) · **combo_types**: 축 2~4개(극 코드 유일) · 문항 12~16개 · 유형 = 극 조합 전체 커버. **level_bands**: 축 1~2개(주 지표+선택 스타일) · `bands` 3~5개(0~100 연속 커버·겹침 금지) · 문항 9~12개 · 유형 = 밴드×스타일 조합 전체 커버 · **축마다 intro(이 축이 뭘 확인하는지 처음 온 사람에게 설명, 15~70자) 필수** · 축당 3문항+ · 문항당 1축 · 답변에 양극 혼합(정답 냄새/조작 방지) · 강점 3~5 + 성장 포인트 1~2(80:20) · 조언 1~3 · 궁합 상호 지정(자기 자신 금지) · **궁합 이유(bestMatchReason/worstMatchReason) 비어있지 않음 + 40자 이내** · **weeklyPick("이 성향이 제일 티 나는 순간") 비어있지 않음 + 60자 이내** · **주간 브리핑(weeklyBrief) 존재 + 항목별 topic/intro(15~90자)/tier(친숙도 등급) 필수** · **문항별 답변 개수 통일** · **문항 쌍별 유사도 ≤ `question_similarity_max`** · **축별 1번 답 pole 혼합(역채점 균형)** · **결과 서술 오프닝 종결 최빈 패턴 비율 ≤ `opening_pattern_max_ratio`** | 반려 → 재생성 피드백 | `generate.js` `validateQuiz`, `gates.js` QG1 |
+| **QG1 구조** | HARD | **테마(theme) 필수** — id/name_ko/format(combo_types\|level_bands) · **combo_types**: 축 2~4개(극 코드 유일) · 문항 12~16개 · 유형 = 극 조합 전체 커버. **level_bands**: 축 1~2개(주 지표+선택 스타일) · `bands` 3~5개(0~100 연속 커버·겹침 금지) · 문항 9~12개 · 유형 = 밴드×스타일 조합 전체 커버 · **축마다 intro(이 축이 뭘 확인하는지 처음 온 사람에게 설명, 15~70자) 필수** · 축당 3문항+ · 문항당 1축 · 답변에 양극 혼합(정답 냄새/조작 방지) · 강점 3~5 + 성장 포인트 1~2(80:20) · 조언 1~3 · 궁합 상호 지정(자기 자신 금지) · **궁합 이유(bestMatchReason/worstMatchReason) 비어있지 않음 + 40자 이내** · **weeklyPick("이 성향이 제일 티 나는 순간") 비어있지 않음 + 60자 이내** · **evidenceLine("이 유형이 나온 결정적 응답 회수") 비어있지 않음 + 70자 이내(`item_design.evidence_line_required`)** · **주간 브리핑(weeklyBrief) 존재 + 항목별 topic/intro(15~90자)/tier(친숙도 등급) 필수** · **문항별 답변 개수 통일** · **문항 쌍별 유사도 ≤ `question_similarity_max`** · **축별 1번 답 pole 혼합(역채점 균형)** · **결과 서술 오프닝 종결 최빈 패턴 비율 ≤ `opening_pattern_max_ratio`** | 반려 → 재생성 피드백 | `generate.js` `validateQuiz`, `gates.js` QG1 |
 | **QG2 바이럴** | HOLD | **(2026-07-26 개편) 테마 정합성(`theme_coherence`) — 토픽 결박 게이트(제목/결과 토픽 키워드·토픽 커버리지·문항 토픽 비율·브리핑 토픽 커버리지) 전부 폐기, 이걸로 대체**: ① 제목+소개에 `theme.name_ko` 어절(2자+) 포함 ② 결과 서술 또는 그 유형의 weeklyPick 중 어딘가 한 곳에라도 테마 어절 포함(전 결과 강제 아님 — 관대) ③ weeklyBrief 1~3개("이 테스트가 재는 것" 설명) · 제목 8~40자(미리보기 훅) · 소개 20~90자 · 유형 서술 40자 이상 `result_desc_chars_max`(220자) 이하 · 공유 문구에 "나는 ○○"(I-got) + 상대 호명 훅 · 공유 문구 `share_text_chars_max`(60자) 이내 · 답변 40자 이내(한 줄) · **공유 문구 쌍별 유사도 ≤ `share_text_similarity_max`(템플릿 복붙 금지)** · **공유 문구 물음표 종결 비율 ≤ `share_text_question_ending_max_ratio`(반문형 일색 금지 — 감탄·선언·도발형 혼합, level_bands는 수치 자랑 허용)** | 반려 → 재생성 피드백 | `gates.js` QG2 |
-| **QG3 AI-티** | HOLD | 격식체·상담봇 관용구 금지("물론입니다", "여러분", "하십시오", "~합니다/습니다/입니다/됩니다/드립니다", "~하세요/해보세요", "습관 들이기"…) · **주간 브리핑(weeklyBrief)·축 intro도 검사 대상(단 친절한 반말 설명톤 "~했어/~된 거야"는 통과)** · 선택지 고유율 80%+(복붙 티 금지) · 유형 이름 중복 금지 | 반려 → 재생성 피드백 | `gates.js` QG3 |
+| **QG3 AI-티** | HOLD | 격식체·상담봇 관용구 금지("물론입니다", "여러분", "하십시오", "~합니다/습니다/입니다/됩니다/드립니다", "~하세요/해보세요", "습관 들이기"…) · **주간 브리핑(weeklyBrief)·축 intro도 검사 대상(단 친절한 반말 설명톤 "~했어/~된 거야"는 통과)** · 선택지 고유율 80%+(복붙 티 금지) · 유형 이름 중복 금지 · **라벨 누출 금지(`item_design.label_leak_forbidden`) — 문항의 축 name/left.label/right.label/intro에서 뽑은 2자+ 어절(조사·일반어 `label_leak_stopwords` 제외)이 선택지 텍스트에 그대로 등장하면 반려(문항 텍스트 q는 상황 묘사라 허용, 선택지만 검사)** · **자기보고 동사 금지(`item_design.self_report_verbs`) — "느낀다/알아챈다/눈치챈다/신경 쓰인다/생각한다" 등 내적 상태·자기규정 서술이 선택지에 등장하면 반려, 관찰 가능한 행동으로 재작성 지시** | 반려 → 재생성 피드백 | `gates.js` QG3 |
 | **QG4 채점 무결성** | HARD | 축별 선택지 가중치 좌:우 = 35:65 이내("다 이거 나오던데" 쏠림 방지) | 반려 → 재생성 피드백 | `gates.js` QG4 |
 | **테마 이력** (게이트 아님) | — | 매니페스트 `pack_contract.theme.no_repeat_weeks`(8) 안에 다른 회차로 이미 쓴 테마면 반려(`weekly.js submit`) — 같은 회차 재실행은 충돌로 안 봄(run_binding 멱등성). 통과 시 `theme_history.json`에 원자적 기록 | 반려 → 재생성 피드백(다른 테마 선택 또는 `--theme` 강제 지정) | `weekly.js` `checkThemeHistory`/`recordThemeHistory` |
 | **QG5 사람 승인** | kind: david | `publish quiz:` 작업이 `routeTask()`로 `decision_queue` 경유, `approve` 실행해야 발행. 재시도 없음(대기만), 우회 인자 없음 | 초안 유지(공개 경로 없음) | `store.js` `approve`, `router.js` |
@@ -215,3 +215,20 @@ render.js buildShareBlock — 결과 페이지 렌더 문서화는 [quiz-design.
 `theme_coherence` 검사로 대체. 테마 재사용은 게이트가 아니라
 `weekly.js submit`이 `theme_history.json`(no_repeat_weeks=8)으로 검사.
 `weekly.js prompt --theme <id>`로 테마 강제 지정 가능.
+
+2026-07-26 David 실사용 지적 반영(매니페스트 버전 7, "문항은 가리고 결과에서
+밝힌다"): 실측 결과 눈치력 테스트 Q1~Q6이 전부 "나 눈치 있음 vs 없음"
+자기보고였고("무슨 일 났다는 걸 바로 느낀다" ↔ "원래 조용한 방인 줄 안다"류),
+축·극 라벨 어절이 선택지에 그대로 노출된 문항이 4/12였다. **문항 교묘화
+원칙**: 자기보고 문항은 사회적 바람직성 편향으로 응답을 한쪽으로 쏠리게
+하고, 자기발견 보상("우와 나 이런 타입")을 죽인다 — 문항은 성향을 가리고
+(행동 프록시), 결과에서 밝힌다(evidenceLine). 매니페스트
+`pack_contract.checks.item_design` 신설: `label_leak_forbidden`(축
+name/label/intro 어절이 선택지에 노출되면 반려, `label_leak_stopwords`로
+조사·일반어 오탐 방지) · `self_report_verbs`(내적 상태·자기규정 서술 금지) ·
+`evidence_line_required`(결과마다 "어느 문항에서 어떤 행동을 골랐는지" 회수
+문장 강제). 전부 QG3(AI-티 게이트)에 편입 — 성격상 "티 나는 문항" 검출이라
+새 게이트를 신설하지 않고 기존 QG3에 얹었다. `buildPrompt` [2단계]에 행동
+프록시·강제 선택·라벨 숨기기 지시, [3단계]에 evidenceLine 회수 지시,
+[4단계 셀프 검수]에 ⑪⑫ 체크리스트 추가. `templateQuiz`도 전부 재작성해
+새 게이트를 통과한다(자기보고 동사 0개, 라벨 누출 0개).

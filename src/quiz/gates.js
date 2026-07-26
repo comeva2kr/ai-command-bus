@@ -22,6 +22,14 @@ const STRUCTURE = CHECKS.structure;
 // 상담봇처럼 읽히는 순간 공유가 죽는다 (BuzzFeed 말기 안티패턴).
 const AI_TELL_PHRASES = CHECKS.ai_tell.phrases;
 
+// 문항 교묘화(라벨 누출·자기보고 동사 금지) — 선언 원본은 매니페스트
+// (pack_contract.checks.item_design). David 실사용 지적(2026-07-26): 생성된
+// 문항이 "나 눈치 있음 vs 없음" 자기보고 일색이었고, 축·극 라벨 어절이
+// 선택지에 그대로 노출된 문항이 4/12였다 — 문항은 가리고 결과에서 밝힌다.
+const ITEM_DESIGN = CHECKS.item_design || {};
+const LABEL_LEAK_STOPWORDS = new Set(ITEM_DESIGN.label_leak_stopwords || []);
+const SELF_REPORT_VERBS = ITEM_DESIGN.self_report_verbs || [];
+
 // 문자 bigram Jaccard 유사도 — 결정적, 외부 의존성 없음. 공백·문장부호를
 // 지운 뒤 2-그램 집합의 교집합/합집합 비율로 "같은 소재/문장 재탕"을 잡는다
 // (문항 유사도 QG1, 공유 문구 유사도 QG2 — 임계값은 매니페스트 선언).
@@ -63,6 +71,29 @@ function tokensForOneTopic(topic) {
 function mentionsAnyTopicToken(text, tokens) {
   const t = String(text || "");
   return tokens.some((tok) => t.includes(tok));
+}
+
+// 문항 라벨 누출 검사용 어절 추출 — 위 tokensForOneTopic과 같은 규칙(2자+
+// 어절)이지만, item_design.label_leak_stopwords(조사·일반어)는 걸러낸다
+// ("바로 신발 신는다" 같은 흔한 부사가 오탐으로 라벨 누출 취급되는 걸 방지).
+function tokenizeForLabelLeak(text) {
+  const tokens = [];
+  for (const raw of String(text || "").split(/\s+/)) {
+    const cleaned = raw.replace(/[^\p{L}\p{N}]/gu, "");
+    if (cleaned.length >= 2 && !LABEL_LEAK_STOPWORDS.has(cleaned)) tokens.push(cleaned);
+  }
+  return tokens;
+}
+
+// 한 축의 name/left.label/right.label/intro에서 뽑은 라벨 누출 감시 어절
+// 집합 — 이 축을 재는 문항의 선택지에 이 단어들이 그대로 등장하면 안 된다
+// (축이 "눈치 감지력"이면 선택지에 "눈치"가 그대로 나오면 안 되는 식).
+function axisLabelTokens(axis) {
+  const tokens = new Set();
+  if (!axis) return tokens;
+  const sources = [axis.name, axis.left && axis.left.label, axis.right && axis.right.label, axis.intro];
+  for (const src of sources) for (const tok of tokenizeForLabelLeak(src)) tokens.add(tok);
+  return tokens;
 }
 
 // 결과 서술 첫 문장의 종결 골격 — 마지막 문장부호(.!?) 앞까지를 첫 문장으로
@@ -308,6 +339,50 @@ export const GATES = [
       // 유형 이름 중복
       const titles = (quiz.results || []).map((r) => String(r.title || ""));
       if (new Set(titles).size !== titles.length) fails.push("유형 이름이 중복된다 — 유형마다 고유한 별칭을.");
+
+      // 라벨 누출 — David 실사용 지적(2026-07-26): 축 이름·극 이름 어절이
+      // 선택지에 그대로 노출되면 문항만 보고 정답(측정 극)이 뭔지 들통난다.
+      // 문항 텍스트(q)는 상황 묘사라 허용 — 선택지(answers[].text)만 검사.
+      if (ITEM_DESIGN.label_leak_forbidden) {
+        const axisById = new Map((quiz.axes || []).map((a) => [a.id, a]));
+        (quiz.questions || []).forEach((q, qi) => {
+          const axis = axisById.get(q.axis);
+          if (!axis) return;
+          const tokens = axisLabelTokens(axis);
+          if (tokens.size === 0) return;
+          (q.answers || []).forEach((a, ai) => {
+            const text = String((a && a.text) || "");
+            for (const tok of tokens) {
+              if (text.includes(tok)) {
+                fails.push(
+                  `Q${qi + 1} 선택지 ${ai + 1}("${text}")에 축 "${axis.name}"의 라벨 어절 "${tok}"이 그대로 노출됐다 — 행동 프록시로 다시 써라(축 이름/극 이름 단어를 선택지에 쓰지 마라).`
+                );
+                break;
+              }
+            }
+          });
+        });
+      }
+
+      // 자기보고 동사 — David 실사용 지적(2026-07-26): "무슨 일 났다는 걸
+      // 바로 느낀다" 같은 내적 상태 서술은 사회적 바람직성 편향으로 응답을
+      // 쏠리게 하고 자기발견 보상을 죽인다. 관찰 가능한 행동으로 강제한다.
+      if (SELF_REPORT_VERBS.length) {
+        (quiz.questions || []).forEach((q, qi) => {
+          (q.answers || []).forEach((a, ai) => {
+            const text = String((a && a.text) || "");
+            for (const verb of SELF_REPORT_VERBS) {
+              if (text.includes(verb)) {
+                fails.push(
+                  `Q${qi + 1} 선택지 ${ai + 1}("${text}")가 자기보고 표현 "${verb}"을 쓴다 — 손이 뭘 하는지/눈이 어딜 보는지/뭘 먼저 확인하는지, 관찰 가능한 행동으로 바꿔라.`
+                );
+                break;
+              }
+            }
+          });
+        });
+      }
+
       return fails;
     }
   },

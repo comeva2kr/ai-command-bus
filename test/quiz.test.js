@@ -107,7 +107,7 @@ function comboSampleQuiz() {
       { text: "괜찮다고 다독이는 말부터 한다", pole: "left", weight: 2 }
     ]),
     q("동료가 프로젝트 실패로 자책하면 나는?", "response", [
-      { text: "네 잘못만은 아니라고 위로한다", pole: "left", weight: 2 },
+      { text: "네 잘못만은 아니라고 어깨를 토닥인다", pole: "left", weight: 2 },
       { text: "고생했다고 다독여준다", pole: "left", weight: 1 },
       { text: "뭐가 문제였는지 짚어준다", pole: "right", weight: 1 },
       { text: "다음엔 이렇게 하자고 정리해준다", pole: "right", weight: 2 }
@@ -116,7 +116,7 @@ function comboSampleQuiz() {
       { text: "누가 맞는지부터 따져본다", pole: "right", weight: 2 },
       { text: "상황을 하나씩 짚어본다", pole: "right", weight: 1 },
       { text: "많이 속상했겠다고 공감한다", pole: "left", weight: 1 },
-      { text: "일단 안아주고 얘기를 들어준다", pole: "left", weight: 2 }
+      { text: "일단 안아주고 이야기를 들어준다", pole: "left", weight: 2 }
     ]),
     q("후배가 실수로 혼났다고 울상이면 나는?", "response", [
       { text: "괜찮다고 어깨부터 두드려준다", pole: "left", weight: 2 },
@@ -183,7 +183,8 @@ function comboSampleQuiz() {
       bestMatchReason: "둘 다 다독이는 결이라 편하게 통한다",
       worstMatchReason: "TS는 팩트부터 들이대서 서운하다",
       shareText: "나는 위로 담당 공감러, 일단 안아주고 본다! 너는?",
-      weeklyPick: "후배가 실수로 혼났다고 하면 제일 먼저 다독이는 성향이다"
+      weeklyPick: "후배가 실수로 혼났다고 하면 제일 먼저 다독이는 성향이다",
+      evidenceLine: "후배 문항에서 어깨부터 두드려준다고 답한 게 이미 답이었다"
     },
     {
       code: "FH",
@@ -197,7 +198,8 @@ function comboSampleQuiz() {
       bestMatchReason: "FS랑 있으면 위로와 해결이 둘 다 채워진다",
       worstMatchReason: "TH는 위로 없이 해결책만 던져서 허전하다",
       shareText: "나는 다정한 해결사다, 위로도 하고 답도 준다 — 너 이거 인정하지",
-      weeklyPick: "동생이 진로 고민할 때 장단점까지 짚어주는 성향이다"
+      weeklyPick: "동생이 진로 고민할 때 장단점까지 짚어주는 성향이다",
+      evidenceLine: "이별 문항에서 옆에 있어준다면서도 다음 준비까지 짚어준 게 답이었다"
     },
     {
       code: "TS",
@@ -211,7 +213,8 @@ function comboSampleQuiz() {
       bestMatchReason: "TH랑 있으면 팩트로 죽이 잘 맞는다",
       worstMatchReason: "FS는 위로만 원하는데 자꾸 분석하게 된다",
       shareText: "나는 팩폭 위로러다 — 원인부터 짚고 본다, 너는",
-      weeklyPick: "동료가 프로젝트 실패로 자책할 때 원인부터 짚어주는 성향이다"
+      weeklyPick: "동료가 프로젝트 실패로 자책할 때 원인부터 짚어주는 성향이다",
+      evidenceLine: "동료 문항에서 위로 없이 뭐가 문제였는지부터 짚어준 게 답이었다"
     },
     {
       code: "TH",
@@ -225,7 +228,8 @@ function comboSampleQuiz() {
       bestMatchReason: "TS랑 있으면 팩트 케미가 완벽하다",
       worstMatchReason: "FH는 위로부터 원하는데 자꾸 계획부터 짠다",
       shareText: "나는 해결사 그 자체, 계획표부터 짠다 — 너도 그래?",
-      weeklyPick: "부모님이 건강 걱정하실 때 병원부터 알아보는 성향이다"
+      weeklyPick: "부모님이 건강 걱정하실 때 병원부터 알아보는 성향이다",
+      evidenceLine: "부모님 문항에서 안심시키는 말보다 병원부터 알아본다고 답한 게 답이었다"
     }
   ];
   return {
@@ -906,9 +910,23 @@ test("pack manifest declares the theme contract (pool 12+, selection criteria, h
   assert.ok(CONTRACT.formats.combo_types && CONTRACT.formats.level_bands);
 });
 
-test("pack manifest bumped to version 6 for the theme-first pivot", async () => {
+test("pack manifest bumped to version 7 for the item-design (label leak / self-report) hardening", async () => {
   const { MANIFEST } = await import("../src/quiz/manifest.js");
-  assert.equal(MANIFEST.version, 6);
+  assert.equal(MANIFEST.version, 7);
+});
+
+test("pack manifest declares pack_contract.checks.item_design (label leak / self-report / evidenceLine)", async () => {
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  const itemDesign = CONTRACT.checks.item_design;
+  assert.ok(itemDesign, "checks.item_design 블록이 있어야 한다");
+  assert.equal(itemDesign.label_leak_forbidden, true);
+  assert.ok(Array.isArray(itemDesign.label_leak_stopwords) && itemDesign.label_leak_stopwords.includes("바로"));
+  assert.ok(Array.isArray(itemDesign.self_report_verbs) && itemDesign.self_report_verbs.length > 0);
+  for (const verb of ["느낀다", "알아챈다", "신경 쓰인다", "생각한다", "눈치 못"]) {
+    assert.ok(itemDesign.self_report_verbs.includes(verb), `self_report_verbs 누락: ${verb}`);
+  }
+  assert.equal(itemDesign.evidence_line_required, true);
+  assert.equal(CONTRACT.result_labels_ko.evidence_line, "이게 결정적이었어");
 });
 
 test("pack manifest removes the topic-binding viral checks and declares theme_coherence instead", async () => {
@@ -1018,6 +1036,140 @@ test("QG3 ai-tell gate rejects chatbot phrasing and duplicated answers", async (
   for (const q of copied.questions) q.answers = structuredClone(firstAnswers);
   report = runGates(copied);
   assert.ok(report.failures.some((f) => f.gate === "QG3-ai-tell" && f.message.includes("중복률")));
+});
+
+// ---- QG3 문항 교묘화 (라벨 누출·자기보고 동사) — David 실사용 지적 2026-07-26 --
+
+test("QG3 ai-tell gate rejects label leak — axis name/label words exposed verbatim in an answer", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const leaked = structuredClone(comboSampleQuiz());
+  // 축 이름 "위로 반응"의 라벨 어절("위로")을 답변에 그대로 노출시킨다 —
+  // 축 이름/극 이름만 보고 정답(측정 극)이 뭔지 들통나는 케이스.
+  leaked.questions[0].answers[0].text = "일단 위로부터 하고 본다";
+  const report = runGates(leaked);
+  assert.ok(
+    report.failures.some((f) => f.gate === "QG3-ai-tell" && f.message.includes("라벨 어절") && f.message.includes("위로")),
+    JSON.stringify(report.failures)
+  );
+});
+
+test("QG3 label leak check ignores manifest-declared stopwords (common adverbs) so common phrasing isn't falsely rejected", async () => {
+  const { GATES } = await import("../src/quiz/gates.js");
+  const qg3 = GATES.find((g) => g.key === "QG3");
+  // 축 intro가 스톱워드("바로", "그냥")로 시작/포함되고, 답변도 우연히 같은
+  // 스톱워드를 쓴다 — 스톱워드가 아니었다면 오탐(라벨 누출)으로 잡혔을
+  // 케이스지만, 매니페스트 label_leak_stopwords 덕에 통과해야 한다.
+  const quiz = {
+    axes: [
+      {
+        id: "a",
+        name: "테스트 축",
+        intro: "바로 반응하는지 그냥 넘기는지를 잰다.",
+        left: { code: "L", label: "즉각형" },
+        right: { code: "R", label: "여유형" }
+      }
+    ],
+    questions: [
+      {
+        q: "상황",
+        axis: "a",
+        answers: [
+          { text: "바로 손을 든다", pole: "left" },
+          { text: "그냥 앉아있는다", pole: "right" }
+        ]
+      }
+    ],
+    results: []
+  };
+  const fails = qg3.run(quiz);
+  assert.ok(!fails.some((f) => f.includes("라벨 어절")), JSON.stringify(fails));
+});
+
+test("QG3 ai-tell gate rejects self-report verbs in answers — must be observable behavior, not inner state", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  const quiz = structuredClone(comboSampleQuiz());
+  quiz.questions[0].answers[0].text = "속으로 슬프다고 생각한다";
+  const report = runGates(quiz);
+  assert.ok(
+    report.failures.some(
+      (f) => f.gate === "QG3-ai-tell" && f.message.includes("자기보고 표현") && f.message.includes("생각한다")
+    ),
+    JSON.stringify(report.failures)
+  );
+});
+
+test("template (level_bands) and combo fixture (combo_types) clear the label-leak and self-report checks with zero failures", async () => {
+  const { runGates } = await import("../src/quiz/gates.js");
+  for (const quiz of [sampleQuiz(), comboSampleQuiz()]) {
+    const report = runGates(quiz);
+    assert.ok(!report.failures.some((f) => f.message.includes("라벨 어절")), JSON.stringify(report.failures));
+    assert.ok(!report.failures.some((f) => f.message.includes("자기보고 표현")), JSON.stringify(report.failures));
+  }
+});
+
+test("regression: the previously-published nunchi-level quiz (self-report Q1~Q6 + label-leaked answers) is now rejected by QG3", async () => {
+  // David 실사용 지적(2026-07-26)의 실제 근거 — 발행됐던 눈치력 퀴즈의 실제
+  // 문항/답변 패턴을 그대로 재현한다("나 눈치 있음 vs 없음" 자기보고 +
+  // 축 라벨 "눈치"가 선택지에 그대로 노출).
+  const { runGates } = await import("../src/quiz/gates.js");
+  const nunchiLike = {
+    theme: { id: "nunchi-level", name_ko: "눈치력", format: "level_bands" },
+    axes: [
+      {
+        id: "radar",
+        name: "눈치 감지력",
+        intro: "표정과 말투, 침묵 속 미묘한 신호를 얼마나 빨리 캐치하는지 보는 축이다.",
+        left: { code: "S", label: "레이더형" },
+        right: { code: "D", label: "무심형" }
+      },
+      {
+        id: "react",
+        name: "눈치 표출 방식",
+        intro: "눈치챈 걸 바로 행동으로 옮기는지, 혼자 삭히고 마는지 보는 축이다.",
+        left: { code: "A", label: "액션파" },
+        right: { code: "Q", label: "침묵파" }
+      }
+    ],
+    questions: [
+      {
+        q: "단톡방이 갑자기 조용해졌다. 나는 →",
+        axis: "radar",
+        answers: [
+          { text: "무슨 일 났다는 걸 바로 느낀다", pole: "left" },
+          { text: "다들 바쁜가 보다 하고 넘긴다", pole: "right" },
+          { text: "화면 스크롤하며 분위기 파악부터 한다", pole: "left" },
+          { text: "원래 조용한 방인 줄 안다", pole: "right" }
+        ]
+      },
+      {
+        q: "직원이 마감 정리를 시작한다. 나는 →",
+        axis: "radar",
+        answers: [
+          { text: "아직 영업시간이니 계속 앉아 있는다", pole: "right" },
+          { text: "곧 나가야 하는구나 싶어 짐을 챙긴다", pole: "left" },
+          { text: "직접 나가라고 말할 때까지 눈치 못 챈다", pole: "right" },
+          { text: "정리하는 소리만 듣고도 마감 임박을 안다", pole: "left" }
+        ]
+      },
+      {
+        q: "친구 커플이 싸운 티가 나는데 아무도 말을 안 꺼낸다. 나는 →",
+        axis: "react",
+        answers: [
+          { text: "괜히 긁어 부스럼 만들까봐 모른 척한다", pole: "right" },
+          { text: "조심스럽게 무슨 일 있냐고 운을 뗀다", pole: "left" },
+          { text: "다 눈치채고도 절대 먼저 말 안 꺼낸다", pole: "right" },
+          { text: "둘 다 편해지게 다른 화제로 자연스럽게 돌린다", pole: "left" }
+        ]
+      }
+    ],
+    results: []
+  };
+  const report = runGates(nunchiLike);
+  assert.equal(report.decision, "BLOCK");
+  const labelLeaks = report.failures.filter((f) => f.message.includes("라벨 어절"));
+  const selfReports = report.failures.filter((f) => f.message.includes("자기보고 표현"));
+  assert.ok(labelLeaks.length >= 2, `라벨 누출 반려가 2건 이상이어야 한다 (실제 ${labelLeaks.length}건)`);
+  assert.ok(selfReports.length >= 2, `자기보고 반려가 2건 이상이어야 한다 (실제 ${selfReports.length}건)`);
 });
 
 test("QG4 scoring gate rejects lopsided axis weights", async () => {
@@ -1209,6 +1361,24 @@ test("renderResultPage shows '이 성향이 제일 티 나는 순간' with the r
   const html = renderResultPage({ slug: "2026w30-pick", quiz }, result, "https://example.com", {});
   assert.ok(html.includes("이 성향이 제일 티 나는 순간"));
   assert.ok(html.includes(escHtml(result.weeklyPick)));
+});
+
+test("renderResultPage shows the evidenceLine recovery sentence ('이게 결정적이었어') right under the result description", async () => {
+  const { renderResultPage } = await import("../src/quiz/render.js");
+  const { CONTRACT } = await import("../src/quiz/manifest.js");
+  const quiz = sampleQuiz();
+  const result = quiz.results[0];
+  assert.ok(result.evidenceLine, "템플릿 결과에 evidenceLine이 있어야 한다");
+  const html = renderResultPage({ slug: "2026w30-evidence", quiz }, result, "https://example.com", {});
+  assert.equal(CONTRACT.result_labels_ko.evidence_line, "이게 결정적이었어");
+  assert.ok(html.includes(CONTRACT.result_labels_ko.evidence_line));
+  assert.ok(html.includes(escHtml(result.evidenceLine)));
+  // 서술 바로 아래(=weeklyPick 앞)에 등장해야 한다.
+  const descIdx = html.indexOf(escHtml(result.description));
+  const evidenceIdx = html.indexOf(escHtml(result.evidenceLine));
+  const pickIdx = html.indexOf(escHtml(result.weeklyPick));
+  assert.ok(descIdx !== -1 && evidenceIdx > descIdx);
+  assert.ok(pickIdx === -1 || evidenceIdx < pickIdx);
 });
 
 test("renderResultPage shows a big level-percent headline (theme name + %) for level_bands results when personal percents are given", async () => {
@@ -1660,6 +1830,30 @@ test("QUIZ_SCHEMA and validateQuiz require a non-empty weeklyPick (<=60자) on e
 
   const quiz = sampleQuiz();
   for (const r of quiz.results) assert.ok(r.weeklyPick && r.weeklyPick.length <= 60);
+});
+
+// ---- evidenceLine (David 확정 2026-07-26, "문항은 가리고 결과에서 밝힌다") --
+
+test("QUIZ_SCHEMA and validateQuiz require a non-empty evidenceLine (<=70자) on every result", () => {
+  assert.ok(QUIZ_SCHEMA.properties.results.items.required.includes("evidenceLine"));
+
+  const missing = structuredClone(sampleQuiz());
+  delete missing.results[0].evidenceLine;
+  assert.throws(() => validateQuiz(missing), /evidenceLine이 비었어요/);
+
+  const empty = structuredClone(sampleQuiz());
+  empty.results[0].evidenceLine = "";
+  assert.throws(() => validateQuiz(empty), /evidenceLine이 비었어요/);
+
+  const tooLong = structuredClone(sampleQuiz());
+  tooLong.results[0].evidenceLine = "가".repeat(71);
+  assert.throws(() => validateQuiz(tooLong), /evidenceLine이 70자를 넘어요/);
+
+  const quiz = sampleQuiz();
+  for (const r of quiz.results) assert.ok(r.evidenceLine && r.evidenceLine.length <= 70);
+
+  const comboQuiz = comboSampleQuiz();
+  for (const r of comboQuiz.results) assert.ok(r.evidenceLine && r.evidenceLine.length <= 70);
 });
 
 // ---- server routes -------------------------------------------------------
