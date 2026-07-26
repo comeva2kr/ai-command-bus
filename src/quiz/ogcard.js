@@ -192,17 +192,34 @@ function renderTypeCard(quiz, result, opts) {
   y = 100;
   body += `<text x="${MARGIN_X}" y="${y}" font-size="28" fill="#ffffff" opacity="0.75">${esc(quiz.title)}</text>`;
 
-  // 2) "나는" label + big type name (I-got capture value)
+  // David 확정(2026-07-26): level_bands 테마는 % 대형 표시 + 밴드명으로,
+  // combo_types는 기존 "나는 {유형명}" 표시로 분기한다.
+  const isLevelFormat = quiz.theme && quiz.theme.format === "level_bands";
+  const band = isLevelFormat ? (Array.isArray(quiz.bands) ? quiz.bands : []).find((b) => result.code.startsWith(b.code)) : null;
+
   y += 60;
-  body += `<text x="${MARGIN_X}" y="${y}" font-size="40" font-weight="500" fill="#ffffff" opacity="0.9">나는</text>`;
-  const { lines, fontSize } = fitTitle(result.title);
-  const lineHeight = fontSize * 1.18;
-  y += fontSize * 0.85;
-  for (const line of lines) {
-    body += `<text x="${MARGIN_X}" y="${y}" font-size="${fontSize}" font-weight="800" fill="#ffffff">${esc(line)}</text>`;
-    y += lineHeight;
+  if (isLevelFormat && band) {
+    // 2) 레벨 % 대형 표시 — 개인 응답 % 대신, 그 밴드를 대표하는 중앙값을
+    // 보여준다(밴드 정의 자체에서 나온 값이라 "지어낸 개인 %"가 아니다).
+    const displayPercent = Math.round((band.min + band.max) / 2);
+    body += `<text x="${MARGIN_X}" y="${y}" font-size="40" font-weight="500" fill="#ffffff" opacity="0.9">${esc(quiz.theme.name_ko)}</text>`;
+    y += 96;
+    body += `<text x="${MARGIN_X}" y="${y}" font-size="96" font-weight="800" fill="#ffffff">${displayPercent}%</text>`;
+    y += 56;
+    body += `<text x="${MARGIN_X}" y="${y}" font-size="34" font-weight="700" fill="#ffffff" opacity="0.9">${esc(band.label_ko)}</text>`;
+    y += 8;
+  } else {
+    // 2) "나는" label + big type name (I-got capture value)
+    body += `<text x="${MARGIN_X}" y="${y}" font-size="40" font-weight="500" fill="#ffffff" opacity="0.9">나는</text>`;
+    const { lines, fontSize } = fitTitle(result.title);
+    const lineHeight = fontSize * 1.18;
+    y += fontSize * 0.85;
+    for (const line of lines) {
+      body += `<text x="${MARGIN_X}" y="${y}" font-size="${fontSize}" font-weight="800" fill="#ffffff">${esc(line)}</text>`;
+      y += lineHeight;
+    }
+    y += 8;
   }
-  y += 8;
 
   // 3) rarity badge
   if (opts.sharePercent != null) {

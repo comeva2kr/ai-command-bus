@@ -47,21 +47,10 @@ function bigramJaccard(a, b) {
   return union === 0 ? 0 : intersection / union;
 }
 
-// 토픽 컨텍스트(context.topics = [{title,...}])에서 매칭에 쓸 토큰을 뽑는다.
-// 제목을 공백으로 쪼개 2자+ 어절만 취한다 — "고소영 단발" → ["고소영","단발"].
-function topicTokens(topics) {
-  const tokens = new Set();
-  for (const t of Array.isArray(topics) ? topics : []) {
-    const title = String((t && t.title) || "");
-    for (const raw of title.split(/\s+/)) {
-      const cleaned = raw.replace(/[^\p{L}\p{N}]/gu, "");
-      if (cleaned.length >= 2) tokens.add(cleaned);
-    }
-  }
-  return [...tokens];
-}
-// 토픽 1개만의 토큰 — 결과 서술 전체의 "토픽 커버리지"(어떤 토픽이 실제로
-// 등장했는지) 판정에 쓴다. topicTokens(전체)와 달리 토픽별로 따로 계산한다.
+// 문자열에서 매칭에 쓸 어절(토큰) 2자+만 뽑는다 — "T/F 공감형" → ["공감형"]
+// 처럼 이름에서 특수문자를 걷어낸 2자+ 조각을 취한다. 원래는 토픽 제목
+// 토큰화용이었지만(2026-07-26 이전), 이제는 테마 이름(theme.name_ko)
+// 토큰화에 재사용한다 — theme_coherence 게이트.
 function tokensForOneTopic(topic) {
   const tokens = [];
   const title = String((topic && topic.title) || "");
@@ -196,8 +185,8 @@ export const GATES = [
     key: "QG2",
     id: "QG2-viral",
     name: "바이럴 게이트",
-    desc: "공유 미리보기·결과문이 퍼질 조건을 갖췄는가 (제목 훅, I-got 공유 문구, 결과문 분량, 한 줄 답변, 토픽 소재 인용, 결과 전체 토픽 커버리지, 문항 토픽 파생 비율, 공유 문구 다양성·종결 다양성, 주간 브리핑 커버리지)",
-    run(quiz, context = {}) {
+    desc: "공유 미리보기·결과문이 퍼질 조건을 갖췄는가 (제목 훅, I-got 공유 문구, 결과문 분량, 한 줄 답변, 테마 정합성, 공유 문구 다양성·종결 다양성)",
+    run(quiz) {
       const v = CHECKS.viral;
       const fails = [];
       const title = String(quiz.title || "");
@@ -231,108 +220,33 @@ export const GATES = [
         }
       }
 
-      // 컨텍스트 의존 검사: context.topics가 주어질 때만 실행 (매니페스트
-      // gate_context_note_ko — run/submit 경로는 항상 제공, 컨텍스트 없는
-      // 호출은 이 부분만 스킵된다).
-      //
-      // David 실사용 피드백(2026-07-26, "주제 자체가 별로"): 기계 선정은
-      // 이제 후보 풀(candidate_pool_size개)만 추리고, 최종 채택은 생성자가
-      // buildPrompt [0단계]에서 quiz_fit_criteria로 직접 고른다. 그래서
-      // context.topics는 더 이상 "이번 주 확정 소재"가 아니라 "후보 풀"이고,
-      // 실제 채택 소재 집합은 quiz.weeklyBrief의 topic들로 정의한다 —
-      // ① 브리핑 개수가 채택 개수(checks.topics.count, 풀이 그보다 작으면
-      // 그 개수)와 같은지 ② 브리핑 각 topic이 풀 안의 후보 제목과 토큰
-      // 매칭되는지(풀 밖 소재 발명 금지)를 먼저 검사하고, ③ 제목·문항
-      // 비율·결과 커버리지 검사의 기준 토큰은 전체 풀이 아니라 이렇게 확인된
-      // "채택 소재"에서만 추출한다.
-      const topics = Array.isArray(context.topics) ? context.topics : null;
-      if (topics && topics.length) {
-        const brief = Array.isArray(quiz.weeklyBrief) ? quiz.weeklyBrief : [];
-        const requiredCount = Math.min(CHECKS.topics.count, topics.length);
-        if (v.weekly_brief_topic_coverage_required && brief.length !== requiredCount) {
-          fails.push(`주간 브리핑(weeklyBrief)이 ${brief.length}개 — 후보 풀에서 정확히 ${requiredCount}개를 채택해야 한다.`);
-        }
-
-        // ② 브리핑 topic ↔ 후보 풀 토큰 매칭. 매칭된 후보만 "채택 소재"로
-        // 인정 — 풀에 없는 소재를 지어내면 반려한다. 겹치는 토큰이 하나라도
-        // 있는 첫 후보가 아니라, 토큰 겹침이 "가장 많은" 후보를 고른다 —
-        // 안 그러면 "요즘 편의점…"과 "요즘 헬스장…"처럼 흔한 단어 하나만
-        // 공유하는 서로 다른 후보가 둘 다 같은(먼저 나온) 후보로 오매칭된다.
-        const adopted = [];
-        const invented = [];
-        for (const b of brief) {
-          const briefTokens = tokensForOneTopic({ title: b && b.topic });
-          let match = null;
-          let bestOverlap = 0;
-          for (const t of topics) {
-            const overlap = tokensForOneTopic(t).filter((tok) => briefTokens.includes(tok)).length;
-            if (overlap > bestOverlap) {
-              bestOverlap = overlap;
-              match = t;
-            }
+      // 테마 정합성(theme_coherence) — David 확정(2026-07-26): 토픽 결박
+      // 게이트(제목/결과 토픽 키워드·토픽 커버리지·문항 토픽 비율·브리핑
+      // 토픽 커버리지)를 전부 폐기하고 이 검사로 대체한다. 테마가 주인이므로
+      // "이번 주 소재를 얼마나 인용했는가"가 아니라 "테마 하나를 재는
+      // 퀴즈인가"만 관대하게 확인한다 (매니페스트 checks.viral.theme_coherence).
+      const tc = v.theme_coherence || {};
+      const themeName = quiz.theme && quiz.theme.name_ko;
+      if (themeName) {
+        const themeTokens = tokensForOneTopic({ title: themeName });
+        if (themeTokens.length) {
+          if (!mentionsAnyTopicToken(title + desc, themeTokens)) {
+            fails.push(`제목+소개에 테마 "${themeName}" 어절이 없다 — 이 테마를 위한 제목/소개로 다시 써라.`);
           }
-          if (match) {
-            if (!adopted.some((a) => a.title === match.title)) adopted.push(match);
-          } else if (b && b.topic) {
-            invented.push(b.topic);
+          const results = Array.isArray(quiz.results) ? quiz.results : [];
+          const anyResultMentionsTheme = results.some(
+            (r) => mentionsAnyTopicToken(r && r.description, themeTokens) || mentionsAnyTopicToken(r && r.weeklyPick, themeTokens)
+          );
+          if (results.length && !anyResultMentionsTheme) {
+            fails.push(`결과 서술·weeklyPick 어디에도 테마 "${themeName}" 어절이 없다 — 최소 한 곳엔 테마가 드러나야 한다(관대 — 하나면 충분).`);
           }
         }
-        if (v.weekly_brief_topic_coverage_required && invented.length) {
-          fails.push(`주간 브리핑 소재가 후보 풀에 없다: ${invented.join(", ")} — 후보 풀 밖 소재를 발명하면 안 된다, 채택은 후보 목록 안에서만.`);
-        }
-
-        // ③ 이하 검사는 전체 풀이 아니라 위에서 확인된 채택 소재에서 추출한
-        // 토큰을 기준으로 한다(풀에 15개가 있어도 5개만 채택했으면 5개 기준
-        // 으로 판정) — 매칭이 하나도 안 됐으면(브리핑이 완전히 깨진 경우)
-        // 풀 전체로 완화해 아래 검사가 과도하게 관대해지지 않게 한다.
-        const effectiveTopics = adopted.length ? adopted : topics;
-        const tokens = topicTokens(effectiveTopics);
-        if (tokens.length) {
-          if (v.title_topic_keyword_required && !mentionsAnyTopicToken(title + desc, tokens)) {
-            fails.push("제목+소개에 이번 주 토픽 키워드가 하나도 없다 — 아무 주에나 쓸 수 있는 범용 제목/소개는 실패.");
-          }
-          if (v.result_topic_mention_required) {
-            for (const r of quiz.results || []) {
-              if (!mentionsAnyTopicToken(r.description, tokens)) {
-                fails.push(`유형 ${r.code}의 서술에 이번 주 토픽 소재 인용이 없다 — 범용 결과문은 실패.`);
-              }
-            }
-          }
-          // 문항 토픽 파생 비율 — 2차 검수: "9문항 중 최소 6개는 토픽에서
-          // 직접 파생" 프롬프트 지침을 코드로도 강제한다. 채택 소재 어절을
-          // 포함한 문항 비율이 임계값 미만이면 범용 필러 문항이 너무 많다는 뜻.
-          if (v.question_topic_bound_min_ratio) {
-            const qs = Array.isArray(quiz.questions) ? quiz.questions : [];
-            if (qs.length) {
-              const bound = qs.filter((q) => mentionsAnyTopicToken(q.q, tokens)).length;
-              const ratio = bound / qs.length;
-              if (ratio < v.question_topic_bound_min_ratio) {
-                fails.push(
-                  `토픽 어절을 포함한 문항이 ${bound}/${qs.length}개(${Math.round(ratio * 100)}%) — 최소 ${Math.round(v.question_topic_bound_min_ratio * 100)}%는 토픽에서 직접 파생돼야 한다(범용 필러 최소화).`
-                );
-              }
-            }
-          }
-        }
-        // 결과 전체 토픽 커버리지 — 2차 검수: 결과 8종 서술이 한두 소재만
-        // 우려먹지 않고 채택 소재를 최대한 고르게 인용했는지. 토큰이 빈
-        // 소재(2자 미만 제목 등)도 "커버 안 됨"으로 셀 수 있어 tokens.length
-        // 가드 없이, 소재별로 직접 계산한다.
-        if (v.result_topic_coverage_required) {
-          const results = quiz.results || [];
-          const requiredCoverage = Math.min(effectiveTopics.length, results.length);
-          if (requiredCoverage > 0) {
-            const allDescText = results.map((r) => String((r && r.description) || "")).join(" ");
-            const covered = effectiveTopics.filter((t) => tokensForOneTopic(t).some((tok) => allDescText.includes(tok)));
-            if (covered.length < requiredCoverage) {
-              const coveredTitles = new Set(covered.map((t) => t.title));
-              const missing = effectiveTopics.filter((t) => !coveredTitles.has(t.title)).map((t) => t.title);
-              fails.push(
-                `결과 서술 전체에서 이번 주 토픽이 ${covered.length}/${requiredCoverage}개만 등장 — 빠진 토픽: ${missing.join(", ")} (한두 토픽만 우려먹지 말고 고르게 인용하라).`
-              );
-            }
-          }
-        }
+      }
+      const briefLen = Array.isArray(quiz.weeklyBrief) ? quiz.weeklyBrief.length : 0;
+      const minBrief = tc.weekly_brief_min || 1;
+      const maxBrief = tc.weekly_brief_max || 3;
+      if (briefLen < minBrief || briefLen > maxBrief) {
+        fails.push(`주간 브리핑(weeklyBrief)이 ${briefLen}개 — ${minBrief}~${maxBrief}개여야 한다("이 테스트가 재는 것" 설명).`);
       }
 
       // shareText 종결 다양성 — 물음표 반문형 일색이면 템플릿 티. 절반 이하만
@@ -434,13 +348,16 @@ export const GATES = [
 // HOLD 실패=HOLD, GUIDE 실패는 통과하되 사유가 남는 advisory).
 // pass/failures는 기존 호출부 호환용 별칭이다.
 //
-// context.topics (선택, [{title,...}]): 제목 키워드·결과 소재 인용 검사에
-// 쓰인다 — 주어지지 않으면 그 검사들만 스킵된다 (매니페스트 gate_context_note_ko).
-export function runGates(quiz, context = {}) {
+// David 확정(2026-07-26) 이후 quiz 하나만으로 전부 판정한다 — 토픽 결박
+// 게이트가 폐기되면서 context 인자를 읽는 게이트가 더 이상 없다(매니페스트
+// gate_context_note_ko). theme.history 재사용 검사는 게이트가 아니라
+// weekly.js submit이 store 기반으로 별도 수행한다. 두 번째 인자는 과거 호출
+// 호환을 위해 계속 받되 무시한다.
+export function runGates(quiz, _context = {}) {
   const gateResults = [];
   const failures = [];
   for (const gate of GATES) {
-    const messages = gate.run(quiz, context);
+    const messages = gate.run(quiz);
     gateResults.push({ id: gate.id, key: gate.key, grade: gate.grade, pass: messages.length === 0, failures: messages });
     for (const message of messages) failures.push({ gate: gate.id, grade: gate.grade, message });
   }

@@ -1,7 +1,7 @@
 {
   "_note_ko": "이 파일이 주간 바이럴 유형테스트 팩의 단일 진실원(기계 정본)이다. docs/quiz-loopgate.md는 파생 뷰 — 조건 값을 문서에서 손편집하지 말 것. WRC Workflow Gate 표준 스키마(google_blogger.yaml v1.2)를 미러링한 선언 매니페스트이며, 게이트 등급·재시도 예산·제외 토픽·게이트 임계값·산출물 규약은 코드 상수가 아니라 전부 여기서 로드된다.",
   "project": "weekly_viral_quiz",
-  "version": 5,
+  "version": 6,
   "pack": "weekly_viral_quiz",
   "display_name_ko": "주간 바이럴 유형테스트",
   "theme_accent": "#7C5CFF",
@@ -19,21 +19,21 @@
   "pipeline": [
     {
       "id": "hot_items_input",
-      "labelKo": "핫아이템 수집",
+      "labelKo": "핫아이템 수집 (유행 테스트 신호 탐지용)",
       "kind": "auto",
       "gateIds": [],
       "fileKey": "hot_items",
-      "detailKo": "피드 수집기/JSON 덤프 — 제목·공개 참여지표만"
+      "detailKo": "피드 수집기/JSON 덤프 — David 확정(2026-07-26): 이제 화제 소재 채택용이 아니라 '요즘 어떤 테스트 유형이 도는지' 참고 신호 탐지용(topics.js pickTestTrendSignals)"
     },
     {
       "id": "topic_gate",
-      "labelKo": "토픽 게이트",
+      "labelKo": "QG0 세이프티 게이트",
       "kind": "gate",
       "gateIds": [
         "QG0"
       ],
       "fileKey": null,
-      "detailKo": "정치·종교·성인 제외 + hotness 랭킹 top N + 제목 중복 제거"
+      "detailKo": "정치·종교·성인 제외 + hotness 랭킹 top N + 제목 중복 제거 — 유행 테스트 신호 후보에 적용(David 확정 2026-07-26 이전엔 최종 채택 소재 후보 풀에 적용)"
     },
     {
       "id": "ai_generation",
@@ -41,7 +41,7 @@
       "kind": "auto",
       "gateIds": [],
       "fileKey": null,
-      "detailKo": "Claude Code 예약 세션 생성 → submit 계약 (API/템플릿은 수동·테스트 폴백)"
+      "detailKo": "테마 선정(매니페스트 pack_contract.theme.pool, --theme로 강제 지정 가능) + Claude Code 예약 세션 생성 → submit 계약 (API/템플릿은 수동·테스트 폴백)"
     },
     {
       "id": "loop_gate",
@@ -79,6 +79,111 @@
   ],
   "pack_contract": {
     "schema_version": "weekly-viral-quiz-pack-1",
+    "theme_note_ko": "David 확정 방향(2026-07-26): '테스트 하나 = 성향 하나'가 주인이다. 핫토픽 잡탕(여러 화제를 섞은 문항)은 폐기 — 결과 형태는 테마마다 유연하게(유형 조합형 combo_types 또는 레벨형 level_bands) 고른다. 핫아이템 수집 파이프라인은 폐기가 아니라 '유행하는 테스트 유형' 신호 탐지용으로 전환한다(화제 뉴스 자체가 아니라 '요즘 이런 테스트가 도는지'를 본다) — trend_signal_ko/trend_signal_keywords, topics.js pickTestTrendSignals.",
+    "theme": {
+      "selection_criteria_ko": [
+        "궁금증 — '나도 모르는 나'를 알려주는가",
+        "자기발견 보상 — 결과 보고 '우와 나 이런 타입' 소리가 나오는가",
+        "대화 소재성 — 친구와 결과 비교가 되는가",
+        "보편 접근성 — 사전지식 없이 누구나 답할 수 있는가"
+      ],
+      "pool": [
+        {
+          "id": "kkondae-level",
+          "name_ko": "꼰대력",
+          "hook_ko": "내 안에 숨은 꼰대력, 몇 %일까?",
+          "proven_ko": "르르르 '꼰대 성향 검사'(2020) 1년 누적 280~300만 참여 — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "level_bands"
+        },
+        {
+          "id": "trend-sense",
+          "name_ko": "트렌드 감각",
+          "hook_ko": "나는 유행에 얼마나 빠른 사람일까?",
+          "proven_ko": "대학내일 '트렌드능력고사'(2020) 183~198만 참여 — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "level_bands"
+        },
+        {
+          "id": "impulse-buy",
+          "name_ko": "지름신 지수",
+          "hook_ko": "장바구니 앞에서 나는 얼마나 못 참을까?",
+          "proven_ko": "카카오 선물하기 MBTI 기획전 클릭 2배+(30대 이하 80%+) — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "level_bands"
+        },
+        {
+          "id": "empathy-vs-fact",
+          "name_ko": "T/F 공감형",
+          "hook_ko": "위로가 필요할 때 나는 공감파일까 팩트파일까?",
+          "proven_ko": "MBTI T/F 공감 논쟁 — SNS 상시 밈화된 자기투영 대립 구도 — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "combo_types"
+        },
+        {
+          "id": "homebody-level",
+          "name_ko": "집순이력",
+          "hook_ko": "나는 집순이·집돌이 기질이 몇 %나 될까?",
+          "proven_ko": "저마찰 참여형 자기투영 소재 — 히트작 공통 패턴(단답형 상황 비네트) — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "level_bands"
+        },
+        {
+          "id": "cutoff-style",
+          "name_ko": "손절 스타일",
+          "hook_ko": "관계를 정리할 때 나는 어떤 손절러일까?",
+          "proven_ko": "정체성 언어형 유형 레이블링 — 히트작 공통 패턴 2(정체성 언어 + 타깃 레이블) — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "combo_types"
+        },
+        {
+          "id": "nunchi-level",
+          "name_ko": "눈치력",
+          "hook_ko": "나는 눈치를 얼마나 보는 사람일까?",
+          "proven_ko": "저마찰 참여형 자기투영 소재 — 히트작 공통 패턴(단답형 상황 비네트) — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "level_bands"
+        },
+        {
+          "id": "work-style",
+          "name_ko": "일머리 유형",
+          "hook_ko": "나는 일할 때 어떤 스타일로 움직일까?",
+          "proven_ko": "직군 상황극형 유형 테스트 — 아드리엘 MaBTI(2022) 니치 직군 테스트 기준선 — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "combo_types"
+        },
+        {
+          "id": "drinking-persona",
+          "name_ko": "술자리 유형",
+          "hook_ko": "술자리에서 진짜 내 모습은 어떤 유형일까?",
+          "proven_ko": "정체성 언어형 유형 레이블링 — 히트작 공통 패턴 2(정체성 언어 + 타깃 레이블) — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "combo_types"
+        },
+        {
+          "id": "travel-prep",
+          "name_ko": "여행 준비 유형",
+          "hook_ko": "여행 준비할 때 나는 어떤 타입일까?",
+          "proven_ko": "정체성 언어형 유형 레이블링 — 히트작 공통 패턴 2(정체성 언어 + 타깃 레이블) — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "combo_types"
+        },
+        {
+          "id": "decision-power",
+          "name_ko": "결정력",
+          "hook_ko": "나는 결정을 얼마나 빠르고 단단하게 내릴까?",
+          "proven_ko": "저마찰 참여형 자기투영 소재 — 히트작 공통 패턴(단답형 상황 비네트) — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "level_bands"
+        },
+        {
+          "id": "social-battery",
+          "name_ko": "소셜 배터리",
+          "hook_ko": "사람 만난 뒤 내 에너지는 얼마나 남아있을까?",
+          "proven_ko": "저마찰 참여형 자기투영 소재 — 히트작 공통 패턴(단답형 상황 비네트) — docs/quiz-hit-corpus-research.md",
+          "suggested_format": "level_bands"
+        }
+      ],
+      "history_file": "data/quiz/theme_history.json",
+      "no_repeat_weeks": 8
+    },
+    "trend_signal_ko": "핫아이템 수집은 유행 테스트 신호 탐지용으로 전환 — 제목에서 테스트류 신호를 추출해 테마 선정의 참고 입력으로 쓴다 (David 확정 2026-07-26)",
+    "trend_signal_keywords": ["테스트", "유형", "성향", "MBTI", "퍼스널컬러", "레벨", "지수", "밸런스 게임", "챌린지", "~력"],
+    "trend_signal_keywords_note_ko": "'~력' 항목은 문자열 포함 매칭이 아니라 패턴 매칭이다 — JS \\b는 한글에서 실질적으로 동작하지 않아(hangul이 \\w에 포함되지 않음), topics.js pickTestTrendSignals는 제목을 공백 토큰으로 쪼갠 뒤 '력'으로 끝나는 2자+ 토큰을 매칭한다(예: '꼰대력').",
+    "trend_signal_top_n": 10,
+    "formats": {
+      "combo_types": "축 극조합 유형 (2^축수)",
+      "level_bands": "주 지표 % + 밴드(레벨) 결과, 보조 스타일 축 선택"
+    },
     "required_gate_ids": [
       "QG0",
       "QG1",
@@ -307,16 +412,17 @@
           "?",
           "너"
         ],
-        "title_topic_keyword_required": true,
-        "result_topic_mention_required": true,
         "share_text_chars_max": 60,
         "result_desc_chars_max": 220,
         "share_text_similarity_max": 0.55,
-        "result_topic_coverage_required": true,
-        "question_topic_bound_min_ratio": 0.6,
         "share_text_question_ending_max_ratio": 0.5,
-        "weekly_brief_topic_coverage_required": true
+        "theme_coherence": {
+          "theme_word_min_chars": 2,
+          "weekly_brief_min": 1,
+          "weekly_brief_max": 3
+        }
       },
+      "theme_coherence_note_ko": "David 확정(2026-07-26): 토픽 결박 게이트(제목/결과 토픽 키워드·토픽 커버리지·문항 토픽 비율·브리핑 토픽 커버리지)를 전부 폐기하고 이 검사로 대체한다 — 테마가 주인이므로 '이번 주 소재를 얼마나 인용했는가' 대신 '테마 하나를 재는 퀴즈인가'만 관대하게 확인한다. 제목+소개에 theme.name_ko 어절 포함, 결과 서술·weeklyPick 중 하나 이상에 테마 어절 포함(전 결과 강제 아님 — 관대), weeklyBrief는 '이 테스트가 재는 것' 설명 1~3개. gates.js QG2 theme_coherence.",
       "ai_tell": {
         "phrases": [
           "AI",
@@ -358,8 +464,10 @@
       "weaknesses": "팩폭 포인트",
       "advice": "이럴 땐 이렇게",
       "best_match": "잘 맞는 케미",
-      "worst_match": "상극 케미"
+      "worst_match": "상극 케미",
+      "weekly_pick": "이 성향이 제일 티 나는 순간"
     },
+    "weekly_pick_label_note_ko": "David 확정(2026-07-26): weeklyPick의 의미가 '이번 주 소재 추천물'에서 '이 성향이 제일 티 나는 순간'으로 전환됐다 — 테마가 주인이 되면서 주간 소재 종속성이 사라졌다. render.js가 이 라벨을 로드만 한다.",
     "familiarity_tiers": {
       "tiers": [
         "국민상식",
@@ -373,11 +481,12 @@
       "🧪 {title}",
       "",
       "나는 「{typeTitle}」 — 응답자 중 {sharePercent}%",
+      "레벨 {levelPercent}%",
       "{shareText}",
       "",
       "👉 나도 해보기: {url}"
     ],
-    "share_block_template_note_ko": "David 실사용 피드백(2026-07-25): 결과 복사가 shareText 한 줄뿐이라 받는 사람이 무슨 테스트/유형인지, 어디를 눌러야 하는지 모른다 — 붙여넣으면 그 자체로 완결된 여러 줄 블록으로 바꾼다. {sharePercent}는 응답 통계가 없으면(공유 유입 등) 해당 줄 전체를 자연스럽게 생략한다(빈 괄호/빈 퍼센트 금지) — render.js buildShareBlock.",
+    "share_block_template_note_ko": "David 실사용 피드백(2026-07-25): 결과 복사가 shareText 한 줄뿐이라 받는 사람이 무슨 테스트/유형인지, 어디를 눌러야 하는지 모른다 — 붙여넣으면 그 자체로 완결된 여러 줄 블록으로 바꾼다. {sharePercent}는 응답 통계가 없으면(공유 유입 등) 해당 줄 전체를 자연스럽게 생략한다(빈 괄호/빈 퍼센트 금지) — render.js buildShareBlock. {levelPercent}는 David 확정(2026-07-26) 레벨형 결과 전용 자리 — combo_types거나 개인 응답 정보가 없으면 그 줄 전체가 생략된다(render.js buildShareBlock).",
     "generation": {
       "order": [
         "claude_code_scheduled_session",
@@ -413,7 +522,7 @@
     "response_stats": "data/quiz/stats/<slug>.json"
   },
   "files_note_ko": "번호 접두(00_…) run-root 규약 대신 slug-키 스토어 레이아웃을 유지 — 서버 라우트(/q/<slug>)와 결합돼 있음. 표준 정합 검토 요청 항목.",
-  "gate_context_note_ko": "제목 키워드·결과 소재 인용·결과 전체 토픽 커버리지·문항 토픽 비율 검사는 runGates에 topics 컨텍스트가 주어질 때만 실행 (run/submit 경로는 항상 제공). shareText 물음표 비율·오프닝 종결 패턴 검사는 컨텍스트 없이도 항상 실행.",
+  "gate_context_note_ko": "David 확정(2026-07-26) 이후 runGates는 quiz 하나만으로 전부 판정한다 — 토픽 결박 검사(제목 키워드·결과 소재 인용·결과 전체 토픽 커버리지·문항 토픽 비율·브리핑 토픽 커버리지)가 전부 폐기되면서 context.topics 인자는 더 이상 어떤 게이트도 읽지 않는다(theme_coherence는 quiz.theme/quiz.weeklyBrief만 본다). theme.history 재사용 검사는 게이트가 아니라 weekly.js submit이 store 기반으로 별도 수행한다.",
   "run_binding": {
     "run_id_format": "<weekLabel>-<slug>",
     "idempotency_ko": "같은 회차·같은 콘텐츠 재실행은 동일 slug에 원자적 덮어쓰기(tmp→rename) — 중복 산출 0",

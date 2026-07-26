@@ -1,16 +1,20 @@
-// AI quiz generation: weekly hot topics → shareable 유형테스트 (personality
-// quiz). Calls the Anthropic Messages API over raw HTTP with an injected
-// fetchImpl (this repo is deliberately zero-dependency — see server.js), and
-// falls back to a deterministic template quiz when no API key is configured so
-// the whole pipeline stays runnable/testable offline.
+// AI quiz generation: a single personality theme → shareable 유형테스트.
+// Calls the Anthropic Messages API over raw HTTP with an injected fetchImpl
+// (this repo is deliberately zero-dependency — see server.js), and falls back
+// to a deterministic template quiz when no API key is configured so the whole
+// pipeline stays runnable/testable offline.
 //
-// Quiz format is AXIS-BASED (docs/quiz-design.md): every quiz defines 2~4
-// psychological axes with two poles each; questions are tagged to one axis
-// and scored as a spectrum (0~100% per axis); the result type is the
-// combination of dominant poles (2 axes → 4 types, 3 axes → 8 types). This is
-// the 16personalities-style structure — chosen over simple type-sum argmax
-// because per-axis percentages are explainable, personal, and absorb
-// borderline results ("52:48 균형형") instead of feeling arbitrary.
+// David 확정 방향(2026-07-26): "테스트 하나 = 성향 하나." 핫토픽 잡탕(여러
+// 화제를 섞은 문항)은 폐기 — 테마(성향 하나)가 주인이고, 결과 형태는 테마
+// 따라 유연하다:
+//   - combo_types: 기존 축-조합형(docs/quiz-design.md) — 심리 축 2~4개,
+//     각 문항은 축 하나를 스펙트럼으로 재고, 결과는 극 조합 전체(2~4축 →
+//     4~16유형)의 16personalities류 구조.
+//   - level_bands: 주 지표(레벨) 축 1개 + 선택적 스타일 축 1개. 레벨 %를
+//     밴드(구간)로 판정해 "꼰대력 37% — 은근 있음" 식으로 보여준다. 스타일
+//     축이 있으면 밴드×스타일 조합이 결과 유형이 된다.
+// 어느 형태를 쓸지는 buildPrompt [0단계]에서 테마의 suggested_format을
+// 참고하되 생성자가 재량으로 정한다 — 코드가 강제하지 않는다.
 
 import { CONTRACT } from "./manifest.js";
 
@@ -23,35 +27,46 @@ export const DEFAULT_MODEL = "claude-opus-4-8";
 const FAMILIARITY_TIERS = CONTRACT.familiarity_tiers.tiers;
 
 // Structured-outputs schema for the generated quiz (validated further by
-// validateQuiz — the API schema can't express cross-references like
-// "results must cover every pole combination").
+// validateQuiz — the API schema can't express cross-references like "results
+// must cover every band/style combination" or "format determines axis count").
 export const QUIZ_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "description", "weeklyBrief", "axes", "questions", "results"],
+  required: ["theme", "title", "description", "weeklyBrief", "axes", "questions", "results"],
   properties: {
+    // 테마 — David 확정(2026-07-26): 테마(성향 하나)가 이 퀴즈의 주인이다.
+    theme: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "name_ko", "format"],
+      properties: {
+        id: { type: "string", description: "테마 id (매니페스트 pack_contract.theme.pool 중 하나, kebab-case)" },
+        name_ko: { type: "string", description: "테마 이름 (예: 꼰대력)" },
+        format: { type: "string", enum: ["combo_types", "level_bands"], description: "결과 형태 — 유형 조합형 또는 레벨형" },
+        hook_ko: { type: "string", description: "이 테스트가 답하는 궁금증 한 줄 (선택, 랜딩에 크게 노출)" }
+      }
+    },
     title: { type: "string", description: "테스트 제목 (호기심을 자극하는 한국어)" },
     description: { type: "string", description: "한 줄 소개 (공유 미리보기에 쓰임)" },
-    // 사전설명(브리핑) — David 실사용 피드백(2026-07-25): 퀴즈가 커뮤니티
-    // 내부자 전보체로 나와서 모르는 사람은 못 알아듣는다는 지적 반영. 소재
-    // 수만큼, 처음 듣는 친구에게 말해주듯 한 줄로 무슨 일이 있었는지 설명한다.
+    // 사전설명(브리핑) — David 확정(2026-07-26): "이 테스트가 재는 것"을
+    // 테마 하나 기준으로 1~3개 설명한다(과거엔 주간 소재 사전설명이었다).
     weeklyBrief: {
       type: "array",
-      description: "이번 주 소재 사전설명 — 소재 수만큼. 처음 듣는 친구에게 말해주듯 한 줄 설명.",
+      description: "'이 테스트가 재는 것' 설명 1~3개 — 처음 듣는 친구에게 말해주듯 한 줄 설명.",
       items: {
         type: "object",
         additionalProperties: false,
         required: ["topic", "intro", "tier"],
         properties: {
-          topic: { type: "string", description: "소재 핵심 키워드" },
-          intro: { type: "string", description: "처음 듣는 친구에게 말해주듯 한 줄 설명 (커뮤니티 은어 없이, 무슨 일이 있었는지가 문장 안에 다 들어가게, 15~90자)" },
-          tier: { type: "string", enum: FAMILIARITY_TIERS, description: "이 소재/용어의 친숙도 등급 — '이걸 40대 직장인이 알까?'가 기준" }
+          topic: { type: "string", description: "설명 대상(테마 자체 또는 테마 안의 핵심 용어)" },
+          intro: { type: "string", description: "처음 듣는 친구에게 말해주듯 한 줄 설명 (커뮤니티 은어 없이, 15~90자)" },
+          tier: { type: "string", enum: FAMILIARITY_TIERS, description: "이 용어의 친숙도 등급 — '이걸 40대 직장인이 알까?'가 기준" }
         }
       }
     },
     axes: {
       type: "array",
-      description: "심리 축 2~4개. 문항/유형은 전부 이 축에서 파생된다.",
+      description: "combo_types: 심리 축 2~4개. level_bands: 주 지표(레벨) 축 1개(+선택 스타일 축 1개, 최대 2개).",
       items: {
         type: "object",
         additionalProperties: false,
@@ -59,7 +74,7 @@ export const QUIZ_SCHEMA = {
         properties: {
           id: { type: "string", description: "축 식별자 (영문 소문자)" },
           name: { type: "string", description: "축 이름 (예: 에너지 방향)" },
-          intro: { type: "string", description: "이 축이 뭘 확인하는지 처음 온 사람에게 말해주는 친절 한 줄 (예: '이슈를 보면 바로 퍼뜨리는 편인지, 혼자 간직하는 편인지를 봐.', 15~70자)" },
+          intro: { type: "string", description: "이 축이 뭘 확인하는지 처음 온 사람에게 말해주는 친절 한 줄 (15~70자)" },
           left: {
             type: "object",
             additionalProperties: false,
@@ -81,8 +96,26 @@ export const QUIZ_SCHEMA = {
         }
       }
     },
+    // level_bands 전용 — 주 지표(axes[0]) % 구간별 밴드 3~5개. combo_types
+    // 테마는 이 필드를 아예 쓰지 않는다(생략).
+    bands: {
+      type: "array",
+      description: "레벨형(level_bands) 전용 — 주 지표 % 구간별 밴드 3~5개, 0~100 연속 커버·겹침 금지.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["code", "min", "max", "label_ko"],
+        properties: {
+          code: { type: "string", description: "밴드 코드 (예: L1)" },
+          min: { type: "integer", description: "레벨 % 하한(포함)" },
+          max: { type: "integer", description: "레벨 % 상한(포함)" },
+          label_ko: { type: "string", description: "밴드 이름 (예: 무해한 새싹)" }
+        }
+      }
+    },
     questions: {
       type: "array",
+      description: "combo_types 12~16개, level_bands 9~12개 (축당 3개 이상).",
       items: {
         type: "object",
         additionalProperties: false,
@@ -108,7 +141,7 @@ export const QUIZ_SCHEMA = {
     },
     results: {
       type: "array",
-      description: "극 코드 조합당 1개 (축 2개면 4개, 3개면 8개)",
+      description: "combo_types: 극 코드 조합당 1개(축 2개면 4개, 3개면 8개). level_bands: 밴드×스타일 극 조합당 1개.",
       items: {
         type: "object",
         additionalProperties: false,
@@ -127,21 +160,18 @@ export const QUIZ_SCHEMA = {
           "weeklyPick"
         ],
         properties: {
-          code: { type: "string", description: "극 코드 조합, 축 순서대로 (예: EPA)" },
+          code: { type: "string", description: "combo_types: 극 코드 조합(축 순서대로). level_bands: 밴드code(+스타일극code)." },
           title: { type: "string", description: "정체성 언어로 된 유형 이름" },
           description: { type: "string" },
           strengths: { type: "array", items: { type: "string" }, description: "강점 3~5개" },
           weaknesses: { type: "array", items: { type: "string" }, description: "성장 포인트 1~2개 (솔직하게)" },
           advice: { type: "array", items: { type: "string" }, description: "실행 가능한 조언 1~3개" },
-          bestMatch: { type: "string", description: "잘 맞는 유형 code" },
+          bestMatch: { type: "string", description: "잘 맞는 유형 code (level_bands는 인접/반대 밴드 케미 권장)" },
           worstMatch: { type: "string", description: "상극 케미 유형 code" },
           bestMatchReason: { type: "string", description: "왜 잘 맞는지 한 줄 상황극 (40자 이내)" },
           worstMatchReason: { type: "string", description: "왜 부딪히는지 한 줄 상황극 (40자 이내)" },
-          shareText: { type: "string", description: "결과 공유용 한 줄 (SNS에 뿌려질 문구)" },
-          // R2(리서치 제안) — 유형별 실용 추천물: 채택 소재 중 이 유형이 제일
-          // 즐길 것 + 왜. 핀플리/MaBTI 공통 패턴(결과문 = 주제특화 + 바넘 +
-          // 유형별 실용 추천물 3층 구조)의 3번째 층.
-          weeklyPick: { type: "string", description: "채택 소재 중 이 유형이 제일 즐길 것 + 왜 (60자 이내)" }
+          shareText: { type: "string", description: "결과 공유용 한 줄 (SNS에 뿌려질 문구, level_bands는 수치 자랑 허용)" },
+          weeklyPick: { type: "string", description: "이 성향이 제일 티 나는 순간(60자 이내)" }
         }
       }
     }
@@ -150,58 +180,88 @@ export const QUIZ_SCHEMA = {
 
 // 2차 적대 검수(전문가 5그룹+이용자 20명) 결론: "형식 게이트는 작동하지만
 // 의미 층위가 샌다 + 생성이 한 방 출력이라 전문가가 만든 티가 안 난다".
-// 룰 나열식 프롬프트를 실제 제작자의 작업 절차(0.소재 해부 → 1.컨셉 →
+// 룰 나열식 프롬프트를 실제 제작자의 작업 절차(0.테마 선정+해부 → 1.컨셉 →
 // 2.문항 초고 → 3.결과 초고 → 4.셀프 검수 → 5.제출)로 재편한다 — 각 단계를
 // 실제로 거치게 강제해서 소재-행동 짜깁기, 템플릿 오프닝, 극 조언 수렴 같은
 // (코드 게이트가 못 잡는) 의미 정합 실패를 생성 시점에 스스로 잡게 한다.
-export function buildPrompt(topics, opts = {}) {
+//
+// David 확정(2026-07-26): "테스트 하나 = 성향 하나"가 주인. buildPrompt는
+// 이제 화제 소재 목록이 아니라 ① 유행 테스트 신호(참고용) ② 테마 풀(history
+// 제외)을 받아 [0단계]에서 생성자가 테마 1개를 직접 고르게 한다.
+// opts.forcedTheme(테마 풀 항목 객체)가 있으면 --theme로 이미 정해진 것 —
+// 선정 절차를 생략하고 그 테마로 바로 해부에 들어간다.
+export function buildPrompt(opts = {}) {
   const weekLabel = opts.weekLabel || "이번 주";
-  // topics는 이제 "확정 소재"가 아니라 화제성 순위로 추린 후보 풀이다 —
-  // 최종 채택은 [0단계]에서 생성자가 quiz_fit_criteria_ko 기준으로 직접
-  // 고른다(David 실사용 피드백 2026-07-26, "주제 자체가 별로": 기계 선정을
-  // 최종 결정권자에서 후보 필터로 낮춘다). gates.js QG2는 quiz.weeklyBrief의
-  // topic들을 "채택 소재" 집합으로 보고 이 풀 안에서 골랐는지 검증한다.
-  const adoptCount = CONTRACT.checks.topics.count;
-  const criteria = CONTRACT.checks.topics.quiz_fit_criteria_ko || [];
-  const axesCount = CONTRACT.generation.axes_count;
-  const list = topics.map((t, i) => `${i + 1}. ${t.title} (출처: ${t.source})`).join("\n");
+  const trendSignals = Array.isArray(opts.trendSignals) ? opts.trendSignals : [];
+  const themePool = Array.isArray(opts.themePool) ? opts.themePool : CONTRACT.theme.pool;
+  const forcedTheme = opts.forcedTheme || null;
+  const criteria = CONTRACT.theme.selection_criteria_ko || [];
+  const formats = CONTRACT.formats || {};
+
+  const trendSection = trendSignals.length
+    ? [
+        "## 참고 — 요즘 도는 테스트류 신호 (유행 테스트 신호, 참고용일 뿐 소재 자체 아님)",
+        "아래는 최근 커뮤니티 제목에서 감지된 '테스트/유형/성향/~력'류 화제다 — 어떤 성향 테마가 지금 유행하는지 감을 잡는 참고 자료로만 써라. 이 목록의 제목 자체를 문항이나 결과에 인용하지 마라.",
+        ...trendSignals.map((t, i) => `${i + 1}. ${t.title} (출처: ${t.source})`),
+        ""
+      ]
+    : [];
+
+  const poolSection = forcedTheme
+    ? [
+        `## 테마 — 이미 정해졌다: "${forcedTheme.name_ko}" (${forcedTheme.id})`,
+        `힌트: ${forcedTheme.hook_ko || ""}`,
+        `근거: ${forcedTheme.proven_ko || ""}`,
+        `추천 형태: ${forcedTheme.suggested_format} (${formats[forcedTheme.suggested_format] || ""}) — 참고만, 재량으로 바꿔도 된다.`,
+        "테마 선정 절차는 생략하고 [0단계]는 바로 이 테마의 해부부터 시작하라."
+      ]
+    : [
+        "## 테마 후보 풀 (최근 no_repeat_weeks 내 사용한 테마는 제외됨)",
+        ...themePool.map((t) => `- ${t.id}: "${t.name_ko}" — ${t.hook_ko || ""} (근거: ${t.proven_ko || ""}, 추천 형태: ${t.suggested_format})`)
+      ];
+
   return [
-    `${weekLabel} 한국 커뮤니티에서 화제가 된 후보 ${topics.length}개다 (화제성 순위 상위 후보 풀 — 최종 채택은 네가 아래 기준으로 직접 고른다):`,
+    `${weekLabel} 유형테스트를 만든다. "테스트 하나 = 성향 하나"가 원칙이다 — 여러 화제를 섞은 잡탕 문항은 실패작이다.`,
     "",
-    list,
+    ...trendSection,
+    ...poolSection,
     "",
     "너는 국내 히트 유형테스트를 수년간 만들어온 제작자다. 아래 순서로 **작업**하라 — 각 단계를 실제로 거치고, 최종 출력은 완성본 JSON 하나만.",
     "",
-    "## [0단계 — 소재 해부 + 채택]",
-    `위 후보 목록에서 아래 채택 기준(quiz_fit_criteria)으로 각 후보를 따져 **정확히 ${adoptCount}개를 채택**하라. 채택한 소재만 weeklyBrief에 올리고 문항·결과에 쓴다. 화제성 순위가 높아도 퀴즈감(자기투영·성향 갈림)이 없으면 과감히 버려라.`,
-    ...criteria.map((c) => `- ${c}`),
-    "채택한 소재 각각에 대해 아래 세 가지를 먼저 정리한다 (생략하고 바로 문항/유형으로 넘어가지 마라):",
-    "① 이 소재가 왜 웃긴가 / 어떤 감정을 건드리나",
-    "② 이 소재에서 실제로 일어날 수 있는 행동 목록 (그 소재라서 가능한 구체적 행동만)",
-    "③ 이 소재를 모르는 사람도 고를 수 있는 반응은 뭔가",
-    "④ 이 소재를 하나도 모르는 친구에게 말해주듯 한 줄 설명을 써라(이게 weeklyBrief가 된다) — 커뮤니티 은어 없이, 무슨 일이 있었는지가 문장 안에 다 들어가게.",
-    "**여기서 정리한 행동 목록에 없는 행동을 뒤 단계에서 그 소재에 붙이면 실패다.** (2차 검수 최다 적발 사례: 봉화군 소재 글에 다른 소재의 '재고 확인'을 그대로 갖다 붙인 짜깁기 — 소재별 행동은 서로 섞이면 안 된다.)",
-    "- 채택한 소재와 그 안의 핵심 용어를 [국민상식/대중화제/커뮤내수] 3등급으로 분류하라 — '이걸 40대 직장인이 알까?'가 기준. **커뮤내수 등급 용어는: 브리핑에서 반드시 설명하고, 문항 첫 등장 시 문장 안에서 풀어쓰고, 제목에는 쓰지 마라.** (weeklyBrief 각 항목의 tier 필드로 남긴다.)",
+    "## [0단계 — 테마 선정 + 해부]",
+    ...(forcedTheme
+      ? []
+      : [
+          "위 후보 풀에서 아래 선정 기준(quiz_fit_criteria)으로 테마 1개를 정확히 고른다 — '나도 모르는 내 성향·재능·특성'을 알려주는가가 핵심이다.",
+          ...criteria.map((c) => `- ${c}`)
+        ]),
+    "테마를 정했으면 아래를 순서대로 정리한다 (생략하고 바로 문항/유형으로 넘어가지 마라):",
+    "① 이 성향이 실제로 드러나는 일상 장면 목록을 최대한 뽑아라 (그 성향이라서 나오는 구체적 행동만).",
+    "② 이 테마를 하나도 모르는 친구에게 말해주듯 한 줄 설명을 써라(이게 weeklyBrief가 된다) — 커뮤니티 은어 없이, '이 테스트가 뭘 재는지'가 문장 안에 다 들어가게. weeklyBrief는 1~3개.",
+    "③ **형태를 결정하라** — 이 테마는 레벨형(level_bands, 주 지표 %+밴드)이 어울리는가, 유형 조합형(combo_types, 극 조합)이 어울리는가? 후보 풀의 suggested_format을 참고하되 최종 판단은 네 재량이다.",
+    "④ 형태를 정했으면 그 성향의 하위 측면(레벨형이면 스타일 축 후보, 조합형이면 축 후보)을 도출하라.",
+    "- 테마와 그 안의 핵심 용어를 [국민상식/대중화제/커뮤내수] 3등급으로 분류하라 — '이걸 40대 직장인이 알까?'가 기준. **커뮤내수 등급 용어는: 브리핑에서 반드시 설명하고, 문항 첫 등장 시 문장 안에서 풀어쓰고, 제목에는 쓰지 마라.** (weeklyBrief 각 항목의 tier 필드로 남긴다.)",
     "",
-    "## [1단계 — 컨셉]",
-    `- 채택한 소재에 맞는 심리 축 정확히 ${axesCount}개를 정의한다 (축마다 양극에 코드 1글자 + 매력적인 극 이름).`,
-    "- 축 이름·극 이름은 이번 소재들에서 자연스럽게 나와야지, 아무 주에나 쓸 수 있는 범용어면 약하다.",
-    `- 문항과 유형은 전부 그 축에서 파생시킨다. 심리 축 정확히 ${axesCount}개 → 유형 2^${axesCount}개, 문항 축당 3개+ = 총 ${axesCount * 3}~${axesCount * 4}개 (코드는 축 순서대로 조합).`,
-    "- 축마다 intro를 써라 — 이 축이 뭘 확인하는지 처음 온 사람에게 말해주는 친절 한 줄이다(예: '이슈를 보면 바로 퍼뜨리는 편인지, 혼자 간직하는 편인지를 봐.', 15~70자).",
-    "- 제목에 채택한 소재의 핵심 단어를 최소 1개 그대로 넣어라 (예: '고소영 단발 뜬 날, 너는 몇 초 만에 퍼뜨림?'). 아무 주에나 쓸 수 있는 범용 제목 금지.",
-    "- **제목에는 소재를 1개만** 넣어라 — 밈 여러 개를 이어붙인 압축 제목 금지, 상황 하나를 완결 문장으로.",
+    "## [1단계 — 컨셉 (형태별 축 설계)]",
+    "**combo_types를 골랐다면**:",
+    "- 심리 축 2~4개를 정의한다(축마다 양극에 코드 1글자 + 매력적인 극 이름). 문항과 유형은 전부 그 축에서 파생시킨다 — 축 2~4개 → 유형 4~16개, 문항 12~16개(축당 3개+).",
+    "- 축 이름·극 이름은 이 테마에서 자연스럽게 나와야지, 아무 테마에나 쓸 수 있는 범용어면 약하다.",
+    "**level_bands를 골랐다면**:",
+    "- 주 지표 축 1개(왼쪽 극이 '성향이 강한 쪽'이 되도록 코드/이름을 정하라 — 채점 시 leftPercent가 곧 레벨 %가 된다) + 선택적 스타일 축 1개(성향의 결이 갈리는 보조 축).",
+    "- **`bands` 최상위 필드**: 레벨 % 구간별 밴드 3~5개를 선언한다 — `min`은 0부터, `max`는 100까지, 서로 겹치지 않고 빈틈없이 연속되어야 한다(예: 0~33 / 34~66 / 67~100). 각 밴드에 매력적인 label_ko를 붙여라(예: '무해한 새싹', '인증된 꼰대').",
+    "- 문항 9~12개(레벨 축에 최소 3개+, 스타일 축이 있으면 그쪽도 3개+).",
+    "- 결과 code = 밴드 code + (스타일 축이 있으면 그 극 code) — 밴드×스타일 조합 전체를 커버해야 한다.",
+    "- 축마다 intro를 써라 — 이 축이 뭘 확인하는지 처음 온 사람에게 말해주는 친절 한 줄이다(15~70자).",
+    "- 제목에 테마 이름(name_ko)을 그대로 넣어라 (예: '너의 꼰대력은 몇 %일까?'). 아무 테마에나 쓸 수 있는 범용 제목 금지, 테마는 1개만.",
     "",
     "## [2단계 — 문항 초고]",
-    "- 총 9~12문항, 축당 3~4문항 (홀수 권장 — 동점 방지), 선택지는 문항당 정확히 4개.",
-    "- 9문항 중 최소 6개는 채택한 소재에서 직접 파생시켜라 (범용 필러 최소화).",
-    "- **문항 상황은 타깃(커뮤니티·SNS를 쓰는 2030)의 공유된 일상 경험이어야 한다** — 그들끼리 '아 이거 나잖아' 하는 장면.",
-    "- **문항 첫 문장은 그 소재를 처음 듣는 사람도 상황을 이해할 수 있게 쓴다** — '봉화군 까임 글 보고' 같은 축약 금지, '봉화군이 맥도날드에 협업하자고 했다가 거절당했다는 글을 보고'처럼. 한 번 설명된 소재는 이후 문항에서 짧게 불러도 된다.",
-    "- 직접 자기보고('당신은 외향적입니까?') 금지. 토픽 상황에 던져넣는 상황 제시형으로:",
+    "- combo_types는 총 12~16문항(축당 3~4문항, 홀수 권장 — 동점 방지), level_bands는 총 9~12문항. 선택지는 문항당 정확히 4개.",
+    "- **문항 상황은 이 성향이 실제로 드러나는 공유된 일상 경험이어야 한다** — 사전지식 없이 누구나 '아 이거 나잖아' 하고 답할 수 있는 장면.",
+    "- 직접 자기보고('당신은 외향적입니까?') 금지. 상황 제시형으로:",
     "  좋은 예: \"금요일 밤 단톡방에 '지금 나올 사람?'이 뜬다. 나는 → ① 이미 신발 신는 중 ② 누가 나오는지부터 확인 ③ 읽고 침대에 더 파고든다\"",
     "- '정답' 냄새 금지: 모든 선택지가 각자 매력 있거나 각자 웃겨야 한다. 사회적으로 바람직한 답이 하나뿐인 문항은 실패작.",
     "- 문항당 정확히 1축만 측정. 한 문항의 답변들에 left/right가 골고루 섞여야 한다.",
-    "- 같은 소재를 두 문항에 쓰지 마라 — 소재당 문항 1개(같은 소재 문항 2개 금지).",
-    "- 연예인·특정 동네처럼 모를 수 있는 소재 문항엔 '누군지/뭔지 몰라서 그냥 넘긴다' 류 중립 선택지를 1개 넣어라(그 선택지도 pole은 가져야 함). 단 '가물가물' 같은 자기비하 말투는 금지 — '내 알 바 아니라 넘긴다'류 당당한 무관심으로 써라(응답자를 깎아내리는 말투 금지).",
+    "- 같은 상황을 두 문항에 쓰지 마라 — 문항마다 서로 다른 장면으로.",
     "- 같은 축 문항들의 선택지가 같은 문장 골격의 재탕이면 안 된다(예: '끝까지 찾아본다' 3연속 금지).",
     "- 같은 축의 문항들은 미는 방향을 섞어라 (전부 1번 답이 같은 극이면 안 됨 — 역채점 균형).",
     "- 강한 신호인 답변에만 weight 2, 나머지는 1.",
@@ -209,36 +269,34 @@ export function buildPrompt(topics, opts = {}) {
     "",
     "## [3단계 — 결과 초고]",
     "- **전보체 금지**: 조사·주어를 잘라낸 압축문 대신 완결 문장. 드립은 유지하되 문장은 친절하게.",
-    "- 유형 이름은 점수 언어가 아니라 정체성 언어로, 대화에서 짧게 부를 수 있는 별칭이 되게 (예: '계획으로 세상을 지키는 큐레이터형' — 어휘가 밈이 되면 테스트로 재유입된다).",
-    "- 각 유형 서술 첫 문장은 채택한 소재의 고유명사를 직접 넣은 생활 장면으로 시작하라 (예: '고소영 단발 짤 뜨자마자 단톡 세 군데에 뿌린 게 너다').",
+    "- 유형/밴드 이름은 점수 언어가 아니라 정체성 언어로, 대화에서 짧게 부를 수 있는 별칭이 되게 (예: '계획으로 세상을 지키는 큐레이터형', 레벨형은 '무해한 새싹').",
+    "- 각 결과 서술 첫 문장은 이 성향이 드러나는 구체적 생활 장면으로 시작하라.",
     "- 서술은 220자 이내 — 길수록 AI 티다.",
     "- 서술은 강점 4개 + 성장 포인트 1~2개 (칭찬만 하면 가짜처럼 느껴진다 — 80:20).",
     "- 서술에는 보편적이지만 개인적으로 들리는 문장과, 축 성향에서 직접 도출된 구체 문장을 섞어라.",
     "- 강점·조언을 인사평가/자기계발 톤으로 쓰지 마라 ('습관 들이기', '역량', '성장' 금지) — 친구를 놀리듯 팩폭 톤으로.",
-    "- 같은 축을 공유하는 유형들의 조언이 같은 문장 골격이면 안 된다.",
-    "- ① 결과 전체에 채택한 소재가 최대한 고르게 퍼지게 — 서로 다른 소재가 최소 min(채택 소재 수, 유형 수)개는 등장해야 한다(한두 소재만 우려먹지 마라).",
-    "- ② 오프닝 문형을 최소 3종 이상 섞어라 — 전부 '~게 너다'로 끝나면 그 자체로 템플릿 티다.",
-    "- ③ 각 극의 약점은 그 극 고유의 것이어야 한다 — 반대 극이 되라는 조언으로 수렴시키지 마라(예: 잠수러 유형 전부에게 '더 나눠라'라고 하면 실패).",
-    "- ④ 한 유형 안에서 강점과 약점이 서로 모순되면 안 된다(예: '빠르다'면서 동시에 '뒷북친다' 금지).",
-    "- ⑤ '꽝' 유형을 만들지 마라 — 모든 유형의 강점에 자랑할 맛 나는 우월감형 문구를 최소 1개는 넣어라.",
-    "- ⑥ bestMatchReason/worstMatchReason 필드: 왜 잘 맞는지 / 왜 부딪히는지를 한 줄 상황극으로(각 40자 이내) 채워라.",
-    "- ⑦ shareText는 60자 이내, '나는'으로 자기 유형을 선언하되 나머지는 유형마다 완전히 다른 드립으로 써라. 나란히 놓았을 때 같은 틀이 보이면 실패다(예: '나는 인간 알림봇 — 네 소식 나한테 먼저 옴. 너는?' / '나는 조용한 얼리어답터, 알고도 조용히 있는 중. 너는?'). 물음표로 끝나는 반문형은 절반 이하로 — 감탄·선언·도발형을 섞어라.",
+    "- ① 오프닝 문형을 최소 3종 이상 섞어라 — 전부 같은 골격으로 끝나면 그 자체로 템플릿 티다.",
+    "- ② 각 극의 약점은 그 극 고유의 것이어야 한다 — 반대 극이 되라는 조언으로 수렴시키지 마라.",
+    "- ③ 한 유형 안에서 강점과 약점이 서로 모순되면 안 된다.",
+    "- ④ '꽝' 유형을 만들지 마라 — 모든 유형의 강점에 자랑할 맛 나는 우월감형 문구를 최소 1개는 넣어라.",
+    "- ⑤ bestMatchReason/worstMatchReason 필드: 왜 잘 맞는지 / 왜 부딪히는지를 한 줄 상황극으로(각 40자 이내) 채워라. **level_bands는 인접 밴드를 bestMatch, 반대쪽 밴드를 worstMatch로 삼는 걸 권장한다(케미가 레벨 거리와 연결되게).**",
+    "- ⑥ shareText는 60자 이내, '나는'으로 자기 유형을 선언하되 나머지는 유형마다 완전히 다른 드립으로 써라. 물음표로 끝나는 반문형은 절반 이하로 — 감탄·선언·도발형을 섞어라. **level_bands는 '나는 꼰대력 12%' 식의 수치 자랑도 허용된다.**",
     "- 유형마다 bestMatch(잘 맞는 케미)와 worstMatch(상극 케미)를 다른 유형 code로 지정.",
     "- advice는 '이런 날엔 이렇게' 식의 실행 가능한 조언 2~3개.",
-    "- ⑧ weeklyPick 필드(리서치 제안 R2): 채택한 소재 중 이 유형이 제일 즐길 것 + 왜를 60자 이내로 채워라 (예: '\"고소영 단발\" 같은 스타일 얘기는 네가 제일 먼저 캐치할 소재 — 반응 속도가 딱 맞다').",
+    "- ⑦ weeklyPick 필드: 이 성향이 제일 티 나는 순간을 60자 이내로 채워라 (예: '후배가 다른 방식으로 일할 때 젤 먼저 티 나는 성향이다').",
     "",
     "## [4단계 — 전문가 셀프 검수]",
     "완성본을 제출하기 전에 아래 체크리스트를 하나씩 확인하라. 걸리면 그 자리에서 고치고 다시 검수하라 (걸린 채로 넘어가지 마라):",
-    "① 36개 선택지를 소리 내어 읽었을 때 비문·뜻 충돌이 없나",
-    "② 결과문에 등장하는 행동이 0단계에서 그 소재에 대해 정리한 행동 목록에 실제로 있나 (다른 소재의 행동을 갖다 붙이지 않았나)",
+    "① 선택지를 소리 내어 읽었을 때 비문·뜻 충돌이 없나",
+    "② 결과문에 등장하는 행동이 0단계에서 정리한 행동 목록에 실제로 있나",
     "③ 오프닝 골격이 서로 겹치지 않나",
     "④ shareText 종결이 다양한가 (물음표 일색은 아닌가)",
     "⑤ 한 유형 안에서 강점·약점이 자기모순은 아닌가",
     "⑥ 극마다 다른 조언인데, 전부 반대 극이 되라는 말로 수렴하지 않는가",
     "⑦ 자랑할 맛 없는 '꽝' 유형은 없는가",
-    "⑧ 상표: 토픽 제목에 이미 등장한 상표명은 그대로 써도 된다(공개 화제 인용). 토픽에 없는 상표는 일반 명사로 우회하라.",
-    "⑨ 이번 주 커뮤니티를 하나도 안 본 친구에게 소리 내어 읽어줬을 때, 브리핑→제목→문항→결과 순서로 전부 이해되는가. 막히는 문장은 그 자리에서 풀어써라.",
-    "⑩ 커뮤내수 등급 용어가 설명 없이 노출된 곳이 한 군데라도 있나.",
+    "⑧ 이 테마를 하나도 모르는 친구에게 소리 내어 읽어줬을 때, 브리핑→제목→문항→결과 순서로 전부 이해되는가. 막히는 문장은 그 자리에서 풀어써라.",
+    "⑨ 커뮤내수 등급 용어가 설명 없이 노출된 곳이 한 군데라도 있나.",
+    "⑩ **전 문항·결과가 테마 하나만 재는가** — 다른 성향이 섞여 들어오지 않았는가(테스트 하나 = 성향 하나 원칙 위반 여부).",
     "",
     "## [5단계 — 제출]",
     "완성본 JSON 하나만 출력한다.",
@@ -258,7 +316,7 @@ export function buildPrompt(topics, opts = {}) {
 
 // Live generation via the Messages API. fetchImpl is injected (tests pass a
 // fake; production passes global fetch). Throws user-facing Korean errors.
-export async function generateQuizWithClaude(topics, opts = {}) {
+export async function generateQuizWithClaude(opts = {}) {
   const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY가 없어요. 템플릿 생성으로 폴백하세요.");
   const fetchImpl = opts.fetchImpl || fetch;
@@ -275,7 +333,7 @@ export async function generateQuizWithClaude(topics, opts = {}) {
       max_tokens: 16000,
       thinking: { type: "adaptive" },
       output_config: { format: { type: "json_schema", schema: QUIZ_SCHEMA } },
-      messages: [{ role: "user", content: buildPrompt(topics, opts) }]
+      messages: [{ role: "user", content: buildPrompt(opts) }]
     })
   });
 
@@ -284,7 +342,7 @@ export async function generateQuizWithClaude(topics, opts = {}) {
     throw new Error(`퀴즈 생성 API 오류 (${res.status}): ${detail.slice(0, 200)}`);
   }
   const data = await res.json();
-  if (data.stop_reason === "refusal") throw new Error("모델이 이 소재의 퀴즈 생성을 거절했어요. 토픽을 바꿔보세요.");
+  if (data.stop_reason === "refusal") throw new Error("모델이 이 테마의 퀴즈 생성을 거절했어요. 테마를 바꿔보세요.");
   const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("");
   let quiz;
   try {
@@ -297,190 +355,244 @@ export async function generateQuizWithClaude(topics, opts = {}) {
   return quiz;
 }
 
-// Deterministic offline fallback: a real axis-based quiz built from the topic
-// titles, so the pipeline demos end-to-end without network or a key.
-// 2 axes × 5 questions = 10문항 → 4유형.
-export function templateQuiz(topics, opts = {}) {
-  const weekLabel = opts.weekLabel || "이번 주";
-  // topics는 후보 풀(candidate_pool_size개까지)일 수 있다 — 템플릿(테스트·
-  // 폴백) 경로는 그 풀 앞에서 채택 개수(checks.topics.count)만큼을
-  // 결정적으로 채택한다. AI 생성 경로가 buildPrompt 0단계에서 quiz_fit로
-  // "고르는" 일을, 폴백 경로는 결정성을 위해 그냥 앞에서부터 자른다.
-  const adopted = topics.slice(0, CONTRACT.checks.topics.count);
+// Deterministic offline fallback: a real level_bands quiz built from the
+// pool's first level_bands theme (꼰대력), so the pipeline demos end-to-end
+// without network or a key. 주 축 1(레벨) + 스타일 축 1, 밴드 3, 결과 6.
+export function templateQuiz(opts = {}) {
+  const theme = CONTRACT.theme.pool.find((t) => t.suggested_format === "level_bands") || CONTRACT.theme.pool[0];
+
   const axes = [
     {
-      id: "reaction",
-      name: "반응 속도",
-      intro: "이슈를 보면 바로 반응하는 편인지, 곱씹고 나서 움직이는 편인지를 봐.",
-      left: { code: "F", label: "직진 반응형" },
-      right: { code: "T", label: "곱씹는 관찰형" }
+      id: "level",
+      name: theme.name_ko,
+      intro: "친구·후배에게 '나 때는' 소리가 얼마나 자주 나오는지를 본다.",
+      left: { code: "K", label: "라떼 발동" },
+      right: { code: "N", label: "쿨내 진동" }
     },
     {
-      id: "sharing",
-      name: "확산 본능",
-      intro: "알게 된 걸 바로 퍼뜨리는 편인지, 혼자 챙겨두는 편인지를 봐.",
-      left: { code: "S", label: "확성기형" },
-      right: { code: "K", label: "수집가형" }
+      id: "style",
+      name: "잔소리 스타일",
+      intro: "하고 싶은 말이 생겼을 때 돌려 말하는지 바로 던지는지를 본다.",
+      left: { code: "D", label: "직설파" },
+      right: { code: "E", label: "돌려말파" }
     }
   ];
-  // 문항마다 고유한 답변 세트 (QG3 복붙-티 게이트: 같은 선택지 재사용 금지).
-  // 세트마다 좌/우 가중치 합을 3:3으로 맞춰 축 균형(QG4)도 지킨다.
-  const reactionAnswers = [
-    [
-      { text: "일단 클릭. 생각은 그 다음에", pole: "left", weight: 2 },
-      { text: "제목만 보고 대충 감 잡는다", pole: "left", weight: 1 },
-      { text: "댓글 반응부터 확인한다", pole: "right", weight: 1 },
-      { text: "정리글 뜰 때까지 기다린다", pole: "right", weight: 2 }
-    ],
-    [
-      { text: "출처부터 따져본다", pole: "right", weight: 2 },
-      { text: "비슷한 사례를 검색해본다", pole: "right", weight: 1 },
-      { text: "우선 반응하고 나중에 정정한다", pole: "left", weight: 1 },
-      { text: "첫인상이 곧 결론이다", pole: "left", weight: 2 }
-    ],
-    [
-      { text: "보자마자 소름이 쫙 온다", pole: "left", weight: 2 },
-      { text: "감은 오는데 확신은 반반", pole: "left", weight: 1 },
-      { text: "하루 묵혀두고 다시 본다", pole: "right", weight: 2 },
-      { text: "남들 반응을 먼저 살핀다", pole: "right", weight: 1 }
-    ],
-    [
-      { text: "3초 만에 내 의견이 생긴다", pole: "left", weight: 2 },
-      { text: "일단 웃고 시작한다", pole: "left", weight: 1 },
-      { text: "사실인지부터 의심한다", pole: "right", weight: 2 },
-      { text: "전후 맥락을 찾아본다", pole: "right", weight: 1 }
-    ],
-    [
-      { text: "심장이 먼저 뛴다", pole: "left", weight: 2 },
-      { text: "입이 먼저 나간다", pole: "left", weight: 1 },
-      { text: "머리로 한 바퀴 굴려본다", pole: "right", weight: 1 },
-      { text: "결론은 일주일 뒤에 낸다", pole: "right", weight: 2 }
-    ]
+
+  const bands = [
+    { code: "L1", min: 0, max: 33, label_ko: "무해한 새싹" },
+    { code: "L2", min: 34, max: 66, label_ko: "은근 있음" },
+    { code: "L3", min: 67, max: 100, label_ko: "인증된 꼰대" }
   ];
-  const sharingAnswers = [
-    [
-      { text: "단톡방 3곳에 동시 전파", pole: "left", weight: 2 },
-      { text: "제일 좋아할 친구 한 명에게만", pole: "left", weight: 1 },
-      { text: "북마크에 고이 모셔둔다", pole: "right", weight: 1 },
-      { text: "나만 알고 싶어서 안 알린다", pole: "right", weight: 2 }
-    ],
-    [
-      { text: "얘기가 나오면 그때 꺼낸다", pole: "right", weight: 1 },
-      { text: "스토리에 슬쩍 올린다", pole: "left", weight: 1 },
-      { text: "짤로 만들어서 뿌린다", pole: "left", weight: 2 },
-      { text: "모아뒀다가 몰아서 본다", pole: "right", weight: 2 }
-    ],
-    [
-      { text: "만나는 사람마다 얘기한다", pole: "left", weight: 2 },
-      { text: "오늘의 대화 주제로 쓴다", pole: "left", weight: 1 },
-      { text: "폴더 정리해서 보관한다", pole: "right", weight: 2 },
-      { text: "언젠가 써먹으려고 메모한다", pole: "right", weight: 1 }
-    ],
-    [
-      { text: "눈으로만 저장한다", pole: "right", weight: 1 },
-      { text: "댓글창에서 한마디 얹는다", pole: "left", weight: 1 },
-      { text: "피드에 바로 공유 버튼", pole: "left", weight: 2 },
-      { text: "캡처해서 보관함 직행", pole: "right", weight: 2 }
-    ],
-    [
-      { text: "이건 알려야 해, 사명감이 든다", pole: "left", weight: 2 },
-      { text: "궁금해할 사람 얼굴이 떠오른다", pole: "left", weight: 1 },
-      { text: "내 취향 아카이브에 추가", pole: "right", weight: 2 },
-      { text: "조용히 좋아요만 누른다", pole: "right", weight: 1 }
-    ]
-  ];
-  const questions = adopted.slice(0, 5).flatMap((t, i) => [
+
+  // 레벨 축(K/N) 문항 6개 — 첫 답변 극을 문항마다 섞어 역채점 균형(QG1)을
+  // 지킨다. 각 세트 좌우 가중치 합 3:3으로 축 균형(QG4)도 지킨다.
+  const levelQuestions = [
     {
-      q: `"${t.title}" — 이 얘기가 눈에 들어온 순간, 나는?`,
-      axis: "reaction",
-      answers: reactionAnswers[i % reactionAnswers.length]
+      q: "후배가 나와 다른 방식으로 일을 처리하는 걸 보면 나는?",
+      axis: "level",
+      answers: [
+        { text: "나 때는 이렇게 안 했다고 한마디 한다", pole: "left", weight: 2 },
+        { text: "물어보면 그때 알려준다", pole: "left", weight: 1 },
+        { text: "결과만 좋으면 신경 안 쓴다", pole: "right", weight: 1 },
+        { text: "오히려 배울 점을 찾는다", pole: "right", weight: 2 }
+      ]
     },
     {
-      q: `"${t.title}" — 이걸 알게 된 다음 내 행동은?`,
-      axis: "sharing",
-      answers: sharingAnswers[i % sharingAnswers.length]
+      q: "단톡방에 처음 보는 신조어가 올라오면 나는?",
+      axis: "level",
+      answers: [
+        { text: "찾아보고 자연스럽게 써먹는다", pole: "right", weight: 2 },
+        { text: "모르면 그냥 넘어간다", pole: "right", weight: 1 },
+        { text: "무슨 뜻인지 꼭 물어서 확인한다", pole: "left", weight: 1 },
+        { text: "요즘 애들은 이런다고 한마디 얹는다", pole: "left", weight: 2 }
+      ]
+    },
+    {
+      q: "회식 자리에서 나는?",
+      axis: "level",
+      answers: [
+        { text: "다들 한 잔씩 받아야 한다고 생각한다", pole: "left", weight: 2 },
+        { text: "건배사는 순서대로 해야 맛이라 본다", pole: "left", weight: 1 },
+        { text: "각자 알아서 마시게 둔다", pole: "right", weight: 1 },
+        { text: "먼저 일어나도 뭐라 안 한다", pole: "right", weight: 2 }
+      ]
+    },
+    {
+      q: "옷차림이 예전과 확 달라진 후배를 보면 나는?",
+      axis: "level",
+      answers: [
+        { text: "요즘 스타일이네 하고 넘어간다", pole: "right", weight: 1 },
+        { text: "오히려 어디서 샀는지 물어본다", pole: "right", weight: 2 },
+        { text: "그렇게 입고 다니냐고 한마디 한다", pole: "left", weight: 2 },
+        { text: "속으로만 생각하고 넘긴다", pole: "left", weight: 1 }
+      ]
+    },
+    {
+      q: "메신저 답장이 한참 늦게 오면 나는?",
+      axis: "level",
+      answers: [
+        { text: "예의가 없다고 느낀다", pole: "left", weight: 2 },
+        { text: "왜 늦었는지 궁금해진다", pole: "left", weight: 1 },
+        { text: "바빴나 보다 하고 넘긴다", pole: "right", weight: 1 },
+        { text: "나도 늦게 답하는 편이라 신경 안 쓴다", pole: "right", weight: 2 }
+      ]
+    },
+    {
+      q: "새로 나온 프로그램·앱을 꼭 써야 할 때 나는?",
+      axis: "level",
+      answers: [
+        { text: "귀찮아도 일단 써본다", pole: "right", weight: 1 },
+        { text: "오히려 먼저 나서서 배운다", pole: "right", weight: 2 },
+        { text: "예전 방식이 더 편하다고 버틴다", pole: "left", weight: 2 },
+        { text: "일단 배워는 보되 투덜댄다", pole: "left", weight: 1 }
+      ]
     }
-  ]);
-  // 채택 소재 핵심어 — 인덱스별로 순환 참조해서(adopted[i % adopted.length])
-  // 결과 4종이 서로 다른 채택 소재를 인용하게 한다. 전부 t0(1순위 소재)만
-  // 우려먹으면 QG2의 결과-전체 토픽 커버리지 검사(2차 검수 반영)에 걸린다.
-  const topicWord = (i) => adopted[i % adopted.length].title.replace(/\s+/g, " ").trim().slice(0, 10);
-  const w0 = topicWord(0);
-  const w1 = topicWord(1);
-  const w2 = topicWord(2);
-  const w3 = topicWord(3);
+  ];
+
+  // 스타일 축(D/E) 문항 3개.
+  const styleQuestions = [
+    {
+      q: "잔소리하고 싶은 상황이 생기면 나는?",
+      axis: "style",
+      answers: [
+        { text: "바로 이야기해서 확실히 짚는다", pole: "left", weight: 2 },
+        { text: "여러 번 생각한 뒤 직접 말한다", pole: "left", weight: 1 },
+        { text: "다른 사람 통해 슬쩍 흘린다", pole: "right", weight: 1 },
+        { text: "그냥 눈치껏 알아채길 바란다", pole: "right", weight: 2 }
+      ]
+    },
+    {
+      q: "후배 실수를 지적할 일이 생기면 나는?",
+      axis: "style",
+      answers: [
+        { text: "티 안 나게 돌려서 알려준다", pole: "right", weight: 2 },
+        { text: "다음에 지나가듯 언급한다", pole: "right", weight: 1 },
+        { text: "따로 불러서 직접 말한다", pole: "left", weight: 1 },
+        { text: "그 자리에서 바로 짚어준다", pole: "left", weight: 2 }
+      ]
+    },
+    {
+      q: "의견이 다를 때 나는?",
+      axis: "style",
+      answers: [
+        { text: "생각을 그대로 말한다", pole: "left", weight: 2 },
+        { text: "요점만 정리해서 말한다", pole: "left", weight: 1 },
+        { text: "분위기 봐가며 살짝 얹는다", pole: "right", weight: 1 },
+        { text: "굳이 말 안 하고 넘어간다", pole: "right", weight: 2 }
+      ]
+    }
+  ];
+
+  const questions = [...levelQuestions, ...styleQuestions];
+
   const results = [
     {
-      code: "FS",
-      title: "속보 그 자체, 인간 알림봇",
-      description: `"${w0}" 뜨자마자 단톡방 세 군데에 이미 뿌렸다. 화제가 되기 전에 반응하고, 반응한 순간 다 퍼뜨리는 타입 — 네 주변인들은 뉴스 앱이 필요 없다.`,
-      strengths: ["트렌드 감지 속도가 압도적", "모임에서 화제를 주도한다", "정보 공유에 진심이라 인망이 쌓인다", "결정이 빠르다"],
-      weaknesses: ["가끔 사실 확인 전에 전파해서 정정 공지를 날리게 된다"],
-      advice: ["뿌리기 전에 10초만 출처를 확인해보자", "네 속도는 무기다 — 정확도만 붙이면 무적"],
-      bestMatch: "TK",
-      worstMatch: "TS",
-      bestMatchReason: "TK가 쟁여둔 걸 FS가 바로 터뜨려준다",
-      worstMatchReason: "TS가 팩트체크로 급브레이크를 건다",
-      shareText: "나는 인간 알림봇, 네 소식 나한테 제일 먼저 온다! 너보다 항상 빠르다",
-      weeklyPick: `"${w0}" 얘기는 이 유형이 제일 먼저 물어올 소재 — 반응 속도가 딱 맞다.`
+      code: "L1D",
+      title: "무해한 새싹 · 직설파",
+      description:
+        "잔소리할 상황이 와도 일단 넘기는 편이고, 어쩌다 한마디 하게 되면 돌리지 않고 바로 말해버린다. 꼰대력은 낮은데 스타일은 시원시원한 타입이다.",
+      strengths: ["웬만하면 참견 안 한다", "할 말 있으면 숨기지 않고 바로 한다", "뒤끝이 없다", "눈치 보느라 스트레스 안 받는다"],
+      weaknesses: ["가끔 훅 들어오는 말에 상대가 놀랄 수 있다"],
+      advice: ["중요한 말일수록 타이밍만 살짝 신경 써보자"],
+      bestMatch: "L2D",
+      worstMatch: "L3E",
+      bestMatchReason: "둘 다 직설파라 대화가 빠르고 시원하다",
+      worstMatchReason: "L3E는 돌려 말하는데 훈수까지 많아 답답하다",
+      shareText: "나는 무해한 새싹! 참견은 없고 할 말은 바로 한다 — 너 이거 인정하지",
+      weeklyPick: "후배가 다른 방식으로 일할 때 젤 먼저 티 나는 성향이다"
     },
     {
-      code: "FK",
-      title: "조용한 얼리어답터",
-      description: `"${w1}" 뜬 거 남들보다 먼저 봤는데 굳이 말 안 한다. 어느 날 대화 중에 "아 그거? 옛날에 봤는데"가 자연스럽게 나오는 타입.`,
-      strengths: ["정보 감도가 높다", "허세 없이 아는 게 많다", "본인만의 아카이브가 탄탄하다", "유행에 휩쓸리지 않는다"],
-      weaknesses: ["좋은 정보를 혼자만 알고 있어 주변이 아쉬워한다"],
-      advice: ["모아둔 것 중 하나만 일주일에 한 번 공유해보자 — 반응이 꽤 짜릿하다"],
-      bestMatch: "TS",
-      worstMatch: "FS",
-      bestMatchReason: "FK가 흘린 걸 TS가 바로 검증해준다",
-      worstMatchReason: "FS가 다 퍼뜨려서 FK 존재감이 묻힌다",
-      shareText: "나는 조용한 얼리어답터, 알고도 조용히 있는 중. 너는?",
-      weeklyPick: `"${w1}" 얘기는 이 유형이 아무도 모르게 제일 먼저 챙겨둘 소재다.`
+      code: "L1E",
+      title: "무해한 새싹 · 돌려말파",
+      description:
+        "훈수 본능 자체가 약한 편인데, 어쩌다 한마디 할 일이 생기면 돌려서 슬쩍 흘린다. 꼰대력 낮음 + 돌려말 스타일 조합이다.",
+      strengths: ["분위기를 안 깨고 넘어간다", "상대가 상처 안 받게 배려한다", "눈치가 빠르다", "오래 봐도 편한 사람이다"],
+      weaknesses: ["돌려 말해서 상대가 못 알아들을 때가 있다"],
+      advice: ["진짜 중요한 건 한 번은 직접 말해보자"],
+      bestMatch: "L2E",
+      worstMatch: "L3D",
+      bestMatchReason: "둘 다 돌려 말해서 부딪힐 일이 없다",
+      worstMatchReason: "L3D는 훈수도 많고 직설적이라 부담스럽다",
+      shareText: "나는 돌려 말하는 무해한 새싹이다 — 너도 이 스타일이지",
+      weeklyPick: "신조어 못 알아들어도 티 안 내고 슬쩍 찾아보는 타입이다"
     },
     {
-      code: "TS",
-      title: "팩트로 무장한 전파자",
-      description: `"${w2}"가 진짜인지 원문부터 까보고, 확신이 서면 그때 제일 크게 퍼뜨린다. 네 공유엔 신뢰가 붙는다 — 주변의 팩트체커.`,
-      strengths: ["공유하는 정보의 정확도가 높다", "설명을 잘해서 듣는 사람이 편하다", "논쟁에서 근거로 이긴다", "주변의 팩트체커 역할"],
-      weaknesses: ["검증하는 사이에 화제가 식어버릴 때가 있다"],
-      advice: ["가끔은 '아직 확실치 않은데 재밌다'로 먼저 던져도 괜찮다", "네 신중함이 곧 브랜드다"],
-      bestMatch: "FK",
-      worstMatch: "FS",
-      bestMatchReason: "TS가 검증한 걸 FK가 조용히 챙겨간다",
-      worstMatchReason: "FS는 먼저 던지고 TS는 뒤늦게 정정한다",
-      shareText: "나는 팩트로 무장한 전파자, 출처 없인 너한테 안 낚인다",
-      weeklyPick: `"${w2}" 얘기는 이 유형이 원문부터 파헤쳐볼 만한 소재다.`
+      code: "L2D",
+      title: "은근 있음 · 직설파",
+      description:
+        "평소엔 안 그런 척하다가도 후배 옷차림이나 말투에 한마디씩 얹는 편이다. 참을 땐 참지만 터지면 바로 직설로 나간다.",
+      strengths: ["할 말은 결국 하고야 만다", "선 넘는 건 확실히 짚는다", "솔직해서 뒤에서 말 안 나온다", "할 때 하고 안 할 때 안 한다"],
+      weaknesses: ["타이밍을 못 맞출 때가 있다", "가끔 훈수가 길어진다"],
+      advice: ["한마디로 끝낼 것도 세 마디로 늘리지 말자", "꼭 필요한 순간만 골라 말해보자"],
+      bestMatch: "L1D",
+      worstMatch: "L3E",
+      bestMatchReason: "L1D는 가볍게 받아주니 대화가 편하다",
+      worstMatchReason: "L3E는 돌려 말하면서 은근히 세게 나온다",
+      shareText: "나는 은근 있음, 평소엔 조용하다 훅 들어간다! 인정?",
+      weeklyPick: "회식 자리에서 술잔 순서 챙길 때 제일 티 나는 성향이다"
     },
     {
-      code: "TK",
-      title: "느긋한 큐레이터",
-      description: `"${w3}" 같은 건 북마크에 고이 모셔두고 일주일 뒤에 본다. 시간이 지나도 남을 것만 골라 담는 타입 — 네 북마크 폴더는 박물관급.`,
-      strengths: ["안목이 좋다 — 남는 콘텐츠를 알아본다", "차분해서 낚시성 이슈에 안 낚인다", "몰아보기의 달인", "장기 기억력이 좋다"],
-      weaknesses: ["실시간 드립 타이밍은 자주 놓친다"],
-      advice: ["아카이브를 가끔 열어 '그때 그 이슈' 회고를 해보자 — 은근 인기 콘텐츠다"],
-      bestMatch: "FS",
-      worstMatch: "FK",
-      bestMatchReason: "TK가 쟁여둔 걸 FS가 나서서 터뜨려준다",
-      worstMatchReason: "FK는 이미 알던 걸 TK는 이제야 발견한다",
-      shareText: "나는 느긋한 큐레이터 — 유행 지나고 정주행하는 편. 너는?",
-      weeklyPick: `"${w3}" 얘기는 이 유형이 유행 지나고 여유롭게 정주행할 소재다.`
+      code: "L2E",
+      title: "은근 있음 · 돌려말파",
+      description:
+        "훈수하고 싶은 마음은 있는데 티 안 나게 돌려서 흘리는 타입이다. 나중에 보면 은근 다 챙기고 있었던 사람이다.",
+      strengths: ["기분 안 상하게 알려준다", "눈치껏 상황을 조율한다", "돌려 말해도 결국 전달은 된다", "분위기 메이커에 가깝다"],
+      weaknesses: ["의도를 못 알아채는 사람에겐 안 먹힌다", "가끔 너무 돌려서 핵심이 흐려진다"],
+      advice: ["결정적인 한마디는 직접 해보자", "돌려 말한 다음엔 확인 한 번 하자"],
+      bestMatch: "L1E",
+      worstMatch: "L3D",
+      bestMatchReason: "둘 다 돌려 말해서 편하게 흘러간다",
+      worstMatchReason: "L3D는 직설로 세게 들어와 부담스럽다",
+      shareText: "나는 은근 있음 돌려말파, 다 챙기지만 티는 안 낸다 — 너는?",
+      weeklyPick: "메신저 답장 늦으면 은근 서운해도 티 안 내는 타입이다"
+    },
+    {
+      code: "L3D",
+      title: "인증된 꼰대 · 직설파",
+      description:
+        "나 때는 소리가 자동으로 나오고, 할 말은 절대 참지 않는다. 후배 옷차림부터 메신저 답장 속도까지 다 한마디씩 보태는 완전체다.",
+      strengths: ["할 말은 반드시 전달된다", "경험에서 나온 조언이 은근 도움될 때도 있다", "솔직함 하나는 확실하다", "뒤에서 다른 말 안 한다"],
+      weaknesses: ["듣는 사람이 부담스러워한다", "안 물어봐도 훈수를 시작한다"],
+      advice: ["물어보기 전엔 참는 연습을 해보자", "조언은 짧게, 한 번만 하자"],
+      bestMatch: "L2D",
+      worstMatch: "L1E",
+      bestMatchReason: "L2D는 훈수를 어느 정도 받아준다",
+      worstMatchReason: "L1E는 훈수 자체를 안 좋아해서 부딪힌다",
+      shareText: "나는 인증된 꼰대, 할 말은 절대 못 참는다 — 인정 못 해?",
+      weeklyPick: "새 앱 쓰라고 할 때 예전 방식 고집하는 게 제일 티 난다"
+    },
+    {
+      code: "L3E",
+      title: "인증된 꼰대 · 돌려말파",
+      description:
+        "훈수는 다 하는데 방식만 돌려서 한다 — 지나가듯 던지는 말에 사실 다 담겨 있다. 꼰대력은 최고치인데 스타일만 은근한 타입이다.",
+      strengths: ["기분 안 상하게 훈수를 전달한다", "분위기는 안 깬다", "경험담이 은근 쓸모 있을 때가 있다", "눈치는 빠르다"],
+      weaknesses: ["결국 훈수라는 건 다 티 난다", "돌려 말해서 더 길게 늘어진다"],
+      advice: ["하고 싶은 말은 짧게 줄여보자", "진짜 필요할 때만 꺼내자"],
+      bestMatch: "L2E",
+      worstMatch: "L1D",
+      bestMatchReason: "L2E는 돌려 말하는 결을 이해해준다",
+      worstMatchReason: "L1D는 직설이라 돌려 말하면 답답해한다",
+      shareText: "나는 인증된 꼰대인데 돌려서 말한다 — 너만 몰랐지",
+      weeklyPick: "회식에서 다들 마셔야 한다고 은근 압박 주는 게 티 난다"
     }
   ];
-  // 주간 브리핑 — David 실사용 피드백(2026-07-25): 채택 소재 수만큼, 처음
-  // 듣는 친구에게 말해주듯 한 줄 설명(커뮤니티 은어 없이, 무슨 일이
-  // 있었는지가 문장 안에 다 들어가게). tier는 결정적 템플릿이라 "대중화제"로
-  // 고정 — 실제 등급 판정은 Claude 생성 경로가 buildPrompt 0단계에서 매긴다.
-  const weeklyBrief = adopted.map((t) => ({
-    topic: t.title.slice(0, 12),
-    intro: `"${t.title.slice(0, 20)}" 얘기가 이번 주 커뮤니티에서 크게 돌았어.`,
-    tier: "대중화제"
-  }));
+
+  const weeklyBrief = [
+    {
+      topic: "꼰대력이란",
+      intro: "나이와 상관없이 잔소리·훈수 본능이 얼마나 강한지 재는 성향 축이야 — 20대도 꼰대력 높게 나올 수 있어.",
+      tier: "대중화제"
+    }
+  ];
+
   const quiz = {
-    title: `"${w0}" 뜬 날 내 반응 유형은?`,
-    description: `이번 주 "${w0}" 같은 화제들 앞에서 네 반응 축 2개를 재본다. 4가지 중 넌 어디?`,
+    theme: { id: theme.id, name_ko: theme.name_ko, format: "level_bands", hook_ko: theme.hook_ko },
+    title: `너의 ${theme.name_ko}은 몇 %일까?`,
+    description: "잔소리 앞에서 참는 편인지 못 참는 편인지, 스타일까지 솔직하게 재보는 자가진단.",
     weeklyBrief,
     axes,
+    bands,
     questions,
     results
   };
@@ -488,7 +600,7 @@ export function templateQuiz(topics, opts = {}) {
   return quiz;
 }
 
-// All pole-code combinations in axis order ("EP", "EA", ... ).
+// All pole-code combinations in axis order ("EP", "EA", ... ) — combo_types.
 export function allTypeCodes(axes) {
   let codes = [""];
   for (const axis of axes) {
@@ -497,17 +609,34 @@ export function allTypeCodes(axes) {
   return codes;
 }
 
+// All band × style-pole code combinations — level_bands. styleAxis may be
+// null/undefined (no style axis → codes are just the band codes).
+export function allLevelCodes(bands, styleAxis) {
+  const bandCodes = (bands || []).map((b) => b.code);
+  if (!styleAxis) return bandCodes;
+  const poles = [styleAxis.left.code, styleAxis.right.code];
+  return bandCodes.flatMap((bc) => poles.map((pc) => bc + pc));
+}
+
 // Structural validation shared by both generation paths. Enforces the design
-// spec from docs/quiz-design.md — anything the structured-outputs schema
-// can't express (cross-references, balance rules, counts).
+// spec — anything the structured-outputs schema can't express (cross-
+// references, balance rules, counts, format-dependent shape).
 export function validateQuiz(quiz) {
   if (!quiz || typeof quiz !== "object") throw new Error("퀴즈가 비어 있어요.");
   if (!quiz.title || !quiz.description) throw new Error("퀴즈 제목/설명이 없어요.");
 
-  // 주간 브리핑 — David 실사용 피드백(2026-07-25): 소재를 하나도 모르는
-  // 사람도 시작 전에 이해하게. 존재·intro 15~90자·비어있지 않음·친숙도
-  // 등급(tier)이 매니페스트 선언 목록 안에 있는지 검증 (개수를 몇 개
-  // 채웠는지는 토픽 컨텍스트가 필요해 gates.js QG2가 담당).
+  // 테마 — David 확정(2026-07-26): 테마가 이 퀴즈의 주인이다.
+  if (!quiz.theme || typeof quiz.theme !== "object") throw new Error("테마(theme)가 없어요.");
+  if (!quiz.theme.id || !quiz.theme.name_ko) throw new Error("테마 id/name_ko가 없어요.");
+  const format = quiz.theme.format;
+  if (format !== "combo_types" && format !== "level_bands") {
+    throw new Error(`테마 format이 잘못됐어요 (combo_types 또는 level_bands여야 해요): ${format}`);
+  }
+
+  // 사전설명(브리핑) — "이 테스트가 재는 것"을 하나도 모르는 사람도 시작
+  // 전에 이해하게. 존재·intro 15~90자·비어있지 않음·친숙도 등급(tier)이
+  // 매니페스트 선언 목록 안에 있는지 검증. 개수(1~3) 검사는 gates.js
+  // theme_coherence가 담당한다(형식이 아니라 바이럴 조건이라서).
   if (!Array.isArray(quiz.weeklyBrief) || quiz.weeklyBrief.length === 0) {
     throw new Error("주간 브리핑(weeklyBrief)이 없어요.");
   }
@@ -523,9 +652,13 @@ export function validateQuiz(quiz) {
     }
   }
 
-  // 축: 2~4개, id/극코드 유일, intro(이 축이 뭘 확인하는지 설명) 필수
-  if (!Array.isArray(quiz.axes) || quiz.axes.length < 2 || quiz.axes.length > 4) {
-    throw new Error("심리 축은 2~4개여야 해요.");
+  // 축: 개수는 format에 따라 다르다. id/극코드 유일, intro(이 축이 뭘
+  // 확인하는지 설명) 필수 — 형식과 무관하게 공통.
+  if (!Array.isArray(quiz.axes)) throw new Error("심리 축이 없어요.");
+  if (format === "combo_types") {
+    if (quiz.axes.length < 2 || quiz.axes.length > 4) throw new Error("심리 축은 2~4개여야 해요.");
+  } else {
+    if (quiz.axes.length < 1 || quiz.axes.length > 2) throw new Error("레벨형은 축이 1~2개(주 지표+선택 스타일)여야 해요.");
   }
   const axisIds = new Set();
   const poleCodes = new Set();
@@ -533,8 +666,6 @@ export function validateQuiz(quiz) {
     if (!axis.id || !axis.name) throw new Error("축 id/이름이 비었어요.");
     if (axisIds.has(axis.id)) throw new Error(`축 id가 중복돼요: ${axis.id}`);
     axisIds.add(axis.id);
-    // David 실사용 피드백(2026-07-25): "이 테스트가 뭘 확인하는지" 처음
-    // 온 사람에게 설명하고 시작해야 한다.
     const axisIntro = String(axis.intro || "").trim();
     if (!axisIntro) throw new Error(`축 ${axis.id}의 intro(이 축이 뭘 확인하는지 설명)가 없어요.`);
     if (axisIntro.length < 15 || axisIntro.length > 70) {
@@ -547,12 +678,42 @@ export function validateQuiz(quiz) {
     }
   }
 
-  // 문항: 총 8~15개, 축당 3개 이상, 문항당 1축, 양극이 답변에 모두 존재
-  if (!Array.isArray(quiz.questions) || quiz.questions.length < 8 || quiz.questions.length > 15) {
-    throw new Error("문항은 8~15개여야 해요 (완주율 스펙).");
+  // level_bands 전용: bands 최상위 필드 — 3~5개, 0~100 연속 커버·겹침 금지.
+  let styleAxis = null;
+  if (format === "level_bands") {
+    if (!Array.isArray(quiz.bands) || quiz.bands.length < 3 || quiz.bands.length > 5) {
+      throw new Error("레벨형은 밴드(bands)가 3~5개여야 해요.");
+    }
+    const sorted = [...quiz.bands].sort((a, b) => a.min - b.min);
+    const bandCodes = new Set();
+    for (const b of sorted) {
+      if (!b.code || !String(b.code).trim()) throw new Error("밴드 code가 비었어요.");
+      if (bandCodes.has(b.code)) throw new Error(`밴드 code가 중복돼요: ${b.code}`);
+      bandCodes.add(b.code);
+      if (!b.label_ko || !String(b.label_ko).trim()) throw new Error(`밴드 ${b.code}의 label_ko가 비었어요.`);
+      if (typeof b.min !== "number" || typeof b.max !== "number" || b.min > b.max) {
+        throw new Error(`밴드 ${b.code}의 min/max가 잘못됐어요.`);
+      }
+    }
+    if (sorted[0].min !== 0) throw new Error("밴드가 0%부터 시작해야 해요(연속 커버).");
+    if (sorted[sorted.length - 1].max !== 100) throw new Error("밴드가 100%까지 커버해야 해요(연속 커버).");
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].min !== sorted[i - 1].max + 1) {
+        throw new Error(`밴드 ${sorted[i - 1].code}·${sorted[i].code} 사이가 겹치거나 비어 있어요(연속 커버, 겹침 금지).`);
+      }
+    }
+    if (quiz.axes.length === 2) styleAxis = quiz.axes[1];
+  }
+
+  // 문항: format별 총 개수 범위, 축당 3개 이상, 문항당 1축, 양극이 답변에
+  // 모두 존재.
+  const qs = Array.isArray(quiz.questions) ? quiz.questions : null;
+  const [qMin, qMax] = format === "combo_types" ? [12, 16] : [9, 12];
+  if (!qs || qs.length < qMin || qs.length > qMax) {
+    throw new Error(`문항은 ${qMin}~${qMax}개여야 해요 (${format === "combo_types" ? "유형 조합형" : "레벨형"} 스펙).`);
   }
   const perAxis = {};
-  for (const q of quiz.questions) {
+  for (const q of qs) {
     if (!q.q || !axisIds.has(q.axis)) throw new Error(`문항의 축 태그가 잘못됐어요: ${q.axis}`);
     perAxis[q.axis] = (perAxis[q.axis] || 0) + 1;
     if (!Array.isArray(q.answers) || q.answers.length < 2 || q.answers.length > 4) {
@@ -571,15 +732,15 @@ export function validateQuiz(quiz) {
     if ((perAxis[id] || 0) < 3) throw new Error(`축 ${id}의 문항이 3개 미만이에요 (판정 안정성).`);
   }
 
-  // 유형: 극 조합을 정확히 커버, 80:20 서술, 궁합 상호 참조
-  const codes = allTypeCodes(quiz.axes);
+  // 유형: format에 맞는 코드 조합을 정확히 커버, 80:20 서술, 궁합 상호 참조
+  const codes = format === "combo_types" ? allTypeCodes(quiz.axes) : allLevelCodes(quiz.bands, styleAxis);
   if (!Array.isArray(quiz.results)) throw new Error("결과 유형이 없어요.");
   const resultCodes = new Set(quiz.results.map((r) => r.code));
   if (resultCodes.size !== quiz.results.length) throw new Error("유형 code가 중복돼요.");
   for (const c of codes) {
     if (!resultCodes.has(c)) throw new Error(`유형 조합 ${c}의 결과가 없어요.`);
   }
-  if (quiz.results.length !== codes.length) throw new Error("유형 수가 극 조합 수와 달라요.");
+  if (quiz.results.length !== codes.length) throw new Error("유형 수가 코드 조합 수와 달라요.");
   for (const r of quiz.results) {
     if (!r.title || !r.description || !r.shareText) throw new Error(`유형 ${r.code}의 서술이 비었어요.`);
     if (!Array.isArray(r.strengths) || r.strengths.length < 3 || r.strengths.length > 5) {
@@ -593,14 +754,10 @@ export function validateQuiz(quiz) {
     }
     if (!resultCodes.has(r.bestMatch) || r.bestMatch === r.code) throw new Error(`유형 ${r.code}의 bestMatch가 잘못됐어요.`);
     if (!resultCodes.has(r.worstMatch) || r.worstMatch === r.code) throw new Error(`유형 ${r.code}의 worstMatch가 잘못됐어요.`);
-    // 궁합 이유 — 왜 맞는지/왜 부딪히는지 한 줄 상황극 (2차 검수: 케미가 코드
-    // 조합만 보여주고 근거가 없어 설득력이 없다는 지적 반영).
     if (!r.bestMatchReason || !String(r.bestMatchReason).trim()) throw new Error(`유형 ${r.code}의 bestMatchReason이 비었어요.`);
     if (!r.worstMatchReason || !String(r.worstMatchReason).trim()) throw new Error(`유형 ${r.code}의 worstMatchReason이 비었어요.`);
     if (String(r.bestMatchReason).length > 40) throw new Error(`유형 ${r.code}의 bestMatchReason이 40자를 넘어요.`);
     if (String(r.worstMatchReason).length > 40) throw new Error(`유형 ${r.code}의 worstMatchReason이 40자를 넘어요.`);
-    // R2(리서치 제안): 유형별 실용 추천물 — 채택 소재 중 이 유형이 제일
-    // 즐길 것 + 왜(60자 이내). 핀플리/MaBTI의 "결과문 3층 구조" 3번째 층.
     if (!r.weeklyPick || !String(r.weeklyPick).trim()) throw new Error(`유형 ${r.code}의 weeklyPick이 비었어요.`);
     if (String(r.weeklyPick).length > 60) throw new Error(`유형 ${r.code}의 weeklyPick이 60자를 넘어요.`);
   }
@@ -608,13 +765,12 @@ export function validateQuiz(quiz) {
 }
 
 // Dispatch: live generation when a key is available, template otherwise.
-export async function generateQuiz(topics, opts = {}) {
-  if (!Array.isArray(topics) || topics.length === 0) throw new Error("토픽이 없어요.");
+export async function generateQuiz(opts = {}) {
   const apiKey = opts.apiKey || process.env.ANTHROPIC_API_KEY;
   if (apiKey) {
-    return { quiz: await generateQuizWithClaude(topics, { ...opts, apiKey }), via: "claude" };
+    return { quiz: await generateQuizWithClaude({ ...opts, apiKey }), via: "claude" };
   }
-  return { quiz: templateQuiz(topics, opts), via: "template" };
+  return { quiz: templateQuiz(opts), via: "template" };
 }
 
 // URL slug: week label + a short stable hash of the title, so slugs are

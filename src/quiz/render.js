@@ -34,16 +34,25 @@ const SHARE_BLOCK_TEMPLATE = CONTRACT.share_block_template_ko;
 // 유입 등 응답 통계 미제공) 그 줄에서 "— 응답자 중 {sharePercent}%"처럼
 // em-dash로 이어진 절 전체를 들어낸다 — 빈 괄호/빈 퍼센트를 남기지 않는다.
 export function buildShareBlock(templateLines, vars = {}) {
-  const lines = (Array.isArray(templateLines) ? templateLines : []).map((line) => {
-    let out = String(line);
-    if (vars.sharePercent == null && out.includes("{sharePercent}")) {
-      out = out.replace(/\s*—\s*[^{}]*\{sharePercent\}[^{}]*/gu, "").trimEnd();
-    }
-    for (const [key, val] of Object.entries(vars)) {
-      out = out.split(`{${key}}`).join(val == null ? "" : String(val));
-    }
-    return out;
-  });
+  const lines = (Array.isArray(templateLines) ? templateLines : [])
+    .map((line) => {
+      let out = String(line);
+      if (vars.sharePercent == null && out.includes("{sharePercent}")) {
+        out = out.replace(/\s*—\s*[^{}]*\{sharePercent\}[^{}]*/gu, "").trimEnd();
+      }
+      // {levelPercent} — David 확정(2026-07-26): 레벨형 결과 전용 자리.
+      // combo_types거나 개인 응답 정보가 없으면 그 줄 전체를 들어낸다(빈
+      // 절만 지우는 sharePercent와 달리, 이 줄은 통째로 레벨형 전용이라
+      // 줄 자체를 생략한다).
+      if (vars.levelPercent == null && out.includes("{levelPercent}")) {
+        return null;
+      }
+      for (const [key, val] of Object.entries(vars)) {
+        out = out.split(`{${key}}`).join(val == null ? "" : String(val));
+      }
+      return out;
+    })
+    .filter((line) => line !== null);
   return lines.join("\n");
 }
 
@@ -151,22 +160,27 @@ export function renderQuizPage(record, origin) {
   // 값끼리 겹쳐 "약 2~2분" 같은 티가 나는 버그가 있었다. 분 계산 로직을
   // 범위 대신 올림 한 값으로 고쳤다).
   const estMinutes = Math.max(1, Math.ceil(qCount / 5));
-  // 이 테스트가 알아보는 것 — David 실사용 피드백(2026-07-25): 시작 전에
-  // "이 테스트가 뭘 확인하는지"를 설명한다. intro 없는 과거 데이터(하위호환)는
-  // 조용히 생략한다.
+  // 이 테스트가 알아보는 것 — David 확정(2026-07-26): 테마 hook을 크게
+  // 보여주고 그 아래 축 intro를 나열한다(테마가 주인). hook_ko/axes intro가
+  // 없는 과거 데이터(하위호환)는 있는 부분만 조용히 렌더한다.
+  const themeHook = quiz.theme && quiz.theme.hook_ko;
   const axesWithIntro = quiz.axes.filter((a) => a && a.intro);
-  const axisIntroSection = axesWithIntro.length
-    ? `<div class="card">
+  const axisIntroSection =
+    themeHook || axesWithIntro.length
+      ? `<div class="card">
 <h2>이 테스트가 알아보는 것</h2>
+${themeHook ? `<p style="font-size:1.1rem;font-weight:600;margin-bottom:8px">${esc(themeHook)}</p>` : ""}
 <ul class="plain">${axesWithIntro.map((a) => `<li><b>${esc(a.name)}</b> — ${esc(a.intro)}</li>`).join("")}</ul>
 </div>`
-    : "";
-  // 30초 브리핑 — 소재를 하나도 모르는 사람도 시작 전에 무슨 일이 있었는지
-  // 알 수 있게. weeklyBrief 없는 과거 데이터(하위호환)는 카드 자체를 생략한다.
+      : "";
+  // 이 테스트가 재는 것 — David 확정(2026-07-26): weeklyBrief의 의미가
+  // "이번 주 소재 사전설명"에서 "이 테스트가 재는 것" 설명으로 바뀌었다
+  // (테마가 주인이 되면서 주간 소재 종속성이 사라졌다). weeklyBrief 없는
+  // 과거 데이터(하위호환)는 카드 자체를 생략한다.
   const brief = Array.isArray(quiz.weeklyBrief) ? quiz.weeklyBrief : [];
   const briefSection = brief.length
     ? `<div class="card">
-<h2>들어가기 전 30초 브리핑</h2>
+<h2>이 테스트가 재는 것</h2>
 <ul class="plain">${brief.map((b) => `<li><b>${esc(b.topic)}</b> — ${esc(b.intro)}</li>`).join("")}</ul>
 </div>`
     : "";
@@ -254,11 +268,26 @@ export function renderResultPage(record, result, origin, opts = {}) {
   const sharePercent = stats && stats.share && stats.share[result.code] != null ? stats.share[result.code] : null;
   const rarity = sharePercent != null ? `<span class="badge">지금까지 응답자 중 ${sharePercent}%가 이 유형</span>` : "";
 
+  // 레벨형 결과 — David 확정(2026-07-26): "꼰대력 37%" 식으로 레벨 %를
+  // 크게 보여준다. percents(본인 응답)가 없으면(공유 유입) 개인 수치를
+  // 지어내지 않고 밴드 이름만 보여준다.
+  const isLevelFormat = quiz.theme && quiz.theme.format === "level_bands";
+  const levelPercent = isLevelFormat && percents ? percents[0] : null;
+  const bandInfo = isLevelFormat
+    ? (Array.isArray(quiz.bands) ? quiz.bands : []).find((b) => result.code.startsWith(b.code))
+    : null;
+  const levelHeadline = isLevelFormat
+    ? `<p style="margin-top:6px;font-size:1rem">${esc(quiz.theme.name_ko)} ${
+        levelPercent != null ? `<b style="font-size:1.6rem;color:${color}">${levelPercent}%</b>` : ""
+      }${bandInfo ? ` — ${esc(bandInfo.label_ko)}` : ""}</p>`
+    : "";
+
   // 복붙 공유 블록 — 붙여넣으면 그 자체로 완결(무슨 테스트/유형인지 + 링크).
   const shareBlock = buildShareBlock(SHARE_BLOCK_TEMPLATE, {
     title: quiz.title,
     typeTitle: result.title,
     sharePercent,
+    levelPercent,
     shareText: result.shareText,
     url
   });
@@ -281,10 +310,13 @@ export function renderResultPage(record, result, origin, opts = {}) {
     })
     .join("\n");
 
-  // 이번 주 네 픽 — R2(리서치 제안): 유형별 실용 추천물, 결과문 3층 구조의
-  // 3번째 층. weeklyPick 없는 과거 데이터(하위호환)는 조용히 생략한다.
+  // 이 성향이 제일 티 나는 순간 — David 확정(2026-07-26): weeklyPick 라벨이
+  // "이번 주 네 픽"(주간 소재 추천물)에서 "이 성향이 제일 티 나는 순간"으로
+  // 바뀌었다(테마가 주인이 되며 주간 소재 종속성이 사라졌다). 라벨은
+  // 매니페스트 result_labels_ko.weekly_pick이 원본. weeklyPick 없는 과거
+  // 데이터(하위호환)는 조용히 생략한다.
   const weeklyPick = result.weeklyPick
-    ? `<p class="desc" style="font-size:.85rem;margin-top:8px">📌 이번 주 네 픽 — ${esc(result.weeklyPick)}</p>`
+    ? `<p class="desc" style="font-size:.85rem;margin-top:8px">📌 ${esc(LABELS.weekly_pick)} — ${esc(result.weeklyPick)}</p>`
     : "";
 
   // 공유 인센티브 슬롯(R7) — 매니페스트 share_incentive.enabled 확인 후에만
@@ -299,6 +331,7 @@ export function renderResultPage(record, result, origin, opts = {}) {
     `<div class="card result-card" style="border-color:${color}">
 <p class="desc" style="font-size:.85rem">${esc(quiz.title)}</p>
 <h1 style="color:${color}">${esc(result.title)}</h1>
+${levelHeadline}
 ${rarity}
 <p style="margin-top:10px">${esc(result.description)}</p>
 ${weeklyPick}

@@ -49,35 +49,52 @@ G5→QG5, G6→QG6` (WRC 컨벤션: 팩 접두 — 전 팩 공유 표면에서�
 > 확인하는지"), topics.js의 cross_source_bonus/max_single_source_topics.
 
 > **주제선정 큐레이션 개편 (David 실사용 피드백 2026-07-26, "주제 자체가
-> 별로", 매니페스트 version 5)**: 기계 선정(hotness 랭킹)을 최종 결정권자
-> 지위에서 내려, `candidate_pool_size`(15)개짜리 후보 풀만 추리게 했다.
-> 실제 채택(`checks.topics.count`, 5개)은 `buildPrompt()` [0단계]에서
-> 생성자가 `quiz_fit_criteria_ko`(자기투영·성향 갈림·감정취향 자극·설명
-> 부담) 기준으로 직접 고른다. **QG2의 의미가 바뀐다**: `context.topics`는
-> 이제 "이번 주 확정 소재"가 아니라 "후보 풀"이고, 실제 채택 소재 집합은
-> `quiz.weeklyBrief`의 topic들로 정의한다 — 자세한 파이프라인·조정법은
-> [quiz-topic-selection.md](quiz-topic-selection.md) 참고.
+> 별로", 매니페스트 version 5, superseded)**: 기계 선정(hotness 랭킹)을 최종
+> 결정권자 지위에서 내려, `candidate_pool_size`(15)개짜리 후보 풀만 추리게
+> 했다. 자세한 이전 파이프라인·조정법은
+> [quiz-topic-selection.md](quiz-topic-selection.md)(역사적 문서) 참고 —
+> **아래 방향 정정으로 이 설계 자체가 대체됐다.**
+
+> **테마 우선 전환 (David 확정 2026-07-26, "테스트 하나 = 성향 하나",
+> 매니페스트 version 6)**: 위 큐레이션 개편조차 "소재를 잘 고르면 된다"는
+> 전제가 틀렸다는 게 David의 결론이다 — **테마(성향 하나)가 주인이고, 결과
+> 형태는 테마 따라 유연하다** (`combo_types`=유형 조합형, `level_bands`=주
+> 지표 %+밴드). 핫아이템 수집 파이프라인은 폐기가 아니라 **유행 테스트 신호
+> 탐지용으로 전환**된다 — 화제 뉴스가 아니라 "요즘 이런 테스트가 도는지"를
+> 본다(`topics.js pickTestTrendSignals`, `pack_contract.trend_signal_*`).
+> `weekly.js prompt`는 이제 ① 유행 테스트 신호(참고용) ② 테마 후보 풀
+> (`pack_contract.theme.pool`, 최근 `no_repeat_weeks` 재사용 테마 제외)을
+> `buildPrompt()`에 넘기고, [0단계]에서 생성자가 테마 1개를 직접 고른다
+> (`--theme <id>`로 강제 지정 가능). **토픽 결박 게이트(제목/결과 토픽
+> 키워드·토픽 커버리지·문항 토픽 비율·브리핑 토픽 커버리지)는 전부
+> 폐기됐고**, QG2에 `theme_coherence` 검사(제목+소개·결과 서술 중 하나에
+> 테마 어절 포함, weeklyBrief 1~3개)가 대신 들어갔다. 테마 재사용 검사는
+> 게이트가 아니라 `weekly.js submit`이 `theme_history.json` 기반으로
+> 별도 수행한다.
 
 ## 플로우차트
 
 ```mermaid
 flowchart TD
-    A[핫아이템 수집<br/>피드 수집기 / JSON 덤프] --> G0{QG0 토픽 게이트 HARD<br/>정치·종교·성인 제외<br/>+ 출처당 캡 + hotness 랭킹}
-    G0 -- 전부 탈락 --> X0[실행 중단<br/>소재 없음 보고]
-    G0 -- 후보 풀 15개<br/>candidate_pool_size --> GEN[AI 생성<br/>0.소재 해부+quiz_fit_criteria로 5개 채택 → 1.컨셉 → 2.문항 초고<br/>→ 3.결과 초고 → 4.셀프 검수 → 5.제출]
+    A[핫아이템 수집<br/>유행 테스트 신호 탐지용] --> G0{QG0 세이프티 필터 HARD<br/>정치·종교·성인 제외<br/>+ 트렌드 신호 키워드 매칭}
+    G0 --> TREND[유행 테스트 신호 목록<br/>참고용, top N]
+    POOL[테마 후보 풀<br/>pack_contract.theme.pool<br/>최근 no_repeat_weeks 재사용 제외] --> GEN
+    TREND --> GEN[AI 생성<br/>0.테마 선정+해부(--theme로 강제 가능) → 1.컨셉(형태 결정) → 2.문항 초고<br/>→ 3.결과 초고 → 4.셀프 검수 → 5.제출]
 
-    GEN --> G1{QG1 구조 게이트 HARD<br/>축·문항·유형·80:20·궁합<br/>+ 오프닝 종결 쏠림}
+    GEN --> G1{QG1 구조 게이트 HARD<br/>축·문항·유형·80:20·궁합<br/>+ 오프닝 종결 쏠림<br/>+ 형태별(combo/level) 분기}
     G1 -- fail --> FB[반려 사유 수집<br/>게이트ID + 사유]
-    G1 -- pass --> G2{QG2 바이럴 게이트 HOLD<br/>채택 소재 개수·풀 소속 검증<br/>+ 제목 훅·I-got 공유문구<br/>결과문 분량·채택소재 커버리지·문항 비율}
+    G1 -- pass --> G2{QG2 바이럴 게이트 HOLD<br/>테마 정합성(theme_coherence)<br/>+ 제목 훅·I-got 공유문구<br/>결과문 분량·공유문구 다양성}
     G2 -- fail --> FB
     G2 -- pass --> G3{QG3 AI-티 게이트 HOLD<br/>격식체·상담봇 관용구<br/>선택지 복붙·유형명 중복}
     G3 -- fail --> FB
     G3 -- pass --> G4{QG4 채점 무결성 게이트 HARD<br/>축별 가중치 균형 35:65}
     G4 -- fail --> FB
-    G4 -- pass --> DRAFT[초안 저장 drafts/<br/>게이트 이력·run id 동봉<br/>원자적 쓰기]
+    G4 -- pass --> HIST{테마 이력 검사<br/>weekly.js submit, 게이트 아님<br/>no_repeat_weeks 재사용 반려}
+    HIST -- fail --> FB
+    HIST -- pass --> DRAFT[초안 저장 drafts/<br/>게이트 이력·run id 동봉<br/>테마 이력 기록·원자적 쓰기]
 
     FB -- "시도 < retry_budget<br/>사유를 프롬프트에 주입" --> GEN
-    FB -- "예산 소진 또는 템플릿<br/>fail-loud: 판정+사유 전체" --> X1[실패 보고<br/>사람이 토픽 교체 판단]
+    FB -- "예산 소진 또는 템플릿<br/>fail-loud: 판정+사유 전체" --> X1[실패 보고<br/>사람이 테마 교체 판단]
 
     DRAFT --> G5{QG5 사람 승인 게이트 david<br/>decision_queue<br/>approve 전 david_pending 정지}
     G5 -- 반려 --> X2[초안 폐기 / 재생성 지시]
@@ -94,11 +111,12 @@ flowchart TD
 
 | 게이트 | 등급 | 조건 (전부 충족해야 통과) | 실패 시 | 코드 |
 |---|---|---|---|---|
-| **QG0 토픽** | HARD | `excluded_topics`(정치·종교·성인) 제외 · `topic_safety`(연예인 사생활·재난공포 키워드 제목 매칭) 제외 · **출처(source)당 최대 `max_per_source`개 캡(후보 부족 시에만 캡 초과 허용해 개수 보장 — 실패 대신 채움, 2차 검수: theqoo 단일 출처 편중 해소)** · **다른 출처 제목과 핵심 토큰 2개+ 겹치는 후보에 `cross_source_bonus` 가산점(대중성 신호), 신호 없는(단일 커뮤 내수) 후보는 `max_single_source_topics`개로 별도 캡(후보 부족 시에만 완화 — David 실사용 피드백)** · hotness 상위 `candidate_pool_size`(15, 2026-07-26 개편 — 종전엔 최종 개수(5)까지만 뽑았다) · 제목 중복 제거 | 소재 폐기, 전부 탈락 시 실행 중단 | `topics.js` |
-| **QG1 구조** | HARD | 축 2~4개(극 코드 유일, `generation.axes_count`는 프롬프트 지시값일 뿐 이 하한을 강제로 올리지 않음) · **축마다 intro(이 축이 뭘 확인하는지 처음 온 사람에게 설명, 15~70자) 필수** · 문항 8~15개 · 축당 3문항+ · 문항당 1축 · 답변에 양극 혼합(정답 냄새/조작 방지) · 유형 = 극 조합 전체 커버 · 강점 3~5 + 성장 포인트 1~2(80:20) · 조언 1~3 · 궁합 상호 지정(자기 자신 금지) · **궁합 이유(bestMatchReason/worstMatchReason) 비어있지 않음 + 40자 이내** · **weeklyPick(유형별 실용 추천물, R2) 비어있지 않음 + 60자 이내** · **주간 브리핑(weeklyBrief) 존재 + 항목별 topic/intro(15~90자)/tier(친숙도 등급, familiarity_tiers 목록 중 하나) 필수** · **문항별 답변 개수 통일** · **문항 쌍별 유사도 ≤ `question_similarity_max`(같은 소재/문장 재탕 금지)** · **축별 1번 답 pole 혼합(역채점 균형, 전부 같은 극이면 반려)** · **결과 서술 오프닝 종결 최빈 패턴 비율 ≤ `opening_pattern_max_ratio`(2차 검수: "~게 너다" 8/8 템플릿 티 방지)** | 반려 → 재생성 피드백 | `generate.js` `validateQuiz`, `gates.js` QG1 |
-| **QG2 바이럴** | HOLD | **(2026-07-26 개편) 채택 소재 = `quiz.weeklyBrief`의 topic들로 정의 — ① `weeklyBrief.length` = 채택 개수(`checks.topics.count`, 풀이 더 작으면 그 개수)와 정확히 일치 ② 각 `weeklyBrief[].topic`이 후보 풀(15개) 중 하나와 토큰이 겹쳐야 함(풀 밖 소재 발명 금지 — 위반 시 반려)** · 제목 8~40자(미리보기 훅) · 소개 20~90자 · 유형 서술 40자 이상 `result_desc_chars_max`(220자) 이하 · 공유 문구에 "나는 ○○"(I-got) + 상대 호명 훅 · 공유 문구 `share_text_chars_max`(60자) 이내 · 답변 40자 이내(한 줄) · **(topics 컨텍스트 있을 때) 제목+소개에 채택 소재 어절 최소 1개** · **(topics 컨텍스트 있을 때) 각 결과 서술에 채택 소재 어절 최소 1개(유형 code 명시)** · **(topics 컨텍스트 있을 때) 결과 서술 전체의 채택 소재 커버리지 ≥ min(채택 소재 수, 유형 수) — 미달 시 빠진 소재 명시(2차 검수: 한두 소재만 우려먹지 않게)** · **(topics 컨텍스트 있을 때) 문항 채택소재 파생 비율 ≥ `question_topic_bound_min_ratio`(범용 필러 최소화)** · **공유 문구 쌍별 유사도 ≤ `share_text_similarity_max`(템플릿 복붙 금지)** · **공유 문구 물음표 종결 비율 ≤ `share_text_question_ending_max_ratio`(반문형 일색 금지 — 감탄·선언·도발형 혼합)** | 반려 → 재생성 피드백 | `gates.js` QG2 |
+| **QG0 세이프티** | HARD | `excluded_topics`(정치·종교·성인) 제외 · `topic_safety`(연예인 사생활·재난공포 키워드 제목 매칭) 제외 — **2026-07-26 이후: 최종 소재 채택이 아니라 유행 테스트 신호 후보(`trend_signal_keywords` 매칭, hotness 상위 `trend_signal_top_n`)에 적용**. `pickWeeklyTopics`(구 채택 파이프라인)는 함수로는 남아있지만 `weekly.js`가 더 이상 호출하지 않는다 | 신호 폐기 (테마 선정 자체는 막지 않음) | `topics.js` |
+| **QG1 구조** | HARD | **테마(theme) 필수** — id/name_ko/format(combo_types\|level_bands) · **combo_types**: 축 2~4개(극 코드 유일) · 문항 12~16개 · 유형 = 극 조합 전체 커버. **level_bands**: 축 1~2개(주 지표+선택 스타일) · `bands` 3~5개(0~100 연속 커버·겹침 금지) · 문항 9~12개 · 유형 = 밴드×스타일 조합 전체 커버 · **축마다 intro(이 축이 뭘 확인하는지 처음 온 사람에게 설명, 15~70자) 필수** · 축당 3문항+ · 문항당 1축 · 답변에 양극 혼합(정답 냄새/조작 방지) · 강점 3~5 + 성장 포인트 1~2(80:20) · 조언 1~3 · 궁합 상호 지정(자기 자신 금지) · **궁합 이유(bestMatchReason/worstMatchReason) 비어있지 않음 + 40자 이내** · **weeklyPick("이 성향이 제일 티 나는 순간") 비어있지 않음 + 60자 이내** · **주간 브리핑(weeklyBrief) 존재 + 항목별 topic/intro(15~90자)/tier(친숙도 등급) 필수** · **문항별 답변 개수 통일** · **문항 쌍별 유사도 ≤ `question_similarity_max`** · **축별 1번 답 pole 혼합(역채점 균형)** · **결과 서술 오프닝 종결 최빈 패턴 비율 ≤ `opening_pattern_max_ratio`** | 반려 → 재생성 피드백 | `generate.js` `validateQuiz`, `gates.js` QG1 |
+| **QG2 바이럴** | HOLD | **(2026-07-26 개편) 테마 정합성(`theme_coherence`) — 토픽 결박 게이트(제목/결과 토픽 키워드·토픽 커버리지·문항 토픽 비율·브리핑 토픽 커버리지) 전부 폐기, 이걸로 대체**: ① 제목+소개에 `theme.name_ko` 어절(2자+) 포함 ② 결과 서술 또는 그 유형의 weeklyPick 중 어딘가 한 곳에라도 테마 어절 포함(전 결과 강제 아님 — 관대) ③ weeklyBrief 1~3개("이 테스트가 재는 것" 설명) · 제목 8~40자(미리보기 훅) · 소개 20~90자 · 유형 서술 40자 이상 `result_desc_chars_max`(220자) 이하 · 공유 문구에 "나는 ○○"(I-got) + 상대 호명 훅 · 공유 문구 `share_text_chars_max`(60자) 이내 · 답변 40자 이내(한 줄) · **공유 문구 쌍별 유사도 ≤ `share_text_similarity_max`(템플릿 복붙 금지)** · **공유 문구 물음표 종결 비율 ≤ `share_text_question_ending_max_ratio`(반문형 일색 금지 — 감탄·선언·도발형 혼합, level_bands는 수치 자랑 허용)** | 반려 → 재생성 피드백 | `gates.js` QG2 |
 | **QG3 AI-티** | HOLD | 격식체·상담봇 관용구 금지("물론입니다", "여러분", "하십시오", "~합니다/습니다/입니다/됩니다/드립니다", "~하세요/해보세요", "습관 들이기"…) · **주간 브리핑(weeklyBrief)·축 intro도 검사 대상(단 친절한 반말 설명톤 "~했어/~된 거야"는 통과)** · 선택지 고유율 80%+(복붙 티 금지) · 유형 이름 중복 금지 | 반려 → 재생성 피드백 | `gates.js` QG3 |
 | **QG4 채점 무결성** | HARD | 축별 선택지 가중치 좌:우 = 35:65 이내("다 이거 나오던데" 쏠림 방지) | 반려 → 재생성 피드백 | `gates.js` QG4 |
+| **테마 이력** (게이트 아님) | — | 매니페스트 `pack_contract.theme.no_repeat_weeks`(8) 안에 다른 회차로 이미 쓴 테마면 반려(`weekly.js submit`) — 같은 회차 재실행은 충돌로 안 봄(run_binding 멱등성). 통과 시 `theme_history.json`에 원자적 기록 | 반려 → 재생성 피드백(다른 테마 선택 또는 `--theme` 강제 지정) | `weekly.js` `checkThemeHistory`/`recordThemeHistory` |
 | **QG5 사람 승인** | kind: david | `publish quiz:` 작업이 `routeTask()`로 `decision_queue` 경유, `approve` 실행해야 발행. 재시도 없음(대기만), 우회 인자 없음 | 초안 유지(공개 경로 없음) | `store.js` `approve`, `router.js` |
 | **QG6 발행 후 루프** | GUIDE | 실응답 누적 → 희소성 통계 강화(라플라스 스무딩) · 공유 유입 → 재참여 루프 | — (지속 피드백) | `store.js` stats, `render.js` |
 
@@ -176,10 +194,24 @@ render.js buildShareBlock — 결과 페이지 렌더 문서화는 [quiz-design.
 낮추고 최종 채택(`checks.topics.count`=5)은 생성자가 buildPrompt [0단계]에서
 `quiz_fit_criteria_ko` 기준으로 직접 고르게 함. QG2가 `weeklyBrief`를 "채택
 소재" 정의로 삼아 개수·풀 소속을 검증(자세한 파이프라인은
-[quiz-topic-selection.md](quiz-topic-selection.md)). 히트작 코퍼스 리서치
-제안 R1~R7 반영: 4축 16유형 지시값(`generation.axes_count`) · 유형별 실용
-추천물(`weeklyPick`, QG1 필수) · OG 카드 강점+케미 보강(ogcard.js) · 카카오톡
-공유 버튼(render.js, `share_channels`) · 문항 비네트 "공유된 일상 경험" 지시 ·
-CTA 클릭 계측(`store.js recordCta`, `POST /api/quiz/:slug/cta`,
-`metrics.cta_click_benchmark_ratio`) · 공유 인센티브 슬롯 선언(`share_incentive`,
-enabled=false — David 별도 결정 대기).
+[quiz-topic-selection.md](quiz-topic-selection.md), 이후 아래 버전 6으로
+대체됨). 히트작 코퍼스 리서치 제안 R1~R7 반영: 4축 16유형 지시값
+(`generation.axes_count`) · 유형별 실용 추천물(`weeklyPick`, QG1 필수) · OG
+카드 강점+케미 보강(ogcard.js) · 카카오톡 공유 버튼(render.js,
+`share_channels`) · 문항 비네트 "공유된 일상 경험" 지시 · CTA 클릭 계측
+(`store.js recordCta`, `POST /api/quiz/:slug/cta`,
+`metrics.cta_click_benchmark_ratio`) · 공유 인센티브 슬롯 선언
+(`share_incentive`, enabled=false — David 별도 결정 대기).
+
+2026-07-26 David 확정 방향(매니페스트 버전 6, "테스트 하나 = 성향 하나"):
+**테마 우선 전환** — 위 버전 5의 "소재를 잘 고르면 된다"는 전제 자체를
+뒤집었다. 테마(성향 하나)가 이 팩의 주인이고, 매니페스트
+`pack_contract.theme.pool`(12개+ 선언, `selection_criteria_ko`)에서 고른다.
+핫아이템 수집은 폐기가 아니라 유행 테스트 신호 탐지용으로 전환
+(`topics.js pickTestTrendSignals`, `trend_signal_keywords`). 결과 형태는
+테마 따라 유연 — `combo_types`(기존 극 조합형) 또는 `level_bands`(주 지표
+%+밴드, 신설: `bands` 최상위 필드, `engine.js scoreQuiz` 밴드 판정,
+`ogcard.js`/`render.js` % 대형 표시). 토픽 결박 게이트 5종을 전부 폐기하고
+`theme_coherence` 검사로 대체. 테마 재사용은 게이트가 아니라
+`weekly.js submit`이 `theme_history.json`(no_repeat_weeks=8)으로 검사.
+`weekly.js prompt --theme <id>`로 테마 강제 지정 가능.

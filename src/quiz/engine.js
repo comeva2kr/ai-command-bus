@@ -2,10 +2,16 @@
 //
 // Each axis is scored as a spectrum: answers push toward the left or right
 // pole with weight 1~2, and the axis percentage = leftPts / (leftPts +
-// rightPts). The result type is the combination of dominant poles. This is
-// deliberately NOT type-sum argmax — per-axis percentages are explainable
-// ("당신은 이 축에서 64%"), make every result personally distinct, and absorb
-// borderline cases instead of flipping arbitrarily.
+// rightPts). This is deliberately NOT type-sum argmax — per-axis percentages
+// are explainable ("당신은 이 축에서 64%"), make every result personally
+// distinct, and absorb borderline cases instead of flipping arbitrarily.
+//
+// David 확정(2026-07-26): 결과 형태는 테마 따라 두 가지다 —
+//   - combo_types: 극 조합 전체가 결과 유형(기존 16personalities류 구조).
+//   - level_bands: axes[0](주 지표)의 leftPercent가 곧 "레벨 %"고, 그
+//     퍼센트가 속하는 밴드(quiz.bands)를 찾아 판정한다. 스타일 축(axes[1])이
+//     있으면 그 dominant pole code를 밴드 code에 이어붙여 결과 code를
+//     만든다(예: "L2" + "D" → "L2D").
 //
 // Deterministic on purpose — the same choices always give the same result
 // (an exact 50:50 axis resolves to the left pole; validateQuiz nudges
@@ -41,6 +47,17 @@ export function scoreQuiz(quiz, answerIndices) {
       pole: axis[dominant]
     };
   });
+
+  const format = quiz.theme && quiz.theme.format;
+  if (format === "level_bands") {
+    const levelPercent = axes[0].leftPercent;
+    const band = (quiz.bands || []).find((b) => levelPercent >= b.min && levelPercent <= b.max);
+    if (!band) throw new Error(`레벨 ${levelPercent}%에 해당하는 밴드가 없어요.`);
+    const code = axes.length > 1 ? band.code + axes[1].pole.code : band.code;
+    const result = quiz.results.find((r) => r.code === code);
+    if (!result) throw new Error(`유형 ${code}의 결과 서술이 없어요.`);
+    return { code, result, axes, levelPercent, band: { code: band.code, label: band.label_ko } };
+  }
 
   const code = axes.map((a) => a.pole.code).join("");
   const result = quiz.results.find((r) => r.code === code);

@@ -158,3 +158,54 @@ function stripInternal(c) {
   const { title, url, source, score } = c;
   return { title, url, source, score };
 }
+
+// ---------------------------------------------------------------------------
+// 유행 테스트 신호 탐지 (David 확정, 2026-07-26) — "테스트 하나 = 성향 하나"가
+// 주인이 되면서, 핫아이템 수집 파이프라인은 그 주의 퀴즈 소재를 뽑는 역할에서
+// "요즘 어떤 테스트 유형이 도는지" 신호를 뽑는 참고 입력 역할로 전환된다.
+// 화제 뉴스(사건·이슈)가 아니라 "테스트/유형/성향/MBTI/레벨/지수/~력"류 제목
+// 자체를 감지한다 — 선언 원본은 매니페스트 (pack_contract.trend_signal_keywords).
+const TREND_SIGNAL_KEYWORDS = CONTRACT.trend_signal_keywords || [];
+// "~력" 플레이스홀더는 문자열 포함 매칭이 아니라 패턴 매칭이다 — 매니페스트
+// trend_signal_keywords_note_ko 참고(JS \b는 한글에서 실질적으로 동작하지
+// 않는다). 제목을 공백 토큰으로 쪼갠 뒤 "력"으로 끝나는 2자+ 토큰을 잡는다.
+function hasYeokPattern(title) {
+  return String(title || "")
+    .split(/\s+/)
+    .some((raw) => {
+      const cleaned = raw.replace(/[^\p{L}\p{N}]/gu, "");
+      return cleaned.length >= 2 && cleaned.endsWith("력");
+    });
+}
+function matchesTrendSignal(title) {
+  const t = String(title || "");
+  if (TREND_SIGNAL_KEYWORDS.some((kw) => kw !== "~력" && t.includes(kw))) return true;
+  return hasYeokPattern(t);
+}
+
+// 후보 제목이 "유행하는 테스트 유형" 신호(trend_signal_keywords 매칭)를 가진
+// 항목을 브랜드 세이프티 필터(isBrandSafe, pickWeeklyTopics와 동일)까지 거쳐
+// hotness 상위 N개(기본 trend_signal_top_n=10) 반환한다. 순위 신호일 뿐 —
+// 채택 여부는 buildPrompt [0단계]에서 생성자가 참고만 한다.
+export function pickTestTrendSignals(items, opts = {}) {
+  const limit = opts.limit || CONTRACT.trend_signal_top_n || 10;
+  const now = opts.now || Date.now();
+
+  const seen = new Set();
+  const candidates = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    const title = String(item.title || "").trim();
+    if (!title || seen.has(title)) continue;
+    if (!matchesTrendSignal(title)) continue;
+    if (!isBrandSafe(item)) continue;
+    seen.add(title);
+    candidates.push({
+      title,
+      url: item.url || null,
+      source: item.sourceLabel || item.sourceId || item.source || "unknown",
+      score: hotness(item, now)
+    });
+  }
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.slice(0, limit);
+}

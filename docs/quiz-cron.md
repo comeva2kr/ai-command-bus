@@ -15,7 +15,7 @@
 ## 구조
 
 - **생성기 = Claude Code 예약 세션.** 세션이 `weekly.js prompt`로 생성
-  프롬프트(토픽 + 설계 규칙, `buildPrompt()`가 단일 원본)를 받아 자기 모델로
+  프롬프트(테마 + 설계 규칙, `buildPrompt()`가 단일 원본)를 받아 자기 모델로
   퀴즈 JSON을 만들고, `weekly.js submit`으로 게이트 루프에 제출한다.
 - **게이트 루프는 그대로다.** `submit`은 `run`이 쓰던 것과 **동일한 계약**
   (`runGates` → PASS면 `saveDraft` + `routeTask('publish quiz')`
@@ -40,31 +40,33 @@
    핫아이템을 수집해 `data/quiz/hot_items-<weekLabel>.json`에 저장한다.
    수집 0건이면 이 스크립트가 exit 1로 실패한다 — 세션은 여기서 멈추고
    실패로 보고한다(다음 단계로 진행하지 않는다).
-3. **프롬프트 받기**: `node src/quiz/weekly.js prompt <dump.json>` — stdout에
-   찍히는 프롬프트를 그대로 자신의 생성 입력으로 쓴다. stderr에는 이번 주
-   **후보 풀**(candidate_pool_size=15개, 2026-07-26 개편 — 예전엔 최종 개수
-   5개만 나왔다) 요약이 참고용으로 나온다. 최종 채택은 세션이 4번 단계에서
-   직접 고른다.
+3. **프롬프트 받기**: `node src/quiz/weekly.js prompt <dump.json> [--theme <id>]` —
+   stdout에 찍히는 프롬프트를 그대로 자신의 생성 입력으로 쓴다. stderr에는
+   **테마 후보 풀**(매니페스트 `pack_contract.theme.pool`, 최근
+   `no_repeat_weeks`(8주) 안에 쓴 테마는 제외)과 **유행 테스트 신호**
+   (`topics.js pickTestTrendSignals` — "요즘 이런 테스트가 도는지"를 보는
+   참고 신호, 화제 뉴스 자체가 아님) 요약이 나온다. 테마 최종 선택은 세션이
+   4번 단계 [0단계]에서 직접 하거나, `--theme <id>`로 미리 강제 지정할 수
+   있다(선정 절차 생략, 바로 해부부터).
 4. **세션이 퀴즈 JSON을 생성**한다 — 프롬프트가 `buildPrompt()`(`src/quiz/generate.js`)의
-   5단계 전문가 작업 절차(0.소재 해부+채택 → 1.컨셉 → 2.문항 초고 → 3.결과 초고 →
-   4.셀프 검수 → 5.제출)로 되어 있다. **0단계에서 15개 후보 풀 중 정확히 5개를
-   `quiz_fit_criteria_ko`(자기투영·성향 갈림·감정취향 자극·설명 부담) 기준으로
-   채택**하는 것이 이번 개편의 핵심이다 — 화제성 순위가 높아도 퀴즈감이 없으면
-   버리고, 채택한 5개만 weeklyBrief·문항·결과에 쓴다(자세한 파이프라인은
-   [quiz-topic-selection.md](quiz-topic-selection.md)). **4단계 셀프 검수를
-   생략하지 말 것** — 코드 게이트(QG1~QG4)는 글자수·비율·유사도 같은 형식
-   조건만 잡고, 소재-행동 짜깁기·오프닝 템플릿화·극 조언 수렴 같은 의미 정합은
-   이 단계에서 세션이 스스로 체크리스트를 거쳐 잡아야 한다 — 건너뛰면 게이트를
-   통과해도 저품질 결과물이 나온다. 완성본은 퀴즈 스키마(`QUIZ_SCHEMA`,
-   `src/quiz/generate.js`, `bestMatchReason`/`worstMatchReason`/`weeklyPick`
-   포함)와 일치하는 JSON 파일로 저장한다.
-   **2026-07-25 David 실사용 피드백 이후**: 스키마에 `weeklyBrief`(소재 사전설명
-   — 채택 개수만큼, topic/intro/tier)와 `axes[].intro`(그 축이 뭘 확인하는지
-   설명)가 최상위 필수 필드로 추가됐다 — 0단계 소재 해부에서 브리핑과 친숙도
-   등급(국민상식/대중화제/커뮤내수)까지 함께 정리해야 4단계 셀프 검수와
-   QG1~QG2 게이트를 통과한다. **2026-07-26 이후**: `weeklyBrief`가 곧 "채택
-   소재" 선언이라 QG2가 개수(=채택 개수)·풀 소속(15개 후보 중 하나여야 함)을
-   검증한다 ([quiz-loopgate.md](quiz-loopgate.md) 참고).
+   5단계 전문가 작업 절차(0.테마 선정+해부 → 1.컨셉(형태 결정) → 2.문항 초고 →
+   3.결과 초고 → 4.셀프 검수 → 5.제출)로 되어 있다. **0단계에서 테마 후보 풀
+   중 1개를 `selection_criteria_ko`("나도 모르는 내 성향"·자기발견 보상·대화
+   소재성·보편 접근성) 기준으로 직접 선정**하는 것이 핵심이다 — "테스트 하나
+   = 성향 하나"가 원칙이라 여러 화제를 섞은 잡탕 문항은 실패작이다. 테마를
+   골랐으면 **형태(combo_types 유형 조합형 / level_bands 레벨형)도 재량으로
+   결정**한다(테마의 `suggested_format`은 참고일 뿐 강제 아님). **4단계 셀프
+   검수를 생략하지 말 것** — 코드 게이트(QG1~QG4)는 글자수·비율·유사도 같은
+   형식 조건만 잡고, 소재-행동 짜깁기·오프닝 템플릿화·극 조언 수렴·테마 혼입
+   같은 의미 정합은 이 단계에서 세션이 스스로 체크리스트를 거쳐 잡아야 한다.
+   완성본은 퀴즈 스키마(`QUIZ_SCHEMA`, `src/quiz/generate.js`, 최상위
+   `theme`/`bands`, `bestMatchReason`/`worstMatchReason`/`weeklyPick` 포함)와
+   일치하는 JSON 파일로 저장한다. 스키마에 `weeklyBrief`("이 테스트가 재는
+   것" 설명 1~3개, topic/intro/tier)와 `axes[].intro`(그 축이 뭘 확인하는지
+   설명)가 최상위 필수 필드다. **2026-07-26 이후**: 토픽 결박 게이트는 전부
+   폐기됐고 QG2가 `theme_coherence`(제목/결과-weeklyPick에 테마 어절, 브리핑
+   1~3개)를 검증한다. 테마 재사용은 게이트가 아니라 5번 단계 `submit`이
+   `theme_history.json`으로 검사한다 ([quiz-loopgate.md](quiz-loopgate.md) 참고).
 5. **제출**: `node src/quiz/weekly.js submit <quiz.json> <dump.json>`
    - **exit 0** — 루프게이트(QG1~QG4) 통과. 초안이 `data/quiz/drafts/`에
      저장되고 발행 작업이 `decision_queue`로 라우팅됐다는 뜻. 세션은
@@ -77,7 +79,7 @@
 6. **재시도 예산**: 4~5단계를 **최대 3회**(매니페스트
    `pack_contract.retry_budget`)까지 반복한다. 3회 모두 반려되면 **fail-loud
    실패로 종료** — 조용히 템플릿으로 대체 발행하지 않는다. `osascript`로
-   "주간 퀴즈 생성 실패 — 예산 소진, 사람이 토픽 교체 판단" 알림을 띄운다.
+   "주간 퀴즈 생성 실패 — 예산 소진, 사람이 테마 교체 판단" 알림을 띄운다.
 
 의사코드로 요약하면:
 
