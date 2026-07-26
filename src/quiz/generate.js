@@ -714,7 +714,8 @@ export function validateQuiz(quiz) {
   }
   const perAxis = {};
   for (const q of qs) {
-    if (!q.q || !axisIds.has(q.axis)) throw new Error(`문항의 축 태그가 잘못됐어요: ${q.axis}`);
+    if (!q.q) throw new Error("문항 텍스트(q 필드)가 비었어요 — 문항 텍스트 키는 반드시 'q'여야 해요.");
+    if (!axisIds.has(q.axis)) throw new Error(`문항의 축 태그가 잘못됐어요: ${q.axis}`);
     perAxis[q.axis] = (perAxis[q.axis] || 0) + 1;
     if (!Array.isArray(q.answers) || q.answers.length < 2 || q.answers.length > 4) {
       throw new Error("답변은 문항당 2~4개여야 해요.");
