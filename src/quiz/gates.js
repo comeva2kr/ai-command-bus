@@ -85,13 +85,17 @@ function tokenizeForLabelLeak(text) {
   return tokens;
 }
 
-// 한 축의 name/left.label/right.label/intro에서 뽑은 라벨 누출 감시 어절
-// 집합 — 이 축을 재는 문항의 선택지에 이 단어들이 그대로 등장하면 안 된다
-// (축이 "눈치 감지력"이면 선택지에 "눈치"가 그대로 나오면 안 되는 식).
+// 한 축의 name/left.label/right.label에서 뽑은 라벨 누출 감시 어절 집합 —
+// 이 축을 재는 문항의 선택지에 이 단어들이 그대로 등장하면 안 된다 (축이
+// "눈치 감지력"이면 선택지에 "눈치"가 그대로 나오면 안 되는 식).
+//
+// axis.intro는 감시 대상에서 뺀다: 설명 문장이라 "빨리", "다음" 같은 흔한
+// 일반어가 통째로 라벨 취급돼 무관한 선택지를 반려시켰다(실측 오탐).
+// 라벨은 이름과 극 이름이지 설명문이 아니다.
 function axisLabelTokens(axis) {
   const tokens = new Set();
   if (!axis) return tokens;
-  const sources = [axis.name, axis.left && axis.left.label, axis.right && axis.right.label, axis.intro];
+  const sources = [axis.name, axis.left && axis.left.label, axis.right && axis.right.label];
   for (const src of sources) for (const tok of tokenizeForLabelLeak(src)) tokens.add(tok);
   return tokens;
 }
