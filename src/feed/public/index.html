@@ -24,19 +24,16 @@
     --like: #3fb27f;
     --dislike: #e5566b;
     --radius: 16px;
-    /* 제휴/광고 전용 톤 (라운드1 검수 #3/#4) — 🔥화제(#f0a13d)·좋아요(--like)·
-       인기배지(#7fb0ff) 등 기존 유기 배지·칩과 색이 겹치지 않는 보라 계열. */
-    --ad: #8b6cf0;
-    --ad-2: #7457d6;
-    /* 라운드2 검수 #5 (치명, "광고 배지 색 대비 WCAG AA 미달") — --ad(#8b6cf0) +
-       흰 11px 굵은 글자는 실측 대비 3.82:1로 소형 텍스트 AA 기준(4.5:1) 미달.
-       배지 전용으로 더 진한 보라(#6a4fd1, 흰 글자 대비 5.75:1)를 별도 토큰으로
-       추가한다 — --ad 자체는 다른 곳(테두리 등)에서 계속 쓰이므로 값은
-       유지하고, 텍스트 대비가 중요한 배지 배경만 이 토큰으로 교체. */
-    --ad-badge-bg: #6a4fd1;
-    /* 할인율(.off)은 좋아요(--like)와 색이 겹치면 "상품 속성"과 "내 반응"이
-       헷갈린다 — 별도 톤 (라운드1 검수 #6). */
-    --discount: #ff7a45;
+    /* 2026-07-26 광고 카드 리디자인(docs/monetization.md "AD 배지 최소화")
+       — David 최종지시: 광고 카드를 유기 카드와 최대한 똑같이 만들고, 광고
+       표시는 배지 하나로 최소화한다. 이전엔 브랜드성 보라(--ad #8b6cf0)로
+       "여기 광고 있어요"를 강조했는데, 24개 네이티브광고 리서치 결론(짧은
+       라벨 + 위장 금지 + 튀지 않는 톤)에 따라 브랜드색 대신 거슬리지 않는
+       중립 회색 톤으로 바꾼다 — 화제(#f0a13d)/뉴스(#7fb0ff)/번역(#39c0d3)
+       등 어떤 유기 배지와도 색이 겹치지 않으면서도 "광고"라는 위장 없는
+       신호를 유지한다(표시광고법 배지=법적 방패, 절대 제거·위장 금지).
+       흰 글자 대비 8.15:1로 WCAG AA(4.5:1) 여유 통과(node --test로 검증). */
+    --ad-badge-bg: #4b4f5e;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
@@ -201,8 +198,26 @@
   .newtab-hint { color: var(--muted); font-weight: 400; font-size: 0.85em; margin-left: 2px; }
   .card .orig-title { margin: -3px 0 6px; font-size: 11.5px; color: var(--muted); font-style: italic;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 광고 카드 전용: 후킹 헤드라인(h3) 바로 아래 실제 상품명 보조 라인
+     (2026-07-25 "후킹 카피" 기능, 정직성 방어선) — 헤드라인이 커뮤 후기톤이라
+     "이게 무슨 상품인지" h3만 보고는 알기 어려울 수 있어, 항상 그 아래 작게
+     실제 상품명을 노출한다. [샘플]은 여기(고정 텍스트, sampleNote와는 별개
+     위치)에서도 함께 표시한다. */
+  .ad-product-name { margin: -3px 0 6px; font-size: 12px; color: var(--muted); }
   .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* 썸네일 이미지 (David 2026-07-26) — 원본 서버 URL 핫링크만, 저장/재호스팅
+     안 함(docs/legal.md). .card-row가 본문(.card-main)과 썸네일을 나란히
+     배치하고, .card 자체는 그대로 block으로 둔다("읽음" ::after의
+     float:right, padding 등 기존 박스모델을 안 건드리기 위해 — flex는
+     내부 wrapper에만 건다). 이미지 없는 카드는 .card-thumb 자체가
+     렌더되지 않아 기존과 동일한 텍스트 전용 레이아웃이 그대로 유지된다. */
+  .card-row { display: flex; align-items: flex-start; gap: 10px; }
+  .card-main { flex: 1 1 auto; min-width: 0; }
+  .card-thumb { flex: 0 0 auto; width: 76px; height: 76px; border-radius: 10px; overflow: hidden;
+    background: var(--card-2); }
+  .card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  body.immersion .card-thumb { width: 96px; height: 96px; }
   .card-meta { display: flex; align-items: center; gap: 14px; margin-top: 11px; font-size: 12.5px; color: var(--muted); }
   /* dedicated in-app-detail entry point (comments etc.) — the card body itself
      now leaves to the original for collected items, so this chip is the way in */
@@ -224,31 +239,37 @@
     border-radius: 10px; padding: 9px 12px; margin-bottom: 8px; font-size: 13px; }
   .muted-row button { margin-left: auto; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 5px 11px; font-size: 12px; }
 
-  /* ---- 제휴/광고 슬롯 카드 (docs/monetization.md "동화+명시") — 레이아웃은
-     유기 카드와 동일, 배지+고지로만 구분한다 ----
-     라운드1 검수 #3: 광고 배지가 🔥화제 배지(#f0a13d)와 색이 같아 구분이
-     안 됐다 — 어떤 유기 배지와도 안 겹치는 보라(--ad) 계열로 교체하고,
-     기본 .badge{margin-left:auto}가 우측으로 밀어버리던 걸 좌측 고정으로
-     되돌렸다(카드 상단 좌측에 가장 먼저 보이도록). */
-  .ad-card { border-color: rgba(139,108,240,.35); }
-  /* 라운드2 검수 #5: 배지 배경은 --ad(3.82:1, AA 미달)가 아니라 전용
-     --ad-badge-bg(5.75:1)를 쓴다. */
-  .card-top .ad-badge { margin-left: 0; margin-right: 8px; background: var(--ad-badge-bg); color: #fff; font-weight: 800; }
-  .ad-price { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-  .ad-price .sale { font-weight: 800; font-size: 16px; color: var(--ad-2); }
-  .ad-price .orig { font-size: 12.5px; color: var(--muted); text-decoration: line-through; }
-  /* 할인율은 좋아요(--like)와 겹치지 않는 별도 톤 (라운드1 검수 #6) */
-  .ad-price .off { font-size: 12px; color: var(--discount); font-weight: 700; }
-  /* 라운드2 검수 #7 (경미) — "[샘플]·실제 판매 아님" 고지를 요약(2줄 클램프
-     되는 .card p) 속이 아니라 가격 줄 바로 옆에 둔다: 가격만 훑는 유저도
-     놓치지 않게. */
-  .ad-price .ad-sample-note { font-size: 11.5px; color: var(--muted); font-weight: 600;
-    border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
-  /* 상단 축약 고지 (라운드1 검수 #5) — 배지 아래, 본문급 폰트(≥13px)로 항상
-     보이게. 하단 전체 법정 고지문은 유지하되 가독성을 위해 폰트를 키웠다. */
-  .ad-disclosure-short { font-size: 13px; color: var(--text); opacity: .82; font-weight: 600; margin: 6px 0 2px; }
-  .ad-disclosure { margin-top: 10px; font-size: 12px; color: var(--muted); line-height: 1.45;
-    border-top: 1px solid var(--line); padding-top: 8px; }
+  /* ---- 제휴/광고 슬롯 카드 (2026-07-26 리디자인, docs/monetization.md
+     "AD 배지 최소화 + progressive disclosure") ----
+     David 최종지시 + 24개 네이티브광고 리서치 결론: 유기 카드와 레이아웃을
+     완전히 공유하고(.card 그대로), 광고라는 표시는 작은 "AD" 배지 하나로만
+     한다. 상단 축약고지·하단 법정고지 전문·가격 블록의 "상시 노출"은
+     제거했다 — 대신 배지를 탭하면 고지 전문이 팝오버로 뜬다(아래
+     .ad-disclosure-pop). 법적 요건은 "고지 존재 + 인지 가능 + 접근 가능"이면
+     충족되므로, 배지 자체가 1차 고지이고 상세는 요청 시 보여주는 progressive
+     disclosure 구조가 성립한다. 단, 배지는 카드 최초 뷰포트에서 항상
+     보여야 하고(Warner Bros 판례 — 숨겨진 고지는 위법), "AD"라는 단어를
+     추천/카테고리 등으로 위장해서는 절대 안 된다(기사형광고 규제선). */
+  .ad-card { border-color: var(--line); } /* 유기 카드와 테두리까지 동일 — 배지만 다르다 */
+  .ad-card .card-top { position: relative; } /* 팝오버 앵커 */
+  .card-top .ad-badge {
+    margin-left: auto; /* 유기 카드의 카테고리 배지처럼 우상단으로 */
+    background: var(--ad-badge-bg); color: #fff; font-weight: 800;
+    letter-spacing: .02em;
+    border: none; padding: 3px 9px;
+    cursor: pointer;
+  }
+  .card-top .ad-badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* 배지 탭 시 뜨는 고지 전문 팝오버 — 상시 노출 없이, 접근 가능하게.
+     hidden 속성으로 기본 닫힘, JS(appendAdCard)가 토글한다. */
+  .ad-disclosure-pop {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 5;
+    width: max-content; max-width: min(280px, 78vw);
+    background: var(--card-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-size: 12px; line-height: 1.5; color: var(--text);
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .ad-disclosure-pop[hidden] { display: none; }
 
   .sentinel { height: 40px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
   .spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--accent);
@@ -1158,39 +1179,100 @@ function hotBadge(item){
 // 많아도 "💬 0"으로 표시되는 문제가 있었다 — 둘 중 큰 값을 보여준다.
 function commentCountFor(item){ return Math.max(item.commentCount||0, item.comments||0); }
 function isAdItem(item){ return item.kind === "ad" || item.kind === "affiliate"; }
-function fmtWon(n){ return Number(n||0).toLocaleString("ko-KR") + "원"; }
-// 라운드2 검수 #7(경미): item.sampleNote("[샘플] 실제 판매 상품 아님" 등, monetize.js의
-// makeSlotItem이 채움)를 요약 문장 속이 아니라 가격 줄 바로 옆에 렌더한다 — 가격만
-// 보고 지나가는 유저도 "이거 샘플이구나"를 놓치지 않게. 가격이 없는 경우(향후 실연동
-// 상품이 가격 없이 올 가능성 대비)에도 sampleNote만 있으면 그 자체로 한 줄을 렌더한다.
-function adPriceHtml(item){
-  const hasPrice = item.priceOriginal!=null && item.priceSale!=null;
-  const off = hasPrice && item.priceOriginal>0 ? Math.round((1 - item.priceSale/item.priceOriginal)*100) : 0;
-  const priceHtml = hasPrice
-    ? `<span class="sale">${fmtWon(item.priceSale)}</span><span class="orig">${fmtWon(item.priceOriginal)}</span>${off>0?`<span class="off">${off}% ↓</span>`:""}`
-    : "";
-  const noteHtml = item.sampleNote ? `<span class="ad-sample-note">${escapeHtml(item.sampleNote)}</span>` : "";
-  if(!priceHtml && !noteHtml) return "";
-  return `<div class="ad-price">${priceHtml}${noteHtml}</div>`;
-}
 // 제휴/광고 슬롯 카드 — "동화+명시": 레이아웃은 유기 카드와 동일하되 상단
-// 배지+하단 고지로 항상 구분한다. 좋아요/싫어요/스크랩 등 추천 학습 액션은
-// 아예 없다(슬롯 아이템은 엔진의 아이템 풀에 없어 애초에 학습되지 않지만,
-// UI에서도 혼동을 주지 않도록 버튼 자체를 노출하지 않는다).
+// 배지 하나로만 구분한다. 좋아요/싫어요/스크랩 등 추천 학습 액션은 아예
+// 없다(슬롯 아이템은 엔진의 아이템 풀에 없어 애초에 학습되지 않지만, UI에서도
+// 혼동을 주지 않도록 버튼 자체를 노출하지 않는다).
+// 후킹 헤드라인(item.title, hook 우선) 아래 실제 상품명 보조 라인 — 정직성
+// 방어선(docs/monetization.md "후킹 카피"): 헤드라인이 커뮤 후기톤이라 상품이
+// 뭔지 h3만으론 알기 어려울 수 있어, item.productName이 있으면 항상 작게
+// 노출한다. sample이면 "[샘플]"도 이 줄에 함께 붙인다 — 실연동 시(진짜 상품)엔
+// item.sample이 false가 되어 이 태그가 자동으로 사라진다.
+function adProductNameHtml(item){
+  if(!item.productName) return "";
+  const sampleTag = item.sample ? " · [샘플]" : "";
+  return `<div class="ad-product-name">· ${escapeHtml(item.productName)}${escapeHtml(sampleTag)}</div>`;
+}
+// 광고 카드 하단 지표 행 — 유기 카드의 (▲추천 · 💬댓글 · 시간)과 동일한 골격이되,
+// **실측 데이터만** 채운다(David 2026-07-26). 가짜 순위·추천수·댓글수·급상승은
+// 허위·과장광고 + 가짜 소셜증거(FTC 다크패턴)라 절대 지어내지 않는다. 실제 쿠팡
+// productFeed가 rating/reviewCount/bestseller를 주면 그것만 노출하고, 없으면(샘플
+// 포함) 행 자체를 생략한다 — 빈 자리에 가짜를 채우지 않는 것이 곧 준법.
+function adMetaHtml(item){
+  const parts = [];
+  if(typeof item.rating === "number") parts.push(`<span title="쿠팡 평점">⭐ ${item.rating.toFixed(1)}</span>`);
+  if(typeof item.reviewCount === "number" && item.reviewCount > 0) parts.push(`<span title="쿠팡 리뷰 수">리뷰 ${item.reviewCount.toLocaleString()}</span>`);
+  if(item.bestseller) parts.push(`<span class="ad-best" title="쿠팡 베스트셀러">베스트셀러</span>`);
+  if(!parts.length) return ""; // 실측 지표가 하나도 없으면(샘플 등) 행 생략 — 가짜 금지
+  return `<div class="card-meta">${parts.join("")}</div>`;
+}
+// 썸네일 (David 2026-07-26, docs/legal.md "핫링크만·저장 안 함") — item.image가
+// 있을 때만 렌더되는 소형 정사각 썸네일. 원본 서버 URL을 그대로 <img src>로
+// 참조할 뿐 우리 서버는 아무것도 받거나 저장하지 않는다(카톡/트위터 링크
+// 미리보기와 동일한 핫링크 방식). loading="lazy"로 화면 밖 이미지는 요청조차
+// 안 나가고, referrerpolicy="no-referrer"는 우리 도메인을 원본 서버에 안
+// 흘려보내면서(프라이버시) 일부 사이트의 리퍼러 기반 핫링크 차단도 피해간다.
+// onerror는 깨진 이미지를 남기지 않고 썸네일 영역 자체를 지워 텍스트 카드로
+// 자연스럽게 폴백한다(레이아웃 재계산만 있고 별도 요청/재시도는 없음).
+// 유기 카드(appendCard)와 광고 카드(appendAdCard)가 완전히 동일한 마크업을
+// 공유해, 이후 productFeed 연동으로 광고 카드에 image가 채워져도 코드 변경
+// 없이 그대로 노출된다.
+function cardThumbHtml(item){
+  if(!item.image) return "";
+  return `<div class="card-thumb"><img src="${escapeHtml(item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.card-thumb').remove()"></div>`;
+}
+// AD 배지 탭 → 고지 팝오버 (progressive disclosure). 배지 자체가 1차 고지
+// (항상 카드 최초 뷰포트에 보임 — Warner Bros 판례상 필수), 고지 "전문"은
+// 탭해야 보이지만 항상 접근 가능하다(법적 요건: 존재+인지가능+접근가능이면
+// 상시노출 없이도 적법). 카드 하나당 팝오버 하나, 열려있는 다른 카드의
+// 팝오버는 자동으로 닫는다(화면에 여러 개가 동시에 안 남도록).
+let adPopSeq = 0;
+function closeAllAdDisclosurePopovers(){
+  document.querySelectorAll(".ad-disclosure-pop:not([hidden])").forEach((pop)=>{
+    pop.setAttribute("hidden","");
+    const btn = pop.previousElementSibling;
+    if(btn && btn.classList && btn.classList.contains("ad-badge")) btn.setAttribute("aria-expanded","false");
+  });
+}
+let adPopoverOutsideClickBound = false;
+function ensureAdPopoverOutsideClick(){
+  if(adPopoverOutsideClickBound) return;
+  adPopoverOutsideClickBound = true;
+  // any click that wasn't stopped by the badge/popover themselves closes all
+  // open popovers (badge re-click is handled by its own toggle, not this).
+  document.addEventListener("click", closeAllAdDisclosurePopovers);
+}
 function appendAdCard(item){
   const card = document.createElement("article"); card.className="card ad-card"; card.dataset.cat=item.category; card.dataset.id=item.id;
   card.dataset.variant = item.variant || "";
+  const popId = "adDisc"+(++adPopSeq);
   card.innerHTML = `
+    <div class="card-row">
+    <div class="card-main">
     <div class="card-top">
-      <span class="badge ad-badge">${escapeHtml(item.badgeLabel||"제휴광고")}</span>
+      <span class="dot" style="background:${srcColor(item.source)}"></span>
       <span class="src">${escapeHtml(item.sourceLabel||"제휴")}</span>
+      <button type="button" class="badge ad-badge" aria-haspopup="true" aria-expanded="false" aria-controls="${popId}" aria-label="광고 표시. 탭하면 고지 사항을 볼 수 있어요">${escapeHtml(item.badgeLabel||"AD")}</button>
+      <div id="${popId}" class="ad-disclosure-pop" role="tooltip" hidden>${escapeHtml(item.disclosure||"")}</div>
     </div>
-    ${item.disclosureShort?`<div class="ad-disclosure-short">${escapeHtml(item.disclosureShort)}</div>`:''}
     <h3>${escapeHtml(item.title)} <span class="newtab-hint" title="새 탭에서 이동해요" aria-hidden="true">↗</span></h3>
+    ${adProductNameHtml(item)}
     <p>${escapeHtml(item.summary)}</p>
-    ${adPriceHtml(item)}
     ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="ad-why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
-    <div class="ad-disclosure">${escapeHtml(item.disclosure||"")}</div>`;
+    ${adMetaHtml(item)}
+    </div>
+    ${cardThumbHtml(item)}
+    </div>`;
+  const badgeBtn = card.querySelector(".ad-badge");
+  const pop = card.querySelector(".ad-disclosure-pop");
+  badgeBtn.addEventListener("click", (e)=>{
+    e.stopPropagation(); // tapping the badge must never trigger the card's own outlink click
+    const willOpen = pop.hasAttribute("hidden");
+    closeAllAdDisclosurePopovers();
+    if(willOpen){ pop.removeAttribute("hidden"); badgeBtn.setAttribute("aria-expanded","true"); }
+  });
+  pop.addEventListener("click", (e)=> e.stopPropagation()); // selecting/reading the notice text must not navigate away
+  ensureAdPopoverOutsideClick();
   card.addEventListener("click", ()=>{
     API.adSignal(state.userId, item.id, "click", item.variant);
     window.open(item.url, "_blank", "noopener,noreferrer");
@@ -1228,6 +1310,8 @@ function appendCard(item){
   if(isAdItem(item)) return appendAdCard(item);
   const card = document.createElement("article"); card.className="card"; card.dataset.cat=item.category; card.dataset.id=item.id;
   card.innerHTML = `
+    <div class="card-row">
+    <div class="card-main">
     <div class="card-top">
       <span class="dot" style="background:${srcColor(item.source)}"></span>
       <span class="src">${srcLabel(item.source)}</span>
@@ -1251,6 +1335,9 @@ function appendCard(item){
         <button class="rate up ${item.myRating>0?'on':''}" data-s="1">👍</button>
         <button class="rate down ${item.myRating<0?'on':''}" data-s="-1">👎</button>
       </div>
+    </div>
+    </div>
+    ${cardThumbHtml(item)}
     </div>`;
   if(state.readSet.has(item.id)) card.classList.add("read");
   // Card body tap: collected items (via !== "me") leave the app entirely for

@@ -39,6 +39,27 @@ function upgradeToHttps(url, httpsOk) {
   return httpsOk === true ? "https://" + url.slice("http://".length) : url;
 }
 
+// Single normalization point for every `image` URL the feed ever shows,
+// regardless of which layer found it (fetchers.js's RSS media/enclosure/img
+// extraction, its list-adapter thumbRegex, or ingest.js's OG image for
+// user-submitted links). We only ever hotlink the source's own URL — never
+// download or re-host it (docs/legal.md) — so this just has to turn whatever
+// shape a source handed back into a safe, absolute, https(-preferred) URL, or
+// drop it outright rather than ship a broken/unsafe src to the client:
+//   - protocol-relative ("//cdn.site.co.kr/x.jpg") -> "https:" + it
+//   - not an absolute http(s) URL at this point (a stray relative path a
+//     source-level resolver had no urlBase to resolve, or garbage) -> null
+//   - plain http:// -> upgraded to https:// only when this source's own
+//     httpsOk flag (same one url-upgrading already trusts) confirms the
+//     source's domain actually serves https
+function normalizeImageUrl(url, httpsOk) {
+  let raw = typeof url === "string" ? url.trim() : "";
+  if (!raw) return null;
+  if (raw.startsWith("//")) raw = "https:" + raw;
+  if (!/^https?:\/\//i.test(raw)) return null;
+  return upgradeToHttps(raw, httpsOk);
+}
+
 // Normalize an arbitrary raw item into the canonical content shape. Adapters
 // pass their raw objects through this so downstream code sees one schema.
 export function normalizeItem(raw, source) {
@@ -74,7 +95,10 @@ export function normalizeItem(raw, source) {
     url: url || null, // out-link to the original (required for aggregated items) — https-upgraded above if applicable
     via: raw.via || "seed", // provenance: seed | rss | api | submit | me
     sourceLabel: raw.sourceLabel || null,
-    image: raw.image || null,
+    // 원본 서버 URL 핫링크만 — 저장/재호스팅 안 함 (docs/legal.md). 상대/
+    // protocol-relative 형태는 normalizeImageUrl이 절대 URL로 정리하거나,
+    // 정리 불가하면(urlBase 없는 상대경로 등) 조용히 null로 떨어뜨린다.
+    image: normalizeImageUrl(raw.image, raw.httpsOk),
     author: raw.author || null,
     // engagement metadata used as weak popularity signals
     score: Number.isFinite(raw.score) ? raw.score : 0,

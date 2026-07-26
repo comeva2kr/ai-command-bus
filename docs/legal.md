@@ -42,6 +42,40 @@ keeps it inside the legal safe zone established by Korean case law.
 7. **News**: use licensed news APIs (e.g. Naver Search, NewsAPI) rather than
    scraping outlets.
 
+## Images: hotlink only, never stored or re-hosted
+
+Thumbnail images work under the exact same principle as the rest of this
+aggregator (David 2026-07-26): we reference the **source's own** representative
+image URL and let the *original server* serve it — we never download, cache,
+or re-host the image bytes ourselves. This is the same model as a KakaoTalk or
+Twitter link preview: only the source itself the pixels leave.
+
+1. **Only a site's own intended representative image** — RSS's
+   `<media:thumbnail>`/`<media:content>`/image-typed `<enclosure>`, the first
+   `<img>` a feed's own description/content already embeds, a list page's own
+   rendered thumbnail `<img>` next to a title, or a submitted link's own
+   `og:image`/`twitter:image`. Never a scraped/derived image, never a full
+   article's inline gallery, never anything beyond the one representative
+   image the source itself surfaces for link-preview purposes.
+2. **Hotlink only, no storage** — the client's `<img src>` points straight at
+   the source's own URL (`referrerpolicy="no-referrer"` to avoid leaking our
+   domain and to sidestep referrer-based hotlink blocks; `loading="lazy"` so an
+   off-screen image is never even requested). Our server never fetches,
+   proxies, caches, or stores the image bytes at any point.
+3. **URL-only normalization, not a copy** — a relative or protocol-relative
+   image URL is resolved to an absolute one, and `http://` is upgraded to
+   `https://` only for sources with a verified `httpsOk`. Still just a URL
+   string; nothing is downloaded to do this.
+4. **Graceful, silent fallback** — a dead/blocked hotlink hides its own
+   thumbnail slot (`onerror` removal) and the card falls back to the existing
+   text-only layout. No broken-image icon, no retry, no extra request.
+5. **Conservative extraction, not "images"** — most list-page communities
+   (theqoo/bobae/ppomppu/todayhumor/etoland/inven 등) only ever render a
+   file-type or "HOT" badge icon next to a title, not a real per-post
+   thumbnail; those sources intentionally carry no image extraction rule
+   rather than misrepresenting a badge icon as the post's image. "No image" is
+   the honest default — see `docs/handoff.md`'s 코드 지도 for which sources do.
+
 ## Provenance field
 
 Every item carries `via`: `seed` (offline dev data only), `rss`, `api`,

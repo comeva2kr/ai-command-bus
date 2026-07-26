@@ -12,14 +12,16 @@
 // citations):
 //   - 동화(assimilation) + 명시(disclosure): the slot is shaped exactly like
 //     an organic card (same fields the client already renders) so it doesn't
-//     visually jar the feed, but every slot carries an unmissable badge +
-//     the Coupang-mandated disclosure line — never a naked look-alike ad.
+//     visually jar the feed. 2026-07-26 리디자인(24개 네이티브광고 리서치 +
+//     David 최종지시) 이후: "명시"는 이제 배지 하나로 최소화한다 — 짧은 "AD"
+//     라벨은 항상 렌더되지만(법적 방패, 절대 제거·위장 금지), 상단 축약고지·
+//     하단 법정고지 전문·가격 블록의 상시 노출은 뺐다. 고지 전문은
+//     progressive disclosure로 배지를 탭해야 보인다(index.html의
+//     appendAdCard/.ad-disclosure-pop) — "존재+인지가능+접근가능"이면
+//     상시노출 없이도 법적 요건을 충족한다는 리서치 결론에 따른 것.
 //   - First-screen protection: the first `skipFirst` items a session sees
 //     are always 100% organic, so first impression = trust, not a sales
 //     pitch.
-//   - Anchoring: sample cards carry both list price and "sale" price when
-//     they have one — this file never invents a discount if it has no real
-//     price pair to show.
 //   - No dark patterns: no countdown timers, no fabricated "N명이 구매중"
 //     counters, no auto-navigate-on-load. A slot is inert until tapped, same
 //     as every organic card.
@@ -73,6 +75,97 @@ export const DISCLOSURE_SHORT_TEXT = "쿠팡파트너스 제휴 · 수수료 수
 // 후보는 pickAffiliateCandidates가 어떤 소스(sample/실연동 productFeed)에서
 // 나왔든 무조건 걸러낸다.
 const BANNED_AD_CATEGORIES = new Set(["politics", "religion", "adult"]);
+
+// ---- hook copy: legal guardrail ---------------------------------------------
+//
+// 2026-07-25 "후킹 카피" 기능 — 광고 카드 헤드라인을 딱딱한 상품명이 아니라
+// 커뮤니티 후기 말투의 후킹 문장으로 바꾼다(taste-feed 톤에 맞춤). David 승인
+// 원칙: 위법(허위·과장광고)만 아니면 회색지대는 적극 활용한다.
+//
+// 카드는 이미 badgeLabel("AD"/"AD · 샘플", 2026-07-26 리디자인 이후 항상
+// 렌더) + disclosure(쿠팡 법정 고지문, 배지 탭 시 팝오버로 항상 접근 가능,
+// makeSlotItem 하단 참고) — "광고 명시"라는 합법 방패는 이 파일의 어떤
+// 후킹 카피 로직도 제거/약화하지 않는다.
+//
+// 후킹 카피에 허용:
+//   - 제품 실제 특징·장점 어필 (features 배열에 있는, 상품명/스펙에서 실제로
+//     확인되는 속성만)
+//   - 커뮤니티 캐주얼 말투 ("~하는 그거", "이거 하나면 끝" 등)
+//   - 상황 제안 ("출장러 필수템", "여름 필수템")
+//   - 관심 유발 ("요즘 화제인 이유") — 단, "몇 명이 샀다/후기가 몇 개다" 같은
+//     구체적 수치를 붙이면 안 됨(아래 금지 항목 3번)
+//
+// 후킹 카피에 금지 (허위광고/과장광고 표시법 위반 소지):
+//   1. 검증 가능한 구체적 허위 수치 — 예: "3개월 써보니 배터리 20%도 안 줆"
+//      처럼 실사용 기간·정량 변화를 단정하는 문구. 상품 스펙표에 있는 정적
+//      수치(예: "20000mAh", "65W", "0.01g")는 허용(사실이므로), 사용 후
+//      경과/변화를 지어내는 수치는 금지.
+//   2. 근거 없는 최상급 — "업계 1위", "최저가", "무조건", "100% 보장" 등
+//      비교/보증을 사실 확인 없이 단정하는 표현.
+//   3. 가짜 리뷰/구매자수 — "OOO명이 구매했어요", "후기 4.9점" 등 실측하지
+//      않은 사회적 증거를 지어내는 표현.
+//
+// hasBannedHookClaim()은 위 2·3번 패턴(정량화 가능한 금지 표현)을 정규식으로
+// 걸러내는 방어선이다 — 카피라이팅 판단(1번, "실제로 확인되지 않은 변화 수치를
+// 단정했는가")까지 정규식으로 완전히 잡아낼 수는 없으므로, 이건 테스트에서
+// SAMPLE_PRODUCT_TEMPLATES/buildHookCopy 출력을 검증하는 최종 방어선이지 유일한
+// 방어선이 아니다 — 새 템플릿을 추가하는 사람이 위 원칙을 직접 지켜야 한다.
+const BANNED_HOOK_PATTERNS = [
+  /업계\s*1위/, // 근거 없는 최상급
+  /판매\s*1위/,
+  /최저가/,
+  /무조건/,
+  /100%\s*(보장|확실|만족)/,
+  /보장(합니다|돼요|됩니다|해요)/,
+  /\d+(\.\d+)?%\s*(덜|줄어|감소|늘어|증가)/, // 검증 불가능한 사용 후 변화 수치
+  /\d+\s*(명|개)\s*(이|가)?\s*(구매|판매|주문|샀)/, // 가짜 구매자수
+  /후기\s*\d+(\.\d+)?\s*점/, // 가짜 평점
+  /리뷰\s*\d+/ // 가짜 리뷰 개수
+];
+
+export function hasBannedHookClaim(text) {
+  if (!text) return false;
+  return BANNED_HOOK_PATTERNS.some((re) => re.test(text));
+}
+
+// 커뮤니티 후기톤 폴백 문구 빌더 — 상품별 명시적 `hook`이 없을 때만 쓰인다.
+// name/category(+features[0])만으로 결정론적으로(같은 입력 → 항상 같은 출력)
+// 하나를 고른다(테스트 가능성 유지, Math.random 미사용). "feature"는 항상
+// 호출자가 실제 상품 스펙/제목에서 뽑아 넘긴 값이어야 한다 — 이 함수 자체는
+// feature를 지어내지 않는다.
+const FALLBACK_HOOK_BUILDERS = [
+  ({ name, feature }) => `${feature} 하나는 확실한 ${name}`,
+  ({ name, feature }) => `${feature} 챙기려면 눈에 띄는 ${name}`,
+  ({ name, feature }) => `요즘 ${feature} 좋다고 화제인 ${name}`,
+  ({ name, feature, catLabel }) => `${catLabel} 취향이면 ${feature} 보고 눈이 가는 ${name}`
+];
+
+function hookTemplateIndex(key, n) {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return h % n;
+}
+
+// 특징 태그 → 후킹 문구. `product.hook`이 있으면(상품별로 직접 쓴 커뮤톤
+// 헤드라인) 그걸 그대로 우선 사용한다 — 폴백 규칙보다 사람이 쓴 카피가 항상
+// 더 자연스럽기 때문. 없을 때만 category+topFeature 조합으로 생성한다.
+//
+// 실연동(`opts.productFeed`) 확장 경로: 실제 상품의 `title`/`attributes`에서
+// feature 문자열을 추출해 `{ category, name, features }`로 넘기면 이 함수가
+// 동일하게 폴백 헤드라인을 만들어준다 — 이 함수는 카테고리/상품명에 의존할 뿐
+// 샘플 전용 로직이 없다. LLM 기반 카피 생성(상품 설명 전체를 요약해 더 자연스러운
+// 후킹 문장을 만드는 것)은 API 키·비용이 필요한 향후 업그레이드 대상으로 남겨둔다
+// — 지금은 규칙 기반 폴백으로 충분한 품질을 낸다.
+export function buildHookCopy(product = {}) {
+  const { category, name, features = [], hook = null } = product;
+  if (hook) return hook;
+  if (!name) return null;
+  const catLabel = categoryLabel(category) || "이 카테고리";
+  const feature = features && features[0] ? features[0] : null;
+  if (!feature) return `${catLabel} 취향이면 한 번쯤 보게 되는 ${name}`;
+  const idx = hookTemplateIndex(`${category || ""}:${name}`, FALLBACK_HOOK_BUILDERS.length);
+  return FALLBACK_HOOK_BUILDERS[idx]({ name, feature, catLabel });
+}
 
 export function adParams(opts = {}) {
   return {
@@ -225,6 +318,13 @@ export function makeSlotItem({
   kind = "affiliate",
   category,
   title,
+  // 후킹 카피(커뮤 후기톤 헤드라인). 있으면 title보다 우선해서 카드 h3에
+  // 렌더된다(index.html appendAdCard) — title은 hook이 없는 호출자를 위한
+  // 하위호환 폴백일 뿐, 실제 헤드라인 자리는 항상 hook이 이긴다.
+  hook = null,
+  // 실제 상품명 — 정직성 방어선: 후킹 헤드라인 아래 보조 라인으로 항상 노출돼
+  // "이게 무슨 상품인지"를 유저가 알 수 있게 한다(index.html adProductNameHtml).
+  productName = null,
   summary,
   url,
   image = null,
@@ -232,11 +332,20 @@ export function makeSlotItem({
   sourceLabel = "쿠팡파트너스",
   priceOriginal = null,
   priceSale = null,
+  // 하단 지표 행(index.html adMetaHtml)용 — **실측 데이터만**. productFeed 연동 시
+  // 쿠팡이 주는 실제 평점/리뷰수/베스트여부를 채우고, 샘플은 채우지 않는다(가짜
+  // 순위·급상승·추천수는 허위광고라 금지). null이면 카드 하단 행 자체가 생략된다.
+  rating = null,
+  reviewCount = null,
+  bestseller = false,
   sample = false,
   relevance,
   reason,
   sampleNote = null
 }) {
+  // 헤드라인 우선순위: 명시적 hook > 호출자가 넘긴 title > 상품명 자체.
+  // 셋 다 없으면 빈 문자열(호출자 버그를 여기서 숨기지 않음).
+  const headline = hook || title || productName || "";
   return {
     id,
     kind, // "affiliate" (P0, this file) | "ad" (P1 CPC network — reserved, not wired yet)
@@ -246,7 +355,9 @@ export function makeSlotItem({
     category,
     categoryLabel: categoryLabel(category),
     tags: [],
-    title,
+    title: headline,
+    hook: hook || null,
+    productName: productName || null,
     summary,
     url,
     image,
@@ -263,20 +374,38 @@ export function makeSlotItem({
     myRating: 0,
     saved: false,
     comments: 0,
+    // 하단 지표 — 실측만(productFeed 제공 시), 샘플은 null이라 카드에서 생략됨
+    rating: typeof rating === "number" ? rating : null,
+    reviewCount: typeof reviewCount === "number" ? reviewCount : null,
+    bestseller: Boolean(bestseller),
     sponsored: true,
     sample: Boolean(sample),
-    // 2026-07-25 라운드2 검수 #7(경미): "[샘플]·실제 판매 아님" 고지가 summary
-    // 문자열 속에 묻혀 있으면 (a) .card p가 2줄로 클램프돼 잘릴 수 있고
-    // (b) 가격만 훑는 유저는 summary를 아예 안 읽는다 — 가격/배지 바로 옆에
-    // 별도로 렌더할 수 있게 전용 필드로 분리한다(index.html의 adPriceHtml).
+    // 2026-07-26 리디자인: "[샘플]" 고지는 이제 productName 보조 라인
+    // (index.html adProductNameHtml)이 전담한다 — 이 필드는 하위호환을 위해
+    // 계속 채워 두지만(sample=true면 여전히 non-null) index.html은 더 이상
+    // 렌더하지 않는다(가격 블록 자체를 상시 노출에서 뺐다, 아래 priceOriginal/
+    // priceSale 주석 참고).
     sampleNote: sample ? (sampleNote || "[샘플] 실제 판매 상품 아님") : null,
+    // 2026-07-26 리디자인(docs/monetization.md "AD 배지 최소화") — David
+    // 최종지시: 가격/할인율의 "상시 노출"을 제거해 카드가 커뮤 게시글처럼
+    // 자연스럽게 보이게 한다. 필드 자체는 실연동(productFeed) 대비 계속
+    // 채워 두지만(장래 UI가 다시 쓸 수 있게), index.html은 더 이상 렌더하지
+    // 않는다 — adPriceHtml/.ad-price는 제거됐다.
     priceOriginal,
     priceSale,
+    // disclosure(법정 고지 전문)는 이제 상시 렌더가 아니라 배지 탭 시 뜨는
+    // 팝오버 전용 데이터다(index.html appendAdCard). disclosureShort(축약
+    // 고지)는 하위호환을 위해 필드는 유지하되 UI에서는 미사용 — "광고 명시"
+    // 라는 법적 방패는 배지(badgeLabel, 항상 렌더) + 이 disclosure(탭하면
+    // 항상 접근 가능)로 충족되므로 상시 노출 텍스트 두 줄이 굳이 필요 없다.
     disclosure: DISCLOSURE_TEXT,
     disclosureShort: DISCLOSURE_SHORT_TEXT,
-    // 라운드1 검수 #3: "제휴"만으로는 🔥화제 등 유기 배지와 헷갈릴 수 있어
-    // "광고"라는 단어를 항상 명시한다.
-    badgeLabel: sample ? "제휴광고 · 샘플" : "제휴광고",
+    // 2026-07-26 리디자인: "제휴광고"(긴 라벨)에서 "AD"(짧은 라벨)로 축소.
+    // 24개 네이티브광고 리서치 결론(짧은 라벨 + 위장 금지) + David 최종지시
+    // — 배지 문구는 절대 "추천/카테고리" 등으로 위장하지 않는다(기사형광고
+    // 규제선). 짧아졌어도 "AD"는 광고라는 뜻이 명확해 표시광고법상 고지
+    // 요건(인지 가능)을 그대로 충족한다.
+    badgeLabel: sample ? "AD · 샘플" : "AD",
     relevance: relevance ?? 0
   };
 }
@@ -329,46 +458,197 @@ export function pickAffiliateCandidates(preferences, opts = {}) {
 // 2026-07-25 라운드1 검수 #1: 카테고리당 2개뿐이면 로테이션 폭이 너무 좁아
 // (특히 유저별 노출 이력 제외 로직과 맞물릴 때) 금방 다시 반복된다 — 3개로
 // 늘렸다.
+// 각 항목의 `hook`은 사람이 직접 쓴 커뮤니티 후기톤 헤드라인이다(위 "hook copy:
+// legal guardrail" 주석의 허용/금지 원칙을 지킨 문구만 여기 들어간다 — 검증
+// 불가능한 사용 후 변화 수치·근거 없는 최상급·가짜 리뷰/구매자수 금지, 정적
+// 스펙(mAh/W/L 등 상품명 자체에 있는 숫자)은 사실이므로 허용). `features`는
+// 실연동 productFeed가 실제 상품 title/attributes에서 뽑아 넣을 값의 자리를
+// 미리 잡아둔 것 — buildHookCopy의 폴백 경로가 이 배열의 첫 값을 topFeature로
+// 쓴다.
 const SAMPLE_PRODUCT_TEMPLATES = {
   tech: [
-    { name: "무선 노이즈캔슬링 이어버드", priceOriginal: 89000, priceSale: 52900 },
-    { name: "65W 초고속 멀티 충전기", priceOriginal: 39900, priceSale: 24900 },
-    { name: "보조배터리 (20000mAh 고속충전)", priceOriginal: 49900, priceSale: 32900 }
+    {
+      name: "무선 노이즈캔슬링 이어버드",
+      priceOriginal: 89000,
+      priceSale: 52900,
+      features: ["노이즈캔슬링", "장시간 배터리", "통화음질"],
+      hook: "지하철 소음 싹 사라지는 그 이어버드"
+    },
+    {
+      name: "65W 초고속 멀티 충전기",
+      priceOriginal: 39900,
+      priceSale: 24900,
+      features: ["멀티포트", "초고속충전", "슬림"],
+      hook: "노트북까지 이거 하나로 다 충전됨 (멀티포트 65W)"
+    },
+    {
+      name: "보조배터리 (20000mAh 고속충전)",
+      priceOriginal: 49900,
+      priceSale: 32900,
+      features: ["고속충전", "대용량", "휴대성"],
+      hook: "출장·여행 짐 확 줄여주는 20000mAh, 이거 하나면 끝"
+    }
   ],
   auto: [
-    { name: "차량용 블랙박스 (전후방 4K)", priceOriginal: 219000, priceSale: 159000 },
-    { name: "트렁크 정리함 + 방수 매트 세트", priceOriginal: 45000, priceSale: 29900 },
-    { name: "차량용 무선청소기", priceOriginal: 69000, priceSale: 45900 }
+    {
+      name: "차량용 블랙박스 (전후방 4K)",
+      priceOriginal: 219000,
+      priceSale: 159000,
+      features: ["전후방 4K", "야간화질", "주차녹화"],
+      hook: "밤길 사고나도 걱정 덜어주는 전후방 4K 블랙박스"
+    },
+    {
+      name: "트렁크 정리함 + 방수 매트 세트",
+      priceOriginal: 45000,
+      priceSale: 29900,
+      features: ["방수", "정리", "세트구성"],
+      hook: "트렁크 안이 순식간에 정리되는 방수 세트"
+    },
+    {
+      name: "차량용 무선청소기",
+      priceOriginal: 69000,
+      priceSale: 45900,
+      features: ["무선", "강력흡입", "휴대성"],
+      hook: "세차장 갈 일이 줄어드는, 차 안에 두고 쓰는 무선청소기"
+    }
   ],
   science: [
-    { name: "천체망원경 입문용 세트", priceOriginal: 129000, priceSale: 89000 },
-    { name: "실험용 정밀 저울 (0.01g)", priceOriginal: 32000, priceSale: 22900 },
-    { name: "휴대용 현미경 키트", priceOriginal: 45000, priceSale: 31900 }
+    {
+      name: "천체망원경 입문용 세트",
+      priceOriginal: 129000,
+      priceSale: 89000,
+      features: ["입문용", "가벼움", "조립간편"],
+      hook: "베란다에서 별 보는 재미 알게 해준 입문용 망원경"
+    },
+    {
+      name: "실험용 정밀 저울 (0.01g)",
+      priceOriginal: 32000,
+      priceSale: 22900,
+      features: ["정밀측정", "0.01g 단위", "소형"],
+      hook: "0.01g까지 잡아내는 정밀 저울, 취미 계량도 이 정도는 돼야죠"
+    },
+    {
+      name: "휴대용 현미경 키트",
+      priceOriginal: 45000,
+      priceSale: 31900,
+      features: ["휴대용", "확대배율", "키트구성"],
+      hook: "아이 자유탐구 준비물 고민 끝내주는 휴대용 현미경 키트"
+    }
   ],
   business: [
-    { name: "듀얼 모니터암 (가스식)", priceOriginal: 69000, priceSale: 44900 },
-    { name: "인체공학 무선 마우스", priceOriginal: 45000, priceSale: 29900 },
-    { name: "휴대용 미니 프린터", priceOriginal: 89000, priceSale: 59900 }
+    {
+      name: "듀얼 모니터암 (가스식)",
+      priceOriginal: 69000,
+      priceSale: 44900,
+      features: ["가스식", "각도조절", "책상정리"],
+      hook: "책상 위가 넓어지는 마법, 가스식 듀얼 모니터암"
+    },
+    {
+      name: "인체공학 무선 마우스",
+      priceOriginal: 45000,
+      priceSale: 29900,
+      features: ["인체공학", "손목부담 완화 설계", "무선"],
+      hook: "손목 부담 줄이려고 다들 바꾼다는 인체공학 무선 마우스"
+    },
+    {
+      name: "휴대용 미니 프린터",
+      priceOriginal: 89000,
+      priceSale: 59900,
+      features: ["휴대용", "무선연결", "소형"],
+      hook: "회의실 어디든 들고 다니는 손바닥만한 프린터"
+    }
   ],
   gaming: [
-    { name: "기계식 게이밍 키보드 (저소음)", priceOriginal: 99000, priceSale: 65900 },
-    { name: "게이밍 헤드셋 7.1 서라운드", priceOriginal: 79000, priceSale: 49900 },
-    { name: "게이밍 마우스패드 (대형)", priceOriginal: 29000, priceSale: 18900 }
+    {
+      name: "기계식 게이밍 키보드 (저소음)",
+      priceOriginal: 99000,
+      priceSale: 65900,
+      features: ["저소음", "기계식", "타건감"],
+      hook: "밤에 게임해도 안 시끄러운 저소음 기계식 키보드"
+    },
+    {
+      name: "게이밍 헤드셋 7.1 서라운드",
+      priceOriginal: 79000,
+      priceSale: 49900,
+      features: ["7.1 서라운드", "발소리 방향감", "착용감"],
+      hook: "적 발소리 방향이 다 들리는 7.1 서라운드 헤드셋"
+    },
+    {
+      name: "게이밍 마우스패드 (대형)",
+      priceOriginal: 29000,
+      priceSale: 18900,
+      features: ["대형", "미끄럼방지", "키보드까지 커버"],
+      hook: "책상 전체를 덮는 대형 패드, 마우스 헛돎이 사라짐"
+    }
   ],
   sports: [
-    { name: "폼롤러 + 마사지건 세트", priceOriginal: 89000, priceSale: 59900 },
-    { name: "런닝화 (쿠셔닝 강화)", priceOriginal: 129000, priceSale: 79900 },
-    { name: "요가매트 + 블록 세트", priceOriginal: 39000, priceSale: 25900 }
+    {
+      name: "폼롤러 + 마사지건 세트",
+      priceOriginal: 89000,
+      priceSale: 59900,
+      features: ["세트구성", "근막이완", "휴대용"],
+      hook: "운동 다음날 뭉친 근육 풀 때 찾게 되는 폼롤러+마사지건 세트"
+    },
+    {
+      name: "런닝화 (쿠셔닝 강화)",
+      priceOriginal: 129000,
+      priceSale: 79900,
+      features: ["쿠셔닝 강화", "경량", "착화감"],
+      hook: "무릎 부담 덜어주는 쿠셔닝, 러닝화 바꿀 때 되지 않았어요?"
+    },
+    {
+      name: "요가매트 + 블록 세트",
+      priceOriginal: 39000,
+      priceSale: 25900,
+      features: ["세트구성", "미끄럼방지", "휴대용"],
+      hook: "집에서 요가 시작하기 딱 좋은 매트+블록 세트"
+    }
   ],
   culture: [
-    { name: "블루투스 스피커 (고음질)", priceOriginal: 79000, priceSale: 49900 },
-    { name: "휴대용 빔프로젝터", priceOriginal: 159000, priceSale: 109000 },
-    { name: "무선 마이크 세트", priceOriginal: 59000, priceSale: 39900 }
+    {
+      name: "블루투스 스피커 (고음질)",
+      priceOriginal: 79000,
+      priceSale: 49900,
+      features: ["고음질", "휴대용", "방수"],
+      hook: "캠핑 갈 때 꼭 챙기게 되는 고음질 블루투스 스피커"
+    },
+    {
+      name: "휴대용 빔프로젝터",
+      priceOriginal: 159000,
+      priceSale: 109000,
+      features: ["휴대용", "무선연결", "자동초점"],
+      hook: "거실 벽이 순식간에 영화관 되는 휴대용 빔프로젝터"
+    },
+    {
+      name: "무선 마이크 세트",
+      priceOriginal: 59000,
+      priceSale: 39900,
+      features: ["무선", "세트구성", "노이즈감소"],
+      hook: "노래방 안 가도 되는 이유, 집에서 완성되는 무선 마이크 세트"
+    }
   ],
   life: [
-    { name: "에어프라이어 (5.5L 대용량)", priceOriginal: 99000, priceSale: 69900 },
-    { name: "극세사 이불 세트", priceOriginal: 59000, priceSale: 35900 },
-    { name: "무선 핸디청소기", priceOriginal: 79000, priceSale: 52900 }
+    {
+      name: "에어프라이어 (5.5L 대용량)",
+      priceOriginal: 99000,
+      priceSale: 69900,
+      features: ["대용량", "5.5L", "간편조리"],
+      hook: "치킨 한 마리 통째 들어가는 5.5L, 밥할 맛 남"
+    },
+    {
+      name: "극세사 이불 세트",
+      priceOriginal: 59000,
+      priceSale: 35900,
+      features: ["극세사", "보온", "세트구성"],
+      hook: "한 번 덮으면 다른 이불 못 쓰는 극세사 이불"
+    },
+    {
+      name: "무선 핸디청소기",
+      priceOriginal: 79000,
+      priceSale: 52900,
+      features: ["무선", "경량", "강력흡입"],
+      hook: "차 안, 소파 틈까지 싹 빨아들이는 무선 핸디청소기"
+    }
   ]
 };
 
@@ -460,7 +740,13 @@ export function sampleAffiliateCandidates(preferences, opts = {}) {
     return makeSlotItem({
       id: `ad_sample_${c.id}_${idx}`,
       category: c.id,
-      title: `[샘플] ${t.name}`,
+      // 후킹 카피: 상품별로 직접 쓴 커뮤톤 헤드라인(t.hook)이 있으면 그대로,
+      // 없으면 buildHookCopy가 category+topFeature로 폴백 생성한다. 실제
+      // 헤드라인 자리는 hook이 채우고(makeSlotItem), 딱딱한 상품명은
+      // productName으로 따로 넘겨 헤드라인 아래 보조 라인에 노출한다(정직성
+      // 방어선 — 유저가 실제 상품이 뭔지 알 수 있게).
+      hook: buildHookCopy({ category: c.id, name: t.name, features: t.features, hook: t.hook }),
+      productName: t.name,
       // 라운드2 검수 #7(경미): "검수용 샘플·실제 판매 아님" 고지는 summary가
       // 아니라 makeSlotItem의 sampleNote로 분리해 가격/배지 근처에 렌더한다
       // (index.html) — summary만 훑고 지나가는 유저도 놓치지 않게.

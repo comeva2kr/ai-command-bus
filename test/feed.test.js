@@ -2827,3 +2827,217 @@ test("createServer: without FEED_TRANSLATE (env unset) and no opts.translate, ov
     server.close();
   }
 });
+
+// ---- Thumbnail images (David 2026-07-26) -----------------------------------
+// docs/legal.md: 원본 서버 URL을 핫링크만 — 절대 우리 서버에 받거나 저장하지
+// 않는다. RSS는 그 항목이 이미 실어 온 media:thumbnail/media:content/
+// enclosure(image)/description 내 첫 <img>에서 뽑고, list 어댑터는 이미
+// 받아온 리스트 HTML의 각 행에서 (커뮤니티별 thumbRegex로) 뽑는다 — 둘 다
+// 추가 네트워크 요청이 없다.
+
+test("parseRss: extracts the item's own image — media:thumbnail wins first", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  const rss = `<rss xmlns:media="http://search.yahoo.com/mrss/"><channel>
+    <item><title>썸네일1</title><link>https://x/1</link>
+      <media:thumbnail url="https://img.example.com/t1.jpg"/>
+      <media:content url="https://img.example.com/should-not-win.jpg" type="image/jpeg"/>
+    </item>
+  </channel></rss>`;
+  const items = parseRss(rss);
+  assert.equal(items[0].image, "https://img.example.com/t1.jpg", "media:thumbnail is checked before media:content");
+});
+
+test("parseRss: media:content only counts as an image when explicitly typed/medium=image or genuinely untyped — never a typed video/audio", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  const typedImage = parseRss(
+    `<rss xmlns:media="x"><channel><item><title>a</title><link>https://x/1</link><media:content url="https://img.example.com/a.jpg" type="image/jpeg"/></item></channel></rss>`
+  )[0];
+  assert.equal(typedImage.image, "https://img.example.com/a.jpg");
+
+  const mediumImage = parseRss(
+    `<rss xmlns:media="x"><channel><item><title>b</title><link>https://x/2</link><media:content url="https://img.example.com/b.jpg" medium="image"/></item></channel></rss>`
+  )[0];
+  assert.equal(mediumImage.image, "https://img.example.com/b.jpg", "medium=\"image\" (no type attr) also counts");
+
+  const untyped = parseRss(
+    `<rss xmlns:media="x"><channel><item><title>c</title><link>https://x/3</link><media:content url="https://img.example.com/c.jpg"/></item></channel></rss>`
+  )[0];
+  assert.equal(untyped.image, "https://img.example.com/c.jpg", "genuinely untyped media:content is trusted as an image");
+
+  const typedVideo = parseRss(
+    `<rss xmlns:media="x"><channel><item><title>d</title><link>https://x/4</link><media:content url="https://vid.example.com/d.mp4" type="video/mp4"/></item></channel></rss>`
+  )[0];
+  assert.equal(typedVideo.image, null, "an explicitly video-typed media:content must never surface as image");
+});
+
+test("parseRss: enclosure only counts as an image with an explicit image/* type — a podcast's audio/mpeg enclosure must never leak through as a thumbnail", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  const imageEnclosure = parseRss(
+    `<rss><channel><item><title>a</title><link>https://x/1</link><enclosure url="https://img.example.com/a.jpg" type="image/jpeg" length="1"/></item></channel></rss>`
+  )[0];
+  assert.equal(imageEnclosure.image, "https://img.example.com/a.jpg");
+
+  // real-world case: slownews.kr's RSS <enclosure> is the episode mp3, not a thumbnail
+  const audioEnclosure = parseRss(
+    `<rss><channel><item><title>팟캐스트 에피소드</title><link>https://slownews.kr/1</link><enclosure url="https://slownews.kr/ep.mp3" type="audio/mpeg" length="12345"/></item></channel></rss>`
+  )[0];
+  assert.equal(audioEnclosure.image, null, "an audio enclosure must never be treated as a thumbnail image");
+
+  const untypedEnclosure = parseRss(
+    `<rss><channel><item><title>b</title><link>https://x/2</link><enclosure url="https://x.example.com/b.bin"/></item></channel></rss>`
+  )[0];
+  assert.equal(untypedEnclosure.image, null, "unlike media:content, an untyped enclosure is NOT trusted as an image (enclosure type is normally mandatory)");
+});
+
+test("parseRss: falls back to the first <img src> inside the item's own description/content HTML — real clien/ruliweb/WordPress-feed shape", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  // clien-style: feedburner RSS, real post image embedded directly in <description>
+  const clienStyle = parseRss(
+    `<rss><channel><item><title>글</title><link>https://www.clien.net/service/board/park/1</link>` +
+      `<description>&lt;body&gt;&lt;img alt="x.jpg" class="fr-dib" src="https://edgio.clien.net/F01/2026/x.jpg?scale=width:740"/&gt;본문&lt;/body&gt;</description>` +
+      `</item></channel></rss>`
+  )[0];
+  assert.equal(clienStyle.image, "https://edgio.clien.net/F01/2026/x.jpg?scale=width:740");
+  assert.equal(clienStyle.summary, "본문", "the <img> tag itself never leaks into the plain-text summary");
+
+  // WordPress content:encoded shape (slownews/ddanzi/yozm/outstanding pattern):
+  // description has no image, content:encoded (used as Atom-style fallback via
+  // the same tag() lookup path) does.
+  const wpStyle = parseRss(
+    `<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>포스트</title><link href="https://slownews.kr/1"/>` +
+      `<content type="html"><![CDATA[<p>인트로</p><img decoding="async" src="https://slownews.kr/wp-content/uploads/x.jpg" alt="" width="1000"/>]]></content>` +
+      `</entry></feed>`
+  )[0];
+  assert.equal(wpStyle.image, "https://slownews.kr/wp-content/uploads/x.jpg");
+});
+
+test("parseRss: RSS 2.0 <content:encoded> (WordPress full body) is checked as an image fallback when <description> has none — real slownews.kr shape (description is just an excerpt + \"appeared first on\" boilerplate, no image; content:encoded has the featured image)", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  const item = parseRss(
+    `<rss xmlns:content="http://purl.org/rss/1.0/modules/content/"><channel><item><title>기사</title><link>https://slownews.kr/1</link>` +
+      `<description><![CDATA[<p>발췌 텍스트</p><p>The post <a href="https://slownews.kr/1">기사</a> appeared first on <a href="https://slownews.kr">슬로우뉴스</a>.</p>]]></description>` +
+      `<content:encoded><![CDATA[<div><h5>부제목</h5><img fetchpriority="high" width="1000" src="https://slownews.kr/wp-content/uploads/2026/07/x.jpg" alt=""/></div>]]></content:encoded>` +
+      `</item></channel></rss>`
+  )[0];
+  assert.equal(item.image, "https://slownews.kr/wp-content/uploads/2026/07/x.jpg");
+  assert.equal(item.summary, "발췌 텍스트 The post 기사 appeared first on 슬로우뉴스 .", "summary still comes only from <description> — content:encoded is read for image fallback only, never mixed into the excerpt");
+});
+
+test("parseRss: no image anywhere in the item (gnews/geeknews shape) yields image: null, never a guess", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  const item = parseRss(
+    `<rss><channel><item><title>제목만 있는 기사</title><link>https://news.google.com/rss/articles/x</link>` +
+      `<description>&lt;ol&gt;&lt;li&gt;관련기사 링크만, 이미지 없음&lt;/li&gt;&lt;/ol&gt;</description></item></channel></rss>`
+  )[0];
+  assert.equal(item.image, null);
+});
+
+test("parseRss: a protocol-relative image URL (//cdn...) is resolved to https, and a relative path resolves against the item's own link origin", async () => {
+  const { parseRss } = await import("../src/feed/fetchers.js");
+  const protoRelative = parseRss(
+    `<rss xmlns:media="x"><channel><item><title>a</title><link>https://x/1</link><media:thumbnail url="//img.example.com/a.jpg"/></item></channel></rss>`
+  )[0];
+  assert.equal(protoRelative.image, "https://img.example.com/a.jpg");
+
+  const relativePath = parseRss(
+    `<rss xmlns:media="x"><channel><item><title>b</title><link>https://news.example.co.kr/read/1</link><media:thumbnail url="/img/b.jpg"/></item></channel></rss>`
+  )[0];
+  assert.equal(relativePath.image, "https://news.example.co.kr/img/b.jpg", "resolved against the item's own link origin, since RSS has no adapter.list.urlBase");
+});
+
+test("parseListPage: 네이트판 톡커들의 선택 — thumbRegex pulls each row's OWN thumbnail without bleeding into neighboring rows lacking one", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "pann");
+  assert.equal(entry.adapter.list.thumbIn, "before", "pann's thumbnail <img> renders just before the title <a>, not after");
+  const items = parseListPage(fixture("pann_talk_ranking.html"), entry.adapter.list);
+  assert.ok(items.length >= 20);
+  const withImage = items.filter((i) => i.image);
+  const withoutImage = items.filter((i) => !i.image);
+  assert.ok(withImage.length > 5, `expected several rows to carry their own thumbnail, got ${withImage.length}`);
+  assert.ok(withoutImage.length > 5, "text-only rows (no thumbnail in the list HTML) must not fabricate an image");
+  assert.ok(withImage.every((i) => i.image.startsWith("https://thumb.pann.com/")), "every extracted image is pann's own thumbnail CDN, not a stray/neighboring URL");
+  // every image must be unique to its own row — a windowBefore wide enough to
+  // reach into a neighboring row's <img> would produce duplicate image URLs
+  // across different posts
+  const urls = withImage.map((i) => i.image);
+  assert.equal(new Set(urls).size, urls.length, "no two different posts ever share the exact same thumbnail URL (no cross-row bleed)");
+});
+
+test("parseListPage: sources without a real per-post thumbnail in their list HTML (only file-type/HOT badge icons) intentionally carry no thumbRegex — image stays absent, not a guessed badge icon", async () => {
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const registry = loadRegistry();
+  for (const id of ["bobae", "ppomppu", "theqoo", "etoland", "todayhumor", "inven_hot"]) {
+    const entry = registry.find((c) => c.id === id);
+    assert.ok(entry, `expected a communities.json entry for ${id}`);
+    assert.equal(entry.adapter.list.thumbRegex, undefined, `${id}'s list page has no real per-post thumbnail (verified against its fixture 2026-07-26) — must not have a thumbRegex that would pick up a badge icon instead`);
+  }
+});
+
+test("normalizeItem: image URL normalization — relative path resolves against urlBase, protocol-relative becomes https, plain http upgrades only when httpsOk, and anything unresolvable/unsafe drops to null", async () => {
+  const { normalizeItem } = await import("../src/feed/content.js");
+
+  // already absolute + httpsOk true source with a plain http:// link -> upgraded, same policy as `url`
+  const httpUpgraded = normalizeItem({ title: "a", url: "https://x/1", image: "http://img.example.com/a.jpg", httpsOk: true }, { id: "src" });
+  assert.equal(httpUpgraded.image, "https://img.example.com/a.jpg");
+
+  // httpsOk not confirmed for this source -> left alone rather than guessed
+  const httpKept = normalizeItem({ title: "b", url: "https://x/2", image: "http://img.example.com/b.jpg" }, { id: "src" });
+  assert.equal(httpKept.image, "http://img.example.com/b.jpg");
+
+  // protocol-relative -> always https, regardless of httpsOk (matches fetchers.js's own resolveUrl behavior)
+  const protoRelative = normalizeItem({ title: "c", url: "https://x/3", image: "//img.example.com/c.jpg" }, { id: "src" });
+  assert.equal(protoRelative.image, "https://img.example.com/c.jpg");
+
+  // a bare relative path with no urlBase resolution already done upstream is
+  // not a usable src — drop it rather than ship a broken <img>
+  const unresolvable = normalizeItem({ title: "d", url: "https://x/4", image: "/img/d.jpg" }, { id: "src" });
+  assert.equal(unresolvable.image, null);
+
+  // no image at all -> null, never fabricated
+  const none = normalizeItem({ title: "e", url: "https://x/5" }, { id: "src" });
+  assert.equal(none.image, null);
+
+  // a non-http(s) scheme must never reach the client's <img src>
+  const unsafe = normalizeItem({ title: "f", url: "https://x/6", image: "javascript:alert(1)" }, { id: "src" });
+  assert.equal(unsafe.image, null);
+});
+
+test("parseOpenGraph: og:image resolves relative and protocol-relative paths against the submitted page's own URL", async () => {
+  const { parseOpenGraph } = await import("../src/feed/ingest.js");
+  const relative = parseOpenGraph(
+    `<meta property="og:title" content="글"><meta property="og:image" content="/assets/thumb.jpg">`,
+    "https://www.bobae.co.kr/view/123"
+  );
+  assert.equal(relative.image, "https://www.bobae.co.kr/assets/thumb.jpg");
+
+  const protoRelative = parseOpenGraph(
+    `<meta property="og:title" content="글"><meta property="og:image" content="//cdn.bobae.co.kr/thumb.jpg">`,
+    "https://www.bobae.co.kr/view/123"
+  );
+  assert.equal(protoRelative.image, "https://cdn.bobae.co.kr/thumb.jpg");
+
+  const noImage = parseOpenGraph(`<meta property="og:title" content="글">`, "https://www.bobae.co.kr/view/123");
+  assert.equal(noImage.image, null);
+});
+
+test("public/index.html: appendCard and appendAdCard share the same cardThumbHtml component — hotlink-only <img> with lazy-load/no-referrer/onerror-fallback, rendered only when item.image is present", () => {
+  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
+  const html = fs.readFileSync(htmlPath, "utf8");
+
+  const fnMatch = html.match(/function cardThumbHtml\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected a shared cardThumbHtml(item) helper");
+  const body = fnMatch[0];
+  assert.match(body, /if\(!item\.image\) return "";/, "no thumbnail markup at all when the item has no image — plain text card, unchanged from before");
+  assert.match(body, /class="card-thumb"/);
+  assert.match(body, /loading="lazy"/);
+  assert.match(body, /referrerpolicy="no-referrer"/);
+  assert.match(body, /onerror="this\.closest\('\.card-thumb'\)\.remove\(\)"/, "a broken hotlink removes the thumbnail area rather than showing a broken-image icon");
+  assert.match(body, /\$\{escapeHtml\(item\.image\)\}/, "the image URL is HTML-escaped into the src attribute");
+
+  // both card renderers must call the shared helper (component reuse, per spec)
+  const appendCardFn = html.match(/function appendCard\(item\)\{[\s\S]*?\n\}/)[0];
+  assert.match(appendCardFn, /cardThumbHtml\(item\)/);
+  const appendAdCardFn = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/)[0];
+  assert.match(appendAdCardFn, /cardThumbHtml\(item\)/, "ad/affiliate cards reuse the same thumbnail component (ready for productFeed images, even though monetize.js doesn't set image yet)");
+});

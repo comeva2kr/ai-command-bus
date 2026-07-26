@@ -46,6 +46,21 @@ function hostOf(url) {
   return m ? m[1].replace(/^www\./, "") : "";
 }
 
+// og:image is sometimes a relative or protocol-relative path rather than a
+// full URL. Resolve it against the submitted page's own URL so the client
+// gets a real, absolute hotlink — never fetched/stored here, just resolved.
+// content.js's normalizeImageUrl does the final http->https upgrade + safety
+// check when the item is normalized.
+function resolveOgImage(raw, pageUrl) {
+  const s = String(raw || "").trim();
+  if (!s) return null;
+  try {
+    return new URL(s, pageUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
 // SSRF guard for user-submitted URLs: literal-hostname checks only (no DNS
 // resolution) — blocks the obvious loopback/private/link-local targets a
 // submission could point the server's own fetch at. Node's URL parser already
@@ -119,7 +134,7 @@ export function parseOpenGraph(html, url) {
   return {
     title: decode(title).trim().slice(0, 300),
     summary: desc.slice(0, EXCERPT_MAX),
-    image: meta(html, "og:image", "twitter:image") || null,
+    image: resolveOgImage(meta(html, "og:image", "twitter:image"), url),
     siteName: meta(html, "og:site_name") || hostOf(url),
     url
   };

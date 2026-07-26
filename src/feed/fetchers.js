@@ -67,6 +67,80 @@ function decodeXml(s) {
     .replace(/&amp;/g, "&");
 }
 
+// ---- Thumbnail image extraction (image: 원본 OG/썸네일 URL 핫링크만, David
+// 2026-07-26 — see docs/legal.md) -------------------------------------------
+//
+// Never a body/image copy: this pulls exactly one representative image URL a
+// feed already publishes for the item (its own <media:thumbnail>/
+// <media:content>/image <enclosure>, or — failing those — the first <img> the
+// item's own description/content already embeds) and hands back the URL
+// string only. The client hotlinks it directly (referrerpolicy="no-referrer",
+// onerror hides a dead one) — nothing is fetched, stored, or re-served by us.
+
+function tagAttrs(tagText) {
+  const url = (tagText.match(/\burl=["']([^"']+)["']/i) || [])[1];
+  const type = (tagText.match(/\btype=["']([^"']+)["']/i) || [])[1];
+  const medium = (tagText.match(/\bmedium=["']([^"']+)["']/i) || [])[1];
+  return { url, type, medium };
+}
+
+// Self-closing/attribute-only tags (media:thumbnail, media:content,
+// enclosure) never nest other markup, so a simple "<tag ...>" match is enough
+// — no need for the block-matching regex title/summary use.
+function findTags(block, tagName) {
+  return block.match(new RegExp(`<${tagName}\\b[^>]*>`, "gi")) || [];
+}
+
+function extractRssImage(block, decodedDescHtml, originBase, extraHtml) {
+  // 1. <media:thumbnail url="...">  — a dedicated thumbnail element, always
+  //    an image by definition, no type check needed.
+  for (const t of findTags(block, "media:thumbnail")) {
+    const { url } = tagAttrs(t);
+    if (url) return resolveUrl(originBase, decodeXml(url).trim());
+  }
+  // 2. <media:content url="..." type="image/..." | medium="image">  — MRSS
+  //    also carries video/audio this way, so only trust it when explicitly
+  //    typed as an image, or genuinely untyped (untyped media:content is
+  //    overwhelmingly used for images in the wild; audio/video almost always
+  //    declares its type/medium).
+  for (const t of findTags(block, "media:content")) {
+    const { url, type, medium } = tagAttrs(t);
+    if (!url) continue;
+    if (type && !/^image\//i.test(type)) continue;
+    if (!type && medium && !/^image$/i.test(medium)) continue;
+    return resolveUrl(originBase, decodeXml(url).trim());
+  }
+  // 3. <enclosure url="..." type="image/...">  — enclosure is very commonly a
+  //    podcast audio file (audio/mpeg) or video; require an explicit image/*
+  //    type, never trust an untyped one here.
+  for (const t of findTags(block, "enclosure")) {
+    const { url, type } = tagAttrs(t);
+    if (url && type && /^image\//i.test(type)) return resolveUrl(originBase, decodeXml(url).trim());
+  }
+  // 4. Fallback: the first <img src> the item's own description/content HTML
+  //    already embeds (WordPress-style feeds routinely inline the featured
+  //    image this way; community boards like clien/ruliweb embed post photos
+  //    directly in the RSS description). decodedDescHtml is the same
+  //    CDATA-unwrapped, entity-decoded string stripHtml() reduces to plain
+  //    text for `summary` — read before that stripping happens. extraHtml
+  //    (RSS 2.0's <content:encoded> — WordPress's full-body field, separate
+  //    from <description>'s short excerpt; slownews/ddanzi/outstanding/yozm
+  //    all populate it) is searched too when the excerpt itself had no image
+  //    — read-only, never used for `summary` (that stays capped to the
+  //    excerpt field only, per docs/legal.md).
+  for (const html of [decodedDescHtml, extraHtml]) {
+    if (!html) continue;
+    const m = html.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
+    if (m) return resolveUrl(originBase, m[1].trim());
+  }
+  return null;
+}
+
+function originOf(url) {
+  const m = String(url || "").match(/^(https?:\/\/[^/]+)/i);
+  return m ? m[1] : null;
+}
+
 // Parse an RSS 2.0 or Atom document into raw feed items. Pure string parsing,
 // no XML dependency — good enough for well-formed feeds.
 export function parseRss(xml) {
@@ -78,11 +152,17 @@ export function parseRss(xml) {
     const title = tag(block, "title");
     if (!title) continue;
     const rawDesc = isAtom ? tag(block, "summary") || tag(block, "content") : tag(block, "description");
+    // RSS 2.0 only: WordPress's full-body field, kept separate from the
+    // short <description> excerpt — read here purely as an image-fallback
+    // source (point 4 above), never mixed into `summary`'s excerpt cap.
+    const rawContent = isAtom ? "" : tag(block, "content:encoded");
+    const url = tag(block, "link") || tag(block, "guid");
     items.push({
       title,
       summary: stripHtml(rawDesc),
-      url: tag(block, "link") || tag(block, "guid"),
-      publishedAt: normalizeDate(tag(block, isAtom ? "updated" : "pubDate"))
+      url,
+      publishedAt: normalizeDate(tag(block, isAtom ? "updated" : "pubDate")),
+      image: extractRssImage(block, rawDesc, originOf(url), rawContent)
     });
   }
   return items;
@@ -196,10 +276,13 @@ export function redditFetcher(subreddit, fetchImpl = fetch, limit = 30) {
 //
 // Some communities publish no RSS/API but do render their best/hot board as a
 // plain server-rendered HTML list. For those we fetch ONE list page and pull
-// only { title, url, publishedAt, score, commentCount } — never body/images —
-// via small regexes declared per-community in communities.json (adapter.list).
-// This keeps site-by-site differences in *data*, not in code: one parser
-// (parseListPage) drives every community from its own config.
+// only { title, url, publishedAt, score, commentCount, image } — never a body
+// copy — via small regexes declared per-community in communities.json
+// (adapter.list). `image` is the row's OWN thumbnail <img src> the list page
+// already renders (David 2026-07-26) — still just a URL string, never
+// downloaded; see docs/legal.md's hotlink-only rule. This keeps site-by-site
+// differences in *data*, not in code: one parser (parseListPage) drives every
+// community from its own config.
 //
 // adapter.list config:
 //   urlBase       resolve relative hrefs found by titleRegex (e.g. "https://theqoo.net")
@@ -211,10 +294,23 @@ export function redditFetcher(subreddit, fetchImpl = fetch, limit = 30) {
 //                 parsed; unparseable text is dropped rather than guessed)
 //   scoreRegex    1 capture group: a public engagement number (recommend/view)
 //   commentRegex  1 capture group: a public comment count
-//   dateIn / scoreIn / commentIn  "after" (default) or "before" — some sites
-//                 render the metadata ahead of the title in the DOM (e.g. a
-//                 date span before the link). Each field searches only its
-//                 own side so a neighboring row's numbers never bleed in.
+//   thumbRegex    1 capture group: the row's own thumbnail <img src> (or a
+//                 data-src/lazy-load attribute holding the same). Only add
+//                 this where a real per-post thumbnail sits within
+//                 windowBefore/windowAfter of the title match, close enough
+//                 that a neighboring row's image can never be picked up
+//                 instead (verified per-source against a real HTML snapshot
+//                 before shipping — most community best/hot list pages only
+//                 render a file-type/HOT badge icon here, not an actual
+//                 thumbnail, so most sources intentionally have no
+//                 thumbRegex at all — no image is the safe, honest default).
+//                 Resolved through the same urlBase/protocol-relative/https
+//                 rules as the title url.
+//   dateIn / scoreIn / commentIn / thumbIn  "after" (default) or "before" —
+//                 some sites render the metadata ahead of the title in the
+//                 DOM (e.g. a date span, or a thumbnail <a>, before the link).
+//                 Each field searches only its own side so a neighboring
+//                 row's value never bleeds in.
 //   max           stop after this many rows (default 60 — "리스트 1~2페이지")
 //   urlGroup / titleGroup  which capture group (1-based) of titleRegex holds
 //                 the url / title, for formats where url doesn't come first
@@ -231,6 +327,7 @@ function resolveUrl(base, href) {
   const h = String(href || "").trim();
   if (!h) return h;
   if (/^https?:\/\//i.test(h)) return h;
+  if (h.startsWith("//")) return "https:" + h; // protocol-relative CDN URL — common on Korean image hosts
   if (!base) return h;
   const b = base.replace(/\/$/, "");
   return h.startsWith("/") ? b + h : `${b}/${h}`;
@@ -309,6 +406,11 @@ export function parseListPage(html, cfg = {}) {
     if (sm) raw.score = toNumber(sm[1]);
     const cm = pick(cfg.commentRegex, cfg.commentIn);
     if (cm) raw.commentCount = toNumber(cm[1]);
+    const tm = pick(cfg.thumbRegex, cfg.thumbIn);
+    if (tm && tm[1]) {
+      const img = resolveUrl(cfg.urlBase, tm[1].trim());
+      if (img) raw.image = img;
+    }
 
     items.push(raw);
     if (items.length >= max) break;

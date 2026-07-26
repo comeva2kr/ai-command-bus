@@ -15,6 +15,8 @@ import {
   makeSlotItem,
   pickAffiliateCandidates,
   sampleAffiliateCandidates,
+  buildHookCopy,
+  hasBannedHookClaim,
   DISCLOSURE_TEXT,
   DISCLOSURE_SHORT_TEXT
 } from "../src/feed/monetize.js";
@@ -282,8 +284,16 @@ test("pickAffiliateCandidates: AD_PREVIEW=1 without a credential yields clearly-
     const out = pickAffiliateCandidates(vec, {});
     assert.ok(out.length > 0);
     for (const c of out) {
-      assert.ok(c.title.startsWith("[샘플]"), `expected [샘플] prefix, got "${c.title}"`);
+      // 후킹 카피 기능(2026-07-25) 이후: 헤드라인(title/hook)은 커뮤 후기톤이라
+      // "[샘플]" 접두를 달지 않는다 — 그 표시는 이제 실제 상품명 보조 라인
+      // (productName)에 붙는다(정직성 방어선). sampleNote("실제 판매 상품
+      // 아님")는 계속 유지된다.
+      assert.ok(c.productName && c.productName.length > 0, "expected a productName field");
+      assert.ok(c.title && c.title.length > 0, "expected a non-empty hook headline");
+      assert.notEqual(c.title, c.productName, "hook headline must differ from the raw product name");
+      assert.ok(!hasBannedHookClaim(c.title), `hook must not contain a banned claim: "${c.title}"`);
       assert.equal(c.sample, true);
+      assert.ok(c.sampleNote && c.sampleNote.includes("실제 판매"), "sampleNote disclaimer must still be present");
       assert.equal(c.disclosure, DISCLOSURE_TEXT);
     }
   });
@@ -416,6 +426,115 @@ test("makeSlotItem: carries the mandated Coupang disclosure text verbatim", () =
   assert.equal(item.via, "ad");
 });
 
+// ---- makeSlotItem: hook copy headline priority (2026-07-25 "후킹 카피") -------
+// Headline priority is hook > title > productName. A bare `title` call (no
+// hook/productName, the pre-existing calling convention used by `candidate()`
+// above and any legacy caller) must keep working unchanged.
+
+test("makeSlotItem: with no hook/productName, `title` alone is still the headline (backward compatible)", () => {
+  const item = makeSlotItem({ id: "x1", category: "tech", title: "그냥 타이틀", summary: "s", url: "https://www.coupang.com/", relevance: 1 });
+  assert.equal(item.title, "그냥 타이틀");
+  assert.equal(item.hook, null);
+  assert.equal(item.productName, null);
+});
+
+test("makeSlotItem: hook wins over title as the rendered headline; productName is carried separately", () => {
+  const item = makeSlotItem({
+    id: "x2",
+    category: "tech",
+    title: "보조배터리 (20000mAh 고속충전)", // legacy-style raw title, should NOT win
+    hook: "출장·여행 짐 확 줄여주는 20000mAh, 이거 하나면 끝",
+    productName: "보조배터리 (20000mAh 고속충전)",
+    summary: "s",
+    url: "https://www.coupang.com/",
+    relevance: 1
+  });
+  assert.equal(item.title, "출장·여행 짐 확 줄여주는 20000mAh, 이거 하나면 끝");
+  assert.equal(item.hook, "출장·여행 짐 확 줄여주는 20000mAh, 이거 하나면 끝");
+  assert.equal(item.productName, "보조배터리 (20000mAh 고속충전)");
+});
+
+// ---- hook copy algorithm: buildHookCopy (2026-07-25 "후킹 카피") --------------
+//
+// 법적 가드레일: hasBannedHookClaim이 근거 없는 최상급/가짜 구매자수·평점/
+// 검증 불가능한 사용 후 변화 수치를 잡아낸다 — buildHookCopy의 출력과 아래
+// 커뮤톤 큐레이션 문구 전부가 이 체크를 통과해야 한다.
+
+test("buildHookCopy: an explicit product.hook always wins over the fallback rule", () => {
+  const hook = buildHookCopy({ category: "tech", name: "상품A", features: ["기능1"], hook: "직접 쓴 후킹 문구" });
+  assert.equal(hook, "직접 쓴 후킹 문구");
+});
+
+test("buildHookCopy: falls back to a category+topFeature rule when no explicit hook is given", () => {
+  const hook = buildHookCopy({ category: "tech", name: "상품A", features: ["초경량"] });
+  assert.ok(hook && hook.length > 0);
+  assert.ok(hook.includes("상품A"), `expected fallback headline to mention the product name, got "${hook}"`);
+  assert.ok(hook.includes("초경량"), `expected fallback headline to use the top feature, got "${hook}"`);
+});
+
+test("buildHookCopy: fallback is deterministic (same category/name/features -> same headline every call)", () => {
+  const input = { category: "gaming", name: "상품B", features: ["초저지연"] };
+  const a = buildHookCopy(input);
+  const b = buildHookCopy({ ...input });
+  assert.equal(a, b);
+});
+
+test("buildHookCopy: with no features at all, still produces a non-empty category-only fallback headline", () => {
+  const hook = buildHookCopy({ category: "life", name: "상품C" });
+  assert.ok(hook && hook.length > 0);
+  assert.ok(hook.includes("상품C"));
+});
+
+test("buildHookCopy: returns null when there's no name and no explicit hook (nothing to build from)", () => {
+  assert.equal(buildHookCopy({ category: "tech", features: ["기능1"] }), null);
+});
+
+test("hasBannedHookClaim: flags baseless superlatives, fake purchase counts, and unverifiable post-use stats", () => {
+  assert.ok(hasBannedHookClaim("업계 1위 보조배터리"));
+  assert.ok(hasBannedHookClaim("무조건 사야 하는 이유"));
+  assert.ok(hasBannedHookClaim("최저가 직구 찬스"));
+  assert.ok(hasBannedHookClaim("100% 만족 보장"));
+  assert.ok(hasBannedHookClaim("3000명이 구매한 인기템"));
+  assert.ok(hasBannedHookClaim("후기 4.9점 받은 이유"));
+  assert.ok(hasBannedHookClaim("3개월 써보니 배터리 20% 덜 닳음"));
+});
+
+test("hasBannedHookClaim: does not flag honest feature/situational hooks (allowed style)", () => {
+  assert.ok(!hasBannedHookClaim("출장·여행 짐 확 줄여주는 20000mAh, 이거 하나면 끝"));
+  assert.ok(!hasBannedHookClaim("노트북까지 이거 하나로 다 충전됨 (멀티포트 65W)"));
+  assert.ok(!hasBannedHookClaim("요즘 난리난 이유가 있는 저소음 기계식 키보드"));
+  assert.ok(!hasBannedHookClaim(null));
+  assert.ok(!hasBannedHookClaim(""));
+});
+
+// ---- hook copy curated content: every sample template's hook + productName ----
+// (2026-07-25 "후킹 카피") — exercises all 24 curated SAMPLE_PRODUCT_TEMPLATES
+// entries (3 per category x 8 categories) via the public sampleAffiliateCandidates
+// API (rotating idx 0..2 by seed with a single learned category so the pool
+// offset stays fixed at 0), rather than reaching into the private template map.
+
+const HOOK_TEMPLATE_CATEGORIES = ["tech", "auto", "science", "business", "gaming", "sports", "culture", "life"];
+
+test("sampleAffiliateCandidates: every curated template across all 8 categories has a hook + productName, and no hook contains a banned claim", () => {
+  let checked = 0;
+  for (const cat of HOOK_TEMPLATE_CATEGORIES) {
+    const vec = emptyPreferenceVector();
+    vec.categories[cat] = 6;
+    for (let seed = 0; seed < 3; seed++) {
+      const [item] = sampleAffiliateCandidates(vec, { seed });
+      assert.ok(item, `expected a candidate for category="${cat}" seed=${seed}`);
+      assert.equal(item.category, cat);
+      assert.ok(item.productName && item.productName.length > 0, `missing productName for ${cat}/${seed}`);
+      assert.ok(!item.productName.startsWith("[샘플]"), `productName must be the bare product name (no [샘플] prefix), got "${item.productName}"`);
+      assert.ok(item.title && item.title.length > 0, `missing hook headline for ${cat}/${seed}`);
+      assert.notEqual(item.title, item.productName, `hook headline must differ from the raw product name for ${cat}/${seed}`);
+      assert.ok(!hasBannedHookClaim(item.title), `hook contains a banned claim for ${cat}/${seed}: "${item.title}"`);
+      checked++;
+    }
+  }
+  assert.equal(checked, HOOK_TEMPLATE_CATEGORIES.length * 3, "expected to have exercised all 24 curated templates");
+});
+
 // ---- engine integration -------------------------------------------------------
 
 test("engine: production mode (no credential, no preview) never shows an ad/affiliate item", async () => {
@@ -445,9 +564,17 @@ test("engine: AD_PREVIEW=1 shows [샘플] affiliate slots for a user with learne
     const adItems = feed.items.filter((i) => i.kind === "affiliate");
     assert.ok(adItems.length > 0, "expected at least one preview affiliate slot");
     for (const a of adItems) {
-      assert.ok(a.title.startsWith("[샘플]"));
-      assert.equal(a.badgeLabel, "제휴광고 · 샘플");
+      // 헤드라인은 후킹 카피(hook), "[샘플]" 표시는 productName 보조 라인 쪽
+      // (index.html adProductNameHtml)으로 옮겨졌다 — 배지·고지는 그대로.
+      assert.ok(a.title && !a.title.startsWith("[샘플]"), `expected a hook headline without a [샘플] prefix, got "${a.title}"`);
+      assert.ok(a.productName && a.productName.length > 0);
+      // 2026-07-26 리디자인: 배지 라벨이 "제휴광고 · 샘플"(긴 라벨)에서
+      // "AD · 샘플"(짧은 라벨)로 바뀌었다 — docs/monetization.md 참고.
+      assert.equal(a.badgeLabel, "AD · 샘플");
       assert.ok(a.disclosure && a.disclosure.length > 0);
+      // disclosureShort 필드는 하위호환으로 계속 채워지지만(값 자체는 그대로),
+      // UI(index.html)는 더 이상 상시 렌더하지 않는다 — 배지 탭 시 뜨는
+      // 팝오버가 item.disclosure(전문)만 사용한다.
       assert.equal(a.disclosureShort, DISCLOSURE_SHORT_TEXT);
     }
     // first-screen protection: none of the first 4 rendered items are ads
@@ -795,24 +922,54 @@ test("public/index.html renders the disclosure text and a distinct badge for ad/
 
 // ---- round-1 review regressions: badge/color/reason-chip separation, top disclosure, impression dedup ----
 
-test("public/index.html: ad badge uses its own color token, not the 🔥화제 hot-badge color", () => {
+test("public/index.html: ad badge uses its own neutral color token, not the 🔥화제 hot-badge color or a brand accent (2026-07-26 리디자인: 배지 톤을 브랜드 보라에서 중립 회색으로)", () => {
   const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
   // the 🔥화제 hot badge is hardcoded #f0a13d in hotBadge() — the ad badge must not share that value
   assert.doesNotMatch(html, /\.card-top \.ad-badge\s*\{[^}]*#f0a13d/);
-  assert.match(html, /--ad:\s*#8b6cf0/); // dedicated ad color token exists
+  assert.match(html, /--ad-badge-bg:\s*#[0-9a-fA-F]{6}/); // dedicated ad badge color token exists
+  // must not reuse the accent (blue, used for CTAs/links) or like (green) tokens either
+  assert.doesNotMatch(html, /\.card-top \.ad-badge\s*\{[^}]*background:\s*var\(--accent\)/);
+  assert.doesNotMatch(html, /\.card-top \.ad-badge\s*\{[^}]*background:\s*var\(--like\)/);
 });
 
-test("public/index.html: ad badge is explicitly left-aligned, overriding .badge's default margin-left:auto", () => {
+test("public/index.html: ad badge is right-aligned (margin-left:auto), sitting in the organic category-tag position — David 2026-07-26 format-match", () => {
   const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
-  assert.match(html, /\.card-top \.ad-badge\s*\{[^}]*margin-left:\s*0/);
+  // AD 배지는 유기 카드의 카테고리("뉴스") 라벨과 같은 우상단 위치로 — 단어는
+  // 반드시 "AD"라 위장 아님(아래 별도 테스트가 문구를 검증). 좌상단엔 소스명(쿠팡파트너스).
+  assert.match(html, /\.card-top \.ad-badge\s*\{[^}]*margin-left:\s*auto/);
+});
+test("public/index.html: ad card carries source (쿠팡파트너스) top-left and shows metrics only from real data", () => {
+  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
+  const html = fs.readFileSync(htmlPath, "utf8");
+  // 하단 지표 행은 실측(rating/reviewCount/bestseller)만으로 구성 — 없으면 생략(가짜 금지)
+  assert.match(html, /function adMetaHtml/);
+  assert.match(html, /if\(!parts\.length\) return ""/);
 });
 
-test("public/index.html: ad badge label explicitly says 광고 (제휴광고), not just 제휴", () => {
+// 2026-07-26 리디자인: 배지 문구가 "제휴광고"(긴 라벨)에서 "AD"(짧은 라벨)로
+// 축소됐다 — 다만 David 최종지시의 금지선("추천/IT/카테고리 등으로 위장
+// 금지", 기사형광고 규제선)은 그대로 지켜야 하므로, 배지가 "AD"/"광고"라는
+// 뜻이 명확한 단어만 쓰고 카테고리명·추천 문구로 대체되지 않았는지도 함께
+// 검증한다.
+test("public/index.html: ad badge label is the short, unmistakable 'AD' — never disguised as a category/recommendation label", () => {
   const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
-  assert.match(html, /badgeLabel\|\|"제휴광고"/);
+  assert.match(html, /badgeLabel\|\|"AD"/);
+  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected to find appendAdCard's function body");
+  const badgeLineMatch = fnMatch[0].match(/<button[^>]*class="badge ad-badge"[^>]*>\$\{escapeHtml\(item\.badgeLabel\|\|"AD"\)\}<\/button>/);
+  assert.ok(badgeLineMatch, "expected the badge markup to render item.badgeLabel with an 'AD' fallback, unmodified by any category/recommendation text");
+});
+
+// makeSlotItem's badgeLabel itself (monetize.js side) must also stay a plain
+// "AD"/"AD · 샘플" — never swapped for a category label like "기술/IT".
+test("monetize.js: makeSlotItem's badgeLabel is always exactly 'AD' or 'AD · 샘플', regardless of category", () => {
+  for (const sample of [true, false]) {
+    const item = makeSlotItem({ id: "badge-check", category: "tech", title: "t", summary: "s", url: "https://www.coupang.com/", relevance: 1, sample });
+    assert.equal(item.badgeLabel, sample ? "AD · 샘플" : "AD");
+  }
 });
 
 test("public/index.html: ad reason chips use a distinct class/color from organic .why", () => {
@@ -822,19 +979,70 @@ test("public/index.html: ad reason chips use a distinct class/color from organic
   assert.match(html, /\.ad-why\s*\{/); // dedicated style, separate from .why
 });
 
-test("public/index.html: a short top-of-card disclosure line renders at >=13px, distinct from the bottom legal text", () => {
+// 2026-07-26 리디자인 — David 최종지시: 상단 축약고지·하단 법정고지 전문의
+// "상시 노출"을 없애고, 배지를 탭하면 뜨는 progressive-disclosure 팝오버로
+// 옮겼다. 법적 요건("존재+인지가능+접근가능")은 상시 렌더가 아니어도
+// 충족되지만, (a) 팝오버가 기본으로 닫혀 있어야(hidden) 하고, (b) 배지 자체는
+// 여전히 항상 렌더돼야(Warner Bros 판례 — 안 보이는 고지는 위법) 한다.
+test("public/index.html: the disclosure line is NO LONGER persistently rendered — old .ad-disclosure-short/item.disclosureShort render calls are gone", () => {
   const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
-  assert.match(html, /ad-disclosure-short/);
-  assert.match(html, /item\.disclosureShort/);
-  assert.match(html, /\.ad-disclosure-short\s*\{[^}]*font-size:\s*13px/);
+  assert.doesNotMatch(html, /ad-disclosure-short/);
+  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected to find appendAdCard's function body");
+  assert.doesNotMatch(fnMatch[0], /item\.disclosureShort/, "the top-of-card short disclosure line must no longer be rendered");
 });
 
-test("public/index.html: discount % uses its own color token, not --like (green, used for the 👍 button)", () => {
+test("public/index.html: the full disclosure text renders inside a popover that is HIDDEN by default (progressive disclosure, not always-on)", () => {
   const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
-  assert.match(html, /\.ad-price \.off\s*\{[^}]*var\(--discount\)/);
-  assert.doesNotMatch(html, /\.ad-price \.off\s*\{[^}]*var\(--like\)/);
+  assert.match(html, /ad-disclosure-pop/);
+  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected to find appendAdCard's function body");
+  const body = fnMatch[0];
+  // the popover element itself carries item.disclosure and starts `hidden`
+  const popMatch = body.match(/<div id="\$\{popId\}" class="ad-disclosure-pop"[^>]*hidden>\$\{escapeHtml\(item\.disclosure\|\|""\)\}<\/div>/);
+  assert.ok(popMatch, "expected a hidden-by-default popover element carrying item.disclosure");
+});
+
+test("public/index.html: the AD badge is a real button (tappable) that toggles the disclosure popover without triggering the card's outlink navigation", () => {
+  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
+  const html = fs.readFileSync(htmlPath, "utf8");
+  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected to find appendAdCard's function body");
+  const body = fnMatch[0];
+  assert.match(body, /<button type="button" class="badge ad-badge"/, "badge must be a real <button>, tappable/keyboard-accessible");
+  assert.match(body, /aria-haspopup="true"/);
+  assert.match(body, /aria-expanded="false"/);
+  assert.match(body, /badgeBtn\.addEventListener\("click",\s*\(e\)=>\{\s*e\.stopPropagation\(\)/, "badge click must stopPropagation so it never bubbles into the card's own outlink click handler");
+  assert.match(body, /pop\.removeAttribute\("hidden"\)/, "badge click must be able to reveal the popover");
+});
+
+test("public/index.html: the badge itself (not just the popover) is unconditionally rendered inside appendAdCard — the legal badge is never hidden behind a toggle", () => {
+  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
+  const html = fs.readFileSync(htmlPath, "utf8");
+  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected to find appendAdCard's function body");
+  const body = fnMatch[0];
+  const templateMatch = body.match(/card\.innerHTML = `([\s\S]*?)`;/);
+  assert.ok(templateMatch, "expected appendAdCard's innerHTML template");
+  // the <button class="ad-badge"> markup must be part of the unconditional
+  // template string itself (not behind a ternary/`?:` that could omit it)
+  const badgeChunk = templateMatch[1].match(/<button[^>]*class="badge ad-badge"[\s\S]*?<\/button>/);
+  assert.ok(badgeChunk, "expected the AD badge markup inside the unconditional template");
+});
+
+// 2026-07-26 리디자인 — David 최종지시 #3: 가격/할인율의 "상시 노출"을
+// 완전히 제거해 카드가 커뮤 게시글처럼 자연스럽게 보이게 한다.
+// adPriceHtml/.ad-price는 이제 존재하지 않는다.
+test("public/index.html: the price/discount block is fully removed — no .ad-price render, no adPriceHtml function", () => {
+  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
+  const html = fs.readFileSync(htmlPath, "utf8");
+  assert.doesNotMatch(html, /function adPriceHtml/);
+  assert.doesNotMatch(html, /class="ad-price"/);
+  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected to find appendAdCard's function body");
+  assert.doesNotMatch(fnMatch[0], /adPriceHtml\(item\)/, "appendAdCard must no longer call a price renderer");
 });
 
 test("public/index.html: ad impression dedup is per DOM card instance, not per (repeatable) item id (라운드1 검수 #2)", () => {
@@ -900,12 +1108,68 @@ test("monetize.js: sampleAffiliateCandidates carries the sample disclaimer as a 
   assert.doesNotMatch(item.summary, /실제 판매/, "the '실제 판매 아님' disclaimer must not be embedded in summary text anymore");
 });
 
-test("public/index.html: the sample-not-real-product note renders next to the price row, not only inside the (2-line-clamped) summary", () => {
+// 2026-07-26 리디자인: 가격 블록 자체가 사라졌으므로 "가격 줄 옆 sampleNote"
+// 렌더도 함께 사라진다 — 샘플 여부는 이제 productName 보조 라인의 "[샘플]"
+// 표시(adProductNameHtml) 하나로 충분하다(David 최종지시 #3). sampleNote
+// 필드는 monetize.js가 하위호환으로 계속 채우지만(데이터 레벨 테스트는
+// 위 "monetize.js: sampleAffiliateCandidates carries..." 참고) UI는 더 이상
+// 별도로 렌더하지 않는다.
+test("public/index.html: item.sampleNote / .ad-sample-note are no longer rendered — [샘플] now lives only on the productName subtitle line", () => {
   const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
-  assert.match(html, /item\.sampleNote/);
-  assert.match(html, /class="ad-sample-note"/);
-  // it must be emitted from inside adPriceHtml (the price-row builder), not as a standalone summary concatenation
-  const fnMatch = html.match(/function adPriceHtml\(item\)\{[\s\S]*?\n\}/);
-  assert.ok(fnMatch && /sampleNote/.test(fnMatch[0]), "expected adPriceHtml to render item.sampleNote alongside the price");
+  assert.doesNotMatch(html, /class="ad-sample-note"/);
+  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected to find appendAdCard's function body");
+  assert.doesNotMatch(fnMatch[0], /item\.sampleNote/, "appendAdCard must not render item.sampleNote anymore");
+});
+
+// ---- round: hook copy client render (2026-07-25 "후킹 카피") ------------------
+// Headline (h3) now renders item.title (hook-first per makeSlotItem), and a
+// new subtitle line renders item.productName right below it — the honesty
+// backstop so the user can always tell what the real product is, even though
+// the headline itself is a community-review-toned hook sentence. Badge and
+// disclosure markup must be completely unchanged (regression guard).
+
+test("public/index.html: appendAdCard renders item.title as the h3 headline and a dedicated productName subtitle line right below it", () => {
+  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
+  const html = fs.readFileSync(htmlPath, "utf8");
+  assert.match(html, /function adProductNameHtml\(item\)\{/);
+  assert.match(html, /class="ad-product-name"/);
+  assert.match(html, /item\.productName/);
+  // the subtitle call must sit between the h3 headline and the summary <p>,
+  // inside appendAdCard's template literal
+  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected to find appendAdCard's function body");
+  const body = fnMatch[0];
+  const h3Idx = body.indexOf("<h3>");
+  const productNameIdx = body.indexOf("adProductNameHtml(item)");
+  const summaryIdx = body.indexOf("<p>${escapeHtml(item.summary)}</p>");
+  assert.ok(h3Idx >= 0 && productNameIdx > h3Idx, "expected the productName line to render after the h3 headline");
+  assert.ok(summaryIdx > productNameIdx, "expected the productName line to render before the summary paragraph");
+});
+
+test("public/index.html: the [샘플] tag is appended on the productName subtitle line, not stripped from it, when item.sample is true", () => {
+  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
+  const html = fs.readFileSync(htmlPath, "utf8");
+  const fnMatch = html.match(/function adProductNameHtml\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected to find adProductNameHtml's function body");
+  assert.match(fnMatch[0], /item\.sample/);
+  assert.match(fnMatch[0], /\[샘플\]/);
+});
+
+// 2026-07-26 리디자인 이후 버전: 배지(badgeLabel)는 여전히 렌더되지만,
+// 고지문은 이제 상시 렌더 두 줄(disclosureShort/하단 전문) 대신 배지 탭
+// 팝오버(item.disclosure) 하나로 통합됐다 — hook/productName 라인은 회귀 없이
+// 그대로다.
+test("public/index.html: appendAdCard still renders the ad badge + hook/productName lines unchanged, with disclosure now via the tap popover only (no persistent disclosureShort/bottom-legal-text lines)", () => {
+  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
+  const html = fs.readFileSync(htmlPath, "utf8");
+  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(fnMatch, "expected to find appendAdCard's function body");
+  const body = fnMatch[0];
+  assert.match(body, /badgeLabel/);
+  assert.doesNotMatch(body, /disclosureShort/, "the top-of-card short disclosure line must be gone");
+  assert.doesNotMatch(body, /class="ad-disclosure">/, "the persistent bottom legal-text block must be gone");
+  assert.match(body, /class="ad-disclosure-pop"[^>]*hidden>\$\{escapeHtml\(item\.disclosure/, "disclosure text must still be present, but only inside the hidden popover");
+  assert.match(body, /adProductNameHtml\(item\)/);
 });
