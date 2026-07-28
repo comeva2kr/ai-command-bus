@@ -3,13 +3,17 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>내 취향 피드</title>
+<title>지금핫 NowHot</title>
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="지금핫 NowHot" />
+<meta property="og:title" content="지금핫 NowHot — 지금 가장 화제인 글만 모아서" />
+<meta property="og:description" content="여러 커뮤니티·뉴스의 지금 가장 화제인 글만 취향에 맞게 모아드려요." />
 <link rel="manifest" href="/manifest.webmanifest" />
 <meta name="theme-color" content="#0e0f13" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="취향피드" />
+<meta name="apple-mobile-web-app-title" content="지금핫" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon.svg" />
 <style>
@@ -48,6 +52,7 @@
     padding: 12px 16px calc(10px + env(safe-area-inset-top)); }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; }
   .brand small { font-weight: 500; color: var(--muted); font-size: 12px; }
+  .brand-en { font-weight: 700; font-size: 13px; color: var(--muted); letter-spacing: .01em; }
   .adult-btn { margin-left: auto; width: 34px; height: 26px; border-radius: 8px; font-weight: 800; font-size: 13px;
     border: 1px solid var(--line); background: var(--card-2); color: var(--muted); position: relative; }
   .adult-btn.locked::after { content: "🔒"; position: absolute; top: -7px; right: -7px; font-size: 11px; }
@@ -88,6 +93,19 @@
     text-transform: uppercase; letter-spacing: .03em; }
   .drawer-link { width: 100%; text-align: left; background: var(--card-2); border: 1px solid var(--line);
     color: var(--text); border-radius: 12px; padding: 12px 14px; font-size: 14px; font-weight: 700; }
+
+  /* ---------- 소셜 로그인 (드로어 + 내 공간 공유) ---------- */
+  .auth-hint { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
+  .auth-hint-sub { display: block; color: #5a5f70; font-size: 11px; margin-top: 2px; }
+  .auth-btns { display: flex; flex-direction: column; gap: 8px; }
+  .auth-btn { display: block; text-align: center; padding: 11px 14px; border-radius: 12px; font-size: 13.5px;
+    font-weight: 700; border: 1px solid transparent; }
+  .auth-profile { display: flex; align-items: center; gap: 10px; }
+  .auth-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--card-2); }
+  .auth-avatar-ph { display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .auth-info { flex: 1; min-width: 0; }
+  .auth-nick { font-weight: 800; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .auth-provider-label { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
 
   /* 몰입 모드: 한 글씩 세로 스와이프 (틱톡식 포맷, 콘텐츠는 글) */
   body.immersion { max-width: 100%; }
@@ -358,11 +376,10 @@
 </head>
 <body>
   <header>
-    <div class="brand">🧭 내 취향 피드 <small id="phaseLabel">준비 중</small>
-      <span class="hot-tag">🔥 지금 핫</span>
+    <div class="brand">🔥 지금핫 <span class="brand-en">NowHot</span> <small id="phaseLabel">준비 중</small>
       <button id="menuBtn" class="menu-btn" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer">☰</button>
     </div>
-    <p class="tagline">여러 커뮤니티·뉴스의 인기글을 한곳에 모아드려요. 카드를 누르면 원문 사이트 새 탭으로 열려요.</p>
+    <p class="tagline">여러 커뮤니티·뉴스의 지금 가장 화제인 글만 모아드려요. 카드를 누르면 원문 사이트 새 탭으로 열려요.</p>
   </header>
 
   <!-- 홈은 통합 핫 피드 하나만 — 소스별 선택 칩·필터 토글·내 공간·제출은 전부
@@ -402,6 +419,9 @@
       <div class="drawer-sec">
         <button class="drawer-link" id="drawerSpaceBtn">👤 내 공간</button>
       </div>
+
+      <!-- 소셜 로그인: 설정된 provider가 있을 때만 채워짐 (renderAuthBlock) -->
+      <div class="drawer-sec" id="authDrawerSec"></div>
     </div>
   </aside>
 
@@ -490,11 +510,33 @@ const API = {
   },
   async item(userId, itemId) { return get(`/api/item?userId=${userId}&itemId=${encodeURIComponent(itemId)}`); },
   async rate(userId, itemId, signal) { return post("/api/rate", { userId, itemId, signal }); },
-  async comment(userId, itemId, body) { return post("/api/comment", { userId, itemId, body }); }
+  async comment(userId, itemId, body) { return post("/api/comment", { userId, itemId, body }); },
+  // 소셜 로그인: 세션 쿠키 기반 — credentials:"include"로 쿠키를 실어 보낸다.
+  async authSession(){ const r = await fetch("/api/auth/session", { credentials:"include" }); return r.json(); },
+  async logout(){ const r = await fetch("/api/auth/logout", { method:"POST", credentials:"include" }); return r.json(); }
 };
 async function get(u){ const r = await fetch(u); if(!r.ok) throw new Error((await r.json()).error||r.status); return r.json(); }
 async function post(u,b){ const r = await fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)});
   if(!r.ok) throw new Error((await r.json()).error||r.status); return r.json(); }
+
+// 소셜 로그인 콜백 리다이렉트(server.js의 /api/auth/:provider/callback ->
+// /?auth=success&userId=... 또는 /?auth=error) 흡수. 성공 시 서버가 이미
+// linkSocialAccount로 취향을 연결해둔 userId로 localStorage의 익명
+// feed_uid를 갈아끼운다 — 이 브라우저의 다음 요청부터 그 계정으로 이어진다.
+// 처리 후 쿼리스트링은 지워서 새로고침해도 다시 트리거되지 않게 한다.
+(function adoptAuthRedirect(){
+  const params = new URLSearchParams(location.search);
+  const auth = params.get("auth");
+  if(!auth) return;
+  if(auth === "success"){
+    const uid = params.get("userId");
+    if(uid) localStorage.setItem("feed_uid", uid);
+  }
+  params.delete("auth"); params.delete("userId");
+  const qs = params.toString();
+  history.replaceState(null, "", location.pathname + (qs?`?${qs}`:"") + location.hash);
+  window.__authRedirectResult = auth; // read once by boot() to toast success/error
+})();
 
 // ---- state ----
 const state = {
@@ -580,6 +622,14 @@ syncHeaderHeight();
   if(!s.surveyed) showPersonalizeBanner(); else showDigest();
   maybeShowAdNotice();
   setupInfiniteScroll(); setupImmersion();
+
+  // 소셜 로그인: 쿠키 기반 세션 상태를 한 번 확인해 드로어/내 공간의 로그인
+  // 블록을 채운다. 설정된 provider가 하나도 없으면(auth.providers==[])
+  // renderAuthBlock이 빈 상태로 아무것도 그리지 않는다 — 완전 익명 회귀 없음.
+  state.authProfile = await API.authSession().catch(()=>({loggedIn:false}));
+  renderAuthBlock(document.getElementById("authDrawerSec"));
+  if(window.__authRedirectResult === "success") toast("로그인했어요");
+  else if(window.__authRedirectResult === "error") toast("로그인에 실패했어요. 다시 시도해주세요.");
 })();
 
 // 앱 전역 상단 1회 통합 고지 (docs/monetization.md "①앱 전역 상단 1회 통합
@@ -667,7 +717,7 @@ async function enableNotifications(){
 async function pushLocalNotification(d){
   try {
     const reg = await navigator.serviceWorker.ready;
-    reg.showNotification("내 취향 피드", {
+    reg.showNotification("지금핫", {
       body: `관심글 ${d.count}개가 올라왔어요` + (d.top&&d.top[0]?` · ${d.top[0].title.slice(0,30)}`:""),
       icon: "/icon.svg", badge: "/icon.svg", tag: "feed-digest"
     });
@@ -912,6 +962,7 @@ async function openSpace(){
     const s = await API.mySpace(state.userId);
     const lv = s.level || { title: "새싹", level: 0, score: 0, toNext: 0, nextAt: null };
     body.innerHTML = `
+      <div class="drawer-sec" id="authSpaceSec" style="margin-top:0"></div>
       <div class="level-banner">
         <div style="font-size:12px;color:var(--muted)">오늘의 닉네임</div>
         <div style="font-size:18px;font-weight:800;color:#e9b44c;margin:2px 0 8px">${escapeHtml(s.nickname||state.nickname||"게스트")}</div>
@@ -954,7 +1005,47 @@ async function openSpace(){
     // 콘텐츠 필터 (정치/종교/19금) — shared with the ☰ drawer's copy of the
     // same controls; re-renders this block in place after each toggle.
     refreshSpaceFilters(body);
+    renderAuthBlock(document.getElementById("authSpaceSec"));
   } catch(e){ body.innerHTML = "<p>불러오기 실패: "+escapeHtml(e.message)+"</p>"; }
+}
+
+// ---- 소셜 로그인 UI (드로어 + 내 공간, 둘 다 이 함수를 공유) ----
+// state.config.auth.providers는 서버가 실제로 GOOGLE_CLIENT_ID 등 키가 설정된
+// provider만 돌려준다 — 여기서 provider 존재 여부를 하드코딩하지 않는다.
+const AUTH_PROVIDER_META = {
+  google: { label: "구글로 계속하기", bg: "#ffffff", fg: "#1f1f1f", border: "#dadce0" },
+  kakao:  { label: "카카오로 계속하기", bg: "#FEE500", fg: "#191600", border: "#FEE500" },
+  naver:  { label: "네이버로 계속하기", bg: "#03C75A", fg: "#ffffff", border: "#03C75A" }
+};
+function renderAuthBlock(container){
+  if(!container) return;
+  const providers = (state.config && state.config.auth && state.config.auth.providers) || [];
+  const profile = state.authProfile;
+  if(profile && profile.loggedIn){
+    const social = profile.social || {};
+    container.innerHTML = `
+      <div class="auth-profile">
+        ${social.avatar ? `<img class="auth-avatar" src="${escapeHtml(social.avatar)}" referrerpolicy="no-referrer" alt="">` : '<div class="auth-avatar auth-avatar-ph">👤</div>'}
+        <div class="auth-info">
+          <div class="auth-nick">${escapeHtml(profile.nickname||"게스트")}</div>
+          <div class="auth-provider-label">${social.provider ? escapeHtml(AUTH_PROVIDER_META[social.provider]?.label.replace("로 계속하기","")||social.provider)+"로 로그인됨" : "로그인됨"}</div>
+        </div>
+        <button class="drawer-link" id="authLogoutBtn" style="width:auto;padding:8px 12px">로그아웃</button>
+      </div>`;
+    const btn = container.querySelector("#authLogoutBtn");
+    if(btn) btn.onclick = async ()=>{
+      try { await API.logout(); state.authProfile = { loggedIn:false }; toast("로그아웃했어요"); renderAuthBlock(container); }
+      catch(e){ toast("실패: "+e.message); }
+    };
+    return;
+  }
+  if(!providers.length){ container.innerHTML = ""; return; } // 키 없는 배포 — 버튼 자체를 렌더하지 않음
+  container.innerHTML = `
+    <div class="auth-hint">로그인하면 기기가 바뀌어도 내 취향 그대로 이어져요 <span class="auth-hint-sub">(로그인 없이도 계속 이용할 수 있어요)</span></div>
+    <div class="auth-btns">${providers.map(id=>{
+      const m = AUTH_PROVIDER_META[id]; if(!m) return "";
+      return `<a class="auth-btn" href="/api/auth/${id}/login?userId=${encodeURIComponent(state.userId||"")}" style="background:${m.bg};color:${m.fg};border-color:${m.border}">${m.label}</a>`;
+    }).join("")}</div>`;
 }
 // refresh the underlying feed without scrolling the space away
 function reloadFeedSilently(){

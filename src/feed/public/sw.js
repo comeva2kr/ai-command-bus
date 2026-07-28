@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v3";
+const CACHE = "feed-shell-v4"; // v4: NowHot 지금핫 rebrand (bump so old clients drop the stale shell)
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {
@@ -39,7 +39,7 @@ self.addEventListener("notificationclick", (event) => {
 // shown directly; it rides along as notification.data so notificationclick
 // above can open the right in-app deep link (e.g. /#post-<id>).
 self.addEventListener("push", (event) => {
-  let data = { title: "내 취향 피드", body: "관심글이 올라왔어요", url: "/" };
+  let data = { title: "지금핫", body: "관심글이 올라왔어요", url: "/" };
   try { if (event.data) data = { ...data, ...event.data.json() }; } catch {}
   event.waitUntil(
     self.registration.showNotification(data.title, {

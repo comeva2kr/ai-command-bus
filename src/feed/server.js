@@ -25,6 +25,16 @@ import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { sendDigestPushes } from "./push.js";
+import {
+  enabledProviders,
+  providerConfig,
+  buildAuthorizeUrl,
+  completeOAuth,
+  AuthStateStore,
+  parseCookies,
+  serializeSessionCookie,
+  clearSessionCookie
+} from "./auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -64,6 +74,14 @@ function readBody(req) {
   });
 }
 
+// Best-effort origin for building absolute URLs (OAuth redirect_uri, the
+// share page). Trusts x-forwarded-proto since the production deploy sits
+// behind a reverse proxy/CDN that terminates TLS.
+function originOf(req) {
+  const proto = req.headers["x-forwarded-proto"] || "http";
+  return `${proto}://${req.headers.host}`;
+}
+
 function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
@@ -74,7 +92,7 @@ function escapeHtml(s) {
 // preview in KakaoTalk / social, then bounces a human to the in-app view.
 function sharePage(data, origin, id) {
   if (!data) {
-    return `<!doctype html><meta charset="utf-8"><title>내 취향 피드</title><meta http-equiv="refresh" content="0; url=/"><p>이동 중…</p>`;
+    return `<!doctype html><meta charset="utf-8"><title>지금핫 NowHot</title><meta http-equiv="refresh" content="0; url=/"><p>이동 중…</p>`;
   }
   const url = `${origin}/p?id=${encodeURIComponent(id)}`;
   const title = escapeHtml(data.title);
@@ -84,7 +102,7 @@ function sharePage(data, origin, id) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
 <meta property="og:type" content="article">
-<meta property="og:site_name" content="내 취향 피드">
+<meta property="og:site_name" content="지금핫 NowHot">
 <meta property="og:title" content="${title}">
 <meta property="og:description" content="${desc}">
 <meta property="og:url" content="${escapeHtml(url)}">
@@ -113,6 +131,13 @@ function serveStatic(res, urlPath) {
 
 export function createServer(opts = {}) {
   const store = new FeedStore({ file: opts.file || process.env.FEED_DB || null });
+
+  // Social login (src/feed/auth.js). authStates is the short-lived CSRF-state
+  // ledger for the login->callback round trip; opts.authFetch lets tests mock
+  // every provider's token/userinfo endpoints with no network access (server
+  // itself always defaults to the real global fetch).
+  const authStates = new AuthStateStore();
+  const authEnv = opts.authEnv || process.env;
 
   // Build sources from the community registry DB (国内+해외+성인), plus the
   // store-backed source that surfaces users' own posts. Overseas sources are
@@ -213,7 +238,11 @@ export function createServer(opts = {}) {
         // never show that banner on a deploy that will never actually serve
         // an ad (docs/monetization.md "①앱 전역 상단 1회 통합 고지").
         const monetization = { enabled: Boolean(process.env.COUPANG_PARTNER_ID) || Boolean(process.env.AD_PREVIEW) };
-        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: SOURCE_CATALOG, topics: TOPIC_CATALOG, monetization });
+        // 소셜 로그인: provider별 클라이언트 id/secret 둘 다 있어야 활성 —
+        // 키가 하나도 없으면 빈 배열이라 클라이언트는 로그인 버튼을 아예
+        // 렌더하지 않는다(회귀 없는 완전 익명 동작).
+        const auth = { providers: enabledProviders(authEnv) };
+        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: SOURCE_CATALOG, topics: TOPIC_CATALOG, monetization, auth });
       }
 
       if (p === "/api/communities" && req.method === "GET") {
@@ -331,6 +360,93 @@ export function createServer(opts = {}) {
           showAdult: user.showAdult === true,
           showTopics: user.showTopics || []
         });
+      }
+
+      // --- social login (OAuth 2.0: google/kakao/naver) ---
+      const authRouteMatch = p.match(/^\/api\/auth\/([a-z]+)\/(login|callback)$/);
+      if (authRouteMatch) {
+        const [, provider, action] = authRouteMatch;
+        const cfg = providerConfig(provider, authEnv);
+        // No credentials configured for this provider (or an unknown provider
+        // name) -> 404, same as any other missing route. The client never
+        // even shows a button for a provider /api/config didn't list, but
+        // this also guards a hand-typed URL.
+        if (!cfg) return send(res, 404, { error: "provider not configured" });
+        const redirectUri = `${originOf(req)}/api/auth/${provider}/callback`;
+
+        if (action === "login" && req.method === "GET") {
+          // `userId`: the caller's current (possibly anonymous) userId, if
+          // any — carried through the CSRF state so the callback can inherit
+          // that user's preferences/ratings/saved posts onto the linked
+          // account instead of starting a fresh empty one (취향 승계).
+          const anonymousUserId = url.searchParams.get("userId") || null;
+          const state = authStates.issue(provider, anonymousUserId);
+          const target = buildAuthorizeUrl(cfg, { state, redirectUri });
+          res.writeHead(302, { location: target });
+          return res.end();
+        }
+
+        if (action === "callback" && req.method === "GET") {
+          const entry = authStates.consume(url.searchParams.get("state"));
+          const code = url.searchParams.get("code");
+          // Invalid/expired/replayed/forged state, or the provider didn't
+          // hand back a code (e.g. the user cancelled consent) -> bounce home
+          // with an error flag rather than a raw 400, since a human just got
+          // redirected here from the provider's own consent screen.
+          if (!entry || entry.provider !== provider || !code) {
+            res.writeHead(302, { location: "/?auth=error" });
+            return res.end();
+          }
+          try {
+            const profile = await completeOAuth(provider, cfg, { code, redirectUri }, { fetchImpl: opts.authFetch });
+            if (!profile.providerUserId) throw new Error(`${provider}: no user id in userinfo response`);
+
+            // 취향 승계: 이미 이 소셜계정으로 연결된 유저가 있으면 그 유저로
+            // 로그인(기존 데이터 유지) — 없으면 state에 실려온 익명
+            // userId(있다면 그 유저에 계정을 연결해 취향을 그대로 승계)로,
+            // 그마저 없으면(그 브라우저에 앵커할 익명 유저가 없던 경우) 새
+            // 유저를 만들어 연결한다.
+            let user = store.findUserBySocial(provider, profile.providerUserId);
+            if (!user) {
+              const anonUser = entry.anonymousUserId ? store.getUser(entry.anonymousUserId) : null;
+              user = anonUser || store.createUser();
+            }
+            store.linkSocialAccount(user.id, provider, profile.providerUserId, profile);
+            const token = store.createSession(user.id);
+            const secure = (req.headers["x-forwarded-proto"] || "http") === "https";
+            res.writeHead(302, {
+              location: `/?auth=success&userId=${encodeURIComponent(user.id)}`,
+              "set-cookie": serializeSessionCookie(token, { secure })
+            });
+            return res.end();
+          } catch (err) {
+            console.warn(`[auth] ${provider} callback failed:`, err && err.message ? err.message : err);
+            res.writeHead(302, { location: "/?auth=error" });
+            return res.end();
+          }
+        }
+      }
+
+      if (p === "/api/auth/session" && req.method === "GET") {
+        const cookies = parseCookies(req.headers.cookie);
+        const userId = store.sessionUser(cookies.feed_session);
+        const user = userId ? store.getUser(userId) : null;
+        if (!user) return send(res, 200, { loggedIn: false });
+        return send(res, 200, {
+          loggedIn: true,
+          userId: user.id,
+          nickname: user.nickname,
+          social: user.socialProfile || null
+        });
+      }
+
+      if (p === "/api/auth/logout" && req.method === "POST") {
+        const cookies = parseCookies(req.headers.cookie);
+        if (cookies.feed_session) store.destroySession(cookies.feed_session);
+        const secure = (req.headers["x-forwarded-proto"] || "http") === "https";
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "set-cookie": clearSessionCookie({ secure }) });
+        res.end(JSON.stringify({ ok: true }));
+        return;
       }
 
       if (p === "/api/verify-age" && req.method === "POST") {
@@ -542,8 +658,7 @@ export function createServer(opts = {}) {
       if (p === "/p" && req.method === "GET") {
         const id = url.searchParams.get("id");
         const data = id ? await engine.shareData(id) : null;
-        const proto = req.headers["x-forwarded-proto"] || "http";
-        const origin = `${proto}://${req.headers.host}`;
+        const origin = originOf(req);
         res.writeHead(data ? 200 : 404, { "content-type": "text/html; charset=utf-8" });
         res.end(sharePage(data, origin, id));
         return;

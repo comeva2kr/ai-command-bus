@@ -6,6 +6,7 @@
 // zero-dependency posture while still being real enough to demo end to end.
 
 import fs from "node:fs";
+import crypto from "node:crypto";
 import { emptyPreferenceVector, buildPreferenceVector } from "./survey.js";
 import { inferFromHistory, mergeVectors } from "./history.js";
 import { validatePost, validateComment, userLevel, DEFAULT_RULES } from "./rules.js";
@@ -24,6 +25,7 @@ export class FeedStore {
     this.clock = opts.clock || null;
     this.file = opts.file || null;
     this.users = new Map(); // userId -> user record
+    this.sessions = new Map(); // token -> { userId, expiresAt } (social login sessions)
     this._seq = 0;
     if (this.file && fs.existsSync(this.file)) this._load();
   }
@@ -73,6 +75,90 @@ export class FeedStore {
     const user = this.getUser(userId);
     if (!user) throw new Error(`unknown user: ${userId}`);
     return user;
+  }
+
+  // ---- social login (src/feed/auth.js) ----
+  //
+  // Identity = provider + the provider's own user id (never email — see
+  // docs/legal.md "개인정보 최소수집"). A user record can carry more than one
+  // linked provider at once (google + kakao both pointing at the same
+  // account), stored in `user.social` keyed by "<provider>:<providerUserId>"
+  // so lookups and re-links are O(1) per provider without a second index.
+  // `user.socialProfile` is a *display-only* snapshot (nickname/avatar) for
+  // "내 공간" / the drawer's logged-in state — it deliberately never touches
+  // `user.nickname` (the existing anonymous "오늘의 닉네임" used on public
+  // posts/comments), so signing in never changes what other users see you as.
+
+  // Find the user a (provider, providerUserId) pair is already linked to, or
+  // null if this is the first time this social account has ever signed in.
+  findUserBySocial(provider, providerUserId) {
+    const key = `${provider}:${providerUserId}`;
+    for (const user of this.users.values()) {
+      if (user.social && user.social[key]) return user;
+    }
+    return null;
+  }
+
+  // Link a social account onto an existing user record — this is the taste
+  // succession step. Called either on an anonymous user (their preferences/
+  // ratings/saved/etc. stay exactly as-is, just gain a login) or on a user
+  // that was just newly created for a first-time social login with no prior
+  // anonymous id to inherit from. Never touches preferences/ratings/posts.
+  linkSocialAccount(userId, provider, providerUserId, profile = {}) {
+    const user = this.requireUser(userId);
+    user.social = user.social || {};
+    const key = `${provider}:${providerUserId}`;
+    user.social[key] = {
+      provider,
+      providerUserId: String(providerUserId),
+      linkedAt: nowIso(this.clock)
+    };
+    // display-only snapshot, refreshed on every login — never gates or
+    // replaces the anonymous public nickname
+    user.socialProfile = {
+      provider,
+      nickname: profile.nickname || null,
+      avatar: profile.avatar || null
+    };
+    this._persist();
+    return user;
+  }
+
+  // ---- sessions (HttpOnly cookie -> userId, src/feed/auth.js) ----
+  //
+  // Purely additive to the existing anonymous userId-query-param auth: a
+  // session only ever *identifies* a user for the cookie-based endpoints
+  // (GET /api/auth/session, POST /api/auth/logout); every other route keeps
+  // trusting the userId it's given, unchanged (하위호환).
+  createSession(userId, ttlMs = 30 * 24 * 60 * 60 * 1000) {
+    this.requireUser(userId);
+    const token = crypto.randomBytes(32).toString("hex");
+    this.sessions = this.sessions || new Map();
+    this.sessions.set(token, { userId, expiresAt: this._nowMs() + ttlMs });
+    this._persist();
+    return token;
+  }
+
+  // Resolve a session token to a userId, or null if missing/expired (and
+  // prunes it on expiry so it doesn't linger in the persisted file).
+  sessionUser(token) {
+    if (!token) return null;
+    this.sessions = this.sessions || new Map();
+    const s = this.sessions.get(token);
+    if (!s) return null;
+    if (this._nowMs() > s.expiresAt) {
+      this.sessions.delete(token);
+      this._persist();
+      return null;
+    }
+    return s.userId;
+  }
+
+  destroySession(token) {
+    this.sessions = this.sessions || new Map();
+    const had = this.sessions.delete(token);
+    if (had) this._persist();
+    return had;
   }
 
   // Store survey answers and seed the initial preference vector.
@@ -645,7 +731,8 @@ export class FeedStore {
       submissions: this.submissions || [],
       adminDisabledSources: this.adminDisabledSources || [],
       adminBannedWords: this.adminBannedWords || [],
-      adEvents: this.adEvents || []
+      adEvents: this.adEvents || [],
+      sessions: [...(this.sessions || new Map())].map(([token, s]) => ({ token, ...s }))
     };
     fs.writeFileSync(this.file, JSON.stringify(data, null, 2));
   }
@@ -661,6 +748,7 @@ export class FeedStore {
       this.adminDisabledSources = data.adminDisabledSources || [];
       this.adminBannedWords = data.adminBannedWords || [];
       this.adEvents = data.adEvents || [];
+      this.sessions = new Map((data.sessions || []).map((s) => [s.token, { userId: s.userId, expiresAt: s.expiresAt }]));
       for (const user of data.users || []) {
         if (!user.nickname) user.nickname = nicknameFor(user.id); // backfill
         this.users.set(user.id, user);
@@ -673,6 +761,7 @@ export class FeedStore {
     } catch (err) {
       // corrupt persistence should not crash startup — start fresh
       this.users = new Map();
+      this.sessions = new Map();
     }
   }
 }

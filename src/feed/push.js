@@ -171,7 +171,7 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
     // page): preview the first non-adult match, or stay generic
     const top = (digest.top || []).find((t) => !t.adult);
     const payload = JSON.stringify({
-      title: "내 취향 피드",
+      title: "지금핫",
       body: `관심글 ${digest.count}개가 올라왔어요` + (top ? ` · ${top.title.slice(0, 30)}` : ""),
       url: top ? `/#post-${top.id}` : "/"
     });

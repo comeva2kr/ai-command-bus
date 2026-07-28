@@ -1,7 +1,7 @@
 {
-  "name": "내 취향 피드",
-  "short_name": "취향피드",
-  "description": "취향에 맞는 커뮤니티·뉴스 글만 모아 보는 개인 맞춤 피드",
+  "name": "지금핫 NowHot",
+  "short_name": "지금핫",
+  "description": "여러 커뮤니티·뉴스에서 지금 가장 화제인 글만 취향에 맞게 모아 보는 실시간 핫 피드",
   "lang": "ko",
   "start_url": "/",
   "scope": "/",

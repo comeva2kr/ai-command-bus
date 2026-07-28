@@ -814,7 +814,7 @@ test("sendDigestPushes pushes only subscribers with a non-empty digest, payload 
   assert.equal(sentTo.length, 1);
   assert.equal(sentTo[0].sub.endpoint, "https://push/with");
   const payload = JSON.parse(sentTo[0].payload);
-  assert.equal(payload.title, "내 취향 피드");
+  assert.equal(payload.title, "지금핫");
   assert.match(payload.body, /관심글 2개가 올라왔어요/);
   assert.match(payload.body, /전기차 시승기 첫인상/, "previews the first non-adult title");
   assert.doesNotMatch(payload.body, /성인 콘텐츠/, "19금 title never appears in a notification");

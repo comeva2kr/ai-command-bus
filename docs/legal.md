@@ -76,6 +76,32 @@ Twitter link preview: only the source itself the pixels leave.
    rather than misrepresenting a badge icon as the post's image. "No image" is
    the honest default — see `docs/handoff.md`'s 코드 지도 for which sources do.
 
+## Social login: minimal personal data collection
+
+`src/feed/auth.js` implements Google/Kakao/Naver OAuth 2.0 directly (no
+third-party auth SDK). Per provider, we read exactly three fields out of the
+userinfo response and discard everything else:
+
+- the provider's own user id (`sub` / `id` / `response.id`) — the only
+  identifier ever used to recognize a returning login,
+- a display nickname,
+- a profile image URL (never downloaded — same hotlink-only principle as
+  article thumbnails above; the client's `<img>` points at the provider's own
+  CDN URL).
+
+**Email is never read or stored**, even though every provider's userinfo
+response includes one — `normalize()` in `auth.js` simply never accesses that
+field, so it never reaches `store.js`, the persisted JSON file, or any log
+line. No other profile data (phone number, birthday, gender, provider access
+tokens, etc.) is persisted; the OAuth access token is used once at login to
+fetch userinfo and then discarded — it is not stored.
+
+Linking a social account to an existing anonymous user (see `store.js`'s
+`linkSocialAccount`) never touches that user's preferences, ratings, saved
+posts, or comments — only `user.social` (provider + provider user id, for
+future login matching) and `user.socialProfile` (nickname/avatar, display-only
+in "내 공간") are added.
+
 ## Provenance field
 
 Every item carries `via`: `seed` (offline dev data only), `rss`, `api`,
