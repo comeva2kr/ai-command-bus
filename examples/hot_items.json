@@ -1,0 +1,58 @@
+[
+  {
+    "title": "요즘 편의점 신상 조합 근황",
+    "url": "https://example.com/1",
+    "source": "theqoo",
+    "score": 4200,
+    "commentCount": 380,
+    "publishedAt": "2026-07-21T09:00:00Z"
+  },
+  {
+    "title": "야근하다가 발견한 인생 야식",
+    "url": "https://example.com/2",
+    "source": "ppomppu",
+    "score": 2100,
+    "commentCount": 240,
+    "publishedAt": "2026-07-22T13:00:00Z"
+  },
+  {
+    "title": "국회 특검 관련 속보 모음",
+    "url": "https://example.com/3",
+    "source": "clien",
+    "score": 9000,
+    "commentCount": 800,
+    "publishedAt": "2026-07-22T10:00:00Z"
+  },
+  {
+    "title": "여름 휴가지에서 생긴 일",
+    "url": "https://example.com/4",
+    "source": "etoland",
+    "score": 1700,
+    "commentCount": 150,
+    "publishedAt": "2026-07-20T08:00:00Z"
+  },
+  {
+    "title": "요즘 헬스장 빌런 유형 정리",
+    "url": "https://example.com/5",
+    "source": "mlbpark",
+    "score": 3300,
+    "commentCount": 410,
+    "publishedAt": "2026-07-21T18:00:00Z"
+  },
+  {
+    "title": "ㅇㅎ) 표지만 봐도 아는 그 잡지",
+    "url": "https://example.com/6",
+    "source": "etoland",
+    "score": 5000,
+    "commentCount": 90,
+    "publishedAt": "2026-07-22T01:00:00Z"
+  },
+  {
+    "title": "고양이가 택배 상자를 사수하는 법",
+    "url": "https://example.com/7",
+    "source": "bobaedream",
+    "score": 1200,
+    "commentCount": 300,
+    "publishedAt": "2026-07-22T15:00:00Z"
+  }
+]

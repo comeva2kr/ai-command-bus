@@ -1485,10 +1485,14 @@ test("parseListPage: theqoo 핫게시판 — title/url/date/score/comment parse,
   // 정상 날짜만 담고 있으므로(오탐 재현 불가) 여기서는 실제 파싱 결과가 전부 최근
   // 날짜(오늘 기준 5년 이내, 미래 아님)임을 재확인한다 — sanity 가드가 뚫리지 않는 한
   // 이 값들은 항상 정상 범위여야 한다.
+  // normalizeListDate는 시계 오차 대비로 "미래 1시간"까지는 유예한다(HH:MM
+  // 상대시간 행이 실행 시각 직후로 파싱될 수 있음) — sanity 상한도 같은 유예를
+  // 둬야 실행 시각에 따라 구르는 거짓 실패가 없다.
   const now = Date.now();
+  const graceMs = 60 * 60 * 1000;
   const fiveYearsMs = 5 * 365.25 * 8.64e7;
-  assert.ok(items.every((i) => !i.publishedAt || (Date.parse(i.publishedAt) <= now && now - Date.parse(i.publishedAt) <= fiveYearsMs)),
-    "every parsed date is sane (not future, not 5+ years stale)");
+  assert.ok(items.every((i) => !i.publishedAt || (Date.parse(i.publishedAt) <= now + graceMs && now - Date.parse(i.publishedAt) <= fiveYearsMs)),
+    "every parsed date is sane (not future beyond clock-skew grace, not 5+ years stale)");
 });
 
 // David 2026-07-24 적대적 검수 #1: fetchers.js의 날짜 정규화 sanity 가드.
@@ -1508,7 +1512,12 @@ test("normalizeListDate: sanity guard nulls out future dates and 5+ year stale d
 
   // sane dates must still pass through untouched
   assert.equal(normalizeListDate("2026-07-23", now), "2026-07-23T00:00:00.000Z", "정상 최근 날짜는 그대로 통과");
-  assert.equal(normalizeListDate("11:30", now), "2026-07-24T02:30:00.000Z", "오늘 HH:MM(로컬 상대시간) 형식도 정상 통과 — sanity 가드에 걸리지 않음");
+  // "11:30" is parsed against the runner's local timezone (fetchers.js uses
+  // Date#setHours), so the expected instant must be derived the same way —
+  // a hardcoded UTC string here would only match on a KST runner.
+  const expectedLocal1130 = new Date(now());
+  expectedLocal1130.setHours(11, 30, 0, 0);
+  assert.equal(normalizeListDate("11:30", now), expectedLocal1130.toISOString(), "오늘 HH:MM(로컬 상대시간) 형식도 정상 통과 — sanity 가드에 걸리지 않음");
   const relDay = normalizeListDate("3일", now);
   assert.ok(relDay && Date.parse(relDay) < now(), "상대 날짜(N일 전)도 정상 통과");
 

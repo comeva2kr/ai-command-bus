@@ -11,6 +11,8 @@
     "test": "node --test test/*.test.js",
     "demo": "node src/router.js examples/task_queue.json",
     "feed": "node src/feed/server.js",
+    "quiz:weekly": "node src/quiz/weekly.js run examples/hot_items.json",
+    "quiz:queue": "node src/quiz/weekly.js queue",
     "push:keys": "node src/feed/push-keys.js"
   },
   "keywords": [
@@ -23,5 +25,8 @@
     "open-source"
   ],
   "author": "Hyundong Hwang",
-  "license": "MIT"
+  "license": "MIT",
+  "optionalDependencies": {
+    "@resvg/resvg-js": "^2"
+  }
 }
