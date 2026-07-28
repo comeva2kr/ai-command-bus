@@ -3041,3 +3041,116 @@ test("public/index.html: appendCard and appendAdCard share the same cardThumbHtm
   const appendAdCardFn = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/)[0];
   assert.match(appendAdCardFn, /cardThumbHtml\(item\)/, "ad/affiliate cards reuse the same thumbnail component (ready for productFeed images, even though monetize.js doesn't set image yet)");
 });
+
+// ---- editorialNote wiring (engine.js + editorial.js) -----------------------
+// The editorial one-liner is both a curation-taste signal and — per
+// docs/monetization.md's new 편집POV section — the "original commentary"
+// AdSense's ad-review requires from an out-link aggregator. These tests only
+// cover the wiring (the field shows up, in the right shape, on the right
+// items); the template logic itself is unit-tested in test/editorial.test.js.
+test("getFeed: every organic response item carries a string editorialNote (possibly empty), and a genuinely hot item gets a non-empty one", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const hot = new JsonSource(
+    "hn-like",
+    async () => [
+      {
+        id: "hot-1",
+        title: "화제글",
+        url: "https://example.com/hot-1",
+        category: "tech",
+        score: 5000,
+        commentCount: 200,
+        publishedAt: "2026-07-05T22:00:00Z" // 2h before fixedClock's 2026-07-06T00:00:00Z
+      },
+      {
+        id: "quiet-1",
+        title: "평범한 글",
+        url: "https://example.com/quiet-1",
+        category: "tech"
+        // no score/commentCount/publishedAt at all -> nothing to say honestly
+      }
+    ],
+    "community"
+  );
+  const engine = new FeedEngine(store, [hot]);
+  const user = store.createUser("editorial_wiring_u");
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 10 });
+
+  assert.ok(feed.items.length >= 2);
+  for (const item of feed.items) {
+    assert.equal(typeof item.editorialNote, "string", `${item.id} should have a string editorialNote field`);
+  }
+  const hotItem = feed.items.find((i) => i.id === "hot-1");
+  const quietItem = feed.items.find((i) => i.id === "quiet-1");
+  assert.ok(hotItem, "expected the hot item to survive filtering/ranking");
+  assert.notEqual(hotItem.editorialNote, "", "a huge fresh score/commentCount should produce a non-empty note");
+  assert.match(hotItem.editorialNote, /5,000|5000/);
+  if (quietItem) assert.equal(quietItem.editorialNote, "", "an item with no measurable signal gets an honest empty note, not filler");
+});
+
+test("getFeed: source= (board view) items also carry editorialNote — same _decorate path as the home feed", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const src = new JsonSource(
+    "board1",
+    async () => [
+      { id: "b1", title: "1위 글", url: "https://example.com/b1", category: "tech", sourceRank: 0, score: 10, commentCount: 2, publishedAt: "2026-07-05T20:00:00Z" }
+    ],
+    "community"
+  );
+  const engine = new FeedEngine(store, [src]);
+  const user = store.createUser("editorial_source_view_u");
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 10, source: "board1" });
+  assert.equal(feed.items.length, 1);
+  // 1위 + 실측 지표(추천 10·댓글 2)가 함께 있을 때의 문구
+  assert.equal(feed.items[0].editorialNote, "board1 지금 1위 — 추천 10·댓글 2");
+});
+
+test("getFeed: affiliate/ad slot items never get a populated editorialNote, even with AD_PREVIEW=1 and a learned taste that guarantees slots", async () => {
+  const prevPartner = process.env.COUPANG_PARTNER_ID;
+  const prevPreview = process.env.AD_PREVIEW;
+  delete process.env.COUPANG_PARTNER_ID;
+  process.env.AD_PREVIEW = "1";
+  try {
+    const store = new FeedStore({ clock: fixedClock });
+    const engine = new FeedEngine(store, [new SeedSource()]);
+    const user = store.createUser("editorial_ad_u");
+    // strong "tech" preference so pickAffiliateCandidates has something to match
+    for (let i = 0; i < 8; i++) {
+      applyFeedback(user.preferences, { category: "tech", tags: [], source: "clien", length: 200 }, 1);
+    }
+    const feed = await engine.getFeed(user.id, { cursor: 0, limit: 20 });
+    const adItems = feed.items.filter((i) => i.kind === "affiliate");
+    assert.ok(adItems.length > 0, "expected at least one preview affiliate slot for this test to be meaningful");
+    for (const a of adItems) {
+      assert.ok(
+        a.editorialNote === undefined || a.editorialNote === "",
+        `affiliate item ${a.id} must not have a populated editorialNote, got "${a.editorialNote}"`
+      );
+    }
+    // and organic items around the ad slots DO still get the field
+    const organicItems = feed.items.filter((i) => i.kind !== "affiliate");
+    assert.ok(organicItems.every((i) => typeof i.editorialNote === "string"));
+  } finally {
+    if (prevPartner == null) delete process.env.COUPANG_PARTNER_ID; else process.env.COUPANG_PARTNER_ID = prevPartner;
+    if (prevPreview == null) delete process.env.AD_PREVIEW; else process.env.AD_PREVIEW = prevPreview;
+  }
+});
+
+test("public/index.html: editorialNote renders as a distinct .editorial-note line (not a .why chip), only when non-empty, and is HTML-escaped", () => {
+  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
+  const html = fs.readFileSync(htmlPath, "utf8");
+
+  assert.match(html, /\.editorial-note\s*\{/, "expected a dedicated .editorial-note CSS rule");
+
+  const appendCardFn = html.match(/function appendCard\(item\)\{[\s\S]*?\n\}/)[0];
+  assert.match(
+    appendCardFn,
+    /\$\{item\.editorialNote\?`<div class="editorial-note">\$\{escapeHtml\(item\.editorialNote\)\}<\/div>`:''\}/,
+    "editorialNote must render only when truthy, escaped, in its own .editorial-note element"
+  );
+
+  // must never be rendered on the ad-card path — that has its own separate
+  // reason/disclosure UI (.ad-why / .ad-disclosure-pop)
+  const appendAdCardFn = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/)[0];
+  assert.doesNotMatch(appendAdCardFn, /editorial-note/, "ad cards must not render editorialNote");
+});

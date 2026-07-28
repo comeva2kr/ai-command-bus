@@ -21,6 +21,7 @@ import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams } from "./ingest.js";
 import { FILTERABLE_TOPICS } from "./topics.js";
+import { buildEditorialNote } from "./editorial.js";
 import {
   injectSlots,
   adParams,
@@ -44,6 +45,34 @@ const DEFAULT_RETENTION_MS = 48 * 60 * 60 * 1000;
 function topicsBlocked(item, showTopicsSet) {
   const topics = item.topics || [];
   return topics.some((t) => FILTERABLE_TOPICS.includes(t) && !showTopicsSet.has(t));
+}
+
+// Per-source `score` stats (mean/median/count) across the FULL collected
+// pool (not just this page) — feeds editorial.js's "압도적 반응형" template
+// ("이 소스 평소보다 반응 N배"), so that comparison is against the source's
+// actual current range rather than a made-up baseline. Computed once per
+// getFeed() call and shared across every item being decorated that call.
+// Note: each source's own array includes the item being compared against it
+// (there's no cheap way to exclude "self" once this is reduced to
+// mean/median), which slightly understates an outlier's true multiple for
+// small pools — a conservative bias, never an inflated one.
+function sourceScoreStats(items) {
+  const bySource = new Map();
+  for (const it of items) {
+    const src = it.source || "unknown";
+    if (!bySource.has(src)) bySource.set(src, []);
+    bySource.get(src).push(Number.isFinite(it.score) ? it.score : 0);
+  }
+  const stats = new Map();
+  for (const [src, scores] of bySource) {
+    const sorted = scores.slice().sort((a, b) => a - b);
+    const n = sorted.length;
+    const mean = n ? sorted.reduce((a, b) => a + b, 0) / n : 0;
+    const mid = n >> 1;
+    const median = n ? (n % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2) : 0;
+    stats.set(src, { mean, median, count: n });
+  }
+  return stats;
 }
 
 // Turn a structured reason into a short human label for the "추천 이유" chip.
@@ -185,6 +214,10 @@ export class FeedEngine {
     const user = this.store.requireUser(userId);
     const items = await this._items();
     const seen = new Set(user.seen);
+    // editorial.js context: per-source score stats over the whole collected
+    // pool (see sourceScoreStats above), so the "outlier vs this source's
+    // usual range" note template has something real to compare against.
+    const editorialSourceStats = sourceScoreStats(items);
 
     // 19금 게이트: 성인인증 + 토글이 모두 켜져 있을 때만 성인 콘텐츠를 후보에 포함.
     // 서버에서 강제하므로 인증되지 않은 사용자에게는 어떤 경우에도 노출되지 않는다.
@@ -287,7 +320,10 @@ export class FeedEngine {
     const phase = feedPhase(level);
 
     const batch = fresh.map((r) => {
-      const d = this._decorate(r.item, r.score, user);
+      const d = this._decorate(r.item, r.score, user, {
+        now,
+        sourceStats: editorialSourceStats.get(r.item.source)
+      });
       // surface collaborative picks so "사람들이 좋아한" recommendations are visible
       if ((collabBoosts.get(r.item.id) || 0) > 0.2) {
         d.collabPick = true;
@@ -387,10 +423,16 @@ export class FeedEngine {
     return result;
   }
 
-  _decorate(item, score, user) {
+  // `editorialContext` (optional) is engine.js's { now, sourceStats } for
+  // editorial.js's buildEditorialNote — see getFeed's editorialSourceStats.
+  // Callers that don't pass it (resolveItems/getItem/digest below) still get
+  // a note from whichever templates only need the item's own fields; only
+  // the source-outlier template is unavailable without it.
+  _decorate(item, score, user, editorialContext = null) {
     const rating = user.ratings[item.id];
     const saved = Array.isArray(user.saved) && user.saved.includes(item.id);
     const reasons = user.preferences ? explain(item, user.preferences).map(reasonLabel) : [];
+    const now = (editorialContext && editorialContext.now) || (this._clock ? new Date(this._clock()).getTime() : Date.now());
     return {
       ...item,
       adult: item.adult === true,
@@ -399,7 +441,16 @@ export class FeedEngine {
       reasons,
       myRating: rating ? rating.signal : 0,
       saved,
-      comments: this.store.commentsFor(item.id).length
+      comments: this.store.commentsFor(item.id).length,
+      // 편집 코멘트 한 줄 — docs/monetization.md's AdSense "added value"
+      // rationale + curation-taste signal. Never populated for affiliate/ad
+      // cards (they never reach _decorate at all — see _monetize below,
+      // which builds slot items separately and splices them into the
+      // already-decorated organic batch).
+      editorialNote: buildEditorialNote(item, {
+        now,
+        sourceStats: editorialContext && editorialContext.sourceStats
+      })
     };
   }
 

@@ -56,7 +56,15 @@
 
 ## 코드 지도 (src/feed/)
 
-engine.js(피드 조립·digest·auto-refresh) · recommender.js(점수·학습·협업·설명) · collab.js · store.js(유저·글·댓글·닉네임·관리) · server.js(API+정적+관리자) · registry.js+communities.json(소스 DB 44개) · fetchers.js(RSS/HN/Reddit+타임아웃) · ingest.js(OG파싱·유저제출·화제성) · translate.js · rules.js(등급·금지어·레이트리밋) · nickname.js · push.js(VAPID) · public/(index.html 앱, admin.html 관리자, sw.js+manifest PWA)
+engine.js(피드 조립·digest·auto-refresh) · recommender.js(점수·학습·협업·설명) · collab.js · store.js(유저·글·댓글·닉네임·관리) · server.js(API+정적+관리자) · registry.js+communities.json(소스 DB 44개) · fetchers.js(RSS/HN/Reddit+타임아웃) · ingest.js(OG파싱·유저제출·화제성) · translate.js · editorial.js(카드 한 줄 편집 코멘트, 아래 참고) · rules.js(등급·금지어·레이트리밋) · nickname.js · push.js(VAPID) · public/(index.html 앱, admin.html 관리자, sw.js+manifest PWA)
+
+## 편집 코멘트 (`src/feed/editorial.js`, 2026-07-28 추가)
+
+- **목적**: 카드마다 붙는 한 줄 편집 코멘트(`editorialNote`). ①애드센스가 "부가가치 없는 재게시"를 거절하는 문제에 대한 대응(자체 논평/큐레이션 근거 — `docs/monetization.md`의 신규 "편집 코멘트" 절 참고) ②유저에게 "왜 이 글이 여기 있는지" 보여주는 큐레이션 신호. 알고리즘 추천 이유 칩(`.why`, recommender.js의 `explain`)과는 별개 — `.why`는 "너한테 맞음", editorialNote는 "이 글 자체가 지금 주목할 만함".
+- **계약**: `buildEditorialNote(item, context)` → 문자열(빈 문자열 가능). `item`은 정규화된 피드 아이템(`score`/`commentCount`/`publishedAt`/`sourceRank`/`source`/`sourceLabel`/`translated`/`kind` 등), `context`는 선택 `{ now, sourceStats: { mean, median, count } }` — `sourceStats`는 이 아이템과 같은 소스의 전체 풀에서 계산한 `score` 평균/중앙값/표본수(engine.js가 공급, "압도적 반응형" 템플릿 전용). **하드 룰: 실측 안 된 숫자는 절대 만들지 않는다** — 출력되는 모든 숫자는 `item`의 실제 필드이거나 그로부터 직접 계산한 값(경과시간, 소스 평균 대비 배수)뿐이다. 데이터가 전부 0/누락이면 강제 필러 문장 없이 `''`을 반환한다.
+- **wiring**: `engine.js`의 `getFeed`가 호출마다 `sourceScoreStats(items)`로 소스별 `score` 통계를 한 번 계산(`editorialSourceStats`)하고, `_decorate`가 아이템마다 `{ now, sourceStats }`를 넘겨 `editorialNote`를 채운다. 제휴/광고 슬롯(`kind==="affiliate"`)은 `_monetize`가 이미 디코레이트된 배치에 별도로 스플라이스해 넣는 구조라 `_decorate`를 거치지 않으므로 `editorialNote`가 자동으로 비어있다(추가로 `editorial.js`에도 `kind` 방어 체크가 한 번 더 있다).
+- **렌더**: `public/index.html`의 `appendCard`가 제목 바로 아래·요약 바로 위에 `.editorial-note`(이탤릭 인용구 스타일, `.why` 칩과 시각적으로 분리)로 렌더, 값이 없으면 아무것도 렌더하지 않는다. `appendAdCard`(광고 카드)는 렌더 코드 자체가 없다.
+- **테스트**: `test/editorial.test.js`(템플릿별 유닛 12건, 숫자 역추적 검증 포함) + `test/feed.test.js`의 통합 테스트 4건(`getFeed` 응답 필드 존재, `source=` 뷰, 광고 슬롯 제외, index.html 렌더 위치).
 
 ## 주의
 

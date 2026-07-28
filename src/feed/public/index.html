@@ -130,6 +130,15 @@
   .why { font-size: 11px; color: #9fd0ff; background: rgba(79,140,255,.12); border: 1px solid rgba(79,140,255,.25);
     border-radius: 999px; padding: 3px 9px; }
   .why::before { content: "✓ "; opacity: .8; }
+  /* 편집 코멘트 한 줄 (editorialNote, engine.js/editorial.js) — 알고리즘
+     추천 이유 칩(.why, 파란 필/체크 아이콘)과는 다른 느낌을 의도적으로 낸다:
+     칩이 아니라 이탤릭 인용구 한 줄로, "이 피드가 직접 단 코멘트"처럼 읽히게
+     — 애드센스 심사 근거(자체 논평/부가가치, docs/monetization.md)이자
+     취향 큐레이션 신호이기도 해서 알고리즘 사유와 시각적으로 분리해야 한다. */
+  .editorial-note { font-style: italic; font-size: 12.5px; color: #d8b374; opacity: .92;
+    margin: 8px 0 0; line-height: 1.45; }
+  .editorial-note::before { content: "“"; opacity: .7; }
+  .editorial-note::after { content: "”"; opacity: .7; }
   /* 광고 매칭 사유 칩 — 알고리즘 추천 이유(.why, 파랑)와 시각적으로 분리
      (라운드1 검수 #4): 색뿐 아니라 접두 아이콘도 달라 "왜 이게 보이는지"의
      성격(내 취향 학습 vs 광고 매칭)이 한눈에 구분된다. */
@@ -1326,6 +1335,7 @@ function appendCard(item){
     </div>
     <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ' <span class="newtab-hint" title="새 탭에서 원문이 열려요" aria-hidden="true">↗</span>' : ''}</h3>
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
+    ${item.editorialNote?`<div class="editorial-note">${escapeHtml(item.editorialNote)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>
     ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
     <div class="card-meta">
