@@ -8,7 +8,7 @@
 
 import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
-import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, keywordCategory, MIXED_BEST_FALLBACK } from "./classify.js";
+import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK } from "./classify.js";
 import { rankParams, categorySets, selectDiverse } from "./rank.js";
 import {
   rankItems,
@@ -382,7 +382,7 @@ export class FeedEngine {
     for (const item of capped) {
       if (item.source === "seed" || item.source === "me") continue;
       if ((item.topics || []).includes("politics")) continue;
-      const kw = keywordCategory(item.title);
+      const kw = definiteCategory({ title: item.title, url: item.url, sourceId: item.source });
       if (kw) {
         if (kw !== item.category) {
           if (item.registryCategory === undefined) item.registryCategory = item.category;

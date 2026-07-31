@@ -28,12 +28,8 @@
     --like: #3fb27f;
     --dislike: #e5566b;
     --radius: 16px;
-    /* 2026-07-26 광고 카드 리디자인(docs/monetization.md "AD 배지 최소화")
-       — David 최종지시: 광고 카드를 유기 카드와 최대한 똑같이 만들고, 광고
-       표시는 배지 하나로 최소화한다. 이전엔 브랜드성 보라(--ad #8b6cf0)로
-       "여기 광고 있어요"를 강조했는데, 24개 네이티브광고 리서치 결론(짧은
-       라벨 + 위장 금지 + 튀지 않는 톤)에 따라 브랜드색 대신 거슬리지 않는
-       중립 회색 톤으로 바꾼다 — 화제(#f0a13d)/뉴스(#7fb0ff)/번역(#39c0d3)
+    /* 광고 카드 색: 네이티브 광고 가이드(짧은 라벨 + 위장 금지 + 튀지 않는
+       톤)에 따라 중립 회색 톤 — 화제(#f0a13d)/뉴스(#7fb0ff)/번역(#39c0d3)
        등 어떤 유기 배지와도 색이 겹치지 않으면서도 "광고"라는 위장 없는
        신호를 유지한다(표시광고법 배지=법적 방패, 절대 제거·위장 금지).
        흰 글자 대비 8.15:1로 WCAG AA(4.5:1) 여유 통과(node --test로 검증). */
@@ -61,15 +57,14 @@
   .badge.trans { color: #0e0f13; background: #39c0d3; }
   .adult-btn.on#immBtn, #immBtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-  /* ---------- hamburger menu + drawer (David 2026-07-24: home = feed only) ---------- */
+  /* ---------- hamburger menu + drawer  ---------- */
   .menu-btn { margin-left: auto; width: 36px; height: 32px; border-radius: 9px; border: 1px solid var(--line);
     background: var(--card-2); color: var(--text); font-size: 17px; line-height: 1; display: flex;
     align-items: center; justify-content: center; }
   .hot-tag { font-size: 11px; font-weight: 800; color: #f0a13d; background: rgba(240,161,61,.14);
     border: 1px solid rgba(240,161,61,.32); border-radius: 999px; padding: 3px 9px; margin-left: 8px; white-space: nowrap; }
 
-  /* 앱 정체성 한 줄 — 온보딩 모달 안이 아니라 항상 보이게 (David 2026-07-24
-     적대적 검수 #7). header 안에 두면 --header-h가 header.offsetHeight로
+  /* 앱 정체성 한 줄 — 온보딩 모달 안이 아니라 항상 보이게 . header 안에 두면 --header-h가 header.offsetHeight로
      자동 측정되므로(syncHeaderHeight) sticky한 src-chips 위치도 따로 손댈
      필요가 없다. */
   .tagline { font-size: 12px; color: var(--muted); margin: 4px 0 0; line-height: 1.4; }
@@ -193,8 +188,7 @@
   .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 4px; margin: 0; scrollbar-width: none; }
   .chips::-webkit-scrollbar { display: none; }
   /* source-select chip bar ("전체" + per-community/news chips, jagei-style board view) —
-     lives inside the ☰ drawer now (David 2026-07-24: home is the unified hot
-     feed only), so it's just a normal horizontal-scroll row, not sticky. */
+     lives inside the ☰ drawer now , so it's just a normal horizontal-scroll row, not sticky. */
   .src-chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 4px; margin: 0; scrollbar-width: none; }
   .src-chips::-webkit-scrollbar { display: none; }
   .src-chip { flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
@@ -207,7 +201,7 @@
     background: var(--card); color: var(--muted); font-size: 13px; }
   .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   /* 좌우 패딩은 헤더(16px)와 정렬 — 없으면 칩이 화면 왼쪽에 딱 붙는다
-     (David 실기기 아이폰 실측 2026-07-31) */
+      */
   .sort-bar { display: flex; gap: 8px; padding: 10px 16px 0; margin: 0 0 4px; }
 
   /* 지금 브리핑 스트립 — 가로 스크롤 카드 */
@@ -233,7 +227,7 @@
     background: var(--card-2); color: var(--muted); }
   .badge.news { color: #7fb0ff; }
   .card h3 { margin: 0 0 6px; font-size: 16px; line-height: 1.4; font-weight: 700; }
-  /* "새 탭에서 원문 열림" 시각 신호 (David 2026-07-24 적대적 검수 #7) — 카드 탭 시
+  /* "새 탭에서 원문 열림" 시각 신호  — 카드 탭 시
      낯선 사이트로 튕기는 당황을 줄이려고 제목 옆에 항상 붙는 작은 화살표. 유저 본인
      글(via==="me")은 인앱 상세로 열리므로 표시하지 않는다. */
   .newtab-hint { color: var(--muted); font-weight: 400; font-size: 0.85em; margin-left: 2px; }
@@ -247,7 +241,7 @@
   .ad-product-name { margin: -3px 0 6px; font-size: 12px; color: var(--muted); }
   .card p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  /* 썸네일 이미지 (David 2026-07-26) — 원본 서버 URL 핫링크만, 저장/재호스팅
+  /* 썸네일 이미지  — 원본 서버 URL 핫링크만, 저장/재호스팅
      안 함(docs/legal.md). .card-row가 본문(.card-main)과 썸네일을 나란히
      배치하고, .card 자체는 그대로 block으로 둔다("읽음" ::after의
      float:right, padding 등 기존 박스모델을 안 건드리기 위해 — flex는
@@ -283,13 +277,10 @@
     border-radius: 10px; padding: 9px 12px; margin-bottom: 8px; font-size: 13px; }
   .muted-row button { margin-left: auto; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 5px 11px; font-size: 12px; }
 
-  /* ---- 제휴/광고 슬롯 카드 (2026-07-26 리디자인, docs/monetization.md
-     "AD 배지 최소화 + progressive disclosure") ----
-     David 최종지시 + 24개 네이티브광고 리서치 결론: 유기 카드와 레이아웃을
-     완전히 공유하고(.card 그대로), 광고라는 표시는 작은 "AD" 배지 하나로만
-     한다. 상단 축약고지·하단 법정고지 전문·가격 블록의 "상시 노출"은
-     제거했다 — 대신 배지를 탭하면 고지 전문이 팝오버로 뜬다(아래
-     .ad-disclosure-pop). 법적 요건은 "고지 존재 + 인지 가능 + 접근 가능"이면
+  /* ---- 제휴/광고 슬롯 카드 ----
+     레이아웃은 .card를 공유하되 "AD" 배지로 광고임을 표시하고, 배지를 탭하면
+     고지 전문이 팝오버로 뜬다(.ad-disclosure-pop). 고지 요건은
+     "고지 존재 + 인지 가능 + 접근 가능"이면
      충족되므로, 배지 자체가 1차 고지이고 상세는 요청 시 보여주는 progressive
      disclosure 구조가 성립한다. 단, 배지는 카드 최초 뷰포트에서 항상
      보여야 하고(Warner Bros 판례 — 숨겨진 고지는 위법), "AD"라는 단어를
@@ -325,8 +316,7 @@
   .loading-msg { color: var(--muted); font-size: 14px; text-align: center; }
 
   /* detail overlay */
-  /* 상세뷰 = 리스트 위 플로팅 창 (David 2026-07-31: "새페이지로 하지말고 기존
-     리스트 위에 플로팅 하는창"). 모바일은 바텀시트, 데스크톱은 중앙 카드.
+  /* 상세뷰 = 리스트 위 플로팅 창 . 모바일은 바텀시트, 데스크톱은 중앙 카드.
      배경(딤) 클릭·ESC·뒤로가기 전부 닫기로 통한다. */
   #detail { position: fixed; inset: 0; z-index: 40; background: rgba(5,6,10,.62);
     backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
@@ -383,7 +373,7 @@
     border: 1px solid var(--line); color: var(--text); padding: 10px 18px; border-radius: 999px; font-size: 13px;
     z-index: 80; opacity: 0; transition: opacity .25s; pointer-events: none; }
   .toast.show { opacity: 1; }
-  /* 취향 선택 전 로그인 유도 (David 검수 항목 6) */
+  /* 취향 선택 전 로그인 유도  */
   .survey-auth { background: var(--card); border: 1px solid rgba(79,140,255,.35); border-radius: 14px;
     padding: 14px; margin: 0 0 22px; }
   .survey-auth-msg { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
@@ -393,7 +383,7 @@
   .survey-auth #surveyAuthSkip { width: 100%; margin-top: 10px; background: none; border: none;
     color: var(--muted); font-size: 13px; padding: 6px; }
 
-  /* 최초 진입 온보딩 (David 검수 항목 7) */
+  /* 최초 진입 온보딩  */
   .onb-back { position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 60;
     display: flex; align-items: center; justify-content: center; padding: 20px; }
   .onb { background: var(--card); border: 1px solid var(--line); border-radius: 18px;
@@ -418,8 +408,7 @@
 
   /* ---------- Desktop / PC (mobile-first above; the layout is the same single
      centered column at every width now that the source chips / filters /
-     my-space live in the ☰ drawer instead of an always-visible sidebar —
-     David 2026-07-24: home is one clean feed everywhere, not just on mobile) ---------- */
+     my-space live in the ☰ drawer instead of an always-visible sidebar ) ---------- */
   @media (min-width: 1000px) {
     .card:hover { border-color: #33405e; }
     /* 데스크톱: 바텀시트 대신 중앙 플로팅 카드 */
@@ -437,7 +426,7 @@
   </header>
 
   <!-- 홈은 통합 핫 피드 하나만 — 소스별 선택 칩·필터 토글·내 공간·제출은 전부
-       여기 드로어 안으로 이동(삭제 아님). ☰로 열고 닫는다 (David 2026-07-24). -->
+       여기 드로어 안으로 이동(삭제 아님). ☰로 열고 닫는다 . -->
   <div class="drawer-back" id="drawerBack"></div>
   <aside class="drawer" id="drawer" aria-hidden="true">
     <div class="drawer-head">
@@ -470,7 +459,7 @@
         <div id="drawerFilters"></div>
       </div>
 
-      <!-- 뉴스 성향 슬라이더 (David 2026-07-31). 매체별 라벨은 노출하지 않고
+      <!-- 뉴스 성향 슬라이더 . 매체별 라벨은 노출하지 않고
            혼합 비율만 조절한다. 기본값 0 = 고르게. 끝까지 밀어도 반대편이
            완전히 사라지지 않는다(하한 20% — 필터버블 방지, engine.leanMultiplier). -->
       <div class="drawer-sec" id="leanSec">
@@ -504,12 +493,12 @@
 
   <div id="digestBar" class="digest hidden"></div>
 
-  <!-- 지금 브리핑 스트립 (David 2026-07-31: "최상단에 테마별로 시간별 브리핑")
+  <!-- 지금 브리핑 스트립 
        — 카테고리별 대표 이슈 카드, /api/briefing 실측 데이터. 탭하면 자체
        브리핑 페이지(/briefing/<cat>)로 — 애드핏 "자체 콘텐츠" 보강의 홈 노출부 -->
   <div class="brief-strip" id="briefStrip" hidden></div>
 
-  <!-- 정렬 바 (#12, David: "상단에 필터링 옵션에 최신순도") — 핫=기존 추천,
+  <!-- 정렬 바 (#12, "상단에 필터링 옵션에 최신순도") — 핫=기존 추천,
        최신=시간버킷×소스 인터리브의 중립 최신 뷰 (engine.js sort:"latest") -->
   <div class="sort-bar" id="sortBar" role="tablist" aria-label="정렬">
     <button class="chip active" data-sort="hot" role="tab">🔥 핫</button>
@@ -552,7 +541,7 @@
       </div>
       <p class="lead">관심 주제만 톡톡 고르면 그에 맞는 글을 모아드려요. 좋아요/싫어요로 계속 정확해집니다.</p>
 
-      <!-- 취향 선택 **전** 로그인 유도 (David 검수 항목 6).
+      <!-- 취향 선택 **전** 로그인 유도 .
            지금 고르는 취향은 이 브라우저에만 저장된다 — 폰에서 고르고 PC로 오면
            처음부터 다시 골라야 한다는 사실을 고르기 전에 알려준다. 로그인은
            여전히 선택이고(익명으로도 전부 동작), 안 하면 뭘 잃는지만 밝힌다. -->
@@ -651,7 +640,7 @@ const state = {
   // 정렬 모드: hot(추천) | latest(최신순, #12). 새로고침 간 유지.
   sortMode: localStorage.getItem("feed_sort") === "latest" ? "latest" : "hot",
   registry: [], // full /api/communities list (all sources, unfiltered) — labels + frameable lookups
-  communities: [], activeSource: null, // 홈은 항상 "전체"로 시작 (필터 선택이 저장돼 갇히지 않게 — David 2026-07-24)
+  communities: [], activeSource: null, // 홈은 항상 "전체"로 시작 (필터 선택이 저장돼 갇히지 않게 )
   feedScrollY: 0, // remembered scroll position for exact back-restore
   cardsById: new Map(),
   ageVerified: false, showAdult: false,
@@ -712,7 +701,7 @@ syncHeaderHeight();
   localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
   state.surveyed = s.surveyed;
   // 소스 칩은 레지스트리에서 동적으로 — 하드코딩 목록 없음. 활성(enabled) + 비성인 소스만.
-  // 추가로 죽은 소스 칩 자동 숨김(David 2026-07-24 적대적 검수 #5): liveCount(현재
+  // 추가로 죽은 소스 칩 자동 숨김: liveCount(현재
   // 수집 풀에 있는 이 소스 아이템 수)가 0인 소스는 칩에서 뺀다 — todayhumor처럼
   // enabled는 유지하되(해외IP 차단, 국내 이전 시 부활 예정) 프로덕션에서 꾸준히
   // 0건이면 눌러도 빈 화면만 보이는 당황을 막는다. 단, anyLive가 false면(로컬
@@ -755,7 +744,7 @@ function maybeShowAdNotice(){
   bar.querySelector("#adNoticeX").onclick=()=>{ bar.remove(); localStorage.setItem("feed_ad_notice_seen","1"); };
 }
 
-// 최초 진입 온보딩 (David 검수 항목 7: "신규 사용자 최초 진입 시 직관적 사용법 설명").
+// 최초 진입 온보딩 .
 //
 // 이 앱은 화면에 설명이 거의 없다 — 카드를 누르면 원문이 새 탭에서 열리고,
 // 👍/👎가 취향을 학습시키고, ☰에 소스 필터가 숨어 있다는 걸 처음 온 사람은 알 수
@@ -765,6 +754,10 @@ function maybeShowAdNotice(){
 // localStorage에만 기록한다 — 서버 왕복 없이 즉시 판단해야 첫 화면이 늦지 않는다.
 const ONBOARD_KEY = "feed_onboarded_v1";
 function maybeShowOnboarding(){
+  // 딥링크(#post-…, 브리핑→상세 등)로 들어온 신규 방문자는 목적지가 우선 —
+  // 환영 모달이 글을 100% 가리는 문제(적대적 검수 2026-07-31, FE 페르소나).
+  // 온보딩은 다음 일반 방문 때 뜬다(ONBOARD_KEY 미기록이므로).
+  if(location.hash && location.hash.startsWith("#post-")) return;
   let done = false;
   try { done = localStorage.getItem(ONBOARD_KEY) === "1"; } catch { done = true; } // 저장소 막힘 = 조용히 생략
   if(done) return;
@@ -799,7 +792,7 @@ function maybeShowOnboarding(){
   if(go) go.focus();
 }
 
-// 뉴스 성향 슬라이더 (David 2026-07-31). 값은 서버(user.leanBalance)에 저장돼
+// 뉴스 성향 슬라이더 . 값은 서버(user.leanBalance)에 저장돼
 // 기기 간 동기화된다. 변경 즉시 저장하되 피드 재적재는 700ms 디바운스 —
 // 슬라이더를 드래그하는 동안 요청이 연발되지 않게.
 function setupLeanSlider(session){
@@ -824,7 +817,7 @@ function setupLeanSlider(session){
   });
 }
 
-// 카카오 애드핏 배너 (애드센스 심사 공백 메우기, David 2026-07-31).
+// 카카오 애드핏 배너 (애드센스 심사 공백 메우기, ).
 // 첫 페이지 4번째 카드 뒤에 페이지당 1회만 삽입한다 — 첫 화면(카드 1~3)은
 // 콘텐츠 첫인상을 지키고(적대적 검수: 첫 화면 민감), 같은 광고단위의 페이지 내
 // 중복 노출은 애드핏 정책상 피한다. <ins>는 display:none으로 시작하고 애드핏
@@ -929,7 +922,7 @@ async function pushLocalNotification(d){
   } catch {}
 }
 
-// ---- ☰ 드로어 (소스별 보기·필터·링크제출·내공간 — David 2026-07-24 UX 개편) ----
+// ---- ☰ 드로어 (소스별 보기·필터·링크제출·내공간 ) ----
 // 홈은 통합 핫 피드 하나만 보이고, 나머지 메뉴는 전부 여기 안에서 열고 닫는다.
 function openDrawer(){
   document.getElementById("drawer").classList.add("open");
@@ -1152,7 +1145,7 @@ function prependCard(item){
 // ---- 내 공간 (my space) ----
 function setupSpace(){
   // entry point moved from a home FAB into the ☰ drawer (setupDrawer wires
-  // #drawerSpaceBtn) — David 2026-07-24 UX overhaul.
+  // #drawerSpaceBtn) 
   document.getElementById("spaceBack").onclick = ()=>{
     if(location.hash.startsWith("#space")) history.back(); else closeSpace();
   };
@@ -1255,7 +1248,7 @@ function renderAuthBlock(container){
 }
 
 // ---- 카카오톡 앱으로 원탭 로그인 -------------------------------------------
-// David 2026-07-28: "웹은 로그인 안 한 사람 많은데 앱은 누구나 쓰니까".
+// "웹은 로그인 안 한 사람 많은데 앱은 누구나 쓰니까".
 // 카카오 앱의 로그인 기록을 우리가 읽어올 방법은 없다(앱 데이터 접근 권한이
 // 없다). 대신 카카오 JavaScript SDK가 모바일 웹에서 카카오톡 앱을 실행해
 // 앱의 로그인 세션으로 인가를 받아 돌아오게 할 수 있다 — 사용자 입장에선
@@ -1336,7 +1329,7 @@ function tasteHtml(t){
 }
 
 // ---- survey ----
-// 취향 선택 화면의 로그인 유도 (David 검수 항목 6). 이미 로그인했거나 이 배포에
+// 취향 선택 화면의 로그인 유도 . 이미 로그인했거나 이 배포에
 // 활성 provider가 없으면 아무것도 안 띄운다 — 누를 수 없는 안내는 소음이다.
 function renderSurveyAuthNudge(){
   const box = document.getElementById("surveyAuthNudge");
@@ -1593,15 +1586,14 @@ function hotBadge(item){
   if(ageH<3) return '<span class="badge" style="background:#3fb27f;color:#0e0f13">🆕 방금</span>';
   return '';
 }
-// 댓글수 배지 (David 2026-07-24 적대적 검수 #8) — list 어댑터 커뮤글은 법적 제약으로
+// 댓글수 배지  — list 어댑터 커뮤글은 법적 제약으로
 // summary(본문 요약)가 비어 제목만 나오는 경우가 많다. 원 커뮤니티의 추천수/댓글수
 // (item.score/item.commentCount)는 이미 있으니 그걸로 보완한다.
 //
 // 원문 댓글(item.commentCount)과 지금핫 댓글(item.comments)은 **서로 다른 것**이라
 // 반드시 따로 보여준다. 예전엔 둘 중 큰 값 하나만(Math.max) 보여줬는데, 원문 댓글이
 // 500개인 글에 우리 댓글이 3개 달려도 화면엔 그대로 "💬 500"이라 우리 쪽에 대화가
-// 생겼다는 걸 아무도 알 수 없었다(David 2026-07-28: "컨텐츠별로 댓글 쓸 수 있는
-// 기능 있으면 좋겠다" — 기능은 이미 있었고, 안 보이는 게 문제였다).
+// 생겼다는 걸 아무도 알 수 없었다.
 //   💬 n : 원문(커뮤니티/언론사)의 댓글 수 — 저기 가면 이만큼 있다는 뜻
 //   💭 n : 지금핫에 달린 우리 댓글 수 — 0이면 아예 표시하지 않는다(빈 값 노출 금지)
 function sourceCommentCount(item){ return item.commentCount||0; }
@@ -1630,7 +1622,7 @@ function adProductNameHtml(item){
   return `<div class="ad-product-name">· ${escapeHtml(item.productName)}${escapeHtml(sampleTag)}</div>`;
 }
 // 광고 카드 하단 지표 행 — 유기 카드의 (▲추천 · 💬댓글 · 시간)과 동일한 골격이되,
-// **실측 데이터만** 채운다(David 2026-07-26). 가짜 순위·추천수·댓글수·급상승은
+// **실측 데이터만** 채운다. 가짜 순위·추천수·댓글수·급상승은
 // 허위·과장광고 + 가짜 소셜증거(FTC 다크패턴)라 절대 지어내지 않는다. 실제 쿠팡
 // productFeed가 rating/reviewCount/bestseller를 주면 그것만 노출하고, 없으면(샘플
 // 포함) 행 자체를 생략한다 — 빈 자리에 가짜를 채우지 않는 것이 곧 준법.
@@ -1642,7 +1634,7 @@ function adMetaHtml(item){
   if(!parts.length) return ""; // 실측 지표가 하나도 없으면(샘플 등) 행 생략 — 가짜 금지
   return `<div class="card-meta">${parts.join("")}</div>`;
 }
-// 썸네일 (David 2026-07-26, docs/legal.md "핫링크만·저장 안 함") — item.image가
+// 썸네일  — item.image가
 // 있을 때만 렌더되는 소형 정사각 썸네일. 원본 서버 URL을 그대로 <img src>로
 // 참조할 뿐 우리 서버는 아무것도 받거나 저장하지 않는다(카톡/트위터 링크
 // 미리보기와 동일한 핫링크 방식). loading="lazy"로 화면 밖 이미지는 요청조차
@@ -1886,7 +1878,7 @@ function markOpened(itemId){
 }
 
 // Collected items (via !== "me") leave the app entirely for the original, in
-// a new tab — legal.md's out-link model, and David's 2026-07-24 final call to
+// a new tab — legal.md's out-link model, and 's 2026-07-24 final call to
 // drop the in-app iframe viewer in favor of this uniformly for every source
 // (no more per-source frameable branching, no mixed-content/frame-busting
 // edge cases to defend against). rel=noopener blocks the new tab from
@@ -1928,7 +1920,7 @@ document.getElementById("backBtn").onclick = ()=> history.back();
 document.getElementById("detail").addEventListener("click", (e)=>{
   if(e.target === e.currentTarget) history.back();
 });
-// 아래로 스와이프 = 닫기 (바텀시트 문법, David 2026-07-31). 패널 스크롤이 맨
+// 아래로 스와이프 = 닫기 (바텀시트 문법, ). 패널 스크롤이 맨
 // 위에서 시작한 제스처만 — 본문 스크롤과 충돌하지 않게.
 (function(){
   const p = document.getElementById("detailPanel");
@@ -2003,7 +1995,7 @@ async function renderDetail(itemId){
       </div>
       <div id="cList"></div>
     </div>`;
-  // 제목 탭 = 원문으로 (David 2026-07-31). ↗·"원문에서 계속 읽기"와 같은 목적지.
+  // 제목 탭 = 원문으로 . ↗·"원문에서 계속 읽기"와 같은 목적지.
   if(item.url && item.source!=="me"){
     const h = document.getElementById("detailTitle");
     h.style.cursor = "pointer"; h.title = "원문 열기";

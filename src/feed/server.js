@@ -268,6 +268,10 @@ export function createServer(opts = {}) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} — 지금핫 NowHot</title>
 <meta name="description" content="${escapeHtml(desc)}">
+<meta property="og:title" content="${escapeHtml(title)} — 지금핫 NowHot">
+<meta property="og:description" content="${escapeHtml(desc)}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="지금핫 NowHot">
 <style>:root{--bg:#0e0f13;--card:#171922;--text:#e8eaf0;--muted:#8b90a0;--accent:#4f8cff;--line:#262a38}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.75;font-size:15px}
 .wrap{max-width:720px;margin:0 auto;padding:32px 20px 80px}h1{font-size:22px;margin:0 0 2px}
@@ -325,8 +329,13 @@ ${inner}
   };
   const briefingSectionsHtml = (b) => b.sections.map((sec) => {
     const lead = sec.items[0];
-    const leadLine = lead.commentCount > 0 || lead.score > 0
-      ? `추천 ${fmtNum(lead.score)}·댓글 ${fmtNum(lead.commentCount)}을 모으며 ${escapeHtml(sec.label)} 화제의 중심에 있습니다.`
+    // 실측이 0인 지표는 문장에서 아예 뺀다 — "추천 0·댓글 86을 모으며 화제의
+    // 중심"은 자기모순이다(적대적 검수 2026-07-31, 태호·지영 페르소나 지적).
+    const leadParts = [];
+    if (lead.score > 0) leadParts.push(`추천 ${fmtNum(lead.score)}`);
+    if (lead.commentCount > 0) leadParts.push(`댓글 ${fmtNum(lead.commentCount)}`);
+    const leadLine = leadParts.length
+      ? `${leadParts.join("·")}을 모으며 ${escapeHtml(sec.label)} 화제의 중심에 있습니다.`
       : (lead.coverage >= 3 ? `여러 매체가 동시에 다루고 있는 사안입니다.` : `${escapeHtml(lead.sourceLabel)}의 상위 글로 올라와 있습니다.`);
     const rows = sec.items.map((i) => {
       const bits = evidenceBits(i);

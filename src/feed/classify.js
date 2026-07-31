@@ -263,6 +263,14 @@ export const AUTO_KEYWORDS = [
 // "테슬라 실적 발표") — 이 가드에 걸리면 키워드 확정을 포기하고 원 분류 유지.
 export const AUTO_FINANCE_GUARD = ["주가", "실적", "영업이익", "매출", "수출", "노조", "파업", "채용", "공장", "투자"];
 
+// 게시판 URL로 카테고리가 확정되는 규칙 — 통합 베스트에 섞여 들어와도
+// 아이템 url에 원 게시판이 남는 소스들 (topics.js BOARD_TOPIC_RULES와 같은
+// 원리, 대상이 topic이 아니라 category일 뿐). 적대적 검수 실측(2026-07-31):
+// 뽐뿌 자동차게시판(zboard id=car) 글이 business로 배달되고 있었다.
+export const BOARD_CATEGORY_RULES = [
+  { source: "ppomppu", pattern: /[?&]id=car\b/i, category: "auto" }
+];
+
 // 제목만으로 카테고리를 확정할 수 있으면 그 카테고리를, 아니면 null.
 // 현재는 auto 전용이지만 같은 구조로 사전을 늘릴 수 있게 함수로 뽑아 둔다.
 export function keywordCategory(title) {
@@ -273,6 +281,16 @@ export function keywordCategory(title) {
     return "auto";
   }
   return null;
+}
+
+// 제목 사전 + 게시판 URL 규칙을 합친 확정 분류. 게시판 규칙이 우선한다 —
+// 원 게시판은 글쓴이가 직접 고른 분류라 제목 추정보다 강한 신호다.
+export function definiteCategory({ title, url, sourceId } = {}) {
+  if (url && sourceId) {
+    const rule = BOARD_CATEGORY_RULES.find((r) => r.source === sourceId && r.pattern.test(url));
+    if (rule) return rule.category;
+  }
+  return keywordCategory(title);
 }
 
 // 혼합 베스트 게시판의 폴백: 주제 사이트지만 "베스트"가 전 게시판 통합이라
