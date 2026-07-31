@@ -197,7 +197,9 @@ export function createServer(opts = {}) {
   // FEED_ENRICH_IMAGES=0 으로 끌 수 있다. node --test 자식 프로세스에서는
   // 기본 비활성 — 테스트 픽스처의 가짜 url로 실제 네트워크를 치지 않기 위해.
   if (process.env.FEED_ENRICH_IMAGES !== "0" && !process.env.NODE_TEST_CONTEXT) {
-    engine._enricher = makeEnricher();
+    // 사이클당 40건: 발췌(summary)까지 채우면서 후보가 커뮤 글 전반으로 늘었다
+    // — 15분 주기 기준 시간당 160건, 풀 전체를 반나절 안에 1회전한다.
+    engine._enricher = makeEnricher({ maxPerCycle: Number(process.env.FEED_ENRICH_PER_CYCLE || 40) });
   }
 
   // 정기 DB 갱신: refresh the collected pool on an interval when configured.

@@ -25,9 +25,18 @@ const DEFAULT_UA = "ai-command-bus-feed/0.1 (+https://github.com/comeva2kr/ai-co
 
 const MAX_HTML_BYTES = 200 * 1024; // og 메타는 <head>에 있다 — 200KB면 충분하고, 그 이상은 읽지 않는다
 
+// 2026-07-31 확장 (David: "상세창에 무조건 본문내용 축약버전을"): 같은 HTML
+// 요청에서 og:description/meta description도 뽑아 summary가 빈 아이템의
+// 발췌로 쓴다. 본문 스크래핑이 아니다 — 원문 사이트가 링크 미리보기용으로
+// 스스로 공개한 요약 메타데이터이며, docs/legal.md의 발췌 상한(200자)을
+// 그대로 적용한다.
+
 // --- extractOgImage: 순수 문자열 파싱, 네트워크 없음 -----------------------
 
 const IMG_META_NAMES = ["og:image", "og:image:secure_url", "twitter:image", "twitter:image:src"];
+const DESC_META_NAMES = ["og:description", "twitter:description", "description"];
+const EXCERPT_MAX = 200; // docs/legal.md 발췌 상한
+const EXCERPT_MIN = 15; // 이보다 짧으면 사이트명 따위일 뿐 발췌가 아니다
 
 function decodeEntities(s) {
   return String(s || "")
@@ -84,6 +93,21 @@ export function extractOgImage(html, baseUrl) {
   return null;
 }
 
+// og:description → twitter:description → meta description 순 첫 매치.
+// 엔티티 디코드 + 공백 정리 + 200자 컷. 사이트명 수준의 초단문은 버린다.
+export function extractOgDesc(html) {
+  if (!html) return null;
+  const text = String(html);
+  for (const name of DESC_META_NAMES) {
+    const raw = metaContent(text, name);
+    if (raw === null) continue;
+    const cleaned = decodeEntities(raw).replace(/\s+/g, " ").trim();
+    if (cleaned.length < EXCERPT_MIN) continue;
+    return cleaned.length > EXCERPT_MAX ? cleaned.slice(0, EXCERPT_MAX - 1).trimEnd() + "…" : cleaned;
+  }
+  return null;
+}
+
 // --- fetchOgImage: 네트워크 1회, 조용한 실패 -------------------------------
 
 // 스트림 reader로 응답 본문을 MAX_HTML_BYTES까지만 읽고 자른다. fetchImpl이
@@ -120,7 +144,14 @@ async function readCapped(res, maxBytes) {
 // 불필요). content-type이 text/html이 아니면 이미지/PDF 등을 og 파싱하지
 // 않고 null. 403/404/타임아웃/네트워크 오류는 전부 조용히 null — 우회나
 // 재시도는 하지 않는다.
-export async function fetchOgImage(url, { timeoutMs = 5000, fetchImpl = fetch } = {}) {
+export async function fetchOgImage(url, opts = {}) {
+  const meta = await fetchOgMeta(url, opts);
+  return meta.image;
+}
+
+// 네트워크 1회로 image+desc를 함께 뽑는다. 실패 시 { image:null, desc:null }.
+export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch } = {}) {
+  const empty = { image: null, desc: null };
   let res;
   try {
     res = await fetchImpl(url, {
@@ -128,18 +159,18 @@ export async function fetchOgImage(url, { timeoutMs = 5000, fetchImpl = fetch } 
       signal: AbortSignal.timeout(timeoutMs)
     });
   } catch {
-    return null; // 네트워크 오류/타임아웃 — 조용히 포기
+    return empty; // 네트워크 오류/타임아웃 — 조용히 포기
   }
-  if (!res || !res.ok) return null; // 403/404 등 — 조용히 포기, 우회 금지
+  if (!res || !res.ok) return empty; // 403/404 등 — 조용히 포기, 우회 금지
   const contentType = (res.headers && res.headers.get && res.headers.get("content-type")) || "";
-  if (!/text\/html/i.test(contentType)) return null;
+  if (!/text\/html/i.test(contentType)) return empty;
   let html;
   try {
     html = await readCapped(res, MAX_HTML_BYTES);
   } catch {
-    return null;
+    return empty;
   }
-  return extractOgImage(html, res.url || url);
+  return { image: extractOgImage(html, res.url || url), desc: extractOgDesc(html) };
 }
 
 // --- makeEnricher: 사이클마다 image 없는 아이템을 골라 동시성 있게 채운다 --
@@ -154,7 +185,7 @@ export function makeEnricher({
   negativeTtlMs = 3600 * 1000,
   clock = () => Date.now()
 } = {}) {
-  const cache = new Map(); // url -> { image: string|null, expiresAt: number }
+  const cache = new Map(); // url -> { image: string|null, desc: string|null, expiresAt: number }
 
   function cacheGet(url) {
     const hit = cache.get(url);
@@ -166,34 +197,43 @@ export function makeEnricher({
     return hit;
   }
 
-  function cacheSet(url, image) {
-    cache.set(url, { image, expiresAt: clock() + (image ? ttlMs : negativeTtlMs) });
+  function cacheSet(url, meta) {
+    const positive = Boolean(meta.image || meta.desc);
+    cache.set(url, { ...meta, expiresAt: clock() + (positive ? ttlMs : negativeTtlMs) });
   }
+
+  // image가 비었거나 summary(발췌)가 빈 아이템이 후보다 — 한 번의 fetch로
+  // 둘 다 채운다. desc가 제목의 단순 복제면 발췌 가치가 없으므로 버린다.
+  const needsWork = (it) => !it.image || !it.summary;
 
   async function enrich(items) {
     const candidates = (Array.isArray(items) ? items : [])
-      .filter((it) => it && !it.image && typeof it.url === "string" && /^https?:\/\//i.test(it.url))
+      .filter((it) => it && needsWork(it) && typeof it.url === "string" && /^https?:\/\//i.test(it.url))
       .slice(0, maxPerCycle);
 
     const attempted = candidates.length;
     let filled = 0;
     let cursor = 0;
 
+    function apply(item, meta) {
+      let touched = false;
+      if (!item.image && meta.image) { item.image = meta.image; touched = true; }
+      if (!item.summary && meta.desc && meta.desc !== item.title) { item.summary = meta.desc; touched = true; }
+      if (touched) filled++;
+    }
+
     async function worker() {
       while (cursor < candidates.length) {
         const item = candidates[cursor++];
         const cached = cacheGet(item.url);
-        let image;
+        let meta;
         if (cached !== undefined) {
-          image = cached.image; // 캐시 히트 — fetch 없이 즉시 적용
+          meta = cached; // 캐시 히트 — fetch 없이 즉시 적용
         } else {
-          image = await fetchOgImage(item.url, { fetchImpl });
-          cacheSet(item.url, image);
+          meta = await fetchOgMeta(item.url, { fetchImpl });
+          cacheSet(item.url, meta);
         }
-        if (image) {
-          item.image = image;
-          filled++;
-        }
+        apply(item, meta);
       }
     }
 

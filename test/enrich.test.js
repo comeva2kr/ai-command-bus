@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { extractOgImage, fetchOgImage, makeEnricher } from "../src/feed/enrich.js";
+import { extractOgImage, extractOgDesc, fetchOgImage, fetchOgMeta, makeEnricher } from "../src/feed/enrich.js";
 
 // ---- extractOgImage --------------------------------------------------------
 
@@ -136,14 +136,14 @@ function makeFetchImplWithLog(imageByUrl) {
   return { fetchImpl, calls };
 }
 
-test("makeEnricher: image가 없는 아이템만 시도한다", async () => {
+test("makeEnricher: image와 summary가 모두 있는 아이템은 시도하지 않는다", async () => {
   const { fetchImpl, calls } = makeFetchImplWithLog(
     new Map([["https://a.example.com/1", "https://cdn.example.com/1.jpg"]])
   );
   const enricher = makeEnricher({ fetchImpl });
   const items = [
-    { url: "https://a.example.com/1", image: null },
-    { url: "https://a.example.com/2", image: "https://already.example.com/x.jpg" }
+    { url: "https://a.example.com/1", image: null, summary: "" },
+    { url: "https://a.example.com/2", image: "https://already.example.com/x.jpg", summary: "이미 발췌가 있는 글" }
   ];
   const { attempted, filled } = await enricher.enrich(items);
   assert.equal(attempted, 1);
@@ -262,4 +262,57 @@ test("makeEnricher: attempted/filled은 성공·실패를 정확히 센다", asy
   const { attempted, filled } = await enricher.enrich(items);
   assert.equal(attempted, 4);
   assert.equal(filled, 2);
+});
+
+// ---- 발췌(og:description) 확장 — David 2026-07-31 "상세창에 무조건 발췌" ----
+
+test("extractOgDesc: og:description 기본 매치 + 공백 정리", () => {
+  const html = `<meta property="og:description" content="서초구가  몽마르뜨공원과\n우면생태놀이터를 새단장한다고 밝혔다.">`;
+  assert.equal(extractOgDesc(html), "서초구가 몽마르뜨공원과 우면생태놀이터를 새단장한다고 밝혔다.");
+});
+
+test("extractOgDesc: og가 없으면 meta description 폴백, 200자 컷", () => {
+  const long = "가".repeat(300);
+  const html = `<meta name="description" content="${long}">`;
+  const out = extractOgDesc(html);
+  assert.ok(out.length <= 200, `발췌 상한 200자 초과: ${out.length}`);
+  assert.ok(out.endsWith("…"));
+});
+
+test("extractOgDesc: 사이트명 수준 초단문은 발췌가 아니다 — null", () => {
+  assert.equal(extractOgDesc(`<meta property="og:description" content="네이트 뉴스">`), null);
+  assert.equal(extractOgDesc(`<div>메타 없음</div>`), null);
+});
+
+test("fetchOgMeta: 한 번의 fetch로 image와 desc를 함께 뽑는다", async () => {
+  const html = `<meta property="og:image" content="https://cdn.example.com/x.jpg">
+    <meta property="og:description" content="충분히 긴 진짜 기사 요약문이 여기에 들어있다.">`;
+  const fetchImpl = async (url) => mockRes({ body: html, url });
+  const meta = await fetchOgMeta("https://a.example.com/1", { fetchImpl });
+  assert.equal(meta.image, "https://cdn.example.com/x.jpg");
+  assert.equal(meta.desc, "충분히 긴 진짜 기사 요약문이 여기에 들어있다.");
+});
+
+test("makeEnricher: summary가 빈 아이템에 desc를 채운다 (이미지 있어도 후보)", async () => {
+  const html = `<meta property="og:description" content="커뮤니티 글의 원문 페이지가 공개한 요약 메타데이터.">`;
+  const calls = [];
+  const fetchImpl = async (url) => { calls.push(url); return mockRes({ body: html, url }); };
+  const enricher = makeEnricher({ fetchImpl });
+  const items = [{ url: "https://c.example.com/1", image: "https://cdn.example.com/has.jpg", summary: "" }];
+  const { attempted, filled } = await enricher.enrich(items);
+  assert.equal(attempted, 1);
+  assert.equal(filled, 1);
+  assert.equal(items[0].summary, "커뮤니티 글의 원문 페이지가 공개한 요약 메타데이터.");
+  assert.equal(items[0].image, "https://cdn.example.com/has.jpg", "기존 이미지는 유지");
+});
+
+test("makeEnricher: desc가 제목의 단순 복제면 발췌로 쓰지 않는다", async () => {
+  const title = "제목과 완전히 동일한 설명문이 내려오는 페이지";
+  const html = `<meta property="og:description" content="${title}">`;
+  const fetchImpl = async (url) => mockRes({ body: html, url });
+  const enricher = makeEnricher({ fetchImpl });
+  const items = [{ url: "https://d.example.com/1", image: null, summary: "", title }];
+  const { filled } = await enricher.enrich(items);
+  assert.equal(filled, 0);
+  assert.equal(items[0].summary, "");
 });
