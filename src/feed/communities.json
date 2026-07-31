@@ -1274,6 +1274,60 @@
           "max": 50
         }
       }
+    },
+    {
+      "id": "mydaily",
+      "label": "마이데일리",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.mydaily.co.kr/ent_rss.xml",
+        "note": "2026-07-31 culture 공급 확충(적대적 검수: 연예 랭킹 2건 vs tech 10건). 연예 전문매체 공식 RSS. 실측 200/UTF-8/100건, description+content:encoded 이미지 확보, pubDate RFC822 정상. robots 무관. 전체기사 피드라 랭킹성 약함 — 뉴스 수집 상한 20건 + hotScore로 보완(donga/hankyung 패턴)."
+      }
+    },
+    {
+      "id": "tenasia",
+      "label": "텐아시아",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.tenasia.co.kr/rss/topic/",
+        "note": "2026-07-31 culture 공급 확충. 한경 계열 연예전문 공식 RSS(topic). 실측 200/UTF-8/50건, pubDate RFC822 정상, description/이미지 없음(소스 스펙 한계 — og:image 보강기가 채움). robots /rss/ 무관."
+      }
+    },
+    {
+      "id": "starnews",
+      "label": "스타뉴스",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": false,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://rss.mt.co.kr/st_news.xml",
+        "note": "2026-07-31 조사 — 콘텐츠 살아있으나(100건/오늘자) 응답이 euc-kr이라 rssFetcher(getText, UTF-8 가정)에서 한글 깨짐 + pubDate가 YYYYMMDDHHmmss+0900 비표준. fetchers.js에 rss euc-kr 디코드·비표준 날짜 파싱 추가 후 활성화할 것. rss.mt.co.kr robots는 302로 확인 불가(WARN, 명시 Disallow 아님)."
+      }
     }
   ]
 }
