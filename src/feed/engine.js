@@ -380,7 +380,18 @@ export class FeedEngine {
     // (실측: 한겨레 매머드 기사 2건이 16·18위, 동일 URL 6초 간격 2건).
     // 추적 파라미터를 벗긴 URL(origin+pathname) 기준으로 반응 큰 쪽을 남긴다.
     {
-      const canonUrl = (u) => { try { const x = new URL(u); return x.origin + x.pathname; } catch { return null; } };
+      // 정규화: 추적 파라미터(utm_* 등)만 벗기고 나머지 쿼리는 보존·정렬한다.
+      // origin+pathname만 남기면 안 된다 — 뽐뿌·보배류는 zboard.php?id=…&no=…
+      // 처럼 쿼리스트링이 글의 정체라, 게시판 전체가 한 키로 붕괴한다
+      // (2026-08-01 라이브 실측: 뽐뿌 18건 -> 2건 회귀를 즉시 롤백한 교훈).
+      const canonUrl = (u) => {
+        try {
+          const x = new URL(u);
+          const params = [...x.searchParams].filter(([k]) => !/^(utm_|fbclid|gclid|igshid|ref$)/i.test(k));
+          params.sort((a, b) => a[0].localeCompare(b[0]));
+          return x.origin + x.pathname + (params.length ? "?" + params.map(([k, v]) => `${k}=${v}`).join("&") : "");
+        } catch { return null; }
+      };
       const eng = (i) => (i.score || 0) + (i.commentCount || 0) * 2 + (i.coverage || 0);
       const byUrl = new Map();
       for (const item of capped) {

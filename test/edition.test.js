@@ -158,3 +158,23 @@ test("firstSeenAt 영속화: 재시작(새 엔진)해도 '처음 본 시각'이 
   const seen2 = (await engine2._items()).find((i) => i.id === "old1").firstSeenAt;
   assert.equal(seen2, seen1, "재시작 후에도 처음 본 시각이 유지돼야 — 리셋되면 뒷북 글이 신규로 둔갑");
 });
+
+test("URL dedup: 쿼리가 정체인 게시판 글은 합쳐지지 않고, 추적 파라미터 차이만 있으면 합쳐진다", async () => {
+  const hoursAgo = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+  const src = new JsonSource("qboard", async () => [
+    { id: "q1", title: "게시판 글 1", url: "https://q.example.com/zboard.php?id=free&no=1",
+      publishedAt: hoursAgo(1), score: 10, category: "humor" },
+    { id: "q2", title: "게시판 글 2", url: "https://q.example.com/zboard.php?id=free&no=2",
+      publishedAt: hoursAgo(1), score: 10, category: "humor" },
+    { id: "d1", title: "같은 기사 A", url: "https://n.example.com/article/1?utm_source=rss",
+      publishedAt: hoursAgo(1), score: 5, category: "news" },
+    { id: "d2", title: "같은 기사 B", url: "https://n.example.com/article/1",
+      publishedAt: hoursAgo(1), score: 90, commentCount: 10, category: "news" }
+  ], "community");
+  const store = new FeedStore();
+  const engine = new FeedEngine(store, [src]);
+  const items = await engine._items();
+  const ids = new Set(items.map((i) => i.id));
+  assert.ok(ids.has("q1") && ids.has("q2"), "쿼리 다른 게시판 글 2건은 둘 다 생존");
+  assert.ok(!ids.has("d1") && ids.has("d2"), "utm만 다른 동일 기사는 반응 큰 쪽만 생존");
+});
