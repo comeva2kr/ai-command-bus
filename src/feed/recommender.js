@@ -73,6 +73,26 @@ function recencyBoost(item, now) {
 // Score a single item. Higher = better match. `opts.seenIds` demotes items the
 // user has already been shown; `opts.seed` varies novelty jitter per request;
 // `opts.now` (ms) enables the recency term.
+// 순수 취향 점수 — "이 유저가 이런 **종류**의 글을 좋아하는가"만 본다.
+// 인기도(popularityPrior), 신선도(recencyBoost), 탐색 보너스, 협업 부스트,
+// 지터는 전부 제외한다.
+//
+// 왜 분리했나 (David 검수 항목 3+5, 2026-07-29): 소스별 취향 배정 가중치
+// (engine.js sourceTasteWeights)를 scoreItem으로 계산했더니, scoreItem 안의
+// popularityPrior/recencyBoost 때문에 **추천수가 높은 소스가 곧 취향에 맞는
+// 소스로 잡혔다**. 테스트 픽스처(모든 소스가 같은 카테고리, 8개만 추천수 보유)로
+// 검증: 취향 차이가 0이어야 하는데 시끄러운 8개 소스가 최대 가중치를 받아
+// 상위 8개 점유율이 60% -> 68%로 올랐다. 즉 항목 5를 고치려다 항목 3의 편중을
+// 다시 만드는 상태였다.
+//
+// 인기도/신선도는 이미 hotScore(ingest.js)가 담당한다. 여기서 또 더하면 이중
+// 계산이고, 취향 신호를 인기 신호로 오염시킨다.
+export function tasteScore(item, vec) {
+  if (!vec) return 0;
+  const f = featureScore(item, vec);
+  return f.categoryW * 1.0 + f.tagAvg * 1.3 + f.sourceW * 0.6 + f.styleMatch;
+}
+
 export function scoreItem(item, vec, opts = {}) {
   const f = featureScore(item, vec);
   const base =

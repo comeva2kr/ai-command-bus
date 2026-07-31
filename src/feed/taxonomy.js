@@ -87,13 +87,23 @@ export const SOURCE_CATALOG = [
   { id: "entnews", label: "엔터뉴스", kind: "news" },
   { id: "gamespot", label: "게임스팟", kind: "news" },
   { id: "newswire", label: "뉴스와이어", kind: "news" },
-  { id: "gnews", label: "구글뉴스", kind: "news" },
-  { id: "gnews-auto", label: "구글뉴스 자동차", kind: "news" },
-  { id: "gnews-tech", label: "구글뉴스 IT", kind: "news" },
+  // 구글뉴스 — 2026-07-28에 키워드 검색 피드(rss/search?q=…)에서 편집 섹션
+  // 피드(rss/topics/…)로 교체하면서 각 소스가 실제로 담아 오는 내용이 바뀌었다
+  // (예: gnews-science는 이제 '건강' 섹션). 라벨은 communities.json이 원본이고
+  // 여기는 그 사본이라, 둘이 어긋나면 화면에 옛 이름이 남는다 — newsrank.test.js가
+  // 두 목록의 라벨 일치를 검사한다.
+  { id: "gnews", label: "구글뉴스 주요뉴스", kind: "news" },
+  { id: "gnews-kr", label: "구글뉴스 대한민국", kind: "news" },
+  { id: "gnews-world", label: "구글뉴스 세계", kind: "news" },
   { id: "gnews-biz", label: "구글뉴스 경제", kind: "news" },
-  { id: "gnews-sports", label: "구글뉴스 스포츠", kind: "news" },
+  { id: "gnews-tech", label: "구글뉴스 과학·기술", kind: "news" },
   { id: "gnews-ent", label: "구글뉴스 연예", kind: "news" },
-  { id: "gnews-science", label: "구글뉴스 과학", kind: "news" },
+  { id: "gnews-sports", label: "구글뉴스 스포츠", kind: "news" },
+  { id: "gnews-science", label: "구글뉴스 건강", kind: "news" },
+  // 폐기된 소스들(구글 KR에 대응 섹션이 없어 비활성). 이미 수집돼 있던 글이
+  // 보존 기간 동안 남아 있으므로 라벨은 그대로 둔다 — 지우면 그 카드들이
+  // 영문 id를 그대로 노출한다.
+  { id: "gnews-auto", label: "구글뉴스 자동차", kind: "news" },
   { id: "gnews-game", label: "구글뉴스 게임", kind: "news" }
 ];
 

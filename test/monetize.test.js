@@ -1173,3 +1173,91 @@ test("public/index.html: appendAdCard still renders the ad badge + hook/productN
   assert.match(body, /class="ad-disclosure-pop"[^>]*hidden>\$\{escapeHtml\(item\.disclosure/, "disclosure text must still be present, but only inside the hidden popover");
   assert.match(body, /adProductNameHtml\(item\)/);
 });
+
+// --- 애드센스 온보딩 배선 (David 2026-07-31 "오늘부터 광고 달 건데") -----------
+// ADSENSE_CLIENT env 하나로 사이트 확인 스크립트와 ads.txt가 함께 켜지고,
+// 미설정 배포는 완전 무광고(스크립트 0, ads.txt 404)여야 한다.
+
+test("ads.txt: ADSENSE_CLIENT 설정 시 판매자 라인, 미설정 시 404", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const prev = process.env.ADSENSE_CLIENT;
+  try {
+    delete process.env.ADSENSE_CLIENT;
+    let server = createServer({});
+    await new Promise((r) => server.listen(0, r));
+    let base = `http://localhost:${server.address().port}`;
+    assert.equal((await fetch(`${base}/ads.txt`)).status, 404, "미설정이면 404");
+    server.close();
+
+    process.env.ADSENSE_CLIENT = "ca-pub-1234567890123456";
+    server = createServer({});
+    await new Promise((r) => server.listen(0, r));
+    base = `http://localhost:${server.address().port}`;
+    const txt = await (await fetch(`${base}/ads.txt`)).text();
+    assert.equal(txt.trim(), "google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0",
+      "ads.txt 표기는 ca- 접두사를 뗀 pub- ID여야");
+    const html = await (await fetch(`${base}/`)).text();
+    assert.ok(html.includes("pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1234567890123456"),
+      "index.html에 애드센스 로더가 주입되어야");
+    server.close();
+
+    delete process.env.ADSENSE_CLIENT;
+    server = createServer({});
+    await new Promise((r) => server.listen(0, r));
+    base = `http://localhost:${server.address().port}`;
+    const clean = await (await fetch(`${base}/`)).text();
+    assert.ok(!clean.includes("adsbygoogle"), "미설정 배포는 완전 무광고");
+    server.close();
+  } finally {
+    if (prev === undefined) delete process.env.ADSENSE_CLIENT;
+    else process.env.ADSENSE_CLIENT = prev;
+  }
+});
+
+test("privacy.html: 개인정보처리방침이 존재하고 실수집 항목·광고 고지를 담는다", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const p = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "privacy.html");
+  const html = fs.readFileSync(p, "utf8");
+  // 실제로 수집하는 것만 적혀 있어야 한다 — 없는 수집 항목을 적으면 그게 거짓
+  assert.match(html, /소셜 로그인/);
+  assert.match(html, /닉네임/);
+  assert.match(html, /비밀번호는 수집하지 않습니다/);
+  assert.match(html, /AdSense/, "애드센스 쿠키 고지는 심사 필수");
+  assert.match(html, /쿠팡 파트너스/, "제휴 고지");
+  assert.match(html, /comeva2kr@gmail\.com/, "문의처");
+});
+
+test("adfit: 광고단위는 env 설정 시에만 /api/config에 노출되고, 클라이언트는 4번째 카드 뒤 1회만 삽입한다", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const prev = process.env.ADFIT_UNIT_MOBILE;
+  try {
+    process.env.ADFIT_UNIT_MOBILE = "DAN-testunit";
+    let server = createServer({});
+    await new Promise((r) => server.listen(0, r));
+    let cfg = await (await fetch(`http://localhost:${server.address().port}/api/config`)).json();
+    assert.equal(cfg.adfit.mobileUnit, "DAN-testunit");
+    server.close();
+
+    delete process.env.ADFIT_UNIT_MOBILE;
+    server = createServer({});
+    await new Promise((r) => server.listen(0, r));
+    cfg = await (await fetch(`http://localhost:${server.address().port}/api/config`)).json();
+    assert.equal(cfg.adfit.mobileUnit, null, "미설정 배포는 배너 없음");
+    server.close();
+  } finally {
+    if (prev === undefined) delete process.env.ADFIT_UNIT_MOBILE;
+    else process.env.ADFIT_UNIT_MOBILE = prev;
+  }
+
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html"), "utf8");
+  const fn = html.slice(html.indexOf("function maybeInsertAdfit"), html.indexOf("// Soft, dismissible"));
+  assert.ok(fn.includes('getElementById("adfitSlot")'), "페이지당 1회 가드");
+  assert.ok(fn.includes("cards.length < 4"), "첫 3장은 콘텐츠 유지 — 4번째 카드 뒤 삽입");
+  assert.ok(fn.includes("display:none"), "실광고 수신 전 빈 박스 금지");
+  assert.match(html, /maybeInsertAdfit\(\);/, "loadMore에서 호출되어야");
+});

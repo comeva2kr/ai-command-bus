@@ -25,6 +25,8 @@ import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { sendDigestPushes } from "./push.js";
+import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
+import { makeEnricher } from "./enrich.js";
 import {
   enabledProviders,
   providerConfig,
@@ -124,6 +126,17 @@ function serveStatic(res, urlPath) {
   fs.readFile(filePath, (err, buf) => {
     if (err) return send(res, 404, { error: "not found" });
     const ext = path.extname(filePath);
+    // 애드센스 사이트 소유 확인 + 광고 로더 (ADSENSE_CLIENT = "ca-pub-…").
+    // 심사 단계에서는 이 스크립트 존재 자체가 사이트 확인 수단이다. env가
+    // 없으면 아무것도 주입하지 않는다 — 광고 없는 배포는 완전히 무광고.
+    const adsense = process.env.ADSENSE_CLIENT;
+    const ga = process.env.GA_MEASUREMENT_ID; // GA4 측정 ID ("G-…") — 설정 시 gtag 주입
+    if ((adsense || ga) && ext === ".html" && rel === "index.html") {
+      let tags = "";
+      if (adsense) tags += `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsense}" crossorigin="anonymous"></script>\n`;
+      if (ga) tags += `<script async src="https://www.googletagmanager.com/gtag/js?id=${ga}"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','${ga}');</script>\n`;
+      buf = Buffer.from(buf.toString("utf8").replace("</head>", tags + "</head>"));
+    }
     res.writeHead(200, { "content-type": MIME[ext] || "application/octet-stream" });
     res.end(buf);
   });
@@ -180,9 +193,30 @@ export function createServer(opts = {}) {
   sources.push(new StorePostsSource(store));
   const engine = new FeedEngine(store, opts.sources || sources);
 
+  // 썸네일 보강 (enrich.js): image 없는 아이템의 원문 og:image URL 핫링크 채움.
+  // FEED_ENRICH_IMAGES=0 으로 끌 수 있다. node --test 자식 프로세스에서는
+  // 기본 비활성 — 테스트 픽스처의 가짜 url로 실제 네트워크를 치지 않기 위해.
+  if (process.env.FEED_ENRICH_IMAGES !== "0" && !process.env.NODE_TEST_CONTEXT) {
+    engine._enricher = makeEnricher();
+  }
+
   // 정기 DB 갱신: refresh the collected pool on an interval when configured.
   const refreshMs = Number(opts.refreshMs || process.env.FEED_REFRESH_MS || 0);
   if (refreshMs > 0) engine.startAutoRefresh(refreshMs);
+
+  // 쿠팡파트너스 실연동 — 키 3종(COUPANG_PARTNER_ID/ACCESS_KEY/SECRET_KEY)이
+  // 모두 있을 때만. 베스트 상품 캐시를 시작 시 1회 + 1시간마다 갱신하고,
+  // 엔진에 동기 productFeed를 주입한다. 키가 없으면 아무것도 안 한다(무광고).
+  if (coupangCreds()) {
+    engine._productFeed = makeCoupangProductFeed();
+    const warm = () => refreshCoupangCache().then(
+      (r) => console.log("[coupang] product cache:", JSON.stringify(r.counts || r)),
+      (e) => console.warn("[coupang] cache refresh failed:", e && e.message)
+    );
+    warm();
+    const t = setInterval(warm, Number(process.env.COUPANG_CACHE_TTL_MS || 3600000));
+    if (t.unref) t.unref();
+  }
 
   // Admin auth. Set ADMIN_TOKEN in production; a dev default is used otherwise.
   const ADMIN_TOKEN = opts.adminToken || process.env.ADMIN_TOKEN || "admin-dev";
@@ -231,6 +265,68 @@ export function createServer(opts = {}) {
       // --- API ---
       if (p === "/api/health") return send(res, 200, { ok: true });
 
+      // "오늘의 브리핑" — 실측 데이터로 서버가 직접 작성하는 일일 편집 페이지.
+      // 애드핏 보류 사유("대부분 아웃링크, 자체 콘텐츠 부족") 대응이자 애드센스
+      // "부가가치" 요건 보강. 문장은 전부 실측 수치로만 조립한다(숫자 조작 금지).
+      if (p === "/briefing" && req.method === "GET") {
+        const b = await engine.briefing();
+        const dt = new Date(b.generatedAt);
+        const kst = new Date(dt.getTime() + 9 * 3600 * 1000);
+        const dateStr = `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일`;
+        const fmt = (n) => n >= 10000 ? `${Math.round(n / 1000) / 10}만` : String(n);
+        const secHtml = b.sections.map((sec) => {
+          const lead = sec.items[0];
+          const leadLine = lead.commentCount > 0 || lead.score > 0
+            ? `추천 ${fmt(lead.score)}·댓글 ${fmt(lead.commentCount)}을 모으며 ${escapeHtml(sec.label)} 화제의 중심에 있습니다.`
+            : (lead.coverage >= 3 ? `여러 매체가 동시에 다루고 있는 사안입니다.` : `${escapeHtml(lead.sourceLabel)}의 상위 글로 올라와 있습니다.`);
+          const rows = sec.items.map((i) => {
+            const bits = [];
+            if (i.score > 0) bits.push(`추천 ${fmt(i.score)}`);
+            if (i.commentCount > 0) bits.push(`댓글 ${fmt(i.commentCount)}`);
+            if (!bits.length && i.coverage >= 3) bits.push("다중 보도");
+            return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(i.title)}</a>
+              <span class="m">${escapeHtml(i.sourceLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></li>`;
+          }).join("");
+          return `<section><h2>${escapeHtml(sec.label)}</h2>
+            <p>오늘 ${escapeHtml(sec.label)} 분야에서는 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})이 ${leadLine}</p>
+            <ul>${rows}</ul></section>`;
+        }).join("");
+        const debateHtml = b.debate
+          ? `<section><h2>오늘의 논쟁</h2><p>가장 많은 댓글이 달린 글은 <b>“${escapeHtml(b.debate.title)}”</b>(${escapeHtml(b.debate.sourceLabel)})입니다 — 댓글 ${fmt(b.debate.commentCount)}개가 이어지고 있습니다. <a href="/#post-${encodeURIComponent(b.debate.id)}">지금핫 댓글로 의견 남기기 →</a></p></section>`
+          : "";
+        const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>오늘의 브리핑 (${dateStr}) — 지금핫 NowHot</title>
+<meta name="description" content="지금핫이 실측 데이터로 정리한 ${dateStr} 커뮤니티·뉴스 화제 브리핑">
+<style>:root{--bg:#0e0f13;--card:#171922;--text:#e8eaf0;--muted:#8b90a0;--accent:#4f8cff;--line:#262a38}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.75;font-size:15px}
+.wrap{max-width:720px;margin:0 auto;padding:32px 20px 80px}h1{font-size:22px;margin:0 0 2px}
+h2{font-size:16px;margin:26px 0 8px;padding-top:14px;border-top:1px solid var(--line)}
+.muted{color:var(--muted);font-size:13px}a{color:var(--accent);text-decoration:none}
+ul{padding-left:18px;margin:8px 0}li{margin:6px 0}.m{color:var(--muted);font-size:12.5px;display:block}
+.back{display:inline-block;margin-bottom:18px;color:var(--accent)}</style></head><body><div class="wrap">
+<a class="back" href="/">← 지금핫 피드로</a>
+<h1>오늘의 브리핑</h1>
+<p class="muted">${dateStr} · 커뮤니티·뉴스 ${b.sourceCount}곳의 화제글 ${b.itemCount}건을 지금핫이 실측 데이터로 정리했습니다. 15분마다 갱신됩니다.</p>
+${secHtml}
+${debateHtml}
+<p class="muted">이 브리핑은 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
+</div></body></html>`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(html);
+      }
+
+      // 애드센스 판매자 확인 파일 (https://nowhot.kr/ads.txt). ADSENSE_CLIENT
+      // 미설정이면 404 — 빈 ads.txt를 내는 것보다 없는 게 낫다(구글 크롤러가
+      // "인증된 판매자 0"으로 캐시하면 심사에 불리).
+      if (p === "/ads.txt" && req.method === "GET") {
+        const adsense = process.env.ADSENSE_CLIENT;
+        if (!adsense) return send(res, 404, { error: "not configured" });
+        const pub = adsense.replace(/^ca-/, ""); // ads.txt 표기는 "pub-…"
+        res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        return res.end(`google.com, ${pub}, DIRECT, f08c47fec0942fa0\n`);
+      }
+
       if (p === "/api/config" && req.method === "GET") {
         // `monetization.enabled`: whether this deploy can ever show an
         // affiliate/ad slot at all (real partner credential OR preview mode).
@@ -241,8 +337,22 @@ export function createServer(opts = {}) {
         // 소셜 로그인: provider별 클라이언트 id/secret 둘 다 있어야 활성 —
         // 키가 하나도 없으면 빈 배열이라 클라이언트는 로그인 버튼을 아예
         // 렌더하지 않는다(회귀 없는 완전 익명 동작).
-        const auth = { providers: enabledProviders(authEnv) };
-        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: SOURCE_CATALOG, topics: TOPIC_CATALOG, monetization, auth });
+        // kakaoJsKey: 카카오톡 **앱**으로 넘겨 원탭 로그인시키기 위한 JavaScript
+        // 키. 리다이렉트(REST) 방식만으로는 앱 전환이 카카오 문서상 보장되지
+        // 않고, JavaScript SDK만 "모바일 웹에서 카카오톡을 실행, 미설치 시
+        // 카카오계정으로 폴백"을 명시한다(David 2026-07-28: "웹은 로그인 안 한
+        // 사람 많은데 앱은 누구나 쓰니까"). 클라이언트에 노출되는 게 정상인
+        // 공개 키다(시크릿 아님). 없으면 클라이언트는 기존 리다이렉트 방식
+        // 그대로 — 즉 이 값은 순수 부가 기능이다.
+        // 카카오 애드핏 배너 광고단위(공개값). 미설정이면 클라이언트는 배너를
+        // 아예 렌더하지 않는다. 애드센스 심사 기간(수일~2주)의 수익 공백을
+        // 메우는 국내 모바일 배너 — docs/monetization.md 채널 구성 참고.
+        const adfit = { mobileUnit: process.env.ADFIT_UNIT_MOBILE || null };
+        const auth = {
+          providers: enabledProviders(authEnv),
+          kakaoJsKey: process.env.KAKAO_JS_KEY || null
+        };
+        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: SOURCE_CATALOG, topics: TOPIC_CATALOG, monetization, adfit, auth });
       }
 
       if (p === "/api/communities" && req.method === "GET") {
@@ -327,6 +437,14 @@ export function createServer(opts = {}) {
       // 콘텐츠 필터 토글: 정치/종교(기본 숨김, FILTERABLE_TOPICS) + 성인(adult).
       // adult는 별도 상태를 새로 만들지 않고 기존 verify-age/adult 게이트를 그대로
       // 호출한다 — /api/adult와 동작이 항상 일치하도록(중복 게이트 금지).
+      // 뉴스 성향 슬라이더 저장 (David 2026-07-31 "슬라이드로")
+      if (p === "/api/lean" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        const balance = store.setLeanBalance(body.userId, body.balance);
+        return send(res, 200, { ok: true, balance });
+      }
+
       if (p === "/api/topics" && req.method === "POST") {
         const body = await readBody(req);
         const user = store.getUser(body.userId);
@@ -358,12 +476,13 @@ export function createServer(opts = {}) {
           feedbackCount: user.feedbackCount,
           ageVerified: user.ageVerified === true,
           showAdult: user.showAdult === true,
-          showTopics: user.showTopics || []
+          showTopics: user.showTopics || [],
+          leanBalance: Number.isFinite(user.leanBalance) ? user.leanBalance : 0
         });
       }
 
       // --- social login (OAuth 2.0: google/kakao/naver) ---
-      const authRouteMatch = p.match(/^\/api\/auth\/([a-z]+)\/(login|callback)$/);
+      const authRouteMatch = p.match(/^\/api\/auth\/([a-z]+)\/(login|callback|state)$/);
       if (authRouteMatch) {
         const [, provider, action] = authRouteMatch;
         const cfg = providerConfig(provider, authEnv);
@@ -384,6 +503,22 @@ export function createServer(opts = {}) {
           const target = buildAuthorizeUrl(cfg, { state, redirectUri });
           res.writeHead(302, { location: target });
           return res.end();
+        }
+
+        // 카카오톡 앱 간편로그인용. 카카오 JavaScript SDK가 인가 요청을 직접
+        // 띄우므로(그래야 앱으로 전환된다) 서버가 302로 만들어 주던 CSRF state를
+        // 대신 여기서 발급해 넘긴다 — 콜백 검증 경로는 아래와 완전히 동일해
+        // 앱 로그인이라고 해서 검증이 느슨해지지 않는다. 익명 userId도 똑같이
+        // state에 실어 취향 승계를 유지한다.
+        //
+        // state 토큰이 JSON으로 노출되는 것은 /login이 Location 헤더로 노출하던
+        // 것과 같은 수준이다(둘 다 1회용·10분 만료, authStates.consume).
+        if (action === "state" && req.method === "GET") {
+          const anonymousUserId = url.searchParams.get("userId") || null;
+          return send(res, 200, {
+            state: authStates.issue(provider, anonymousUserId),
+            redirectUri
+          });
         }
 
         if (action === "callback" && req.method === "GET") {
@@ -488,6 +623,8 @@ export function createServer(opts = {}) {
       }
 
       if (p === "/api/feed" && req.method === "GET") {
+        // 트래픽 실측: 피드 요청 1회 = 실사용 1회 (userId로 고유 방문자 집계)
+        try { store.recordTraffic("feed", url.searchParams.get("userId")); } catch {}
         const userId = url.searchParams.get("userId");
         if (!userId || !store.getUser(userId)) return send(res, 400, { error: "unknown user" });
         const cursor = Number(url.searchParams.get("cursor") || 0);
@@ -502,7 +639,9 @@ export function createServer(opts = {}) {
         if (source && source !== "submit" && !registry.some((c) => c.id === source)) {
           return send(res, 400, { error: "unknown source" });
         }
-        const feed = await engine.getFeed(userId, { cursor, limit, source });
+        // 정렬: hot(기본) | latest — 그 외 값은 hot으로 접는다 (열린 enum 방지)
+        const sort = url.searchParams.get("sort") === "latest" ? "latest" : "hot";
+        const feed = await engine.getFeed(userId, { cursor, limit, source, sort });
         return send(res, 200, feed);
       }
 
@@ -582,6 +721,9 @@ export function createServer(opts = {}) {
       if (p.startsWith("/api/admin/")) {
         if (!isAdmin(req, url)) return send(res, 401, { error: "admin auth required" });
 
+        if (p === "/api/admin/traffic" && req.method === "GET") {
+          return send(res, 200, { days: store.trafficStats(Number(url.searchParams.get("days") || 14)) });
+        }
         if (p === "/api/admin/stats" && req.method === "GET") {
           return send(res, 200, { stats: store.adminStats(), communities: summarize(registry), ads: store.adminAdStats() });
         }
@@ -602,6 +744,24 @@ export function createServer(opts = {}) {
           return send(res, 200, {
             communities: registry.map((c) => ({ ...c, disabled: disabled.has(c.id) }))
           });
+        }
+        // 소스 헬스 (관리자 대시보드용, 읽기 전용): /api/communities의
+        // liveCount(수집 풀 내 현재 아이템 수 — 실측)와 /api/admin/communities의
+        // disabled 상태를 한 번에 준다. 수치는 전부 실측 — 0건이면 0으로 보인다.
+        if (p === "/api/admin/source-health" && req.method === "GET") {
+          const counts = await engine.sourceCounts();
+          const disabled = store.disabledSources();
+          const sources = registry.map((c) => ({
+            id: c.id,
+            label: c.label,
+            category: c.category,
+            kind: c.kind,
+            enabled: c.enabled === true,
+            disabled: disabled.has(c.id),
+            seed: Boolean(c.adapter && c.adapter.type === "seed"),
+            liveCount: counts[c.id] || 0
+          }));
+          return send(res, 200, { sources });
         }
         if (p === "/api/admin/delete-post" && req.method === "POST") {
           const body = await readBody(req);
@@ -665,6 +825,9 @@ export function createServer(opts = {}) {
       }
 
       // --- static client ---
+      if ((p === "/" || p === "/index.html") && req.method === "GET") {
+        try { store.recordTraffic("page"); } catch {}
+      }
       if (req.method === "GET") return serveStatic(res, p);
 
       return send(res, 404, { error: "not found" });

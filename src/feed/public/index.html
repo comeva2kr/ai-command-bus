@@ -206,6 +206,7 @@
   .chip { flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
     background: var(--card); color: var(--muted); font-size: 13px; }
   .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .sort-bar { display: flex; gap: 8px; margin: 0 0 12px; }
 
   /* feed */
   #feed { padding: 8px 12px 0; }
@@ -250,6 +251,9 @@
      now leaves to the original for collected items, so this chip is the way in */
   .card-meta .open-detail { cursor: pointer; }
   .card-meta .open-detail:hover, .card-meta .open-detail:focus-visible { color: var(--text); }
+  /* 지금핫에 달린 우리 댓글 — 원문 댓글(💬)과 색으로 구분한다. 0이면 아예
+     렌더되지 않으므로(commentMetaHtml) 이 배지가 보인다 = 대화가 있다. */
+  .card-meta .our-comments { color: var(--accent); font-weight: 600; }
   .actions { margin-left: auto; display: flex; gap: 8px; }
   .rate { border: 1px solid var(--line); background: var(--card-2); color: var(--muted);
     border-radius: 10px; padding: 10px 14px; min-height: 42px; font-size: 14px;
@@ -308,9 +312,20 @@
   .loading-msg { color: var(--muted); font-size: 14px; text-align: center; }
 
   /* detail overlay */
-  #detail { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto;
-    max-width: 720px; margin: 0 auto; transform: translateX(100%); transition: transform .22s ease; }
-  #detail.open { transform: translateX(0); }
+  /* 상세뷰 = 리스트 위 플로팅 창 (David 2026-07-31: "새페이지로 하지말고 기존
+     리스트 위에 플로팅 하는창"). 모바일은 바텀시트, 데스크톱은 중앙 카드.
+     배경(딤) 클릭·ESC·뒤로가기 전부 닫기로 통한다. */
+  #detail { position: fixed; inset: 0; z-index: 40; background: rgba(5,6,10,.62);
+    backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+    display: flex; align-items: flex-end; justify-content: center;
+    visibility: hidden; opacity: 0; transition: opacity .18s ease; }
+  #detail.open { visibility: visible; opacity: 1; }
+  .detail-panel { background: var(--bg); width: 100%; max-width: 720px; max-height: 88dvh;
+    overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line);
+    border-radius: 20px 20px 0 0; transform: translateY(28px); transition: transform .2s ease; }
+  #detail.open .detail-panel { transform: translateY(0); }
+  .detail-img { width: 100%; max-height: 340px; object-fit: cover; border-radius: 12px;
+    margin: 0 0 16px; background: #171a22; }
 
   .detail-head { position: sticky; top: 0; background: rgba(14,15,19,.92); backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--line); padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
@@ -355,6 +370,32 @@
     border: 1px solid var(--line); color: var(--text); padding: 10px 18px; border-radius: 999px; font-size: 13px;
     z-index: 80; opacity: 0; transition: opacity .25s; pointer-events: none; }
   .toast.show { opacity: 1; }
+  /* 취향 선택 전 로그인 유도 (David 검수 항목 6) */
+  .survey-auth { background: var(--card); border: 1px solid rgba(79,140,255,.35); border-radius: 14px;
+    padding: 14px; margin: 0 0 22px; }
+  .survey-auth-msg { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .survey-auth-msg b { font-size: 14.5px; }
+  .survey-auth-msg span { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+  .survey-auth .auth-hint { display: none; } /* 위 문구와 중복 */
+  .survey-auth #surveyAuthSkip { width: 100%; margin-top: 10px; background: none; border: none;
+    color: var(--muted); font-size: 13px; padding: 6px; }
+
+  /* 최초 진입 온보딩 (David 검수 항목 7) */
+  .onb-back { position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 60;
+    display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .onb { background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    max-width: 380px; width: 100%; padding: 24px 22px 18px; }
+  .onb h2 { margin: 0 0 4px; font-size: 20px; }
+  .onb .onb-sub { color: var(--muted); font-size: 13px; margin: 0 0 18px; line-height: 1.6; }
+  .onb ul { list-style: none; margin: 0 0 20px; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .onb li { display: flex; gap: 12px; align-items: flex-start; }
+  .onb li .ic { font-size: 20px; line-height: 1.2; width: 26px; text-align: center; flex: none; }
+  .onb li .tx { font-size: 13.5px; line-height: 1.55; }
+  .onb li .tx b { display: block; margin-bottom: 2px; font-size: 14px; }
+  .onb li .tx span { color: var(--muted); }
+  .onb .onb-go { width: 100%; background: var(--accent); color: #fff; border: none;
+    border-radius: 12px; padding: 13px; font-size: 15px; font-weight: 700; }
+
   .digest { margin: 10px 12px 0; padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; gap: 10px;
     background: linear-gradient(135deg, rgba(79,140,255,.16), rgba(63,178,127,.12)); border: 1px solid rgba(79,140,255,.3); }
   .digest .dtext { flex: 1; font-size: 13.5px; line-height: 1.45; }
@@ -368,9 +409,9 @@
      David 2026-07-24: home is one clean feed everywhere, not just on mobile) ---------- */
   @media (min-width: 1000px) {
     .card:hover { border-color: #33405e; }
-    /* detail overlay: on wide screens hide via visibility (the slide-off transform doesn't fully clear a centered panel once the viewport is much wider than it) */
-    #detail { transition: opacity .15s ease; transform: none; visibility: hidden; opacity: 0; }
-    #detail.open { transform: none; visibility: visible; opacity: 1; }
+    /* 데스크톱: 바텀시트 대신 중앙 플로팅 카드 */
+    #detail { align-items: center; padding: 28px; }
+    .detail-panel { border-radius: 20px; max-height: 86vh; }
   }
 </style>
 </head>
@@ -416,17 +457,45 @@
         <div id="drawerFilters"></div>
       </div>
 
+      <!-- 뉴스 성향 슬라이더 (David 2026-07-31). 매체별 라벨은 노출하지 않고
+           혼합 비율만 조절한다. 기본값 0 = 고르게. 끝까지 밀어도 반대편이
+           완전히 사라지지 않는다(하한 20% — 필터버블 방지, engine.leanMultiplier). -->
+      <div class="drawer-sec" id="leanSec">
+        <h4>뉴스 균형</h4>
+        <input type="range" id="leanSlider" min="-100" max="100" step="25" value="0"
+               style="width:100%;accent-color:var(--accent)" aria-label="뉴스 성향 균형">
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:2px">
+          <span>진보 성향 더</span><span id="leanMid">고르게</span><span>보수 성향 더</span>
+        </div>
+      </div>
+
       <div class="drawer-sec">
         <button class="drawer-link" id="drawerSpaceBtn">👤 내 공간</button>
       </div>
 
       <!-- 소셜 로그인: 설정된 provider가 있을 때만 채워짐 (renderAuthBlock) -->
       <div class="drawer-sec" id="authDrawerSec"></div>
+
+      <!-- 자체 콘텐츠·운영 정보 (애드핏/애드센스 심사: 운영 주체 표시 + 자체 편집 콘텐츠) -->
+      <div class="drawer-sec">
+        <a class="drawer-link" href="/briefing" style="display:block;text-decoration:none">📋 오늘의 브리핑</a>
+      </div>
+      <div class="drawer-sec" style="border-top:1px solid var(--line);padding-top:12px">
+        <a class="drawer-link" href="/about.html" style="display:block;text-decoration:none;color:var(--muted);font-size:13px">서비스 소개</a>
+        <a class="drawer-link" href="/privacy.html" style="display:block;text-decoration:none;color:var(--muted);font-size:13px;margin-top:6px">개인정보처리방침</a>
+        <div style="color:var(--muted);font-size:12px;margin-top:10px;padding-left:14px">ⓒ 페퍼클럽 · 지금핫 NowHot</div>
+      </div>
     </div>
   </aside>
 
   <div id="digestBar" class="digest hidden"></div>
 
+  <!-- 정렬 바 (#12, David: "상단에 필터링 옵션에 최신순도") — 핫=기존 추천,
+       최신=시간버킷×소스 인터리브의 중립 최신 뷰 (engine.js sort:"latest") -->
+  <div class="sort-bar" id="sortBar" role="tablist" aria-label="정렬">
+    <button class="chip active" data-sort="hot" role="tab">🔥 핫</button>
+    <button class="chip" data-sort="latest" role="tab">🕒 최신</button>
+  </div>
   <main id="feed"></main>
   <div class="sentinel" id="sentinel"></div>
 
@@ -445,12 +514,14 @@
 
   <!-- post detail -->
   <section id="detail" aria-hidden="true">
-    <div class="detail-head">
-      <button class="back" id="backBtn" aria-label="뒤로">‹</button>
-      <div class="src" id="detailSrc"></div>
-      <button class="mute-btn" id="shareBtn" style="margin-left:8px">🔗 공유</button>
+    <div class="detail-panel" id="detailPanel" role="dialog" aria-modal="true">
+      <div class="detail-head">
+        <button class="back" id="backBtn" aria-label="닫기">‹</button>
+        <div class="src" id="detailSrc"></div>
+        <button class="mute-btn" id="shareBtn" style="margin-left:8px">🔗 공유</button>
+      </div>
+      <div class="detail-body" id="detailBody"></div>
     </div>
-    <div class="detail-body" id="detailBody"></div>
   </section>
 
   <!-- onboarding survey -->
@@ -461,6 +532,19 @@
         <button id="surveySkip" style="background:none;border:none;color:var(--muted);font-size:14px">나중에</button>
       </div>
       <p class="lead">관심 주제만 톡톡 고르면 그에 맞는 글을 모아드려요. 좋아요/싫어요로 계속 정확해집니다.</p>
+
+      <!-- 취향 선택 **전** 로그인 유도 (David 검수 항목 6).
+           지금 고르는 취향은 이 브라우저에만 저장된다 — 폰에서 고르고 PC로 오면
+           처음부터 다시 골라야 한다는 사실을 고르기 전에 알려준다. 로그인은
+           여전히 선택이고(익명으로도 전부 동작), 안 하면 뭘 잃는지만 밝힌다. -->
+      <div id="surveyAuthNudge" class="survey-auth hidden">
+        <div class="survey-auth-msg">
+          <b>로그인하면 이 취향이 계속 따라와요</b>
+          <span>지금 고른 취향은 이 브라우저에만 저장돼요. 로그인하면 폰·PC 어디서 열어도 그대로예요.</span>
+        </div>
+        <div id="surveyAuthSec"></div>
+        <button type="button" id="surveyAuthSkip">로그인 없이 계속</button>
+      </div>
 
       <div id="questions"></div>
 
@@ -501,11 +585,13 @@ const API = {
   async subscribePush(userId, subscription) { return post("/api/push/subscribe", { userId, subscription }); },
   async vapidKey() { return get("/api/push/vapid-key"); },
   async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
+  async setLean(userId, balance) { return post("/api/lean", { userId, balance }); },
   async adSignal(userId, itemId, type, variant) { return post("/api/ad-signal", { userId, itemId, type, variant }).catch(()=>{}); },
   async setTopic(userId, topic, on) { return post("/api/topics", { userId, topic, on }); },
-  async feed(userId, cursor, limit=10, source=null) {
+  async feed(userId, cursor, limit=10, source=null, sort="hot") {
     const q = new URLSearchParams({ userId, cursor, limit });
     if(source) q.set("source", source);
+    if(sort && sort!=="hot") q.set("sort", sort);
     return get(`/api/feed?${q}`);
   },
   async item(userId, itemId) { return get(`/api/item?userId=${userId}&itemId=${encodeURIComponent(itemId)}`); },
@@ -543,6 +629,8 @@ const state = {
   userId: localStorage.getItem("feed_uid") || null,
   cursor: 0, loading: false, exhausted: false,
   activeCategory: null, config: null,
+  // 정렬 모드: hot(추천) | latest(최신순, #12). 새로고침 간 유지.
+  sortMode: localStorage.getItem("feed_sort") === "latest" ? "latest" : "hot",
   registry: [], // full /api/communities list (all sources, unfiltered) — labels + frameable lookups
   communities: [], activeSource: null, // 홈은 항상 "전체"로 시작 (필터 선택이 저장돼 갇히지 않게 — David 2026-07-24)
   feedScrollY: 0, // remembered scroll position for exact back-restore
@@ -614,11 +702,15 @@ syncHeaderHeight();
   state.registry = communitiesRes.communities || [];
   const anyLive = state.registry.some(c => (c.liveCount || 0) > 0);
   state.communities = state.registry.filter(c => c.enabled && !c.adult && (!anyLive || (c.liveCount || 0) > 0));
-  renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
+  setupSortBar(); renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
   setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver(); setupAdImpressionObserver();
+  setupLeanSlider(s);
   // Always show content first — a preview feed (popularity-ranked when no taste
   // yet). Personalization is invited, never a gate. (adversarial review #1)
   updateMeter(s); loadMore(); openFromHash();
+  // 이미 취향을 맞춘 적 있는 계정이면(다른 기기에서 로그인해 온 경우 등)
+  // 사용법 설명은 건너뛴다 — 아는 사람에게 다시 띄우면 방해다.
+  if(!s.surveyed) maybeShowOnboarding();
   if(!s.surveyed) showPersonalizeBanner(); else showDigest();
   maybeShowAdNotice();
   setupInfiniteScroll(); setupImmersion();
@@ -642,6 +734,100 @@ function maybeShowAdNotice(){
   bar.innerHTML = `<div class="dtext">이 피드에는 제휴 링크가 포함될 수 있어요 · 구매 시 일정액의 수수료를 받을 수 있어요</div><button class="dclose" id="adNoticeX">✕</button>`;
   const feed=document.getElementById("feed"); feed.parentNode.insertBefore(bar, feed);
   bar.querySelector("#adNoticeX").onclick=()=>{ bar.remove(); localStorage.setItem("feed_ad_notice_seen","1"); };
+}
+
+// 최초 진입 온보딩 (David 검수 항목 7: "신규 사용자 최초 진입 시 직관적 사용법 설명").
+//
+// 이 앱은 화면에 설명이 거의 없다 — 카드를 누르면 원문이 새 탭에서 열리고,
+// 👍/👎가 취향을 학습시키고, ☰에 소스 필터가 숨어 있다는 걸 처음 온 사람은 알 수
+// 없다. 그렇다고 설문 벽을 다시 세우면 안 된다(적대적 검수 #1에서 이미 걷어낸
+// 결정). 그래서 **한 번만, 닫으면 끝나는** 카드 하나로 세 가지만 알린다.
+//
+// localStorage에만 기록한다 — 서버 왕복 없이 즉시 판단해야 첫 화면이 늦지 않는다.
+const ONBOARD_KEY = "feed_onboarded_v1";
+function maybeShowOnboarding(){
+  let done = false;
+  try { done = localStorage.getItem(ONBOARD_KEY) === "1"; } catch { done = true; } // 저장소 막힘 = 조용히 생략
+  if(done) return;
+  if(document.getElementById("onbBack")) return;
+
+  const back = document.createElement("div");
+  back.id = "onbBack"; back.className = "onb-back";
+  back.innerHTML = `
+    <div class="onb" role="dialog" aria-modal="true" aria-labelledby="onbTitle">
+      <h2 id="onbTitle">지금핫에 오신 걸 환영해요</h2>
+      <p class="onb-sub">여러 커뮤니티와 뉴스에서 <b>지금 제일 화제인 글</b>만 모아 보여드려요.</p>
+      <ul>
+        <li><span class="ic">👆</span><span class="tx"><b>카드를 누르면 원문으로</b><span>글은 원래 사이트에서 열려요. 제목·요약만 모아둔 곳이에요.</span></span></li>
+        <li><span class="ic">👍</span><span class="tx"><b>👍 / 👎로 취향이 맞춰져요</b><span>누를수록 내 취향에 맞는 글이 위로 올라와요.</span></span></li>
+        <li><span class="ic">☰</span><span class="tx"><b>메뉴에서 커뮤니티를 골라요</b><span>보고 싶은 곳만 남기거나, 관심 없는 곳은 숨길 수 있어요.</span></span></li>
+      </ul>
+      <button class="onb-go" id="onbGo" type="button">시작하기</button>
+    </div>`;
+  document.body.appendChild(back);
+
+  const close = ()=>{
+    try { localStorage.setItem(ONBOARD_KEY, "1"); } catch {}
+    back.remove();
+  };
+  back.querySelector("#onbGo").onclick = close;
+  // 바깥을 눌러도 닫힌다 — 가둬두지 않는다
+  back.addEventListener("click", (e)=>{ if(e.target === back) close(); });
+  document.addEventListener("keydown", function esc(e){
+    if(e.key === "Escape"){ close(); document.removeEventListener("keydown", esc); }
+  });
+  const go = back.querySelector("#onbGo");
+  if(go) go.focus();
+}
+
+// 뉴스 성향 슬라이더 (David 2026-07-31). 값은 서버(user.leanBalance)에 저장돼
+// 기기 간 동기화된다. 변경 즉시 저장하되 피드 재적재는 700ms 디바운스 —
+// 슬라이더를 드래그하는 동안 요청이 연발되지 않게.
+function setupLeanSlider(session){
+  const el = document.getElementById("leanSlider");
+  const mid = document.getElementById("leanMid");
+  if(!el) return;
+  const label = (v)=> v===0 ? "고르게" : (v<0 ? "진보쪽 "+Math.abs(v)+"%" : "보수쪽 "+v+"%");
+  const init = Math.round(((session && session.leanBalance) || 0) * 100);
+  el.value = String(init); mid.textContent = label(init);
+  let t = null;
+  el.addEventListener("input", ()=>{ mid.textContent = label(Number(el.value)); });
+  el.addEventListener("change", ()=>{
+    const v = Number(el.value) / 100;
+    clearTimeout(t);
+    t = setTimeout(async ()=>{
+      try {
+        await API.setLean(state.userId, v);
+        toast(v===0 ? "뉴스를 고르게 섞어요" : "뉴스 균형을 조정했어요");
+        reloadFeedSilently();
+      } catch(e){ toast("저장 실패: "+e.message); }
+    }, 700);
+  });
+}
+
+// 카카오 애드핏 배너 (애드센스 심사 공백 메우기, David 2026-07-31).
+// 첫 페이지 4번째 카드 뒤에 페이지당 1회만 삽입한다 — 첫 화면(카드 1~3)은
+// 콘텐츠 첫인상을 지키고(적대적 검수: 첫 화면 민감), 같은 광고단위의 페이지 내
+// 중복 노출은 애드핏 정책상 피한다. <ins>는 display:none으로 시작하고 애드핏
+// 스크립트가 실광고를 받았을 때만 펼치므로, 심사 중/무광고 상태에선 빈 박스도
+// 생기지 않는다(레이아웃 시프트 없음).
+function maybeInsertAdfit(){
+  const unit = state.config && state.config.adfit && state.config.adfit.mobileUnit;
+  if(!unit || document.getElementById("adfitSlot")) return;
+  const feed = document.getElementById("feed");
+  const cards = feed.querySelectorAll(".card");
+  if(cards.length < 4) return;
+  const slot = document.createElement("div");
+  slot.id = "adfitSlot";
+  slot.style.cssText = "display:flex;justify-content:center;margin:6px 0";
+  slot.innerHTML = `<ins class="kakao_ad_area" style="display:none;" data-ad-unit="${unit}" data-ad-width="320" data-ad-height="100"></ins>`;
+  cards[3].insertAdjacentElement("afterend", slot);
+  if(!document.getElementById("adfitLoader")){
+    const sc = document.createElement("script");
+    sc.id = "adfitLoader"; sc.async = true;
+    sc.src = "https://t1.kakaocdn.net/kas/static/ba.min.js";
+    document.body.appendChild(sc);
+  }
 }
 
 // Soft, dismissible invitation to personalize — replaces the old survey wall.
@@ -1044,8 +1230,70 @@ function renderAuthBlock(container){
     <div class="auth-hint">로그인하면 기기가 바뀌어도 내 취향 그대로 이어져요 <span class="auth-hint-sub">(로그인 없이도 계속 이용할 수 있어요)</span></div>
     <div class="auth-btns">${providers.map(id=>{
       const m = AUTH_PROVIDER_META[id]; if(!m) return "";
-      return `<a class="auth-btn" href="/api/auth/${id}/login?userId=${encodeURIComponent(state.userId||"")}" style="background:${m.bg};color:${m.fg};border-color:${m.border}">${m.label}</a>`;
+      return `<a class="auth-btn" data-provider="${id}" href="/api/auth/${id}/login?userId=${encodeURIComponent(state.userId||"")}" style="background:${m.bg};color:${m.fg};border-color:${m.border}">${m.label}</a>`;
     }).join("")}</div>`;
+  wireKakaoAppLogin(container);
+}
+
+// ---- 카카오톡 앱으로 원탭 로그인 -------------------------------------------
+// David 2026-07-28: "웹은 로그인 안 한 사람 많은데 앱은 누구나 쓰니까".
+// 카카오 앱의 로그인 기록을 우리가 읽어올 방법은 없다(앱 데이터 접근 권한이
+// 없다). 대신 카카오 JavaScript SDK가 모바일 웹에서 카카오톡 앱을 실행해
+// 앱의 로그인 세션으로 인가를 받아 돌아오게 할 수 있다 — 사용자 입장에선
+// 아이디·비번 입력 없이 한 번 탭이라 원하는 결과가 같다. 카카오 문서:
+// "JavaScript SDK가 간편로그인을 위해 카카오톡을 실행합니다. 카카오톡이
+// 설치되지 않은 환경에서는 카카오계정으로 로그인을 시도합니다."
+//
+// 서버는 하나도 바뀌지 않는다 — SDK도 같은 redirect_uri로 code를 보내므로
+// /api/auth/kakao/callback이 그대로 처리한다. 우리가 따로 챙기는 건 CSRF
+// state뿐이고, 그건 /api/auth/kakao/state에서 발급받아 그대로 실어 보낸다.
+//
+// 안전장치: 데스크톱이거나, JS 키가 없거나, SDK 로딩/호출이 어떤 이유로든
+// 실패하면 **아무것도 하지 않고** 기존 리다이렉트 링크가 그대로 동작한다.
+// 즉 이 코드는 순수 부가 기능이라 최악의 경우에도 로그인이 막히지 않는다.
+const KAKAO_SDK_SRC = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js";
+let _kakaoSdk = null;
+function loadKakaoSdk(jsKey){
+  if(_kakaoSdk) return _kakaoSdk;
+  _kakaoSdk = new Promise((resolve, reject)=>{
+    const s = document.createElement("script");
+    s.src = KAKAO_SDK_SRC; s.async = true;
+    s.onload = ()=>{
+      try {
+        if(!window.Kakao) return reject(new Error("Kakao SDK not present"));
+        if(!window.Kakao.isInitialized()) window.Kakao.init(jsKey);
+        resolve(window.Kakao);
+      } catch(e){ reject(e); }
+    };
+    s.onerror = ()=> reject(new Error("Kakao SDK load failed"));
+    document.head.appendChild(s);
+  });
+  // 실패는 캐시하지 않는다 — 다음 시도에서 다시 받아볼 수 있게
+  _kakaoSdk.catch(()=>{ _kakaoSdk = null; });
+  return _kakaoSdk;
+}
+function isMobile(){ return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || ""); }
+function wireKakaoAppLogin(container){
+  const jsKey = state.config && state.config.auth && state.config.auth.kakaoJsKey;
+  if(!jsKey || !isMobile()) return; // 데스크톱엔 앱이 없다 — 기존 방식 유지
+  const link = container.querySelector('.auth-btn[data-provider="kakao"]');
+  if(!link) return;
+  link.addEventListener("click", async (e)=>{
+    e.preventDefault();
+    try {
+      const [Kakao, s] = await Promise.all([
+        loadKakaoSdk(jsKey),
+        fetch(`/api/auth/kakao/state?userId=${encodeURIComponent(state.userId||"")}`).then(r=>{
+          if(!r.ok) throw new Error("state 발급 실패"); return r.json();
+        })
+      ]);
+      // SDK가 카카오톡 앱을 띄우고, 끝나면 우리 콜백으로 code를 들고 돌아온다
+      Kakao.Auth.authorize({ redirectUri: s.redirectUri, state: s.state });
+    } catch(err){
+      // 앱 경로가 안 되면 조용히 원래의 리다이렉트 로그인으로 넘어간다
+      window.location.href = link.getAttribute("href");
+    }
+  });
 }
 // refresh the underlying feed without scrolling the space away
 function reloadFeedSilently(){
@@ -1069,7 +1317,22 @@ function tasteHtml(t){
 }
 
 // ---- survey ----
+// 취향 선택 화면의 로그인 유도 (David 검수 항목 6). 이미 로그인했거나 이 배포에
+// 활성 provider가 없으면 아무것도 안 띄운다 — 누를 수 없는 안내는 소음이다.
+function renderSurveyAuthNudge(){
+  const box = document.getElementById("surveyAuthNudge");
+  if(!box) return;
+  const providers = (state.config && state.config.auth && state.config.auth.providers) || [];
+  const loggedIn = state.authProfile && state.authProfile.loggedIn;
+  if(loggedIn || !providers.length){ box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  renderAuthBlock(document.getElementById("surveyAuthSec"));
+  const skip = document.getElementById("surveyAuthSkip");
+  if(skip) skip.onclick = ()=> box.classList.add("hidden");
+}
+
 function showSurvey(){
+  renderSurveyAuthNudge();
   const wrap = document.getElementById("questions");
   const answers = {};
   wrap.innerHTML = "";
@@ -1130,6 +1393,20 @@ function showSurvey(){
 }
 
 // ---- chips (category filter, client-side) ----
+// ---- 정렬 바 (핫/최신, #12) ----
+function setupSortBar(){
+  const bar = document.getElementById("sortBar");
+  const paint = ()=> [...bar.children].forEach(b=>b.classList.toggle("active", b.dataset.sort===state.sortMode));
+  paint();
+  bar.onclick = (e)=>{
+    const b = e.target.closest("[data-sort]");
+    if(!b || b.dataset.sort===state.sortMode) return;
+    state.sortMode = b.dataset.sort;
+    localStorage.setItem("feed_sort", state.sortMode);
+    paint(); reloadFeedSilently();
+  };
+}
+
 function renderChips(){
   const el = document.getElementById("chips"); el.innerHTML="";
   const all = document.createElement("button"); all.className="chip active"; all.textContent="전체";
@@ -1251,10 +1528,11 @@ async function loadMore(){
   if(state.loading || state.exhausted) return;
   state.loading = true; setSentinel(true);
   try {
-    const res = await API.feed(state.userId, state.cursor, 10, state.activeSource);
+    const res = await API.feed(state.userId, state.cursor, 10, state.activeSource, state.sortMode);
     state.cursor = res.nextCursor;
     updateMeter(res);
     for(const item of res.items) appendCard(item);
+    maybeInsertAdfit(); // 첫 페이지 4번째 카드 뒤 1회 (config에 광고단위 있을 때만)
     if(res.exhausted){ state.exhausted=true; setSentinel(false, "새 화제글을 모으는 중… 평가할수록 더 정확해져요"); }
     else setSentinel(false);
     applyFilter();
@@ -1274,10 +1552,25 @@ function hotBadge(item){
 }
 // 댓글수 배지 (David 2026-07-24 적대적 검수 #8) — list 어댑터 커뮤글은 법적 제약으로
 // summary(본문 요약)가 비어 제목만 나오는 경우가 많다. 원 커뮤니티의 추천수/댓글수
-// (item.score/item.commentCount)는 이미 있으니 그걸로 보완한다. 이전엔 item.comments
-// (우리 앱 자체 댓글 스레드 길이, 대부분 0)만 보여줘 원 커뮤니티에 댓글이 아무리
-// 많아도 "💬 0"으로 표시되는 문제가 있었다 — 둘 중 큰 값을 보여준다.
-function commentCountFor(item){ return Math.max(item.commentCount||0, item.comments||0); }
+// (item.score/item.commentCount)는 이미 있으니 그걸로 보완한다.
+//
+// 원문 댓글(item.commentCount)과 지금핫 댓글(item.comments)은 **서로 다른 것**이라
+// 반드시 따로 보여준다. 예전엔 둘 중 큰 값 하나만(Math.max) 보여줬는데, 원문 댓글이
+// 500개인 글에 우리 댓글이 3개 달려도 화면엔 그대로 "💬 500"이라 우리 쪽에 대화가
+// 생겼다는 걸 아무도 알 수 없었다(David 2026-07-28: "컨텐츠별로 댓글 쓸 수 있는
+// 기능 있으면 좋겠다" — 기능은 이미 있었고, 안 보이는 게 문제였다).
+//   💬 n : 원문(커뮤니티/언론사)의 댓글 수 — 저기 가면 이만큼 있다는 뜻
+//   💭 n : 지금핫에 달린 우리 댓글 수 — 0이면 아예 표시하지 않는다(빈 값 노출 금지)
+function sourceCommentCount(item){ return item.commentCount||0; }
+function ourCommentCount(item){ return item.comments||0; }
+function commentMetaHtml(item){
+  const ours = ourCommentCount(item);
+  const src = sourceCommentCount(item);
+  const oursHtml = ours>0
+    ? `<span class="open-detail our-comments" role="button" tabindex="0" title="지금핫 댓글 ${ours}개">💭 ${ours}</span>`
+    : "";
+  return `<span class="open-detail" role="button" tabindex="0" title="댓글 보기">💬 ${src}</span>${oursHtml}`;
+}
 function isAdItem(item){ return item.kind === "ad" || item.kind === "affiliate"; }
 // 제휴/광고 슬롯 카드 — "동화+명시": 레이아웃은 유기 카드와 동일하되 상단
 // 배지 하나로만 구분한다. 좋아요/싫어요/스크랩 등 추천 학습 액션은 아예
@@ -1424,13 +1717,13 @@ function appendCard(item){
       ${item.translated?'<span class="badge trans">번역</span>':(item.needsTranslation?'<span class="badge trans">원문</span>':'')}
       <span class="badge ${item.kind}">${item.kind==="news"?"뉴스":"커뮤"}</span>
     </div>
-    <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ' <span class="newtab-hint" title="새 탭에서 원문이 열려요" aria-hidden="true">↗</span>' : ''}</h3>
+    <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ' <span class="newtab-hint" role="button" tabindex="0" title="원문 바로 열기 (새 탭)">↗</span>' : ''}</h3>
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     ${item.editorialNote?`<div class="editorial-note">${escapeHtml(item.editorialNote)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>
     ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
     <div class="card-meta">
-      <span title="추천수">▲ ${item.score||0}</span><span class="open-detail" role="button" tabindex="0" title="댓글 보기">💬 ${commentCountFor(item)}</span><span>${timeAgo(item.publishedAt)}</span>
+      <span title="추천수">▲ ${item.score||0}</span>${commentMetaHtml(item)}<span>${timeAgo(item.publishedAt)}</span>
       <div class="actions">
         <button class="rate save ${item.saved?'on':''}" title="스크랩">${item.saved?'🔖':'📑'}</button>
         <button class="rate up ${item.myRating>0?'on':''}" data-s="1">👍</button>
@@ -1441,19 +1734,19 @@ function appendCard(item){
     ${cardThumbHtml(item)}
     </div>`;
   if(state.readSet.has(item.id)) card.classList.add("read");
-  // Card body tap: collected items (via !== "me") leave the app entirely for
-  // the original, in a new tab (openOriginal) — legal.md's out-link model,
-  // and David's 2026-07-24 final call to drop the in-app iframe viewer
-  // (mixed-content/frame-busting edge cases weren't worth the complexity;
-  // a new tab is simpler and works for every source uniformly). Our own tab's
-  // scroll/menu never moves either way. The user's own posts (via === "me")
-  // keep the existing in-app detail. Either way, the 💬 chip is a dedicated
-  // escape hatch into the in-app detail/comments — that access path must
-  // never disappear, even for collected items.
+  // Card body tap: **내부 상세 우선** (2026-08-01 전환 — 애드핏 매체심사 보류
+  // 사유 "대부분의 콘텐츠가 아웃 링크로 연결" 대응).
+  //
+  // 예전엔 카드 탭이 곧바로 원문 새 탭이었다 — 사이트의 모든 클릭이 외부로
+  // 나가는 구조라 광고 심사 관점에서 "링크 모음"으로 판정됐다. 이제 카드 탭은
+  // 발췌·편집 코멘트·지금핫 댓글이 있는 **내부 상세**를 열고, 원문 이동은 상세
+  // 안의 "원문에서 계속 읽기" 버튼(기존부터 있던 것)이 담당한다. 제목 옆 ↗
+  // 아이콘은 "바로 원문" 지름길로 남긴다 — 헤비유저의 한 탭 이동권 보존.
+  // 법적 모델(아웃링크·발췌 200자·본문 미복제)은 그대로다 — 바뀐 것은 이동
+  // 경로의 기본값뿐이다.
   card.addEventListener("click", (e)=>{
     if(e.target.closest(".rate")) return;
-    if(e.target.closest(".open-detail")){ openDetail(item.id); return; }
-    if(item.via !== "me" && item.url){ openOriginal(item); return; }
+    if(e.target.closest(".newtab-hint")){ if(item.via !== "me" && item.url){ openOriginal(item); return; } }
     openDetail(item.id);
   });
   card.addEventListener("keydown", (e)=>{
@@ -1567,22 +1860,31 @@ async function openDetail(itemId){
   history.pushState({ view:"detail", itemId }, "", "#post-"+encodeURIComponent(itemId));
   await renderDetail(itemId);
   const d = document.getElementById("detail");
-  d.scrollTop = 0; d.classList.add("open"); d.setAttribute("aria-hidden","false");
+  // 스크롤은 플로팅 패널이 담당한다 — 뒤 리스트는 잠가서 배경 스크롤 이탈 방지
+  document.getElementById("detailPanel").scrollTop = 0;
+  d.classList.add("open"); d.setAttribute("aria-hidden","false");
+  document.body.style.overflow = "hidden";
 }
 function closeDetail(){
   const d = document.getElementById("detail");
+  const p = document.getElementById("detailPanel");
   // dwell signal: how long was this post actually read?
   if(state.openItemId && state.openedAt){
     const dwellMs = Date.now() - state.openedAt;
-    const bottom = d.scrollTop + d.clientHeight >= d.scrollHeight - 40;
+    const bottom = p.scrollTop + p.clientHeight >= p.scrollHeight - 40;
     API.signal(state.userId, state.openItemId, bottom && dwellMs > 4000 ? "complete" : "dwell", dwellMs);
   }
   state.openItemId = null; state.openedAt = 0;
   d.classList.remove("open"); d.setAttribute("aria-hidden","true");
+  document.body.style.overflow = "";
   // restore feed scroll to the exact pixel the user left from
   window.scrollTo(0, state.feedScrollY);
 }
 document.getElementById("backBtn").onclick = ()=> history.back();
+// 딤 배경(패널 밖) 탭 = 닫기 — 플로팅 창의 기본 문법
+document.getElementById("detail").addEventListener("click", (e)=>{
+  if(e.target === e.currentTarget) history.back();
+});
 // one-handed close: swipe right from the left edge (top-left ‹ is out of thumb reach)
 (function(){
   const d = document.getElementById("detail");
@@ -1627,10 +1929,11 @@ async function renderDetail(itemId){
   body.innerHTML = `
     <h2>${escapeHtml(item.title)}</h2>
     <div class="card-meta" style="margin-bottom:16px">
-      <span title="추천수">▲ ${item.score||0}</span><span>💬 ${commentCountFor(item)}</span><span>${timeAgo(item.publishedAt)}</span>
+      <span title="추천수">▲ ${item.score||0}</span><span title="원문 댓글 수">💬 ${sourceCommentCount(item)}</span><span>${timeAgo(item.publishedAt)}</span>
       ${item.url?`<a href="${item.url}" target="_blank" rel="noopener" style="color:var(--accent)">원문 →</a>`:""}
     </div>
-    <p class="full">${escapeHtml(item.summary)}</p>
+    ${item.image?`<img class="detail-img" src="${item.image}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:""}
+    ${item.summary?`<p class="full">${escapeHtml(item.summary)}</p>`:""}
     ${item.url && item.source!=="me" ? `
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">원문에서 계속 읽기 →</a>
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
@@ -1656,7 +1959,7 @@ async function renderDetail(itemId){
   document.getElementById("cSend").onclick = async ()=>{
     const ta=document.getElementById("cInput"); const txt=ta.value.trim(); if(!txt) return;
     try { const c=await API.comment(state.userId,item.id,txt); item.thread.push(c); ta.value=""; renderComments(item.thread);
-      document.querySelector(".comments h4").textContent="댓글 "+item.thread.length; syncCardComments(item.id,item.thread.length,item.commentCount); }
+      document.querySelector(".comments h4").textContent="댓글 "+item.thread.length; syncCardComments(item.id,item.thread.length); }
     catch(e){ toast("댓글 실패: "+e.message); }
   };
 }
@@ -1677,9 +1980,23 @@ function syncCard(itemId, signal){
   card.querySelector(".rate.up").classList.toggle("on", signal>0);
   card.querySelector(".rate.down").classList.toggle("on", signal<0);
 }
-function syncCardComments(itemId, n, sourceCommentCount){
+// 상세뷰에서 댓글을 달면 뒤에 있는 카드의 💭 배지도 즉시 맞춘다. 배지가 아직
+// 없으면(그 글의 첫 댓글이면) 원문 댓글 배지 바로 뒤에 새로 만들어 붙인다 —
+// 방금 쓴 댓글이 목록에 반영되지 않으면 "글이 안 올라갔나?"로 읽힌다.
+function syncCardComments(itemId, n){
   const card = state.cardsById.get(itemId); if(!card) return;
-  const meta = card.querySelectorAll(".card-meta > span")[1]; if(meta) meta.textContent = "💬 "+Math.max(sourceCommentCount||0, n||0);
+  const meta = card.querySelector(".card-meta"); if(!meta) return;
+  let ours = meta.querySelector(".our-comments");
+  if(!(n>0)){ if(ours) ours.remove(); return; }
+  if(!ours){
+    ours = document.createElement("span");
+    ours.className = "open-detail our-comments";
+    ours.setAttribute("role","button"); ours.tabIndex = 0;
+    const srcBadge = meta.querySelector(".open-detail");
+    srcBadge ? srcBadge.insertAdjacentElement("afterend", ours) : meta.prepend(ours);
+  }
+  ours.textContent = "💭 "+n;
+  ours.title = `지금핫 댓글 ${n}개`;
 }
 
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c])); }

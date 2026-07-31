@@ -212,6 +212,50 @@ export class FeedStore {
 
   // Toggle the 19금 view. Only takes effect when the user is age-verified;
   // an unverified user can never turn it on.
+  // ---- 트래픽 실측 (David 2026-08-01 "트래픽 어디서 확인함?") ----
+  // 외부 애널리틱스와 별개로 서버가 직접 세는 일별 지표. 애드블록·쿠키 거부
+  // 유저도 빠짐없이 잡히는 실측이고, 개인정보는 익명 userId뿐이라 방침 변경도
+  // 불필요하다. date -> { pv(첫화면 로드), feed(피드 요청), uids(고유 방문자) }.
+  _trafficDay(now = new Date()) {
+    // KST 기준 날짜 버킷 — 운영자가 한국에서 보는 "오늘"과 일치시킨다
+    const kst = new Date(now.getTime() + 9 * 3600 * 1000);
+    return kst.toISOString().slice(0, 10);
+  }
+
+  recordTraffic(kind, userId = null) {
+    if (!this.traffic) this.traffic = {};
+    const day = this._trafficDay(new Date(this._nowMs()));
+    if (!this.traffic[day]) this.traffic[day] = { pv: 0, feed: 0, uids: [] };
+    const t = this.traffic[day];
+    if (kind === "page") t.pv += 1;
+    else if (kind === "feed") t.feed += 1;
+    if (userId && !t.uids.includes(userId) && t.uids.length < 100000) t.uids.push(userId);
+    // 90일 이전 버킷은 정리 (무한 성장 방지)
+    const keys = Object.keys(this.traffic);
+    if (keys.length > 90) {
+      for (const k of keys.sort().slice(0, keys.length - 90)) delete this.traffic[k];
+    }
+    this._persist();
+  }
+
+  trafficStats(days = 14) {
+    const out = [];
+    const t = this.traffic || {};
+    for (const day of Object.keys(t).sort().slice(-days)) {
+      out.push({ date: day, pv: t[day].pv, feed: t[day].feed, visitors: t[day].uids.length });
+    }
+    return out;
+  }
+
+  // 뉴스 성향 슬라이더 (-1 진보쪽 ~ 0 균형 ~ +1 보수쪽). 기본 0 = 성향 미개입.
+  setLeanBalance(userId, balance) {
+    const user = this.requireUser(userId);
+    const v = Number(balance);
+    user.leanBalance = Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
+    this._persist();
+    return user.leanBalance;
+  }
+
   setShowAdult(userId, on) {
     const user = this.requireUser(userId);
     user.showAdult = Boolean(on) && user.ageVerified === true;
@@ -732,6 +776,7 @@ export class FeedStore {
       adminDisabledSources: this.adminDisabledSources || [],
       adminBannedWords: this.adminBannedWords || [],
       adEvents: this.adEvents || [],
+      traffic: this.traffic || {}, // 일별 방문 실측 — 재시작에도 유지 (2026-08-01)
       sessions: [...(this.sessions || new Map())].map(([token, s]) => ({ token, ...s }))
     };
     fs.writeFileSync(this.file, JSON.stringify(data, null, 2));
@@ -748,6 +793,7 @@ export class FeedStore {
       this.adminDisabledSources = data.adminDisabledSources || [];
       this.adminBannedWords = data.adminBannedWords || [];
       this.adEvents = data.adEvents || [];
+      this.traffic = data.traffic || {};
       this.sessions = new Map((data.sessions || []).map((s) => [s.token, { userId: s.userId, expiresAt: s.expiresAt }]));
       for (const user of data.users || []) {
         if (!user.nickname) user.nickname = nicknameFor(user.id); // backfill

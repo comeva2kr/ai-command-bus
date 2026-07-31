@@ -72,7 +72,12 @@ export function normalizeItem(raw, source) {
   const topics = classifyTopics({ title: raw.title, url, sourceId });
   return {
     id: raw.id || stableId(url, sourceId, raw.title, raw.publishedAt),
-    kind: raw.kind === "community" ? "community" : "news", // "news" | "community"
+    // "news" | "community". 개별 아이템이 kind를 들고 오는 경우는 드물고(대부분
+    // 어댑터는 제목/링크만 준다), 실제 구분은 소스 등록 정보(communities.json의
+    // kind -> JsonSource.kind)에 있다. 예전엔 raw.kind만 봐서 그 값이 아이템까지
+    // 내려오지 않았고, 그 결과 커뮤니티 소스 17곳의 글이 전부 "뉴스"로 표시됐다
+    // (카드의 커뮤/뉴스 배지가 항상 "뉴스", 2026-07-28 실측).
+    kind: (raw.kind || (source && source.kind)) === "community" ? "community" : "news",
     source: sourceId,
     // 19금(성인) 여부. 인증되지 않은 사용자에게는 엔진 단에서 절대 노출되지 않는다.
     // 게시판/키워드 분류가 adult로 판정한 경우도 같은 필드로 합류(중복 게이트 금지).
@@ -103,6 +108,10 @@ export function normalizeItem(raw, source) {
     // engagement metadata used as weak popularity signals
     score: Number.isFinite(raw.score) ? raw.score : 0,
     commentCount: Number.isFinite(raw.commentCount) ? raw.commentCount : 0,
+    // 뉴스 전용 화제성 신호 — 구글뉴스가 이 사건으로 함께 묶은 관련 기사 수
+    // (fetchers.js의 relatedCoverage). 뉴스에는 추천수·댓글수가 아예 없어서
+    // 이게 유일한 실측 반응 대용이다. 그 개념이 없는 소스는 0.
+    coverage: Number.isFinite(raw.coverage) ? raw.coverage : 0,
     // rough word count drives the longform preference match
     length: Number.isFinite(raw.length)
       ? raw.length

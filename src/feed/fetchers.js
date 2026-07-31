@@ -53,7 +53,13 @@ function stripCdata(s) {
 }
 
 function stripHtml(s) {
-  return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  // 태그 제거 → 잔여 엔티티 재디코드. <description>은 "HTML을 XML로 이스케이프"한
+  // 이중 인코딩이라 tag()의 1회 디코드 후에도 텍스트 노드의 &nbsp; 등이 남는다 —
+  // 실측: 구글뉴스 상세뷰에 "&nbsp;&nbsp;"가 문자 그대로 노출됐다(2026-07-31).
+  return decodeXml(String(s || "").replace(/<[^>]+>/g, " "))
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function decodeXml(s) {
@@ -143,6 +149,32 @@ function originOf(url) {
 
 // Parse an RSS 2.0 or Atom document into raw feed items. Pure string parsing,
 // no XML dependency — good enough for well-formed feeds.
+// 구글뉴스 RSS는 <description>에 "이 사건을 다룬 관련 기사" 목록을 <ol><li>로
+// 함께 실어 준다. 그 개수 = 구글이 같은 사건으로 묶은 기사 수, 즉 **뉴스에
+// 유일하게 존재하는 실측 화제성 신호**다(뉴스에는 추천수·댓글수가 없다).
+//
+// 왜 필요했나 (David 2026-07-28: "뉴스는 어떤 기준으로 핫한 걸 아는 거야?"):
+// 뉴스는 반응 지표가 없어 ingest.js가 "그 소스가 실어 준 순서"를 백분위로
+// 바꿔 점수를 매긴다. 그게 통하려면 그 순서가 편집된 랭킹이어야 하는데, 당시
+// 뉴스 소스 7/8이 구글뉴스 **키워드 검색** 피드(rss/search?q=…)였다 — 실측
+// 결과 q=IT 100건 전부 관련기사 0건, 즉 랭킹이 아니라 그냥 검색 결과였고
+// "검색 1번째"가 "핫 1위"로 둔갑하고 있었다. 그래서 섹션 피드(rss/topics/…)로
+// 교체했고(communities.json), 그 피드에서는 상위 10건 평균 관련기사 5.0 /
+// 하위 10건 0.0으로 순서와 화제성이 실제로 붙어 있음을 확인했다.
+//
+// 주의: 구글은 이 목록을 **최대 5건까지만** 준다(실측: 사실상 0 아니면 5).
+// 그래서 이 값은 "정확히 몇 개 매체가 썼는가"가 아니라 "여러 매체가 함께
+// 다루는 사건인가"에 가깝다 — 표시할 때 단정적인 매체 수로 쓰면 안 된다
+// (editorial.js가 숫자 대신 문구로 처리하는 이유).
+const RELATED_LI = /&lt;li&gt;|<li[\s>]/gi;
+export const COVERAGE_MAX = 5; // 구글이 돌려주는 관련기사 목록의 상한(실측)
+
+export function relatedCoverage(rawDesc) {
+  if (!rawDesc) return 0;
+  const m = String(rawDesc).match(RELATED_LI);
+  return m ? m.length : 0;
+}
+
 export function parseRss(xml) {
   const items = [];
   const isAtom = /<feed[\s>]/i.test(xml) && /<entry[\s>]/i.test(xml);
@@ -157,12 +189,20 @@ export function parseRss(xml) {
     // source (point 4 above), never mixed into `summary`'s excerpt cap.
     const rawContent = isAtom ? "" : tag(block, "content:encoded");
     const url = tag(block, "link") || tag(block, "guid");
+    // 구글뉴스 <description>은 기사 발췌가 아니라 "관련 기사 링크 목록"이다 —
+    // 태그만 벗기면 같은 제목+매체명 나열이 발췌인 척 노출된다(실측 스크린샷,
+    // 2026-07-31). 링크 목록은 발췌로 쓰지 않는다. 그 외 소스도 발췌가 제목의
+    // 단순 반복으로 시작하면 중복 구간을 걷어낸다.
+    let summary = stripHtml(rawDesc);
+    if (/news\.google\.com/i.test(rawDesc)) summary = "";
+    else if (summary.startsWith(title)) summary = summary.slice(title.length).trim();
     items.push({
       title,
-      summary: stripHtml(rawDesc),
+      summary,
       url,
       publishedAt: normalizeDate(tag(block, isAtom ? "updated" : "pubDate")),
-      image: extractRssImage(block, rawDesc, originOf(url), rawContent)
+      image: extractRssImage(block, rawDesc, originOf(url), rawContent),
+      coverage: relatedCoverage(rawDesc)
     });
   }
   return items;

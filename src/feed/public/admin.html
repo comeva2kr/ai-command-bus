@@ -46,6 +46,23 @@
   .hidden { display:none !important; }
   .empty { color:var(--muted); font-size:13px; padding:20px 0; }
   .country { font-size:11px; color:var(--muted); }
+  /* --- 대시보드 패널 --- */
+  .panel-h { font-size:14px; font-weight:700; margin:24px 0 10px; }
+  .panel-h:first-child { margin-top:0; }
+  .big b { font-size:34px; }
+  .bars { display:flex; align-items:flex-end; gap:5px; padding:12px 4px 0; overflow-x:auto; }
+  .bcol { flex:1; min-width:26px; display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .bpair { display:flex; align-items:flex-end; gap:2px; height:100px; }
+  .bar { width:9px; border-radius:3px 3px 0 0; }
+  .bar.pv { background:var(--accent); }
+  .bar.vis { background:var(--ok); }
+  .bar.zero { background:var(--line); height:2px !important; }
+  .blab { font-size:10px; color:var(--muted); white-space:nowrap; }
+  .legend { display:flex; gap:14px; font-size:11.5px; color:var(--muted); margin-top:8px; }
+  .legend i { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:5px; }
+  .srcline { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .srcline:last-child { border-bottom:none; }
+  .srcline .cnt { margin-left:auto; font-variant-numeric:tabular-nums; }
 </style>
 </head>
 <body>
@@ -119,8 +136,18 @@ async function render(){
 }
 
 async function renderDashboard(panel){
-  const { stats, communities } = await api("/api/admin/stats");
+  // 병렬 로드: 통계(+광고), 트래픽 14일, 소스 헬스, 공개 설정(수익 채널 여부)
+  const [statsRes, trafficRes, healthRes, config] = await Promise.all([
+    api("/api/admin/stats"),
+    api("/api/admin/traffic?days=14").catch(()=>null),
+    api("/api/admin/source-health").catch(()=>null),
+    fetch("/api/config").then(r=>r.ok?r.json():null).catch(()=>null)
+  ]);
+  const { stats, communities, ads } = statsRes;
   panel.innerHTML = `
+    <div class="panel-h">📈 트래픽 (최근 14일 · 실측)</div>
+    ${trafficHtml(trafficRes && trafficRes.days)}
+    <div class="panel-h">👥 유저 요약</div>
     <div class="stats">
       <div class="stat"><b>${stats.users}</b><span>사용자</span></div>
       <div class="stat"><b>${stats.posts}</b><span>게시글</span></div>
@@ -129,8 +156,85 @@ async function renderDashboard(panel){
       <div class="stat"><b>${stats.signals}</b><span>암묵 신호</span></div>
       <div class="stat"><b>${communities.enabled}/${communities.total}</b><span>커뮤니티(활성)</span></div>
     </div>
+    <div class="panel-h">💰 수익</div>
+    ${revenueHtml(ads, config)}
+    <div class="panel-h">🩺 소스 헬스</div>
+    ${sourceHealthHtml(healthRes && healthRes.sources)}
+    <div class="panel-h">⚙️ 조정 상태</div>
     <div class="row-card"><b>비활성화된 소스</b> ${stats.disabledSources.length?stats.disabledSources.map(s=>`<span class="pill">${esc(s)}</span>`).join(""):'<span class="muted">없음</span>'}</div>
     <div class="row-card"><b>추가 금지어</b> ${stats.bannedWords.length?stats.bannedWords.map(w=>`<span class="pill">${esc(w)}</span>`).join(""):'<span class="muted">없음</span>'}</div>`;
+}
+
+// 트래픽 패널: 오늘 수치 크게 + 순수 CSS 막대(14일). 실측만 — 없으면 "데이터 없음".
+function trafficHtml(days){
+  if (!Array.isArray(days)) return '<p class="empty">데이터 없음 — 트래픽 API를 불러오지 못했습니다.</p>';
+  if (!days.length) return '<p class="empty">데이터 없음 — 아직 집계된 트래픽이 없습니다.</p>';
+  const todayKey = new Date(Date.now()+9*3600*1000).toISOString().slice(0,10); // KST
+  const today = days.find(d=>d.date===todayKey) || { pv:0, feed:0, visitors:0 };
+  const max = Math.max(1, ...days.map(d=>Math.max(d.pv, d.visitors)));
+  const barH = v => Math.max(3, Math.round(v/max*100));
+  const cols = days.map(d=>`
+    <div class="bcol" title="${esc(d.date)} · 방문자 ${d.visitors} · PV ${d.pv} · 피드요청 ${d.feed}">
+      <div class="bpair">
+        <div class="bar vis${d.visitors?'':' zero'}" style="height:${d.visitors?barH(d.visitors):2}px"></div>
+        <div class="bar pv${d.pv?'':' zero'}" style="height:${d.pv?barH(d.pv):2}px"></div>
+      </div>
+      <div class="blab">${esc(d.date.slice(5).replace("-","/"))}</div>
+    </div>`).join("");
+  return `
+    <div class="stats">
+      <div class="stat big"><b>${today.visitors}</b><span>오늘 방문자 (${esc(todayKey)})</span></div>
+      <div class="stat big"><b>${today.pv}</b><span>오늘 페이지뷰</span></div>
+      <div class="stat"><b>${today.feed}</b><span>오늘 피드 요청</span></div>
+    </div>
+    <div class="row-card">
+      <div class="bars">${cols}</div>
+      <div class="legend"><span><i style="background:var(--ok)"></i>방문자</span><span><i style="background:var(--accent)"></i>페이지뷰</span></div>
+    </div>`;
+}
+
+// 수익 패널: 광고 노출/클릭 실측 + 채널 활성 여부 (/api/config monetization·adfit)
+function revenueHtml(ads, config){
+  const adStats = ads
+    ? `<div class="stats">
+        <div class="stat"><b>${ads.impressions}</b><span>광고 노출</span></div>
+        <div class="stat"><b>${ads.clicks}</b><span>광고 클릭</span></div>
+        <div class="stat"><b>${ads.impressions?(ads.ctr*100).toFixed(2)+"%":"—"}</b><span>CTR${ads.impressions?"":" (노출 없음)"}</span></div>
+      </div>`
+    : '<p class="empty">데이터 없음 — 광고 지표를 불러오지 못했습니다.</p>';
+  let channels;
+  if (config) {
+    const ch = (label, on, note) => `<div class="srcline"><span class="dot" style="background:${on?"var(--ok)":"var(--line)"}"></span>${esc(label)}<span class="cnt ${on?"":"muted"}">${on?"활성":"미설정"}${note?` · ${esc(note)}`:""}</span></div>`;
+    channels = `<div class="row-card">
+      ${ch("제휴/광고 슬롯 (monetization)", config.monetization && config.monetization.enabled)}
+      ${ch("카카오 애드핏 배너", config.adfit && config.adfit.mobileUnit, config.adfit && config.adfit.mobileUnit ? config.adfit.mobileUnit : "")}
+    </div>`;
+  } else {
+    channels = '<p class="empty">데이터 없음 — 채널 설정(/api/config)을 불러오지 못했습니다.</p>';
+  }
+  return adStats + channels;
+}
+
+// 소스 헬스 패널: 수집 풀 실측 건수 — 0건 라이브 소스는 빨간 표시
+function sourceHealthHtml(sources){
+  if (!Array.isArray(sources)) return '<p class="empty">데이터 없음 — 소스 헬스 API를 불러오지 못했습니다.</p>';
+  const live = sources.filter(s=>s.enabled && !s.seed);
+  if (!live.length) return '<p class="empty">데이터 없음 — 등록된 라이브 소스가 없습니다.</p>';
+  live.sort((a,b)=>a.liveCount-b.liveCount || String(a.label).localeCompare(String(b.label),"ko"));
+  const dead = live.filter(s=>!s.disabled && s.liveCount===0).length;
+  const rows = live.map(s=>{
+    const color = s.disabled ? "var(--muted)" : (s.liveCount===0 ? "var(--danger)" : "var(--ok)");
+    const cnt = s.disabled
+      ? '<span class="cnt muted">비활성</span>'
+      : (s.liveCount===0
+        ? '<span class="cnt" style="color:var(--danger);font-weight:700">0건</span>'
+        : `<span class="cnt">${s.liveCount}건</span>`);
+    return `<div class="srcline"><span class="dot" style="background:${color}"></span>${esc(s.label)} <span class="country">${esc(s.category)}·${esc(s.kind)}</span>${cnt}</div>`;
+  }).join("");
+  return `<div class="row-card">
+    <div class="muted" style="font-size:12.5px;margin-bottom:6px">라이브 소스 ${live.length}곳 · <span style="color:${dead?"var(--danger)":"var(--ok)"}">수집 0건 ${dead}곳</span> — 수치는 현재 수집 풀 실측입니다. 개별 점검은 커뮤니티 탭의 🩺 수집 점검.</div>
+    ${rows}
+  </div>`;
 }
 
 async function renderCommunities(panel){

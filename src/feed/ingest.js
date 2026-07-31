@@ -246,6 +246,11 @@ export function hotness(item, nowMs) {
 //                                    missing/unparseable, so a dateless item
 //                                    is neither favored nor punished
 const HOT_GRAVITY_DEFAULT = 1.8;
+// 뉴스 coverage 보너스의 최대 가산치(z축 단위). probit이 만드는 순위 축이
+// 대략 ±2.5이므로 0.8이면 "같은 순위대에서는 확실히 이기지만 순위를 통째로
+// 뒤집지는 못하는" 크기다. HOT_COVERAGE_W로 조정 가능.
+const HOT_COVERAGE_W_DEFAULT = 0.8;
+const COVERAGE_MAX = 5; // 구글뉴스 RSS가 돌려주는 관련기사 목록의 상한(실측)
 const HOT_BAYES_M_DEFAULT = 10;
 const HOT_VEL_W_DEFAULT = 0.3;
 const HOT_TASTE_W_DEFAULT = 0.15; // read by engine.js, exported below too
@@ -263,7 +268,8 @@ export function hotParams(opts = {}) {
     bayesM: opts.bayesM ?? envNum("HOT_BAYES_M", HOT_BAYES_M_DEFAULT),
     velW: opts.velW ?? envNum("HOT_VEL_W", HOT_VEL_W_DEFAULT),
     tasteW: opts.tasteW ?? envNum("HOT_TASTE_W", HOT_TASTE_W_DEFAULT),
-    neutralAgeH: opts.neutralAgeH ?? envNum("HOT_NEUTRAL_AGE_H", HOT_NEUTRAL_AGE_H_DEFAULT)
+    neutralAgeH: opts.neutralAgeH ?? envNum("HOT_NEUTRAL_AGE_H", HOT_NEUTRAL_AGE_H_DEFAULT),
+    coverageW: opts.coverageW ?? envNum("HOT_COVERAGE_W", HOT_COVERAGE_W_DEFAULT)
   };
 }
 
@@ -371,7 +377,7 @@ export function hnDecay(signal, ageHours, gravity) {
 // (what callers sort by) plus the intermediate numbers for inspection/tests.
 export function sourceHotScores(items, nowMs, opts = {}) {
   const now = nowMs || Date.now();
-  const { gravity, bayesM, velW, neutralAgeH } = hotParams(opts);
+  const { gravity, bayesM, velW, neutralAgeH, coverageW } = hotParams(opts);
   const n = items.length;
   const raws = items.map((item) => rawEngagement(item));
   const hasSignal = raws.some((r) => r > 0);
@@ -382,14 +388,28 @@ export function sourceHotScores(items, nowMs, opts = {}) {
     norms = robustZScores(raws);
     confs = raws.map((r) => bayesianConfidence(r, bayesM));
   } else {
-    // No engagement anywhere in this group — this source's own hot/best-board
-    // collection order (sourceRank) is the only ranking signal available.
-    // rank 0 (this source's own top item right now) -> percentile 1 -> the
-    // top of the z-axis; the last item -> percentile 0 -> the bottom.
+    // No engagement anywhere in this group (뉴스 RSS는 추천수·댓글수를 아예
+    // 주지 않는다). 두 가지가 남는다:
+    //
+    //  (a) 이 소스가 스스로 실어 준 순서(sourceRank) — 편집된 랭킹일 때만
+    //      의미가 있다. 구글뉴스 섹션 피드(rss/topics/…)에서는 상위 10건의
+    //      평균 관련기사가 5.0, 하위 10건이 0.0으로 순서와 화제성이 실제로
+    //      붙어 있음을 실측 확인했다(2026-07-28). 반대로 예전에 쓰던 키워드
+    //      검색 피드(rss/search?q=…)는 이 상관이 0이라 순서가 무의미했고,
+    //      그래서 소스 자체를 섹션 피드로 교체했다(communities.json).
+    //  (b) coverage — 구글이 같은 사건으로 묶어 준 관련 기사 수
+    //      (fetchers.js의 relatedCoverage). 구글이 최대 5건까지만 주므로
+    //      사실상 "여러 매체가 함께 다루는 사건인가"의 0/1 신호에 가깝다.
+    //
+    // (a)를 주 축으로 두고 (b)를 가산 보너스로 얹는다. 순서를 뒤집지는
+    // 못하되(최대 +COVERAGE_W, probit 범위 ±2.5 대비 작다), 같은 순위대에서
+    // 단독 보도보다 여러 매체가 달려든 사건을 확실히 위로 올린다.
     norms = items.map((item, i) => {
       const order = Number.isFinite(item.sourceRank) ? item.sourceRank : i;
       const pct = 1 - order / Math.max(n - 1, 1);
-      return probit(pct);
+      const cov = Number.isFinite(item.coverage) ? item.coverage : 0;
+      const covBonus = coverageW * Math.min(1, cov / COVERAGE_MAX);
+      return probit(pct) + covBonus;
     });
     confs = items.map(() => 1); // no sample-size concept to shrink against — neutral
   }
@@ -397,7 +417,21 @@ export function sourceHotScores(items, nowMs, opts = {}) {
   return items.map((item, i) => {
     const raw = raws[i];
     const normScore = norms[i] * confs[i];
-    const shifted = Math.exp(normScore); // always positive, monotonic in normScore
+    // z -> (0,1) 로지스틱. 예전엔 Math.exp(z)였는데, z가 상한이 없어서 점수가
+    // 지수적으로 폭발했다 (실측 2026-07-29, 전형적 커뮤니티 풀:
+    // 8055.7 / 2.55 / 0.60 / 0.37 / 0.25 / 0.13 / 0.06 / 0.02).
+    //
+    // 이게 왜 문제였나: engine.js는 여기에 취향 보정을 **덧셈**으로 얹는다
+    // (hotScore + tasteW*taste, tasteW=0.15). 1위와 2위가 8053점 차이 나면
+    // 어떤 취향도 그 순서를 못 바꾸고, 반대로 하위권은 간격이 0.003이라
+    // 취향이 순서를 통째로 뒤집는다. 즉 같은 가중치가 위에서는 무의미하고
+    // 아래에서는 과잉 지배 — David 검수 항목 5 "취향 설정이 추천에 반영 안 됨"의
+    // 근본 원인 중 하나다.
+    //
+    // 로지스틱은 z에 대해 여전히 순증가라 **같은 소스 안의 정렬 순서는 그대로**
+    // 유지되고, 다만 소스 간 크기 차이가 (0,1)로 묶여 덧셈 보정이 일정한
+    // 의미를 갖게 된다.
+    const shifted = 1 / (1 + Math.exp(-normScore));
     const age = hoursSincePublished(item, now, neutralAgeH);
     const decayed = hnDecay(shifted, age, gravity);
     // v1 velocity proxy: engagement/hour, NOT true Δreaction/Δt (that needs
@@ -618,8 +652,32 @@ export function topPerSource(rankedBySource, k) {
 // sorts to the front of its round regardless of engagement score, so it
 // surfaces almost immediately instead of being starved indefinitely; loud
 // sources naturally fall back once their exposure count catches up.
+// `opts.weights` (Map<source, number> | object) — 소스별 배정 가중치. 기본 1.
+//
+// 왜 필요한가 (David 검수 항목 5, 2026-07-29): 위의 exposure 정렬은 "가장 적게
+// 보여준 소스 먼저"를 **정수 비교**로 강제했다. 그래서 모든 소스가 정확히 같은
+// 횟수를 배정받고, scoreFn에 실린 취향은 "그 라운드에서 누가 먼저 나오나"만
+// 정할 뿐 **구성 비율은 절대 못 바꿨다**. 실측: 게임 취향 유저와 경제 취향
+// 유저의 피드가 둘 다 정확히 게임 50% / 경제 50%였다. 취향을 골라도 안 고른
+// 카테고리가 정확히 절반 오는 것이 David가 본 "취향 미반영" 증상이다.
+//
+// 고친 방식은 가중 공정배분(weighted fair queueing)이다. 정렬키를 정수
+// exposure가 아니라 `exposure / weight`(적자, deficit)로 바꾼다. 가중치 2인
+// 소스는 가중치 1인 소스보다 두 배 자주 뽑히면서도 "적게 받은 쪽 먼저"라는
+// 공정성 성질은 그대로 유지된다.
+//
+// 다양성 하한은 호출부가 가중치 범위를 좁게 잡아 지킨다(engine.js가 [0.5, 2.0]로
+// 클램프) — 취향이 구성을 실제로 움직이되, 어떤 소스도 0이 되지는 않는다.
+// handoff.md의 "소스별 볼륨 균형 유지" 지시와 David의 "다양성 > 개인화" 결정을
+// 둘 다 만족시키는 지점이다.
 export function roundRobinInterleave(topKBySource, opts = {}) {
   const minGap = opts.minGap ?? 1;
+  const weights = opts.weights || null;
+  const weightOf = (src) => {
+    if (!weights) return 1;
+    const v = typeof weights.get === "function" ? weights.get(src) : weights[src];
+    return Number.isFinite(v) && v > 0 ? v : 1;
+  };
   // scoreFn(item, rank, hasSignal, hotScore) — hotScore (from rankBySource,
   // when present) is the default tie-break so callers that don't supply
   // their own scoreFn still order by the objective hot-curation score rather
@@ -647,31 +705,124 @@ export function roundRobinInterleave(topKBySource, opts = {}) {
   let remaining = 0;
   for (const q of queues.values()) remaining += q.length;
 
+  // 한 번에 한 건씩, 매번 적자가 가장 큰 소스에서 뽑는다.
+  //
+  // 예전에는 "라운드"(모든 큐의 머리 하나씩)를 통째로 만들어 전부 소진한 뒤
+  // 다음 라운드로 넘어갔다. 그 구조에서는 정렬을 어떻게 바꾸든 **모든 소스가
+  // 라운드마다 정확히 한 자리씩** 가져가므로 가중치가 구성 비율에 영향을 줄 수
+  // 없었다. 한 건씩 뽑으면 가중치가 실제 배정 횟수로 이어진다.
+  //
+  // 가중치가 전부 1이면 뽑을 때마다 그 소스의 적자가 1 올라가 큐 뒤로 밀리므로,
+  // 결과적으로 모든 소스를 한 바퀴 돈 뒤 다시 도는 예전 라운드로빈과 동일한
+  // 순서가 나온다(하위호환).
   while (remaining > 0) {
-    // this round's candidates: the current head of every non-empty queue
-    const round = [];
+    const cands = [];
     for (const [src, q] of queues) {
-      if (q.length) round.push({ src, entry: q[0] });
+      if (q.length) cands.push({ src, entry: q[0] });
     }
-    round.sort((a, b) => {
-      const expDiff = localExposure.get(a.src) - localExposure.get(b.src);
-      if (expDiff !== 0) return expDiff; // fairness first: least-exposed source goes first
+    if (!cands.length) break; // 방어: remaining과 큐가 어긋나도 무한루프 금지
+    cands.sort((a, b) => {
+      // 적자(deficit) = 지금까지 보여준 횟수 / 이 소스의 배정 가중치.
+      const defA = localExposure.get(a.src) / weightOf(a.src);
+      const defB = localExposure.get(b.src) / weightOf(b.src);
+      if (defA !== defB) return defA - defB; // 덜 받은 소스 먼저
       return (
         scoreFn(b.entry.item, b.entry.rank, b.entry.hasSignal, b.entry.hotScore) -
         scoreFn(a.entry.item, a.entry.rank, a.entry.hasSignal, a.entry.hotScore)
       );
     });
 
-    while (round.length) {
-      const recentSrcs = out.slice(-minGap).map((it) => it.source);
-      let idx = round.findIndex((c) => !recentSrcs.includes(c.src));
-      if (idx === -1) idx = 0; // every remaining candidate violates the gap — place the best anyway
-      const cand = round.splice(idx, 1)[0];
-      out.push(cand.entry.item);
-      queues.get(cand.src).shift();
-      localExposure.set(cand.src, localExposure.get(cand.src) + 1);
-      remaining--;
-    }
+    const recentSrcs = out.slice(-minGap).map((it) => it.source);
+    let idx = cands.findIndex((c) => !recentSrcs.includes(c.src));
+    if (idx === -1) idx = 0; // 남은 후보가 전부 gap 위반 — 그래도 최선을 놓는다
+    const cand = cands[idx];
+    out.push(cand.entry.item);
+    const q = queues.get(cand.src);
+    q.shift();
+    if (!q.length) queues.delete(cand.src);
+    localExposure.set(cand.src, localExposure.get(cand.src) + 1);
+    remaining--;
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// 최신순 정렬 — 시간버킷 × 소스 인터리브 (#12, David 2026-07-30)
+// ---------------------------------------------------------------------------
+//
+// David 원문: "최신순일경우 절대적 시간순이라기보단 최신순+여러리소스 가
+// 적절하게 섞여나오는건데". 순수 시간순이 왜 파탄나는지는 실측으로 확인했다
+// (2026-07-31): 한겨레랭킹은 70건 전부가 피드 생성 시각의 동일 타임스탬프라
+// 정렬 시 70연속 벽을 치고, 전체 풀 882건 중 326건은 발행일 자체가 없다.
+//
+// 방식:
+//   1. age(시간)를 폭 bucketH(기본 0.5h)의 버킷으로 양자화한다. age는 호출측이
+//      itemAgeHours(publishedAt ?? firstSeenAt)로 계산해 넘긴다 — 무일자 글도
+//      "우리가 처음 본 시각"으로 최신성에 참여한다(신선도 상한과 같은 원칙).
+//   2. 버킷을 최신부터 순회하며 버킷 안에서 소스 라운드로빈. 한 소스는 버킷당
+//      perSourceCap(기본 2)개까지만 — 초과분은 다음(더 오래된) 버킷으로 이월돼
+//      전체 스트림에 골고루 스민다. 동일 타임스탬프 벽이 이 이월로 해체된다.
+//   3. 마지막 버킷 이후 남은 이월분은 캡 없이 라운드로빈으로 흘려보낸다
+//      (버리지 않는다 — 캡은 배치 제약이지 검열이 아니다).
+//
+// 취향/노출 이력은 개입하지 않는다 — 최신순은 "지금 무엇이 올라오고 있나"의
+// 중립 뷰다(개인화는 핫 탭의 일이다).
+export function latestParams(opts = {}) {
+  return {
+    bucketH: opts.bucketH ?? envNum("FEED_LATEST_BUCKET_H", 0.5),
+    perSourceCap: opts.perSourceCap ?? envNum("FEED_LATEST_SOURCE_CAP", 2)
+  };
+}
+
+// entries: [{ item, ageH }] — 반환은 item 배열 (최신 버킷부터).
+export function latestInterleave(entries, opts = {}) {
+  const p = latestParams(opts);
+  const buckets = new Map(); // bucketIndex -> entries
+  for (const e of entries) {
+    const age = Number.isFinite(e.ageH) ? Math.max(0, e.ageH) : 0;
+    const b = Math.floor(age / p.bucketH);
+    if (!buckets.has(b)) buckets.set(b, []);
+    buckets.get(b).push(e);
+  }
+  const order = [...buckets.keys()].sort((a, b) => a - b);
+  const out = [];
+  let carry = []; // 이전(더 새로운) 버킷에서 캡을 넘긴 이월분 — 항상 버킷 자체 글보다 먼저
+  for (const bi of order) {
+    const own = buckets.get(bi).slice().sort((a, b) => a.ageH - b.ageH);
+    const bySrc = new Map();
+    for (const e of [...carry, ...own]) {
+      const s = e.item.source || "?";
+      if (!bySrc.has(s)) bySrc.set(s, []);
+      bySrc.get(s).push(e);
+    }
+    carry = [];
+    const taken = new Map();
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      for (const [s, q] of bySrc) {
+        if (!q.length || (taken.get(s) || 0) >= p.perSourceCap) continue;
+        out.push(q.shift());
+        taken.set(s, (taken.get(s) || 0) + 1);
+        progressed = true;
+      }
+    }
+    for (const q of bySrc.values()) if (q.length) carry.push(...q);
+  }
+  // 마지막 버킷 뒤 잔여 이월분: 캡 없이 라운드로빈 소진
+  if (carry.length) {
+    const bySrc = new Map();
+    for (const e of carry) {
+      const s = e.item.source || "?";
+      if (!bySrc.has(s)) bySrc.set(s, []);
+      bySrc.get(s).push(e);
+    }
+    let left = carry.length;
+    while (left > 0) {
+      for (const q of bySrc.values()) {
+        if (q.length) { out.push(q.shift()); left--; }
+      }
+    }
+  }
+  return out.map((e) => e.item);
 }

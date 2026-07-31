@@ -74,7 +74,7 @@ export const DISCLOSURE_SHORT_TEXT = "쿠팡파트너스 제휴 · 수수료 수
 // 카테고리로는 없지만 향후 확장 방어 차원에서 함께 배제) — 이 세 값을 가진
 // 후보는 pickAffiliateCandidates가 어떤 소스(sample/실연동 productFeed)에서
 // 나왔든 무조건 걸러낸다.
-const BANNED_AD_CATEGORIES = new Set(["politics", "religion", "adult"]);
+export const BANNED_AD_CATEGORIES = new Set(["politics", "religion", "adult"]);
 
 // ---- hook copy: legal guardrail ---------------------------------------------
 //

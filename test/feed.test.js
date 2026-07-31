@@ -23,6 +23,13 @@ import { googleFreeTranslator } from "../src/feed/translator.js";
 
 const fixedClock = () => "2026-07-06T00:00:00.000Z";
 
+// createServer()로 띄우는 테스트는 주입 시계가 없어 실제 현재시각을 쓴다.
+// 고정 ISO 날짜를 박아두면 시간이 흐르면서 engine.js의 절대 신선도 하한
+// (FEED_MAX_ITEM_AGE_DAYS, David 검수 항목 4)에 걸려 테스트가 썩는다.
+// 날짜가 검증 대상이 아닌 테스트는 "몇 시간 전"으로 상대 지정한다.
+const hoursAgoIso = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+
+
 // Fixtures captured 2026-07-23 with a single real fetch each, used to test the
 // "list" adapter's regex parsing entirely offline (no network in tests).
 const FIXTURES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -994,7 +1001,7 @@ test("hotGate respects HOT_MIN_PERCENTILE / HOT_TOP_N overrides", async () => {
   assert.equal(topN.filter((r) => r.hot).length, 2, "topN overrides the fraction and keeps exactly N");
 });
 
-test("default getFeed (no source) keeps only each source's top HOT_PER_SOURCE hottest items — items beyond that per-source cut never surface", async () => {
+test("골격 v2: 개인화 홈은 소스 하위권 글도 도달 가능하고(컷 제거), 익명 홈은 top-K 컷 유지", async () => {
   const store = new FeedStore({ clock: fixedClock });
   // 10 items, one source, engagement 90..0 descending — default HOT_PER_SOURCE
   // (6) keeps only the top 6; the bottom 4 are excluded from the home feed.
@@ -1021,8 +1028,21 @@ test("default getFeed (no source) keeps only each source's top HOT_PER_SOURCE ho
     for (const i of f.items) seenIds.add(i.id);
     if (f.exhausted) break;
   }
-  for (let i = 0; i < 6; i++) assert.ok(seenIds.has(`c${i}`), `c${i} (top-${i + 1} engagement) clears the per-source cut`);
-  for (let i = 6; i < 10; i++) assert.ok(!seenIds.has(`c${i}`), `c${i} (below the source's top 6) is excluded from the default feed`);
+  // 골격 v2 (2026-07-31, docs/redesign-rank.md): 개인화 유저의 홈은 아이템
+  // 전역 경쟁이라 topPerSource(6) 컷이 없다 — 예전 구조에서는 소스 7위 이하가
+  // 취향과 무관하게 영구 불가시였다(설계 검수가 "결함 자체를 고정한 테스트"로
+  // 지목한 지점). 이제 충분히 스크롤하면 전부 도달 가능해야 한다.
+  for (let i = 0; i < 10; i++) assert.ok(seenIds.has(`c${i}`), `c${i}: 개인화 홈에서 도달 가능해야 (컷 제거)`);
+
+  // 익명 유저는 기존 라운드로빈 + top-K 컷 그대로 (회귀 0 보증)
+  const anon = store.createUser("hotfeed_anon");
+  const anonSeen = new Set();
+  for (let c = 0; c < 6; c++) {
+    const f = await engine.getFeed(anon.id, { cursor: c * 10, limit: 10 });
+    for (const i of f.items) anonSeen.add(i.id);
+    if (f.exhausted) break;
+  }
+  for (let i = 6; i < 10; i++) assert.ok(!anonSeen.has(`c${i}`), `c${i}: 익명 홈은 top-6 컷 유지`);
 
   // sanity check: the same source's excluded posts ARE reachable through
   // source= (the board-view chip bypasses the top-K cut entirely) — proves
@@ -1425,8 +1445,8 @@ test("GET /api/feed?source= still bypasses the hot gate entirely (latest+hotness
   const clien = new JsonSource(
     "clien",
     async () => [
-      { id: "loud", title: "클리앙 화제글", url: "https://clien.net/a", category: "tech", score: 500, publishedAt: "2026-07-05T00:00:00Z" },
-      { id: "quiet", title: "클리앙 조용한 글", url: "https://clien.net/b", category: "tech", score: 0, publishedAt: "2026-07-05T00:00:00Z" }
+      { id: "loud", title: "클리앙 화제글", url: "https://clien.net/a", category: "tech", score: 500, publishedAt: hoursAgoIso(6) },
+      { id: "quiet", title: "클리앙 조용한 글", url: "https://clien.net/b", category: "tech", score: 0, publishedAt: hoursAgoIso(6) }
     ],
     "community"
   );
@@ -1818,8 +1838,8 @@ test("GET /api/feed?source= scopes to one source in latest+hotness order (not pe
   const clien = new JsonSource(
     "clien",
     async () => [
-      { title: "클리앙 글 A", url: "https://clien.net/a", category: "tech", score: 1, publishedAt: "2026-07-06T00:00:00Z" },
-      { title: "클리앙 글 B", url: "https://clien.net/b", category: "tech", score: 50, publishedAt: "2026-07-06T09:00:00Z" }
+      { title: "클리앙 글 A", url: "https://clien.net/a", category: "tech", score: 1, publishedAt: hoursAgoIso(9) },
+      { title: "클리앙 글 B", url: "https://clien.net/b", category: "tech", score: 50, publishedAt: hoursAgoIso(1) }
     ],
     "community"
   );
@@ -3153,4 +3173,91 @@ test("public/index.html: editorialNote renders as a distinct .editorial-note lin
   // reason/disclosure UI (.ad-why / .ad-disclosure-pop)
   const appendAdCardFn = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/)[0];
   assert.doesNotMatch(appendAdCardFn, /editorial-note/, "ad cards must not render editorialNote");
+});
+
+// --- 트래픽 실측 (David 2026-08-01 "트래픽 어디서 확인함?") ----------------
+test("트래픽 카운터: 일별 pv/feed/고유방문자를 세고 admin API로 조회된다", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  store.recordTraffic("page");
+  store.recordTraffic("page");
+  store.recordTraffic("feed", "u1");
+  store.recordTraffic("feed", "u1"); // 같은 유저 재방문 -> visitors는 1
+  store.recordTraffic("feed", "u2");
+  const [day] = store.trafficStats(1);
+  assert.equal(day.pv, 2);
+  assert.equal(day.feed, 3);
+  assert.equal(day.visitors, 2);
+
+  // admin 엔드포인트 (토큰 게이트)
+  const { createServer } = await import("../src/feed/server.js");
+  const prev = process.env.ADMIN_TOKEN;
+  process.env.ADMIN_TOKEN = "t0k";
+  try {
+    const server = createServer({});
+    await new Promise((r) => server.listen(0, r));
+    const base = `http://localhost:${server.address().port}`;
+    assert.equal((await fetch(`${base}/api/admin/traffic`)).status, 401, "토큰 없으면 거부");
+    const ok = await fetch(`${base}/api/admin/traffic`, { headers: { "x-admin-token": "t0k" } });
+    assert.equal(ok.status, 200);
+    const body = await ok.json();
+    assert.ok(Array.isArray(body.days));
+    server.close();
+  } finally {
+    if (prev === undefined) delete process.env.ADMIN_TOKEN; else process.env.ADMIN_TOKEN = prev;
+  }
+});
+
+test("트래픽 카운터: 재시작(직렬화 왕복) 후에도 수치가 유지된다", async () => {
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const fsm = await import("node:fs");
+  const f = path.join(os.tmpdir(), `traffic-persist-${process.pid}.json`);
+  try {
+    const a = new FeedStore({ file: f, clock: fixedClock });
+    a.recordTraffic("page");
+    a.recordTraffic("feed", "u1");
+    const b = new FeedStore({ file: f, clock: fixedClock }); // 재시작 시뮬레이션
+    const [day] = b.trafficStats(1);
+    assert.equal(day.pv, 1, "재시작 후 pv 유실");
+    assert.equal(day.visitors, 1, "재시작 후 방문자 유실");
+  } finally { try { fsm.unlinkSync(f); } catch {} }
+});
+
+// --- 오늘의 브리핑 (애드핏 재심사 대응: 자체 콘텐츠 + 운영 주체 표시) --------
+test("/briefing: 실측 데이터 기반 자체 페이지가 렌더되고 정치·성인은 제외된다", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const { JsonSource } = await import("../src/feed/content.js");
+  const at = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+  const src = new JsonSource("clien", async () => [
+    { id: "b1", title: "화제의 기술 글", url: "https://c/1", category: "tech", score: 500, commentCount: 100, publishedAt: at(2), sourceRank: 0 },
+    { id: "b2", title: "두번째 기술 글", url: "https://c/2", category: "tech", score: 100, commentCount: 40, publishedAt: at(3), sourceRank: 1 },
+    { id: "b3", title: "국힘 민주당 정치 글", url: "https://c/3", category: "news", score: 900, commentCount: 300, publishedAt: at(1), sourceRank: 2 },
+    { id: "b4", title: "일상 글 하나", url: "https://c/4", category: "life", score: 10, commentCount: 2, publishedAt: at(4), sourceRank: 3 }
+  ], "community");
+  const server = createServer({ sources: [src] });
+  await new Promise((r) => server.listen(0, r));
+  try {
+    const res = await fetch(`http://localhost:${server.address().port}/briefing`);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.match(html, /오늘의 브리핑/);
+    assert.match(html, /화제의 기술 글/, "실측 상위 글이 실려야");
+    assert.match(html, /추천 500/, "수치는 실측 그대로");
+    assert.ok(!html.includes("정치 글"), "정치 태그 글은 브리핑에서 제외");
+    assert.match(html, /페퍼클럽/, "운영 주체 표기 (애드핏 소유관계 사유 대응)");
+    assert.match(html, /#post-b1/, "내부 상세(자체 댓글)로 링크 — 아웃링크가 아니라");
+  } finally { server.close(); }
+});
+
+test("운영 주체 표기: about·privacy·드로어에 페퍼클럽이 명시된다", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const pub = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public");
+  assert.match(fs.readFileSync(path.join(pub, "about.html"), "utf8"), /페퍼클럽/);
+  assert.match(fs.readFileSync(path.join(pub, "privacy.html"), "utf8"), /페퍼클럽/);
+  const idx = fs.readFileSync(path.join(pub, "index.html"), "utf8");
+  assert.match(idx, /페퍼클럽/, "드로어 운영자 표기");
+  assert.match(idx, /href="\/briefing"/, "브리핑 진입점");
+  assert.match(idx, /href="\/about\.html"/, "소개 진입점");
 });

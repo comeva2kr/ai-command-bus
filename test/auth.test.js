@@ -245,7 +245,10 @@ test("full regression: with zero provider env vars, /api/config lists no auth pr
   const { server, base } = await startServer({ authEnv: {} });
   try {
     const cfg = await (await fetch(`${base}/api/config`)).json();
-    assert.deepEqual(cfg.auth, { providers: [] });
+    // providers가 빈 배열이라는 게 이 회귀 테스트의 핵심. kakaoJsKey는 로그인
+    // 가능 여부와 무관한 별도 값이라(공개 JS 키) 여기서는 존재만 확인한다.
+    assert.deepEqual(cfg.auth.providers, []);
+    assert.equal(cfg.auth.kakaoJsKey ?? null, process.env.KAKAO_JS_KEY || null);
 
     for (const provider of ["google", "kakao", "naver"]) {
       const res = await fetch(`${base}/api/auth/${provider}/login`, { redirect: "manual" });
@@ -388,5 +391,74 @@ test("callback with a missing/failed token exchange redirects to /?auth=error in
     assert.equal(new URL(cb.headers.get("location"), base).search, "?auth=error");
   } finally {
     server.close();
+  }
+});
+
+// --- 카카오톡 앱 원탭 로그인 (David 2026-07-28) -------------------------------
+// 카카오 JavaScript SDK가 인가 요청을 직접 띄워야 카카오톡 앱으로 전환되므로,
+// 서버가 302 Location에 실어 주던 CSRF state를 따로 발급해 주는 경로가 필요하다.
+// 핵심 요구: 앱 경로라고 해서 검증이 느슨해지면 안 된다 — state는 여전히
+// 1회용이어야 하고, 키 없는 provider엔 발급되지 않아야 한다.
+
+test("GET /api/auth/kakao/state: 앱 로그인용 state를 발급하고, 그 state는 1회만 통한다", async () => {
+  const { server, base } = await startServer({
+    authEnv: { KAKAO_CLIENT_ID: "kid", KAKAO_CLIENT_SECRET: "ksec" }
+  });
+  try {
+    const res = await fetch(`${base}/api/auth/kakao/state?userId=anon_1`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(typeof body.state === "string" && body.state.length >= 16, "충분히 긴 state여야");
+    assert.match(body.redirectUri, /\/api\/auth\/kakao\/callback$/);
+
+    // 1회용 검증 — 소진된 state로 다시 콜백을 치면 토큰 교환 시도조차 없이
+    // 곧장 에러로 튕겨야 한다(재사용/재생 공격 방지).
+    const cb = `${base}/api/auth/kakao/callback?state=${encodeURIComponent(body.state)}&code=fake`;
+    await fetch(cb, { redirect: "manual" });
+    const second = await fetch(cb, { redirect: "manual" });
+    assert.equal(second.status, 302);
+    assert.match(second.headers.get("location"), /auth=error/, "소진된 state는 재사용될 수 없어야");
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/auth/<provider>/state: 키가 설정되지 않은 provider엔 발급하지 않는다(404)", async () => {
+  const { server, base } = await startServer({ authEnv: {} });
+  try {
+    for (const provider of ["google", "kakao", "naver"]) {
+      const res = await fetch(`${base}/api/auth/${provider}/state`);
+      assert.equal(res.status, 404, `${provider}: 키 없으면 state도 없어야`);
+    }
+  } finally {
+    server.close();
+  }
+});
+
+test("/api/config: kakaoJsKey는 설정됐을 때만 노출되고, provider 목록과 독립이다", async () => {
+  const prev = process.env.KAKAO_JS_KEY;
+  try {
+    delete process.env.KAKAO_JS_KEY;
+    {
+      const { server, base } = await startServer({ authEnv: {} });
+      try {
+        const cfg = await (await fetch(`${base}/api/config`)).json();
+        assert.equal(cfg.auth.kakaoJsKey, null, "키 없으면 null");
+      } finally { server.close(); }
+    }
+    process.env.KAKAO_JS_KEY = "js-public-key";
+    {
+      const { server, base } = await startServer({ authEnv: {} });
+      try {
+        const cfg = await (await fetch(`${base}/api/config`)).json();
+        // JS 키는 공개 키다 — 시크릿이 아니라서 노출 자체가 정상이고,
+        // provider가 하나도 없어도 이 값은 그대로 실려 나간다.
+        assert.equal(cfg.auth.kakaoJsKey, "js-public-key");
+        assert.deepEqual(cfg.auth.providers, []);
+      } finally { server.close(); }
+    }
+  } finally {
+    if (prev === undefined) delete process.env.KAKAO_JS_KEY;
+    else process.env.KAKAO_JS_KEY = prev;
   }
 });

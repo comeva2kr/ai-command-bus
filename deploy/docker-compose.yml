@@ -22,6 +22,20 @@ services:
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
       - KAKAO_CLIENT_ID=${KAKAO_CLIENT_ID:-}
       - KAKAO_CLIENT_SECRET=${KAKAO_CLIENT_SECRET:-}
+      # 카카오톡 앱 원탭 로그인용 공개 JavaScript 키(시크릿 아님). 없으면
+      # 카카오 로그인은 기존 리다이렉트 방식으로 그대로 동작한다.
+      - KAKAO_JS_KEY=${KAKAO_JS_KEY:-}
+      # 애드센스 게시자 ID(공개값). 설정 시 index.html에 로더 주입 + /ads.txt 활성.
+      - ADSENSE_CLIENT=${ADSENSE_CLIENT:-}
+      # GA4 측정 ID ("G-…"). 설정 시 gtag 자동 주입 (미설정 = 미추적).
+      - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
+      # 카카오 애드핏 모바일 배너 광고단위(공개값). 애드센스 심사 공백 대비.
+      - ADFIT_UNIT_MOBILE=${ADFIT_UNIT_MOBILE:-}
+      # 쿠팡파트너스 실연동 — 3종 모두 있어야 상품 카드 활성(coupang.js).
+      - COUPANG_PARTNER_ID=${COUPANG_PARTNER_ID:-}
+      - COUPANG_ACCESS_KEY=${COUPANG_ACCESS_KEY:-}
+      - COUPANG_SECRET_KEY=${COUPANG_SECRET_KEY:-}
+      - COUPANG_SUB_ID=${COUPANG_SUB_ID:-nowhot}
       - NAVER_CLIENT_ID=${NAVER_CLIENT_ID:-}
       - NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET:-}
     volumes:

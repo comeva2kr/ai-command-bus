@@ -11,6 +11,22 @@
 
 import { emptyPreferenceVector } from "./survey.js";
 import { isKnownCategory, isKnownTag } from "./taxonomy.js";
+import { loadRegistry } from "./registry.js";
+
+// 지금 실제로 수집 중인(enabled) 소스 id 집합. 레지스트리를 못 읽으면 판단을
+// 보류하고 전부 허용한다 — 읽기 실패 때문에 워밍업을 조용히 전부 막아버리는
+// 것이 더 나쁘다.
+let _activeSources;
+function isCollectableSource(id) {
+  if (_activeSources === undefined) {
+    try {
+      _activeSources = new Set(loadRegistry().filter((c) => c.enabled).map((c) => c.id));
+    } catch {
+      _activeSources = null; // 레지스트리 미상 — 예전 동작(전부 허용)으로 폴백
+    }
+  }
+  return _activeSources ? _activeSources.has(id) : true;
+}
 
 // Known community / outlet hosts → the source id + its home category. Matching
 // is substring-based so "m.bobae.co.kr" and "www.bobae.co.kr/board" both hit.
@@ -21,7 +37,11 @@ const HOST_MAP = [
   { match: "clien", source: "clien", category: "tech" },
   { match: "ppomppu", source: "ppomppu", category: "business" },
   { match: "ruliweb", source: "ruliweb", category: "gaming" },
-  { match: "inven", source: "inven", category: "gaming" },
+  // inven.co.kr을 보던 유저는 실제 활성 소스인 inven_hot(인벤 핫벤)으로 보낸다.
+  // 예전엔 `inven`으로 매핑했는데 그 id는 비활성이라, 브라우징 기록 워밍업이
+  // 아무 데도 도달하지 않는 소스에 취향 가중치를 얹고 조용히 버려졌다
+  // (David 검수 항목 1, 하드코딩 매핑 점검 중 발견 2026-07-29).
+  { match: "inven", source: "inven_hot", category: "gaming" },
   { match: "humoruniv", source: "humoruniv", category: "humor" },
   { match: "web.humoruniv", source: "humoruniv", category: "humor" },
   { match: "dcinside", source: "dcinside", category: "humor" },
@@ -96,7 +116,20 @@ export function inferFromHistory(entries) {
     if (e.host) {
       for (const h of HOST_MAP) {
         if (e.host.includes(h.match)) {
-          vec.sources[h.source] = (vec.sources[h.source] || 0) + 0.6 * w;
+          // 소스 가중치는 **지금 실제로 수집 중인 소스에만** 싣는다.
+          //
+          // vec.sources는 아래 prune(vec.sources, ..., 3)에서 상위 3개만 남는다.
+          // 그래서 비활성 소스(robots 차단·JS 렌더링 불가·David 제외 확정 등)에
+          // 가중치를 실으면 그 항목이 3자리를 차지해 **살아있는 소스를 밀어낸다**.
+          // 실측(2026-07-29, David 검수 항목 1): getcha·encar·humoruniv·dcinside·
+          // instiz·mlbpark·82cook 7개가 비활성인데도 가중치를 받고 있었다.
+          //
+          // 반면 카테고리 신호는 소스가 꺼져 있어도 유효하다 — mlbpark을 보던
+          // 사람이 스포츠에 관심 있다는 사실은 그 소스의 수집 가능 여부와 무관하다.
+          // 그래서 카테고리는 조건 없이 그대로 반영한다.
+          if (isCollectableSource(h.source)) {
+            vec.sources[h.source] = (vec.sources[h.source] || 0) + 0.6 * w;
+          }
           vec.categories[h.category] = (vec.categories[h.category] || 0) + 0.4 * w;
           hits.sources += 1;
           break;

@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v4"; // v4: NowHot 지금핫 rebrand (bump so old clients drop the stale shell)
+const CACHE = "feed-shell-v11"; // v11: 상세=플로팅 창, 정렬 바(핫/최신), 발췌 정리, 상세 썸네일
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {

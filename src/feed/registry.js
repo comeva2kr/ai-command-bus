@@ -86,7 +86,34 @@ export function buildSources(registry, opts = {}) {
       source = new JsonSource(
         entry.id,
         async () => {
-          const rows = await opts.fetcher(entry);
+          let rows = await opts.fetcher(entry);
+          // `excludeTitleRegex` — 제목 기준 제외 필터(어댑터 종류 무관).
+          //
+          // 통신사 피드에는 기사와 함께 [부고]·[인사]·[○○소식]·[동정] 같은
+          // 사무 공지가 같은 스트림으로 섞여 나온다(연합뉴스 news.xml 실측
+          // 2026-07-29: 상위 4건 중 2건이 부고·지역소식). 이건 "지금 화제인
+          // 뉴스"가 아니라서 handoff.md 절대원칙 4(뉴스도 핫/랭킹 큐레이션만)에
+          // 어긋난다. 소스를 통째로 버리는 대신 이 잡문만 걷어낸다.
+          //
+          // 리스트 어댑터의 list.excludeRegex(행 HTML 대상)와 달리 여기는
+          // **제목 문자열**만 본다 — 모든 어댑터에 동일하게 적용된다.
+          if (entry.excludeTitleRegex && Array.isArray(rows)) {
+            const re = new RegExp(entry.excludeTitleRegex);
+            rows = rows.filter((r) => !re.test(String((r && r.title) || "")));
+          }
+          // 구글뉴스 제목 꼬리 " - 매체명"을 실제 출처로 승격 (적대적 검수
+          // 2026-07-29: "출처가 두 개다 — 카드엔 '구글뉴스 경제', 제목 끝엔
+          // '- 에너지경제신문'"). 꼬리를 제목에서 떼고 sourceLabel에 싣는다 —
+          // 카드 상단 출처가 진짜 매체명이 되고 제목은 깨끗해진다. 매체명이
+          // 없는 항목은 그대로 둔다(없는 걸 지어내지 않는다).
+          if (entry.id.startsWith("gnews") && Array.isArray(rows)) {
+            const tail = /\s+-\s+([^-]{1,30})$/;
+            rows = rows.map((r) => {
+              const m = r && r.title && String(r.title).match(tail);
+              if (!m) return r;
+              return { ...r, title: String(r.title).slice(0, m.index).trim(), sourceLabel: m[1].trim() };
+            });
+          }
           // entry.httpsOk (default true) tells normalizeItem whether this
           // source's own domain is known to serve https — gates the
           // http://->https:// URL upgrade (see content.js) so a source we
