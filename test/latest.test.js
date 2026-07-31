@@ -118,3 +118,48 @@ test("engine sort=latest: 개인화 유저에게도 취향 무관 중립 최신 
   // 최신순은 취향이 아니라 시간이 지배한다: 최근 글(bsrc)이 앞선다
   assert.ok(feed.items[0].id.startsWith("b"), "취향(gaming)이 아니라 최신(bsrc)이 먼저");
 });
+
+// ---- 게시판 보기 = 보드 미러 (David 2026-07-31 "보배 8개만 보여" 대응) ----
+
+test("소스 보기: 이미 본 글도, 48h 넘은 베스트글도 게시판에는 그대로 보인다", async () => {
+  const hoursAgo = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+  const board = new JsonSource("bestboard", async () =>
+    Array.from({ length: 12 }, (_, i) => ({
+      id: `p${i}`, title: `베스트 ${i}`, url: `https://bb.example.com/${i}`,
+      publishedAt: hoursAgo(10 + i * 12), // 10h ~ 142h — 절반 이상이 48h 초과
+      score: 100 - i, category: "humor"
+    })), "community");
+  const store = new FeedStore();
+  const engine = new FeedEngine(store, [board]);
+  const user = store.createUser("bv1");
+
+  // 홈에서 실컷 스크롤해 전부 seen 처리
+  let cursor = 0;
+  for (let i = 0; i < 3; i++) {
+    const f = await engine.getFeed(user.id, { cursor, limit: 10 });
+    cursor = f.nextCursor;
+    if (f.exhausted) break;
+  }
+  // 게시판 보기: seen·신선도 상한 무관하게 보드 리스트 전체가 보여야 한다
+  const p1 = await engine.getFeed(user.id, { cursor: 0, limit: 10, source: "bestboard" });
+  const p2 = await engine.getFeed(user.id, { cursor: p1.nextCursor, limit: 10, source: "bestboard" });
+  const total = p1.items.filter((i) => !i.slot).length + p2.items.filter((i) => !i.slot).length;
+  assert.equal(total, 12, `게시판 보기 총 ${total}건 — 보드가 걸어둔 12건 전부여야`);
+  assert.ok(p2.exhausted, "리스트 끝에서 정직하게 소진");
+});
+
+test("풀 보존: 보드 목록에 계속 걸려 있는 글은 firstSeen이 오래돼도 증발하지 않는다", async () => {
+  const board = new JsonSource("longbest", async () => [
+    { id: "long1", title: "장수 베스트글", url: "https://lb.example.com/1", score: 50, category: "humor" }
+  ], "community");
+  const store = new FeedStore();
+  const engine = new FeedEngine(store, [board]);
+  await engine.refresh();
+  // firstSeen을 3일 전으로 조작 (영속 기록 + 풀 양쪽) — 재시작·장기 게시 시뮬레이션
+  const old = Date.now() - 3 * 24 * 3600 * 1000;
+  store.firstSeen["long1"] = old;
+  engine._pool.get("long1").firstSeenAt = old;
+  await engine.refresh(); // 보드에 아직 걸려 있음(lastSeenAt 갱신)
+  const items = await engine._items();
+  assert.ok(items.some((i) => i.id === "long1"), "보드가 안 내렸으면 우리도 안 내린다");
+});

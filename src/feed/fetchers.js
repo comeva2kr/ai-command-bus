@@ -393,6 +393,11 @@ export function normalizeListDate(raw, now = () => Date.now()) {
   if (hm) {
     const d = new Date(nowMs);
     d.setHours(Number(hm[1]), Number(hm[2]), 0, 0);
+    // "시각만" 주는 게시판의 시각이 지금보다 미래면 어제 글이다 — 게시판이
+    // 미래 글을 걸 수는 없다. (자정 직후 "23:54" 같은 케이스. 이 보정이
+    // 없으면 sanity 가드가 미래 판정으로 날짜를 통째로 버린다 — 2026-07-31
+    // 자정 경계에서 theqoo 픽스처 테스트가 실제로 이렇게 깨졌다.)
+    if (d.getTime() > nowMs + 60000) d.setTime(d.getTime() - 8.64e7);
     return finish(d.getTime());
   }
   const relH = s.match(/^(\d+)\s*시간\s*전$/);

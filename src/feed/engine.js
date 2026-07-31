@@ -323,17 +323,24 @@ export class FeedEngine {
       const persisted = this.store && this.store.firstSeenOf ? this.store.firstSeenOf(item.id) : undefined;
       const firstSeenAt = prior ? prior.firstSeenAt : (Number.isFinite(persisted) ? persisted : now);
       if (!prior && !Number.isFinite(persisted)) newlySeen.push([item.id, now]);
-      this._pool.set(item.id, { item, firstSeenAt });
+      // lastSeenAt: 이번 수집에 "아직 보드 목록에 걸려 있음"의 표시.
+      this._pool.set(item.id, { item, firstSeenAt, lastSeenAt: now });
     }
     if (newlySeen.length && this.store && this.store.recordFirstSeen) {
       try { this.store.recordFirstSeen(newlySeen, now); } catch {}
     }
 
+    // 풀 퇴장 기준은 "처음 본 지 오래됨"이 아니라 "보드 목록에서 내려간 지
+    // 오래됨"이다 (David 2026-07-31 "보배는 베스트글의 최신글 동기화 하면 돼").
+    // firstSeenAt 기준이던 시절엔 재시작 리셋 덕에 티가 안 났지만, firstSeenAt
+    // 영속화(P1-a) 이후로는 보드에 아직 걸려 있는 장수 베스트글이 48h 만에
+    // 풀에서 증발한다 — 보드가 걸어둔 글은 보드가 내릴 때까지 우리 풀에도
+    // 있어야 게시판 보기가 실제 게시판과 동기화된다.
     const retentionMs = Number(process.env.FEED_RETENTION_MS || DEFAULT_RETENTION_MS);
     for (const [id, entry] of this._pool) {
       const src = entry.item.source;
       if (src === "seed" || src === "me") continue; // never age out a user's own posts or the dev dataset
-      if (now - entry.firstSeenAt > retentionMs) this._pool.delete(id);
+      if (now - (entry.lastSeenAt ?? entry.firstSeenAt) > retentionMs) this._pool.delete(id);
     }
 
     const kindBySource = new Map(this.sources.map((s) => [s.id, s.kind]));
@@ -501,13 +508,17 @@ export class FeedEngine {
       // varies per submission, so there's no single registry source id to
       // filter on).
       const matchesSource = (i) => (source === "submit" ? i.via === "submit" : i.source === source);
+      // 게시판 보기는 tooOld를 적용하지 않는다 (David 2026-07-31: "보배는
+      // 베스트글의 최신글 동기화 하면 돼" — 실측: 보배 베스트는 며칠 누적
+      // 리스트라 48h 상한이 대부분을 잘라 8개만 남았다). 여기의 신선도
+      // 권위는 게시판 자신이다: 보드가 목록에서 내리면 풀 퇴장(lastSeenAt
+      // retention)으로 함께 사라진다. 홈 피드의 상한은 그대로.
       const pool = items.filter(
         (i) =>
           matchesSource(i) &&
           (allowAdult || !i.adult) &&
           !disabled.has(i.source) &&
-          !topicsBlocked(i, showTopics) &&
-          !tooOld(i, now)
+          !topicsBlocked(i, showTopics)
       );
       // Same hot-curation pipeline as the home feed (2026-07-24 hot-curation
       // v1) — HN-gravity time decay + robust-z/percentile normalization +
@@ -520,7 +531,12 @@ export class FeedEngine {
       const ranked = sourceHotScores(pool, now)
         .map((s) => ({ item: s.item, score: s.hotScore }))
         .sort((a, b) => b.score - a.score);
-      unseen = ranked.filter((r) => !seen.has(r.item.id));
+      // 게시판 보기는 "그 게시판의 현재 베스트 전체"다 — 홈 피드처럼 seen을
+      // 숨기면 홈에서 스크롤한 만큼 게시판이 비어 보인다(David 실측 2026-07-31:
+      // 보배 8개·클리앙 14개만 노출). 게시판을 다시 들어가면 같은 베스트가
+      // 다시 보이는 게 게시판의 문법이므로 seen 필터 없이 오프셋 페이지네이션
+      // (아래 fresh 계산에서 cursor 슬라이스)으로 전체를 훑게 한다.
+      unseen = ranked;
     } else {
       // Unseen is filtered in up front (not after ranking, as the old
       // hotGate/rankItems path did) so the round-robin/min-gap diversity
@@ -644,7 +660,11 @@ export class FeedEngine {
     // feed (no `source`), skip it: the round-robin interleave above already
     // produced a hard-guaranteed diverse order, and re-running the softer MMR
     // pass here would only undo that structure for no benefit.
-    const fresh = source ? diversify(unseen).slice(0, limit) : unseen.slice(0, limit);
+    // 소스 보기: seen 필터가 없으므로 cursor를 진짜 오프셋으로 쓴다.
+    // 홈: seen 기반 페이지네이션 그대로(항상 앞에서 limit개).
+    const fresh = source
+      ? diversify(unseen).slice(cursor, cursor + limit)
+      : unseen.slice(0, limit);
 
     const level = specializationLevel(user.preferences, user.feedbackCount);
     const phase = feedPhase(level);
