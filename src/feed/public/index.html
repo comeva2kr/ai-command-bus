@@ -1418,7 +1418,7 @@ async function loadBriefStrip(){
         <div class="bc-cat">🕐 지금 브리핑</div>
         <div class="bc-title">이 시간 화제 종합 정리</div>
         <div class="bc-meta">${hh}:${mm} 기준 · 15분마다 갱신</div></a>` +
-      b.sections.slice(0,8).map(s=>{
+      b.sections.map(s=>{
         const lead = s.items[0];
         return `<a class="brief-card" href="/briefing/${encodeURIComponent(s.category)}">
           <div class="bc-cat">${escapeHtml(s.label)}</div>

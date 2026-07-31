@@ -987,7 +987,7 @@ export class FeedEngine {
       // 화제성 순: 반응 실측 우선, 무신호 뉴스는 다중보도(coverage) 우선
       list.sort((a, b) => (engagement(b) + (b.coverage || 0) * 50) - (engagement(a) + (a.coverage || 0) * 50));
       const top = list.slice(0, 3);
-      if (top.length < 2) continue; // 항목이 너무 적은 카테고리는 싣지 않는다
+      if (!top.length) continue; // 공급 0인 카테고리만 스킵 — 1건이라도 있으면 싣는다
       sections.push({
         category: cat,
         label: categoryLabel(cat),
@@ -1011,7 +1011,11 @@ export class FeedEngine {
       generatedAt: new Date(now).toISOString(),
       itemCount: pool.length,
       sourceCount: new Set(pool.map((i) => i.source)).size,
-      sections: sections.slice(0, 8),
+      // 카테고리 컷 없음 (David 2026-08-01 "모든 카테고리 다, 안 빼먹고") —
+      // 공급이 2건 이상인 카테고리는 전부 싣는다. 정치만 공개 페이지 원칙상
+      // 제외(위 pool 필터), 라이프처럼 공급이 빈 카테고리는 소스가 생기면
+      // 자동으로 나타난다.
+      sections,
       debate: debate && {
         id: debate.id, title: debate.title, commentCount: debate.commentCount,
         sourceLabel: this._labelFor(debate)
