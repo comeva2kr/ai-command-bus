@@ -963,6 +963,44 @@ export class FeedEngine {
     return { generatedAt: new Date(now).toISOString(), items: out };
   }
 
+  // 카테고리 브리핑 페이지 원자료 — 전국 랭킹(rankingTop)과 달리 절대 반응
+  // 하한을 걸지 않는다 (David 2026-08-01 "자동차는 게시글이 하나밖에?" 실측:
+  // 자동차 뉴스는 추천·댓글이 없는 기사가 대부분이라 전국 하한(반응 30)에서
+  // 전멸했다). 카테고리 안에서의 상대 비교는 브리핑과 같은 기준
+  // (engagement + coverage·50)으로 충분하고, 소스당 3건 상한만 지킨다.
+  async categoryTop(cat, limit = 10) {
+    const items = await this._items();
+    const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+    const pool = items.filter(
+      (i) =>
+        (i.category || "news") === cat &&
+        !i.adult &&
+        !(i.topics || []).includes("politics") &&
+        i.kind !== "ad" && i.kind !== "affiliate" &&
+        i.source !== "seed" && i.source !== "me" &&
+        !tooOld(i, now)
+    );
+    pool.sort((a, b) =>
+      ((b.score || 0) + (b.commentCount || 0) * 2 + (b.coverage || 0) * 50) -
+      ((a.score || 0) + (a.commentCount || 0) * 2 + (a.coverage || 0) * 50));
+    const perSrc = new Map();
+    const out = [];
+    for (const i of pool) {
+      if (out.length >= limit) break;
+      const used = perSrc.get(i.source) || 0;
+      if (used >= 3) continue;
+      perSrc.set(i.source, used + 1);
+      out.push({
+        id: i.id, title: i.title, url: i.url || null,
+        source: i.source, sourceLabel: this._labelFor(i),
+        category: cat, categoryLabel: categoryLabel(cat),
+        score: i.score || 0, commentCount: i.commentCount || 0,
+        coverage: i.coverage || 0, image: i.image || null
+      });
+    }
+    return { generatedAt: new Date(now).toISOString(), items: out };
+  }
+
   async briefing() {
     const items = await this._items();
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();

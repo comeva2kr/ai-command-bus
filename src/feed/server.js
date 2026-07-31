@@ -403,9 +403,12 @@ ${briefingSectionsHtml(ed.briefing)}`;
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
           return res.end(editionShell(`${seg} 브리핑`, `지금핫 ${seg} 커뮤니티·뉴스 화제 브리핑 아카이브`, inner));
         }
-        const all = await engine.rankingTop(150);
-        const catItems = all.items.filter((i) => i.category === seg).slice(0, 10);
+        // 카테고리 내부 기준(하한 없음) — 전국 랭킹 기준을 빌리면 무반응
+        // 뉴스가 많은 카테고리(자동차 등)가 텅 비어 보인다 (2026-08-01 실측).
+        const catTop = await engine.categoryTop(seg, 10);
+        const catItems = catTop.items;
         if (!catItems.length) return send(res, 404, { error: "unknown category" });
+        const all = { generatedAt: catTop.generatedAt };
         const label = catItems[0].categoryLabel;
         const lead = catItems[0];
         const leadBits = evidenceBits(lead);

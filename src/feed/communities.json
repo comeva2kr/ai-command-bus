@@ -1328,6 +1328,42 @@
         "url": "https://rss.mt.co.kr/st_news.xml",
         "note": "2026-07-31 조사 — 콘텐츠 살아있으나(100건/오늘자) 응답이 euc-kr이라 rssFetcher(getText, UTF-8 가정)에서 한글 깨짐 + pubDate가 YYYYMMDDHHmmss+0900 비표준. fetchers.js에 rss euc-kr 디코드·비표준 날짜 파싱 추가 후 활성화할 것. rss.mt.co.kr robots는 302로 확인 불가(WARN, 명시 Disallow 아님)."
       }
+    },
+    {
+      "id": "motorgraph",
+      "label": "모터그래프",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "auto",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.motorgraph.com/rss/allArticle.xml",
+        "note": "2026-08-01 auto 공급 확충(David: 자동차 뉴스 많지 않아? — 실측: 자동차 전용 공급원 0곳, 키워드로 건진 기사뿐). 자동차 전문지 공식 RSS. 실측 200/UTF-8/50건/오늘자, robots /admin/만 차단. 전체기사 피드 — 뉴스 수집 상한 20 + hotScore 보완."
+      }
+    },
+    {
+      "id": "autoherald",
+      "label": "오토헤럴드",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "auto",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.autoherald.co.kr/rss/allArticle.xml",
+        "note": "2026-08-01 auto 공급 확충. 자동차 전문지 공식 RSS. 실측 200/UTF-8/50건/오늘자, robots /admin/만 차단."
+      }
     }
   ]
 }
