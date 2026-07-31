@@ -39,6 +39,18 @@ export function rankParams(opts = {}) {
     exposureW: opts.exposureW ?? envNum("RANK_EXPOSURE_W", 0.55),
     // 같은 페이지 안에서 이미 뽑힌 소스의 반복 페널티
     pageRepeatW: opts.pageRepeatW ?? envNum("RANK_PAGE_REPEAT_W", 0.2),
+    // 같은 페이지 안에서 이미 뽑힌 **카테고리**의 반복 페널티 (2026-08-01,
+    // 실사용자 회귀: 취향을 여러 개 고른 유저의 쿼터를 화제성 상위 카테고리
+    // 하나(자동차 뉴스 급증)가 통째로 먹었다 — 소스 상한은 소스가 제각각이라
+    // 무력했다. 카테고리 반복이 쌓일수록 다른 고른 카테고리가 역전한다.)
+    pageCatRepeatW: opts.pageCatRepeatW ?? envNum("RANK_PAGE_CAT_REPEAT_W", 0.25),
+    // 카테고리 페이지 상한 백스톱: 어떤 카테고리도 페이지의 이 비율을 넘지
+    // 못한다. 단일 취향 유저의 쿼터(0.6)와 같은 값이라 그 경험은 불변.
+    pageCatShare: opts.pageCatShare ?? envNum("RANK_PAGE_CAT_SHARE", 0.6),
+    // **안 고른(중립) 카테고리**의 페이지 상한 — 실사용 회귀(2026-08-01)의
+    // 본체: 자동차를 고르지도 않은 유저의 자유 슬롯·탐색 창을 신선한 자동차
+    // 뉴스 급증이 통째로 먹었다. 탐색(발견)은 남기되 도배는 못 하게 30%.
+    pageNeutralCatShare: opts.pageNeutralCatShare ?? envNum("RANK_PAGE_NEUTRAL_CAT_SHARE", 0.3),
     // 페이지당 소스 상한 비율: cap = max(1, ceil(limit * share))
     pageSourceShare: opts.pageSourceShare ?? envNum("RANK_PAGE_SOURCE_SHARE", 0.2),
     // 1페이지: 고른 카테고리 최소 비율 (적대적 검수 권고 6/10)
@@ -135,6 +147,11 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
   const remaining = [...pool].sort((a, b) => b.global - a.global);
   const out = [];
   const pagePicks = new Map(); // src -> 이번 페이지 선발 수
+  const pageCats = new Map(); // category -> 이번 페이지 선발 수
+  const catCap = Math.max(1, Math.ceil(params.pageCatShare * limit));
+  const neutralCatCap = Math.max(1, Math.ceil(params.pageNeutralCatShare * limit));
+  // 고른 카테고리는 쿼터만큼(0.6), 안 고른 카테고리는 탐색 허용치(0.3)까지만.
+  const catCapFor = (c) => (isPicked(c) ? catCap : neutralCatCap);
   let pickedCount = 0;
   let otherCount = 0;
 
@@ -151,18 +168,22 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
       return (needP > 0 && isPicked(c)) || (needO > 0 && isOther(c));
     };
 
-    const eligible = (relaxCap, relaxGap) =>
+    const eligible = (relaxCap, relaxCat, relaxGap) =>
       remaining.filter(
         (c) =>
           (relaxCap || (pagePicks.get(c.item.source) || 0) < cap) &&
+          (relaxCat || (pageCats.get(c.item.category) || 0) < catCapFor(c)) &&
           (relaxGap || !recentSrcs.includes(c.item.source)) &&
           quotaOk(c)
       );
 
-    // 완화 순서: 정상 → cap 완화 → gap까지 완화. 쿼터와 hated 배제는 끝까지 유지.
-    let feasible = eligible(false, false);
-    if (!feasible.length) feasible = eligible(true, false);
-    if (!feasible.length) feasible = eligible(true, true);
+    // 완화 순서: 정상 → 카테고리cap → 소스cap → gap. 카테고리 상한이 가장
+    // 새 제약이라 먼저 푼다 — 소스 상한을 먼저 풀면 단일 카테고리 풀에서
+    // 한 소스 도배가 부활한다(테스트 실측). 쿼터와 hated 배제는 끝까지 유지.
+    let feasible = eligible(false, false, false);
+    if (!feasible.length) feasible = eligible(false, true, false);
+    if (!feasible.length) feasible = eligible(true, true, false);
+    if (!feasible.length) feasible = eligible(true, true, true);
     if (!feasible.length) break; // 쿼터 자체를 채울 공급이 없음 (이미 클램프됐으므로 도달 드묾)
 
     // 소프트 페널티를 얹은 조정 점수로 최종 선택
@@ -172,13 +193,15 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
       const adj =
         c.global -
         params.exposureW * Math.log(1 + exposureOf(c.item.source)) -
-        params.pageRepeatW * (pagePicks.get(c.item.source) || 0);
+        params.pageRepeatW * (pagePicks.get(c.item.source) || 0) -
+        params.pageCatRepeatW * (pageCats.get(c.item.category) || 0);
       if (adj > bestAdj) { bestAdj = adj; best = c; }
     }
 
     out.push(best);
     remaining.splice(remaining.indexOf(best), 1);
     pagePicks.set(best.item.source, (pagePicks.get(best.item.source) || 0) + 1);
+    pageCats.set(best.item.category, (pageCats.get(best.item.category) || 0) + 1);
     if (isPicked(best)) pickedCount++;
     else if (isOther(best)) otherCount++;
   }

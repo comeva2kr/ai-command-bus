@@ -141,3 +141,51 @@ test("selectDiverse: 중립 카테고리 최소 비율 — 취향이 강해도 �
   const other = r.picks.filter((i) => i.category === "science").length;
   assert.ok(other >= Math.ceil(P.otherShare * 10) - 0, `중립 ${other}개 — 필터버블 방지 하한`);
 });
+
+test("selectDiverse: 취향 여러 개 고른 유저의 쿼터를 한 카테고리가 독식하지 못한다 (실사용 회귀 재현)", () => {
+  // 실사용 회귀(2026-08-01): auto 뉴스가 신선한 hot 상위를 점유 + 소스는 제각각
+  // → 소스 상한 무력 → "취향 다 선택했는데 자동차만 나온다"
+  const cands = [
+    ...Array.from({ length: 12 }, (_, i) => mk(`a${i}`, `autosrc${i}`, "auto", 0.9 - i * 0.01, 0.7)),
+    ...Array.from({ length: 8 }, (_, i) => mk(`t${i}`, `techsrc${i}`, "tech", 0.4 - i * 0.01, 0.7)),
+    ...Array.from({ length: 8 }, (_, i) => mk(`g${i}`, `gamesrc${i}`, "gaming", 0.35 - i * 0.01, 0.7))
+  ];
+  const r = selectDiverse(cands, {
+    limit: 10, firstPage: true,
+    picked: new Set(["auto", "tech", "gaming"]), hated: new Set()
+  }, P);
+  const byCat = {};
+  for (const i of r.picks) byCat[i.category] = (byCat[i.category] || 0) + 1;
+  const catCap = Math.ceil(P.pageCatShare * 10);
+  assert.ok((byCat.auto || 0) <= catCap, `auto ${byCat.auto}개 > 상한 ${catCap}`);
+  assert.ok((byCat.tech || 0) >= 1 && (byCat.gaming || 0) >= 1,
+    `고른 다른 카테고리도 나와야 — 실제 ${JSON.stringify(byCat)}`);
+});
+
+test("selectDiverse: 단일 취향 유저는 카테고리 상한과 쿼터가 같아 경험 불변 (6/10)", () => {
+  const cands = [
+    ...Array.from({ length: 12 }, (_, i) => mk(`a${i}`, `as${i}`, "auto", 0.6 - i * 0.01, 0.8)),
+    ...Array.from({ length: 8 }, (_, i) => mk(`o${i}`, `os${i}`, "life", 0.3 - i * 0.01, 0))
+  ];
+  const r = selectDiverse(cands, { limit: 10, firstPage: true, picked: new Set(["auto"]), hated: new Set() }, P);
+  const autoN = r.picks.filter((i) => i.category === "auto").length;
+  assert.equal(autoN, Math.ceil(P.firstPickedShare * 10), "단일 취향 1페이지는 여전히 쿼터만큼");
+});
+
+test("selectDiverse: 안 고른 카테고리는 화제성이 아무리 높아도 페이지 30%를 못 넘는다 (실사용 회귀의 본체)", () => {
+  // 유저는 tech·gaming만 골랐고 auto는 안 골랐다. 신선한 auto 뉴스(소스 제각각)
+  // 가 hot 최상위를 점유한 상황 — 2026-08-01 실사용 보고 재현.
+  const cands = [
+    ...Array.from({ length: 15 }, (_, i) => mk(`a${i}`, `newssrc${i}`, "auto", 1.0 - i * 0.01, 0)),
+    ...Array.from({ length: 8 }, (_, i) => mk(`t${i}`, `ts${i}`, "tech", 0.35 - i * 0.01, 0.7)),
+    ...Array.from({ length: 8 }, (_, i) => mk(`g${i}`, `gs${i}`, "gaming", 0.3 - i * 0.01, 0.7))
+  ];
+  const r = selectDiverse(cands, {
+    limit: 10, firstPage: true, picked: new Set(["tech", "gaming"]), hated: new Set()
+  }, P);
+  const autoN = r.picks.filter((i) => i.category === "auto").length;
+  const pickedN = r.picks.filter((i) => ["tech", "gaming"].includes(i.category)).length;
+  const neutralCap = Math.ceil(P.pageNeutralCatShare * 10);
+  assert.ok(autoN <= neutralCap, `안 고른 auto가 ${autoN}개 — 중립 상한 ${neutralCap} 초과`);
+  assert.ok(pickedN >= Math.ceil(P.firstPickedShare * 10), `고른 카테고리 ${pickedN}개 — 쿼터 보장`);
+});
