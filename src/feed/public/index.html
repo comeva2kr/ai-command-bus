@@ -1959,12 +1959,14 @@ async function renderDetail(itemId){
   catch(e){ body.innerHTML = "<p>불러오기 실패</p>"; return; }
   document.getElementById("detailSrc").innerHTML =
     `<span class="dot" style="display:inline-block;background:${srcColor(item.source)}"></span> ${srcLabel(item.source)} · ${item.categoryLabel}`;
-  // share: native share sheet if available, else copy the OG link
+  // 공유 = 즉시 클립보드 복사 (David 2026-08-01: 공유창 없이 바로 복사 +
+  // 문구만). 복사 형식은 "제목 ↵ 링크" — 카톡 등에 붙였을 때 제목이 먼저
+  // 보이고 링크 미리보기(/p OG 페이지)가 따라온다.
   document.getElementById("shareBtn").onclick = async ()=>{
     const link = location.origin + "/p?id=" + encodeURIComponent(item.id);
-    if(navigator.share){ try { await navigator.share({ title: item.title, url: link }); return; } catch {} }
-    try { await navigator.clipboard.writeText(link); toast("링크를 복사했어요"); }
-    catch { prompt("링크 복사", link); }
+    const text = item.title + "\n" + link;
+    try { await navigator.clipboard.writeText(text); toast("링크가 클립보드에 복사되었습니다"); }
+    catch { prompt("복사해 주세요", text); }
   };
   const head = document.querySelector(".detail-head");
   let muteBtn = head.querySelector(".mute-btn:not(#shareBtn)");
