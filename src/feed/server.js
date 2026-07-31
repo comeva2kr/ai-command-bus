@@ -480,7 +480,12 @@ ${rankingRows(list)}`;
           providers: enabledProviders(authEnv),
           kakaoJsKey: process.env.KAKAO_JS_KEY || null
         };
-        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: SOURCE_CATALOG, topics: TOPIC_CATALOG, monetization, adfit, auth });
+        // 유령 소스 정리(적대적 검수 2026-07-31, 민준 페르소나): 레지스트리에서
+        // 비활성(enabled:false — 디시 등 수집 금지/차단 소스)인 항목은 카탈로그
+        // 에서도 뺀다. 목록에는 있는데 피드에 0건인 소스는 신뢰만 깎는다.
+        const disabledIds = new Set(registry.filter((c) => c.enabled === false).map((c) => c.id));
+        const liveCatalog = SOURCE_CATALOG.filter((s) => !disabledIds.has(s.id));
+        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: liveCatalog, topics: TOPIC_CATALOG, monetization, adfit, auth });
       }
 
       if (p === "/api/communities" && req.method === "GET") {
