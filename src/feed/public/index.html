@@ -206,7 +206,9 @@
   .chip { flex: 0 0 auto; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
     background: var(--card); color: var(--muted); font-size: 13px; }
   .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .sort-bar { display: flex; gap: 8px; margin: 0 0 12px; }
+  /* 좌우 패딩은 헤더(16px)와 정렬 — 없으면 칩이 화면 왼쪽에 딱 붙는다
+     (David 실기기 아이폰 실측 2026-07-31) */
+  .sort-bar { display: flex; gap: 8px; padding: 10px 16px 0; margin: 0 0 4px; }
 
   /* feed */
   #feed { padding: 8px 12px 0; }
