@@ -151,7 +151,10 @@ test("isReclassifiable: 학습 소스와 gnews 종합 섹션은 재분류하지 
   assert.ok(!isReclassifiable("gnews-biz"), "학습 소스는 라벨이 정답");
   assert.ok(!isReclassifiable("gnews"), "종합 섹션은 news가 정답");
   assert.ok(!isReclassifiable("gnews-kr"));
-  assert.ok(!isReclassifiable("bobae"), "약지도 소스도 자기 라벨 유지");
+  assert.ok(!isReclassifiable("ruliweb"), "약지도 학습 소스는 자기 라벨 유지");
+  // bobae는 2026-07-31 설계 변경으로 재분류 **대상**이다 — 베스트가 전 게시판
+  // 통합(실측 15건 중 자동차 1건)이라 학습 소스에서 빼고 혼합 게시판 취급.
+  assert.ok(isReclassifiable("bobae"), "보배 베스트는 혼합 게시판");
 });
 
 // ---------------------------------------------------------------------------
@@ -222,13 +225,15 @@ test("engine.refresh: 코퍼스가 부족하면(100건 미만) 아무것도 재�
         publishedAt: new Date(now - 3600e3).toISOString(), sourceRank: 0 }
     ], "news"),
     new JsonSource("clien", async () => [
-      { id: "c1", title: "전기차 시승기", url: "https://c/1", category: "tech",
+      // 키워드 사전에 안 걸리는 제목이어야 한다 — 키워드 확정(auto 사전)은
+      // 코퍼스 크기와 무관하게 도는 것이 2026-07-31 설계의 의도다.
+      { id: "c1", title: "요즘 점심 뭐 드세요 다들", url: "https://c/1", category: "tech",
         publishedAt: new Date(now - 3600e3).toISOString(), sourceRank: 0 }
     ], "community")
   ]);
   await engine.refresh();
   const c1 = (await engine._items()).find((i) => i.id === "c1");
-  assert.equal(c1.category, "tech", "데이터 부족 상태에서 성급히 재분류하면 안 됨");
+  assert.equal(c1.category, "tech", "데이터 부족 상태에서 NB가 성급히 재분류하면 안 됨");
   assert.equal(c1.registryCategory, undefined);
 });
 
@@ -355,4 +360,56 @@ test("카드 기본 동작: 내부 상세 우선, 원문은 ↗ 지름길 (아�
   assert.match(handler, /openDetail\(item\.id\);\n  \}\);/, "기본 동작은 내부 상세");
   // 상세 안 원문 버튼은 계속 존재해야 한다
   assert.match(html, /원문에서 계속 읽기/);
+});
+
+// ---- 키워드 확정 분류 + 보배 혼합 베스트 (David 2026-07-31 실측 지적) ----
+import { keywordCategory, MIXED_BEST_FALLBACK } from "../src/feed/classify.js";
+import { FeedStore as _EdStore } from "../src/feed/store.js";
+import { FeedEngine as _EdEngine } from "../src/feed/engine.js";
+import { JsonSource as _EdJson } from "../src/feed/content.js";
+
+test("keywordCategory: 자동차 사전 — 시승·모델·전기차는 auto, 금융 문맥은 가드", () => {
+  assert.equal(keywordCategory("생애 첫 전기차 출고 신고합니다!"), "auto");
+  assert.equal(keywordCategory("BYD 씨라이언7 타보니 이게 되네"), "auto");
+  assert.equal(keywordCategory("그랜저 페이스리프트 시승 후기"), "auto");
+  assert.equal(keywordCategory("현대차 주가 사상 최고치 경신"), null, "브랜드+주가 = 경제 기사");
+  assert.equal(keywordCategory("테슬라 실적 발표에 시장 술렁"), null);
+  assert.equal(keywordCategory("서운하다며 가족 단톡방을 나간 올케"), null, "일상글은 무반응");
+});
+
+test("보배 베스트: 자동차 키워드 글만 auto, 나머지는 혼합 폴백(humor) — 실측 재현", async () => {
+  // 실측(2026-07-31): 보배 베스트 15건 중 자동차 1건 — 그 구성을 재현한다
+  const bobae = new _EdJson("bobae", async () => [
+    { id: "car1", title: "생애 첫 전기차 출고 신고합니다!", url: "https://b.example.com/1",
+      publishedAt: new Date(Date.now() - 3600e3).toISOString(), score: 100, category: "auto" },
+    { id: "talk1", title: "서운하다며 가족 단톡방을 나간 올케", url: "https://b.example.com/2",
+      publishedAt: new Date(Date.now() - 3600e3).toISOString(), score: 300, category: "auto" },
+    { id: "talk2", title: "홍명보 청문회를 본 일본인들 반응", url: "https://b.example.com/3",
+      publishedAt: new Date(Date.now() - 3600e3).toISOString(), score: 200, category: "auto" }
+  ], "community");
+  const store = new _EdStore();
+  const engine = new _EdEngine(store, [bobae]);
+  await engine.refresh();
+  const items = await engine._items();
+  const byId = new Map(items.map((i) => [i.id, i]));
+  assert.equal(byId.get("car1").category, "auto", "진짜 자동차 글은 auto 유지");
+  assert.notEqual(byId.get("talk1").category, "auto", "일상글이 auto로 남으면 안 됨");
+  assert.notEqual(byId.get("talk2").category, "auto", "청문회 반응글이 auto로 남으면 안 됨");
+  assert.equal(byId.get("talk1").registryCategory, "auto", "원 분류는 보존(디버깅용)");
+});
+
+test("경제 뉴스의 시승기: 키워드 확정이 소스 불문 auto로 옮긴다", async () => {
+  const mk = new _EdJson("mk-news", async () => [
+    { id: "drive1", title: "BYD 씨라이언7 시승해보니…가격이 깡패", url: "https://mk.example.com/1",
+      publishedAt: new Date(Date.now() - 3600e3).toISOString(), score: 0, category: "business" },
+    { id: "biz1", title: "코스피 사상 최고치 경신", url: "https://mk.example.com/2",
+      publishedAt: new Date(Date.now() - 3600e3).toISOString(), score: 0, category: "business" }
+  ], "news");
+  const store = new _EdStore();
+  const engine = new _EdEngine(store, [mk]);
+  await engine.refresh();
+  const items = await engine._items();
+  const byId = new Map(items.map((i) => [i.id, i]));
+  assert.equal(byId.get("drive1").category, "auto", "시승기는 경제지에 실려도 auto");
+  assert.equal(byId.get("biz1").category, "business", "일반 경제 기사는 그대로");
 });

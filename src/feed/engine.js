@@ -8,7 +8,7 @@
 
 import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
-import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES } from "./classify.js";
+import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, keywordCategory, MIXED_BEST_FALLBACK } from "./classify.js";
 import { rankParams, categorySets, selectDiverse } from "./rank.js";
 import {
   rankItems,
@@ -369,22 +369,39 @@ export class FeedEngine {
     // 장부가 무한히 크지 않게 — 분류기 카운트는 이미 흡수됐으므로 id만 비운다.
     if (this._learnedIds.size > 20000) this._learnedIds.clear();
 
-    // 2) 분류: 혼합 게시판(클리앙·뽐뿌·이토랜드 등)의 글만 재분류한다.
-    //    분류기가 기권하면(확신 부족) 소스의 등록 카테고리가 그대로 남는다 —
-    //    "모름"이 오답보다 낫다. 원래 값은 registryCategory로 보존해 디버깅과
-    //    평가(tools/eval-classifier.mjs)가 가능하게 한다.
-    if (this._classifier.trained >= 100) { // 최소한의 코퍼스가 쌓인 뒤에만
-      for (const item of capped) {
-        if (!isReclassifiable(item.source)) continue;
-        // 정치 태그 글은 재분류하지 않는다 — 논쟁 문체가 humor/gaming 말투와
-        // 겹쳐 오분류의 최대 진원지였다(라이브 실측 2026-07-29). 정치글의
-        // 노출은 politics 토글이 전담하므로 카테고리를 바꿀 이유도 없다.
-        if ((item.topics || []).includes("politics")) continue;
+    // 2) 분류 3단 파이프라인 (2026-07-31 David: "제목 단어로 카테고리를
+    //    유추하는 알고리즘 개선" — 실측: 보배 베스트 15건 중 자동차 1건인데
+    //    전부 auto, 경제 뉴스에 씨라이언7 시승기):
+    //    ① 키워드 확정(사전) — 소스 불문. 시승기가 경제지에 실려도 auto로.
+    //    ② NB 재분류 — 혼합 게시판만, 기권 시 등록 카테고리 유지(기존 그대로).
+    //    ③ 혼합 베스트 폴백 — 주제 사이트의 통합 베스트(보배)에서 키워드도
+    //       NB도 못 잡은 글은 사이트 주제(auto)가 아니라 게시판의 실측 지배
+    //       성격(humor)으로 되돌린다.
+    //    정치 태그 글은 전 단계 제외 — 논쟁 문체가 humor/gaming 말투와 겹쳐
+    //    오분류의 최대 진원지였다(라이브 실측 2026-07-29).
+    for (const item of capped) {
+      if (item.source === "seed" || item.source === "me") continue;
+      if ((item.topics || []).includes("politics")) continue;
+      const kw = keywordCategory(item.title);
+      if (kw) {
+        if (kw !== item.category) {
+          if (item.registryCategory === undefined) item.registryCategory = item.category;
+          item.category = kw;
+        }
+        continue;
+      }
+      if (isReclassifiable(item.source) && this._classifier.trained >= 100) {
         const predicted = classifyTitle(this._classifier, item.title);
         if (predicted && predicted !== item.category && OVERRIDE_CATEGORIES.has(predicted)) {
           item.registryCategory = item.category;
           item.category = predicted;
+          continue;
         }
+      }
+      const mixed = MIXED_BEST_FALLBACK.get(item.source);
+      if (mixed && item.category === mixed.registryCategory) {
+        item.registryCategory = item.category;
+        item.category = mixed.fallback;
       }
     }
 
