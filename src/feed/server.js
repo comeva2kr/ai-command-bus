@@ -569,6 +569,10 @@ ${rankingRows(list)}`;
       if (p === "/api/lean" && req.method === "POST") {
         const body = await readBody(req);
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        // "abc" 같은 비수치가 조용히 0으로 접히면 클라이언트 버그가 은폐된다
+        if (typeof body.balance !== "number" || !Number.isFinite(body.balance)) {
+          return send(res, 400, { error: "balance must be a number in [-1, 1]" });
+        }
         const balance = store.setLeanBalance(body.userId, body.balance);
         return send(res, 200, { ok: true, balance });
       }
@@ -755,8 +759,12 @@ ${rankingRows(list)}`;
         try { store.recordTraffic("feed", url.searchParams.get("userId")); } catch {}
         const userId = url.searchParams.get("userId");
         if (!userId || !store.getUser(userId)) return send(res, 400, { error: "unknown user" });
-        const cursor = Number(url.searchParams.get("cursor") || 0);
-        const limit = Math.min(30, Number(url.searchParams.get("limit") || 10));
+        // 음수·비수치 cursor/limit은 400이 아니라 안전값으로 접는다 — 무한
+        // 스크롤 클라이언트가 저장해 둔 값이 깨져도 피드는 계속 나와야 한다.
+        const rawCursor = Number(url.searchParams.get("cursor") || 0);
+        const cursor = Number.isFinite(rawCursor) && rawCursor > 0 ? Math.floor(rawCursor) : 0;
+        const rawLimit = Number(url.searchParams.get("limit") || 10);
+        const limit = Math.min(30, Math.max(1, Number.isFinite(rawLimit) ? Math.floor(rawLimit) : 10));
         // 소스별 보기 ("전체" 칩이 아닌 특정 소스 칩 선택 시): 존재하는 소스인지
         // 레지스트리로 확인 — 없으면 400 (오타/삭제된 소스로 조용히 빈 피드가
         // 나오는 것을 방지).
@@ -797,6 +805,7 @@ ${rankingRows(list)}`;
       if (p === "/api/item" && req.method === "GET") {
         const userId = url.searchParams.get("userId");
         const itemId = url.searchParams.get("itemId");
+        if (!store.getUser(userId)) return send(res, 400, { error: "unknown user" });
         const item = await engine.getItem(userId, itemId);
         if (!item) return send(res, 404, { error: "not found" });
         return send(res, 200, item);
@@ -829,6 +838,9 @@ ${rankingRows(list)}`;
       if (p === "/api/rate" && req.method === "POST") {
         const body = await readBody(req);
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        // signal 화이트리스트 — signal:99 같은 임의 값이 그대로 수용되면
+        // 취향 벡터가 한 번에 오염된다(적대적 검수 P1-c, API 페르소나 실측).
+        if (![1, 0, -1].includes(body.signal)) return send(res, 400, { error: "signal must be 1, 0, or -1" });
         const result = await engine.rate(body.userId, body.itemId, body.signal);
         return send(res, 200, result);
       }

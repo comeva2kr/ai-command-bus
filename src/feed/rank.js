@@ -43,6 +43,11 @@ export function rankParams(opts = {}) {
     pageSourceShare: opts.pageSourceShare ?? envNum("RANK_PAGE_SOURCE_SHARE", 0.2),
     // 1페이지: 고른 카테고리 최소 비율 (적대적 검수 권고 6/10)
     firstPickedShare: opts.firstPickedShare ?? envNum("RANK_FIRST_PICKED_SHARE", 0.6),
+    // 2페이지 이후의 고른 카테고리 최소 비율 — 쿼터가 1페이지에만 걸리면
+    // 뒤 페이지에서 취향 글이 급감한다(2026-07-31 적대적 검수 실측: 게임 취향
+    // 유저의 2·3페이지 게임 글 0개, 연예 취향 50건 중 6건). 탐색 창(otherShare)
+    // 은 유지하므로 필터버블로는 가지 않는다.
+    laterPickedShare: opts.laterPickedShare ?? envNum("RANK_LATER_PICKED_SHARE", 0.4),
     // 매 페이지: 중립(안 고름·안 싫음) 카테고리 최소 비율 — 탐색 창(검수5+3의 20% 하한)
     otherShare: opts.otherShare ?? envNum("RANK_OTHER_SHARE", 0.2),
     // vec.categories 문턱: 설문 선택은 +1.0, 명시적 회피는 큰 음수로 내려간다
@@ -103,12 +108,15 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
   // 전역 점수 부여
   for (const c of cands) c.global = globalScore(c.hot, c.taste, c.collab, params);
 
-  // 1페이지 hated 하드 배제 — 배제 수를 기록해 exhausted 오판을 막는다.
-  // (2페이지부터는 taste 음수가 자연 강등하므로 하드 배제하지 않는다 —
-  //  영구 배제는 "모든 소스 결국 등장" 보증과 충돌한다. 설계 문서 Q3.)
+  // hated 하드 배제 — 전 페이지 (2026-07-31 변경). 원래 2페이지부터는 감점만
+  // 했지만, 적대적 검수 실측에서 명시적으로 회피한 카테고리가 matchScore
+  // -0.76인데도 노출됐다 — "싫다"고 답한 사용자에게 그 글을 보여줘서 얻는
+  // 탐색 이득이 없다. (설계 문서 Q3의 기아 우려는 '소스' 차원이었고, 이건
+  // 사용자가 직접 고른 '카테고리 회피'다 — 설문을 바꾸면 즉시 풀린다.)
+  // 배제 수는 기록해 exhausted 오판을 막는다.
   let pool = cands;
   let bannedHatedCount = 0;
-  if (firstPage && hated.size) {
+  if (hated.size) {
     bannedHatedCount = cands.filter(isHated).length;
     pool = cands.filter((c) => !isHated(c));
   }
@@ -116,7 +124,8 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
   // 쿼터는 공급량으로 클램프 — 없는 걸 있는 척하지 않는다(정직한 부족 처리).
   const cap = Math.max(1, Math.ceil(params.pageSourceShare * limit));
   const pickedSupply = pool.filter(isPicked).length;
-  const pickedTarget = firstPage && picked.size ? Math.ceil(params.firstPickedShare * limit) : 0;
+  const pickedShare = firstPage ? params.firstPickedShare : params.laterPickedShare;
+  const pickedTarget = picked.size ? Math.ceil(pickedShare * limit) : 0;
   const minPicked = Math.min(pickedTarget, pickedSupply);
   const otherSupply = pool.filter(isOther).length;
   const minOther = Math.min(Math.ceil(params.otherShare * limit), otherSupply);
@@ -174,7 +183,7 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
 
   return {
     picks: out.map((c) => c.item),
-    shortfall: firstPage && picked.size > 0 && minPicked < pickedTarget,
+    shortfall: picked.size > 0 && minPicked < pickedTarget,
     bannedHatedCount
   };
 }

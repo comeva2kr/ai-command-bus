@@ -247,6 +247,33 @@ export class FeedStore {
     return out;
   }
 
+  // ---- 수집 풀 firstSeenAt 영속화 (적대적 검수 P1-a, 2026-07-31) -----------
+  // 엔진의 수집 풀은 메모리라 재시작(=배포)마다 firstSeenAt이 리셋됐다 —
+  // 그 순간 2021년 아카이브 글도 "방금 처음 봄"이 되어 신선도 상한을 다시
+  // 통과하고, 최신순에서는 전체가 한 버킷에 뭉쳤다(검수 실측: 40건 전부
+  // firstSeenAt 동일). 여기 남는 "처음 본 시각"은 재시작을 넘어 이어진다.
+  firstSeenOf(id) {
+    return this.firstSeen ? this.firstSeen[id] : undefined;
+  }
+
+  // 새로 본 아이템들의 시각을 한 번에 기록 — 아이템당 _persist를 피한다.
+  // 보존 기간이 지난 항목은 함께 청소한다(풀 retention 48h·소스 예외 72h보다
+  // 넉넉한 7일 — 그 뒤 다시 나타난 글은 "다시 처음 본 것"으로 취급해도
+  // 신선도 판정이 위험해지지 않는다: 상한을 통과하려면 어차피 재등장 후
+  // 48시간이 더 필요하다).
+  recordFirstSeen(entries, nowMs) {
+    if (!entries || !entries.length) return;
+    if (!this.firstSeen) this.firstSeen = {};
+    for (const [id, at] of entries) {
+      if (this.firstSeen[id] === undefined) this.firstSeen[id] = at;
+    }
+    const cutoff = nowMs - 7 * 24 * 3600 * 1000;
+    for (const id of Object.keys(this.firstSeen)) {
+      if (this.firstSeen[id] < cutoff) delete this.firstSeen[id];
+    }
+    this._persist();
+  }
+
   // ---- 일별 에디션 (브리핑+화제랭킹 스냅샷, 자체 콘텐츠 아카이브) ----------
   // engine.refresh()가 수집 사이클마다 그날(KST) 키로 덮어쓴다 — 하루의 마지막
   // 기록이 그날의 최종판이 되는 구조라 별도 마감 작업이 필요 없다. 아카이브는
@@ -803,6 +830,7 @@ export class FeedStore {
       // 일별 에디션(브리핑+화제랭킹 스냅샷) — 자체 콘텐츠 아카이브의 원천이라
       // 재시작에도 반드시 유지 (애드핏 대응, David 2026-07-31)
       dailyEditions: [...(this.dailyEditions || new Map())].map(([date, e]) => ({ date, ...e })),
+      firstSeen: this.firstSeen || {}, // 수집 풀 최초 관측 시각 — 재시작 뒷북 방지 (P1-a)
       sessions: [...(this.sessions || new Map())].map(([token, s]) => ({ token, ...s }))
     };
     fs.writeFileSync(this.file, JSON.stringify(data, null, 2));
@@ -821,6 +849,7 @@ export class FeedStore {
       this.adEvents = data.adEvents || [];
       this.traffic = data.traffic || {};
       this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
+      this.firstSeen = data.firstSeen || {};
       this.sessions = new Map((data.sessions || []).map((s) => [s.token, { userId: s.userId, expiresAt: s.expiresAt }]));
       for (const user of data.users || []) {
         if (!user.nickname) user.nickname = nicknameFor(user.id); // backfill

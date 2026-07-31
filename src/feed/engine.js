@@ -314,9 +314,19 @@ export class FeedEngine {
     const { items: freshItems, errors } = await collect(this.sources);
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
 
+    // firstSeenAt 우선순위: 메모리 풀 > 영속 기록(재시작 생존) > 지금.
+    // 재시작마다 리셋되면 오래된 아카이브 글이 "방금 처음 봄"이 되어 신선도
+    // 상한을 재통과한다(적대적 검수 P1-a 실측: 2021년 글이 최신 피드에).
+    const newlySeen = [];
     for (const item of freshItems) {
       const prior = this._pool.get(item.id);
-      this._pool.set(item.id, { item, firstSeenAt: prior ? prior.firstSeenAt : now });
+      const persisted = this.store && this.store.firstSeenOf ? this.store.firstSeenOf(item.id) : undefined;
+      const firstSeenAt = prior ? prior.firstSeenAt : (Number.isFinite(persisted) ? persisted : now);
+      if (!prior && !Number.isFinite(persisted)) newlySeen.push([item.id, now]);
+      this._pool.set(item.id, { item, firstSeenAt });
+    }
+    if (newlySeen.length && this.store && this.store.recordFirstSeen) {
+      try { this.store.recordFirstSeen(newlySeen, now); } catch {}
     }
 
     const retentionMs = Number(process.env.FEED_RETENTION_MS || DEFAULT_RETENTION_MS);

@@ -138,3 +138,23 @@ test("서버: /api/briefing, /briefing/<cat>, /ranking/* 라우트가 자체 콘
     server.close();
   }
 });
+
+test("firstSeenAt 영속화: 재시작(새 엔진)해도 '처음 본 시각'이 리셋되지 않는다 (P1-a)", async () => {
+  const tmp = `${process.env.TMPDIR || "/tmp"}/firstseen-test-${process.pid}.json`;
+  const src = () => new JsonSource("nodate", async () => [
+    // 발행일 없는 글 — firstSeenAt이 유일한 나이 근거인 부류 (뒷북 리셋의 진원지)
+    { id: "old1", title: "발행일 없는 아카이브 글", url: "https://n.example.com/1", score: 10, category: "tech" }
+  ], "community");
+  const store1 = new FeedStore({ file: tmp });
+  const engine1 = new FeedEngine(store1, [src()]);
+  await engine1.refresh();
+  const seen1 = (await engine1._items()).find((i) => i.id === "old1").firstSeenAt;
+  assert.ok(Number.isFinite(seen1), "최초 수집 시각 기록");
+
+  // 서버 재시작 시뮬레이션: 같은 DB 파일, 새 스토어+새 엔진
+  const store2 = new FeedStore({ file: tmp });
+  const engine2 = new FeedEngine(store2, [src()]);
+  await engine2.refresh();
+  const seen2 = (await engine2._items()).find((i) => i.id === "old1").firstSeenAt;
+  assert.equal(seen2, seen1, "재시작 후에도 처음 본 시각이 유지돼야 — 리셋되면 뒷북 글이 신규로 둔갑");
+});

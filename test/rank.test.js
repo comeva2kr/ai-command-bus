@@ -56,9 +56,21 @@ test("selectDiverse: 1페이지에서 hated 카테고리는 0개, 배제 수가 
   }, P);
   assert.equal(r.picks.filter((i) => i.category === "tech").length, 0, "싫다고 한 카테고리가 1페이지에 나오면 안 됨");
   assert.equal(r.bannedHatedCount, 6, "배제 수는 exhausted 오판 방지용으로 보고");
-  // 2페이지(firstPage=false)에서는 하드 배제하지 않는다 — 영구 기아 방지
+  // 2026-07-31 변경: 2페이지 이후에도 하드 배제 — 적대적 검수 실측(회피
+  // 카테고리가 matchScore 음수인데도 노출)에 따라 "싫다"는 전 페이지 존중.
   const r2 = selectDiverse(cands, { limit: 10, firstPage: false, picked: new Set(["life"]), hated: new Set(["tech"]) }, P);
-  assert.ok(r2.picks.some((i) => i.category === "tech"), "2페이지부턴 감점만, 배제 아님");
+  assert.equal(r2.picks.filter((i) => i.category === "tech").length, 0, "회피 카테고리는 모든 페이지에서 배제");
+});
+
+test("selectDiverse: 2페이지 이후에도 취향 쿼터가 유지된다 (감쇠 40%)", () => {
+  const cands = [
+    ...Array.from({ length: 12 }, (_, i) => mk(`g${i}`, `gs${i % 4}`, "gaming", 0.2 - i * 0.01, 0.6)),
+    ...Array.from({ length: 12 }, (_, i) => mk(`n${i}`, `ns${i % 4}`, "news", 0.8 - i * 0.01, 0))
+  ];
+  // 뉴스가 hot에서 압도해도, 게임 취향 유저의 2페이지에 게임 글이 최소 쿼터만큼은 실려야
+  const r = selectDiverse(cands, { limit: 10, firstPage: false, picked: new Set(["gaming"]), hated: new Set() }, P);
+  const g = r.picks.filter((i) => i.category === "gaming").length;
+  assert.ok(g >= Math.ceil(P.laterPickedShare * 10), `2페이지 게임 ${g}/10 — 최소 ${Math.ceil(P.laterPickedShare * 10)} 보장`);
 });
 
 test("selectDiverse: 소스별 페이지 상한 — 한 소스가 페이지를 도배하지 못한다", () => {
