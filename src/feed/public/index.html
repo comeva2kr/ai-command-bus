@@ -47,6 +47,7 @@
     backdrop-filter: blur(10px); border-bottom: 1px solid var(--line);
     padding: 12px 16px calc(10px + env(safe-area-inset-top)); }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; }
+  .brand-mark { border-radius: 6px; flex: 0 0 auto; }
   .brand small { font-weight: 500; color: var(--muted); font-size: 12px; }
   .brand-en { font-weight: 700; font-size: 13px; color: var(--muted); letter-spacing: .01em; }
   .adult-btn { margin-left: auto; width: 34px; height: 26px; border-radius: 8px; font-weight: 800; font-size: 13px;
@@ -419,7 +420,7 @@
 </head>
 <body>
   <header>
-    <div class="brand">🔥 지금핫 <span class="brand-en">NowHot</span> <small id="phaseLabel">준비 중</small>
+    <div class="brand"><svg class="brand-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#111319"/><polyline points="88,368 176,330 244,346" fill="none" stroke="#e8eaf0" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><polyline points="244,346 344,150 424,214" fill="none" stroke="#ff4b3e" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><circle cx="344" cy="150" r="32" fill="#ff4b3e"/></svg> 지금핫 <span class="brand-en">NowHot</span> <small id="phaseLabel">준비 중</small>
       <button id="menuBtn" class="menu-btn" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer">☰</button>
     </div>
     <p class="tagline">여러 커뮤니티·뉴스의 지금 가장 화제인 글만 모아드려요. 카드를 누르면 원문 사이트 새 탭으로 열려요.</p>
