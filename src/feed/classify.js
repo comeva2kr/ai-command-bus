@@ -196,7 +196,9 @@ export const TRAIN_LABELS = new Map([
   ["gnews-biz", { category: "business", weight: 1.0 }],
   ["gnews-sports", { category: "sports", weight: 1.0 }],
   ["gnews-ent", { category: "culture", weight: 1.0 }],
-  ["gnews-science", { category: "science", weight: 1.0 }],
+  // gnews-science는 실제로 "구글뉴스 건강" 섹션(2차 검수 실측 — science 오분류
+  // 65%의 근원). 건강 어휘는 life(라이프/취미)로 학습한다.
+  ["gnews-science", { category: "life", weight: 1.0 }],
   ["gnews-tech", { category: "tech", weight: 1.0 }],
   // 단일 성격 커뮤니티·전문지 — 약지도
   // bobae는 여기서 뺐다(2026-07-31 David 실측 지적): 보배드림 "베스트"는 전
@@ -222,12 +224,13 @@ export const TRAIN_LABELS = new Map([
 // 코퍼스는 구어체 그 자체라서다. 이 두 클래스는 모델에 **남겨 둔다** —
 // 구어체 자질을 흡수해 business 등으로 새는 것을 막는 완충재 역할 — 하지만
 // 예측이 거기로 떨어지면 덮어쓰지 않고 기권으로 취급한다.
-export const OVERRIDE_CATEGORIES = new Set(["business", "sports", "culture", "science", "tech", "auto"]);
+export const OVERRIDE_CATEGORIES = new Set(["business", "sports", "culture", "science", "tech", "auto", "life"]);
 
 // 분류 결과로 소스 카테고리를 덮어쓸 대상 — 혼합 게시판만. 학습 소스와
 // gnews 종합 섹션(news가 맞는 라벨)은 건드리지 않는다.
 export function isReclassifiable(sourceId) {
   if (!sourceId) return false;
+  if (RECLASSIFY_DESPITE_TRAINING.has(sourceId)) return true;
   if (TRAIN_LABELS.has(sourceId)) return false;
   if (String(sourceId).startsWith("gnews")) return false; // 종합 섹션은 news가 정답
   return true;
@@ -298,5 +301,13 @@ export function definiteCategory({ title, url, sourceId } = {}) {
 // 성격으로 돌린다. 보배 베스트 실측(2026-07-31, 15건): 자동차 1건, 나머지는
 // 유머·일상·시사(시사는 politics 토글이 별도로 잡는다) — 지배 성격은 humor.
 export const MIXED_BEST_FALLBACK = new Map([
-  ["bobae", { registryCategory: "auto", fallback: "humor" }]
+  ["bobae", { registryCategory: "auto", fallback: "humor" }],
+  // 뽐뿌 핫게시글도 전 게시판 통합 — 2차 검수 실측: business 태그 10건 중
+  // 8건이 비경제("아파트 복도 에어컨" 등). 잡담 지배 성격은 humor.
+  ["ppomppu", { registryCategory: "business", fallback: "humor" }]
 ]);
+
+// 학습 소스지만 재분류도 허용하는 예외 — 해커뉴스는 tech 위주라 학습 가치는
+// 있지만 종합 글(스포츠 성명·환경·생활)도 섞인다. 2차 검수 실측: UEFA 축구
+// 성명이 tech 1위. 학습(약지도 0.3)은 유지하되 NB가 확신하면 덮어쓴다.
+export const RECLASSIFY_DESPITE_TRAINING = new Set(["hackernews"]);

@@ -375,6 +375,23 @@ export class FeedEngine {
       );
     }
 
+    // ---- 동일 기사 URL 중복 제거 (2차 검수 T5, 2026-08-01) -----------------
+    // 같은 기사가 다른 아이템 id로 두 번 들어와 랭킹에 나란히 서던 문제
+    // (실측: 한겨레 매머드 기사 2건이 16·18위, 동일 URL 6초 간격 2건).
+    // 추적 파라미터를 벗긴 URL(origin+pathname) 기준으로 반응 큰 쪽을 남긴다.
+    {
+      const canonUrl = (u) => { try { const x = new URL(u); return x.origin + x.pathname; } catch { return null; } };
+      const eng = (i) => (i.score || 0) + (i.commentCount || 0) * 2 + (i.coverage || 0);
+      const byUrl = new Map();
+      for (const item of capped) {
+        const key = item.url ? canonUrl(item.url) : null;
+        if (!key) { byUrl.set(Symbol(), item); continue; }
+        const prev = byUrl.get(key);
+        if (!prev || eng(item) > eng(prev)) byUrl.set(key, item);
+      }
+      if (byUrl.size < capped.length) capped.length = 0, capped.push(...byUrl.values());
+    }
+
     // ---- 카테고리 분류 (David 2026-07-29 "칼같은 인덱싱") ------------------
     // 1) 학습: 라벨이 신뢰되는 소스(classify.js TRAIN_LABELS)의 새 제목만.
     for (const item of capped) {

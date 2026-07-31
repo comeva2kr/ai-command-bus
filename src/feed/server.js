@@ -295,6 +295,12 @@ ${inner}
 <p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
 </div></body></html>`;
   const fmtNum = (n) => n >= 10000 ? `${Math.round(n / 1000) / 10}만` : String(n);
+  // 받침 유무 조사 선택 — "(한겨레)이 있습니다" 같은 오류(2차 검수) 방지용.
+  const josa = (w, withBatchim, without) => {
+    const c = String(w || "").replace(/[^가-힣a-zA-Z0-9]+$/g, "").slice(-1).charCodeAt(0);
+    if (c >= 0xac00 && c <= 0xd7a3) return (c - 0xac00) % 28 ? withBatchim : without;
+    return withBatchim; // 한글 아님(숫자·영문) — 단정 대신 무난한 쪽
+  };
   const kstLabel = (iso) => {
     const kst = new Date(new Date(iso).getTime() + 9 * 3600 * 1000);
     return `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일`;
@@ -341,7 +347,7 @@ ${inner}
     if (lead.score > 0) leadParts.push(`추천 ${fmtNum(lead.score)}`);
     if (lead.commentCount > 0) leadParts.push(`댓글 ${fmtNum(lead.commentCount)}`);
     const leadLine = leadParts.length
-      ? `${leadParts.join("·")}을 모으며 ${escapeHtml(sec.label)} 화제의 중심에 있습니다.`
+      ? `현재 반응은 ${leadParts.join(" · ")} — ${escapeHtml(sec.label)} 화제의 중심입니다.`
       : (lead.coverage >= 3 ? `여러 매체가 동시에 다루고 있는 사안입니다.` : `${escapeHtml(lead.sourceLabel)}의 상위 글로 올라와 있습니다.`);
     const rows = sec.items.map((i) => {
       const bits = evidenceBits(i);
@@ -349,7 +355,7 @@ ${inner}
         <span class="m">${escapeHtml(i.sourceLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></li>`;
     }).join("");
     return `<section><h2><a href="/briefing/${encodeURIComponent(sec.category)}" style="color:inherit">${escapeHtml(sec.label)}</a></h2>
-      <p>${escapeHtml(sec.label)} 분야에서는 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})이 ${leadLine}</p>
+      <p>${escapeHtml(sec.label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})입니다. ${leadLine}</p>
       <ul>${rows}</ul></section>`;
   }).join("");
   const rankingNav = (active) => `<div class="nav">
@@ -441,7 +447,7 @@ ${briefingSectionsHtml(ed.briefing)}`;
         const inner = `<h1>${escapeHtml(label)} 브리핑</h1>
 <p class="muted">${kstLabel(all.generatedAt)} · 지금 ${escapeHtml(label)} 분야에서 가장 화제인 글을 실측 반응 기준으로 정리했습니다. 15분마다 갱신됩니다.</p>
 ${rankingNav("")}
-<p>지금 ${escapeHtml(label)} 분야의 중심에는 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})이 있습니다${leadBits.length ? ` — ${leadBits.join(" · ")}` : ""}.</p>
+<p>지금 ${escapeHtml(label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})입니다${leadBits.length ? ` — ${leadBits.join(" · ")}` : ""}.</p>
 ${rankingRows(catItems)}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(editionShell(`${label} 브리핑`, `지금핫이 실측 데이터로 정리한 ${label} 분야 화제 브리핑`, inner));

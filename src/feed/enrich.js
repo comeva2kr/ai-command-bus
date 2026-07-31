@@ -113,21 +113,36 @@ export function extractOgDesc(html) {
 // 스트림 reader로 응답 본문을 MAX_HTML_BYTES까지만 읽고 자른다. fetchImpl이
 // 테스트 목처럼 스트리밍 body가 없는 단순 Response 흉내일 수도 있어 그 경우엔
 // text()로 폴백한다.
-async function readCapped(res, maxBytes) {
+// 문자셋 감지 디코드 — UTF-8 고정이면 EUC-KR 사이트(뽐뿌 등)의 og:description
+// 이 "������"로 깨진 채 발췌에 들어간다(2차 검수 실측). content-type 헤더 →
+// HTML meta charset 순으로 찾고, 못 찾으면 utf-8.
+function decodeHtmlBytes(bytes, contentType) {
+  let cs = (String(contentType || "").match(/charset=([\w-]+)/i) || [])[1];
+  if (!cs) {
+    const head = new TextDecoder("utf-8").decode(bytes.slice(0, 2048));
+    cs = (head.match(/charset=["']?([\w-]+)/i) || [])[1];
+  }
+  try {
+    return new TextDecoder((cs || "utf-8").toLowerCase()).decode(bytes);
+  } catch {
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+}
+
+async function readCapped(res, maxBytes, contentType) {
   const reader = res.body && typeof res.body.getReader === "function" ? res.body.getReader() : null;
   if (!reader) {
     const text = await res.text();
     return text.length > maxBytes ? text.slice(0, maxBytes) : text;
   }
-  const decoder = new TextDecoder("utf-8");
+  const chunks = [];
   let received = 0;
-  let out = "";
   try {
     while (received < maxBytes) {
       const { done, value } = await reader.read();
       if (done) break;
       received += value.byteLength;
-      out += decoder.decode(value, { stream: true });
+      chunks.push(value);
     }
   } finally {
     try {
@@ -136,7 +151,10 @@ async function readCapped(res, maxBytes) {
       // 이미 끝났거나 취소 불가한 스트림 — 무시
     }
   }
-  return out;
+  const buf = new Uint8Array(received);
+  let off = 0;
+  for (const c of chunks) { buf.set(c, off); off += c.byteLength; }
+  return decodeHtmlBytes(buf, contentType);
 }
 
 // url을 GET, 리다이렉트는 fetch 기본 동작대로 따라간다(news.google.com 같은
@@ -166,7 +184,7 @@ export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch } =
   if (!/text\/html/i.test(contentType)) return empty;
   let html;
   try {
-    html = await readCapped(res, MAX_HTML_BYTES);
+    html = await readCapped(res, MAX_HTML_BYTES, contentType);
   } catch {
     return empty;
   }
@@ -218,7 +236,10 @@ export function makeEnricher({
     function apply(item, meta) {
       let touched = false;
       if (!item.image && meta.image) { item.image = meta.image; touched = true; }
-      if (!item.summary && meta.desc && meta.desc !== item.title) { item.summary = meta.desc; touched = true; }
+      // U+FFFD(�)가 남았으면 디코딩 실패 잔재 — 깨진 발췌는 없느니만 못하다
+      if (!item.summary && meta.desc && meta.desc !== item.title && !meta.desc.includes("\uFFFD")) {
+        item.summary = meta.desc; touched = true;
+      }
       if (touched) filled++;
     }
 
