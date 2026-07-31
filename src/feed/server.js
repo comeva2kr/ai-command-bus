@@ -27,6 +27,7 @@ import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { sendDigestPushes } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
 import { makeEnricher } from "./enrich.js";
+import { makeTrendsCache } from "./trends.js";
 import {
   enabledProviders,
   providerConfig,
@@ -201,6 +202,11 @@ export function createServer(opts = {}) {
     // — 15분 주기 기준 시간당 160건, 풀 전체를 반나절 안에 1회전한다.
     engine._enricher = makeEnricher({ maxPerCycle: Number(process.env.FEED_ENRICH_PER_CYCLE || 40) });
   }
+
+  // X 실시간 트렌드 캐시 (trends.js — 키워드만, 트윗 본문 없음). 테스트
+  // 프로세스에서는 네트워크를 치지 않도록 기본 비활성.
+  const trendsCache = process.env.FEED_X_TRENDS !== "0" && !process.env.NODE_TEST_CONTEXT
+    ? makeTrendsCache() : null;
 
   // 정기 DB 갱신: refresh the collected pool on an interval when configured.
   const refreshMs = Number(opts.refreshMs || process.env.FEED_REFRESH_MS || 0);
@@ -387,6 +393,26 @@ ${archiveHtml}`;
       // 시간별 브리핑") — 클라이언트는 섹션별 대표 이슈만 카드로 얹는다.
       if (p === "/api/briefing" && req.method === "GET") {
         return send(res, 200, await engine.briefing());
+      }
+
+      // X 실시간 트렌드 — 키워드+X 검색 링크만 (트윗 본문 없음, trends.js 헤더 참고)
+      if (p === "/api/trends" && req.method === "GET") {
+        const t = trendsCache ? await trendsCache.get() : null;
+        return send(res, 200, t || { trends: [], fetchedAt: null });
+      }
+
+      if (p === "/trends" && req.method === "GET") {
+        const t = trendsCache ? await trendsCache.get() : null;
+        if (!t || !t.trends.length) return send(res, 404, { error: "no trends yet" });
+        const rows = t.trends.map((x) =>
+          `<li><div><a href="${escapeHtml(x.searchUrl)}" target="_blank" rel="noopener">${escapeHtml(x.name)}</a>${x.count ? `<span class="m">게시물 ${escapeHtml(x.count)}</span>` : ""}</div></li>`).join("");
+        const inner = `<h1>지금 X(트위터) 실시간 트렌드</h1>
+<p class="muted">${kstLabel(t.fetchedAt)} 기준 한국 실시간 트렌드 TOP ${t.trends.length} · 약 20분마다 갱신 · 키워드를 누르면 X 검색이 새 탭으로 열립니다.</p>
+${rankingNav("")}
+<ol class="rank">${rows}</ol>
+<p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.</p>`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(editionShell("X 실시간 트렌드", "한국 X(트위터) 실시간 트렌드 키워드 TOP 20", inner));
       }
 
       // /briefing/<YYYY-MM-DD> = 일별 아카이브, /briefing/<카테고리> = 라이브

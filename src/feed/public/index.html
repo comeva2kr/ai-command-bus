@@ -1409,7 +1409,10 @@ function showSurvey(){
 async function loadBriefStrip(){
   const el = document.getElementById("briefStrip");
   try {
-    const b = await get("/api/briefing");
+    const [b, tr] = await Promise.all([
+      get("/api/briefing"),
+      get("/api/trends").catch(()=>null) // 트렌드는 부가 — 실패해도 스트립은 뜬다
+    ]);
     if(!b.sections || !b.sections.length){ el.hidden = true; return; }
     const t = new Date(b.generatedAt);
     const hh = String(t.getHours()).padStart(2,"0"), mm = String(t.getMinutes()).padStart(2,"0");
@@ -1418,6 +1421,10 @@ async function loadBriefStrip(){
         <div class="bc-cat">🕐 지금 브리핑</div>
         <div class="bc-title">이 시간 화제 종합 정리</div>
         <div class="bc-meta">${hh}:${mm} 기준 · 15분마다 갱신</div></a>` +
+      (tr && tr.trends && tr.trends.length ? `<a class="brief-card" href="/trends">
+        <div class="bc-cat">✖ X 트렌드</div>
+        <div class="bc-title">${escapeHtml(tr.trends.slice(0,3).map(t=>t.name).join(" · "))}</div>
+        <div class="bc-meta">실시간 TOP ${tr.trends.length} →</div></a>` : "") +
       b.sections.map(s=>{
         const lead = s.items[0];
         return `<a class="brief-card" href="/briefing/${encodeURIComponent(s.category)}">
