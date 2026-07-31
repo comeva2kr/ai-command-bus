@@ -388,11 +388,15 @@ export class FeedEngine {
       }
     }
 
-    // ---- 썸네일 보강 (og:image 핫링크만, enrich.js) ------------------------
-    // image 없는 아이템의 원문에서 대표이미지 URL을 뽑아 채운다. 주입된 경우에만
-    // 동작하고(서버 전용), 실패·403은 enrich.js가 조용히 부정캐시로 삼킨다.
+    // ---- 썸네일·발췌 보강 (og:image/og:description, enrich.js) -------------
+    // 주입된 경우에만 동작(서버 전용), 실패·403은 enrich.js가 조용히 부정캐시로
+    // 삼킨다. 최신 글부터 처리한다 — 사이클당 상한(maxPerCycle)이 있으므로,
+    // 배열 순서(소스별 그룹)대로 돌면 정작 화면에 뜨는 새 글이 뒷순번에 밀린다
+    // (라이브 실측 2026-07-31: 첫 페이지 발췌 3/10). 신선도는 핫·최신 양쪽
+    // 랭킹의 공통 지배 변수라 "먼저 노출될 글"의 가장 싼 근사다.
     if (this._enricher) {
-      try { await this._enricher.enrich(capped); } catch {}
+      const byFreshness = [...capped].sort((a, b) => itemAgeHours(a, now) - itemAgeHours(b, now));
+      try { await this._enricher.enrich(byFreshness); } catch {}
     }
 
     this._cache = capped;
