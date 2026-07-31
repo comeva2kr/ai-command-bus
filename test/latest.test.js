@@ -96,7 +96,7 @@ test("engine sort=latest: 최신 위주 페이지 + markSeen으로 다음 페이
   for (const it of p2.items) assert.ok(!ids1.has(it.id), `2페이지에 1페이지 글 재등장: ${it.id}`);
 });
 
-test("engine sort=latest: 개인화 유저에게도 취향 무관 중립 최신 뷰", async () => {
+test("engine sort=latest: 취향은 시간을 못 이긴다 — 다른 버킷이면 최신이 먼저 (약한 반영의 상한)", async () => {
   const hoursAgoIso = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
   const gamingSrc = new JsonSource("gsrc", async () =>
     Array.from({ length: 5 }, (_, i) => ({
@@ -115,8 +115,8 @@ test("engine sort=latest: 개인화 유저에게도 취향 무관 중립 최신 
   store.saveSurvey(user.id, { categories: ["gaming"], tags: [], communities: [] });
 
   const feed = await engine.getFeed(user.id, { cursor: 0, limit: 4, sort: "latest" });
-  // 최신순은 취향이 아니라 시간이 지배한다: 최근 글(bsrc)이 앞선다
-  assert.ok(feed.items[0].id.startsWith("b"), "취향(gaming)이 아니라 최신(bsrc)이 먼저");
+  // 약한 취향 반영은 같은 버킷 안에서만 — 버킷이 다르면 시간이 이긴다
+  assert.ok(feed.items[0].id.startsWith("b"), "취향(gaming)보다 더 새로운 버킷(bsrc)이 먼저");
 });
 
 // ---- 게시판 보기 = 보드 미러 (David 2026-07-31 "보배 8개만 보여" 대응) ----
@@ -162,4 +162,45 @@ test("풀 보존: 보드 목록에 계속 걸려 있는 글은 firstSeen이 오�
   await engine.refresh(); // 보드에 아직 걸려 있음(lastSeenAt 갱신)
   const items = await engine._items();
   assert.ok(items.some((i) => i.id === "long1"), "보드가 안 내렸으면 우리도 안 내린다");
+});
+
+// ---- 최신순 약한 취향 반영 (David 2026-08-01 승인) ------------------------
+
+test("최신순: 같은 시간대 안에서는 취향 카테고리 소스가 먼저, 버킷 간 시간 질서는 유지", async () => {
+  const hoursAgoIso = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+  const mkSrc = (id, cat, h) => new JsonSource(id, async () =>
+    Array.from({ length: 3 }, (_, i) => ({
+      id: `${id}${i}`, title: `${id} 글 ${i}`, url: `https://x.example.com/${id}/${i}`,
+      publishedAt: hoursAgoIso(h + i * 0.05), score: 10, category: cat
+    })), "community");
+  const store = new FeedStore();
+  // 같은 버킷(0.1h대)에 게임과 경제가 공존 + 훨씬 새로운 경제 글 하나(다른 버킷)
+  const engine = new FeedEngine(store, [
+    mkSrc("gsrc", "gaming", 0.6), mkSrc("bsrc", "business", 0.6),
+    new JsonSource("fresh", async () => [{
+      id: "fresh1", title: "매우 최신 경제", url: "https://x.example.com/f1",
+      publishedAt: hoursAgoIso(0.05), score: 1, category: "business" }], "community")
+  ]);
+  const user = store.createUser("wp1");
+  store.saveSurvey(user.id, { categories: ["gaming"], tags: [], communities: [] });
+
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 7, sort: "latest" });
+  const ids = feed.items.filter((i) => !i.slot).map((i) => i.id);
+  assert.equal(ids[0], "fresh1", "더 새로운 버킷이 취향보다 먼저 — 시간 질서 유지");
+  const gFirst = ids.indexOf("gsrc0");
+  const bFirst = ids.indexOf("bsrc0");
+  assert.ok(gFirst !== -1 && bFirst !== -1 && gFirst < bFirst, `같은 버킷에선 취향(gaming) 소스 먼저 (g@${gFirst} vs b@${bFirst})`);
+});
+
+test("최신순: 명시 회피 카테고리는 최신순에서도 제외", async () => {
+  const hoursAgoIso = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+  const store = new FeedStore();
+  const engine = new FeedEngine(store, [
+    new JsonSource("a", async () => [{ id: "a1", title: "게임", url: "https://x.example.com/a1", publishedAt: hoursAgoIso(0.1), score: 5, category: "gaming" }], "community"),
+    new JsonSource("b", async () => [{ id: "b1", title: "경제", url: "https://x.example.com/b1", publishedAt: hoursAgoIso(0.1), score: 5, category: "business" }], "community")
+  ]);
+  const user = store.createUser("wp2");
+  store.saveSurvey(user.id, { categories: ["gaming"], tags: [], communities: [], avoid: ["business"] });
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 5, sort: "latest" });
+  assert.ok(!feed.items.some((i) => i.category === "business"), "회피 카테고리는 최신순에서도 안 나온다");
 });

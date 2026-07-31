@@ -774,7 +774,9 @@ export function latestParams(opts = {}) {
   };
 }
 
-// entries: [{ item, ageH }] — 반환은 item 배열 (최신 버킷부터).
+// entries: [{ item, ageH, prefer? }] — 반환은 item 배열 (최신 버킷부터).
+// prefer(0/1)는 약한 취향 반영(David 2026-08-01 승인): 시간 질서(버킷)는
+// 절대 깨지 않고, **같은 버킷 안에서만** 취향 카테고리 소스가 먼저 나온다.
 export function latestInterleave(entries, opts = {}) {
   const p = latestParams(opts);
   const buckets = new Map(); // bucketIndex -> entries
@@ -795,6 +797,13 @@ export function latestInterleave(entries, opts = {}) {
       if (!bySrc.has(s)) bySrc.set(s, []);
       bySrc.get(s).push(e);
     }
+    // 버킷 내 소스 순회 순서: 취향(prefer) 소스 먼저, 동률이면 더 새 글 먼저.
+    // 버킷 간 순서는 손대지 않으므로 "최신순"의 본질은 유지된다.
+    const srcOrder = [...bySrc.entries()]
+      .map(([s, q]) => [s, q, Math.max(...q.map((e) => e.prefer || 0)), Math.min(...q.map((e) => e.ageH || 0))])
+      .sort((a, b) => (b[2] - a[2]) || (a[3] - b[3]));
+    bySrc.clear();
+    for (const [s, q] of srcOrder) bySrc.set(s, q);
     carry = [];
     const taken = new Map();
     let progressed = true;

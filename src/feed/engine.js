@@ -599,10 +599,20 @@ export class FeedEngine {
 
       if (sort === "latest") {
         // ── 최신순: 시간버킷 × 소스 인터리브 (#12, ingest.js latestInterleave) ──
-        // 취향·노출 이력·lean 슬라이더 전부 미개입 — "지금 무엇이 올라오고
-        // 있나"의 중립 뷰. seen 필터는 pool에서 이미 적용됐고, 페이지네이션은
-        // 핫 탭과 동일하게 markSeen이 다음 페이지를 만든다.
-        const entries = pool.map((i) => ({ item: i, ageH: itemAgeHours(i, now) }));
+        // 2026-08-01 David 승인: 완전 중립 -> "약한 취향 반영". 시간 질서
+        // (버킷 순서)는 절대 유지하고, 같은 버킷 안에서만 취향 카테고리
+        // 소스가 먼저 나온다. 명시 회피 카테고리는 홈과 일관되게 제외.
+        // 노출 이력·lean 슬라이더는 여전히 미개입.
+        const latestPersonalized = Boolean(user.surveyed || (user.feedbackCount || 0) > 0 || user.warmStarted);
+        const { picked: lp, hated: lh } = latestPersonalized
+          ? categorySets(user.preferences, rankParams())
+          : { picked: new Set(), hated: new Set() };
+        const latestPool = lh.size ? pool.filter((i) => !lh.has(i.category)) : pool;
+        const entries = latestPool.map((i) => ({
+          item: i,
+          ageH: itemAgeHours(i, now),
+          prefer: lp.has(i.category) ? 1 : 0
+        }));
         const orderedLatest = latestInterleave(entries);
         this._lastSelectMeta = null;
         const latestFresh = orderedLatest.slice(0, limit).map((item) => ({ item, score: 0 }));

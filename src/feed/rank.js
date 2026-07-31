@@ -47,7 +47,9 @@ export function rankParams(opts = {}) {
     // 뒤 페이지에서 취향 글이 급감한다(2026-07-31 적대적 검수 실측: 게임 취향
     // 유저의 2·3페이지 게임 글 0개, 연예 취향 50건 중 6건). 탐색 창(otherShare)
     // 은 유지하므로 필터버블로는 가지 않는다.
-    laterPickedShare: opts.laterPickedShare ?? envNum("RANK_LATER_PICKED_SHARE", 0.4),
+    // 0.4 -> 0.5 (David 2026-08-01 승인: 2차 검수 "순도 42~50%" 지적 수용,
+    // 탐색 창 otherShare 0.2는 유지하므로 필터버블 하한은 지켜진다)
+    laterPickedShare: opts.laterPickedShare ?? envNum("RANK_LATER_PICKED_SHARE", 0.5),
     // 매 페이지: 중립(안 고름·안 싫음) 카테고리 최소 비율 — 탐색 창(검수5+3의 20% 하한)
     otherShare: opts.otherShare ?? envNum("RANK_OTHER_SHARE", 0.2),
     // vec.categories 문턱: 설문 선택은 +1.0, 명시적 회피는 큰 음수로 내려간다
