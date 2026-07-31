@@ -152,6 +152,12 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
   const neutralCatCap = Math.max(1, Math.ceil(params.pageNeutralCatShare * limit));
   // 고른 카테고리는 쿼터만큼(0.6), 안 고른 카테고리는 탐색 허용치(0.3)까지만.
   const catCapFor = (c) => (isPicked(c) ? catCap : neutralCatCap);
+  // 중립 **합계** 상한 = 탐색 창 크기(otherShare)와 동일 (David 2026-08-01
+  // "안 고른 카테고리는 안 나와야 하는 거 아냐"에 대한 절충): 취향을 세팅한
+  // 유저의 페이지는 고른 것 8 + 탐색 2로 고정된다. 카테고리별 상한만으로는
+  // 중립 여러 개가 2~3개씩 쌓여 합계가 절반까지 갔다. 완전 0은 두지 않는다
+  // — 취향 학습(피드백 후보)과 새 관심사 발견 통로가 죽는다.
+  const neutralTotalCap = picked.size ? Math.ceil(params.otherShare * limit) : Infinity;
   let pickedCount = 0;
   let otherCount = 0;
 
@@ -173,6 +179,7 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
         (c) =>
           (relaxCap || (pagePicks.get(c.item.source) || 0) < cap) &&
           (relaxCat || (pageCats.get(c.item.category) || 0) < catCapFor(c)) &&
+          (relaxCat || !isOther(c) || otherCount < neutralTotalCap) &&
           (relaxGap || !recentSrcs.includes(c.item.source)) &&
           quotaOk(c)
       );

@@ -189,3 +189,20 @@ test("selectDiverse: 안 고른 카테고리는 화제성이 아무리 높아도
   assert.ok(autoN <= neutralCap, `안 고른 auto가 ${autoN}개 — 중립 상한 ${neutralCap} 초과`);
   assert.ok(pickedN >= Math.ceil(P.firstPickedShare * 10), `고른 카테고리 ${pickedN}개 — 쿼터 보장`);
 });
+
+test("selectDiverse: 안 고른 카테고리들의 합계는 탐색 창(2/10)을 넘지 못한다 — 취향 세팅 유저는 8/10 보장", () => {
+  // 중립 카테고리 셋(auto·life·science)이 각각 hot 상위를 들이밀어도
+  const cands = [
+    ...Array.from({ length: 6 }, (_, i) => mk(`a${i}`, `as${i}`, "auto", 0.95 - i * 0.01, 0)),
+    ...Array.from({ length: 6 }, (_, i) => mk(`l${i}`, `ls${i}`, "life", 0.9 - i * 0.01, 0)),
+    ...Array.from({ length: 6 }, (_, i) => mk(`s${i}`, `ss${i}`, "science", 0.85 - i * 0.01, 0)),
+    ...Array.from({ length: 8 }, (_, i) => mk(`t${i}`, `ts${i}`, "tech", 0.3 - i * 0.01, 0.7)),
+    ...Array.from({ length: 8 }, (_, i) => mk(`g${i}`, `gs${i}`, "gaming", 0.28 - i * 0.01, 0.7))
+  ];
+  const r = selectDiverse(cands, {
+    limit: 10, firstPage: true, picked: new Set(["tech", "gaming"]), hated: new Set()
+  }, P);
+  const neutral = r.picks.filter((i) => !["tech", "gaming"].includes(i.category)).length;
+  assert.ok(neutral <= Math.ceil(P.otherShare * 10), `중립 합계 ${neutral} — 탐색 창 ${Math.ceil(P.otherShare * 10)} 초과 금지`);
+  assert.equal(r.picks.length, 10, "페이지는 가득 채운다");
+});
