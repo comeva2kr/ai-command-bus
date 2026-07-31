@@ -210,6 +210,17 @@
      (David 실기기 아이폰 실측 2026-07-31) */
   .sort-bar { display: flex; gap: 8px; padding: 10px 16px 0; margin: 0 0 4px; }
 
+  /* 지금 브리핑 스트립 — 가로 스크롤 카드 */
+  .brief-strip { display: flex; gap: 10px; overflow-x: auto; padding: 12px 16px 2px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .brief-strip::-webkit-scrollbar { display: none; }
+  .brief-card { flex: 0 0 185px; background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 10px 12px; text-decoration: none; }
+  .brief-card .bc-cat { color: var(--accent); font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .brief-card .bc-title { color: var(--text); font-size: 13px; line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .brief-card .bc-meta { color: var(--muted); font-size: 11.5px; margin-top: 6px; }
+
   /* feed */
   #feed { padding: 8px 12px 0; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
@@ -481,6 +492,7 @@
       <!-- 자체 콘텐츠·운영 정보 (애드핏/애드센스 심사: 운영 주체 표시 + 자체 편집 콘텐츠) -->
       <div class="drawer-sec">
         <a class="drawer-link" href="/briefing" style="display:block;text-decoration:none">📋 오늘의 브리핑</a>
+        <a class="drawer-link" href="/ranking/daily" style="display:block;text-decoration:none">📊 화제 랭킹 TOP 20</a>
       </div>
       <div class="drawer-sec" style="border-top:1px solid var(--line);padding-top:12px">
         <a class="drawer-link" href="/about.html" style="display:block;text-decoration:none;color:var(--muted);font-size:13px">서비스 소개</a>
@@ -491,6 +503,11 @@
   </aside>
 
   <div id="digestBar" class="digest hidden"></div>
+
+  <!-- 지금 브리핑 스트립 (David 2026-07-31: "최상단에 테마별로 시간별 브리핑")
+       — 카테고리별 대표 이슈 카드, /api/briefing 실측 데이터. 탭하면 자체
+       브리핑 페이지(/briefing/<cat>)로 — 애드핏 "자체 콘텐츠" 보강의 홈 노출부 -->
+  <div class="brief-strip" id="briefStrip" hidden></div>
 
   <!-- 정렬 바 (#12, David: "상단에 필터링 옵션에 최신순도") — 핫=기존 추천,
        최신=시간버킷×소스 인터리브의 중립 최신 뷰 (engine.js sort:"latest") -->
@@ -704,7 +721,7 @@ syncHeaderHeight();
   state.registry = communitiesRes.communities || [];
   const anyLive = state.registry.some(c => (c.liveCount || 0) > 0);
   state.communities = state.registry.filter(c => c.enabled && !c.adult && (!anyLive || (c.liveCount || 0) > 0));
-  setupSortBar(); renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
+  loadBriefStrip(); setupSortBar(); renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
   setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver(); setupAdImpressionObserver();
   setupLeanSlider(s);
   // Always show content first — a preview feed (popularity-ranked when no taste
@@ -1395,6 +1412,30 @@ function showSurvey(){
 }
 
 // ---- chips (category filter, client-side) ----
+// ---- 지금 브리핑 스트립 (자체 콘텐츠 홈 노출) ----
+async function loadBriefStrip(){
+  const el = document.getElementById("briefStrip");
+  try {
+    const b = await get("/api/briefing");
+    if(!b.sections || !b.sections.length){ el.hidden = true; return; }
+    const t = new Date(b.generatedAt);
+    const hh = String(t.getHours()).padStart(2,"0"), mm = String(t.getMinutes()).padStart(2,"0");
+    el.innerHTML =
+      `<a class="brief-card" href="/briefing" style="flex-basis:140px">
+        <div class="bc-cat">🕐 지금 브리핑</div>
+        <div class="bc-title">이 시간 화제 종합 정리</div>
+        <div class="bc-meta">${hh}:${mm} 기준 · 15분마다 갱신</div></a>` +
+      b.sections.slice(0,8).map(s=>{
+        const lead = s.items[0];
+        return `<a class="brief-card" href="/briefing/${encodeURIComponent(s.category)}">
+          <div class="bc-cat">${escapeHtml(s.label)}</div>
+          <div class="bc-title">${escapeHtml(lead.title)}</div>
+          <div class="bc-meta">화제글 ${s.items.length}건 정리 →</div></a>`;
+      }).join("");
+    el.hidden = false;
+  } catch { el.hidden = true; }
+}
+
 // ---- 정렬 바 (핫/최신, #12) ----
 function setupSortBar(){
   const bar = document.getElementById("sortBar");

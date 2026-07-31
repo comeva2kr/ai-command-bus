@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v13"; // v13: 정렬 바 좌우 패딩 (아이폰 왼쪽 딱붙음 수정)
+const CACHE = "feed-shell-v14"; // v14: 홈 브리핑 스트립 + 화제 랭킹 페이지 (자체 콘텐츠)
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {

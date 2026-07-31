@@ -259,6 +259,90 @@ export function createServer(opts = {}) {
     if (pushTimer.unref) pushTimer.unref();
   }
 
+  // ---- 자체 콘텐츠 페이지(브리핑·랭킹) 공통 렌더링 --------------------------
+  // 애드핏 3차 보류("자체 콘텐츠 부족") 대응 + David 지시(2026-07-31: 홈 최상단
+  // 테마별 브리핑, 일·주·월간 화제 랭킹 TOP 20). 문장·수치는 전부 실측 신호로만
+  // 조립하고, 페이지들이 서로(그리고 상세뷰로) 내부 링크를 걸어 "대부분
+  // 아웃링크" 구조를 실제로 희석한다.
+  const editionShell = (title, desc, inner) => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escapeHtml(title)} — 지금핫 NowHot</title>
+<meta name="description" content="${escapeHtml(desc)}">
+<style>:root{--bg:#0e0f13;--card:#171922;--text:#e8eaf0;--muted:#8b90a0;--accent:#4f8cff;--line:#262a38}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.75;font-size:15px}
+.wrap{max-width:720px;margin:0 auto;padding:32px 20px 80px}h1{font-size:22px;margin:0 0 2px}
+h2{font-size:16px;margin:26px 0 8px;padding-top:14px;border-top:1px solid var(--line)}
+.muted{color:var(--muted);font-size:13px}a{color:var(--accent);text-decoration:none}
+ul{padding-left:18px;margin:8px 0}li{margin:6px 0}.m{color:var(--muted);font-size:12.5px;display:block}
+ol.rank{padding-left:0;margin:14px 0;list-style:none;counter-reset:r}
+ol.rank li{counter-increment:r;display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);margin:0}
+ol.rank li::before{content:counter(r);color:var(--accent);font-weight:800;min-width:26px;font-size:16px}
+.nav{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.nav a{border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--text)}
+.nav a.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.back{display:inline-block;margin-bottom:18px;color:var(--accent)}</style></head><body><div class="wrap">
+<a class="back" href="/">← 지금핫 피드로</a>
+${inner}
+<p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
+</div></body></html>`;
+  const fmtNum = (n) => n >= 10000 ? `${Math.round(n / 1000) / 10}만` : String(n);
+  const kstLabel = (iso) => {
+    const kst = new Date(new Date(iso).getTime() + 9 * 3600 * 1000);
+    return `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일`;
+  };
+  // 항목별 "왜 뽑혔나" 근거 배지 — 납득은 근거 공개가 만든다
+  const evidenceBits = (i) => {
+    const bits = [];
+    if (i.score > 0) bits.push(`추천 ${fmtNum(i.score)}`);
+    if (i.commentCount > 0) bits.push(`댓글 ${fmtNum(i.commentCount)}`);
+    if (i.coverage >= 3) bits.push(`${i.coverage}개 매체 교차보도`);
+    return bits;
+  };
+  const rankingRows = (items) => `<ol class="rank">${items.map((i) => {
+    const bits = evidenceBits(i);
+    return `<li><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(i.title)}</a>
+      <span class="m">${escapeHtml(i.sourceLabel)} · ${escapeHtml(i.categoryLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></div></li>`;
+  }).join("")}</ol>`;
+  // 주간/월간: 일별 스냅샷 병합 — 같은 글은 최고 기록으로 dedup, 소스당 2개 상한 재적용
+  const mergeRankings = (editions, limit = 20) => {
+    const best = new Map();
+    for (const e of editions) {
+      for (const it of ((e && e.ranking && e.ranking.items) || [])) {
+        const prev = best.get(it.id);
+        if (!prev || (it.hot || 0) > (prev.hot || 0)) best.set(it.id, it);
+      }
+    }
+    const sorted = [...best.values()].sort((a, b) => (b.hot || 0) - (a.hot || 0));
+    const perSrc = new Map();
+    const out = [];
+    for (const it of sorted) {
+      if (out.length >= limit) break;
+      const c = perSrc.get(it.source) || 0;
+      if (c >= 2) continue;
+      perSrc.set(it.source, c + 1);
+      out.push(it);
+    }
+    return out;
+  };
+  const briefingSectionsHtml = (b) => b.sections.map((sec) => {
+    const lead = sec.items[0];
+    const leadLine = lead.commentCount > 0 || lead.score > 0
+      ? `추천 ${fmtNum(lead.score)}·댓글 ${fmtNum(lead.commentCount)}을 모으며 ${escapeHtml(sec.label)} 화제의 중심에 있습니다.`
+      : (lead.coverage >= 3 ? `여러 매체가 동시에 다루고 있는 사안입니다.` : `${escapeHtml(lead.sourceLabel)}의 상위 글로 올라와 있습니다.`);
+    const rows = sec.items.map((i) => {
+      const bits = evidenceBits(i);
+      return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(i.title)}</a>
+        <span class="m">${escapeHtml(i.sourceLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></li>`;
+    }).join("");
+    return `<section><h2><a href="/briefing/${encodeURIComponent(sec.category)}" style="color:inherit">${escapeHtml(sec.label)}</a></h2>
+      <p>${escapeHtml(sec.label)} 분야에서는 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})이 ${leadLine}</p>
+      <ul>${rows}</ul></section>`;
+  }).join("");
+  const rankingNav = (active) => `<div class="nav">
+    <a href="/ranking/daily" class="${active === "daily" ? "on" : ""}">일간</a>
+    <a href="/ranking/weekly" class="${active === "weekly" ? "on" : ""}">주간</a>
+    <a href="/ranking/monthly" class="${active === "monthly" ? "on" : ""}">월간</a>
+    <a href="/briefing">브리핑</a></div>`;
+
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     const p = url.pathname;
@@ -272,50 +356,83 @@ export function createServer(opts = {}) {
       // "부가가치" 요건 보강. 문장은 전부 실측 수치로만 조립한다(숫자 조작 금지).
       if (p === "/briefing" && req.method === "GET") {
         const b = await engine.briefing();
-        const dt = new Date(b.generatedAt);
-        const kst = new Date(dt.getTime() + 9 * 3600 * 1000);
-        const dateStr = `${kst.getUTCFullYear()}년 ${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일`;
-        const fmt = (n) => n >= 10000 ? `${Math.round(n / 1000) / 10}만` : String(n);
-        const secHtml = b.sections.map((sec) => {
-          const lead = sec.items[0];
-          const leadLine = lead.commentCount > 0 || lead.score > 0
-            ? `추천 ${fmt(lead.score)}·댓글 ${fmt(lead.commentCount)}을 모으며 ${escapeHtml(sec.label)} 화제의 중심에 있습니다.`
-            : (lead.coverage >= 3 ? `여러 매체가 동시에 다루고 있는 사안입니다.` : `${escapeHtml(lead.sourceLabel)}의 상위 글로 올라와 있습니다.`);
-          const rows = sec.items.map((i) => {
-            const bits = [];
-            if (i.score > 0) bits.push(`추천 ${fmt(i.score)}`);
-            if (i.commentCount > 0) bits.push(`댓글 ${fmt(i.commentCount)}`);
-            if (!bits.length && i.coverage >= 3) bits.push("다중 보도");
-            return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(i.title)}</a>
-              <span class="m">${escapeHtml(i.sourceLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></li>`;
-          }).join("");
-          return `<section><h2>${escapeHtml(sec.label)}</h2>
-            <p>오늘 ${escapeHtml(sec.label)} 분야에서는 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})이 ${leadLine}</p>
-            <ul>${rows}</ul></section>`;
-        }).join("");
+        const dateStr = kstLabel(b.generatedAt);
         const debateHtml = b.debate
-          ? `<section><h2>오늘의 논쟁</h2><p>가장 많은 댓글이 달린 글은 <b>“${escapeHtml(b.debate.title)}”</b>(${escapeHtml(b.debate.sourceLabel)})입니다 — 댓글 ${fmt(b.debate.commentCount)}개가 이어지고 있습니다. <a href="/#post-${encodeURIComponent(b.debate.id)}">지금핫 댓글로 의견 남기기 →</a></p></section>`
+          ? `<section><h2>오늘의 논쟁</h2><p>가장 많은 댓글이 달린 글은 <b>“${escapeHtml(b.debate.title)}”</b>(${escapeHtml(b.debate.sourceLabel)})입니다 — 댓글 ${fmtNum(b.debate.commentCount)}개가 이어지고 있습니다. <a href="/#post-${encodeURIComponent(b.debate.id)}">지금핫 댓글로 의견 남기기 →</a></p></section>`
           : "";
-        const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>오늘의 브리핑 (${dateStr}) — 지금핫 NowHot</title>
-<meta name="description" content="지금핫이 실측 데이터로 정리한 ${dateStr} 커뮤니티·뉴스 화제 브리핑">
-<style>:root{--bg:#0e0f13;--card:#171922;--text:#e8eaf0;--muted:#8b90a0;--accent:#4f8cff;--line:#262a38}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.75;font-size:15px}
-.wrap{max-width:720px;margin:0 auto;padding:32px 20px 80px}h1{font-size:22px;margin:0 0 2px}
-h2{font-size:16px;margin:26px 0 8px;padding-top:14px;border-top:1px solid var(--line)}
-.muted{color:var(--muted);font-size:13px}a{color:var(--accent);text-decoration:none}
-ul{padding-left:18px;margin:8px 0}li{margin:6px 0}.m{color:var(--muted);font-size:12.5px;display:block}
-.back{display:inline-block;margin-bottom:18px;color:var(--accent)}</style></head><body><div class="wrap">
-<a class="back" href="/">← 지금핫 피드로</a>
-<h1>오늘의 브리핑</h1>
+        const archiveDates = store.listEditionDates ? store.listEditionDates().slice(-14).reverse() : [];
+        const archiveHtml = archiveDates.length > 1
+          ? `<section><h2>지난 브리핑</h2><div class="nav">${archiveDates.map((d) => `<a href="/briefing/${d}">${d}</a>`).join("")}</div></section>`
+          : "";
+        const inner = `<h1>오늘의 브리핑</h1>
 <p class="muted">${dateStr} · 커뮤니티·뉴스 ${b.sourceCount}곳의 화제글 ${b.itemCount}건을 지금핫이 실측 데이터로 정리했습니다. 15분마다 갱신됩니다.</p>
-${secHtml}
+${rankingNav("")}
+${briefingSectionsHtml(b)}
 ${debateHtml}
-<p class="muted">이 브리핑은 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
-</div></body></html>`;
+${archiveHtml}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(html);
+        return res.end(editionShell(`오늘의 브리핑 (${dateStr})`, `지금핫이 실측 데이터로 정리한 ${dateStr} 커뮤니티·뉴스 화제 브리핑`, inner));
+      }
+
+      // 홈 최상단 브리핑 스트립용 원자료 (David 2026-07-31: "최상단에 테마별로
+      // 시간별 브리핑") — 클라이언트는 섹션별 대표 이슈만 카드로 얹는다.
+      if (p === "/api/briefing" && req.method === "GET") {
+        return send(res, 200, await engine.briefing());
+      }
+
+      // /briefing/<YYYY-MM-DD> = 일별 아카이브, /briefing/<카테고리> = 라이브
+      // 카테고리 브리핑. 아카이브는 스냅샷이 쌓인 날짜만 존재한다(날조 없음).
+      if (p.startsWith("/briefing/") && req.method === "GET") {
+        const seg = decodeURIComponent(p.slice("/briefing/".length));
+        if (/^\d{4}-\d{2}-\d{2}$/.test(seg)) {
+          const ed = store.getDailyEdition ? store.getDailyEdition(seg) : null;
+          if (!ed || !ed.briefing) return send(res, 404, { error: "no edition for that date" });
+          const inner = `<h1>${seg} 브리핑</h1>
+<p class="muted">해당 일자의 마지막 수집 시점 기준 스냅샷입니다 · 화제글 ${ed.briefing.itemCount}건 / 소스 ${ed.briefing.sourceCount}곳</p>
+${rankingNav("")}
+${briefingSectionsHtml(ed.briefing)}`;
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+          return res.end(editionShell(`${seg} 브리핑`, `지금핫 ${seg} 커뮤니티·뉴스 화제 브리핑 아카이브`, inner));
+        }
+        const all = await engine.rankingTop(150);
+        const catItems = all.items.filter((i) => i.category === seg).slice(0, 10);
+        if (!catItems.length) return send(res, 404, { error: "unknown category" });
+        const label = catItems[0].categoryLabel;
+        const lead = catItems[0];
+        const leadBits = evidenceBits(lead);
+        const inner = `<h1>${escapeHtml(label)} 브리핑</h1>
+<p class="muted">${kstLabel(all.generatedAt)} · 지금 ${escapeHtml(label)} 분야에서 가장 화제인 글을 실측 반응 기준으로 정리했습니다. 15분마다 갱신됩니다.</p>
+${rankingNav("")}
+<p>지금 ${escapeHtml(label)} 분야의 중심에는 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})이 있습니다${leadBits.length ? ` — ${leadBits.join(" · ")}` : ""}.</p>
+${rankingRows(catItems)}`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(editionShell(`${label} 브리핑`, `지금핫이 실측 데이터로 정리한 ${label} 분야 화제 브리핑`, inner));
+      }
+
+      // 화제 랭킹 TOP 20 — 일간(라이브) / 주간·월간(일별 스냅샷 병합).
+      // 데이터가 기간만큼 쌓이기 전에는 있는 날짜만 합산하고 그 사실을 밝힌다.
+      if ((p === "/ranking" || /^\/ranking\/(daily|weekly|monthly)$/.test(p)) && req.method === "GET") {
+        const period = p.split("/")[2] || "daily";
+        const label = period === "daily" ? "일간" : period === "weekly" ? "주간" : "월간";
+        const days = period === "daily" ? 1 : period === "weekly" ? 7 : 30;
+        const dates = store.listEditionDates ? store.listEditionDates() : [];
+        let list;
+        let note = "";
+        if (period === "daily") {
+          list = mergeRankings([{ ranking: await engine.rankingTop(60) }], 20);
+        } else {
+          const use = dates.slice(-days);
+          list = mergeRankings(use.map((d) => store.getDailyEdition(d)).filter(Boolean), 20);
+          if (use.length < days) note = `아카이브 집계 시작일(${dates[0] || "오늘"}) 이후 ${use.length}일치 데이터로 집계 중입니다 — ${days}일이 쌓이면 완전한 ${label} 랭킹이 됩니다.`;
+        }
+        if (!list.length) return send(res, 404, { error: "no ranking data yet" });
+        const inner = `<h1>${label} 화제 랭킹 TOP ${Math.min(20, list.length)}</h1>
+<p class="muted">소스별 반응 분포로 정규화한 화제성 순위입니다 — 큰 게시판의 절대 추천수가 아니라 "그 동네에서 얼마나 이례적으로 터졌는가"와 교차 보도를 봅니다. 항목마다 근거 수치를 함께 표기합니다.</p>
+${note ? `<p class="muted">${escapeHtml(note)}</p>` : ""}
+${rankingNav(period)}
+${rankingRows(list)}`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(editionShell(`${label} 화제 랭킹 TOP 20`, `지금핫 ${label} 커뮤니티·뉴스 화제 랭킹 — 실측 반응 기반 TOP 20`, inner));
       }
 
       // 애드센스 판매자 확인 파일 (https://nowhot.kr/ads.txt). ADSENSE_CLIENT

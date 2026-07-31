@@ -402,6 +402,21 @@ export class FeedEngine {
     this._cache = capped;
     this._errors = errors;
     this.lastRefreshedAt = now;
+
+    // ---- 일별 에디션 스냅샷 (브리핑+화제랭킹, 자체 콘텐츠 아카이브) --------
+    // 사이클마다 그날(KST) 키로 덮어쓴다 — 하루의 마지막 기록이 최종판.
+    // /briefing/<날짜> 아카이브와 /ranking 주간·월간 집계의 원천 데이터다.
+    if (this.store && this.store.saveDailyEdition) {
+      try {
+        const dateKey = new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
+        this.store.saveDailyEdition(dateKey, {
+          briefing: await this.briefing(),
+          ranking: await this.rankingTop(30)
+        });
+      } catch {
+        // 스냅샷 실패가 수집 자체를 죽여선 안 된다 — 다음 사이클에 재시도된다
+      }
+    }
     // memory visibility: the pool can only grow across a 48h window, not forever —
     // this is the number to watch if that ever needs revisiting.
     console.log(`[feed] pool: ${this._pool.size} accumulated (${Math.round(retentionMs / 3.6e6)}h retention) -> ${capped.length} after per-source cap`);
@@ -847,6 +862,58 @@ export class FeedEngine {
       } catch { this._registryLabels = new Map(); }
     }
     return this._registryLabels.get(item.source) || item.source;
+  }
+
+  // ---- 화제 랭킹 (자체 콘텐츠, David 2026-07-31 "주간 일간 월간 탑 20") ----
+  //
+  // "납득할만한 화제성만 고르는 게 빡세지 않냐"(David)에 대한 답이 이 4중
+  // 장치다 — 리소스가 다양해 절대 숫자 비교는 무의미하다는 지적이 맞고,
+  // 그래서 절대 숫자로 겨루지 않는다:
+  //   1) 소스 내 이례성: sourceHotScores(백분위·로버스트-z·시간감쇠) 재사용 —
+  //      큰 게시판의 평범한 글이 절대 추천수로 도배하는 구조를 차단
+  //   2) 교차 신호: 여러 매체가 함께 다룬 뉴스(coverage)는 가산
+  //   3) 절대 반응 하한: 소스 안에서 1위여도 절대 반응이 미미하면 전국
+  //      랭킹에는 싣지 않는다 — 이례성만으로 올리는 것도 납득이 안 되므로
+  //   4) 소스당 최대 2개 (다양성 상한)
+  // 그리고 항목마다 근거 수치(추천·댓글·보도량)를 실어 페이지가 그대로
+  // 노출한다 — 납득은 알고리즘이 아니라 근거 공개가 만든다.
+  async rankingTop(limit = 30) {
+    const items = await this._items();
+    const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+    const pool = items.filter(
+      (i) =>
+        !i.adult &&
+        !(i.topics || []).includes("politics") &&
+        i.kind !== "ad" && i.kind !== "affiliate" &&
+        i.source !== "seed" && i.source !== "me" &&
+        !tooOld(i, now)
+    );
+    const engagement = (i) => (i.score || 0) + (i.commentCount || 0) * 2;
+    const minEng = Number(process.env.RANKING_MIN_ENGAGEMENT ?? 30);
+    const scored = sourceHotScores(pool, now)
+      .filter((s) => engagement(s.item) >= minEng || (s.item.coverage || 0) >= 3)
+      .sort((a, b) =>
+        (b.hotScore + Math.min(b.item.coverage || 0, 5) * 0.05) -
+        (a.hotScore + Math.min(a.item.coverage || 0, 5) * 0.05));
+    const perSrc = new Map();
+    const out = [];
+    for (const s of scored) {
+      if (out.length >= limit) break;
+      const src = s.item.source;
+      const used = perSrc.get(src) || 0;
+      if (used >= 2) continue;
+      perSrc.set(src, used + 1);
+      const i = s.item;
+      out.push({
+        id: i.id, title: i.title, url: i.url || null,
+        source: i.source, sourceLabel: this._labelFor(i),
+        category: i.category || "news", categoryLabel: categoryLabel(i.category || "news"),
+        score: i.score || 0, commentCount: i.commentCount || 0,
+        coverage: i.coverage || 0, image: i.image || null,
+        hot: Math.round(s.hotScore * 1000) / 1000
+      });
+    }
+    return { generatedAt: new Date(now).toISOString(), items: out };
   }
 
   async briefing() {

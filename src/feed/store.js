@@ -247,6 +247,29 @@ export class FeedStore {
     return out;
   }
 
+  // ---- 일별 에디션 (브리핑+화제랭킹 스냅샷, 자체 콘텐츠 아카이브) ----------
+  // engine.refresh()가 수집 사이클마다 그날(KST) 키로 덮어쓴다 — 하루의 마지막
+  // 기록이 그날의 최종판이 되는 구조라 별도 마감 작업이 필요 없다. 아카이브는
+  // /briefing/<날짜>, /ranking 주간·월간 집계의 원천이다. 전부 실측 스냅샷.
+  saveDailyEdition(date, { briefing, ranking }) {
+    if (!this.dailyEditions) this.dailyEditions = new Map();
+    this.dailyEditions.set(date, { briefing, ranking, updatedAt: this._nowMs() });
+    // 무한 성장 방지 — 아카이브는 400일이면 충분하고, 그 이상은 파일만 불린다
+    if (this.dailyEditions.size > 400) {
+      const dates = [...this.dailyEditions.keys()].sort();
+      for (const d of dates.slice(0, dates.length - 400)) this.dailyEditions.delete(d);
+    }
+    this._persist();
+  }
+
+  getDailyEdition(date) {
+    return (this.dailyEditions && this.dailyEditions.get(date)) || null;
+  }
+
+  listEditionDates() {
+    return this.dailyEditions ? [...this.dailyEditions.keys()].sort() : [];
+  }
+
   // 뉴스 성향 슬라이더 (-1 진보쪽 ~ 0 균형 ~ +1 보수쪽). 기본 0 = 성향 미개입.
   setLeanBalance(userId, balance) {
     const user = this.requireUser(userId);
@@ -777,6 +800,9 @@ export class FeedStore {
       adminBannedWords: this.adminBannedWords || [],
       adEvents: this.adEvents || [],
       traffic: this.traffic || {}, // 일별 방문 실측 — 재시작에도 유지 (2026-08-01)
+      // 일별 에디션(브리핑+화제랭킹 스냅샷) — 자체 콘텐츠 아카이브의 원천이라
+      // 재시작에도 반드시 유지 (애드핏 대응, David 2026-07-31)
+      dailyEditions: [...(this.dailyEditions || new Map())].map(([date, e]) => ({ date, ...e })),
       sessions: [...(this.sessions || new Map())].map(([token, s]) => ({ token, ...s }))
     };
     fs.writeFileSync(this.file, JSON.stringify(data, null, 2));
@@ -794,6 +820,7 @@ export class FeedStore {
       this.adminBannedWords = data.adminBannedWords || [];
       this.adEvents = data.adEvents || [];
       this.traffic = data.traffic || {};
+      this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
       this.sessions = new Map((data.sessions || []).map((s) => [s.token, { userId: s.userId, expiresAt: s.expiresAt }]));
       for (const user of data.users || []) {
         if (!user.nickname) user.nickname = nicknameFor(user.id); // backfill
