@@ -1885,6 +1885,16 @@ document.getElementById("backBtn").onclick = ()=> history.back();
 document.getElementById("detail").addEventListener("click", (e)=>{
   if(e.target === e.currentTarget) history.back();
 });
+// 아래로 스와이프 = 닫기 (바텀시트 문법, David 2026-07-31). 패널 스크롤이 맨
+// 위에서 시작한 제스처만 — 본문 스크롤과 충돌하지 않게.
+(function(){
+  const p = document.getElementById("detailPanel");
+  let sy=0, sx=0, fromTop=false;
+  p.addEventListener("touchstart",(e)=>{ const t=e.touches[0];
+    sy=t.clientY; sx=t.clientX; fromTop=p.scrollTop<=0; },{passive:true});
+  p.addEventListener("touchend",(e)=>{ if(!fromTop) return; const t=e.changedTouches[0];
+    if(t.clientY-sy>90 && Math.abs(t.clientX-sx)<70) history.back(); },{passive:true});
+})();
 // one-handed close: swipe right from the left edge (top-left ‹ is out of thumb reach)
 (function(){
   const d = document.getElementById("detail");
@@ -1927,7 +1937,7 @@ async function renderDetail(itemId){
     };
   }
   body.innerHTML = `
-    <h2>${escapeHtml(item.title)}</h2>
+    <h2 id="detailTitle">${escapeHtml(item.title)}</h2>
     <div class="card-meta" style="margin-bottom:16px">
       <span title="추천수">▲ ${item.score||0}</span><span title="원문 댓글 수">💬 ${sourceCommentCount(item)}</span><span>${timeAgo(item.publishedAt)}</span>
       ${item.url?`<a href="${item.url}" target="_blank" rel="noopener" style="color:var(--accent)">원문 →</a>`:""}
@@ -1950,6 +1960,12 @@ async function renderDetail(itemId){
       </div>
       <div id="cList"></div>
     </div>`;
+  // 제목 탭 = 원문으로 (David 2026-07-31). ↗·"원문에서 계속 읽기"와 같은 목적지.
+  if(item.url && item.source!=="me"){
+    const h = document.getElementById("detailTitle");
+    h.style.cursor = "pointer"; h.title = "원문 열기";
+    h.onclick = ()=> window.open(item.url, "_blank", "noopener");
+  }
   const dUp=document.getElementById("dUp"), dDown=document.getElementById("dDown");
   dUp.onclick = async ()=>{ const on=dUp.classList.contains("on"); dUp.classList.toggle("on",!on); dDown.classList.remove("on");
     updateMeter(await API.rate(state.userId,item.id,on?0:1)); syncCard(item.id, on?0:1); };

@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v11"; // v11: 상세=플로팅 창, 정렬 바(핫/최신), 발췌 정리, 상세 썸네일
+const CACHE = "feed-shell-v12"; // v12: 상세뷰 제목 탭=원문, 아래 스와이프=닫기
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {
