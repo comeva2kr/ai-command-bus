@@ -272,7 +272,7 @@
     display: flex; align-items: center; gap: 5px; } /* ≥42px hit target for thumbs */
   .rate.up.on { color: #fff; background: var(--like); border-color: var(--like); }
   .rate.down.on { color: #fff; background: var(--dislike); border-color: var(--dislike); }
-  .rate.save.on { color: #f0a13d; border-color: #f0a13d; }
+  .rate.save.on { color: var(--color-accent); border-color: var(--color-accent); }
   .card.read { opacity: .5; }
   .card.read h3 { color: var(--muted); }
   .card.read::after { content: "읽음"; float: right; font-size: 10px; color: var(--muted); }
@@ -1421,9 +1421,9 @@ async function openSpace(){
       </div>
       <div class="space-sec"><h4>📊 내 취향 (학습된 결과)</h4>${tasteHtml(s.taste)}</div>
       <div class="space-sec"><h4>콘텐츠 필터</h4><div class="content-filter-block">${contentFilterHtml()}</div></div>
-      <div class="space-sec"><h4>🔖 스크랩</h4>${
+      <div class="space-sec"><h4>스크랩</h4>${
         (s.saved&&s.saved.length) ? s.saved.map(p=>`<article class="card" data-id="${p.id}"><div class="card-top"><span class="dot" style="background:${srcColor(p.source)}"></span><span class="src">${srcLabel(p.source)}</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3></article>`).join("")
-          : '<p style="color:var(--muted);font-size:13px">📑 버튼으로 나중에 볼 글을 저장해보세요.</p>'}
+          : '<p style="color:var(--muted);font-size:13px">카드의 북마크 버튼으로 나중에 볼 글을 저장해보세요.</p>'}
       </div>
       <div class="space-sec"><h4>🔕 그만보기한 소스</h4>${
         (s.mutedSources&&s.mutedSources.length) ? s.mutedSources.map(src=>`<div class="muted-row"><span class="dot" style="background:${srcColor(src)}"></span>${srcLabel(src)}<button data-src="${src}">다시보기</button></div>`).join("")
@@ -2071,7 +2071,9 @@ function appendCard(item){
   card.querySelector(".rate.down").onclick = (e)=>{ e.stopPropagation(); rate(item, card, -1); };
   card.querySelector(".rate.save").onclick = async (e)=>{ e.stopPropagation();
     const btn = e.currentTarget; const on = !btn.classList.contains("on");
-    btn.classList.toggle("on", on); btn.textContent = on?'🔖':'📑';
+    // 아이콘은 고정, 상태는 색(.on)으로만 — 예전엔 textContent를 이모지로
+    // 갈아끼워서 누를 때마다 아이콘이 딴 걸로 바뀌었다(David 2026-08-01).
+    btn.classList.toggle("on", on);
     try { await API.save(state.userId, item.id, on); toast(on?"스크랩했어요":"스크랩 해제"); }
     catch(err){ toast("저장 실패: "+err.message); }
   };
