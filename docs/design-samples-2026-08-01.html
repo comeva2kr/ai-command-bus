@@ -1,0 +1,143 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>지금핫 앱 전체 디자인 시안 3종</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#ececf0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;color:#15171c;padding:24px 16px 80px}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:#666d7c;font-size:13px;margin:0 0 22px;line-height:1.6}
+.sample{background:#fff;border:1px solid #dcdfe6;border-radius:18px;padding:18px;margin-bottom:26px}
+.sample>h2{font-size:17px;margin:0 0 2px}
+.sample>.desc{color:#666d7c;font-size:13px;line-height:1.65;margin:0 0 14px}
+.tokens{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+.tk{display:flex;align-items:center;gap:6px;font-size:11px;color:#666d7c}
+.tk i{width:18px;height:18px;border-radius:5px;display:block;border:1px solid rgba(0,0,0,.12)}
+.icons{display:flex;gap:14px;align-items:center;margin:0 0 14px;flex-wrap:wrap}
+.icons .ic{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:#8a90a0}
+.phone{border-radius:22px;overflow:hidden;border:1px solid #d5d8e0;max-width:390px}
+svg{display:block}
+.note{font-size:12px;color:#8a90a0;margin-top:10px;line-height:1.6}
+</style></head><body>
+<h1>지금핫 — 앱 전체 디자인 방향 3종</h1>
+<p class="sub">같은 첫 화면(헤더·브리핑 스트립·정렬 탭·피드 카드)을 세 방향으로. 공통: 이모지 아이콘 전면 제거 → 전용 미니 아이콘 세트, 그라데이션/글로우 금지, 시그니처 요소 1개 원칙.</p>
+
+<!-- ══════════ A. 다크 에디토리얼 (현행 정제) ══════════ -->
+<div class="sample">
+<h2>A. 다크 에디토리얼 — 현행 골격 유지 + 이모지 제거·정제</h2>
+<p class="desc">지금 구조 그대로, 이모지를 1.5px 라인 아이콘으로 교체하고 코랄을 시그니처로 승격. 마이그레이션 비용 최소(반나절).</p>
+<div class="tokens"><span class="tk"><i style="background:#111319"></i>바탕 #111319</span><span class="tk"><i style="background:#1a1d25"></i>카드 #1A1D25</span><span class="tk"><i style="background:#e8eaf0"></i>텍스트</span><span class="tk"><i style="background:#ff4b3e"></i>시그니처 코랄</span><span class="tk"><i style="background:#8b90a0"></i>보조</span></div>
+<div class="icons">
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff4b3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,13 13,15 21,6"/><circle cx="21" cy="6" r="2" fill="#ff4b3e" stroke="none"/></svg>핫</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8eaf0" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14"/></svg>최신</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8eaf0" stroke-width="2" stroke-linecap="round"><path d="M4 5h16M4 10h16M4 15h10"/><path d="M4 20h7" stroke="#ff4b3e"/></svg>브리핑</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8eaf0" stroke-width="2" stroke-linecap="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>랭킹</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8eaf0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 1 1-3-6.2L21 5l-.6 3A8 8 0 0 1 21 12z"/></svg>댓글</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#e8eaf0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 8l5-4 5 4"/><path d="M5 15v4h14v-4"/></svg>공유</span>
+</div>
+<div class="phone" style="background:#111319">
+  <div style="padding:14px 16px 10px;border-bottom:1px solid #262a38;display:flex;align-items:center;gap:8px">
+    <svg width="20" height="20" viewBox="0 0 512 512"><rect width="512" height="512" rx="116" fill="#1a1d25"/><polyline points="88,368 176,330 244,346" fill="none" stroke="#e8eaf0" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><polyline points="244,346 344,150 424,214" fill="none" stroke="#ff4b3e" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><circle cx="344" cy="150" r="32" fill="#ff4b3e"/></svg>
+    <b style="color:#e8eaf0;font-size:16px">지금핫</b><span style="color:#8b90a0;font-size:11px">NowHot</span>
+  </div>
+  <div style="display:flex;gap:8px;padding:10px 16px 0">
+    <div style="background:#1a1d25;border:1px solid #262a38;border-radius:12px;padding:8px 10px;min-width:120px"><div style="color:#ff4b3e;font-size:10px;font-weight:700">지금 브리핑</div><div style="color:#e8eaf0;font-size:11px;line-height:1.4;margin-top:3px">이 시간 화제 종합 정리</div></div>
+    <div style="background:#1a1d25;border:1px solid #262a38;border-radius:12px;padding:8px 10px;min-width:120px"><div style="color:#4f8cff;font-size:10px;font-weight:700">기술/IT</div><div style="color:#e8eaf0;font-size:11px;line-height:1.4;margin-top:3px">구글 딥마인드 로봇 모델 공개</div></div>
+  </div>
+  <div style="display:flex;gap:8px;padding:10px 16px 6px">
+    <span style="background:#ff4b3e;color:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,13 13,15 21,6"/></svg>핫</span>
+    <span style="border:1px solid #262a38;color:#8b90a0;border-radius:999px;padding:5px 12px;font-size:12px;display:inline-flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8b90a0" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14"/></svg>최신</span>
+  </div>
+  <div style="margin:8px 12px;background:#1a1d25;border:1px solid #262a38;border-radius:14px;padding:12px">
+    <div style="display:flex;gap:6px;align-items:center"><span style="width:6px;height:6px;border-radius:50%;background:#f0a13d"></span><span style="color:#8b90a0;font-size:11px">이토랜드 · 유머/일상</span></div>
+    <div style="color:#e8eaf0;font-size:14px;font-weight:600;line-height:1.45;margin:6px 0">참교육에서만 보던 일을... (딸 잘키운 듯)</div>
+    <div style="color:#8b90a0;font-size:11px;display:flex;gap:10px"><span>▲ 512</span><span>댓글 88</span><span>2시간 전</span></div>
+  </div>
+  <div style="margin:0 12px 14px;background:#1a1d25;border:1px solid #262a38;border-radius:14px;padding:12px">
+    <div style="display:flex;gap:6px;align-items:center"><span style="width:6px;height:6px;border-radius:50%;background:#7fb0ff"></span><span style="color:#8b90a0;font-size:11px">경향신문 · 자동차</span></div>
+    <div style="color:#e8eaf0;font-size:14px;font-weight:600;line-height:1.45;margin:6px 0">"매직마우스냐" 조롱에도… 페라리 첫 전기차 '완판'</div>
+    <div style="color:#8b90a0;font-size:11px;display:flex;gap:10px"><span style="color:#ff4b3e;font-weight:700">5개 매체 교차보도</span><span>6시간 전</span></div>
+  </div>
+</div>
+<p class="note">시그니처: 코랄 "핫" 활성 탭 + 스파이크 마크. 나머지는 절제된 차콜. 지금 사용자에게 이질감 없음.</p>
+</div>
+
+<!-- ══════════ B. 라이트 페이퍼 (뉴스 정체성) ══════════ -->
+<div class="sample">
+<h2>B. 라이트 페이퍼 — 구분선 리스트 + 큰 순번 타이포</h2>
+<p class="desc">카드 대신 신문식 구분선 리스트. 흰 종이 + 잉크색 + 코랄 1포인트. 순번 숫자를 크게 써서 "랭킹 서비스"임을 타이포로 말함. 다크모드는 유지하되 라이트가 기본.</p>
+<div class="tokens"><span class="tk"><i style="background:#ffffff"></i>바탕 #FFF</span><span class="tk"><i style="background:#191b20"></i>잉크 #191B20</span><span class="tk"><i style="background:#ff4b3e"></i>코랄</span><span class="tk"><i style="background:#f1f2f5"></i>면 #F1F2F5</span><span class="tk"><i style="background:#787f8e"></i>보조</span></div>
+<div class="icons">
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff4b3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,13 13,15 21,6"/><circle cx="21" cy="6" r="2" fill="#ff4b3e" stroke="none"/></svg>핫</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#191b20" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15.5,14"/></svg>최신</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#191b20" stroke-width="2" stroke-linecap="round"><path d="M4 5h16M4 10h16M4 15h10"/><path d="M4 20h7" stroke="#ff4b3e"/></svg>브리핑</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#191b20" stroke-width="2" stroke-linecap="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>랭킹</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#191b20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 1 1-3-6.2L21 5l-.6 3A8 8 0 0 1 21 12z"/></svg>댓글</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#191b20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 8l5-4 5 4"/><path d="M5 15v4h14v-4"/></svg>공유</span>
+</div>
+<div class="phone" style="background:#fff">
+  <div style="padding:14px 16px 10px;border-bottom:2px solid #191b20;display:flex;align-items:center;gap:8px">
+    <svg width="20" height="20" viewBox="0 0 512 512"><rect width="512" height="512" rx="116" fill="#191b20"/><polyline points="88,368 176,330 244,346" fill="none" stroke="#fff" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><polyline points="244,346 344,150 424,214" fill="none" stroke="#ff4b3e" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><circle cx="344" cy="150" r="32" fill="#ff4b3e"/></svg>
+    <b style="color:#191b20;font-size:16px">지금핫</b><span style="color:#787f8e;font-size:11px;margin-left:auto">8월 1일 금요일</span>
+  </div>
+  <div style="display:flex;gap:14px;padding:10px 16px;border-bottom:1px solid #e4e6eb">
+    <span style="color:#ff4b3e;font-weight:800;font-size:13px;border-bottom:2px solid #ff4b3e;padding-bottom:6px">핫</span>
+    <span style="color:#787f8e;font-size:13px">최신</span><span style="color:#787f8e;font-size:13px">브리핑</span><span style="color:#787f8e;font-size:13px">랭킹</span>
+  </div>
+  <div style="padding:12px 16px;border-bottom:1px solid #e4e6eb;display:flex;gap:12px">
+    <span style="font-size:22px;font-weight:900;color:#ff4b3e;min-width:26px">1</span>
+    <div><div style="color:#191b20;font-size:14px;font-weight:700;line-height:1.45">참교육에서만 보던 일을... (딸 잘키운 듯)</div>
+    <div style="color:#787f8e;font-size:11px;margin-top:4px">이토랜드 · 유머 · ▲512 · 댓글 88</div></div>
+  </div>
+  <div style="padding:12px 16px;border-bottom:1px solid #e4e6eb;display:flex;gap:12px">
+    <span style="font-size:22px;font-weight:900;color:#c6cad3;min-width:26px">2</span>
+    <div><div style="color:#191b20;font-size:14px;font-weight:700;line-height:1.45">"매직마우스냐" 조롱에도… 페라리 첫 전기차 '완판'</div>
+    <div style="color:#787f8e;font-size:11px;margin-top:4px">경향신문 · 자동차 · <b style="color:#ff4b3e">5개 매체 교차보도</b></div></div>
+  </div>
+  <div style="padding:12px 16px;display:flex;gap:12px">
+    <span style="font-size:22px;font-weight:900;color:#c6cad3;min-width:26px">3</span>
+    <div><div style="color:#191b20;font-size:14px;font-weight:700;line-height:1.45">SK하이닉스 "적자시 임금 조정"…노조 반발</div>
+    <div style="color:#787f8e;font-size:11px;margin-top:4px">보배드림 · 경제 · ▲347 · 댓글 120</div></div>
+  </div>
+</div>
+<p class="note">시그니처: 큰 순번 숫자(1위만 코랄). 광고 심사자에게 "편집된 매체" 인상 — 애드센스/애드핏 심사에 유리한 방향. 마이그레이션 중간(2~3일).</p>
+</div>
+
+<!-- ══════════ C. 코랄 블록 볼드 ══════════ -->
+<div class="sample">
+<h2>C. 코랄 블록 볼드 — 소비자앱 존재감</h2>
+<p class="desc">코랄을 헤더 대면적으로. 사각 모서리(radius 0)와 두꺼운 보더로 브루탈리스트 터치 — 어디에도 없는 룩이라 각인 효과 최대. 호불호 갈릴 수 있음.</p>
+<div class="tokens"><span class="tk"><i style="background:#ff4b3e"></i>코랄 대면적</span><span class="tk"><i style="background:#fffdf9"></i>바탕 #FFFDF9</span><span class="tk"><i style="background:#16181d"></i>잉크</span><span class="tk"><i style="background:#ffd9d5"></i>코랄 틴트</span></div>
+<div class="icons">
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="#16181d"><path d="M3 18l6-5 4 2 8-9v12H3z" opacity=".15"/><path d="M3 17l6-4 4 2 8-9" fill="none" stroke="#16181d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>핫</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181d" stroke-width="2.4" stroke-linecap="round"><rect x="3.5" y="3.5" width="17" height="17"/><polyline points="12,8 12,12 15,14"/></svg>최신</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181d" stroke-width="2.4" stroke-linecap="round"><path d="M4 6h16M4 11h16M4 16h9"/></svg>브리핑</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="#16181d"><rect x="4" y="11" width="3.5" height="9"/><rect x="10.2" y="4" width="3.5" height="16"/><rect x="16.5" y="8" width="3.5" height="12"/></svg>랭킹</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181d" stroke-width="2.4" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="12"/><path d="M8 16.5L6 20l6-3.5"/></svg>댓글</span>
+<span class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16181d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14V4M8 7l4-3 4 3"/><rect x="5" y="14" width="14" height="6"/></svg>공유</span>
+</div>
+<div class="phone" style="background:#fffdf9">
+  <div style="background:#ff4b3e;padding:16px;display:flex;align-items:center;gap:8px">
+    <b style="color:#fff;font-size:18px;letter-spacing:-0.5px">지금핫</b>
+    <span style="margin-left:auto;background:#16181d;color:#fff;font-size:10px;font-weight:800;padding:4px 8px">LIVE</span>
+  </div>
+  <div style="display:flex;gap:0;border-bottom:2px solid #16181d">
+    <span style="background:#16181d;color:#fff;padding:9px 18px;font-size:13px;font-weight:800">핫</span>
+    <span style="color:#16181d;padding:9px 18px;font-size:13px;font-weight:600">최신</span>
+    <span style="color:#16181d;padding:9px 18px;font-size:13px;font-weight:600">랭킹</span>
+  </div>
+  <div style="margin:12px;border:2px solid #16181d;padding:12px;background:#fff">
+    <span style="background:#ffd9d5;color:#c22619;font-size:10px;font-weight:800;padding:2px 7px">유머</span>
+    <div style="color:#16181d;font-size:14px;font-weight:800;line-height:1.45;margin:7px 0 5px">참교육에서만 보던 일을... (딸 잘키운 듯)</div>
+    <div style="color:#787f8e;font-size:11px">이토랜드 · ▲512 · 댓글 88 · 2시간 전</div>
+  </div>
+  <div style="margin:0 12px 14px;border:2px solid #16181d;padding:12px;background:#fff">
+    <span style="background:#ffd9d5;color:#c22619;font-size:10px;font-weight:800;padding:2px 7px">자동차</span>
+    <div style="color:#16181d;font-size:14px;font-weight:800;line-height:1.45;margin:7px 0 5px">"매직마우스냐" 조롱에도… 페라리 첫 전기차 '완판'</div>
+    <div style="color:#787f8e;font-size:11px">경향신문 · 5개 매체 교차보도 · 6시간 전</div>
+  </div>
+</div>
+<p class="note">시그니처: 코랄 헤더 블록 + 사각 프레임. 마이그레이션 큼(4~5일), 기존 다크 유저에겐 급변.</p>
+</div>
+
+<p class="sub">셋 다 공통으로: 이모지 → 전용 SVG 아이콘 세트 전면 교체, prefers-reduced-motion 지원, 애니메이션은 "새 글 올라옴" 순간 하나에만. 방향을 고르시면 (혼합 지정도 가능: 예 "B 레이아웃 + A 다크") 전체 화면·상세뷰·브리핑 페이지까지 확장 적용합니다.</p>
+</body></html>
