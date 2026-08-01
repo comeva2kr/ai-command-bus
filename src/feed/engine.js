@@ -318,6 +318,7 @@ export class FeedEngine {
     // 재시작마다 리셋되면 오래된 아카이브 글이 "방금 처음 봄"이 되어 신선도
     // 상한을 재통과한다(적대적 검수 P1-a 실측: 2021년 글이 최신 피드에).
     const newlySeen = [];
+    const heatUpdates = [];
     for (const item of freshItems) {
       const prior = this._pool.get(item.id);
       const persisted = this.store && this.store.firstSeenOf ? this.store.firstSeenOf(item.id) : undefined;
@@ -329,11 +330,19 @@ export class FeedEngine {
       // 14칸(15분 주기 기준 약 3.5시간) 롤링. 날조 금지 원칙상 이 실측이
       // 쌓이기 전(4칸 미만)에는 클라이언트가 눈금을 그리지 않는다.
       const engNow = (item.score || 0) + (item.commentCount || 0) * 2 + (item.coverage || 0) * 50;
-      const heatHist = [...((prior && prior.heatHist) || []), engNow].slice(-14);
+      // 이전 시계열: 메모리 풀 > 영속 기록(배포·재시작 생존) > 빈 배열
+      const priorHist = (prior && prior.heatHist)
+        || (this.store && this.store.heatOf ? this.store.heatOf(item.id) : null)
+        || [];
+      const heatHist = [...priorHist, engNow].slice(-14);
+      heatUpdates.push([item.id, heatHist]);
       this._pool.set(item.id, { item, firstSeenAt, lastSeenAt: now, heatHist });
     }
     if (newlySeen.length && this.store && this.store.recordFirstSeen) {
       try { this.store.recordFirstSeen(newlySeen, now); } catch {}
+    }
+    if (heatUpdates.length && this.store && this.store.recordHeat) {
+      try { this.store.recordHeat(heatUpdates, now); } catch {}
     }
 
     // 풀 퇴장 기준은 "처음 본 지 오래됨"이 아니라 "보드 목록에서 내려간 지

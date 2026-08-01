@@ -178,3 +178,27 @@ test("URL dedup: 쿼리가 정체인 게시판 글은 합쳐지지 않고, 추�
   assert.ok(ids.has("q1") && ids.has("q2"), "쿼리 다른 게시판 글 2건은 둘 다 생존");
   assert.ok(!ids.has("d1") && ids.has("d2"), "utm만 다른 동일 기사는 반응 큰 쪽만 생존");
 });
+
+test("열기 눈금 시계열이 재시작을 넘어 이어진다 (배포마다 리셋되면 시그니처가 죽는다)", async () => {
+  const tmp = `${process.env.TMPDIR || "/tmp"}/heat-test-${process.pid}.json`;
+  let score = 100;
+  const src = () => new JsonSource("heatsrc", async () => [
+    { id: "h1", title: "반응이 늘어나는 글", url: "https://h.example.com/1", score, category: "tech" }
+  ], "community");
+
+  const s1 = new FeedStore({ file: tmp });
+  const e1 = new FeedEngine(s1, [src()]);
+  for (let i = 0; i < 3; i++) { score += 20; await e1.refresh(); }
+  const persisted = s1.heatOf("h1");
+  assert.ok(Array.isArray(persisted) && persisted.length >= 3, `영속 시계열 ${persisted && persisted.length}칸`);
+
+  // 재시작: 같은 DB, 새 스토어·엔진 — 시계열이 이어져야 한다
+  const s2 = new FeedStore({ file: tmp });
+  const e2 = new FeedEngine(s2, [src()]);
+  score += 20; await e2.refresh();
+  score += 20; await e2.refresh();
+  const after = s2.heatOf("h1");
+  assert.ok(after.length >= 5, `재시작 후 누적 ${after.length}칸 — 리셋되면 5칸을 못 넘는다`);
+  const item = (await e2._items()).find((i) => i.id === "h1");
+  assert.ok(Array.isArray(item.heatHist) && item.heatHist.length >= 5, "아이템에 시계열이 실린다");
+});

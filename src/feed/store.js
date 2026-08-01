@@ -261,6 +261,31 @@ export class FeedStore {
   // 넉넉한 7일 — 그 뒤 다시 나타난 글은 "다시 처음 본 것"으로 취급해도
   // 신선도 판정이 위험해지지 않는다: 상한을 통과하려면 어차피 재등장 후
   // 48시간이 더 필요하다).
+  // ---- 열기 눈금 시계열 영속화 (2026-08-01) ------------------------------
+  // heatHist(수집 사이클별 반응량)도 메모리 풀에만 있으면 배포·재시작마다
+  // 리셋된다 — 실제로 라이브에서 30건 중 0건만 눈금이 그려졌다(배포가 잦은
+  // 기간엔 5칸이 모일 틈이 없다). 시그니처 요소가 사실상 죽으므로 저장한다.
+  // 항목당 최대 14개 숫자라 900건 기준 수백 KB 수준.
+  heatOf(id) {
+    return this.heatHist ? this.heatHist[id] : undefined;
+  }
+
+  recordHeat(entries, nowMs) {
+    if (!entries || !entries.length) return;
+    if (!this.heatHist) this.heatHist = {};
+    if (!this.heatSeen) this.heatSeen = {};
+    for (const [id, hist] of entries) {
+      this.heatHist[id] = hist.slice(-14);
+      this.heatSeen[id] = nowMs;
+    }
+    // 풀에서 내려간 글의 시계열은 7일 뒤 청소 (firstSeen과 같은 기준)
+    const cutoff = nowMs - 7 * 24 * 3600 * 1000;
+    for (const id of Object.keys(this.heatSeen)) {
+      if (this.heatSeen[id] < cutoff) { delete this.heatSeen[id]; delete this.heatHist[id]; }
+    }
+    this._persist();
+  }
+
   recordFirstSeen(entries, nowMs) {
     if (!entries || !entries.length) return;
     if (!this.firstSeen) this.firstSeen = {};
@@ -831,6 +856,8 @@ export class FeedStore {
       // 재시작에도 반드시 유지 (애드핏 대응, David 2026-07-31)
       dailyEditions: [...(this.dailyEditions || new Map())].map(([date, e]) => ({ date, ...e })),
       firstSeen: this.firstSeen || {}, // 수집 풀 최초 관측 시각 — 재시작 뒷북 방지 (P1-a)
+      heatHist: this.heatHist || {}, // 열기 눈금 시계열 — 배포마다 리셋되면 시그니처가 죽는다
+      heatSeen: this.heatSeen || {},
       sessions: [...(this.sessions || new Map())].map(([token, s]) => ({ token, ...s }))
     };
     fs.writeFileSync(this.file, JSON.stringify(data, null, 2));
@@ -850,6 +877,8 @@ export class FeedStore {
       this.traffic = data.traffic || {};
       this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
       this.firstSeen = data.firstSeen || {};
+      this.heatHist = data.heatHist || {};
+      this.heatSeen = data.heatSeen || {};
       this.sessions = new Map((data.sessions || []).map((s) => [s.token, { userId: s.userId, expiresAt: s.expiresAt }]));
       for (const user of data.users || []) {
         if (!user.nickname) user.nickname = nicknameFor(user.id); // backfill
