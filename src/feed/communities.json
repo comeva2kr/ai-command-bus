@@ -1365,6 +1365,96 @@
         "url": "https://www.autoherald.co.kr/rss/allArticle.xml",
         "note": "2026-08-01 auto 공급 확충. 자동차 전문지 공식 RSS. 실측 200/UTF-8/50건/오늘자, robots /admin/만 차단."
       }
+    },
+    {
+      "id": "chosunbiz",
+      "label": "조선비즈",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://biz.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
+        "note": "2026-08-01 실측: UTF-8/200/100건/오늘자. robots 일반(*)는 일부 경로만 차단. pubDate 표준 RFC822. media:content(type=image/jpeg) 썸네일 명시 — 이미지 추출 안정적."
+      }
+    },
+    {
+      "id": "mt",
+      "label": "머니투데이",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://rss.mt.co.kr/mt_news.xml",
+        "note": "2026-08-01 실측: UTF-8/200/100건/오늘자. mt.co.kr robots 일반(*) Allow:/ (뉴스플래시·api만 차단), rss 서브도메인 robots 없음. pubDate 표준. description 내 img 임베드로 썸네일 확보."
+      }
+    },
+    {
+      "id": "heraldbiz",
+      "label": "헤럴드경제",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://biz.heraldcorp.com/rss/google/newsAll",
+        "note": "2026-08-01 실측: UTF-8/200/300건/오늘자. biz.heraldcorp.com robots는 /_TP/ /_CP/ /_CT/ /search/ /test/만 차단. 주의: pubDate가 YYYY-MM-DD HH:MM:SS 비표준(타임존 없음) — 서버 TZ가 KST여야 정확(현 VM은 KST). media:content 썸네일 있음."
+      }
+    },
+    {
+      "id": "etoday",
+      "label": "이투데이",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://rss.etoday.co.kr/eto/etoday_news_all.xml",
+        "note": "2026-08-01 실측: UTF-8/200/25건/오늘자. robots 전면허용. pubDate 표준(+dc:date 병기). description은 짧으나 content:encoded의 img로 썸네일 추출."
+      }
+    },
+    {
+      "id": "bloter",
+      "label": "블로터",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "tech",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://cdn.bloter.net/rss/gns_allArticle.xml",
+        "note": "2026-08-01 실측: UTF-8/200/50건. robots는 /admin/만 차단. pubDate 표준. description이 매우 풍부(본문 수준)하고 img 임베드로 썸네일 확보. 실측 콘텐츠가 IT/스타트업 중심이라 business가 아닌 tech로 분류."
+      }
     }
   ]
 }
