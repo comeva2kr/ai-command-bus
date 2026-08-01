@@ -292,11 +292,18 @@
       "category": "life",
       "size": "medium",
       "adult": false,
-      "enabled": false,
+      "enabled": true,
       "frameable": false,
       "adapter": {
-        "type": "seed",
-        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
+        "type": "list",
+        "url": "https://www.82cook.com/entiz/enti.php?bn=15",
+        "pages": 1,
+        "note": "2026-08-01 재조사(David: 자게이가 하는 건 우리도 되지 않나). robots.txt는 /tempfile/ /tempimg/만 차단 — 게시판 허용. 자유게시판(bn=15) 정적 HTML에 60행 실려 파싱 가능(EUC-KR, 기존 list 어댑터가 디코드). 라이프 카테고리 공급 확충.",
+        "list": {
+          "urlBase": "https://www.82cook.com",
+          "titleRegex": "href=\"(/entiz/read\\.php[^\"]*)\"[^>]*>([^<]{3,80})",
+          "windowAfter": 600
+        }
       }
     },
     {
