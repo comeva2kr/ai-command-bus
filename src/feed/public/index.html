@@ -496,7 +496,7 @@
   .brief-card .bc-meta{color:var(--muted)}
   /* 열기 눈금 — 시그니처, 애니메이션은 여기에만 */
   .heat{display:flex;align-items:flex-end;gap:3px;height:18px;margin-top:10px}
-  .heat i{display:block;width:3px;background:color-mix(in srgb,var(--color-text) 30%,transparent);
+  .heat i{display:block;width:3px;background:color-mix(in srgb,var(--color-text) 26%,transparent);
     transform-origin:bottom;animation:heatrise .45s cubic-bezier(.2,.8,.2,1) both}
   .heat i:nth-last-child(-n+3){background:var(--color-accent)}
   .heat i:nth-child(2){animation-delay:18ms}.heat i:nth-child(3){animation-delay:36ms}
@@ -531,6 +531,16 @@
   :focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
   /* 아이콘 유틸 */
   .ic{display:inline-block;vertical-align:-3px}
+  /* 3단 그리드 고정: 헤더·메타는 풀폭, 썸네일은 본문행에서만 자리를 차지한다 */
+  #feed .card .card-top{display:flex;align-items:center;gap:6px;width:100%;margin-bottom:6px}
+  #feed .card .card-top .badge:last-child{margin-left:auto}
+  #feed .card .card-row{display:flex;gap:12px;align-items:flex-start;width:100%}
+  #feed .card .card-main{flex:1 1 auto;min-width:0}
+  #feed .card .card-thumb{flex:0 0 88px;width:88px;height:88px;margin:2px 0 0;overflow:hidden;
+    border:1px solid color-mix(in srgb,var(--color-text) 20%,transparent)}
+  #feed .card .card-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  #feed .card .card-meta{display:flex;align-items:center;gap:10px;width:100%;margin-top:10px}
+  #feed .card .card-meta .actions{margin-left:auto;display:flex;gap:8px}
   .card .rate{color:color-mix(in srgb,var(--color-text) 78%,transparent);
     border:1px solid color-mix(in srgb,var(--color-text) 26%,transparent);background:transparent}
   .card .rate.on{color:var(--color-accent);border-color:var(--color-accent)}
@@ -1936,22 +1946,23 @@ function appendAdCard(item){
   card.dataset.variant = item.variant || "";
   const popId = "adDisc"+(++adPopSeq);
   card.innerHTML = `
-    <div class="card-row">
-    <div class="card-main">
     <div class="card-top">
       <span class="dot" style="background:${srcColor(item.source)}"></span>
       <span class="src">${escapeHtml(item.sourceLabel||"제휴")}</span>
       <button type="button" class="badge ad-badge" aria-haspopup="true" aria-expanded="false" aria-controls="${popId}" aria-label="광고 표시. 탭하면 고지 사항을 볼 수 있어요">${escapeHtml(item.badgeLabel||"AD")}</button>
       <div id="${popId}" class="ad-disclosure-pop" role="tooltip" hidden>${escapeHtml(item.disclosure||"")}</div>
     </div>
+    </div>
+    <div class="card-row">
+    <div class="card-main">
     <h3>${escapeHtml(item.title)} <span class="newtab-hint" title="새 탭에서 이동해요" aria-hidden="true">↗</span></h3>
     ${adProductNameHtml(item)}
     <p>${escapeHtml(item.summary)}</p>
     ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="ad-why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
-    ${adMetaHtml(item)}
     </div>
     ${cardThumbHtml(item)}
-    </div>`;
+    </div>
+    ${adMetaHtml(item)}`;
   const badgeBtn = card.querySelector(".ad-badge");
   const pop = card.querySelector(".ad-disclosure-pop");
   badgeBtn.addEventListener("click", (e)=>{
@@ -1998,9 +2009,13 @@ function setupAdImpressionObserver(){
 function appendCard(item){
   if(isAdItem(item)) return appendAdCard(item);
   const card = document.createElement("article"); card.className="card"; card.dataset.cat=item.category; card.dataset.id=item.id;
+  // 카드 골격 = 3단 고정 그리드 (David 2026-08-01 "사진이 있다고 기존 틀이
+  // 흔들리면 안 됨" — 네이버뉴스·구글뉴스·NYT 공통 패턴):
+  //   ① 헤더행: 소스·카테고리·배지 — 항상 풀폭, 배지는 항상 우측 끝
+  //   ② 본문행: 제목·발췌·이유칩(좌) + 썸네일(우, 고정 크기·상단 정렬)
+  //   ③ 메타행: 반응 수치·시각·액션 — 항상 풀폭
+  // 예전엔 썸네일이 ①②③ 전체의 오른쪽에 붙어 배지·액션이 통째로 밀렸다.
   card.innerHTML = `
-    <div class="card-row">
-    <div class="card-main">
     <div class="card-top">
       <span class="dot" style="background:${srcColor(item.source)}"></span>
       <span class="src" style="color:${srcColor(item.source)}">${srcLabel(item.source)}</span>
@@ -2013,12 +2028,18 @@ function appendCard(item){
       ${item.translated?'<span class="badge trans">번역</span>':(item.needsTranslation?'<span class="badge trans">원문</span>':'')}
       <span class="badge ${item.kind}">${item.kind==="news"?"뉴스":"커뮤"}</span>
     </div>
+    </div>
+    <div class="card-row">
+    <div class="card-main">
     <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ` <span class="newtab-hint" role="button" tabindex="0" title="원문 바로 열기 (새 탭)">${ic('external',14)}</span>` : ''}</h3>
-    ${item.heat&&item.heat.length>=4?`<div class="heat" aria-hidden="true">${item.heat.map(h=>`<i style="height:${Math.max(3,Math.round(h*18))}px"></i>`).join("")}</div>`:''}
+    ${item.heat&&item.heat.length>=4?`<div class="heat" aria-hidden="true">${item.heat.map(h=>`<i style="height:${Math.max(2,Math.round(h*18))}px"></i>`).join("")}</div>`:''}
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     ${item.editorialNote?`<div class="editorial-note">${escapeHtml(item.editorialNote)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>
     ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
+    </div>
+    ${cardThumbHtml(item)}
+    </div>
     <div class="card-meta">
       <span title="추천수">▲ ${item.score||0}</span>${commentMetaHtml(item)}<span>${timeAgo(item.publishedAt)}</span>
       <div class="actions">
@@ -2026,9 +2047,6 @@ function appendCard(item){
         <button class="rate up ${item.myRating>0?'on':''}" data-s="1" title="좋아요">${ic('like',15)}</button>
         <button class="rate down ${item.myRating<0?'on':''}" data-s="-1" title="별로예요">${ic('dislike',15)}</button>
       </div>
-    </div>
-    </div>
-    ${cardThumbHtml(item)}
     </div>`;
   if(state.readSet.has(item.id)) card.classList.add("read");
   // Card body tap: **내부 상세 우선** (2026-08-01 전환 — 애드핏 매체심사 보류

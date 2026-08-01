@@ -833,11 +833,19 @@ export class FeedEngine {
     const saved = Array.isArray(user.saved) && user.saved.includes(item.id);
     const reasons = user.preferences ? explain(item, user.preferences).map(reasonLabel) : [];
     const now = (editorialContext && editorialContext.now) || (this._clock ? new Date(this._clock()).getTime() : Date.now());
-    // 열기 눈금(디자인 시그니처) — 실측 heatHist(수집 사이클별 반응량)를
-    // 0..1로 정규화해 노출. 4칸 미만이면 안 보낸다(실측이 쌓이기 전엔 안 그림).
+    // 열기 눈금(디자인 시그니처). **누적량이 아니라 구간별 증가분(속도)**을
+    // 그린다 — 누적을 그대로 그리면 반응이 멈춘 글도 막대가 전부 최대 높이로
+    // 꽉 차서 그래프가 아니라 색 덩어리로 보인다(David 실기기 2026-08-01).
+    // 증가분이 전 구간 0이면(반응이 전혀 안 움직인 글) 아예 그리지 않는다 —
+    // 없는 화제성을 있는 척하지 않는다.
     const hh = Array.isArray(item.heatHist) ? item.heatHist : null;
-    const heatMax = hh && hh.length >= 4 ? Math.max(...hh) : 0;
-    const heat = heatMax > 0 ? hh.map((v) => Math.round((v / heatMax) * 100) / 100) : null;
+    let heat = null;
+    if (hh && hh.length >= 5) {
+      const deltas = [];
+      for (let i = 1; i < hh.length; i++) deltas.push(Math.max(0, (hh[i] || 0) - (hh[i - 1] || 0)));
+      const dMax = Math.max(...deltas);
+      if (dMax > 0) heat = deltas.map((v) => Math.round((v / dMax) * 100) / 100);
+    }
     return {
       ...item,
       adult: item.adult === true,
