@@ -815,6 +815,18 @@ const state = {
 function markRead(id){ if(state.readSet.has(id)) return; state.readSet.add(id);
   localStorage.setItem("feed_read", JSON.stringify([...state.readSet].slice(-1000))); }
 history.scrollRestoration = "manual"; // we restore scroll ourselves, precisely
+// 문서를 아예 떠났다가(브리핑·랭킹·트렌드 등 서버 렌더 페이지) 뒤로가기로
+// 돌아오는 경로는 위 manual 설정 때문에 브라우저가 복원해 주지 않는다 —
+// 직접 저장/복원한다 (David 2026-08-01: "뒤로가기하면 보고 있던 위치로").
+const SCROLL_KEY = "feed_scroll_y";
+addEventListener("pagehide", ()=>{ try{ sessionStorage.setItem(SCROLL_KEY, String(window.scrollY)); }catch{} });
+addEventListener("pageshow", (e)=>{
+  const nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+  const isBack = e.persisted || (nav && nav.type === "back_forward");
+  if(!isBack) return;
+  let y = 0; try { y = Number(sessionStorage.getItem(SCROLL_KEY) || 0); } catch {}
+  if(y > 0) requestAnimationFrame(()=> requestAnimationFrame(()=> window.scrollTo(0, y)));
+});
 
 const SRC_COLORS = {}; // stable color per source
 // 소스 대표색 (David 2026-08-01 "플랫폼 이름도 대표색으로 색만 봐도 구분되게").
@@ -1041,7 +1053,11 @@ function openFromHash(){
   const h = location.hash;
   if(h && h.startsWith("#post-")){
     const id = decodeURIComponent(h.slice("#post-".length));
-    if(id) openDetail(id);
+    // fromHash=true: 이미 이 URL로 들어왔으므로 히스토리를 **더 쌓지 않는다**.
+    // 안 그러면 브리핑/랭킹에서 글을 열고 뒤로가기 했을 때 첫 번째 뒤로가기가
+    // 앱 피드로 빠지고, 브리핑으로 돌아가려면 두 번 눌러야 한다
+    // (David 실사용 2026-08-01: "뒤로가기하면 보고 있던 브리핑 위치로").
+    if(id) openDetail(id, { fromHash: true });
   }
 }
 
@@ -2080,11 +2096,16 @@ function openOriginal(item){
   window.open(item.url, "_blank", "noopener,noreferrer");
 }
 
-async function openDetail(itemId){
+async function openDetail(itemId, opts){
   state.feedScrollY = window.scrollY;             // remember exactly where we were
   markOpened(itemId);
   state.openedAt = Date.now(); state.openItemId = itemId;
-  history.pushState({ view:"detail", itemId }, "", "#post-"+encodeURIComponent(itemId));
+  // 딥링크 진입(브리핑·랭킹·공유 링크)이면 현재 항목을 교체 — 뒤로가기 한 번에
+  // 이전 문서(브리핑 등)로 돌아가고 브라우저가 그 스크롤 위치를 복원한다.
+  const st = { view:"detail", itemId };
+  const url = "#post-"+encodeURIComponent(itemId);
+  if(opts && opts.fromHash) history.replaceState(st, "", url);
+  else history.pushState(st, "", url);
   await renderDetail(itemId);
   const d = document.getElementById("detail");
   // 스크롤은 플로팅 패널이 담당한다 — 뒤 리스트는 잠가서 배경 스크롤 이탈 방지
