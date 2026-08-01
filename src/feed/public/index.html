@@ -426,24 +426,26 @@
      핵심: 신문 2px 괘선 조직 / radius 0 전면 / 유채색은 Signal 하나 /
      그림자는 시트·다이얼로그 전용 / 시그니처 = 열기 눈금(여기만 애니메이션) */
   :root{
-    --color-bg:#f3f2f2; --color-surface:#eae9e9; --color-text:#201e1d;
-    --color-accent:#ec3013;
-    --color-divider:color-mix(in srgb,#201e1d 40%,transparent);
+    /* 2026-08-01 대비 강화 (David 실기기: "전체적으로 흐릿해 시인성 나쁨") —
+       종이를 더 희게, 잉크를 더 검게, 괘선·보조 텍스트의 투명도를 낮춘다. */
+    --color-bg:#faf9f8; --color-surface:#eeecea; --color-text:#14100e;
+    --color-accent:#e02b0f;
+    --color-divider:color-mix(in srgb,#14100e 70%,transparent);
     --font-heading:"Archivo",system-ui,sans-serif;
     /* 기존 변수 재배선 — 수백 개 규칙이 이 이름들을 참조한다 */
     --bg:var(--color-bg); --card:var(--color-bg); --card-2:var(--color-surface);
     --text:var(--color-text);
-    --muted:color-mix(in srgb,var(--color-text) 55%,transparent);
+    --muted:color-mix(in srgb,var(--color-text) 72%,transparent);
     --accent:var(--color-accent);
-    --line:color-mix(in srgb,var(--color-text) 16%,transparent);
+    --line:color-mix(in srgb,var(--color-text) 32%,transparent);
     --like:var(--color-accent); --dislike:var(--color-text);
     --radius:0px;
   }
   html[data-theme="dark"]{
-    --color-bg:#171615; --color-surface:#201e1d; --color-text:#f3f2f2;
-    --color-accent:#ff563c;
-    --color-divider:color-mix(in srgb,#f3f2f2 34%,transparent);
-    --line:color-mix(in srgb,#f3f2f2 18%,transparent);
+    --color-bg:#131211; --color-surface:#232120; --color-text:#faf9f8;
+    --color-accent:#ff6a52;
+    --color-divider:color-mix(in srgb,#faf9f8 62%,transparent);
+    --line:color-mix(in srgb,#faf9f8 30%,transparent);
   }
   html,body{background:var(--color-bg);color:var(--color-text);
     font-family:"Archivo","Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
@@ -455,7 +457,8 @@
   .survey-inner,.onb-back .onb{border-radius:0!important}
   /* 카드 = 괘선 구분(배경·그림자·간격 제거). 광고 카드만 surface 채움 */
   #feed{padding:0}
-  #feed .card{background:transparent;border:none;border-bottom:1px solid var(--line);
+  #feed .card{background:transparent;border:none;
+    border-bottom:1px solid color-mix(in srgb,var(--color-text) 26%,transparent);
     box-shadow:none;margin:0;padding:16px}
   #feed .card.ad-card{background:var(--color-surface)}
   #feed .card:hover{border-color:var(--line)}
@@ -523,27 +526,35 @@
   :focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
   /* 아이콘 유틸 */
   .ic{display:inline-block;vertical-align:-3px}
+  .card .rate{color:color-mix(in srgb,var(--color-text) 78%,transparent);
+    border:1px solid color-mix(in srgb,var(--color-text) 26%,transparent);background:transparent}
+  .card .rate.on{color:var(--color-accent);border-color:var(--color-accent)}
+  .brief-card{border-color:color-mix(in srgb,var(--color-text) 34%,transparent)}
+  .brief-card .bc-meta{color:color-mix(in srgb,var(--color-text) 72%,transparent)}
+  .chip{border-color:color-mix(in srgb,var(--color-text) 34%,transparent);font-weight:600}
   .ic use{stroke:currentColor}
   /* 본문 가독성 (David 실기기 2026-08-01: 화이트 모드에서 발췌·제목이 안 읽힘)
      — 옛 다크 테마 고정색(#c9cedd 등)이 흰 종이 위에서 대비 붕괴. 발췌는
      본문급 잉크(85%)로 올리고, 부가 라벨만 muted를 유지한다. WCAG AA 이상. */
-  .detail-body .full{color:color-mix(in srgb,var(--color-text) 88%,transparent)!important;
+  .detail-body .full{color:color-mix(in srgb,var(--color-text) 96%,transparent)!important;
     font-size:16px;line-height:1.75}
-  .card p{color:color-mix(in srgb,var(--color-text) 78%,transparent)!important;font-size:14px}
-  .src{color:color-mix(in srgb,var(--color-text) 70%,transparent)!important}
-  .card-meta,.detail-body .card-meta{color:color-mix(in srgb,var(--color-text) 62%,transparent)}
+  .card p{color:color-mix(in srgb,var(--color-text) 88%,transparent)!important;font-size:14px}
+  .src{font-weight:700} /* 색은 소스 대표색 인라인 (SRC_BRAND) */
+  .card-meta,.detail-body .card-meta{color:color-mix(in srgb,var(--color-text) 80%,transparent);font-weight:600}
   .card h3,.detail-body h2{color:var(--color-text)}
   .detail-body h2{font-size:23px;line-height:1.32}
-  .orig-title,.excerpt-note{color:color-mix(in srgb,var(--color-text) 60%,transparent)}
-  .editorial-note{color:color-mix(in srgb,var(--color-text) 72%,transparent)}
+  .orig-title,.excerpt-note{color:color-mix(in srgb,var(--color-text) 74%,transparent)}
+  .editorial-note{color:color-mix(in srgb,var(--color-text) 86%,transparent)}
   .muted,.comments h4,.chip{color:inherit}
-  #detailBody p,#spaceBody p{color:color-mix(in srgb,var(--color-text) 85%,transparent)}
+  #detailBody p,#spaceBody p{color:color-mix(in srgb,var(--color-text) 94%,transparent)}
   /* 배지 팔레트 정리 — 유채색은 Signal 하나 원칙. 19금만 액센트 아웃라인 */
   .badge,.badge.news,.badge.community,.badge.trans{background:transparent!important;
-    border:1px solid var(--line);color:var(--muted)!important}
+    border:1px solid color-mix(in srgb,var(--color-text) 45%,transparent);
+    color:color-mix(in srgb,var(--color-text) 82%,transparent)!important;font-weight:700}
   .badge.adult{background:transparent!important;border:1px solid var(--color-accent);
     color:var(--color-accent)!important}
-  .why{background:transparent!important;border:1px solid var(--line);color:var(--muted)!important}
+  .why{background:transparent!important;border:1px solid color-mix(in srgb,var(--color-text) 40%,transparent);
+    color:color-mix(in srgb,var(--color-text) 80%,transparent)!important}
   .editorial-note{background:transparent;border-left:2px solid var(--color-divider);color:var(--muted)}
   .fab button{border-radius:0!important;background:var(--color-accent);color:var(--color-bg);
     font:800 24px var(--font-heading);box-shadow:0 12px 32px color-mix(in srgb,#000 22%,transparent)}
@@ -806,9 +817,31 @@ function markRead(id){ if(state.readSet.has(id)) return; state.readSet.add(id);
 history.scrollRestoration = "manual"; // we restore scroll ourselves, precisely
 
 const SRC_COLORS = {}; // stable color per source
-const PALETTE = ["#bab6b6","#7d7979","#444141","#2d2b2b","#a09c9c","#8f8b8b","#5f5b5b","#d7d3d3","#6f6b6b"]; // 뉴트럴 램프 — 유채색은 Signal 하나 (DESIGN.md)
+// 소스 대표색 (David 2026-08-01 "플랫폼 이름도 대표색으로 색만 봐도 구분되게").
+// DESIGN.md의 "유채색은 Signal 하나" 원칙에서 의도적으로 벗어난 지점 —
+// 소스 식별은 실사용 가치가 더 크다고 판단. 대신 적용 범위를 **소스 사각 +
+// 소스명**으로만 한정해 액센트(열기 눈금·핫 탭)와 역할이 겹치지 않게 한다.
+// 값은 각 서비스의 로고/브랜드 컬러 계열을 라이트·다크 양쪽에서 읽히는
+// 채도로 조정한 것.
+const SRC_BRAND = {
+  bobae:"#0b6bcb", ppomppu:"#e5341c", clien:"#2f6db5", inven_hot:"#c8102e",
+  theqoo:"#d81b60", etoland:"#1f9d55", todayhumor:"#f4a300", ruliweb:"#1e88a8",
+  ddanzi:"#8b5cf6", geeknews:"#00897b", hackernews:"#ff6600", slashdot:"#046537",
+  tildes:"#5f7d95", devto:"#3b49df", techmeme:"#c0392b", yozm:"#e8552d",
+  "44bits":"#2b6cb0", gnews:"#4285f4", "gnews-kr":"#4285f4", "gnews-world":"#4285f4",
+  "gnews-biz":"#1e8e3e", "gnews-tech":"#4285f4", "gnews-sports":"#f9ab00",
+  "gnews-ent":"#d93025", "gnews-science":"#00897b",
+  hani:"#00639b", "hani-rank":"#00639b", khan:"#0f4c81", donga:"#1a4b8c",
+  hankyung:"#00507d", "mk-news":"#c8102e", etnews:"#0067b1", yna:"#004b93",
+  mydaily:"#e6007e", tenasia:"#7a1fa2", starnews:"#e5341c",
+  motorgraph:"#1b6ca8", autoherald:"#b71c1c", slownews:"#4a5568", outstanding:"#2d3748",
+  me:"#7d7979", submit:"#5f5b5b"
+};
+// 등록되지 않은 소스: 해시 기반 안정 색상환(채도 낮춰 브랜드색과 구분)
+const PALETTE = ["#5a7d9a","#8a6f9e","#7d8a5a","#9a7a5a","#5a8a86","#8a5a6f","#6f6f8a","#7a8a5a","#8a7a5a"];
 function ic(name, size=16){ return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
-function srcColor(id){ if(!SRC_COLORS[id]){ let h=0; for(const c of id) h=(h*31+c.charCodeAt(0))>>>0; SRC_COLORS[id]=PALETTE[h%PALETTE.length]; } return SRC_COLORS[id]; }
+function srcColor(id){ if(SRC_BRAND[id]) return SRC_BRAND[id];
+  if(!SRC_COLORS[id]){ let h=0; for(const c of id) h=(h*31+c.charCodeAt(0))>>>0; SRC_COLORS[id]=PALETTE[h%PALETTE.length]; } return SRC_COLORS[id]; }
 function srcLabel(id){ if(id==="me") return "내 글";
   const r = state.registry.find(x=>x.id===id); if(r) return r.labelKo || r.label;
   const s = state.config?.sources.find(x=>x.id===id); return s? s.label : id; }
@@ -1738,9 +1771,10 @@ async function loadMore(){
 function hotBadge(item){
   const ageH = item.publishedAt ? (Date.now()-new Date(item.publishedAt))/3.6e6 : 999;
   const eng = (item.score||0) + (item.comments||0)*2;
-  if(eng>=1000 && ageH<12) return '<span class="badge" style="background:#e5566b;color:#fff">🔥 급상승</span>';
-  if(eng>=800) return '<span class="badge" style="background:#f0a13d;color:#0e0f13">🔥 화제</span>';
-  if(ageH<3) return '<span class="badge" style="background:#3fb27f;color:#0e0f13">🆕 방금</span>';
+  // 배지도 Signal 원칙: 급상승/화제만 액센트 아웃라인, 방금은 잉크 아웃라인
+  if(eng>=1000 && ageH<12) return '<span class="badge" style="border-color:var(--color-accent);color:var(--color-accent)!important">급상승</span>';
+  if(eng>=800) return '<span class="badge" style="border-color:var(--color-accent);color:var(--color-accent)!important">화제</span>';
+  if(ageH<3) return '<span class="badge">방금</span>';
   return '';
 }
 // 댓글수 배지  — list 어댑터 커뮤글은 법적 제약으로
@@ -1899,7 +1933,7 @@ function appendCard(item){
     <div class="card-main">
     <div class="card-top">
       <span class="dot" style="background:${srcColor(item.source)}"></span>
-      <span class="src">${srcLabel(item.source)}</span>
+      <span class="src" style="color:${srcColor(item.source)}">${srcLabel(item.source)}</span>
       <span>· ${item.categoryLabel}</span>
       ${hotBadge(item)}
       ${item.via==="submit"?'<span class="badge" style="border:1px solid var(--line)">유저 제출</span>':''}
@@ -2109,7 +2143,7 @@ async function renderDetail(itemId){
   try { item = await API.item(state.userId, itemId); }
   catch(e){ body.innerHTML = "<p>불러오기 실패</p>"; return; }
   document.getElementById("detailSrc").innerHTML =
-    `<span class="dot" style="display:inline-block;background:${srcColor(item.source)}"></span> ${srcLabel(item.source)} · ${item.categoryLabel}`;
+    `<span class="dot" style="display:inline-block;background:${srcColor(item.source)}"></span> <span style="color:${srcColor(item.source)};font-weight:700">${srcLabel(item.source)}</span> · ${item.categoryLabel}`;
   // 공유 = 즉시 클립보드 복사 (David 2026-08-01: 공유창 없이 바로 복사 +
   // 문구만). 복사 형식은 "제목 ↵ 링크" — 카톡 등에 붙였을 때 제목이 먼저
   // 보이고 링크 미리보기(/p OG 페이지)가 따라온다.
