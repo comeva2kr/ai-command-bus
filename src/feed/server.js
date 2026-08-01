@@ -302,7 +302,10 @@ ol.rank li a{color:var(--text);font-weight:700}
 .nav a{border-right:1px solid var(--line);padding:8px 14px;font:800 13px "Archivo",sans-serif;color:var(--text)}
 .nav a:last-child{border-right:none}
 .nav a.on{background:var(--accent);color:var(--bg)}
-.back{display:inline-block;margin-bottom:18px;color:var(--accent);font-weight:700}</style></head><body><div class="wrap">
+.back{display:inline-block;margin-bottom:18px;color:var(--accent);font-weight:700}
+.heat{display:inline-flex;align-items:flex-end;gap:3px;height:16px;margin-top:6px}
+.heat i{display:block;width:3px;background:color-mix(in srgb,var(--text) 26%,transparent)}
+.heat i:nth-last-child(-n+3){background:var(--accent)}</style></head><body><div class="wrap">
 <a class="back" href="/">← 지금핫 피드로</a>
 ${inner}
 <p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
@@ -326,10 +329,15 @@ ${inner}
     if (i.coverage >= 3) bits.push(`${i.coverage}개 매체 교차보도`);
     return bits;
   };
+  // 열기 눈금 — 실측 시계열이 있을 때만 (없으면 아무것도 안 그린다)
+  const heatBar = (h) => Array.isArray(h) && h.length >= 4
+    ? `<span class="heat">${h.map((v) => `<i style="height:${Math.max(2, Math.round(v * 16))}px"></i>`).join("")}</span>`
+    : "";
   const rankingRows = (items) => `<ol class="rank">${items.map((i) => {
     const bits = evidenceBits(i);
     return `<li><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(i.title)}</a>
-      <span class="m">${escapeHtml(i.sourceLabel)} · ${escapeHtml(i.categoryLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></div></li>`;
+      <span class="m">${escapeHtml(i.sourceLabel)} · ${escapeHtml(i.categoryLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span>
+      ${heatBar(i.heat)}</div></li>`;
   }).join("")}</ol>`;
   // 주간/월간: 일별 스냅샷 병합 — 같은 글은 최고 기록으로 dedup, 소스당 2개 상한 재적용
   const mergeRankings = (editions, limit = 20) => {

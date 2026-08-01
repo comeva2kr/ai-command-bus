@@ -218,13 +218,19 @@
       "category": "culture",
       "size": "medium",
       "adult": false,
-      "enabled": false,
+      "enabled": true,
       "frameable": false,
       "adapter": {
         "type": "list",
         "url": "https://www.instiz.net/pt",
-        "note": "AJAX 로드형 리스트(ajaxload2('../include_gout_mb.php?id=pt...')) — 정적 HTML에 게시물 없음. include_gout_mb.php 직접 호출도 빈 응답(Referer/세션 필요 추정). 정규식 파싱 불가로 스킵. 2026-07-23 확인.",
-        "list": {}
+        "pages": 1,
+        "note": "2026-08-01 재조사(David: 자게이가 하는 건 우리도). 이전 기록의 AJAX 문제는 하단 게시물 목록 얘기였고, 페이지 상단 실시간 인기글 20행은 서버 렌더라 파싱 가능(실측 20건, 제목은 div.sbj, 시각은 .listno.regdate). robots.txt에 특별 차단 없음(사이트맵만 명시). 전 카테고리 통합 랭킹이라 category는 대표값 culture로 두되 실제 분류는 키워드·NB 재분류가 담당.",
+        "list": {
+          "urlBase": "https://www.instiz.net",
+          "titleRegex": "href=\"(https://www\\.instiz\\.net/pt/\\d+)[^\"]*\"[\\s\\S]{0,300}?class=\"sbj\"[^>]*>(?:<i[^>]*></i>)?\\s*([^<]{3,90})",
+          "windowAfter": 400,
+          "dateRegex": "class=\"listno regdate\">(\\d{1,2}:\\d{2})"
+        }
       }
     },
     {

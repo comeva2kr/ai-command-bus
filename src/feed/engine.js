@@ -993,6 +993,15 @@ export class FeedEngine {
   // 그리고 항목마다 근거 수치(추천·댓글·보도량)를 실어 페이지가 그대로
   // 노출한다 — 납득은 알고리즘이 아니라 근거 공개가 만든다.
   async rankingTop(limit = 30) {
+    // 랭킹 페이지에도 열기 눈금(시그니처) — 정규화 규칙은 _decorate와 동일.
+    const heatOf = (it) => {
+      const hh = Array.isArray(it.heatHist) ? it.heatHist : null;
+      if (!hh || hh.length < 5) return null;
+      const d = [];
+      for (let k = 1; k < hh.length; k++) d.push(Math.max(0, (hh[k] || 0) - (hh[k - 1] || 0)));
+      const m = Math.max(...d);
+      return m > 0 ? d.map((v) => Math.round((v / m) * 100) / 100) : null;
+    };
     const items = await this._items();
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     const pool = items.filter(
@@ -1025,6 +1034,7 @@ export class FeedEngine {
         category: i.category || "news", categoryLabel: categoryLabel(i.category || "news"),
         score: i.score || 0, commentCount: i.commentCount || 0,
         coverage: i.coverage || 0, image: i.image || null,
+        heat: heatOf(i),
         hot: Math.round(s.hotScore * 1000) / 1000
       });
     }

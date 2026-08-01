@@ -1686,7 +1686,10 @@ function setupBrandHome(){
     reloadFeed("최신 화제글을 새로 불러왔어요");
     loadBriefStrip();
   };
-  el.onclick = go;
+  // 메뉴 버튼(☰)이 .brand 안에 있어 클릭이 여기까지 버블링된다 —
+  // 버튼/링크에서 시작한 클릭은 무시한다 (David 실기기: 메뉴 눌렀는데
+  // 새로고침됨, 2026-08-01).
+  el.onclick = (e)=>{ if(e.target.closest("button,a")) return; go(); };
   el.onkeydown = (e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } };
 }
 
