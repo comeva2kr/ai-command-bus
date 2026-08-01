@@ -330,7 +330,7 @@ ${inner}
     return bits;
   };
   // 열기 눈금 — 실측 시계열이 있을 때만 (없으면 아무것도 안 그린다)
-  const heatBar = (h) => Array.isArray(h) && h.length >= 4
+  const heatBar = (h) => Array.isArray(h) && h.length >= 3
     ? `<span class="heat">${h.map((v) => `<i style="height:${Math.max(2, Math.round(v * 16))}px"></i>`).join("")}</span>`
     : "";
   const rankingRows = (items) => `<ol class="rank">${items.map((i) => {

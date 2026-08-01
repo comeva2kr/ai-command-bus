@@ -2113,7 +2113,7 @@ function appendCard(item){
     <div class="card-row">
     <div class="card-main">
     <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ` <span class="newtab-hint" role="button" tabindex="0" title="원문 바로 열기 (새 탭)">${ic('external',14)}</span>` : ''}</h3>
-    ${item.heat&&item.heat.length>=4?`<div class="heat" aria-hidden="true">${item.heat.map(h=>`<i style="height:${Math.max(2,Math.round(h*18))}px"></i>`).join("")}</div>`:''}
+    ${item.heat&&item.heat.length>=3?`<div class="heat" aria-hidden="true">${item.heat.map(h=>`<i style="height:${Math.max(2,Math.round(h*18))}px"></i>`).join("")}</div>`:''}
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     ${item.editorialNote?`<div class="editorial-note">${escapeHtml(item.editorialNote)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>

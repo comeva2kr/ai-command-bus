@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v29"; // v29: 인스티즈 + 랭킹 열기 눈금
+const CACHE = "feed-shell-v30"; // v30: 열기 눈금 발현 조건 완화
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {

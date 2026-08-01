@@ -849,7 +849,7 @@ export class FeedEngine {
     // 없는 화제성을 있는 척하지 않는다.
     const hh = Array.isArray(item.heatHist) ? item.heatHist : null;
     let heat = null;
-    if (hh && hh.length >= 5) {
+    if (hh && hh.length >= 4) {
       const deltas = [];
       for (let i = 1; i < hh.length; i++) deltas.push(Math.max(0, (hh[i] || 0) - (hh[i - 1] || 0)));
       const dMax = Math.max(...deltas);
@@ -996,7 +996,7 @@ export class FeedEngine {
     // 랭킹 페이지에도 열기 눈금(시그니처) — 정규화 규칙은 _decorate와 동일.
     const heatOf = (it) => {
       const hh = Array.isArray(it.heatHist) ? it.heatHist : null;
-      if (!hh || hh.length < 5) return null;
+      if (!hh || hh.length < 4) return null;
       const d = [];
       for (let k = 1; k < hh.length; k++) d.push(Math.max(0, (hh[k] || 0) - (hh[k - 1] || 0)));
       const m = Math.max(...d);
