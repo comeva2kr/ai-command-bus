@@ -508,6 +508,16 @@
     transform-origin:bottom;animation:heatrise .45s cubic-bezier(.2,.8,.2,1) both}
   .heat i.a{background:var(--color-accent)}
   .heat i.e{height:3px;background:color-mix(in srgb,var(--color-text) 12%,transparent);animation:none}
+  /* 계산 중 스윕 — 요소 하나의 transform만 움직인다(합성 레이어 1개).
+     화면 밖 카드도 브라우저가 알아서 스로틀하므로 추가 제어가 필요 없다. */
+  .heat.pending{position:relative;overflow:hidden}
+  .heat.pending i.e{height:6px}
+  .heat.pending::after{content:"";position:absolute;top:0;bottom:0;left:0;width:42%;
+    background:linear-gradient(90deg,transparent,
+      color-mix(in srgb,var(--color-accent) 55%,transparent),transparent);
+    animation:heatsweep 1.25s ease-in-out infinite;will-change:transform}
+  @keyframes heatsweep{0%{transform:translateX(-110%)}100%{transform:translateX(280%)}}
+  @media (prefers-reduced-motion:reduce){.heat.pending::after{animation:none;opacity:.35}}
   .heat i:nth-child(2){animation-delay:18ms}.heat i:nth-child(3){animation-delay:36ms}
   .heat i:nth-child(4){animation-delay:54ms}.heat i:nth-child(5){animation-delay:72ms}
   .heat i:nth-child(6){animation-delay:90ms}.heat i:nth-child(7){animation-delay:108ms}
@@ -2015,7 +2025,14 @@ async function loadMore(){
 const HEAT_SLOTS = 13;
 function heatRuleHtml(item){
   const h = Array.isArray(item.heat) ? item.heat : null;
-  if(!h || h.length < 3) return "";
+  // 수집 중: 13칸 자리를 잡고 좌→우 스윕. CSS 애니메이션 하나(transform)라
+  // JS 타이머·리페인트 없이 GPU 합성만 쓴다. 표본이 4개 되는 순간 실제
+  // 그래프로 바뀐다(별도 폴링 없이 다음 피드 응답에서 자연 교체).
+  if(!h || h.length < 3){
+    if(!item.heatPending) return "";
+    return `<div class="heat pending" aria-hidden="true" title="화제도 계산 중">${
+      Array.from({length: HEAT_SLOTS}, ()=>'<i class="e"></i>').join("")}</div>`;
+  }
   const rising = h.some(v => v > 0);        // 반응이 실제로 오르는 중인가
   const pad = Math.max(0, HEAT_SLOTS - h.length);
   const cells = [];

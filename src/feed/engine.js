@@ -853,6 +853,9 @@ export class FeedEngine {
     // (2026-08-01 David: "대부분 없고, 있어도 기대와 다르다")
     const hh = Array.isArray(item.heatHist) ? item.heatHist : null;
     let heat = null;
+    // 아직 표본이 모자란 글(수집 중)은 "계산 중"으로 알려 준다 — 클라이언트가
+    // 빈칸 대신 스윕 애니메이션을 그린다(David 2026-08-01).
+    const heatPending = Boolean(hh && hh.length > 0 && hh.length < 4);
     if (hh && hh.length >= 4) {
       const deltas = [];
       for (let i = 1; i < hh.length; i++) deltas.push(Math.max(0, (hh[i] || 0) - (hh[i - 1] || 0)));
@@ -863,6 +866,7 @@ export class FeedEngine {
       ...item,
       adult: item.adult === true,
       heat,
+      heatPending,
       categoryLabel: categoryLabel(item.category),
       matchScore: Math.round(score * 100) / 100,
       reasons,
