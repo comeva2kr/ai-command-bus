@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v18"; // v18: Modernist 디자인 시스템 이식 (NowHot.dc — 괘선·radius0·열기 눈금)
+const CACHE = "feed-shell-v19"; // v19: 라이트 모드 본문 대비 교정
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {

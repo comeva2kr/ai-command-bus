@@ -524,6 +524,20 @@
   /* 아이콘 유틸 */
   .ic{display:inline-block;vertical-align:-3px}
   .ic use{stroke:currentColor}
+  /* 본문 가독성 (David 실기기 2026-08-01: 화이트 모드에서 발췌·제목이 안 읽힘)
+     — 옛 다크 테마 고정색(#c9cedd 등)이 흰 종이 위에서 대비 붕괴. 발췌는
+     본문급 잉크(85%)로 올리고, 부가 라벨만 muted를 유지한다. WCAG AA 이상. */
+  .detail-body .full{color:color-mix(in srgb,var(--color-text) 88%,transparent)!important;
+    font-size:16px;line-height:1.75}
+  .card p{color:color-mix(in srgb,var(--color-text) 78%,transparent)!important;font-size:14px}
+  .src{color:color-mix(in srgb,var(--color-text) 70%,transparent)!important}
+  .card-meta,.detail-body .card-meta{color:color-mix(in srgb,var(--color-text) 62%,transparent)}
+  .card h3,.detail-body h2{color:var(--color-text)}
+  .detail-body h2{font-size:23px;line-height:1.32}
+  .orig-title,.excerpt-note{color:color-mix(in srgb,var(--color-text) 60%,transparent)}
+  .editorial-note{color:color-mix(in srgb,var(--color-text) 72%,transparent)}
+  .muted,.comments h4,.chip{color:inherit}
+  #detailBody p,#spaceBody p{color:color-mix(in srgb,var(--color-text) 85%,transparent)}
   /* 배지 팔레트 정리 — 유채색은 Signal 하나 원칙. 19금만 액센트 아웃라인 */
   .badge,.badge.news,.badge.community,.badge.trans{background:transparent!important;
     border:1px solid var(--line);color:var(--muted)!important}
