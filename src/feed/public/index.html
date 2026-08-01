@@ -541,6 +541,8 @@
   #feed .card .card-thumb img{width:100%;height:100%;object-fit:cover;display:block}
   #feed .card .card-meta{display:flex;align-items:center;gap:10px;width:100%;margin-top:10px}
   #feed .card .card-meta .actions{margin-left:auto;display:flex;gap:8px}
+  #feed .card .reasons{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+  #feed .card .card-top .badge{margin-left:auto}
   .card .rate{color:color-mix(in srgb,var(--color-text) 78%,transparent);
     border:1px solid color-mix(in srgb,var(--color-text) 26%,transparent);background:transparent}
   .card .rate.on{color:var(--color-accent);border-color:var(--color-accent)}
@@ -1881,6 +1883,20 @@ async function loadMore(){
   finally { state.loading=false; }
 }
 
+// 상태 배지 묶음 — 헤더가 아니라 **하단 이유칩 줄**에 붙는다 (David 2026-08-01:
+// "방금/번역은 하단 새로운 탐색 옆에 있어야". 헤더는 소스·카테고리·매체종류만
+// 두어 카드마다 헤더 폭이 흔들리지 않게 한다 — 3단 고정 그리드 원칙의 연장).
+function statusBadgesHtml(item){
+  let out = hotBadge(item);
+  if(item.via==="submit") out += '<span class="badge">유저 제출</span>';
+  if(item.adult) out += '<span class="badge adult">19</span>';
+  if((item.topics||[]).includes("politics")) out += '<span class="badge">정치</span>';
+  if((item.topics||[]).includes("religion")) out += '<span class="badge">종교</span>';
+  if(item.translated) out += '<span class="badge trans">번역</span>';
+  else if(item.needsTranslation) out += '<span class="badge trans">원문</span>';
+  return out;
+}
+
 // 화제성/신선도 뱃지 — proves "this is actually hot right now" (review #3).
 // From public signals only: engagement volume + freshness.
 function hotBadge(item){
@@ -2055,12 +2071,6 @@ function appendCard(item){
       <span class="dot" style="background:${srcColor(item.source)}"></span>
       <span class="src" style="color:${srcColor(item.source)}">${srcLabel(item.source)}</span>
       <span>· ${item.categoryLabel}</span>
-      ${hotBadge(item)}
-      ${item.via==="submit"?'<span class="badge" style="border:1px solid var(--line)">유저 제출</span>':''}
-      ${item.adult?'<span class="badge adult">19</span>':''}
-      ${(item.topics||[]).includes("politics")?'<span class="badge" style="background:var(--card-2);color:var(--muted)">정치</span>':''}
-      ${(item.topics||[]).includes("religion")?'<span class="badge" style="background:var(--card-2);color:var(--muted)">종교</span>':''}
-      ${item.translated?'<span class="badge trans">번역</span>':(item.needsTranslation?'<span class="badge trans">원문</span>':'')}
       <span class="badge ${item.kind}">${item.kind==="news"?"뉴스":"커뮤"}</span>
     </div>
     </div>
@@ -2071,7 +2081,7 @@ function appendCard(item){
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     ${item.editorialNote?`<div class="editorial-note">${escapeHtml(item.editorialNote)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>
-    ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
+    ${statusBadgesHtml(item) || (item.reasons&&item.reasons.length) ? `<div class="reasons">${statusBadgesHtml(item)}${(item.reasons||[]).map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>` : ''}
     </div>
     ${cardThumbHtml(item)}
     </div>
