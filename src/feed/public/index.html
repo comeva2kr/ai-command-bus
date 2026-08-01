@@ -539,6 +539,24 @@
   :focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
   /* 아이콘 유틸 */
   .ic{display:inline-block;vertical-align:-3px}
+  /* 전역 진행 바 — 화면 최상단, 좌우로 흐른다. 에러와 구분되는 "살아있음" 신호 */
+  #netbar{position:fixed;top:0;left:0;right:0;height:3px;z-index:60;
+    background:color-mix(in srgb,var(--color-accent) 22%,transparent);overflow:hidden}
+  #netbar::after{content:"";position:absolute;inset:0;width:38%;
+    background:var(--color-accent);animation:netslide 1.05s ease-in-out infinite}
+  @keyframes netslide{0%{transform:translateX(-100%)}100%{transform:translateX(320%)}}
+  /* 스켈레톤 — 비어 보이는 영역이 "고장난 빈칸"으로 읽히지 않게 */
+  .skel{background:linear-gradient(90deg,
+      color-mix(in srgb,var(--color-text) 8%,transparent) 25%,
+      color-mix(in srgb,var(--color-text) 16%,transparent) 37%,
+      color-mix(in srgb,var(--color-text) 8%,transparent) 63%);
+    background-size:400% 100%;animation:skelshine 1.3s ease-in-out infinite}
+  @keyframes skelshine{0%{background-position:100% 50%}100%{background-position:0 50%}}
+  .skel-card{flex:0 0 185px;height:96px;border:1px solid var(--line)}
+  .skel-line{height:12px;margin:0 0 8px}
+  @media (prefers-reduced-motion:reduce){
+    #netbar::after,.skel{animation:none}
+  }
   /* 3단 그리드 고정: 헤더·메타는 풀폭, 썸네일은 본문행에서만 자리를 차지한다 */
   #feed .card .card-top{display:flex;align-items:center;gap:6px;width:100%;margin-bottom:6px}
   #feed .card .card-top .badge:last-child{margin-left:auto}
@@ -720,7 +738,26 @@
     <button class="chip active" data-sort="hot" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hot"></use></svg>핫</button>
     <button class="chip" data-sort="latest" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-latest"></use></svg>최신</button>
   </div>
-  <main id="feed"></main>
+  <main id="feed">
+    <!-- 첫 페인트~첫 데이터 사이의 빈 화면 방지 (loadMore가 첫 카드를 붙일 때
+         제거된다). "고장난 빈 화면"으로 오해되지 않게 하는 최소 장치. -->
+    <div id="feedSkel">
+      <div style="padding:16px;border-bottom:1px solid var(--line)">
+        <div class="skel skel-line" style="width:38%"></div>
+        <div class="skel skel-line" style="width:92%;height:18px"></div>
+        <div class="skel skel-line" style="width:64%;height:18px"></div>
+      </div>
+      <div style="padding:16px;border-bottom:1px solid var(--line)">
+        <div class="skel skel-line" style="width:30%"></div>
+        <div class="skel skel-line" style="width:88%;height:18px"></div>
+        <div class="skel skel-line" style="width:52%;height:18px"></div>
+      </div>
+      <div style="padding:16px;border-bottom:1px solid var(--line)">
+        <div class="skel skel-line" style="width:34%"></div>
+        <div class="skel skel-line" style="width:90%;height:18px"></div>
+      </div>
+    </div>
+  </main>
   <div class="sentinel" id="sentinel"></div>
 
   <div class="fab" id="fab">
@@ -825,9 +862,41 @@ const API = {
   async authSession(){ const r = await fetch("/api/auth/session", { credentials:"include" }); return r.json(); },
   async logout(){ const r = await fetch("/api/auth/logout", { method:"POST", credentials:"include" }); return r.json(); }
 };
-async function get(u){ const r = await fetch(u); if(!r.ok) throw new Error((await r.json()).error||r.status); return r.json(); }
-async function post(u,b){ const r = await fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)});
-  if(!r.ok) throw new Error((await r.json()).error||r.status); return r.json(); }
+// ── 전역 로딩 표시 (David 2026-08-01: "어떤 상황에서도 멈춰있거나 비어있는
+// 상태로 기다릴 땐 로딩 애니메이션 — 에러인지 헷갈리니까") ─────────────────
+// 모든 요청이 여기를 지난다. 진행 중 요청이 하나라도 있으면 상단에 얇은
+// 진행 바를 띄우고, 전부 끝나면 내린다. 250ms 지연을 둬서 순간 응답(프리페치
+// 히트 등)에는 깜빡이지 않는다.
+let _pending = 0, _barTimer = null;
+function pendingStart(){
+  _pending++;
+  if(_barTimer || document.getElementById("netbar")) return;
+  _barTimer = setTimeout(()=>{
+    _barTimer = null;
+    if(_pending <= 0) return;
+    const b = document.createElement("div"); b.id = "netbar"; b.setAttribute("role","status");
+    b.setAttribute("aria-label","불러오는 중");
+    document.body.appendChild(b);
+  }, 250);
+}
+function pendingEnd(){
+  _pending = Math.max(0, _pending - 1);
+  if(_pending > 0) return;
+  if(_barTimer){ clearTimeout(_barTimer); _barTimer = null; }
+  const b = document.getElementById("netbar"); if(b) b.remove();
+}
+async function get(u){
+  pendingStart();
+  try { const r = await fetch(u); if(!r.ok) throw new Error((await r.json()).error||r.status); return r.json(); }
+  finally { pendingEnd(); }
+}
+async function post(u,b){
+  pendingStart();
+  try {
+    const r = await fetch(u,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(b)});
+    if(!r.ok) throw new Error((await r.json()).error||r.status); return r.json();
+  } finally { pendingEnd(); }
+}
 
 // 소셜 로그인 콜백 리다이렉트(server.js의 /api/auth/:provider/callback ->
 // /?auth=success&userId=... 또는 /?auth=error) 흡수. 성공 시 서버가 이미
@@ -1359,7 +1428,14 @@ function reloadFeed(msg){
   state.cursor = 0; state.exhausted = false; state.loading = false;
   state.prefetch = null; // 조건이 바뀌었으니 선반입분은 버린다
   state.cardsById.clear();
-  document.getElementById("feed").innerHTML = "";
+  document.getElementById("feed").innerHTML =
+    '<div id="feedSkel"><div style="padding:16px;border-bottom:1px solid var(--line)">' +
+    '<div class="skel skel-line" style="width:38%"></div>' +
+    '<div class="skel skel-line" style="width:92%;height:18px"></div>' +
+    '<div class="skel skel-line" style="width:64%;height:18px"></div></div>' +
+    '<div style="padding:16px;border-bottom:1px solid var(--line)">' +
+    '<div class="skel skel-line" style="width:30%"></div>' +
+    '<div class="skel skel-line" style="width:88%;height:18px"></div></div></div>';
   window.scrollTo(0, 0);
   if(msg) toast(msg);
   loadMore();
@@ -1420,7 +1496,7 @@ function setupSpace(){
 async function openSpace(){
   const el = document.getElementById("space");
   const body = document.getElementById("spaceBody");
-  body.innerHTML = '<div class="sentinel"><div class="spinner"></div></div>';
+  body.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><div class="loading-msg">글을 불러오는 중…</div></div>';
   el.classList.remove("hidden");
   history.pushState({ view:"space" }, "", "#space");
   try {
@@ -1578,7 +1654,12 @@ function wireKakaoAppLogin(container){
 function reloadFeedSilently(){
   state.cursor = 0; state.exhausted = false; state.loading = false;
   state.prefetch = null;
-  state.cardsById.clear(); document.getElementById("feed").innerHTML = ""; loadMore();
+  state.cardsById.clear();
+  document.getElementById("feed").innerHTML =
+    '<div id="feedSkel"><div style="padding:16px;border-bottom:1px solid var(--line)">' +
+    '<div class="skel skel-line" style="width:38%"></div>' +
+    '<div class="skel skel-line" style="width:92%;height:18px"></div></div></div>';
+  loadMore();
 }
 function closeSpace(){ document.getElementById("space").classList.add("hidden"); }
 function cat(id){ return state.config.categories.find(c=>c.id===id)?.label || id; }
@@ -1696,6 +1777,9 @@ function setupBrandHome(){
 // ---- 지금 브리핑 스트립 (자체 콘텐츠 홈 노출) ----
 async function loadBriefStrip(){
   const el = document.getElementById("briefStrip");
+  // 비어 있는 채로 기다리지 않게 스켈레톤 먼저 (실패하면 조용히 숨김)
+  el.innerHTML = '<div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div>';
+  el.hidden = false;
   try {
     const [b, tr] = await Promise.all([
       get("/api/briefing"),
@@ -1892,6 +1976,7 @@ function prefetchNext(){
 }
 
 function renderBatch(res){
+  const sk = document.getElementById("feedSkel"); if(sk) sk.remove();
   state.cursor = res.nextCursor;
   updateMeter(res);
   for(const item of res.items) appendCard(item);
@@ -2314,7 +2399,7 @@ window.addEventListener("popstate", (e)=>{
 
 async function renderDetail(itemId){
   const body = document.getElementById("detailBody");
-  body.innerHTML = '<div class="sentinel"><div class="spinner"></div></div>';
+  body.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><div class="loading-msg">글을 불러오는 중…</div></div>';
   let item;
   try { item = await API.item(state.userId, itemId); }
   catch(e){ body.innerHTML = "<p>불러오기 실패</p>"; return; }
