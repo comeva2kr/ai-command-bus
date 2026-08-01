@@ -414,20 +414,18 @@
       "category": "life",
       "size": "large",
       "adult": false,
-      "enabled": false,
+      "enabled": true,
       "frameable": false,
       "adapter": {
         "type": "list",
-        "url": "https://damoang.net/empathy",
-        "note": "David 2026-07-29 '한국서버 이전 후 추가 가능 리소스' 요청으로 조사. 결과: 현재 수집 불가(403). 서울 서버(한국 IP)에서 확인한 사실 — robots.txt는 User-agent:* 부분허용(전면 Disallow 없음), curl(동일 UA)로는 /empathy 200 + 게시물 117행 정상. 그러나 앱의 HTTP 클라이언트(Node fetch)로는 동일 URL·동일 UA에 403(5.5KB). UA 문제가 아니라 클라이언트 지문 수준의 거부로 보인다. docs/handoff.md 절대원칙 3(403 = 우회 금지, 보고만)에 따라 헤더 위장 등 우회를 시도하지 않고 enabled:false로 둔다. 사이트가 정책을 바꾸거나 공식 RSS가 인기보드를 지원하면 재검토. 참고: 공식 RSS(/rss?bo_table=…)는 존재하나 bo_table이 무시되고 전 게시판 '최근 게시글'만 돌려줘 절대원칙 4(대표 베스트/인기 게시판만)에 맞지 않는다. 인기보드는 '공감글'(/empathy).",
+        "url": "https://damoang.net/free",
+        "pages": 1,
+        "note": "2026-08-01 재검증: 한국 서버 이전 후 200 응답 확인(이전 403). robots.txt는 User-agent:* Allow:/ (관리/API만 차단). Svelte SSR이라 정적 HTML에 게시물 24행이 실려 파싱 가능 — post-row 앵커 + post-title title 속성. 추천/댓글 수는 목록에 노출되지 않아 sourceRank 백분위로 화제성 산출(무반응 소스 표준 경로).",
         "list": {
           "urlBase": "https://damoang.net",
-          "titleRegex": "<a href=\"(/[a-z]+/\\d+)\"[^>]*>[\\s\\S]{0,800}?--recommend-font-size[^>]*>([^<]+)",
-          "windowBefore": 260,
-          "windowAfter": 260,
-          "scoreRegex": "text-white\">(\\d+)</span>",
-          "commentRegex": "font-medium\">\\[(\\d+)\\]",
-          "max": 40
+          "titleRegex": "href=\"(/free/\\d+)\"[^>]*class=\"post-row[\\s\\S]{0,1200}?post-title[^>]*title=\"([^\"]+)\"",
+          "windowAfter": 1400,
+          "dateRegex": "date-today[^>]*>([^<]+)<"
         }
       },
       "httpsOk": true
