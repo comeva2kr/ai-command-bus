@@ -234,7 +234,7 @@ export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch } =
 export function makeEnricher({
   fetchImpl = fetch,
   maxPerCycle = 20,
-  concurrency = 4,
+  concurrency = 6,
   ttlMs = 6 * 3600 * 1000,
   negativeTtlMs = 3600 * 1000,
   clock = () => Date.now()
@@ -261,9 +261,14 @@ export function makeEnricher({
   const needsWork = (it) => !it.image || !it.summary;
 
   async function enrich(items) {
-    const candidates = (Array.isArray(items) ? items : [])
-      .filter((it) => it && needsWork(it) && typeof it.url === "string" && /^https?:\/\//i.test(it.url))
-      .slice(0, maxPerCycle);
+    // 이미지 없는 글을 먼저 처리한다 — 발췌보다 이미지가 화면에서 더 크게
+    // 비고, 몰입 모드는 사진이 주인공이라 체감 차이가 크다(David 2026-08-01).
+    // 호출측이 이미 신선도 순으로 넘겨주므로, 같은 조건이면 최신이 앞선다.
+    const pool = (Array.isArray(items) ? items : [])
+      .filter((it) => it && needsWork(it) && typeof it.url === "string" && /^https?:\/\//i.test(it.url));
+    const noImage = pool.filter((it) => !it.image);
+    const rest = pool.filter((it) => it.image);
+    const candidates = [...noImage, ...rest].slice(0, maxPerCycle);
 
     const attempted = candidates.length;
     let filled = 0;

@@ -198,9 +198,10 @@ export function createServer(opts = {}) {
   // FEED_ENRICH_IMAGES=0 으로 끌 수 있다. node --test 자식 프로세스에서는
   // 기본 비활성 — 테스트 픽스처의 가짜 url로 실제 네트워크를 치지 않기 위해.
   if (process.env.FEED_ENRICH_IMAGES !== "0" && !process.env.NODE_TEST_CONTEXT) {
-    // 사이클당 40건: 발췌(summary)까지 채우면서 후보가 커뮤 글 전반으로 늘었다
-    // — 15분 주기 기준 시간당 160건, 풀 전체를 반나절 안에 1회전한다.
-    engine._enricher = makeEnricher({ maxPerCycle: Number(process.env.FEED_ENRICH_PER_CYCLE || 40) });
+    // 사이클당 120건(15분 주기 = 분당 8건, 대부분 서로 다른 도메인이라 부담이
+    // 아주 낮다). 40건일 때 라이브 이미지 보유율이 40%에 머물렀다 — 900건 풀을
+    // 도는 데 5시간 넘게 걸렸기 때문(David 2026-08-01 사진 우선 요구 대응).
+    engine._enricher = makeEnricher({ maxPerCycle: Number(process.env.FEED_ENRICH_PER_CYCLE || 120) });
   }
 
   // X 실시간 트렌드 캐시 (trends.js — 키워드만, 트윗 본문 없음). 테스트

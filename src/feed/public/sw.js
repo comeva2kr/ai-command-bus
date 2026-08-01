@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v34"; // v34: 몰입모드 사진 우선 + 이미지 수집 확장
+const CACHE = "feed-shell-v35"; // v35: 이미지 보강 처리량 3배
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {
