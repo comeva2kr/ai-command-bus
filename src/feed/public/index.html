@@ -467,7 +467,12 @@
     border-bottom:2px solid var(--color-divider)}
   .brand{font-family:var(--font-heading);font-weight:800;letter-spacing:-.02em}
   .brand small{color:var(--muted)}
-  .tagline{color:var(--muted)}
+  /* 태그라인 조판 (David 2026-08-01: "쭉 가다가 줄바꿈하는 게 부자연스럽다")
+     — 한국어는 어절 단위로 끊어야 읽힌다. span 묶음으로 의미 단위를 보호하고,
+     word-break:keep-all + text-wrap:balance로 두 줄이 고르게 나뉘게 한다. */
+  .tagline{color:var(--muted);word-break:keep-all;overflow-wrap:break-word;
+    text-wrap:balance;max-width:34em;font-size:12.5px;line-height:1.5}
+  .tagline span{display:inline-block}
   /* 정렬 = 풀폭 2탭 (NowHot.dc ①홈) */
   .sort-bar{gap:0;padding:0;margin:0;border-bottom:1px solid var(--color-divider)}
   .sort-bar .chip{flex:1;height:46px;display:flex;align-items:center;justify-content:center;
@@ -529,6 +534,28 @@
   .card .rate{color:color-mix(in srgb,var(--color-text) 78%,transparent);
     border:1px solid color-mix(in srgb,var(--color-text) 26%,transparent);background:transparent}
   .card .rate.on{color:var(--color-accent);border-color:var(--color-accent)}
+  /* 평가 피드백 (David 2026-08-01): 누르면 빨갛게 채워졌다가 팟 하고 빠지면서
+     아이콘만 빨강으로 남는다. 채움 상태가 계속 남으면 작은 버튼에서 아이콘이
+     안 보여 "빨간 덩어리"로 읽혔다. 선택자 4개로 기존 .rate.up.on(3개)을
+     이겨 !important 없이 애니메이션이 살아 있게 한다(!important는 애니메이션을
+     덮어버림). DESIGN.md의 "애니메이션은 열기 눈금 한 곳"과 별개 층 —
+     이건 장식이 아니라 직접 조작에 대한 입력 피드백이다. */
+  @keyframes ratepop{
+    0%{transform:scale(1);background:var(--color-accent);color:var(--color-bg);border-color:var(--color-accent)}
+    30%{transform:scale(1.22);background:var(--color-accent);color:var(--color-bg);border-color:var(--color-accent)}
+    70%{transform:scale(1.06);background:color-mix(in srgb,var(--color-accent) 35%,transparent);color:var(--color-accent)}
+    100%{transform:scale(1);background:transparent;color:var(--color-accent);border-color:var(--color-accent)}
+  }
+  .card .rate.up.on,.card .rate.down.on,.card .rate.save.on,
+  .detail-actions .rate.up.on,.detail-actions .rate.down.on{
+    background:transparent;color:var(--color-accent);border-color:var(--color-accent);
+    animation:ratepop .42s cubic-bezier(.2,.8,.2,1)}
+  .card .rate.up.on .ic,.card .rate.down.on .ic,
+  .detail-actions .rate.up.on .ic,.detail-actions .rate.down.on .ic{color:inherit}
+  @media (prefers-reduced-motion:reduce){
+    .card .rate.up.on,.card .rate.down.on,.card .rate.save.on,
+    .detail-actions .rate.up.on,.detail-actions .rate.down.on{animation:none}
+  }
   .brief-card{border-color:color-mix(in srgb,var(--color-text) 34%,transparent)}
   .brief-card .bc-meta{color:color-mix(in srgb,var(--color-text) 72%,transparent)}
   .chip{border-color:color-mix(in srgb,var(--color-text) 34%,transparent);font-weight:600}
@@ -579,10 +606,10 @@
 </defs></svg>
 
   <header>
-    <div class="brand"><svg class="brand-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#111319"/><polyline points="88,368 176,330 244,346" fill="none" stroke="#e8eaf0" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><polyline points="244,346 344,150 424,214" fill="none" stroke="#ff4b3e" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><circle cx="344" cy="150" r="32" fill="#ff4b3e"/></svg> 지금핫 <span class="brand-en">NowHot</span> <small id="phaseLabel">준비 중</small>
+    <div class="brand" id="brandHome" role="button" tabindex="0" title="홈으로 (새로고침)" style="cursor:pointer"><svg class="brand-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#111319"/><polyline points="88,368 176,330 244,346" fill="none" stroke="#e8eaf0" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><polyline points="244,346 344,150 424,214" fill="none" stroke="#ff4b3e" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><circle cx="344" cy="150" r="32" fill="#ff4b3e"/></svg> 지금핫 <span class="brand-en">NowHot</span> <small id="phaseLabel">준비 중</small>
       <button id="menuBtn" class="menu-btn" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"></use></svg></button>
     </div>
-    <p class="tagline">여러 커뮤니티·뉴스의 지금 가장 화제인 글만 모아드려요. 카드를 누르면 원문 사이트 새 탭으로 열려요.</p>
+    <p class="tagline"><span>커뮤니티·뉴스에서 지금 가장 화제인 글만</span> <span>모아서 보여드려요</span></p>
   </header>
 
   <!-- 홈은 통합 핫 피드 하나만 — 소스별 선택 칩·필터 토글·내 공간·제출은 전부
@@ -905,7 +932,7 @@ syncHeaderHeight();
   state.registry = communitiesRes.communities || [];
   const anyLive = state.registry.some(c => (c.liveCount || 0) > 0);
   state.communities = state.registry.filter(c => c.enabled && !c.adult && (!anyLive || (c.liveCount || 0) > 0));
-  loadBriefStrip(); setupSortBar(); renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
+  setupBrandHome(); loadBriefStrip(); setupSortBar(); renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
   setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver(); setupAdImpressionObserver();
   setupLeanSlider(s);
   // Always show content first — a preview feed (popularity-ranked when no taste
@@ -1051,6 +1078,16 @@ function showPersonalizeBanner(){
 // deep-link: a shared /p?id link bounces to /#post-<id>; open that post
 function openFromHash(){
   const h = location.hash;
+  // 새로고침(버튼·당겨서 새로고침)은 홈으로 (David 2026-08-01). 상세를 열어둔
+  // 채 새로고침하면 URL이 #post-…라 상세가 다시 열렸는데, 사용자 기대는
+  // "새로고침 = 홈 다시 보기"다. 딥링크(브리핑·공유 링크)로 처음 들어온
+  // 경우(navigation type "navigate")는 종전대로 상세를 연다 — 둘을 가르는
+  // 기준이 내비게이션 타입이다.
+  const nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+  if(nav && nav.type === "reload" && h && h.startsWith("#post-")){
+    history.replaceState({ view:"feed" }, "", location.pathname + location.search);
+    return;
+  }
   if(h && h.startsWith("#post-")){
     const id = decodeURIComponent(h.slice("#post-".length));
     // fromHash=true: 이미 이 URL로 들어왔으므로 히스토리를 **더 쌓지 않는다**.
@@ -1604,6 +1641,23 @@ function showSurvey(){
 }
 
 // ---- chips (category filter, client-side) ----
+// 상단 "지금핫" 탭 = 홈으로 + 새로고침 (David 2026-08-01). 상세/드로어가 열려
+// 있으면 먼저 닫고, 최상단으로 올린 뒤 피드를 새로 불러온다. 다른 화면(브리핑·
+// 랭킹 등 서버 페이지)에서는 헤더가 없으므로 이 핸들러도 없다.
+function setupBrandHome(){
+  const el = document.getElementById("brandHome"); if(!el) return;
+  const go = ()=>{
+    if(document.getElementById("detail").classList.contains("open")) { history.back(); }
+    if(document.getElementById("drawer").classList.contains("open")) closeDrawer();
+    window.scrollTo(0,0);
+    state.activeSource = null; state.activeCategory = null;
+    reloadFeed("최신 화제글을 새로 불러왔어요");
+    loadBriefStrip();
+  };
+  el.onclick = go;
+  el.onkeydown = (e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } };
+}
+
 // ---- 지금 브리핑 스트립 (자체 콘텐츠 홈 노출) ----
 async function loadBriefStrip(){
   const el = document.getElementById("briefStrip");

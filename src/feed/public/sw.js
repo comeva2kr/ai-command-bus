@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v21"; // v21: 브리핑↔상세 뒤로가기 위치 복원
+const CACHE = "feed-shell-v23"; // v23: 평가 팝 + 브랜드탭 홈 + 새로고침=홈 + 태그라인 조판
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {
