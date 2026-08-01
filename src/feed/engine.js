@@ -847,13 +847,17 @@ export class FeedEngine {
     // 꽉 차서 그래프가 아니라 색 덩어리로 보인다(David 실기기 2026-08-01).
     // 증가분이 전 구간 0이면(반응이 전혀 안 움직인 글) 아예 그리지 않는다 —
     // 없는 화제성을 있는 척하지 않는다.
+    // 값이 안 움직인 글도 **평평한 기준선**으로 그린다(전부 0인 배열을 그대로
+    // 넘김) — 클라이언트가 "정지 = 낮은 회색 선, 상승 = 빨간 봉우리"로 구분해
+    // 그리므로 정직하면서도 시그니처가 대부분의 카드에 존재하게 된다.
+    // (2026-08-01 David: "대부분 없고, 있어도 기대와 다르다")
     const hh = Array.isArray(item.heatHist) ? item.heatHist : null;
     let heat = null;
     if (hh && hh.length >= 4) {
       const deltas = [];
       for (let i = 1; i < hh.length; i++) deltas.push(Math.max(0, (hh[i] || 0) - (hh[i - 1] || 0)));
       const dMax = Math.max(...deltas);
-      if (dMax > 0) heat = deltas.map((v) => Math.round((v / dMax) * 100) / 100);
+      heat = dMax > 0 ? deltas.map((v) => Math.round((v / dMax) * 100) / 100) : deltas.map(() => 0);
     }
     return {
       ...item,
@@ -1000,7 +1004,7 @@ export class FeedEngine {
       const d = [];
       for (let k = 1; k < hh.length; k++) d.push(Math.max(0, (hh[k] || 0) - (hh[k - 1] || 0)));
       const m = Math.max(...d);
-      return m > 0 ? d.map((v) => Math.round((v / m) * 100) / 100) : null;
+      return m > 0 ? d.map((v) => Math.round((v / m) * 100) / 100) : d.map(() => 0);
     };
     const items = await this._items();
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();

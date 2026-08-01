@@ -303,9 +303,10 @@ ol.rank li a{color:var(--text);font-weight:700}
 .nav a:last-child{border-right:none}
 .nav a.on{background:var(--accent);color:var(--bg)}
 .back{display:inline-block;margin-bottom:18px;color:var(--accent);font-weight:700}
-.heat{display:inline-flex;align-items:flex-end;gap:3px;height:16px;margin-top:6px}
-.heat i{display:block;width:3px;background:color-mix(in srgb,var(--text) 26%,transparent)}
-.heat i:nth-last-child(-n+3){background:var(--accent)}</style></head><body><div class="wrap">
+.heat{display:inline-flex;align-items:flex-end;gap:3px;height:18px;margin-top:6px}
+.heat i{display:block;width:4px;background:color-mix(in srgb,var(--text) 30%,transparent)}
+.heat i.a{background:var(--accent)}
+.heat i.e{height:3px;background:color-mix(in srgb,var(--text) 12%,transparent)}</style></head><body><div class="wrap">
 <a class="back" href="/">← 지금핫 피드로</a>
 ${inner}
 <p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
@@ -330,9 +331,19 @@ ${inner}
     return bits;
   };
   // 열기 눈금 — 실측 시계열이 있을 때만 (없으면 아무것도 안 그린다)
-  const heatBar = (h) => Array.isArray(h) && h.length >= 3
-    ? `<span class="heat">${h.map((v) => `<i style="height:${Math.max(2, Math.round(v * 16))}px"></i>`).join("")}</span>`
-    : "";
+  // 앱과 동일 규칙: 13칸 고정 폭, 미수집 구간은 옅은 기준선, 최신 3칸만 액센트
+  const heatBar = (h) => {
+    if (!Array.isArray(h) || h.length < 3) return "";
+    const rising = h.some((v) => v > 0);
+    const pad = Math.max(0, 13 - h.length);
+    const cells = [];
+    for (let i = 0; i < pad; i++) cells.push('<i class="e"></i>');
+    h.forEach((v, idx) => {
+      const recent = rising && idx >= h.length - 3;
+      cells.push(`<i class="${recent ? "a" : ""}" style="height:${Math.max(3, Math.round(v * 18))}px"></i>`);
+    });
+    return `<span class="heat" title="최근 화제도 추이">${cells.join("")}</span>`;
+  };
   const rankingRows = (items) => `<ol class="rank">${items.map((i) => {
     const bits = evidenceBits(i);
     return `<li><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(i.title)}</a>

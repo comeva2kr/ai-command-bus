@@ -503,10 +503,11 @@
   .brief-card .bc-title{color:var(--color-text);font-weight:800;letter-spacing:-.01em}
   .brief-card .bc-meta{color:var(--muted)}
   /* 열기 눈금 — 시그니처, 애니메이션은 여기에만 */
-  .heat{display:flex;align-items:flex-end;gap:3px;height:18px;margin-top:10px}
-  .heat i{display:block;width:3px;background:color-mix(in srgb,var(--color-text) 26%,transparent);
+  .heat{display:flex;align-items:flex-end;gap:3px;height:20px;margin:10px 0 2px}
+  .heat i{display:block;width:4px;background:color-mix(in srgb,var(--color-text) 30%,transparent);
     transform-origin:bottom;animation:heatrise .45s cubic-bezier(.2,.8,.2,1) both}
-  .heat i:nth-last-child(-n+3){background:var(--color-accent)}
+  .heat i.a{background:var(--color-accent)}
+  .heat i.e{height:3px;background:color-mix(in srgb,var(--color-text) 12%,transparent);animation:none}
   .heat i:nth-child(2){animation-delay:18ms}.heat i:nth-child(3){animation-delay:36ms}
   .heat i:nth-child(4){animation-delay:54ms}.heat i:nth-child(5){animation-delay:72ms}
   .heat i:nth-child(6){animation-delay:90ms}.heat i:nth-child(7){animation-delay:108ms}
@@ -2007,6 +2008,27 @@ async function loadMore(){
 // 상태 배지 묶음 — 헤더가 아니라 **하단 이유칩 줄**에 붙는다 (David 2026-08-01:
 // "방금/번역은 하단 새로운 탐색 옆에 있어야". 헤더는 소스·카테고리·매체종류만
 // 두어 카드마다 헤더 폭이 흔들리지 않게 한다 — 3단 고정 그리드 원칙의 연장).
+// 열기 눈금 렌더 — **항상 13칸 고정 폭**. 아직 안 쌓인 구간은 옅은 기준선으로
+// 그려 처음부터 "차트"로 읽히게 한다(David 2026-08-01: 막대 3개만 빨갛게 뜨니
+// 그래프로 안 보임). 실측이 있는 칸만 높이를 갖고, 그중 최신 3칸이 액센트.
+// 데이터가 아예 없거나 3칸 미만이면 아무것도 안 그린다(날조 금지는 유지).
+const HEAT_SLOTS = 13;
+function heatRuleHtml(item){
+  const h = Array.isArray(item.heat) ? item.heat : null;
+  if(!h || h.length < 3) return "";
+  const rising = h.some(v => v > 0);        // 반응이 실제로 오르는 중인가
+  const pad = Math.max(0, HEAT_SLOTS - h.length);
+  const cells = [];
+  for(let i=0;i<pad;i++) cells.push('<i class="e"></i>');                  // 미수집 구간
+  h.forEach((v, idx)=>{
+    // 정지한 글: 전부 낮은 회색 기준선(=지금은 잠잠하다는 사실 그대로).
+    // 오르는 글: 높이로 곡선을 그리고 최신 3칸만 액센트.
+    const recent = rising && idx >= h.length - 3;
+    cells.push(`<i class="${recent?'a':''}" style="height:${Math.max(3, Math.round(v*20))}px"></i>`);
+  });
+  return `<div class="heat${rising?' rising':''}" aria-hidden="true" title="${rising?'최근 화제도 상승 중':'최근 화제도 — 잠잠함'}">${cells.join("")}</div>`;
+}
+
 function statusBadgesHtml(item){
   let out = hotBadge(item);
   if(item.via==="submit") out += '<span class="badge">유저 제출</span>';
@@ -2198,7 +2220,7 @@ function appendCard(item){
     <div class="card-row">
     <div class="card-main">
     <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ` <span class="newtab-hint" role="button" tabindex="0" title="원문 바로 열기 (새 탭)">${ic('external',14)}</span>` : ''}</h3>
-    ${item.heat&&item.heat.length>=3?`<div class="heat" aria-hidden="true">${item.heat.map(h=>`<i style="height:${Math.max(2,Math.round(h*18))}px"></i>`).join("")}</div>`:''}
+    ${heatRuleHtml(item)}
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     ${item.editorialNote?`<div class="editorial-note">${escapeHtml(item.editorialNote)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>
