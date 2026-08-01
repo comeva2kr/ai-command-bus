@@ -260,42 +260,48 @@ export function makeEnricher({
   // 둘 다 채운다. desc가 제목의 단순 복제면 발췌 가치가 없으므로 버린다.
   const needsWork = (it) => !it.image || !it.summary;
 
+  // 메타를 아이템에 적용. 채운 게 있으면 true.
+  function applyMeta(item, meta) {
+    if (!meta) return false;
+    let touched = false;
+    if (!item.image && meta.image) { item.image = meta.image; touched = true; }
+    // U+FFFD(\uFFFD)가 남았으면 디코딩 실패 잔재 — 깨진 발췌는 없느니만 못하다
+    if (!item.summary && meta.desc && meta.desc !== item.title && !meta.desc.includes("\uFFFD")) {
+      item.summary = meta.desc; touched = true;
+    }
+    return touched;
+  }
+
   async function enrich(items) {
     // 이미지 없는 글을 먼저 처리한다 — 발췌보다 이미지가 화면에서 더 크게
     // 비고, 몰입 모드는 사진이 주인공이라 체감 차이가 크다(David 2026-08-01).
     // 호출측이 이미 신선도 순으로 넘겨주므로, 같은 조건이면 최신이 앞선다.
     const pool = (Array.isArray(items) ? items : [])
       .filter((it) => it && needsWork(it) && typeof it.url === "string" && /^https?:\/\//i.test(it.url));
-    const noImage = pool.filter((it) => !it.image);
-    const rest = pool.filter((it) => it.image);
+    // 캐시에 이미 답이 있는 항목은 **상한과 무관하게** 즉시 적용한다 —
+    // 네트워크를 쓰지 않으므로 제한할 이유가 없고, 이걸 상한에 포함시키면
+    // 사이클마다 같은 120건만 갱신되어 커버리지가 늘지 않는다(실측 버그).
+    let cacheApplied = 0;
+    const needFetch = [];
+    for (const it of pool) {
+      const hit = cacheGet(it.url);
+      if (hit !== undefined) { if (applyMeta(it, hit)) cacheApplied++; }
+      else needFetch.push(it);
+    }
+    const noImage = needFetch.filter((it) => !it.image);
+    const rest = needFetch.filter((it) => it.image);
     const candidates = [...noImage, ...rest].slice(0, maxPerCycle);
 
     const attempted = candidates.length;
-    let filled = 0;
+    let filled = cacheApplied;
     let cursor = 0;
-
-    function apply(item, meta) {
-      let touched = false;
-      if (!item.image && meta.image) { item.image = meta.image; touched = true; }
-      // U+FFFD(�)가 남았으면 디코딩 실패 잔재 — 깨진 발췌는 없느니만 못하다
-      if (!item.summary && meta.desc && meta.desc !== item.title && !meta.desc.includes("\uFFFD")) {
-        item.summary = meta.desc; touched = true;
-      }
-      if (touched) filled++;
-    }
 
     async function worker() {
       while (cursor < candidates.length) {
         const item = candidates[cursor++];
-        const cached = cacheGet(item.url);
-        let meta;
-        if (cached !== undefined) {
-          meta = cached; // 캐시 히트 — fetch 없이 즉시 적용
-        } else {
-          meta = await fetchOgMeta(item.url, { fetchImpl });
-          cacheSet(item.url, meta);
-        }
-        apply(item, meta);
+        const meta = await fetchOgMeta(item.url, { fetchImpl });
+        cacheSet(item.url, meta);
+        if (applyMeta(item, meta)) filled++;
       }
     }
 

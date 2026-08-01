@@ -336,6 +336,15 @@ export class FeedEngine {
         || [];
       const heatHist = [...priorHist, engNow].slice(-14);
       heatUpdates.push([item.id, heatHist]);
+      // 보강 결과 이월: 수집이 돌 때마다 아이템 객체가 새것으로 바뀌는데,
+      // 그때 enrich가 채워둔 image/summary가 통째로 지워지고 있었다(라이브
+      // 실측 2026-08-01: 커뮤니티 소스 이미지 0%, 개별 URL로는 정상 추출).
+      // 사이클당 보강 상한(120건) 때문에 나머지는 다음 사이클에 원점으로
+      // 돌아가 커버리지가 영원히 제자리였다. 이전 값을 물려준다.
+      if (prior && prior.item) {
+        if (!item.image && prior.item.image) item.image = prior.item.image;
+        if (!item.summary && prior.item.summary) item.summary = prior.item.summary;
+      }
       this._pool.set(item.id, { item, firstSeenAt, lastSeenAt: now, heatHist });
     }
     if (newlySeen.length && this.store && this.store.recordFirstSeen) {

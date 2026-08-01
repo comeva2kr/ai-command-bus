@@ -194,7 +194,10 @@ test("makeEnricher: 부정 캐시 — 실패한 URL은 TTL 안에서 두 번째 
   const items2 = [{ url: "https://a.example.com/fail", image: null }];
   now += 10_000; // TTL(1시간) 안쪽
   const r2 = await enricher.enrich(items2);
-  assert.equal(r2.attempted, 1);
+  // 2026-08-01 의미 변경: attempted는 이제 **네트워크 시도 수**다(캐시 히트는
+  // 사이클 상한과 무관하게 전량 적용되므로 여기 포함되지 않는다). 이 테스트의
+  // 본질인 "재요청 없음"은 calls.length로 그대로 고정된다.
+  assert.equal(r2.attempted, 0, "캐시 히트는 네트워크 시도가 아니다");
   assert.equal(r2.filled, 0);
   assert.equal(calls.length, 1, "부정 캐시 TTL 안에서는 fetch가 다시 불리면 안 됨");
 });
@@ -342,4 +345,29 @@ test("extractOgImage: og:image가 있으면 폴백보다 우선", () => {
 test("extractOgImage: data: URL과 1x1 추적픽셀은 대표 이미지가 아니다", () => {
   const html = `<img src="data:image/png;base64,AAA"><img src="/t/1x1.gif">`;
   assert.equal(extractOgImage(html, "https://b.example.com/"), null);
+});
+
+test("makeEnricher: 캐시 히트는 사이클 상한과 무관하게 전량 적용된다 (커버리지 정체 버그)", async () => {
+  // 실측 버그(2026-08-01): 캐시 히트가 maxPerCycle에 포함돼, 사이클마다 같은
+  // 120건만 갱신되고 나머지는 계속 이미지가 비어 있었다.
+  const imageByUrl = new Map();
+  const items = [];
+  for (let i = 0; i < 10; i++) {
+    const url = `https://c.example.com/${i}`;
+    imageByUrl.set(url, `https://cdn.example.com/${i}.jpg`);
+    items.push({ url, image: null, summary: "" });
+  }
+  const { fetchImpl, calls } = makeFetchImplWithLog(imageByUrl);
+  const enricher = makeEnricher({ fetchImpl, maxPerCycle: 3 });
+
+  await enricher.enrich(items);                      // 3건만 네트워크
+  assert.equal(calls.length, 3);
+  const filledFirst = items.filter((i) => i.image).length;
+  assert.equal(filledFirst, 3);
+
+  // 다음 사이클: 아이템 객체가 새로 만들어져도(수집 교체 상황) 캐시로 즉시 복구
+  const fresh = items.map((i) => ({ url: i.url, image: null, summary: "" }));
+  const r2 = await enricher.enrich(fresh);
+  assert.equal(r2.attempted, 3, "네트워크는 여전히 상한만큼만");
+  assert.equal(fresh.filter((i) => i.image).length, 6, "캐시 3 + 신규 3 = 6건 채워져야");
 });
