@@ -371,3 +371,22 @@ test("makeEnricher: 캐시 히트는 사이클 상한과 무관하게 전량 적
   assert.equal(r2.attempted, 3, "네트워크는 여전히 상한만큼만");
   assert.equal(fresh.filter((i) => i.image).length, 6, "캐시 3 + 신규 3 = 6건 채워져야");
 });
+
+test("makeEnricher: 캐시가 재시작을 넘어 복구된다 (배포마다 이미지가 날아가던 버그)", async () => {
+  const imageByUrl = new Map([["https://p.example.com/1", "https://cdn.example.com/p1.jpg"]]);
+  const { fetchImpl, calls } = makeFetchImplWithLog(imageByUrl);
+  let saved = null;
+  const e1 = makeEnricher({ fetchImpl, onPersist: (entries) => { saved = entries; } });
+  const items1 = [{ url: "https://p.example.com/1", image: null, summary: "" }];
+  await e1.enrich(items1);
+  assert.equal(items1[0].image, "https://cdn.example.com/p1.jpg");
+  assert.equal(calls.length, 1);
+  assert.ok(saved && saved["https://p.example.com/1"], "캐시가 저장 훅으로 전달돼야");
+
+  // 재시작: 새 enricher가 저장된 캐시를 안고 시작 — 네트워크 없이 즉시 복구
+  const e2 = makeEnricher({ fetchImpl, initialCache: saved });
+  const items2 = [{ url: "https://p.example.com/1", image: null, summary: "" }];
+  await e2.enrich(items2);
+  assert.equal(items2[0].image, "https://cdn.example.com/p1.jpg", "재시작 후에도 이미지 복구");
+  assert.equal(calls.length, 1, "재시작 복구는 네트워크를 쓰지 않는다");
+});

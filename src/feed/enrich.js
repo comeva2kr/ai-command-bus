@@ -237,9 +237,11 @@ export function makeEnricher({
   concurrency = 6,
   ttlMs = 6 * 3600 * 1000,
   negativeTtlMs = 3600 * 1000,
-  clock = () => Date.now()
+  clock = () => Date.now(),
+  initialCache = null,   // 재시작 복구용 (store에서 주입)
+  onPersist = null       // 사이클 끝에 직렬화된 캐시를 넘겨준다
 } = {}) {
-  const cache = new Map(); // url -> { image: string|null, desc: string|null, expiresAt: number }
+  const cache = new Map(Object.entries(initialCache || {}));
 
   function cacheGet(url) {
     const hit = cache.get(url);
@@ -307,6 +309,11 @@ export function makeEnricher({
 
     const workerCount = Math.max(1, Math.min(concurrency, candidates.length));
     await Promise.all(Array.from({ length: workerCount }, worker));
+
+    // 캐시를 밖으로 넘겨 저장하게 한다 — 배포·재시작에도 이미지가 살아남는다
+    if (onPersist && (candidates.length || cacheApplied)) {
+      try { onPersist(Object.fromEntries(cache), clock()); } catch { /* 저장 실패가 수집을 막지 않는다 */ }
+    }
 
     return { attempted, filled };
   }

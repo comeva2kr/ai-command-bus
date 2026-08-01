@@ -201,7 +201,11 @@ export function createServer(opts = {}) {
     // 사이클당 120건(15분 주기 = 분당 8건, 대부분 서로 다른 도메인이라 부담이
     // 아주 낮다). 40건일 때 라이브 이미지 보유율이 40%에 머물렀다 — 900건 풀을
     // 도는 데 5시간 넘게 걸렸기 때문(David 2026-08-01 사진 우선 요구 대응).
-    engine._enricher = makeEnricher({ maxPerCycle: Number(process.env.FEED_ENRICH_PER_CYCLE || 120) });
+    engine._enricher = makeEnricher({
+      maxPerCycle: Number(process.env.FEED_ENRICH_PER_CYCLE || 120),
+      initialCache: store.loadEnrichCache ? store.loadEnrichCache() : null,
+      onPersist: (entries, nowMs) => { if (store.saveEnrichCache) store.saveEnrichCache(entries, nowMs); }
+    });
   }
 
   // X 실시간 트렌드 캐시 (trends.js — 키워드만, 트윗 본문 없음). 테스트

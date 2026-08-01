@@ -261,6 +261,24 @@ export class FeedStore {
   // 넉넉한 7일 — 그 뒤 다시 나타난 글은 "다시 처음 본 것"으로 취급해도
   // 신선도 판정이 위험해지지 않는다: 상한을 통과하려면 어차피 재등장 후
   // 48시간이 더 필요하다).
+  // ---- 보강(og:image/발췌) 캐시 영속화 (2026-08-01) ----------------------
+  // 이미지·발췌는 원문 페이지를 직접 받아야 얻는 비싼 값인데, 캐시가 메모리에만
+  // 있어 배포·재시작마다 전부 날아갔다 — 라이브에서 커버리지가 40%대에 계속
+  // 머문 진짜 이유(배포가 잦은 날은 매번 원점). URL 기준으로 저장한다.
+  loadEnrichCache() {
+    return this.enrichCache || {};
+  }
+
+  saveEnrichCache(entries, nowMs) {
+    if (!entries) return;
+    this.enrichCache = entries;
+    // 만료분 청소 — 저장 파일이 무한히 커지지 않게
+    for (const url of Object.keys(this.enrichCache)) {
+      if ((this.enrichCache[url].expiresAt || 0) < nowMs) delete this.enrichCache[url];
+    }
+    this._persist();
+  }
+
   // ---- 열기 눈금 시계열 영속화 (2026-08-01) ------------------------------
   // heatHist(수집 사이클별 반응량)도 메모리 풀에만 있으면 배포·재시작마다
   // 리셋된다 — 실제로 라이브에서 30건 중 0건만 눈금이 그려졌다(배포가 잦은
@@ -857,6 +875,7 @@ export class FeedStore {
       dailyEditions: [...(this.dailyEditions || new Map())].map(([date, e]) => ({ date, ...e })),
       firstSeen: this.firstSeen || {}, // 수집 풀 최초 관측 시각 — 재시작 뒷북 방지 (P1-a)
       heatHist: this.heatHist || {}, // 열기 눈금 시계열 — 배포마다 리셋되면 시그니처가 죽는다
+      enrichCache: this.enrichCache || {}, // og:image/발췌 — 재수집 비용이 커 반드시 유지
       heatSeen: this.heatSeen || {},
       sessions: [...(this.sessions || new Map())].map(([token, s]) => ({ token, ...s }))
     };
@@ -878,6 +897,7 @@ export class FeedStore {
       this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
       this.firstSeen = data.firstSeen || {};
       this.heatHist = data.heatHist || {};
+      this.enrichCache = data.enrichCache || {};
       this.heatSeen = data.heatSeen || {};
       this.sessions = new Map((data.sessions || []).map((s) => [s.token, { userId: s.userId, expiresAt: s.expiresAt }]));
       for (const user of data.users || []) {
