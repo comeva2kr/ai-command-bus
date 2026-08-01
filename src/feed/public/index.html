@@ -518,6 +518,20 @@
     animation:heatsweep 1.25s ease-in-out infinite;will-change:transform}
   @keyframes heatsweep{0%{transform:translateX(-110%)}100%{transform:translateX(280%)}}
   @media (prefers-reduced-motion:reduce){.heat.pending::after{animation:none;opacity:.35}}
+  /* ── 몰입 모드: 사진이 주인공 (David 2026-08-01) ──────────────────────
+     기본 피드는 텍스트 우선(우측 88px 썸네일)이지만, 몰입 모드는 한 화면에
+     한 글이라 이미지가 화면을 이끌어야 한다. 세로로 재배열:
+     사진(대형) → 헤더 → 제목·발췌 → 메타. 사진이 없으면 그 자리를 비운다. */
+  body.immersion #feed .card{display:flex;flex-direction:column;padding:0}
+  body.immersion #feed .card .card-row{flex-direction:column;gap:0;order:1}
+  body.immersion #feed .card .card-top{order:2;padding:14px 16px 0;margin:0}
+  body.immersion #feed .card .card-main{padding:12px 16px 0}
+  body.immersion #feed .card .card-meta{order:3;padding:0 16px 18px;margin-top:14px}
+  body.immersion #feed .card .card-thumb{order:-1;flex:none;width:100%;height:auto;
+    max-height:52vh;aspect-ratio:4/3;border:none;border-bottom:1px solid var(--line);margin:0}
+  body.immersion #feed .card .card-thumb img{width:100%;height:100%;object-fit:cover}
+  body.immersion #feed .card .card-thumb.noimg{aspect-ratio:auto;min-height:120px}
+  body.immersion #feed .card h3{font-size:22px;line-height:1.35}
   .heat i:nth-child(2){animation-delay:18ms}.heat i:nth-child(3){animation-delay:36ms}
   .heat i:nth-child(4){animation-delay:54ms}.heat i:nth-child(5){animation-delay:72ms}
   .heat i:nth-child(6){animation-delay:90ms}.heat i:nth-child(7){animation-delay:108ms}

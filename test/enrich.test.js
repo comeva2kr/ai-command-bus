@@ -316,3 +316,30 @@ test("makeEnricher: desc가 제목의 단순 복제면 발췌로 쓰지 않는�
   assert.equal(filled, 0);
   assert.equal(items[0].summary, "");
 });
+
+// ---- 이미지 수집률 확장 (David 2026-08-01 "모든 글에서 첫 사진·영상 썸네일") ----
+
+test("extractOgImage: og/twitter가 없으면 유튜브 임베드 썸네일로 폴백", () => {
+  const html = `<div><iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ?rel=0"></iframe></div>`;
+  assert.equal(extractOgImage(html, "https://c.example.com/1"),
+    "https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+});
+
+test("extractOgImage: 메타도 영상도 없으면 본문 첫 사진, 로고·작은 이미지는 건너뛴다", () => {
+  const html = `<img src="/img/logo.png" width="120" height="40">
+    <img src="/skin/icon_new.gif">
+    <img src="/data/editor/photo1.jpg" width="800" height="600">`;
+  assert.equal(extractOgImage(html, "https://b.example.com/post/1"),
+    "https://b.example.com/data/editor/photo1.jpg");
+});
+
+test("extractOgImage: og:image가 있으면 폴백보다 우선", () => {
+  const html = `<meta property="og:image" content="https://cdn.example.com/og.jpg">
+    <img src="/data/photo.jpg" width="800">`;
+  assert.equal(extractOgImage(html, "https://b.example.com/"), "https://cdn.example.com/og.jpg");
+});
+
+test("extractOgImage: data: URL과 1x1 추적픽셀은 대표 이미지가 아니다", () => {
+  const html = `<img src="data:image/png;base64,AAA"><img src="/t/1x1.gif">`;
+  assert.equal(extractOgImage(html, "https://b.example.com/"), null);
+});

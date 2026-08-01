@@ -73,21 +73,57 @@ function metaContent(html, name) {
 // 첫 매치를 채택한다. 상대 URL은 baseUrl 기준으로 절대화하고, http(s)가
 // 아니면(예: data:, javascript:) null — 핫링크 대상은 반드시 실제 이미지
 // 서버 URL이어야 한다.
+// 로고·아이콘·추적픽셀처럼 대표 이미지가 될 수 없는 URL 패턴 (본문 폴백 전용)
+const NON_CONTENT_IMG = /(logo|icon|sprite|avatar|profile|blank|spacer|pixel|1x1|banner_|btn_|emoticon)/i;
+
+// 유튜브·비메오 임베드에서 공개 썸네일 URL을 유도한다 — 영상 글도 대표
+// 이미지를 갖게 하는 경로(David 2026-08-01: "첫번째 사진이나 영상을 썸네일로").
+// 두 서비스 모두 공개 썸네일 엔드포인트를 제공하므로 핫링크 원칙 그대로다.
+function videoThumb(html) {
+  const yt = String(html).match(/(?:youtube\.com\/(?:embed\/|watch\?v=)|youtu\.be\/)([\w-]{11})/i);
+  if (yt) return `https://img.youtube.com/vi/${yt[1]}/hqdefault.jpg`;
+  return null;
+}
+
+// 본문 첫 이미지 — og/twitter가 없을 때만. 로고·아이콘류는 걸러내고,
+// width/height가 선언됐다면 너무 작은 것(150px 미만)은 버린다.
+function firstContentImage(html) {
+  const re = /<img\b[^>]*>/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    const tag = m[0];
+    const src = (tag.match(/\bsrc=["']([^"']+)["']/i) || tag.match(/\bdata-src=["']([^"']+)["']/i) || [])[1];
+    if (!src) continue;
+    const url = decodeEntities(src).trim();
+    if (!url || url.startsWith("data:")) continue;
+    if (NON_CONTENT_IMG.test(url)) continue;
+    const w = Number((tag.match(/\bwidth=["']?(\d+)/i) || [])[1] || 0);
+    const h = Number((tag.match(/\bheight=["']?(\d+)/i) || [])[1] || 0);
+    if ((w && w < 150) || (h && h < 150)) continue;
+    return url;
+  }
+  return null;
+}
+
 export function extractOgImage(html, baseUrl) {
   if (!html) return null;
   const text = String(html);
+  const candidates = [];
   for (const name of IMG_META_NAMES) {
     const raw = metaContent(text, name);
-    if (raw === null) continue;
-    const decoded = decodeEntities(raw).trim();
+    if (raw !== null) candidates.push(decodeEntities(raw).trim());
+  }
+  // 폴백 순서: 메타 → 영상 썸네일 → 본문 첫 사진
+  const vt = videoThumb(text);
+  if (vt) candidates.push(vt);
+  const fi = firstContentImage(text);
+  if (fi) candidates.push(fi);
+
+  for (const decoded of candidates) {
     if (!decoded) continue;
     let abs;
-    try {
-      abs = new URL(decoded, baseUrl);
-    } catch {
-      return null; // 이 후보를 파싱할 수 없으면 그대로 실패 — 다음 후보로 넘어가지 않는다
-    }
-    if (abs.protocol !== "http:" && abs.protocol !== "https:") return null;
+    try { abs = new URL(decoded, baseUrl); } catch { continue; }
+    if (abs.protocol !== "http:" && abs.protocol !== "https:") continue;
     return abs.toString();
   }
   return null;
