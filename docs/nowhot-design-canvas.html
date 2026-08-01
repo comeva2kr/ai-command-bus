@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/modernist-68b789f8-5fbf-46f3-b4de-b3f479feaec2/styles.css">
+<style>
+body{margin:0;background:#f3f2f2;font-family:"Archivo","Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
+a{color:var(--color-accent);text-underline-offset:3px}
+a:hover{color:var(--color-accent-600)}
+@keyframes heatrise{from{transform:scaleY(.12)}to{transform:scaleY(1)}}
+.heat i{display:block;width:3px;background:var(--color-neutral-400);transform-origin:bottom;animation:heatrise .45s cubic-bezier(.2,.8,.2,1) both}
+.heat i:nth-child(n+12){background:var(--color-accent)}
+.heat i:nth-child(2){animation-delay:18ms}.heat i:nth-child(3){animation-delay:36ms}.heat i:nth-child(4){animation-delay:54ms}.heat i:nth-child(5){animation-delay:72ms}.heat i:nth-child(6){animation-delay:90ms}.heat i:nth-child(7){animation-delay:108ms}.heat i:nth-child(8){animation-delay:126ms}.heat i:nth-child(9){animation-delay:144ms}.heat i:nth-child(10){animation-delay:162ms}.heat i:nth-child(11){animation-delay:180ms}.heat i:nth-child(12){animation-delay:198ms}.heat i:nth-child(13){animation-delay:216ms}.heat i:nth-child(14){animation-delay:234ms}
+@media (prefers-reduced-motion:reduce){.heat i{animation:none}}
+.clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-hot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="2 19 7 14 11 16 16 8 21 3"></polyline></g><rect x="19" y="1" width="4" height="4" fill="currentColor"></rect></symbol>
+<symbol id="i-latest" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><circle cx="12" cy="12" r="9"></circle><polyline points="12 6 12 12 17 14"></polyline></g></symbol>
+<symbol id="i-briefing" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><rect x="4" y="3" width="16" height="18"></rect><line x1="8" y1="8" x2="16" y2="8"></line><line x1="8" y1="12" x2="16" y2="12"></line><line x1="8" y1="16" x2="13" y2="16"></line></g></symbol>
+<symbol id="i-ranking" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><rect x="3" y="13" width="5" height="8"></rect><rect x="9.5" y="8" width="5" height="13"></rect><rect x="16" y="3" width="5" height="18"></rect></g></symbol>
+<symbol id="i-trend" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="2 18 8 12 12 16 21 5"></polyline><polyline points="14 5 21 5 21 12"></polyline></g></symbol>
+<symbol id="i-comment" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="8 17 3 17 3 4 21 4 21 17 13 17 8 22 8 17"></polyline></g></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><line x1="12" y1="2" x2="12" y2="15"></line><polyline points="7 7 12 2 17 7"></polyline><polyline points="4 12 4 22 20 22 20 12"></polyline></g></symbol>
+<symbol id="i-like" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><rect x="2" y="10" width="5" height="11"></rect><path d="M10 21V10l5-8h1l1 1v6h5l-2 12z"></path></g></symbol>
+<symbol id="i-dislike" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><rect x="2" y="3" width="5" height="11"></rect><path d="M10 3v11l5 8h1l1-1v-6h5L20 3z"></path></g></symbol>
+<symbol id="i-scrap" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="5 3 19 3 19 22 12 16 5 22 5 3"></polyline></g></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></g></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><line x1="4" y1="4" x2="20" y2="20"></line><line x1="20" y1="4" x2="4" y2="20"></line></g></symbol>
+<symbol id="i-external" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="14 3 21 3 21 10"></polyline><line x1="21" y1="3" x2="11" y2="13"></line><polyline points="18 14 18 21 3 21 3 6 10 6"></polyline></g></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><circle cx="10" cy="10" r="7"></circle><line x1="15" y1="15" x2="21" y2="21"></line></g></symbol>
+</defs></svg>
+
+<section style="padding:56px 56px 40px;max-width:1180px">
+<div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">
+<svg width="34" height="34" viewBox="0 0 24 24" style="display:block;color:var(--color-accent)"><use href="#i-hot"></use></svg>
+<div style="font:800 13px/1 Archivo,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent)">NowHot · 지금핫</div>
+</div>
+<h1 style="font-size:52px;margin:0 0 20px;letter-spacing:-.03em">시끄러운 인터넷을 대신 읽어주는 친구는,<br>말수가 적고 숫자를 보여준다</h1>
+<hr class="hr">
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-bottom:2px solid var(--color-divider)">
+<div style="padding:20px 24px 24px 0;border-right:1px solid var(--color-divider)">
+<h6 style="color:var(--color-accent);margin-bottom:10px">컨셉</h6>
+<p style="font-size:14px;margin:0">화면은 신문 조판처럼 굵은 2px 괘선으로만 조직된다. 색은 거의 쓰지 않고, 빨강은 <b>"지금 뜨거운 것"</b> 단 하나에만 허용된다. 사용자가 기억할 것은 예쁜 카드가 아니라 모든 제목 아래의 <b>열기 눈금</b>이다.</p>
+</div>
+<div style="padding:20px 24px 24px;border-right:1px solid var(--color-divider)">
+<h6 style="color:var(--color-accent);margin-bottom:10px">좌표 (모방 아님)</h6>
+<p style="font-size:14px;margin:0">뉴닉의 편집감(섹션 괘선·날짜 아카이브) × 터미널 UI의 숫자 정직함 × 당근의 말투(존댓말·행동 언어). 토스의 부드러움은 의도적 배제 — 둥근 모서리는 "정리된 신문" 은유를 깨뜨린다.</p>
+</div>
+<div style="padding:20px 0 24px 24px">
+<h6 style="color:var(--color-accent);margin-bottom:10px">자기 비평 통과 근거</h6>
+<p style="font-size:14px;margin:0">radius 0px가 전면 적용(썸네일·토글까지). 카드에 그림자가 하나도 없다. 숫자는 Archivo, 한글은 시스템 고딕으로 갈라져 <b>수치가 글자보다 단단해 보인다</b>. 시그니처가 서비스 고유 데이터에서 나와 이식 불가능하다.</p>
+</div>
+</div>
+<p style="font-size:12.5px;margin:16px 0 0;color:color-mix(in srgb,var(--color-text) 55%,transparent);max-width:760px">전체 토큰·아이콘 스펙·컴포넌트 규칙·마이크로카피 원칙은 <b>DESIGN.md</b>에 정리했습니다. 브리프 대비 의도적 변경 2가지: ① 소스 표식을 컬러 도트 → 8px 사각 + 뉴트럴 명도 (radius 0 정책 + "액센트는 열기에만" 규칙 유지), ② 기존 파랑 액센트 #4f8cff 폐기 (액센트 2개는 "지금 뜨거움" 신호를 희석).</p>
+</section>
+
+<section style="padding:0 56px 48px;max-width:1180px">
+<h6 style="border-bottom:2px solid var(--color-divider);padding-bottom:8px;margin-bottom:24px">토큰</h6>
+<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:0;margin-bottom:32px;border:1px solid var(--color-divider)">
+<div style="border-right:1px solid var(--color-divider)"><div style="height:88px;background:#f3f2f2"></div><div style="padding:10px 12px"><div style="font:800 13px Archivo">Paper</div><div style="font:400 11px Archivo;opacity:.6">#f3f2f2 · 라이트 바탕</div></div></div>
+<div style="border-right:1px solid var(--color-divider)"><div style="height:88px;background:#eae9e9"></div><div style="padding:10px 12px"><div style="font:800 13px Archivo">Surface</div><div style="font:400 11px Archivo;opacity:.6">#eae9e9 · 광고/입력</div></div></div>
+<div style="border-right:1px solid var(--color-divider)"><div style="height:88px;background:#201e1d"></div><div style="padding:10px 12px"><div style="font:800 13px Archivo">Ink</div><div style="font:400 11px Archivo;opacity:.6">#201e1d · 텍스트</div></div></div>
+<div style="border-right:1px solid var(--color-divider)"><div style="height:88px;background:#171615"></div><div style="padding:10px 12px"><div style="font:800 13px Archivo">Press</div><div style="font:400 11px Archivo;opacity:.6">#171615 · 다크 바탕</div></div></div>
+<div style="border-right:1px solid var(--color-divider)"><div style="height:88px;background:#ec3013"></div><div style="padding:10px 12px"><div style="font:800 13px Archivo">Signal</div><div style="font:400 11px Archivo;opacity:.6">#ec3013 · 열기 전용</div></div></div>
+<div><div style="height:88px;background:#ff563c"></div><div style="padding:10px 12px"><div style="font:800 13px Archivo">Signal Bright</div><div style="font:400 11px Archivo;opacity:.6">#ff563c · 다크 액센트</div></div></div>
+</div>
+<div style="display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:36px;border-top:1px solid var(--color-divider);padding-top:24px">
+<div>
+<h6 style="color:var(--color-accent);margin-bottom:12px">시그니처 — 열기 눈금</h6>
+<div style="display:flex;align-items:flex-end;gap:14px">
+<div class="heat" style="display:flex;align-items:flex-end;gap:3px;height:34px"><i style="height:6px"></i><i style="height:5px"></i><i style="height:9px"></i><i style="height:8px"></i><i style="height:13px"></i><i style="height:11px"></i><i style="height:10px"></i><i style="height:17px"></i><i style="height:15px"></i><i style="height:21px"></i><i style="height:19px"></i><i style="height:26px"></i><i style="height:31px"></i><i style="height:34px"></i></div>
+<div style="font:800 26px Archivo;color:var(--color-accent);line-height:1">+412%</div>
+</div>
+<p style="font-size:13px;margin:14px 0 0">최근 14개 시간 구간의 화제도를 높이로 그리고, 현재 구간(마지막 3칸)만 Signal. 브랜드 마크의 급등 스파이크를 인터페이스 단위로 번역했습니다. <b>애니메이션은 이 한 곳에만</b> — 카드 진입 시 0.45s, 칸당 18ms stagger, reduced-motion이면 즉시 최종 상태.</p>
+</div>
+<div>
+<h6 style="color:var(--color-accent);margin-bottom:12px">서체 역할 2개</h6>
+<div style="font:800 30px/1.1 Archivo;letter-spacing:-.02em">12,480 · Archivo 800</div>
+<div style="font-size:15px;margin-top:8px">본문은 시스템 고딕 스택 — 웹폰트는 Archivo 1개까지만. Archivo를 스택 맨 앞에 두면 <b>숫자·라틴만 Archivo</b>, 한글은 시스템 고딕으로 폴백됩니다. 이 혼합이 의도된 시그널입니다.</div>
+</div>
+<div>
+<h6 style="color:var(--color-accent);margin-bottom:12px">radius · spacing · 그림자</h6>
+<div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:12px"><span style="width:44px;height:44px;background:var(--color-text);display:block"></span><span style="font:800 22px Archivo">0px</span><span style="font-size:12px;opacity:.6;padding-bottom:4px">예외 없음</span></div>
+<div style="display:flex;gap:4px;align-items:flex-end;margin-bottom:12px"><span style="width:4px;height:4px;background:var(--color-neutral-400)"></span><span style="width:8px;height:8px;background:var(--color-neutral-500)"></span><span style="width:12px;height:12px;background:var(--color-neutral-600)"></span><span style="width:16px;height:16px;background:var(--color-neutral-700)"></span><span style="width:24px;height:24px;background:var(--color-neutral-800)"></span><span style="width:32px;height:32px;background:var(--color-neutral-900)"></span></div>
+<div style="font-size:13px">그림자는 <b>바텀시트·다이얼로그 전용</b>. 카드·버튼·칩에 금지 — 부유하는 카드가 하나도 없는 것이 디폴트 룩과의 즉각적 차이입니다.</div>
+</div>
+</div>
+</section>
+
+<section style="padding:0 56px 48px;max-width:1180px">
+<h6 style="border-bottom:2px solid var(--color-divider);padding-bottom:8px;margin-bottom:6px">아이콘 세트 — 24px 그리드 · 2px 스트로크 · butt 캡 · miter 조인 · 라운딩 0</h6>
+<div style="display:grid;grid-template-columns:repeat(7,1fr);border-left:1px solid var(--color-divider)">
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-hot"></use></svg><span style="font-size:11px;opacity:.65">핫</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-latest"></use></svg><span style="font-size:11px;opacity:.65">최신</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-briefing"></use></svg><span style="font-size:11px;opacity:.65">브리핑</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-ranking"></use></svg><span style="font-size:11px;opacity:.65">랭킹</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-trend"></use></svg><span style="font-size:11px;opacity:.65">트렌드</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-comment"></use></svg><span style="font-size:11px;opacity:.65">댓글</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-share"></use></svg><span style="font-size:11px;opacity:.65">공유</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-like"></use></svg><span style="font-size:11px;opacity:.65">좋아요</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-dislike"></use></svg><span style="font-size:11px;opacity:.65">별로예요</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-scrap"></use></svg><span style="font-size:11px;opacity:.65">스크랩</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-menu"></use></svg><span style="font-size:11px;opacity:.65">메뉴</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-close"></use></svg><span style="font-size:11px;opacity:.65">닫기</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-external"></use></svg><span style="font-size:11px;opacity:.65">원문가기</span></div>
+<div style="border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:20px 0 12px;display:flex;flex-direction:column;align-items:center;gap:10px"><svg width="24" height="24" viewBox="0 0 24 24"><use href="#i-search"></use></svg><span style="font-size:11px;opacity:.65">검색</span></div>
+</div>
+</section>
+
+<section style="padding:0 56px 56px">
+<h6 style="border-bottom:2px solid var(--color-divider);padding-bottom:8px;margin-bottom:24px">화면 — 라이트 · 390px</h6>
+<div style="display:flex;gap:28px;align-items:flex-start">
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:800 12px Archivo;letter-spacing:.08em">① 홈 피드</div>
+<div style="width:390px;height:812px;flex:none;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md)">
+<div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:800 13px Archivo"><span>9:41</span><span style="letter-spacing:.1em">LTE ▮▮▮</span></div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:2px solid var(--color-divider)">
+<svg width="22" height="22" viewBox="0 0 24 24" style="color:var(--color-accent);flex:none"><use href="#i-hot"></use></svg>
+<div style="font:800 20px Archivo;letter-spacing:-.02em;margin-right:auto">지금핫</div>
+<button class="btn btn-icon" style="width:44px;height:44px"><svg width="22" height="22" viewBox="0 0 24 24"><use href="#i-search"></use></svg></button>
+<button class="btn btn-icon" style="width:44px;height:44px"><svg width="22" height="22" viewBox="0 0 24 24"><use href="#i-menu"></use></svg></button>
+</div>
+<div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+<div style="padding:14px 16px 6px;display:flex;align-items:baseline;gap:8px"><span style="font:800 14px/1 Archivo">지금 브리핑</span><span style="font-size:11px;opacity:.55">08.01 07:00 기준</span><a href="#" style="margin-left:auto;font-size:12px;text-decoration:none">전체보기</a></div>
+<div style="display:flex;gap:10px;padding:6px 16px 16px;overflow:hidden">
+<div style="width:196px;flex:none;border:1px solid var(--color-divider);padding:12px">
+<div style="font:800 10px Archivo;letter-spacing:.1em;color:var(--color-accent);margin-bottom:8px">사회</div>
+<div style="font:800 15px/1.32;letter-spacing:-.01em" class="clamp2">전세사기 특별법 개정안, 커뮤니티 6곳에서 동시 폭주</div>
+<div class="heat" style="display:flex;align-items:flex-end;gap:3px;height:14px;margin-top:12px"><i style="height:3px"></i><i style="height:4px"></i><i style="height:3px"></i><i style="height:6px"></i><i style="height:5px"></i><i style="height:7px"></i><i style="height:6px"></i><i style="height:9px"></i><i style="height:8px"></i><i style="height:11px"></i><i style="height:10px"></i><i style="height:12px"></i><i style="height:13px"></i><i style="height:14px"></i></div>
+</div>
+<div style="width:196px;flex:none;border:1px solid var(--color-divider);padding:12px">
+<div style="font:800 10px Archivo;letter-spacing:.1em;color:var(--color-accent);margin-bottom:8px">X 트렌드</div>
+<div style="font:800 15px/1.32;letter-spacing:-.01em" class="clamp2">1위 폭염특보 · 2위 대체공휴일</div>
+<div style="font-size:11px;opacity:.55;margin-top:12px">키워드 20개 · 04:20 갱신</div>
+</div>
+<div style="width:60px;flex:none;border:1px solid var(--color-divider)"></div>
+</div>
+<div style="display:flex;border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider)">
+<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:46px;background:var(--color-accent);color:var(--color-bg);font:800 14px Archivo"><svg width="17" height="17" viewBox="0 0 24 24"><use href="#i-hot"></use></svg>핫</div>
+<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:46px;font:800 14px Archivo;border-left:1px solid var(--color-divider)"><svg width="17" height="17" viewBox="0 0 24 24"><use href="#i-latest"></use></svg>최신</div>
+</div>
+<div style="display:flex;gap:6px;padding:12px 16px;overflow:hidden;border-bottom:1px solid var(--color-divider)">
+<span style="border:1px solid var(--color-text);background:var(--color-text);color:var(--color-bg);padding:6px 12px;font-size:13px;flex:none">전체</span>
+<span style="border:1px solid var(--color-divider);padding:6px 12px;font-size:13px;flex:none">유머</span>
+<span style="border:1px solid var(--color-divider);padding:6px 12px;font-size:13px;flex:none">사회</span>
+<span style="border:1px solid var(--color-divider);padding:6px 12px;font-size:13px;flex:none">IT</span>
+<span style="border:1px solid var(--color-divider);padding:6px 12px;font-size:13px;flex:none">연예</span>
+</div>
+
+<div style="padding:16px;border-bottom:1px solid var(--color-divider)">
+<div style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:9px"><span style="width:8px;height:8px;background:var(--color-neutral-800);flex:none"></span><span style="font-weight:600">보배드림</span><span style="opacity:.4">·</span><span style="opacity:.6">사회</span><span style="margin-left:auto;opacity:.5">17분 전</span></div>
+<div style="font:800 19px/1.3;letter-spacing:-.015em;margin-bottom:11px" class="clamp2">아파트 주차장 막은 차주에게 견인비 청구했더니 돌아온 답장</div>
+<div style="display:flex;gap:10px">
+<div style="flex:1;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px;font-size:12px"><span style="font:800 13px Archivo;color:var(--color-accent)">▲12,480</span><span style="opacity:.55">댓글 3,201</span></div>
+<span style="border:1px solid var(--color-divider);padding:3px 8px;font-size:11px;align-self:flex-start">4개 매체 교차보도</span>
+<div class="heat" style="display:flex;align-items:flex-end;gap:3px;height:18px"><i style="height:4px"></i><i style="height:3px"></i><i style="height:6px"></i><i style="height:5px"></i><i style="height:8px"></i><i style="height:7px"></i><i style="height:6px"></i><i style="height:10px"></i><i style="height:9px"></i><i style="height:12px"></i><i style="height:11px"></i><i style="height:14px"></i><i style="height:17px"></i><i style="height:18px"></i></div>
+</div>
+<div style="width:104px;height:104px;flex:none;background:repeating-linear-gradient(45deg,transparent 0 6px,color-mix(in srgb,var(--color-text) 11%,transparent) 6px 7px),var(--color-surface);position:relative"><span style="position:absolute;left:6px;bottom:5px;font:400 10px Archivo;opacity:.5">bobae</span></div>
+</div>
+</div>
+
+<div style="padding:16px;border-bottom:1px solid var(--color-divider);background:var(--color-surface)">
+<div style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:9px"><span style="width:8px;height:8px;background:var(--color-neutral-400);flex:none"></span><span style="font-weight:600">쿠팡</span><span style="margin-left:auto;border:1px solid var(--color-text);padding:2px 7px;font:800 10px Archivo;letter-spacing:.06em">AD</span></div>
+<div style="font:800 19px/1.3;letter-spacing:-.015em;margin-bottom:9px" class="clamp2">여름 한정 — 차량용 무선 청소기 오늘까지 42% 할인</div>
+<div style="font-size:11px;opacity:.6">지금핫은 이 링크로 수수료를 받을 수 있어요 · 탭하면 고지 전문</div>
+</div>
+
+<div style="padding:16px">
+<div style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:9px"><span style="width:8px;height:8px;background:var(--color-neutral-600);flex:none"></span><span style="font-weight:600">클리앙</span><span style="opacity:.4">·</span><span style="opacity:.6">IT</span><span style="margin-left:auto;opacity:.5">41분 전</span></div>
+<div style="font:800 19px/1.3;letter-spacing:-.015em;margin-bottom:11px" class="clamp2">통신사 요금제 개편, 실사용자 계산기 돌려봤습니다</div>
+<div style="display:flex;align-items:center;gap:9px;font-size:12px"><span style="font:800 13px Archivo;color:var(--color-accent)">▲8,032</span><span style="opacity:.55">댓글 1,144</span></div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:800 12px Archivo;letter-spacing:.08em">② 글 상세 — 바텀시트</div>
+<div style="width:390px;height:812px;flex:none;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden;position:relative;box-shadow:var(--shadow-md)">
+<div style="position:absolute;inset:0;background:color-mix(in srgb,#2d2b2b 45%,transparent)"></div>
+<div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:800 13px Archivo"><span>9:41</span><span style="letter-spacing:.1em">LTE ▮▮▮</span></div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:2px solid var(--color-divider)"><svg width="22" height="22" viewBox="0 0 24 24" style="color:var(--color-accent)"><use href="#i-hot"></use></svg><div style="font:800 20px Archivo;letter-spacing:-.02em">지금핫</div></div>
+<div style="flex:1"></div>
+<div style="position:relative;background:var(--color-bg);border-top:2px solid var(--color-text);box-shadow:var(--shadow-lg);max-height:640px;display:flex;flex-direction:column">
+<div style="display:flex;justify-content:center;padding:10px 0 4px"><span style="width:44px;height:4px;background:var(--color-neutral-400);display:block"></span></div>
+<div style="display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 16px 12px"><span style="width:8px;height:8px;background:var(--color-neutral-800)"></span><span style="font-weight:600">보배드림</span><span style="opacity:.4">·</span><span style="opacity:.6">사회</span><button class="btn btn-icon" style="margin-left:auto;width:36px;height:36px"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-close"></use></svg></button></div>
+<div style="padding:0 16px">
+<a href="#" style="font:800 23px/1.28;letter-spacing:-.02em;color:inherit;text-decoration:none;display:flex;gap:8px;align-items:flex-start">아파트 주차장 막은 차주에게 견인비 청구했더니 돌아온 답장<svg width="18" height="18" viewBox="0 0 24 24" style="flex:none;margin-top:6px;color:var(--color-accent)"><use href="#i-external"></use></svg></a>
+<div class="heat" style="display:flex;align-items:flex-end;gap:3px;height:20px;margin:14px 0 6px"><i style="height:4px"></i><i style="height:3px"></i><i style="height:7px"></i><i style="height:6px"></i><i style="height:9px"></i><i style="height:8px"></i><i style="height:7px"></i><i style="height:11px"></i><i style="height:10px"></i><i style="height:13px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:19px"></i><i style="height:20px"></i></div>
+<div style="display:flex;align-items:center;gap:10px;font-size:12px;padding-bottom:14px;border-bottom:1px solid var(--color-divider)"><span style="font:800 14px Archivo;color:var(--color-accent)">▲12,480</span><span style="opacity:.55">원문 댓글 3,201</span><span style="opacity:.4">·</span><span style="opacity:.55">지금핫 댓글 42</span></div>
+<div style="height:150px;margin:14px 0;background:repeating-linear-gradient(45deg,transparent 0 6px,color-mix(in srgb,var(--color-text) 11%,transparent) 6px 7px),var(--color-surface);position:relative"><span style="position:absolute;left:8px;bottom:6px;font:400 10px Archivo;opacity:.5">bobae</span></div>
+<p style="font-size:15px;line-height:1.62;margin:0 0 6px">주차장 입구를 이틀째 막고 있던 차량에 견인 절차를 안내했더니, 차주가 관리사무소에 보낸 답장이 화제입니다. 글쓴이는 견인비 영수증과 함께 단지 규약 조항을…</p>
+<div style="font-size:11px;opacity:.5;margin-bottom:14px">저작권 보호를 위해 발췌만 제공합니다 · 200자</div>
+<a href="#" class="btn btn-primary btn-block" style="height:52px;font-size:15px;padding-left:16px;justify-content:flex-start;gap:8px;margin:0 0 14px">원문에서 계속 읽기<svg width="18" height="18" viewBox="0 0 24 24"><use href="#i-external"></use></svg></a>
+</div>
+<div style="display:flex;border-top:1px solid var(--color-divider)">
+<button class="btn" style="flex:1;height:56px;gap:7px;font-size:13px;border-right:1px solid var(--color-divider);border-radius:0"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-like"></use></svg>1,204</button>
+<button class="btn" style="flex:1;height:56px;gap:7px;font-size:13px;border-right:1px solid var(--color-divider);border-radius:0"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-dislike"></use></svg>88</button>
+<button class="btn" style="flex:1;height:56px;gap:7px;font-size:13px;border-right:1px solid var(--color-divider);border-radius:0"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-scrap"></use></svg>담기</button>
+<button class="btn" style="flex:1;height:56px;gap:7px;font-size:13px;border-radius:0"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-share"></use></svg>공유</button>
+</div>
+<div style="display:flex;gap:8px;padding:12px 16px 20px;border-top:1px solid var(--color-divider);background:var(--color-surface)"><input class="input" placeholder="지금핫 댓글 남기기" style="height:44px"><button class="btn btn-primary" style="height:44px;flex:none">등록</button></div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:800 12px Archivo;letter-spacing:.08em">③ 브리핑</div>
+<div style="width:390px;height:812px;flex:none;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md)">
+<div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:800 13px Archivo"><span>9:41</span><span style="letter-spacing:.1em">LTE ▮▮▮</span></div>
+<div style="flex:none;display:flex;align-items:center;gap:12px;padding:6px 16px 12px;border-bottom:2px solid var(--color-divider)"><button class="btn btn-icon" style="width:40px;height:40px;margin-left:-8px"><svg width="22" height="22" viewBox="0 0 24 24" style="transform:rotate(180deg)"><use href="#i-external"></use></svg></button><div style="font:800 18px Archivo;letter-spacing:-.02em;margin-right:auto">지금 브리핑</div><button class="btn btn-icon" style="width:40px;height:40px"><svg width="22" height="22" viewBox="0 0 24 24"><use href="#i-briefing"></use></svg></button></div>
+<div style="flex:1;overflow:hidden">
+<div style="padding:20px 16px 16px;border-bottom:2px solid var(--color-divider)">
+<div style="font:800 34px/1 Archivo;letter-spacing:-.03em">2026.08.01</div>
+<div style="font-size:13px;margin-top:8px;opacity:.7">커뮤니티 11곳 · 게시글 8,412개를 읽고 6개 이슈로 줄였습니다</div>
+<div style="display:flex;gap:6px;margin-top:14px"><span style="border:1px solid var(--color-text);background:var(--color-text);color:var(--color-bg);padding:5px 11px;font-size:12px">오늘</span><span style="border:1px solid var(--color-divider);padding:5px 11px;font-size:12px">어제</span><span style="border:1px solid var(--color-divider);padding:5px 11px;font-size:12px">날짜 선택</span></div>
+</div>
+<div style="padding:18px 16px;border-bottom:1px solid var(--color-divider)">
+<div style="font:800 11px Archivo;letter-spacing:.12em;color:var(--color-accent);margin-bottom:10px">사회</div>
+<div style="font:800 21px/1.3;letter-spacing:-.02em;margin-bottom:10px">전세사기 특별법 개정안이 하루 만에 6개 커뮤니티 상위권을 채웠습니다</div>
+<p style="font-size:14.5px;line-height:1.6;margin:0 0 12px">보배드림·뽐뿌·클리앙에서 각각 추천 5,000회를 넘겼고, 언론 4곳이 같은 조항을 다뤘습니다. 논점은 소급 적용 범위 한 가지로 모입니다.</p>
+<div style="display:flex;flex-wrap:wrap;gap:6px"><span style="border:1px solid var(--color-divider);padding:3px 8px;font-size:11px">추천 합계 18,204</span><span style="border:1px solid var(--color-divider);padding:3px 8px;font-size:11px">4개 매체</span><span style="border:1px solid var(--color-divider);padding:3px 8px;font-size:11px">관련글 12</span></div>
+</div>
+<div style="padding:18px 16px;border-bottom:1px solid var(--color-divider)">
+<div style="font:800 11px Archivo;letter-spacing:.12em;color:var(--color-accent);margin-bottom:10px">IT</div>
+<div style="font:800 21px/1.3;letter-spacing:-.02em;margin-bottom:10px">통신 요금제 개편, 계산기 글이 원문보다 더 많이 읽혔습니다</div>
+<p style="font-size:14.5px;line-height:1.6;margin:0 0 12px">클리앙 사용자가 만든 시뮬레이터가 인벤·뽐뿌로 재게시되며 댓글 3,000개를 넘겼습니다.</p>
+<div style="display:flex;flex-wrap:wrap;gap:6px"><span style="border:1px solid var(--color-divider);padding:3px 8px;font-size:11px">추천 합계 9,760</span><span style="border:1px solid var(--color-divider);padding:3px 8px;font-size:11px">관련글 7</span></div>
+</div>
+<div style="padding:18px 16px">
+<div style="font:800 11px Archivo;letter-spacing:.12em;color:var(--color-accent);margin-bottom:10px">유머</div>
+<div style="font:800 21px/1.3;letter-spacing:-.02em">폭염 속 배달 기사 사진 한 장이 세 커뮤니티를 돌았습니다</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:800 12px Archivo;letter-spacing:.08em">④ 랭킹</div>
+<div style="width:390px;height:812px;flex:none;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md)">
+<div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:800 13px Archivo"><span>9:41</span><span style="letter-spacing:.1em">LTE ▮▮▮</span></div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:2px solid var(--color-divider)"><svg width="22" height="22" viewBox="0 0 24 24" style="color:var(--color-accent)"><use href="#i-ranking"></use></svg><div style="font:800 20px Archivo;letter-spacing:-.02em;margin-right:auto">랭킹</div></div>
+<div style="display:flex;border-bottom:2px solid var(--color-divider);flex:none">
+<div style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;font:800 14px Archivo;background:var(--color-accent);color:var(--color-bg)">일간</div>
+<div style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;font:800 14px Archivo;border-left:1px solid var(--color-divider)">주간</div>
+<div style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;font:800 14px Archivo;border-left:1px solid var(--color-divider)">월간</div>
+</div>
+<div style="padding:10px 16px 8px;font-size:11.5px;opacity:.55;border-bottom:1px solid var(--color-divider)">08.01 00:00 – 09:41 · 추천·댓글·교차보도 가중 합산</div>
+<div style="flex:1;overflow:hidden">
+<div style="display:flex;gap:14px;padding:16px;border-bottom:1px solid var(--color-divider);align-items:flex-start">
+<div style="font:800 30px/1 Archivo;color:var(--color-accent);width:38px;flex:none;letter-spacing:-.04em">1</div>
+<div style="flex:1;min-width:0">
+<div style="font:800 17px/1.32;letter-spacing:-.015em;margin-bottom:8px" class="clamp2">아파트 주차장 막은 차주에게 견인비 청구했더니 돌아온 답장</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;margin-bottom:8px"><span style="opacity:.6">보배드림</span><span style="font:800 12px Archivo;color:var(--color-accent)">▲12,480</span><span style="opacity:.5">댓글 3,201</span></div>
+<div class="heat" style="display:flex;align-items:flex-end;gap:3px;height:14px"><i style="height:3px"></i><i style="height:4px"></i><i style="height:3px"></i><i style="height:6px"></i><i style="height:5px"></i><i style="height:7px"></i><i style="height:6px"></i><i style="height:9px"></i><i style="height:8px"></i><i style="height:10px"></i><i style="height:9px"></i><i style="height:12px"></i><i style="height:13px"></i><i style="height:14px"></i></div>
+</div>
+</div>
+<div style="display:flex;gap:14px;padding:16px;border-bottom:1px solid var(--color-divider);align-items:flex-start">
+<div style="font:800 30px/1 Archivo;width:38px;flex:none;letter-spacing:-.04em">2</div>
+<div style="flex:1;min-width:0">
+<div style="font:800 17px/1.32;letter-spacing:-.015em;margin-bottom:8px" class="clamp2">통신사 요금제 개편, 실사용자 계산기 돌려봤습니다</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:11.5px"><span style="opacity:.6">클리앙</span><span style="font:800 12px Archivo;color:var(--color-accent)">▲8,032</span><span style="opacity:.5">댓글 1,144</span></div>
+</div>
+</div>
+<div style="display:flex;gap:14px;padding:16px;border-bottom:1px solid var(--color-divider);align-items:flex-start">
+<div style="font:800 30px/1 Archivo;width:38px;flex:none;letter-spacing:-.04em">3</div>
+<div style="flex:1;min-width:0">
+<div style="font:800 17px/1.32;letter-spacing:-.015em;margin-bottom:8px" class="clamp2">폭염 특보 3일째, 각 지역 실측 온도 모아봤습니다</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:11.5px"><span style="opacity:.6">뽐뿌</span><span style="font:800 12px Archivo;color:var(--color-accent)">▲6,914</span><span style="opacity:.5">댓글 902</span></div>
+</div>
+</div>
+<div style="display:flex;gap:14px;padding:16px;border-bottom:1px solid var(--color-divider);align-items:flex-start">
+<div style="font:800 30px/1 Archivo;width:38px;flex:none;letter-spacing:-.04em">4</div>
+<div style="flex:1;min-width:0">
+<div style="font:800 17px/1.32;letter-spacing:-.015em;margin-bottom:8px" class="clamp2">신작 게임 첫날 리뷰, 인벤 추천 5천 돌파</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:11.5px"><span style="opacity:.6">인벤</span><span style="font:800 12px Archivo;color:var(--color-accent)">▲5,240</span><span style="opacity:.5">댓글 781</span></div>
+</div>
+</div>
+<div style="display:flex;gap:14px;padding:16px;align-items:flex-start">
+<div style="font:800 30px/1 Archivo;width:38px;flex:none;letter-spacing:-.04em">5</div>
+<div style="flex:1;min-width:0">
+<div style="font:800 17px/1.32;letter-spacing:-.015em;margin-bottom:8px" class="clamp2">더쿠에서 하루 만에 4천 추천 받은 콘서트 후기</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:11.5px"><span style="opacity:.6">더쿠</span><span style="font:800 12px Archivo;color:var(--color-accent)">▲4,118</span><span style="opacity:.5">댓글 655</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:800 12px Archivo;letter-spacing:.08em">⑤ 온보딩 설문</div>
+<div style="width:390px;height:812px;flex:none;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md)">
+<div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:800 13px Archivo"><span>9:41</span><span style="letter-spacing:.1em">LTE ▮▮▮</span></div>
+<div style="display:flex;height:3px;flex:none"><span style="flex:2;background:var(--color-accent)"></span><span style="flex:1;background:var(--color-neutral-300)"></span></div>
+<div style="padding:24px 20px 0;flex:1;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px"><span style="font:800 12px Archivo;letter-spacing:.1em">2 / 3</span><a href="#" style="font-size:13px;text-decoration:none;color:inherit;opacity:.6">나중에 고를게요</a></div>
+<h2 style="font-size:29px;letter-spacing:-.03em;line-height:1.18;margin:0 0 10px">관심사 3개만<br>고르면 끝이에요</h2>
+<p style="font-size:14px;opacity:.65;margin:0 0 22px">고른 만큼 피드가 정확해집니다. 나중에 드로어에서 언제든 바꿀 수 있어요.</p>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px">
+<span style="border:1px solid var(--color-text);background:var(--color-text);color:var(--color-bg);padding:9px 14px;font-size:14px">유머</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">사회</span>
+<span style="border:1px solid var(--color-text);background:var(--color-text);color:var(--color-bg);padding:9px 14px;font-size:14px">IT·테크</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">연예</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">스포츠</span>
+<span style="border:1px solid var(--color-text);background:var(--color-text);color:var(--color-bg);padding:9px 14px;font-size:14px">자동차</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">게임</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">재테크</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">요리</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">여행</span>
+</div>
+<div style="border-top:2px solid var(--color-divider);padding-top:16px;margin-bottom:auto">
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px"><span style="font:800 12px Archivo;letter-spacing:.08em">취향 정확도</span><span style="font:800 18px Archivo;color:var(--color-accent)">62%</span></div>
+<div style="height:8px;background:var(--color-neutral-300);display:flex"><span style="width:62%;background:var(--color-accent)"></span></div>
+<div style="font-size:12px;opacity:.6;margin-top:9px">커뮤니티까지 고르면 88%까지 올라가요</div>
+</div>
+<div style="padding-bottom:24px">
+<div style="font-size:12px;opacity:.55;margin-bottom:10px">19금·정치·종교 글은 기본으로 숨겨져 있어요</div>
+<button class="btn btn-primary btn-block" style="height:52px;font-size:15px;padding-left:16px;margin:0">커뮤니티 고르러 가기</button>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</section>
+
+<section style="padding:0 56px 56px">
+<h6 style="border-bottom:2px solid var(--color-divider);padding-bottom:8px;margin-bottom:24px">화면 — 다크 · 390px</h6>
+<div style="display:flex;gap:28px;align-items:flex-start">
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:800 12px Archivo;letter-spacing:.08em">① 홈 피드</div>
+<div style="--color-bg:#171615;--color-surface:#201e1d;--color-text:#f3f2f2;--color-accent:#ff563c;--color-divider:color-mix(in srgb,#f3f2f2 34%,transparent);width:390px;height:812px;flex:none;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden">
+<div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:800 13px Archivo"><span>9:41</span><span style="letter-spacing:.1em">LTE ▮▮▮</span></div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:2px solid var(--color-divider)">
+<svg width="22" height="22" viewBox="0 0 24 24" style="color:var(--color-accent);flex:none"><use href="#i-hot"></use></svg>
+<div style="font:800 20px Archivo;letter-spacing:-.02em;margin-right:auto">지금핫</div>
+<button class="btn btn-icon" style="width:44px;height:44px;color:var(--color-text)"><svg width="22" height="22" viewBox="0 0 24 24"><use href="#i-search"></use></svg></button>
+<button class="btn btn-icon" style="width:44px;height:44px;color:var(--color-text)"><svg width="22" height="22" viewBox="0 0 24 24"><use href="#i-menu"></use></svg></button>
+</div>
+<div style="padding:14px 16px 6px;display:flex;align-items:baseline;gap:8px"><span style="font:800 14px/1 Archivo">지금 브리핑</span><span style="font-size:11px;opacity:.55">08.01 07:00 기준</span></div>
+<div style="display:flex;gap:10px;padding:6px 16px 16px;overflow:hidden">
+<div style="width:196px;flex:none;border:1px solid var(--color-divider);padding:12px">
+<div style="font:800 10px Archivo;letter-spacing:.1em;color:var(--color-accent);margin-bottom:8px">사회</div>
+<div style="font:800 15px/1.32;letter-spacing:-.01em" class="clamp2">전세사기 특별법 개정안, 커뮤니티 6곳에서 동시 폭주</div>
+<div class="heat" style="display:flex;align-items:flex-end;gap:3px;height:14px;margin-top:12px"><i style="height:3px"></i><i style="height:4px"></i><i style="height:3px"></i><i style="height:6px"></i><i style="height:5px"></i><i style="height:7px"></i><i style="height:6px"></i><i style="height:9px"></i><i style="height:8px"></i><i style="height:11px"></i><i style="height:10px"></i><i style="height:12px"></i><i style="height:13px"></i><i style="height:14px"></i></div>
+</div>
+<div style="width:196px;flex:none;border:1px solid var(--color-divider);padding:12px">
+<div style="font:800 10px Archivo;letter-spacing:.1em;color:var(--color-accent);margin-bottom:8px">X 트렌드</div>
+<div style="font:800 15px/1.32;letter-spacing:-.01em" class="clamp2">1위 폭염특보 · 2위 대체공휴일</div>
+<div style="font-size:11px;opacity:.55;margin-top:12px">키워드 20개 · 04:20 갱신</div>
+</div>
+</div>
+<div style="display:flex;border-top:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider)">
+<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:46px;background:var(--color-accent);color:#171615;font:800 14px Archivo"><svg width="17" height="17" viewBox="0 0 24 24"><use href="#i-hot"></use></svg>핫</div>
+<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:46px;font:800 14px Archivo;border-left:1px solid var(--color-divider)"><svg width="17" height="17" viewBox="0 0 24 24"><use href="#i-latest"></use></svg>최신</div>
+</div>
+<div style="display:flex;gap:6px;padding:12px 16px;overflow:hidden;border-bottom:1px solid var(--color-divider)">
+<span style="border:1px solid var(--color-text);background:var(--color-text);color:#171615;padding:6px 12px;font-size:13px;flex:none">전체</span>
+<span style="border:1px solid var(--color-divider);padding:6px 12px;font-size:13px;flex:none">유머</span>
+<span style="border:1px solid var(--color-divider);padding:6px 12px;font-size:13px;flex:none">사회</span>
+<span style="border:1px solid var(--color-divider);padding:6px 12px;font-size:13px;flex:none">IT</span>
+<span style="border:1px solid var(--color-divider);padding:6px 12px;font-size:13px;flex:none">연예</span>
+</div>
+<div style="padding:16px;border-bottom:1px solid var(--color-divider)">
+<div style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:9px"><span style="width:8px;height:8px;background:var(--color-neutral-300);flex:none"></span><span style="font-weight:600">보배드림</span><span style="opacity:.4">·</span><span style="opacity:.6">사회</span><span style="margin-left:auto;opacity:.5">17분 전</span></div>
+<div style="font:800 19px/1.3;letter-spacing:-.015em;margin-bottom:11px" class="clamp2">아파트 주차장 막은 차주에게 견인비 청구했더니 돌아온 답장</div>
+<div style="display:flex;gap:10px">
+<div style="flex:1;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px;font-size:12px"><span style="font:800 13px Archivo;color:var(--color-accent)">▲12,480</span><span style="opacity:.55">댓글 3,201</span></div>
+<span style="border:1px solid var(--color-divider);padding:3px 8px;font-size:11px;align-self:flex-start">4개 매체 교차보도</span>
+<div class="heat" style="display:flex;align-items:flex-end;gap:3px;height:18px"><i style="height:4px"></i><i style="height:3px"></i><i style="height:6px"></i><i style="height:5px"></i><i style="height:8px"></i><i style="height:7px"></i><i style="height:6px"></i><i style="height:10px"></i><i style="height:9px"></i><i style="height:12px"></i><i style="height:11px"></i><i style="height:14px"></i><i style="height:17px"></i><i style="height:18px"></i></div>
+</div>
+<div style="width:104px;height:104px;flex:none;background:repeating-linear-gradient(45deg,transparent 0 6px,color-mix(in srgb,var(--color-text) 14%,transparent) 6px 7px),var(--color-surface);position:relative"><span style="position:absolute;left:6px;bottom:5px;font:400 10px Archivo;opacity:.5">bobae</span></div>
+</div>
+</div>
+<div style="padding:16px;background:var(--color-surface);border-bottom:1px solid var(--color-divider)">
+<div style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:9px"><span style="width:8px;height:8px;background:var(--color-neutral-600);flex:none"></span><span style="font-weight:600">쿠팡</span><span style="margin-left:auto;border:1px solid var(--color-text);padding:2px 7px;font:800 10px Archivo;letter-spacing:.06em">AD</span></div>
+<div style="font:800 19px/1.3;letter-spacing:-.015em;margin-bottom:9px" class="clamp2">여름 한정 — 차량용 무선 청소기 오늘까지 42% 할인</div>
+<div style="font-size:11px;opacity:.6">지금핫은 이 링크로 수수료를 받을 수 있어요 · 탭하면 고지 전문</div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:800 12px Archivo;letter-spacing:.08em">② 글 상세 — 바텀시트</div>
+<div style="--color-bg:#171615;--color-surface:#201e1d;--color-text:#f3f2f2;--color-accent:#ff563c;--color-divider:color-mix(in srgb,#f3f2f2 34%,transparent);width:390px;height:812px;flex:none;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden;position:relative">
+<div style="position:absolute;inset:0;background:color-mix(in srgb,#000 55%,transparent)"></div>
+<div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:800 13px Archivo"><span>9:41</span><span style="letter-spacing:.1em">LTE ▮▮▮</span></div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:2px solid var(--color-divider)"><svg width="22" height="22" viewBox="0 0 24 24" style="color:var(--color-accent)"><use href="#i-hot"></use></svg><div style="font:800 20px Archivo;letter-spacing:-.02em">지금핫</div></div>
+<div style="flex:1"></div>
+<div style="position:relative;background:var(--color-bg);border-top:2px solid var(--color-text);box-shadow:var(--shadow-lg);display:flex;flex-direction:column">
+<div style="display:flex;justify-content:center;padding:10px 0 4px"><span style="width:44px;height:4px;background:var(--color-neutral-600);display:block"></span></div>
+<div style="display:flex;align-items:center;gap:7px;font-size:12px;padding:6px 16px 12px"><span style="width:8px;height:8px;background:var(--color-neutral-300)"></span><span style="font-weight:600">보배드림</span><span style="opacity:.4">·</span><span style="opacity:.6">사회</span><button class="btn btn-icon" style="margin-left:auto;width:36px;height:36px;color:var(--color-text)"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-close"></use></svg></button></div>
+<div style="padding:0 16px">
+<a href="#" style="font:800 23px/1.28;letter-spacing:-.02em;color:inherit;text-decoration:none;display:flex;gap:8px;align-items:flex-start">아파트 주차장 막은 차주에게 견인비 청구했더니 돌아온 답장<svg width="18" height="18" viewBox="0 0 24 24" style="flex:none;margin-top:6px;color:var(--color-accent)"><use href="#i-external"></use></svg></a>
+<div class="heat" style="display:flex;align-items:flex-end;gap:3px;height:20px;margin:14px 0 6px"><i style="height:4px"></i><i style="height:3px"></i><i style="height:7px"></i><i style="height:6px"></i><i style="height:9px"></i><i style="height:8px"></i><i style="height:7px"></i><i style="height:11px"></i><i style="height:10px"></i><i style="height:13px"></i><i style="height:12px"></i><i style="height:16px"></i><i style="height:19px"></i><i style="height:20px"></i></div>
+<div style="display:flex;align-items:center;gap:10px;font-size:12px;padding-bottom:14px;border-bottom:1px solid var(--color-divider)"><span style="font:800 14px Archivo;color:var(--color-accent)">▲12,480</span><span style="opacity:.55">원문 댓글 3,201</span><span style="opacity:.4">·</span><span style="opacity:.55">지금핫 댓글 42</span></div>
+<div style="height:132px;margin:14px 0;background:repeating-linear-gradient(45deg,transparent 0 6px,color-mix(in srgb,var(--color-text) 14%,transparent) 6px 7px),var(--color-surface);position:relative"><span style="position:absolute;left:8px;bottom:6px;font:400 10px Archivo;opacity:.5">bobae</span></div>
+<p style="font-size:15px;line-height:1.62;margin:0 0 6px">주차장 입구를 이틀째 막고 있던 차량에 견인 절차를 안내했더니, 차주가 관리사무소에 보낸 답장이 화제입니다. 글쓴이는 견인비 영수증과 함께 단지 규약 조항을…</p>
+<div style="font-size:11px;opacity:.5;margin-bottom:14px">저작권 보호를 위해 발췌만 제공합니다 · 200자</div>
+<a href="#" class="btn btn-primary btn-block" style="height:52px;font-size:15px;padding-left:16px;justify-content:flex-start;gap:8px;margin:0 0 14px;color:#171615">원문에서 계속 읽기<svg width="18" height="18" viewBox="0 0 24 24"><use href="#i-external"></use></svg></a>
+</div>
+<div style="display:flex;border-top:1px solid var(--color-divider)">
+<button class="btn" style="flex:1;height:56px;gap:7px;font-size:13px;border-right:1px solid var(--color-divider);color:var(--color-text)"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-like"></use></svg>1,204</button>
+<button class="btn" style="flex:1;height:56px;gap:7px;font-size:13px;border-right:1px solid var(--color-divider);color:var(--color-text)"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-dislike"></use></svg>88</button>
+<button class="btn" style="flex:1;height:56px;gap:7px;font-size:13px;border-right:1px solid var(--color-divider);color:var(--color-text)"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-scrap"></use></svg>담기</button>
+<button class="btn" style="flex:1;height:56px;gap:7px;font-size:13px;color:var(--color-text)"><svg width="20" height="20" viewBox="0 0 24 24"><use href="#i-share"></use></svg>공유</button>
+</div>
+<div style="display:flex;gap:8px;padding:12px 16px 20px;border-top:1px solid var(--color-divider);background:var(--color-surface)"><input class="input" placeholder="지금핫 댓글 남기기" style="height:44px"><button class="btn btn-primary" style="height:44px;flex:none;color:#171615">등록</button></div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:800 12px Archivo;letter-spacing:.08em">③ 브리핑</div>
+<div style="--color-bg:#171615;--color-surface:#201e1d;--color-text:#f3f2f2;--color-accent:#ff563c;--color-divider:color-mix(in srgb,#f3f2f2 34%,transparent);width:390px;height:812px;flex:none;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden">
+<div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:800 13px Archivo"><span>9:41</span><span style="letter-spacing:.1em">LTE ▮▮▮</span></div>
+<div style="flex:none;display:flex;align-items:center;gap:12px;padding:6px 16px 12px;border-bottom:2px solid var(--color-divider)"><div style="font:800 18px Archivo;letter-spacing:-.02em;margin-right:auto">지금 브리핑</div><button class="btn btn-icon" style="width:40px;height:40px;color:var(--color-text)"><svg width="22" height="22" viewBox="0 0 24 24"><use href="#i-briefing"></use></svg></button></div>
+<div style="padding:20px 16px 16px;border-bottom:2px solid var(--color-divider)">
+<div style="font:800 34px/1 Archivo;letter-spacing:-.03em">2026.08.01</div>
+<div style="font-size:13px;margin-top:8px;opacity:.7">커뮤니티 11곳 · 게시글 8,412개를 읽고 6개 이슈로 줄였습니다</div>
+<div style="display:flex;gap:6px;margin-top:14px"><span style="border:1px solid var(--color-text);background:var(--color-text);color:#171615;padding:5px 11px;font-size:12px">오늘</span><span style="border:1px solid var(--color-divider);padding:5px 11px;font-size:12px">어제</span><span style="border:1px solid var(--color-divider);padding:5px 11px;font-size:12px">날짜 선택</span></div>
+</div>
+<div style="padding:18px 16px;border-bottom:1px solid var(--color-divider)">
+<div style="font:800 11px Archivo;letter-spacing:.12em;color:var(--color-accent);margin-bottom:10px">사회</div>
+<div style="font:800 21px/1.3;letter-spacing:-.02em;margin-bottom:10px">전세사기 특별법 개정안이 하루 만에 6개 커뮤니티 상위권을 채웠습니다</div>
+<p style="font-size:14.5px;line-height:1.6;margin:0 0 12px">보배드림·뽐뿌·클리앙에서 각각 추천 5,000회를 넘겼고, 언론 4곳이 같은 조항을 다뤘습니다. 논점은 소급 적용 범위 한 가지로 모입니다.</p>
+<div style="display:flex;flex-wrap:wrap;gap:6px"><span style="border:1px solid var(--color-divider);padding:3px 8px;font-size:11px">추천 합계 18,204</span><span style="border:1px solid var(--color-divider);padding:3px 8px;font-size:11px">4개 매체</span><span style="border:1px solid var(--color-divider);padding:3px 8px;font-size:11px">관련글 12</span></div>
+</div>
+<div style="padding:18px 16px">
+<div style="font:800 11px Archivo;letter-spacing:.12em;color:var(--color-accent);margin-bottom:10px">IT</div>
+<div style="font:800 21px/1.3;letter-spacing:-.02em;margin-bottom:10px">통신 요금제 개편, 계산기 글이 원문보다 더 많이 읽혔습니다</div>
+<p style="font-size:14.5px;line-height:1.6;margin:0">클리앙 사용자가 만든 시뮬레이터가 인벤·뽐뿌로 재게시되며 댓글 3,000개를 넘겼습니다.</p>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:800 12px Archivo;letter-spacing:.08em">④ 랭킹</div>
+<div style="--color-bg:#171615;--color-surface:#201e1d;--color-text:#f3f2f2;--color-accent:#ff563c;--color-divider:color-mix(in srgb,#f3f2f2 34%,transparent);width:390px;height:812px;flex:none;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden">
+<div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:800 13px Archivo"><span>9:41</span><span style="letter-spacing:.1em">LTE ▮▮▮</span></div>
+<div style="flex:none;display:flex;align-items:center;gap:10px;padding:6px 16px 12px;border-bottom:2px solid var(--color-divider)"><svg width="22" height="22" viewBox="0 0 24 24" style="color:var(--color-accent)"><use href="#i-ranking"></use></svg><div style="font:800 20px Archivo;letter-spacing:-.02em;margin-right:auto">랭킹</div></div>
+<div style="display:flex;border-bottom:2px solid var(--color-divider);flex:none">
+<div style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;font:800 14px Archivo;background:var(--color-accent);color:#171615">일간</div>
+<div style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;font:800 14px Archivo;border-left:1px solid var(--color-divider)">주간</div>
+<div style="flex:1;height:44px;display:flex;align-items:center;justify-content:center;font:800 14px Archivo;border-left:1px solid var(--color-divider)">월간</div>
+</div>
+<div style="padding:10px 16px 8px;font-size:11.5px;opacity:.55;border-bottom:1px solid var(--color-divider)">08.01 00:00 – 09:41 · 추천·댓글·교차보도 가중 합산</div>
+<div style="display:flex;gap:14px;padding:16px;border-bottom:1px solid var(--color-divider);align-items:flex-start">
+<div style="font:800 30px/1 Archivo;color:var(--color-accent);width:38px;flex:none;letter-spacing:-.04em">1</div>
+<div style="flex:1;min-width:0">
+<div style="font:800 17px/1.32;letter-spacing:-.015em;margin-bottom:8px" class="clamp2">아파트 주차장 막은 차주에게 견인비 청구했더니 돌아온 답장</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;margin-bottom:8px"><span style="opacity:.6">보배드림</span><span style="font:800 12px Archivo;color:var(--color-accent)">▲12,480</span><span style="opacity:.5">댓글 3,201</span></div>
+<div class="heat" style="display:flex;align-items:flex-end;gap:3px;height:14px"><i style="height:3px"></i><i style="height:4px"></i><i style="height:3px"></i><i style="height:6px"></i><i style="height:5px"></i><i style="height:7px"></i><i style="height:6px"></i><i style="height:9px"></i><i style="height:8px"></i><i style="height:10px"></i><i style="height:9px"></i><i style="height:12px"></i><i style="height:13px"></i><i style="height:14px"></i></div>
+</div>
+</div>
+<div style="display:flex;gap:14px;padding:16px;border-bottom:1px solid var(--color-divider);align-items:flex-start">
+<div style="font:800 30px/1 Archivo;width:38px;flex:none;letter-spacing:-.04em">2</div>
+<div style="flex:1;min-width:0"><div style="font:800 17px/1.32;letter-spacing:-.015em;margin-bottom:8px" class="clamp2">통신사 요금제 개편, 실사용자 계산기 돌려봤습니다</div><div style="display:flex;align-items:center;gap:8px;font-size:11.5px"><span style="opacity:.6">클리앙</span><span style="font:800 12px Archivo;color:var(--color-accent)">▲8,032</span><span style="opacity:.5">댓글 1,144</span></div></div>
+</div>
+<div style="display:flex;gap:14px;padding:16px;border-bottom:1px solid var(--color-divider);align-items:flex-start">
+<div style="font:800 30px/1 Archivo;width:38px;flex:none;letter-spacing:-.04em">3</div>
+<div style="flex:1;min-width:0"><div style="font:800 17px/1.32;letter-spacing:-.015em;margin-bottom:8px" class="clamp2">폭염 특보 3일째, 각 지역 실측 온도 모아봤습니다</div><div style="display:flex;align-items:center;gap:8px;font-size:11.5px"><span style="opacity:.6">뽐뿌</span><span style="font:800 12px Archivo;color:var(--color-accent)">▲6,914</span><span style="opacity:.5">댓글 902</span></div></div>
+</div>
+<div style="display:flex;gap:14px;padding:16px;align-items:flex-start">
+<div style="font:800 30px/1 Archivo;width:38px;flex:none;letter-spacing:-.04em">4</div>
+<div style="flex:1;min-width:0"><div style="font:800 17px/1.32;letter-spacing:-.015em;margin-bottom:8px" class="clamp2">신작 게임 첫날 리뷰, 인벤 추천 5천 돌파</div><div style="display:flex;align-items:center;gap:8px;font-size:11.5px"><span style="opacity:.6">인벤</span><span style="font:800 12px Archivo;color:var(--color-accent)">▲5,240</span><span style="opacity:.5">댓글 781</span></div></div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font:800 12px Archivo;letter-spacing:.08em">⑤ 온보딩 설문</div>
+<div style="--color-bg:#171615;--color-surface:#201e1d;--color-text:#f3f2f2;--color-accent:#ff563c;--color-divider:color-mix(in srgb,#f3f2f2 34%,transparent);width:390px;height:812px;flex:none;background:var(--color-bg);color:var(--color-text);border:1px solid var(--color-divider);display:flex;flex-direction:column;overflow:hidden">
+<div style="height:44px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:800 13px Archivo"><span>9:41</span><span style="letter-spacing:.1em">LTE ▮▮▮</span></div>
+<div style="display:flex;height:3px;flex:none"><span style="flex:2;background:var(--color-accent)"></span><span style="flex:1;background:var(--color-neutral-700)"></span></div>
+<div style="padding:24px 20px 0;flex:1;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px"><span style="font:800 12px Archivo;letter-spacing:.1em">2 / 3</span><a href="#" style="font-size:13px;text-decoration:none;color:inherit;opacity:.6">나중에 고를게요</a></div>
+<h2 style="font-size:29px;letter-spacing:-.03em;line-height:1.18;margin:0 0 10px">관심사 3개만<br>고르면 끝이에요</h2>
+<p style="font-size:14px;opacity:.65;margin:0 0 22px">고른 만큼 피드가 정확해집니다. 나중에 드로어에서 언제든 바꿀 수 있어요.</p>
+<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px">
+<span style="border:1px solid var(--color-text);background:var(--color-text);color:#171615;padding:9px 14px;font-size:14px">유머</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">사회</span>
+<span style="border:1px solid var(--color-text);background:var(--color-text);color:#171615;padding:9px 14px;font-size:14px">IT·테크</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">연예</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">스포츠</span>
+<span style="border:1px solid var(--color-text);background:var(--color-text);color:#171615;padding:9px 14px;font-size:14px">자동차</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">게임</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">재테크</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">요리</span>
+<span style="border:1px solid var(--color-divider);padding:9px 14px;font-size:14px">여행</span>
+</div>
+<div style="border-top:2px solid var(--color-divider);padding-top:16px;margin-bottom:auto">
+<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px"><span style="font:800 12px Archivo;letter-spacing:.08em">취향 정확도</span><span style="font:800 18px Archivo;color:var(--color-accent)">62%</span></div>
+<div style="height:8px;background:var(--color-neutral-700);display:flex"><span style="width:62%;background:var(--color-accent)"></span></div>
+<div style="font-size:12px;opacity:.6;margin-top:9px">커뮤니티까지 고르면 88%까지 올라가요</div>
+</div>
+<div style="padding-bottom:24px">
+<div style="font-size:12px;opacity:.55;margin-bottom:10px">19금·정치·종교 글은 기본으로 숨겨져 있어요</div>
+<button class="btn btn-primary btn-block" style="height:52px;font-size:15px;padding-left:16px;margin:0;color:#171615">커뮤니티 고르러 가기</button>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</section>
+
+<section style="padding:0 56px 80px;max-width:1180px">
+<h6 style="border-bottom:2px solid var(--color-divider);padding-bottom:8px;margin-bottom:20px">마이크로카피 — 행동 언어 · 존댓말 · 수치 우선 · 사과 금지</h6>
+<table class="table">
+<thead><tr><th style="width:24%">상황</th><th style="width:38%">쓴다</th><th style="width:38%">쓰지 않는다</th></tr></thead>
+<tbody>
+<tr><td>빈 피드</td><td><b>아직 오늘 올라온 글이 없어요</b> + 최신순으로 보기</td><td style="opacity:.5">데이터가 없습니다</td></tr>
+<tr><td>필터 결과 0</td><td><b>이 조건에 맞는 글 0개</b> + 필터 2개 해제하기</td><td style="opacity:.5">검색 결과가 없습니다 😢</td></tr>
+<tr><td>네트워크 오류</td><td><b>불러오지 못했어요</b> + 다시 시도</td><td style="opacity:.5">오류가 발생했습니다. 잠시 후 다시…</td></tr>
+<tr><td>썸네일 실패</td><td>문구 없음 — 해칭 플레이스홀더가 곧 상태</td><td style="opacity:.5">이미지를 불러올 수 없음</td></tr>
+<tr><td>발췌 하단 CTA</td><td><b>원문에서 계속 읽기</b></td><td style="opacity:.5">더보기 / 자세히</td></tr>
+<tr><td>로그인 유도</td><td><b>카카오로 3초 만에 시작하기</b></td><td style="opacity:.5">로그인이 필요합니다</td></tr>
+<tr><td>온보딩 시작</td><td><b>관심사 3개만 고르면 끝</b></td><td style="opacity:.5">환영합니다!</td></tr>
+<tr><td>스크랩 완료</td><td><b>스크랩함에 담았어요</b> + 보러가기</td><td style="opacity:.5">저장되었습니다</td></tr>
+<tr><td>광고 고지</td><td><b>광고 · 지금핫은 이 링크로 수수료를 받을 수 있어요</b></td><td style="opacity:.5">제휴 링크 (단독 표기)</td></tr>
+<tr><td>성인 게이트</td><td><b>19세 이상만 볼 수 있어요</b> + 본인인증하기</td><td style="opacity:.5">접근이 제한되었습니다</td></tr>
+<tr><td>새 글 도착</td><td><b>새 글 12개</b> (탭하면 상단으로)</td><td style="opacity:.5">새로고침하세요</td></tr>
+</tbody>
+</table>
+<p style="font-size:13px;margin:18px 0 0;max-width:720px">버튼 라벨은 <b>동사로 끝낸다</b>: 보기 / 담기 / 해제하기 / 다시 시도 / 계속 읽기. 숫자는 항상 천단위 콤마, 1만 이상도 <b>축약하지 않는다</b>(1.2만 ✗ / 12,480 ✓) — 정직함이 브랜드이기 때문입니다.</p>
+<hr class="hr">
+<p style="font-size:13px;margin:0;color:color-mix(in srgb,var(--color-text) 55%,transparent)">다음 단계 후보: ⓐ 드로어(취향 정확도 미터·성향 슬라이더·게이트 토글) 목업 추가 · ⓑ 홈 피드를 실제 탭·시트가 동작하는 인터랙티브 프로토타입으로 승격 · ⓒ 아이콘 16px 전용 그리기 · ⓓ DESIGN.md 토큰을 index.html에 단계 적용할 순서표 작성</p>
+</section>
+
+</x-dc>
+</body>
+</html>

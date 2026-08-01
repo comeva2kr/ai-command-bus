@@ -2,6 +2,10 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&display=swap" rel="stylesheet">
+<script>/* Modernist skin: OS 테마 추종 (DESIGN.md — 라이트 기본, 다크 파생) */
+(function(){var m=matchMedia("(prefers-color-scheme: dark)");function ap(){document.documentElement.dataset.theme=m.matches?"dark":"light";}ap();m.addEventListener&&m.addEventListener("change",ap);})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>지금핫 NowHot</title>
 <meta property="og:type" content="website" />
@@ -403,7 +407,7 @@
   .digest { margin: 10px 12px 0; padding: 12px 14px; border-radius: 14px; display: flex; align-items: center; gap: 10px;
     background: linear-gradient(135deg, rgba(79,140,255,.16), rgba(63,178,127,.12)); border: 1px solid rgba(79,140,255,.3); }
   .digest .dtext { flex: 1; font-size: 13.5px; line-height: 1.45; }
-  .digest .dtext b { color: #9fd0ff; }
+  .digest .dtext b { color: var(--accent); }
   .digest button { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 8px 12px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
   .digest .dclose { background: none; color: var(--muted); padding: 6px; font-size: 16px; }
 
@@ -416,12 +420,142 @@
     #detail { align-items: center; padding: 28px; }
     .detail-panel { border-radius: 20px; max-height: 86vh; }
   }
+
+  /* ══════════ Modernist 스킨 (claude.ai/design NowHot.dc, 2026-08-01) ══════════
+     구조 원리: 기존 규칙 위의 오버라이드 레이어 — 기능 코드 무변경.
+     핵심: 신문 2px 괘선 조직 / radius 0 전면 / 유채색은 Signal 하나 /
+     그림자는 시트·다이얼로그 전용 / 시그니처 = 열기 눈금(여기만 애니메이션) */
+  :root{
+    --color-bg:#f3f2f2; --color-surface:#eae9e9; --color-text:#201e1d;
+    --color-accent:#ec3013;
+    --color-divider:color-mix(in srgb,#201e1d 40%,transparent);
+    --font-heading:"Archivo",system-ui,sans-serif;
+    /* 기존 변수 재배선 — 수백 개 규칙이 이 이름들을 참조한다 */
+    --bg:var(--color-bg); --card:var(--color-bg); --card-2:var(--color-surface);
+    --text:var(--color-text);
+    --muted:color-mix(in srgb,var(--color-text) 55%,transparent);
+    --accent:var(--color-accent);
+    --line:color-mix(in srgb,var(--color-text) 16%,transparent);
+    --like:var(--color-accent); --dislike:var(--color-text);
+    --radius:0px;
+  }
+  html[data-theme="dark"]{
+    --color-bg:#171615; --color-surface:#201e1d; --color-text:#f3f2f2;
+    --color-accent:#ff563c;
+    --color-divider:color-mix(in srgb,#f3f2f2 34%,transparent);
+    --line:color-mix(in srgb,#f3f2f2 18%,transparent);
+  }
+  html,body{background:var(--color-bg);color:var(--color-text);
+    font-family:"Archivo","Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+  /* radius 0 전면 — 예외 없음 (DESIGN.md) */
+  .card,.chip,.badge,.rate,.mute-btn,.adult-btn,.menu-btn,.brief-card,.why,
+  .detail-panel,.detail-img,.modal,.onb,.drawer,.meter-bar,.meter-fill,
+  .card-thumb,.card-thumb img,button,input,textarea,select,.editorial-note,
+  .sort-bar .chip,.readmore,.comment-form textarea,.ad-disclosure-pop,.orig-title,
+  .survey-inner,.onb-back .onb{border-radius:0!important}
+  /* 카드 = 괘선 구분(배경·그림자·간격 제거). 광고 카드만 surface 채움 */
+  #feed{padding:0}
+  #feed .card{background:transparent;border:none;border-bottom:1px solid var(--line);
+    box-shadow:none;margin:0;padding:16px}
+  #feed .card.ad-card{background:var(--color-surface)}
+  #feed .card:hover{border-color:var(--line)}
+  .card h3{font-weight:800;font-size:19px;line-height:1.3;letter-spacing:-.015em}
+  header{background:var(--color-bg);backdrop-filter:none;-webkit-backdrop-filter:none;
+    border-bottom:2px solid var(--color-divider)}
+  .brand{font-family:var(--font-heading);font-weight:800;letter-spacing:-.02em}
+  .brand small{color:var(--muted)}
+  .tagline{color:var(--muted)}
+  /* 정렬 = 풀폭 2탭 (NowHot.dc ①홈) */
+  .sort-bar{gap:0;padding:0;margin:0;border-bottom:1px solid var(--color-divider)}
+  .sort-bar .chip{flex:1;height:46px;display:flex;align-items:center;justify-content:center;
+    gap:6px;border:none;border-left:1px solid var(--color-divider);background:transparent;
+    color:var(--color-text);font:800 14px var(--font-heading)}
+  .sort-bar .chip:first-child{border-left:none}
+  .sort-bar .chip.active{background:var(--color-accent);color:var(--color-bg);border-color:var(--color-accent)}
+  /* 칩 = 1px 괘선 사각 */
+  .chip{border:1px solid var(--line);background:transparent;color:var(--color-text)}
+  .chip.active{background:var(--color-text);color:var(--color-bg);border-color:var(--color-text)}
+  /* 소스 표식: 컬러 도트 -> 8px 사각 (액센트는 열기에만) */
+  .dot{border-radius:0!important;width:8px!important;height:8px!important}
+  /* 배지: 숫자 우선·사각·차분 */
+  .badge{border-radius:0!important;font-family:var(--font-heading)}
+  /* 브리핑 스트립 카드 */
+  .brief-strip{padding:12px 16px 14px;border-bottom:1px solid var(--color-divider)}
+  .brief-card{background:transparent;border:1px solid var(--line)}
+  .brief-card .bc-cat{color:var(--color-accent);font:800 10px var(--font-heading);
+    letter-spacing:.1em;text-transform:uppercase}
+  .brief-card .bc-title{color:var(--color-text);font-weight:800;letter-spacing:-.01em}
+  .brief-card .bc-meta{color:var(--muted)}
+  /* 열기 눈금 — 시그니처, 애니메이션은 여기에만 */
+  .heat{display:flex;align-items:flex-end;gap:3px;height:18px;margin-top:10px}
+  .heat i{display:block;width:3px;background:color-mix(in srgb,var(--color-text) 30%,transparent);
+    transform-origin:bottom;animation:heatrise .45s cubic-bezier(.2,.8,.2,1) both}
+  .heat i:nth-last-child(-n+3){background:var(--color-accent)}
+  .heat i:nth-child(2){animation-delay:18ms}.heat i:nth-child(3){animation-delay:36ms}
+  .heat i:nth-child(4){animation-delay:54ms}.heat i:nth-child(5){animation-delay:72ms}
+  .heat i:nth-child(6){animation-delay:90ms}.heat i:nth-child(7){animation-delay:108ms}
+  .heat i:nth-child(8){animation-delay:126ms}.heat i:nth-child(9){animation-delay:144ms}
+  .heat i:nth-child(10){animation-delay:162ms}.heat i:nth-child(11){animation-delay:180ms}
+  .heat i:nth-child(12){animation-delay:198ms}.heat i:nth-child(13){animation-delay:216ms}
+  .heat i:nth-child(14){animation-delay:234ms}
+  @keyframes heatrise{from{transform:scaleY(.12)}to{transform:scaleY(1)}}
+  @media (prefers-reduced-motion:reduce){.heat i{animation:none}}
+  /* 썸네일 실패 = 기본 상태: 45도 해칭 (문구·아이콘 금지) */
+  .card-thumb.noimg{background:repeating-linear-gradient(45deg,
+    var(--color-surface),var(--color-surface) 6px,transparent 6px,transparent 12px);
+    border:1px solid var(--line);position:relative;min-height:72px}
+  .card-thumb.noimg img{display:none}
+  .card-thumb.noimg::after{content:attr(data-src-label);position:absolute;left:6px;bottom:4px;
+    font:600 10px var(--font-heading);color:var(--muted);text-transform:lowercase}
+  /* 상세 바텀시트: 상단 2px 괘선 + 사각 핸들, 그림자 허용(상위 레이어) */
+  .detail-panel{border:none;border-top:2px solid var(--color-divider);
+    box-shadow:0 -12px 32px color-mix(in srgb,#000 22%,transparent)}
+  .detail-panel::before{content:"";display:block;width:44px;height:4px;
+    background:var(--color-divider);margin:8px auto 0}
+  .detail-head{background:var(--color-bg);border-bottom:1px solid var(--line)}
+  .detail-body h2{font-weight:800;letter-spacing:-.015em}
+  .detail-actions .rate{border:1px solid var(--line);background:transparent;
+    justify-content:flex-start;text-align:left}
+  .detail-actions .rate.on{border-color:var(--color-accent);color:var(--color-accent)}
+  .readmore{background:var(--color-accent);color:var(--color-bg);text-align:left;
+    font:800 15px var(--font-heading)}
+  /* 버튼·포커스 */
+  :focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+  /* 아이콘 유틸 */
+  .ic{display:inline-block;vertical-align:-3px}
+  .ic use{stroke:currentColor}
+  /* 배지 팔레트 정리 — 유채색은 Signal 하나 원칙. 19금만 액센트 아웃라인 */
+  .badge,.badge.news,.badge.community,.badge.trans{background:transparent!important;
+    border:1px solid var(--line);color:var(--muted)!important}
+  .badge.adult{background:transparent!important;border:1px solid var(--color-accent);
+    color:var(--color-accent)!important}
+  .why{background:transparent!important;border:1px solid var(--line);color:var(--muted)!important}
+  .editorial-note{background:transparent;border-left:2px solid var(--color-divider);color:var(--muted)}
+  .fab button{border-radius:0!important;background:var(--color-accent);color:var(--color-bg);
+    font:800 24px var(--font-heading);box-shadow:0 12px 32px color-mix(in srgb,#000 22%,transparent)}
+  .survey-nudge,.nudge{border-radius:0!important}
+
 </style>
 </head>
-<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-hot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="2 19 7 14 11 16 16 8 21 3"></polyline><polyline points="15 3 21 3 21 9"></polyline></g></symbol>
+<symbol id="i-latest" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><circle cx="12" cy="12" r="9"></circle><polyline points="12 6 12 12 16.5 14.5"></polyline></g></symbol>
+<symbol id="i-briefing" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><line x1="3" y1="5" x2="21" y2="5"></line><line x1="3" y1="10" x2="21" y2="10"></line><line x1="3" y1="15" x2="13" y2="15"></line><line x1="3" y1="20" x2="10" y2="20"></line></g></symbol>
+<symbol id="i-ranking" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><rect x="3" y="13" width="5" height="8"></rect><rect x="9.5" y="8" width="5" height="13"></rect><rect x="16" y="3" width="5" height="18"></rect></g></symbol>
+<symbol id="i-comment" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="8 17 3 17 3 4 21 4 21 17 13 17 8 22 8 17"></polyline></g></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><line x1="12" y1="2" x2="12" y2="15"></line><polyline points="7 7 12 2 17 7"></polyline><polyline points="4 12 4 22 20 22 20 12"></polyline></g></symbol>
+<symbol id="i-like" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><rect x="2" y="10" width="5" height="11"></rect><path d="M10 21V10l5-8h1l1 1v6h5l-2 12z"></path></g></symbol>
+<symbol id="i-dislike" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><rect x="2" y="3" width="5" height="11"></rect><path d="M10 3v11l5 8h1l1-1v-6h5L20 3z"></path></g></symbol>
+<symbol id="i-scrap" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="5 3 19 3 19 22 12 16 5 22 5 3"></polyline></g></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></g></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><line x1="4" y1="4" x2="20" y2="20"></line><line x1="20" y1="4" x2="4" y2="20"></line></g></symbol>
+<symbol id="i-external" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="14 3 21 3 21 10"></polyline><line x1="21" y1="3" x2="11" y2="13"></line><polyline points="18 14 18 21 3 21 3 6 10 6"></polyline></g></symbol>
+</defs></svg>
+
   <header>
     <div class="brand"><svg class="brand-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#111319"/><polyline points="88,368 176,330 244,346" fill="none" stroke="#e8eaf0" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><polyline points="244,346 344,150 424,214" fill="none" stroke="#ff4b3e" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><circle cx="344" cy="150" r="32" fill="#ff4b3e"/></svg> 지금핫 <span class="brand-en">NowHot</span> <small id="phaseLabel">준비 중</small>
-      <button id="menuBtn" class="menu-btn" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer">☰</button>
+      <button id="menuBtn" class="menu-btn" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"></use></svg></button>
     </div>
     <p class="tagline">여러 커뮤니티·뉴스의 지금 가장 화제인 글만 모아드려요. 카드를 누르면 원문 사이트 새 탭으로 열려요.</p>
   </header>
@@ -481,8 +615,8 @@
 
       <!-- 자체 콘텐츠·운영 정보 (애드핏/애드센스 심사: 운영 주체 표시 + 자체 편집 콘텐츠) -->
       <div class="drawer-sec">
-        <a class="drawer-link" href="/briefing" style="display:block;text-decoration:none">📋 오늘의 브리핑</a>
-        <a class="drawer-link" href="/ranking/daily" style="display:block;text-decoration:none">📊 화제 랭킹 TOP 20</a>
+        <a class="drawer-link" href="/briefing" style="display:block;text-decoration:none">오늘의 브리핑</a>
+        <a class="drawer-link" href="/ranking/daily" style="display:block;text-decoration:none">화제 랭킹 TOP 20</a>
       </div>
       <div class="drawer-sec" style="border-top:1px solid var(--line);padding-top:12px">
         <a class="drawer-link" href="/about.html" style="display:block;text-decoration:none;color:var(--muted);font-size:13px">서비스 소개</a>
@@ -502,14 +636,14 @@
   <!-- 정렬 바 (#12, "상단에 필터링 옵션에 최신순도") — 핫=기존 추천,
        최신=시간버킷×소스 인터리브의 중립 최신 뷰 (engine.js sort:"latest") -->
   <div class="sort-bar" id="sortBar" role="tablist" aria-label="정렬">
-    <button class="chip active" data-sort="hot" role="tab">🔥 핫</button>
-    <button class="chip" data-sort="latest" role="tab">🕒 최신</button>
+    <button class="chip active" data-sort="hot" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hot"></use></svg>핫</button>
+    <button class="chip" data-sort="latest" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-latest"></use></svg>최신</button>
   </div>
   <main id="feed"></main>
   <div class="sentinel" id="sentinel"></div>
 
   <div class="fab" id="fab">
-    <button class="compose" id="composeBtn" title="글쓰기">✍️</button>
+    <button class="compose" id="composeBtn" title="글쓰기">+</button>
   </div>
 
   <!-- my space -->
@@ -527,7 +661,7 @@
       <div class="detail-head">
         <button class="back" id="backBtn" aria-label="닫기">‹</button>
         <div class="src" id="detailSrc"></div>
-        <button class="mute-btn" id="shareBtn" style="margin-left:8px">🔗 공유</button>
+        <button class="mute-btn" id="shareBtn" style="margin-left:8px"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-share"></use></svg> 공유</button>
       </div>
       <div class="detail-body" id="detailBody"></div>
     </div>
@@ -538,7 +672,7 @@
     <div class="survey-inner">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
         <h1 style="margin:0;flex:1">취향을 알려주세요</h1>
-        <button id="surveySkip" style="background:none;border:none;color:var(--muted);font-size:14px">나중에</button>
+        <button id="surveySkip" style="background:none;border:none;color:var(--muted);font-size:14px">나중에 고를게요</button>
       </div>
       <p class="lead">관심 주제만 톡톡 고르면 그에 맞는 글을 모아드려요. 좋아요/싫어요로 계속 정확해집니다.</p>
 
@@ -658,7 +792,8 @@ function markRead(id){ if(state.readSet.has(id)) return; state.readSet.add(id);
 history.scrollRestoration = "manual"; // we restore scroll ourselves, precisely
 
 const SRC_COLORS = {}; // stable color per source
-const PALETTE = ["#4f8cff","#e5566b","#3fb27f","#f0a13d","#a97bff","#39c0d3","#e871c0","#7fb0ff","#c0d34a"];
+const PALETTE = ["#bab6b6","#7d7979","#444141","#2d2b2b","#a09c9c","#8f8b8b","#5f5b5b","#d7d3d3","#6f6b6b"]; // 뉴트럴 램프 — 유채색은 Signal 하나 (DESIGN.md)
+function ic(name, size=16){ return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${name}"></use></svg>`; }
 function srcColor(id){ if(!SRC_COLORS[id]){ let h=0; for(const c of id) h=(h*31+c.charCodeAt(0))>>>0; SRC_COLORS[id]=PALETTE[h%PALETTE.length]; } return SRC_COLORS[id]; }
 function srcLabel(id){ if(id==="me") return "내 글";
   const r = state.registry.find(x=>x.id===id); if(r) return r.labelKo || r.label;
@@ -1106,7 +1241,7 @@ function setupCompose(){
     const back = document.createElement("div"); back.className="modal-back";
     back.innerHTML = `
       <div class="modal">
-        <h3>✍️ 새 글 쓰기</h3>
+        <h3>새 글 쓰기</h3>
         <div class="field"><label>제목</label><input id="pTitle" maxlength="120" placeholder="제목을 입력하세요"></div>
         <div class="field"><label>내용</label><textarea id="pBody" placeholder="내용을 입력하세요"></textarea></div>
         <div class="field"><label>카테고리</label><select id="pCat">${cats}</select><div class="norm-hint" id="pNorm"></div></div>
@@ -1186,7 +1321,7 @@ async function openSpace(){
       </div>
       <div class="space-sec"><h4>내가 쓴 글</h4>${
         s.posts.length ? s.posts.map(p=>`<article class="card"><div class="card-top"><span class="dot" style="background:var(--accent)"></span><span class="src">내 글</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.summary||"")}</p></article>`).join("")
-          : '<p style="color:var(--muted);font-size:13px">아직 쓴 글이 없어요. ✍️ 버튼으로 글을 남겨보세요.</p>'}
+          : '<p style="color:var(--muted);font-size:13px">아직 쓴 글이 없어요. + 버튼으로 글을 남겨보세요.</p>'}
       </div>
       <div class="space-sec"><h4>내 댓글</h4>${
         s.comments.length ? s.comments.slice().reverse().map(c=>`<div class="comment"><div class="who">${timeAgo(c.at)}</div><div class="txt">${escapeHtml(c.body)}</div></div>`).join("")
@@ -1419,11 +1554,11 @@ async function loadBriefStrip(){
     const hh = String(t.getHours()).padStart(2,"0"), mm = String(t.getMinutes()).padStart(2,"0");
     el.innerHTML =
       `<a class="brief-card" href="/briefing" style="flex-basis:140px">
-        <div class="bc-cat">🕐 지금 브리핑</div>
+        <div class="bc-cat">지금 브리핑</div>
         <div class="bc-title">이 시간 화제 종합 정리</div>
-        <div class="bc-meta">${hh}:${mm} 기준 · 15분마다 갱신</div></a>` +
+        <div class="bc-meta">${hh}:${mm} 기준 · 15분 갱신</div></a>` +
       (tr && tr.trends && tr.trends.length ? `<a class="brief-card" href="/trends">
-        <div class="bc-cat">✖ X 트렌드</div>
+        <div class="bc-cat">X 트렌드</div>
         <div class="bc-title">${escapeHtml(tr.trends.slice(0,3).map(t=>t.name).join(" · "))}</div>
         <div class="bc-meta">실시간 TOP ${tr.trends.length} →</div></a>` : "") +
       b.sections.map(s=>{
@@ -1580,7 +1715,7 @@ async function loadMore(){
     if(res.exhausted){ state.exhausted=true; setSentinel(false, "새 화제글을 모으는 중… 평가할수록 더 정확해져요"); }
     else setSentinel(false);
     applyFilter();
-  } catch(e){ setSentinel(false, "불러오기 실패: "+e.message); }
+  } catch(e){ setSentinel(false, "불러오지 못했어요 — 당겨서 다시 시도"); }
   finally { state.loading=false; }
 }
 
@@ -1655,7 +1790,7 @@ function adMetaHtml(item){
 // 없이 그대로 노출된다.
 function cardThumbHtml(item){
   if(!item.image) return "";
-  return `<div class="card-thumb"><img src="${escapeHtml(item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.card-thumb').remove()"></div>`;
+  return `<div class="card-thumb" data-src-label="${escapeHtml(srcLabel(item.source)).toLowerCase()}"><img src="${escapeHtml(item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.card-thumb').classList.add('noimg')"></div>`;
 }
 // AD 배지 탭 → 고지 팝오버 (progressive disclosure). 배지 자체가 1차 고지
 // (항상 카드 최초 뷰포트에 보임 — Warner Bros 판례상 필수), 고지 "전문"은
@@ -1753,14 +1888,15 @@ function appendCard(item){
       <span class="src">${srcLabel(item.source)}</span>
       <span>· ${item.categoryLabel}</span>
       ${hotBadge(item)}
-      ${item.via==="submit"?'<span class="badge" style="background:rgba(79,140,255,.18);color:#9fd0ff">📮 유저 제출</span>':''}
+      ${item.via==="submit"?'<span class="badge" style="border:1px solid var(--line)">유저 제출</span>':''}
       ${item.adult?'<span class="badge adult">19</span>':''}
-      ${(item.topics||[]).includes("politics")?'<span class="badge" style="background:var(--card-2);color:var(--muted)">🗳️ 정치</span>':''}
-      ${(item.topics||[]).includes("religion")?'<span class="badge" style="background:var(--card-2);color:var(--muted)">⛪ 종교</span>':''}
+      ${(item.topics||[]).includes("politics")?'<span class="badge" style="background:var(--card-2);color:var(--muted)">정치</span>':''}
+      ${(item.topics||[]).includes("religion")?'<span class="badge" style="background:var(--card-2);color:var(--muted)">종교</span>':''}
       ${item.translated?'<span class="badge trans">번역</span>':(item.needsTranslation?'<span class="badge trans">원문</span>':'')}
       <span class="badge ${item.kind}">${item.kind==="news"?"뉴스":"커뮤"}</span>
     </div>
-    <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ' <span class="newtab-hint" role="button" tabindex="0" title="원문 바로 열기 (새 탭)">↗</span>' : ''}</h3>
+    <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ` <span class="newtab-hint" role="button" tabindex="0" title="원문 바로 열기 (새 탭)">${ic('external',14)}</span>` : ''}</h3>
+    ${item.heat&&item.heat.length>=4?`<div class="heat" aria-hidden="true">${item.heat.map(h=>`<i style="height:${Math.max(3,Math.round(h*18))}px"></i>`).join("")}</div>`:''}
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     ${item.editorialNote?`<div class="editorial-note">${escapeHtml(item.editorialNote)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>
@@ -1768,9 +1904,9 @@ function appendCard(item){
     <div class="card-meta">
       <span title="추천수">▲ ${item.score||0}</span>${commentMetaHtml(item)}<span>${timeAgo(item.publishedAt)}</span>
       <div class="actions">
-        <button class="rate save ${item.saved?'on':''}" title="스크랩">${item.saved?'🔖':'📑'}</button>
-        <button class="rate up ${item.myRating>0?'on':''}" data-s="1">👍</button>
-        <button class="rate down ${item.myRating<0?'on':''}" data-s="-1">👎</button>
+        <button class="rate save ${item.saved?'on':''}" title="스크랩">${ic('scrap',15)}</button>
+        <button class="rate up ${item.myRating>0?'on':''}" data-s="1" title="좋아요">${ic('like',15)}</button>
+        <button class="rate down ${item.myRating<0?'on':''}" data-s="-1" title="별로예요">${ic('dislike',15)}</button>
       </div>
     </div>
     </div>
@@ -1994,8 +2130,8 @@ async function renderDetail(itemId){
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
     `:""}
     <div class="detail-actions">
-      <button class="rate up ${item.myRating>0?'on':''}" id="dUp">👍 좋아요</button>
-      <button class="rate down ${item.myRating<0?'on':''}" id="dDown">👎 별로예요</button>
+      <button class="rate up ${item.myRating>0?'on':''}" id="dUp">${ic('like',15)} 좋아요</button>
+      <button class="rate down ${item.myRating<0?'on':''}" id="dDown">${ic('dislike',15)} 별로예요</button>
     </div>
     <div class="comments">
       <h4>댓글 ${item.thread.length}</h4>

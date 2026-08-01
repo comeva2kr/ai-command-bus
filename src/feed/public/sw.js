@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v17"; // v17: 브랜드 마크·앱 아이콘 교체 (스파이크, 제네릭 탈피)
+const CACHE = "feed-shell-v18"; // v18: Modernist 디자인 시스템 이식 (NowHot.dc — 괘선·radius0·열기 눈금)
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {

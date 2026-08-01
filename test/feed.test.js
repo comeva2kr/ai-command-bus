@@ -3052,7 +3052,11 @@ test("public/index.html: appendCard and appendAdCard share the same cardThumbHtm
   assert.match(body, /class="card-thumb"/);
   assert.match(body, /loading="lazy"/);
   assert.match(body, /referrerpolicy="no-referrer"/);
-  assert.match(body, /onerror="this\.closest\('\.card-thumb'\)\.remove\(\)"/, "a broken hotlink removes the thumbnail area rather than showing a broken-image icon");
+  // 2026-08-01 디자인 시스템(NowHot.dc): 핫링크 실패는 예외가 아니라 기본
+  // 상태 — 영역을 제거하는 대신 45도 해칭 플레이스홀더 클래스로 전환한다
+  // (깨진 이미지 아이콘·문구 없이, 소스명 라벨만).
+  assert.match(body, /onerror="this\.closest\('\.card-thumb'\)\.classList\.add\('noimg'\)"/, "a broken hotlink switches to the hatched placeholder instead of a broken-image icon");
+  assert.match(body, /data-src-label=/, "placeholder carries the source label");
   assert.match(body, /\$\{escapeHtml\(item\.image\)\}/, "the image URL is HTML-escaped into the src attribute");
 
   // both card renderers must call the shared helper (component reuse, per spec)

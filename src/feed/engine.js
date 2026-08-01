@@ -324,7 +324,13 @@ export class FeedEngine {
       const firstSeenAt = prior ? prior.firstSeenAt : (Number.isFinite(persisted) ? persisted : now);
       if (!prior && !Number.isFinite(persisted)) newlySeen.push([item.id, now]);
       // lastSeenAt: 이번 수집에 "아직 보드 목록에 걸려 있음"의 표시.
-      this._pool.set(item.id, { item, firstSeenAt, lastSeenAt: now });
+      // heatHist: 수집 사이클마다 반응량(추천+댓글×2+교차보도×50)을 한 칸씩
+      // 기록한 실측 시계열 — 디자인 시그니처 "열기 눈금"(DESIGN.md)의 원천.
+      // 14칸(15분 주기 기준 약 3.5시간) 롤링. 날조 금지 원칙상 이 실측이
+      // 쌓이기 전(4칸 미만)에는 클라이언트가 눈금을 그리지 않는다.
+      const engNow = (item.score || 0) + (item.commentCount || 0) * 2 + (item.coverage || 0) * 50;
+      const heatHist = [...((prior && prior.heatHist) || []), engNow].slice(-14);
+      this._pool.set(item.id, { item, firstSeenAt, lastSeenAt: now, heatHist });
     }
     if (newlySeen.length && this.store && this.store.recordFirstSeen) {
       try { this.store.recordFirstSeen(newlySeen, now); } catch {}
@@ -370,6 +376,7 @@ export class FeedEngine {
       capped.push(
         ...(cap > 0 ? entries.slice(0, cap) : entries).map((e) => {
           e.item.firstSeenAt = e.firstSeenAt;
+          e.item.heatHist = e.heatHist;
           return e.item;
         })
       );
@@ -826,9 +833,15 @@ export class FeedEngine {
     const saved = Array.isArray(user.saved) && user.saved.includes(item.id);
     const reasons = user.preferences ? explain(item, user.preferences).map(reasonLabel) : [];
     const now = (editorialContext && editorialContext.now) || (this._clock ? new Date(this._clock()).getTime() : Date.now());
+    // 열기 눈금(디자인 시그니처) — 실측 heatHist(수집 사이클별 반응량)를
+    // 0..1로 정규화해 노출. 4칸 미만이면 안 보낸다(실측이 쌓이기 전엔 안 그림).
+    const hh = Array.isArray(item.heatHist) ? item.heatHist : null;
+    const heatMax = hh && hh.length >= 4 ? Math.max(...hh) : 0;
+    const heat = heatMax > 0 ? hh.map((v) => Math.round((v / heatMax) * 100) / 100) : null;
     return {
       ...item,
       adult: item.adult === true,
+      heat,
       categoryLabel: categoryLabel(item.category),
       matchScore: Math.round(score * 100) / 100,
       reasons,

@@ -278,18 +278,31 @@ export function createServer(opts = {}) {
 <meta property="og:description" content="${escapeHtml(desc)}">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="지금핫 NowHot">
-<style>:root{--bg:#0e0f13;--card:#171922;--text:#e8eaf0;--muted:#8b90a0;--accent:#4f8cff;--line:#262a38}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.75;font-size:15px}
-.wrap{max-width:720px;margin:0 auto;padding:32px 20px 80px}h1{font-size:22px;margin:0 0 2px}
-h2{font-size:16px;margin:26px 0 8px;padding-top:14px;border-top:1px solid var(--line)}
-.muted{color:var(--muted);font-size:13px}a{color:var(--accent);text-decoration:none}
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&display=swap" rel="stylesheet">
+<style>/* Modernist 스킨 (NowHot.dc, 2026-08-01) — 라이트 기본, OS 다크 추종 */
+:root{--bg:#f3f2f2;--surface:#eae9e9;--text:#201e1d;--accent:#ec3013;
+--divider:color-mix(in srgb,#201e1d 40%,transparent);--line:color-mix(in srgb,#201e1d 16%,transparent);
+--muted:color-mix(in srgb,#201e1d 55%,transparent)}
+@media (prefers-color-scheme:dark){:root{--bg:#171615;--surface:#201e1d;--text:#f3f2f2;--accent:#ff563c;
+--divider:color-mix(in srgb,#f3f2f2 34%,transparent);--line:color-mix(in srgb,#f3f2f2 18%,transparent);
+--muted:color-mix(in srgb,#f3f2f2 55%,transparent)}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:"Archivo","Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;line-height:1.75;font-size:15px}
+.wrap{max-width:720px;margin:0 auto;padding:32px 20px 80px}
+h1{font:800 24px/1.2 "Archivo",sans-serif;letter-spacing:-.015em;margin:0 0 2px}
+h2{font-size:16px;font-weight:800;letter-spacing:-.01em;margin:26px 0 8px;padding-top:14px;border-top:2px solid var(--divider)}
+.muted{color:var(--muted);font-size:13px}a{color:var(--accent);text-decoration:none;text-underline-offset:3px}
 ul{padding-left:18px;margin:8px 0}li{margin:6px 0}.m{color:var(--muted);font-size:12.5px;display:block}
-ol.rank{padding-left:0;margin:14px 0;list-style:none;counter-reset:r}
-ol.rank li{counter-increment:r;display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);margin:0}
-ol.rank li::before{content:counter(r);color:var(--accent);font-weight:800;min-width:26px;font-size:16px}
-.nav{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.nav a{border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--text)}
-.nav a.on{background:var(--accent);border-color:var(--accent);color:#fff}
-.back{display:inline-block;margin-bottom:18px;color:var(--accent)}</style></head><body><div class="wrap">
+ol.rank{padding-left:0;margin:14px 0;list-style:none;counter-reset:r;border-top:2px solid var(--divider)}
+ol.rank li{counter-increment:r;display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line);margin:0}
+ol.rank li::before{content:counter(r);font:800 20px "Archivo",sans-serif;color:var(--muted);min-width:30px}
+ol.rank li:first-child::before{color:var(--accent)}
+ol.rank li a{color:var(--text);font-weight:700}
+.nav{display:flex;gap:0;flex-wrap:wrap;margin:14px 0;border:1px solid var(--line)}
+.nav a{border-right:1px solid var(--line);padding:8px 14px;font:800 13px "Archivo",sans-serif;color:var(--text)}
+.nav a:last-child{border-right:none}
+.nav a.on{background:var(--accent);color:var(--bg)}
+.back{display:inline-block;margin-bottom:18px;color:var(--accent);font-weight:700}</style></head><body><div class="wrap">
 <a class="back" href="/">← 지금핫 피드로</a>
 ${inner}
 <p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
