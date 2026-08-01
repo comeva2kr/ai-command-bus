@@ -4,8 +4,16 @@
 <meta charset="utf-8" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&display=swap" rel="stylesheet">
-<script>/* Modernist skin: OS 테마 추종 (DESIGN.md — 라이트 기본, 다크 파생) */
-(function(){var m=matchMedia("(prefers-color-scheme: dark)");function ap(){document.documentElement.dataset.theme=m.matches?"dark":"light";}ap();m.addEventListener&&m.addEventListener("change",ap);})();</script>
+<script>/* 테마: 저장된 선택(light|dark) > 시스템 추종(system, 기본).
+   드로어에서 바꿀 수 있고, system이면 OS 변경을 즉시 따라간다. */
+(function(){
+  var KEY="feed_theme", m=matchMedia("(prefers-color-scheme: dark)");
+  function pref(){ try { return localStorage.getItem(KEY) || "system"; } catch { return "system"; } }
+  function apply(){ var p=pref(); document.documentElement.dataset.theme = p==="system" ? (m.matches?"dark":"light") : p; }
+  window.__setTheme=function(v){ try{ v==="system" ? localStorage.removeItem(KEY) : localStorage.setItem(KEY,v); }catch{} apply(); };
+  window.__themePref=pref;
+  apply(); m.addEventListener && m.addEventListener("change", function(){ if(pref()==="system") apply(); });
+})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>지금핫 NowHot</title>
 <meta property="og:type" content="website" />
@@ -644,6 +652,15 @@
       </div>
 
       <div class="drawer-sec">
+        <h4>화면 테마</h4>
+        <div class="chips" id="themeChips">
+          <button class="chip" data-theme="light">라이트</button>
+          <button class="chip" data-theme="dark">다크</button>
+          <button class="chip" data-theme="system">시스템 설정</button>
+        </div>
+      </div>
+
+      <div class="drawer-sec">
         <h4>카테고리</h4>
         <div class="chips" id="chips"></div>
       </div>
@@ -945,7 +962,7 @@ syncHeaderHeight();
   state.registry = communitiesRes.communities || [];
   const anyLive = state.registry.some(c => (c.liveCount || 0) > 0);
   state.communities = state.registry.filter(c => c.enabled && !c.adult && (!anyLive || (c.liveCount || 0) > 0));
-  setupBrandHome(); loadBriefStrip(); setupSortBar(); renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
+  setupBrandHome(); setupThemeChips(); loadBriefStrip(); setupSortBar(); renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
   setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver(); setupAdImpressionObserver();
   setupLeanSlider(s);
   // Always show content first — a preview feed (popularity-ranked when no taste
@@ -1702,6 +1719,22 @@ async function loadBriefStrip(){
       }).join("");
     el.hidden = false;
   } catch { el.hidden = true; }
+}
+
+// ---- 화면 테마 (라이트 / 다크 / 시스템 설정) — David 2026-08-01 ----
+function setupThemeChips(){
+  const bar = document.getElementById("themeChips"); if(!bar) return;
+  const paint = ()=>{
+    const cur = (window.__themePref && window.__themePref()) || "system";
+    [...bar.children].forEach(b=> b.classList.toggle("active", b.dataset.theme===cur));
+  };
+  paint();
+  bar.onclick = (e)=>{
+    const b = e.target.closest("[data-theme]"); if(!b) return;
+    window.__setTheme && window.__setTheme(b.dataset.theme);
+    paint();
+    toast(b.dataset.theme==="system" ? "시스템 설정을 따라가요" : (b.dataset.theme==="dark"?"다크 모드":"라이트 모드"));
+  };
 }
 
 // ---- 정렬 바 (핫/최신, #12) ----
