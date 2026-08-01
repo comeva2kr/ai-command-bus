@@ -234,7 +234,7 @@ export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch } =
 export function makeEnricher({
   fetchImpl = fetch,
   maxPerCycle = 20,
-  concurrency = 6,
+  concurrency = 8,
   ttlMs = 6 * 3600 * 1000,
   negativeTtlMs = 3600 * 1000,
   clock = () => Date.now(),

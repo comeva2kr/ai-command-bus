@@ -202,7 +202,7 @@ export function createServer(opts = {}) {
     // 아주 낮다). 40건일 때 라이브 이미지 보유율이 40%에 머물렀다 — 900건 풀을
     // 도는 데 5시간 넘게 걸렸기 때문(David 2026-08-01 사진 우선 요구 대응).
     engine._enricher = makeEnricher({
-      maxPerCycle: Number(process.env.FEED_ENRICH_PER_CYCLE || 120),
+      maxPerCycle: Number(process.env.FEED_ENRICH_PER_CYCLE || 250),
       initialCache: store.loadEnrichCache ? store.loadEnrichCache() : null,
       onPersist: (entries, nowMs) => { if (store.saveEnrichCache) store.saveEnrichCache(entries, nowMs); }
     });
