@@ -449,10 +449,32 @@ export class FeedEngine {
     //       성격(humor)으로 되돌린다.
     //    정치 태그 글은 전 단계 제외 — 논쟁 문체가 humor/gaming 말투와 겹쳐
     //    오분류의 최대 진원지였다(라이브 실측 2026-07-29).
+    // 섹션이 이미 정해진 뉴스 소스는 **등록 카테고리를 그대로 쓴다**
+    // (David 2026-08-02: "뉴스는 이미 분류된 거 그대로 매핑하면 됨").
+    // 경제지·연예지·자동차 전문지처럼 매체 자체가 섹션인 소스를 통계 분류가
+    // 흔들면 정확도가 떨어질 뿐이다. 종합(category==="news")인 소스만 예외로
+    // 제목 분류를 태운다 — 종합은 사실상 미분류이기 때문.
+    let _newsSectioned;
+    const isSectionedNews = (item) => {
+      if (item.kind !== "news") return false;
+      if (_newsSectioned === undefined) {
+        try {
+          _newsSectioned = new Map(loadRegistry().map((c) => [c.id, c.category]));
+        } catch { _newsSectioned = new Map(); }
+      }
+      const cat = _newsSectioned.get(item.source);
+      return Boolean(cat && cat !== "news");
+    };
+
     for (const item of capped) {
       if (item.source === "seed" || item.source === "me") continue;
       if ((item.topics || []).includes("politics")) continue;
-      const kw = definiteCategory({ title: item.title, url: item.url, sourceId: item.source });
+      // 섹션 뉴스: 등록 분류 유지가 원칙이되, 자동차 사전만 예외로 적용한다
+      // (시승기가 경제지에 실리는 실제 사례 — 근거는 classify.js 주석 참고).
+      const sectioned = isSectionedNews(item);
+      const kw = definiteCategory({
+        title: item.title, url: item.url, sourceId: item.source, autoOnly: sectioned
+      });
       if (kw) {
         if (kw !== item.category) {
           if (item.registryCategory === undefined) item.registryCategory = item.category;
@@ -460,6 +482,7 @@ export class FeedEngine {
         }
         continue;
       }
+      if (sectioned) continue; // NB·혼합 폴백은 섹션 뉴스에 적용하지 않는다
       if (isReclassifiable(item.source) && this._classifier.trained >= 100) {
         const predicted = classifyTitle(this._classifier, item.title);
         if (predicted && predicted !== item.category && OVERRIDE_CATEGORIES.has(predicted)) {

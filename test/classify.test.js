@@ -413,3 +413,37 @@ test("경제 뉴스의 시승기: 키워드 확정이 소스 불문 auto로 옮�
   assert.equal(byId.get("drive1").category, "auto", "시승기는 경제지에 실려도 auto");
   assert.equal(byId.get("biz1").category, "business", "일반 경제 기사는 그대로");
 });
+
+// ---- 분류 정책 (David 2026-08-02) ----------------------------------------
+
+test("keywordCategory: 커뮤니티 제목을 사람이 유추하는 대로 분류한다", () => {
+  const cases = [
+    ["손흥민 결승골...팀 5연승", "sports"],
+    ["메이플 신규 직업 성능 실화냐", "gaming"],
+    ["코스피 3000 회복...외국인 순매수", "business"],
+    ["뉴진스 컴백 티저 공개", "culture"],
+    ["챗GPT 신모델 발표", "tech"],
+    ["우리집 강아지 산책 후기", "life"],
+    ["제임스웹 외계행성 수증기 포착", "science"],
+    ["그랜저 시승 후기", "auto"]
+  ];
+  for (const [title, cat] of cases) assert.equal(keywordCategory(title), cat, title);
+  // 어느 사전에도 없는 잡담은 미분류 — "모름"이 오답보다 낫다
+  assert.equal(keywordCategory("회사 단톡방에서 오타 하나로 벌어진 대참사"), null);
+});
+
+test("섹션이 정해진 뉴스 소스는 등록 카테고리를 그대로 쓴다 (재분류 금지)", async () => {
+  const { FeedStore } = await import("../src/feed/store.js");
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const { JsonSource } = await import("../src/feed/content.js");
+  // chosunbiz는 레지스트리상 business. 제목에 게임 어휘가 있어도 유지돼야 한다.
+  const src = new JsonSource("chosunbiz", async () => [
+    { id: "n1", title: "넥슨 신작 흥행에 주가 급등", url: "https://biz.example.com/1",
+      publishedAt: new Date(Date.now() - 3600e3).toISOString(), category: "business" }
+  ], "news");
+  const store = new FeedStore();
+  const engine = new FeedEngine(store, [src]);
+  await engine.refresh();
+  const item = (await engine._items()).find((i) => i.id === "n1");
+  assert.equal(item.category, "business", "섹션 뉴스는 제목 분류로 흔들리지 않는다");
+});
