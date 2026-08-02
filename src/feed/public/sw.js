@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v42"; // v42: 라이브 실측 반영(은꼴 태그 차단 + 이토랜드 재분류)
+const CACHE = "feed-shell-v43"; // v43: 교차출처 캐시 금지 — 기존 캐시(광고·추적 117건)를 activate에서 통째로 비운다
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {
@@ -69,14 +69,40 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // 교차 출처는 서비스워커가 손대지 않는다 — 브라우저 HTTP 캐시에 맡긴다.
+  //
+  // 2026-08-02 적대적 검수(쿠팡 프론트엔드 성능 페르소나) 실측: 아래 cache-first
+  // 분기에 오리진 가드가 없어서 광고 SDK와 광고 요청까지 전부 영구 고정됐다.
+  // 캐시 227건 중 nowhot.kr은 4건뿐이고 광고·추적이 117건이었다. adsbygoogle.js는
+  // transferSize=0(네트워크 미접속)으로 서빙됐고, 상류가 준 max-age=3600을 Cache
+  // API가 무시해 CACHE 상수를 손으로 올릴 때까지 만료되지 않았다.
+  //
+  // 왜 P0인가 — 수익화 심사 중에 가장 위험한 조합이다:
+  //  1. 구글이 애드센스 로더를 갱신해도 사용자에겐 배포 시점 버전이 계속 나간다
+  //     (광고 미노출·서빙 실패의 전형적 원인이고, 캐시가 범인이라 디버깅이 어렵다)
+  //  2. 무효 트래픽 탐지(adtrafficquality sodar)와 애드핏 배너 **요청 자체**가 캐시돼
+  //     지난 광고 응답이 재생되고, URL이 고정인 gen_204 이벤트 비콘은 아예 전송되지
+  //     않는다 — 임프레션 집계 오염과 무효 트래픽 판정 리스크
+  //  3. 임프레션마다 토큰이 달라 새 엔트리가 상한 없이 쌓인다. 오리진 할당량을
+  //     소진하면 브라우저가 버킷을 통째로 축출하는데, 같은 버킷의 localStorage에
+  //     feed_uid(계정 식별자)와 취향 상태가 들어 있다.
+  //
+  // 외부 썸네일 캐시가 필요해지면 여기서 되돌리지 말고 별도 캐시명 + 호스트
+  // 화이트리스트 + 건수 상한(LRU)으로 분리할 것. 앱 셸만 담으면 수백 KB로 끝난다.
+  if (url.origin !== self.location.origin) return;
+
   // static assets: cache-first, then network (and populate the cache)
   event.respondWith(
     caches.match(request).then(
       (cached) =>
         cached ||
         fetch(request).then((resp) => {
-          const copy = resp.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          // 실패 응답은 캐시하지 않는다 — 배포 중 한 번 404난 자산이 다음 CACHE
+          // 상수 인상 때까지 그 사용자에게 영구 404로 남던 문제(같은 검수 실측).
+          if (resp.ok) {
+            const copy = resp.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
+          }
           return resp;
         })
     )
