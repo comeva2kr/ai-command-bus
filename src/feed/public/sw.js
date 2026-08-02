@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v40"; // v40: 분류 정책 재정비(뉴스 통과 + 커뮤니티 어휘 사전)
+const CACHE = "feed-shell-v41"; // v41: 분류기 적대적 검수 반영(부당 은폐 제거 + 문맥 가드 + 동점 기권)
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {

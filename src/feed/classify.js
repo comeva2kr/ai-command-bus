@@ -259,12 +259,53 @@ export const AUTO_KEYWORDS = [
   // 전용 용어
   "시승", "신차", "전기차", "하이브리드", "내연기관", "SUV", "세단", "쿠페",
   "해치백", "연비", "주행거리", "자율주행", "급발진", "오토바이", "이륜차",
-  "중고차", "출고", "차박", "차량용", "블랙박스", "블박"
+  "중고차", "신차 출고", "차량 출고", "차박", "차량용", "블랙박스", "블박"
 ];
 
 // 자동차 브랜드가 나와도 금융·기업 문맥이면 경제 기사다 ("현대차 주가 급등",
 // "테슬라 실적 발표") — 이 가드에 걸리면 키워드 확정을 포기하고 원 분류 유지.
-export const AUTO_FINANCE_GUARD = ["주가", "실적", "영업이익", "매출", "수출", "노조", "파업", "채용", "공장", "투자"];
+export const AUTO_FINANCE_GUARD = ["주가", "실적", "영업이익", "매출", "수출", "노조", "파업", "채용", "공장", "투자",
+  // 2026-08-02 검수 A15: 부고·사고 기사가 브랜드명만으로 auto로 갔다
+  "별세", "타계", "빈소", "화재", "기소", "구속"];
+
+// 카테고리별 문맥 가드 (검수 A3) — AUTO_FINANCE_GUARD와 대칭.
+// 회사명이 곧 카테고리는 아니다: "넥슨 주가 급등"은 게임이 아니라 경제다.
+// 가드에 걸리면 그 카테고리를 후보에서 **탈락**시킬 뿐, 다른 카테고리로
+// 라우팅하지는 않는다 — 우리가 아는 것은 "게임이 아니다"까지이고, 경제라고
+// 단정할 근거는 없기 때문(확신 없는 라우팅이 바로 이 검수가 지적한 병이다).
+export const CATEGORY_GUARDS = new Map([
+  ["gaming", ["주가", "실적", "영업이익", "매출", "노조", "파업", "별세", "사옥",
+              "상장", "공모", "채용", "소송", "인수", "합병", "지분"]],
+  ["tech", ["주가", "실적", "영업이익", "매출", "상장", "공모", "별세", "지분"]],
+  ["culture", ["주가", "실적", "상장", "별세", "지분"]]
+]);
+
+export function keywordCategory(title, opts = {}) {
+  const t = String(title || "");
+  if (!t) return null;
+  const tl = t.toLowerCase(); // A5: 소문자 영문 브랜드(bmw·chatgpt·github) 미탐 해소
+  // 자동차가 먼저 — 브랜드·모델이 다른 사전과 겹치지 않고 금융 가드가 붙는다
+  if (AUTO_KEYWORDS.some((k) => tl.includes(k.toLowerCase()))) {
+    if (AUTO_FINANCE_GUARD.some((k) => t.includes(k))) return null;
+    return "auto";
+  }
+  if (opts.autoOnly) return null;
+  // 문맥 가드에 걸린 카테고리는 후보에서 탈락, 나머지 중 히트 최다를 채택.
+  // **동점이면 기권**한다(A4) — 예전엔 선언 순서로 임의 승자를 뽑아 "확신에 찬
+  // 오답"을 냈고, 그 오답이 취향 벡터·쿼터·브리핑까지 검증 없이 번졌다.
+  const scored = [];
+  for (const [cat, words] of CATEGORY_KEYWORDS) {
+    const guard = CATEGORY_GUARDS.get(cat);
+    if (guard && guard.some((k) => t.includes(k))) continue;
+    let hits = 0;
+    for (const w of words) if (tl.includes(w.toLowerCase())) hits++;
+    if (hits) scored.push([cat, hits]);
+  }
+  if (!scored.length) return null;
+  scored.sort((a, b) => b[1] - a[1]);
+  if (scored.length > 1 && scored[0][1] === scored[1][1]) return null;
+  return scored[0][0];
+}
 
 // 게시판 URL로 카테고리가 확정되는 규칙 — 통합 베스트에 섞여 들어와도
 // 아이템 url에 원 게시판이 남는 소스들 (topics.js BOARD_TOPIC_RULES와 같은
@@ -273,34 +314,6 @@ export const AUTO_FINANCE_GUARD = ["주가", "실적", "영업이익", "매출",
 export const BOARD_CATEGORY_RULES = [
   { source: "ppomppu", pattern: /[?&]id=car\b/i, category: "auto" }
 ];
-
-// 제목만으로 카테고리를 확정할 수 있으면 그 카테고리를, 아니면 null.
-// 현재는 auto 전용이지만 같은 구조로 사전을 늘릴 수 있게 함수로 뽑아 둔다.
-// opts.autoOnly: 자동차 사전만 적용 — 섹션이 정해진 뉴스에 쓰는 모드다.
-// 근거: David 지시 두 개가 이 지점에서 만난다 — ①"시승기는 경제지에 실려도
-// 자동차"(2026-08-01) ②"뉴스는 이미 분류된 걸 그대로"(2026-08-02). 자동차
-// 사전은 브랜드·모델 고유명사 + 금융 문맥 가드가 있어 섹션 뉴스에 얹어도
-// 안전한 반면, 일반 카테고리 사전은 "넥슨 신작에 주가 급등"을 게임으로
-// 옮겨 버린다. 그래서 섹션 뉴스에는 자동차만 허용한다.
-export function keywordCategory(title, opts = {}) {
-  const t = String(title || "");
-  if (!t) return null;
-  // 자동차가 먼저 — 브랜드·모델이 다른 사전과 겹치지 않고 금융 가드가 붙는다
-  if (AUTO_KEYWORDS.some((k) => t.includes(k))) {
-    if (AUTO_FINANCE_GUARD.some((k) => t.includes(k))) return null;
-    return "auto";
-  }
-  if (opts.autoOnly) return null;
-  // 히트 수가 가장 많은 카테고리를 고른다(동점이면 사전 순서 = 특이도 순서).
-  // 한 단어만 걸려도 채택하지만, 어휘가 전부 고유명사라 오탐이 낮다.
-  let best = null, bestHits = 0;
-  for (const [cat, words] of CATEGORY_KEYWORDS) {
-    let hits = 0;
-    for (const w of words) if (t.includes(w)) hits++;
-    if (hits > bestHits) { best = cat; bestHits = hits; }
-  }
-  return bestHits > 0 ? best : null;
-}
 
 // ---------------------------------------------------------------------------
 // 카테고리 어휘 사전 (David 2026-08-02: "커뮤니티 종합게시판은 제목만 봐도
@@ -314,9 +327,9 @@ export function keywordCategory(title, opts = {}) {
 // 뉴스(경제지·연예지 등)는 등록 카테고리를 그대로 쓴다.
 export const CATEGORY_KEYWORDS = [
   ["gaming", [
-    "롤드컵", "리그오브레전드", "LoL", "롤 ", "발로란트", "오버워치", "배틀그라운드",
+    "롤드컵", "리그오브레전드", "리그 오브 레전드", "LoL", "롤체", "옵치", "발로란트", "오버워치", "배그", "배틀그라운드",
     "메이플", "던파", "던전앤파이터", "로스트아크", "디아블로", "스타크래프트",
-    "피파온라인", "넥슨", "엔씨소프트", "넷마블", "크래프톤", "스팀", "닌텐도",
+    "피파온라인", "넥슨", "엔씨소프트", "넷마블", "크래프톤", "스팀 세일", "스팀 신작", "닌텐도",
     "플스", "플레이스테이션", "엑스박스", "e스포츠", "이스포츠", "패치노트",
     "젠지", "T1", "한화생명e", "디플러스", "케스파", "가챠", "인게임", "너프", "버프"
   ]],
@@ -329,7 +342,7 @@ export const CATEGORY_KEYWORDS = [
   ]],
   ["culture", [
     "아이돌", "걸그룹", "보이그룹", "컴백", "신곡", "음원차트", "빌보드",
-    "뮤직뱅크", "엠카운트다운", "연예인", "배우", "드라마", "예능", "넷플릭스",
+    "뮤직뱅크", "엠카운트다운", "연예인", "드라마", "예능", "넷플릭스",
     "디즈니플러스", "티빙", "웨이브", "영화 개봉", "박스오피스", "관객수",
     "OST", "콘서트", "팬미팅", "소속사", "열애설", "결별설", "복귀작", "출연 확정",
     "BTS", "블랙핑크", "뉴진스", "아이브", "세븐틴", "에스파", "르세라핌"
@@ -350,12 +363,12 @@ export const CATEGORY_KEYWORDS = [
   ]],
   ["life", [
     "레시피", "집밥", "다이어트 식단", "홈트", "캠핑", "등산", "낚시", "반려견",
-    "반려묘", "강아지", "고양이", "육아", "인테리어", "이사", "청소 꿀팁",
+    "반려묘", "강아지", "고양이", "육아", "인테리어", "포장이사", "청소 꿀팁",
     "여행 코스", "숙소 추천", "맛집", "카페 추천", "건강검진", "영양제",
     "탈모", "피부과", "치과", "다이소", "쿠팡 주문", "장보기"
   ]],
   ["science", [
-    "우주선", "나사", "NASA", "스페이스X", "누리호", "인공위성", "블랙홀",
+    "우주선", "NASA", "스페이스X", "누리호", "인공위성", "블랙홀",
     "외계행성", "제임스웹", "천체", "유전자", "백신 개발", "임상시험",
     "노벨상", "논문 발표", "연구진", "화석", "고생물", "기후변화", "탄소중립"
   ]]

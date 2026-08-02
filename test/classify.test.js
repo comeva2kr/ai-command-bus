@@ -335,13 +335,20 @@ test("성인 사전: 실측된 은꼴성 제목은 숨기고, 일상어·웨딩�
   const hide = [
     "권수진(nothing_betttter) 비키니",
     "수련수련 오프솔더 세라복 가슴골",
-    "한국 여자들 몸매가 부럽다는 외국인...누나...",
+    "몸매 자랑하는 그녀 인증샷",
     "검은 비키니의 여자"
   ];
   const pass = [
     "주식으로 털리고 푸념글 올라오는거 정말 꼴뵈기 싫으네", // "꼴" 단독 오탐 금지
     "김나희, 남주혁 닮은 예비 남편과 웨딩 화보",
-    "신형 그랜저 시승기"
+    "신형 그랜저 시승기",
+    // 2026-08-02 검수 A1로 계약이 바뀐 자리. 예전엔 "몸매" 단독을 사전에 넣어
+    // "한국 여자들 몸매가 부럽다는 외국인" 같은 경계선 글까지 잡았지만, 같은
+    // 규칙이 아래 정상 글도 19금 게이트(기본 숨김) 뒤에 가뒀다. 게이트는 숨기는
+    // 방향이라 오탐 비용이 미탐 비용보다 크다 — 경계선 한 건을 놓치는 쪽을 택하고
+    // 은어·복합어("몸매 자랑", "몸매 노출")로 좁혔다.
+    "몸매 관리 앱 추천 좀",
+    "겨울 니트 착샷 후기"
   ];
   for (const t of hide) assert.ok(classifyTopics({ title: t }).includes("adult"), `숨겨야: ${t}`);
   for (const t of pass) assert.ok(!classifyTopics({ title: t }).includes("adult"), `오탐: ${t}`);
@@ -446,4 +453,67 @@ test("섹션이 정해진 뉴스 소스는 등록 카테고리를 그대로 쓴�
   await engine.refresh();
   const item = (await engine._items()).find((i) => i.id === "n1");
   assert.equal(item.category, "business", "섹션 뉴스는 제목 분류로 흔들리지 않는다");
+});
+
+// ---------------------------------------------------------------------------
+// 대기업 출신 5인 적대적 검수 (2026-08-02) — 확정 결함을 실패 테스트로 먼저
+// 박고 고친다. 이 프로젝트는 "고친 뒤 테스트 추가"를 반복해 신규 실패 유형을
+// 못 잡는 상태에 도달했다(검수 A11). 순서를 뒤집는 것 자체가 처방이다.
+// ---------------------------------------------------------------------------
+
+test("A1: 정상 글이 19금·정치 게이트 뒤로 부당 은폐되면 안 된다", () => {
+  // 무경계 includes가 만든 오탐 — 게이트가 기본 숨김이라 '조용한 검열'이 된다
+  const notAdult = [
+    "입욕제 추천 좀 해주세요", "오늘 산 니트 착샷", "성인용 킥보드 추천",
+    "글래머러스한 인테리어 조명", "요즘 몸매 관리 어떻게들 하세요"
+  ];
+  for (const t of notAdult) {
+    const topics = classifyTopics({ title: t, url: "https://x/1", sourceId: "clien" });
+    assert.ok(!topics.includes("adult"), `19금 오탐: ${t}`);
+  }
+  const notPolitics = ["급여당일지급 알바 구합니다", "심야당직 근무 후기"];
+  for (const t of notPolitics) {
+    const topics = classifyTopics({ title: t, url: "https://x/1", sourceId: "clien" });
+    assert.ok(!topics.includes("politics"), `정치 오탐: ${t}`);
+  }
+  // 진짜 성인/정치는 계속 잡혀야 한다 (완화가 게이트를 무력화하면 안 됨)
+  assert.ok(classifyTopics({ title: "ㅇㅎ) 비키니 화보", url: "https://x/2", sourceId: "etoland" }).includes("adult"));
+  assert.ok(classifyTopics({ title: "국회 법사위 특검법 처리", url: "https://x/3", sourceId: "gnews" }).includes("politics"));
+});
+
+test("A9: 국제 정치가 정치 토글을 우회하면 안 된다", () => {
+  for (const t of ["트럼프 관세 압박 재개", "시진핑 방한 조율", "푸틴 회담 제안", "김정은 담화 발표"]) {
+    assert.ok(classifyTopics({ title: t, url: "https://x/1", sourceId: "gnews" }).includes("politics"), t);
+  }
+});
+
+test("A2/A6: 일반어 지뢰어가 카테고리를 훔치면 안 된다", () => {
+  const cases = [
+    ["가전 출고 지연 사태", "auto"], ["나사 풀린 의자 고치기", "science"],
+    ["스팀다리미 추천", "gaming"], ["우리 배우자가 한 말", "culture"],
+    ["사외이사 선임 공시", "life"]
+  ];
+  for (const [title, wrong] of cases) {
+    assert.notEqual(keywordCategory(title), wrong, `지뢰어 오탐: ${title} -> ${wrong}`);
+  }
+});
+
+test("A3: 회사명 + 금융 문맥이면 확신에 찬 오답 대신 기권한다", () => {
+  // 가드가 없으면 gaming/tech/culture로 확정되어 취향벡터·브리핑까지 오염된다
+  for (const t of ["넥슨 주가 급등", "엔씨소프트 영업이익 발표", "크래프톤 상장 첫날", "넷마블 노조 파업"]) {
+    assert.notEqual(keywordCategory(t), "gaming", `금융 문맥인데 gaming 확정: ${t}`);
+  }
+  assert.notEqual(keywordCategory("엔비디아 실적 서프라이즈"), "tech");
+});
+
+test("A4: 히트 수 동점이면 확정하지 않고 기권한다", () => {
+  // 게임 1 + 스포츠 1 — 선언 순서로 gaming을 고르던 편향
+  const t = "넥슨, 프로야구 구단 스폰서 계약";
+  assert.equal(keywordCategory(t), null, "동점은 기권해야 — 선언순 임의 승자 금지");
+});
+
+test("A5: 소문자 영문 브랜드도 잡는다", () => {
+  assert.equal(keywordCategory("bmw 신형 공개"), "auto");
+  assert.equal(keywordCategory("chatgpt 신모델 발표"), "tech");
+  assert.equal(keywordCategory("github 대규모 장애"), "tech");
 });
