@@ -1179,6 +1179,15 @@ export class FeedEngine {
           // (2026-08-02 검수: 10개 섹션 전부 같은 템플릿, 설명 문장 0개).
           // 피드에는 이미 summary가 있는데 브리핑에서 한 줄도 안 쓰고 있었다.
           summary: i.summary || "",
+          // 발췌가 없는 글(커뮤니티 list 어댑터는 법적 제약으로 본문을 안 가져온다)
+          // 을 위한 폴백. editorial.js가 실측 지표로 만드는 한 줄이라 없는 내용을
+          // 지어내지 않는다 — "더쿠에서 2시간 만에 추천 5.3만·댓글 349".
+          // 이게 있어야 브리핑이 제목 나열이 아니라 읽히는 페이지가 된다.
+          //
+          // 여기서 직접 만든다: editorialNote는 원래 _decorate(사용자별 렌더)에서
+          // 붙기 때문에 풀 아이템에는 없다. 브리핑은 로그인과 무관한 공개
+          // 페이지라 그 경로를 타지 않는다.
+          editorialNote: buildEditorialNote(i, { now }) || "",
           url: i.url || "",
           sourceLabel: this._labelFor(i),
           score: i.score || 0, commentCount: i.commentCount || 0,

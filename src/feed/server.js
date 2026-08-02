@@ -403,7 +403,16 @@ ${inner}
   const USELESS_SUMMARY = /^\s*\d+\s+comments?\s+in\s+the\s+discussion/i;
   const briefingSummary = (i) => {
     const raw = String(i.summary || "").replace(/\s+/g, " ").trim();
-    if (!raw || raw.length < 20 || USELESS_SUMMARY.test(raw)) return "";
+    // 발췌를 못 쓰면 편집 코멘트(실측 지표 한 줄)로 대신한다. 억지 문장을
+    // 만들어내지 않으면서도 모든 행이 한 줄을 갖게 하는 유일한 재료다.
+    if (!raw || raw.length < 20 || USELESS_SUMMARY.test(raw)) {
+      // 폴백은 **실측 수치를 담은** 코멘트만 쓴다. "여러 매체가 함께 다루는 뉴스"
+      // 같은 일반 문구는 여러 행에 똑같이 반복돼, 검수가 지적한 "10개 섹션이
+      // 전부 같은 템플릿"을 다른 형태로 재현할 뿐이다. 숫자가 없으면 차라리
+      // 줄을 비운다 — 바로 아래 지표줄(.m)에 출처·근거가 이미 있다.
+      const note = String(i.editorialNote || "").replace(/\s+/g, " ").trim();
+      return note && /\d/.test(note) ? maskProfanity(note) : "";
+    }
     const clean = maskProfanity(raw);
     if (clean.length <= 110) return clean;
     // 단어 경계에서 자른다 — 사람 이름 중간을 끊으면 요약이 아니라 사고다
