@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v41"; // v41: 분류기 적대적 검수 반영(부당 은폐 제거 + 문맥 가드 + 동점 기권)
+const CACHE = "feed-shell-v42"; // v42: 라이브 실측 반영(은꼴 태그 차단 + 이토랜드 재분류)
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {

@@ -135,10 +135,11 @@ test("NB: 직렬화 왕복 후에도 같은 예측을 낸다 (결정성)", () =>
 // ---------------------------------------------------------------------------
 
 test("TRAIN_LABELS: 혼합 게시판(클리앙·뽐뿌·이토랜드)은 학습 소스가 아니다", () => {
-  for (const mixed of ["clien", "ppomppu"]) {
+  // etoland는 2026-08-02 실측(HIT 27건에 연예·상품광고 다수)으로 학습에서 뺐다
+  for (const mixed of ["clien", "ppomppu", "etoland"]) {
     assert.ok(!TRAIN_LABELS.has(mixed), `${mixed}는 온갖 주제가 섞여 라벨로 쓰면 오염된다`);
   }
-  // etoland는 humor 약지도로 등재되어 있으나 가중치가 낮아야 한다
+  // 남은 약지도 소스는 가중치가 낮아야 한다
   for (const [src, { weight }] of TRAIN_LABELS) {
     if (src.startsWith("gnews")) assert.equal(weight, 1.0, `${src}: 구글 편집 분류는 1.0`);
     else assert.ok(weight <= 0.5, `${src}: 약지도는 0.5 이하여야 (소스 과적합 방지)`);
@@ -516,4 +517,45 @@ test("A5: 소문자 영문 브랜드도 잡는다", () => {
   assert.equal(keywordCategory("bmw 신형 공개"), "auto");
   assert.equal(keywordCategory("chatgpt 신모델 발표"), "tech");
   assert.equal(keywordCategory("github 대규모 장애"), "tech");
+});
+
+// ---------------------------------------------------------------------------
+// 2026-08-02 라이브 실측 (이토랜드 HIT 27건 + 인벤 14건, nowhot.kr /api/feed)
+// ---------------------------------------------------------------------------
+
+test("은꼴 태그 [약후]는 19금 게이트 뒤로 — 애드핏 '성적 자극' 보류 사유 직결", () => {
+  const hide = [
+    "[IVE] 장원영 무대위 퇴장신[약후]",
+    "속바지를 팬티급으로 입는 대만 치어리더 보타구니.mp4",
+    "약후방 주의 짤 모음"
+  ];
+  // "약후" 단독을 넣으면 아래가 전부 은폐된다 — 표기형("[약후]"·"약후방")만 쓴다
+  const pass = ["치약 후기 남깁니다", "계약 후 취소 가능한가요", "약후불제 거래 후기"];
+  for (const t of hide) assert.ok(classifyTopics({ title: t }).includes("adult"), `숨겨야: ${t}`);
+  for (const t of pass) assert.ok(!classifyTopics({ title: t }).includes("adult"), `오탐: ${t}`);
+});
+
+test("혼합 게시판의 연예 글은 culture로 — 등록값 humor를 물려받지 않는다", () => {
+  // 실측: 이토랜드 HIT에서 아래 글이 전부 humor로 배달됐다
+  for (const [title, want] of [
+    ["배우 김고은", "culture"],
+    ["눈 올리는 비비지 신비 ㄷㄷ.gif", "culture"],
+    ["쪼그려 앉아서 물 마시는 트와이스 사나", "culture"]
+  ]) assert.equal(keywordCategory(title), want, title);
+  // "배우 "의 뒤 공백이 지키는 경계 — 없으면 아래가 전부 culture로 샌다
+  for (const t of ["내 배우자와 여행 계획", "요리 배우고 싶은데 학원 추천", "영어 배우기 좋은 앱"])
+    assert.equal(keywordCategory(t), null, `오탐: ${t}`);
+});
+
+test("전문 커뮤니티(인벤)의 등록 카테고리는 유지 — 혼합 폴백을 씌우면 안 된다", async () => {
+  const { isReclassifiable } = await import("../src/feed/classify.js");
+  // 검수단 A8 처방("미등재 소스에도 혼합 폴백")을 실측으로 기각한 자리.
+  // 인벤 HIT 14건은 전부 진짜 게임 글이었다 — 폴백을 씌웠다면 정확한 분류
+  // 14건을 humor로 망가뜨렸을 것이다. 반면 이토랜드는 전 게시판 통합이라
+  // 학습 라벨에서 빼고 재분류 대상으로 돌렸다.
+  assert.equal(isReclassifiable("inven_hot"), false, "인벤은 게임 전문 — 등록값 유지");
+  assert.equal(isReclassifiable("etoland"), true, "이토랜드는 전 게시판 통합 — 재분류 허용");
+  // 인벤 실측 제목: 키워드 사전이 못 잡아도 등록값 gaming이 정답이다
+  for (const t of ["2탱 아무리해도 별로임", "검은사원 시던보상이 쏠쏠하네"])
+    assert.equal(keywordCategory(t), null, `사전이 억지로 분류하면 안 됨: ${t}`);
 });
