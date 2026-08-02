@@ -1,3 +1,4 @@
+import { discardBody } from "./fetchers.js";
 // 썸네일 보강(enrichment) — image가 없는 피드 아이템의 원문 URL에서 og:image/
 // twitter:image "URL 문자열"만 뽑아 채워 넣는다.
 //
@@ -215,7 +216,7 @@ export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch } =
   } catch {
     return empty; // 네트워크 오류/타임아웃 — 조용히 포기
   }
-  if (!res || !res.ok) return empty; // 403/404 등 — 조용히 포기, 우회 금지
+  if (!res || !res.ok) { discardBody(res); return empty; } // 403/404 등 — 조용히 포기, 우회 금지
   const contentType = (res.headers && res.headers.get && res.headers.get("content-type")) || "";
   if (!/text\/html/i.test(contentType)) return empty;
   let html;

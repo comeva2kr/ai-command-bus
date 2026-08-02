@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v43"; // v43: 교차출처 캐시 금지 — 기존 캐시(광고·추적 117건)를 activate에서 통째로 비운다
+const CACHE = "feed-shell-v44"; // v44: 몰입 모드 1콘텐츠=1화면 + 수집 크래시 방어
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {

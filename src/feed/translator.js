@@ -1,3 +1,4 @@
+import { discardBody } from "./fetchers.js";
 // Free machine translation for overseas feed items.
 //
 // Plugs into translate.js's TranslatingSource as the injected `translateFn`.
@@ -59,7 +60,7 @@ export function googleFreeTranslator({ fetchImpl = fetch, timeoutMs = DEFAULT_TI
         headers: { "user-agent": DEFAULT_UA, accept: "application/json" },
         signal: AbortSignal.timeout(timeoutMs)
       });
-      if (!res.ok) return text; // free endpoint hiccup (rate limit, 5xx, ...) -> original text
+      if (!res.ok) { discardBody(res); return text; } // free endpoint hiccup (rate limit, 5xx, ...) -> original text
       const data = await res.json();
       const translated = extractTranslation(data);
       return translated || text; // empty/unexpected shape -> original text, never throw

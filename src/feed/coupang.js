@@ -23,6 +23,7 @@
 // node:crypto만 사용(무의존성 원칙).
 
 import crypto from "node:crypto";
+import { discardBody } from "./fetchers.js";
 import { makeSlotItem, buildHookCopy } from "./monetize.js";
 import { topPreferences } from "./recommender.js";
 import { categoryLabel } from "./taxonomy.js";
@@ -80,7 +81,7 @@ export async function fetchBestProducts({ accessKey, secretKey, categoryId, limi
       headers: { Authorization: authorization },
       signal: AbortSignal.timeout(10000)
     });
-    if (!res.ok) return { ok: false, status: res.status, products: [] };
+    if (!res.ok) { discardBody(res); return { ok: false, status: res.status, products: [] }; }
     const body = await res.json();
     const rows = Array.isArray(body && body.data) ? body.data : [];
     return {

@@ -1061,6 +1061,24 @@ ${rankingRows(list)}`;
 }
 
 if (process.argv[1] && process.argv[1].endsWith("server.js")) {
+  // 떠 있는 것이 이 서비스의 일이다 — 수집기 하나의 실수로 프로세스가 죽으면
+  // 안 된다. Node 22는 unhandledRejection 기본값이 throw라, 수집 경로 어딘가의
+  // 떠도는 프로미스 하나(예: 응답 헤더는 왔는데 본문 읽는 중 타임아웃)가
+  // 서버 전체를 내린다. 로컬 FEED_LIVE 기동에서 실제로 재현됐다:
+  //   DOMException [TimeoutError]: The operation was aborted due to timeout
+  // 컨테이너는 재시작하지만 그 사이 요청은 전부 실패한다 — 실사용자 제보였던
+  // "가끔 불러오기 실패"와 증상이 일치한다.
+  //
+  // 삼키지 않고 크게 남긴다. 조용한 무시는 원인을 영원히 못 찾게 만든다.
+  process.on("unhandledRejection", (err) => {
+    console.error("[feed] unhandled rejection (서버는 계속 실행):",
+      err && err.stack ? err.stack : err);
+  });
+  process.on("uncaughtException", (err) => {
+    console.error("[feed] uncaught exception (서버는 계속 실행):",
+      err && err.stack ? err.stack : err);
+  });
+
   const port = Number(process.env.PORT || 4000);
   const server = createServer();
   server.listen(port, () => {

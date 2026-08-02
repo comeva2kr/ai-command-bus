@@ -1,3 +1,4 @@
+import { discardBody } from "./fetchers.js";
 // X(트위터) 실시간 트렌드 — 키워드만, 트윗 본문 없음 (David 2026-08-01
 // "스레드나 트위터글도 좀 가져오고싶은데"의 실행 가능 절반).
 //
@@ -43,7 +44,7 @@ export async function fetchXTrends({ fetchImpl = fetch, timeoutMs = 8000 } = {})
   } catch {
     return null; // 네트워크 실패 — 조용히 (트렌드는 부가 기능, 피드를 못 죽인다)
   }
-  if (!res || !res.ok) return null; // 403 등 — 우회하지 않는다
+  if (!res || !res.ok) { discardBody(res); return null; } // 403 등 — 우회하지 않는다
   const trends = parseTrends(await res.text());
   return trends.length ? trends : null;
 }

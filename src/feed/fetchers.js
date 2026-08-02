@@ -20,12 +20,28 @@ const DEFAULT_UA = "ai-command-bus-feed/0.1 (+https://github.com/comeva2kr/ai-co
 
 const FETCH_TIMEOUT_MS = 8000; // a slow feed must never stall collection
 
+// 읽지 않은 응답 본문을 안전하게 버린다.
+//
+// AbortSignal.timeout()을 붙인 fetch에서 `!res.ok`로 조기 반환하면, 소비되지
+// 않은 본문 스트림이 그대로 남는다. 잠시 뒤 타임아웃이 발동하면 그 스트림이
+// 중단되면서 **아무도 잡지 않는 거부**가 생기고, Node 22 기본값에서는 이게
+// 프로세스를 죽인다. 로컬 FEED_LIVE 기동에서 실제로 서버가 사망했다
+// (403이 나는 소스마다 8초 뒤 1건씩). 조기 반환 전에 반드시 이걸 부른다.
+export function discardBody(res) {
+  try {
+    if (res && res.body && typeof res.body.cancel === "function") {
+      res.body.cancel().catch(() => {});
+    }
+  } catch { /* 이미 소비/중단된 본문 — 무시 */ }
+}
+
+
 async function getText(url, fetchImpl) {
   const res = await fetchImpl(url, {
     headers: { "user-agent": DEFAULT_UA, accept: "*/*" },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  if (!res.ok) { discardBody(res); throw new Error(`HTTP ${res.status} for ${url}`); }
   return res.text();
 }
 
@@ -34,7 +50,7 @@ async function getJson(url, fetchImpl) {
     headers: { "user-agent": DEFAULT_UA, accept: "application/json" },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  if (!res.ok) { discardBody(res); throw new Error(`HTTP ${res.status} for ${url}`); }
   return res.json();
 }
 
@@ -476,7 +492,7 @@ async function fetchListPage(url, cfg, fetchImpl) {
     headers: { "user-agent": LIST_UA, accept: "text/html,*/*" },
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  if (!res.ok) { discardBody(res); throw new Error(`HTTP ${res.status} for ${url}`); }
   // Decode explicitly rather than res.text(): the Fetch spec's text() always
   // assumes UTF-8, but a few legacy Korean boards still serve EUC-KR (or
   // claim to) without declaring a charset — res.text() would silently
