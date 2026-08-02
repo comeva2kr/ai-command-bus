@@ -113,9 +113,15 @@ function sharePage(data, origin, id) {
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="${title}">
 <meta name="twitter:description" content="${desc}">
-<meta http-equiv="refresh" content="0; url=${appUrl}">
-</head><body style="background:#0e0f13;color:#e8eaf0;font-family:sans-serif;padding:40px;text-align:center">
-<p>${title}</p><p><a style="color:#4f8cff" href="${appUrl}">앱에서 열기 →</a></p>
+<noscript><meta http-equiv="refresh" content="0; url=${appUrl}"></noscript>
+</head><body style="background:#faf9f8;color:#14100e;font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif;padding:40px;text-align:center">
+<p>${title}</p><p><a style="color:#e02b0f;font-weight:700" href="${appUrl}">앱에서 열기 →</a></p>
+<script>
+/* meta refresh 대신 replace: 일부 브라우저가 meta refresh를 "reload"로 보고해
+   앱의 "새로고침은 홈으로" 규칙에 걸리고, 공유링크가 기사가 아니라 홈으로
+   튕겼다(실사용 제보 2026-08-02). replace는 정상 내비게이션으로 보고된다. */
+location.replace(${JSON.stringify(appUrl)});
+</script>
 </body></html>`;
 }
 

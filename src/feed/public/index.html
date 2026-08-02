@@ -508,16 +508,28 @@
     transform-origin:bottom;animation:heatrise .45s cubic-bezier(.2,.8,.2,1) both}
   .heat i.a{background:var(--color-accent)}
   .heat i.e{height:3px;background:color-mix(in srgb,var(--color-text) 12%,transparent);animation:none}
-  /* 계산 중 스윕 — 요소 하나의 transform만 움직인다(합성 레이어 1개).
-     화면 밖 카드도 브라우저가 알아서 스로틀하므로 추가 제어가 필요 없다. */
-  .heat.pending{position:relative;overflow:hidden}
-  .heat.pending i.e{height:6px}
-  .heat.pending::after{content:"";position:absolute;top:0;bottom:0;left:0;width:42%;
-    background:linear-gradient(90deg,transparent,
-      color-mix(in srgb,var(--color-accent) 55%,transparent),transparent);
-    animation:heatsweep 1.25s ease-in-out infinite;will-change:transform}
-  @keyframes heatsweep{0%{transform:translateX(-110%)}100%{transform:translateX(280%)}}
-  @media (prefers-reduced-motion:reduce){.heat.pending::after{animation:none;opacity:.35}}
+  /* 계산 중 — **막대만 순차로 오르내린다**. 예전엔 반투명 빨간 띠가 통째로
+     좌우로 지나가서(사파리) 산만했고, 크롬에선 멈춰 보였다(실사용 제보
+     2026-08-02). 이제 색은 회색 그대로 두고 각 막대의 scaleY만 stagger로
+     움직인다 — transform만 쓰므로 합성만 발생하고, 브라우저별 렌더 차이도 없다. */
+  .heat.pending i{height:14px;transform-origin:bottom;
+    background:color-mix(in srgb,var(--color-text) 18%,transparent);
+    animation:heatwait 1.6s ease-in-out infinite}
+  @keyframes heatwait{0%,100%{transform:scaleY(.18)}50%{transform:scaleY(1)}}
+  .heat.pending i:nth-child(1){animation-delay:0ms}
+  .heat.pending i:nth-child(2){animation-delay:80ms}
+  .heat.pending i:nth-child(3){animation-delay:160ms}
+  .heat.pending i:nth-child(4){animation-delay:240ms}
+  .heat.pending i:nth-child(5){animation-delay:320ms}
+  .heat.pending i:nth-child(6){animation-delay:400ms}
+  .heat.pending i:nth-child(7){animation-delay:480ms}
+  .heat.pending i:nth-child(8){animation-delay:560ms}
+  .heat.pending i:nth-child(9){animation-delay:640ms}
+  .heat.pending i:nth-child(10){animation-delay:720ms}
+  .heat.pending i:nth-child(11){animation-delay:800ms}
+  .heat.pending i:nth-child(12){animation-delay:880ms}
+  .heat.pending i:nth-child(13){animation-delay:960ms}
+  @media (prefers-reduced-motion:reduce){.heat.pending i{animation:none;transform:scaleY(.3)}}
   /* ── 몰입 모드: 사진이 주인공 (David 2026-08-01) ──────────────────────
      기본 피드는 텍스트 우선(우측 88px 썸네일)이지만, 몰입 모드는 한 화면에
      한 글이라 이미지가 화면을 이끌어야 한다. 세로로 재배열:
@@ -1208,7 +1220,10 @@ function openFromHash(){
   // 경우(navigation type "navigate")는 종전대로 상세를 연다 — 둘을 가르는
   // 기준이 내비게이션 타입이다.
   const nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
-  if(nav && nav.type === "reload" && h && h.startsWith("#post-")){
+  // 공유 페이지(/p)에서 넘어온 경우는 새로고침이 아니다 — 일부 브라우저가
+  // 그 전환을 reload로 보고해 공유링크가 홈으로 튕겼다(실사용 제보 2026-08-02).
+  const fromShare = document.referrer && document.referrer.includes("/p?id=");
+  if(!fromShare && nav && nav.type === "reload" && h && h.startsWith("#post-")){
     history.replaceState({ view:"feed" }, "", location.pathname + location.search);
     return;
   }
@@ -2037,7 +2052,19 @@ async function loadMore(){
 // 그래프로 안 보임). 실측이 있는 칸만 높이를 갖고, 그중 최신 3칸이 액센트.
 // 데이터가 아예 없거나 3칸 미만이면 아무것도 안 그린다(날조 금지는 유지).
 const HEAT_SLOTS = 13;
+// 미지원 브라우저에서는 아예 그리지 않는다 (David 2026-08-02). 눈금은 색
+// 혼합(color-mix)과 개별 막대 transform에 의존하므로 그 둘을 실제로 지원하는지
+// CSS.supports로 검사한다 — 추측이 아니라 브라우저에 직접 물어본다.
+const HEAT_SUPPORTED = (() => {
+  try {
+    return typeof CSS !== "undefined" && CSS.supports &&
+      CSS.supports("color", "color-mix(in srgb, #000 50%, transparent)") &&
+      CSS.supports("transform", "scaleY(0.5)");
+  } catch { return false; }
+})();
+
 function heatRuleHtml(item){
+  if(!HEAT_SUPPORTED) return "";
   const h = Array.isArray(item.heat) ? item.heat : null;
   // 수집 중: 13칸 자리를 잡고 좌→우 스윕. CSS 애니메이션 하나(transform)라
   // JS 타이머·리페인트 없이 GPU 합성만 쓴다. 표본이 4개 되는 순간 실제
@@ -2455,7 +2482,13 @@ async function renderDetail(itemId){
   body.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><div class="loading-msg">글을 불러오는 중…</div></div>';
   let item;
   try { item = await API.item(state.userId, itemId); }
-  catch(e){ body.innerHTML = "<p>불러오기 실패</p>"; return; }
+  catch(e){
+    // 풀에서 내려간 오래된 글일 수 있다 — 막다른 길 대신 다음 행동을 준다
+    body.innerHTML = '<div class="loading-wrap"><div class="loading-msg">이 글은 지금 목록에 없어요<br>' +
+      '<span style="font-size:13px;opacity:.75">시간이 지나 내려갔을 수 있어요</span></div>' +
+      '<a class="readmore" href="/" style="margin-top:14px">지금 화제글 보러가기 →</a></div>';
+    return;
+  }
   document.getElementById("detailSrc").innerHTML =
     `<span class="dot" style="display:inline-block;background:${srcColor(item.source)}"></span> <span style="color:${srcColor(item.source)};font-weight:700">${srcLabel(item.source)}</span> · ${item.categoryLabel}`;
   // 공유 = 즉시 클립보드 복사 (David 2026-08-01: 공유창 없이 바로 복사 +

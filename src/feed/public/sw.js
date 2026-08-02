@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v38"; // v38: 보강 처리량 250/사이클
+const CACHE = "feed-shell-v39"; // v39: 공유링크 복구 + 눈금 애니메이션 정돈
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
 
 self.addEventListener("install", (event) => {
