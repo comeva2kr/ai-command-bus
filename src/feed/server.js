@@ -6,6 +6,7 @@
 //   FEED_DB=./feed-data.json node src/feed/server.js   # persisted
 
 import http from "node:http";
+import { maskProfanity } from "./profanity.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -101,6 +102,13 @@ function sharePage(data, origin, id) {
   const title = escapeHtml(data.title);
   const desc = escapeHtml((data.summary || "").slice(0, 160) || `${data.source} · ${data.category}`);
   const appUrl = `/#post-${encodeURIComponent(id)}`;
+  // 글에 사진이 있으면 그 사진이 공유 카드 그림이 된다. 없을 때만 앱 아이콘.
+  // 폴백은 SVG가 아니라 PNG를 쓴다 — 다수 SNS 크롤러가 SVG를 미리보기 이미지로
+  // 처리하지 않는다(설령 처리하더라도, 글마다 사진이 있는데 전부 같은 로고를
+  // 주는 것 자체가 결함이므로 이 수정의 근거는 SVG 지원 여부와 무관하다).
+  const shareImage = data.image && /^https?:\/\//i.test(data.image)
+    ? data.image
+    : `${origin}/icon-512.png`;
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
@@ -109,8 +117,9 @@ function sharePage(data, origin, id) {
 <meta property="og:title" content="${title}">
 <meta property="og:description" content="${desc}">
 <meta property="og:url" content="${escapeHtml(url)}">
-<meta property="og:image" content="${escapeHtml(origin)}/icon.svg">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="${escapeHtml(shareImage)}">
+<meta name="twitter:card" content="${data.image ? "summary_large_image" : "summary"}">
+<meta name="twitter:image" content="${escapeHtml(shareImage)}">
 <meta name="twitter:title" content="${title}">
 <meta name="twitter:description" content="${desc}">
 <noscript><meta http-equiv="refresh" content="0; url=${appUrl}"></noscript>
@@ -304,6 +313,8 @@ h1{font:800 24px/1.2 "Archivo",sans-serif;letter-spacing:-.015em;margin:0 0 2px}
 h2{font-size:16px;font-weight:800;letter-spacing:-.01em;margin:26px 0 8px;padding-top:14px;border-top:2px solid var(--divider)}
 .muted{color:var(--muted);font-size:13px}a{color:var(--accent);text-decoration:none;text-underline-offset:3px}
 ul{padding-left:18px;margin:8px 0}li{margin:6px 0}.m{color:var(--muted);font-size:12.5px;display:block}
+/* 브리핑 목록의 한 줄 요약 — 제목보다 약하고 지표줄보다 강한 층위 */
+.s{display:block;margin:3px 0 1px;font-size:13.5px;line-height:1.5;color:var(--color-text)}
 ol.rank{padding-left:0;margin:14px 0;list-style:none;counter-reset:r;border-top:2px solid var(--divider)}
 ol.rank li{counter-increment:r;display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line);margin:0}
 ol.rank li::before{content:counter(r);font:800 20px "Archivo",sans-serif;color:var(--muted);min-width:30px}
@@ -382,6 +393,24 @@ ${inner}
     }
     return out;
   };
+  // 브리핑 목록 한 줄 요약. summary가 늘 쓸 만한 것은 아니라서 폴백이 필요하다:
+  //  - 해외 소스는 summary가 영어 원문인 경우가 있다(번역 파이프라인 구멍)
+  //  - 커뮤니티 list 어댑터는 법적 제약으로 본문을 안 가져와 비어 있다
+  //  - tildes 같은 곳은 "NN comments in the discussion of this post" 같은
+  //    정보량 0인 문장이 들어온다
+  // 못 쓸 때는 억지로 문장을 만들지 않고 지표 한 줄로 대신한다 — 없는 내용을
+  // 지어내는 것보다 낫다.
+  const USELESS_SUMMARY = /^\s*\d+\s+comments?\s+in\s+the\s+discussion/i;
+  const briefingSummary = (i) => {
+    const raw = String(i.summary || "").replace(/\s+/g, " ").trim();
+    if (!raw || raw.length < 20 || USELESS_SUMMARY.test(raw)) return "";
+    const clean = maskProfanity(raw);
+    if (clean.length <= 110) return clean;
+    // 단어 경계에서 자른다 — 사람 이름 중간을 끊으면 요약이 아니라 사고다
+    const cut = clean.slice(0, 110);
+    const sp = cut.lastIndexOf(" ");
+    return (sp > 60 ? cut.slice(0, sp) : cut) + "…";
+  };
   const briefingSectionsHtml = (b) => b.sections.map((sec) => {
     const lead = sec.items[0];
     // 실측이 0인 지표는 문장에서 아예 뺀다 — "추천 0·댓글 86을 모으며 화제의
@@ -394,11 +423,17 @@ ${inner}
       : (lead.coverage >= 3 ? `여러 매체가 동시에 다루고 있는 사안입니다.` : `${escapeHtml(lead.sourceLabel)}의 상위 글로 올라와 있습니다.`);
     const rows = sec.items.map((i) => {
       const bits = evidenceBits(i);
-      return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(i.title)}</a>
+      // 발췌를 실으면 비로소 "요약"이 된다. 2026-08-02 검수 실측에서는 10개
+      // 섹션 전부가 같은 템플릿 문장 + 제목 나열이었고 설명 문장이 0개였다 —
+      // 애드핏이 요구한 "자체 콘텐츠"의 반대편이다. 피드에는 이미 summary가
+      // 있는데 브리핑에서 한 줄도 쓰지 않고 있었다.
+      const sum = briefingSummary(i);
+      return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+        ${sum ? `<span class="s">${escapeHtml(sum)}</span>` : ""}
         <span class="m">${escapeHtml(i.sourceLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></li>`;
     }).join("");
     return `<section><h2><a href="/briefing/${encodeURIComponent(sec.category)}" style="color:inherit">${escapeHtml(sec.label)}</a></h2>
-      <p>${escapeHtml(sec.label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})입니다. ${leadLine}</p>
+      <p>${escapeHtml(sec.label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(maskProfanity(lead.title))}”</b>(${escapeHtml(lead.sourceLabel)})입니다. ${leadLine}</p>
       <ul>${rows}</ul></section>`;
   }).join("");
   const rankingNav = (active) => `<div class="nav">

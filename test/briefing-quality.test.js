@@ -1,0 +1,119 @@
+// 브리핑·중복제거·공유카드 — 2026-08-02 적대적 검수 확정분 회귀 방지.
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { eventKey, normalizeForDedupe, isSameEvent, MIN_KEY_LEN } from "../src/feed/dedupe.js";
+import { hasProfanity, maskProfanity } from "../src/feed/profanity.js";
+
+// ---------------------------------------------------------------------------
+// ② 제목 정규화 중복제거
+// ---------------------------------------------------------------------------
+
+test("dedupe: 말머리·매체명 꼬리만 다른 같은 기사를 하나로 본다", () => {
+  // 실측: mk-news "[속보] 서울 전역 폭염경보…" 와 yna "서울 전역 폭염경보…"가
+  // 첫 화면에 나란히 있었다. 구글뉴스 항목은 url이 불투명한 리다이렉트라
+  // URL 기준으로는 원문 매체 기사와 절대 겹치지 않는다.
+  assert.ok(isSameEvent(
+    "[속보] 서울 전역 폭염경보·열대야주의보…시, 쪽방·고령층 특별관리",
+    "서울 전역 폭염경보·열대야주의보…시, 쪽방·고령층 특별관리"));
+  assert.ok(isSameEvent(
+    "KTX-SRT 통합 효과…운임 10% 내리고 운행 횟수 늘어난다 - 연합뉴스",
+    "KTX-SRT 통합 효과…운임 10% 내리고 운행 횟수 늘어난다"));
+  assert.ok(isSameEvent("[단독][속보] 삼성전자 3분기 영업이익 발표",
+                        "삼성전자 3분기 영업이익 발표"), "말머리가 여러 개 붙어도");
+});
+
+test("dedupe: 짧은 제목은 절대 묶지 않는다 (게시판 붕괴 방지)", () => {
+  // 2026-08-01에 URL 정규화를 과하게 해서 뽐뿌 18건이 2건으로 붕괴한 적이 있다.
+  // 커뮤니티에는 "ㅋㅋㅋ", "이거 실화냐" 같은 제목이 흔하므로 같은 사고가
+  // 제목 쪽에서 반복되지 않도록 길이 하한을 둔다.
+  for (const t of ["ㅋㅋㅋ", "이거 실화냐", "헐", "오늘 점심"]) {
+    assert.equal(eventKey(t), null, `짧은 제목은 키를 만들지 않아야: ${t}`);
+  }
+  assert.ok(!isSameEvent("ㅋㅋㅋ", "ㅋㅋㅋ"), "글자가 같아도 짧으면 별개 글로 둔다");
+  assert.ok(normalizeForDedupe("서울 전역 폭염경보 특별관리").length >= MIN_KEY_LEN);
+});
+
+test("dedupe: 다른 사건을 같은 것으로 묶지 않는다", () => {
+  assert.ok(!isSameEvent("삼성전자 3분기 영업이익 발표했다고 합니다",
+                         "삼성전자 4분기 영업이익 발표했다고 합니다"));
+  assert.ok(!isSameEvent("서울 지역 폭염경보 발효되었습니다",
+                         "부산 지역 폭염경보 발효되었습니다"));
+});
+
+// ---------------------------------------------------------------------------
+// ① 브리핑 품질 — 비속어
+// ---------------------------------------------------------------------------
+
+test("비속어: 자체 발행 페이지에서 마스킹된다", () => {
+  // 실측: /briefing 에 "개좆" 3회, /briefing/gaming 에 2회. 그중 2회는 커뮤니티
+  // 원문이 아니라 사이트가 직접 쓴 서술문 안이었다. 심사원이 먼저 여는 페이지다.
+  assert.ok(hasProfanity("개좆같은 상황"));
+  assert.ok(!maskProfanity("개좆같은 상황").includes("좆"));
+  assert.ok(maskProfanity("개좆같은 상황").includes("같은 상황"), "문장 나머지는 살린다");
+});
+
+test("비속어: 일상어를 오탐하지 않는다", () => {
+  // 사전은 설명 가능해야 한다 — 일반어와 겹치는 단어는 애초에 넣지 않는다.
+  for (const t of ["새끼손가락을 다쳤어요", "강아지 새끼 분양합니다",
+                   "오늘 날씨 정말 좋다", "지랄맞은 날씨는 아니고"]) {
+    assert.equal(hasProfanity(t), false, `오탐: ${t}`);
+    assert.equal(maskProfanity(t), t, `건드리면 안 됨: ${t}`);
+  }
+});
+
+test("브리핑: 항목에 발췌와 원문 링크가 실린다", async () => {
+  // 실측: /api/briefing 항목 키에 summary·url이 아예 없어서 브리핑이 "요약"이
+  // 아니라 제목 나열이었다 — 애드핏이 요구한 자체 콘텐츠의 반대편이다.
+  const engine = await import("../src/feed/engine.js");
+  const src = (await import("node:fs")).readFileSync(
+    new URL("../src/feed/engine.js", import.meta.url), "utf8");
+  const fn = src.slice(src.indexOf("async briefing()"), src.indexOf("async briefing()") + 4000);
+  assert.match(fn, /summary: i\.summary/, "발췌를 실어야 한다");
+  assert.match(fn, /url: i\.url/, "원문 링크를 실어야 한다");
+  assert.ok(engine.FeedEngine, "엔진이 정상 로드되어야 한다");
+});
+
+test("브리핑: 같은 사건 중복과 한 매체 독식을 막는다", async () => {
+  const src = (await import("node:fs")).readFileSync(
+    new URL("../src/feed/engine.js", import.meta.url), "utf8");
+  const fn = src.slice(src.indexOf("async briefing()"), src.indexOf("async briefing()") + 4000);
+  assert.match(fn, /eventKey\(i\.title\)/, "이벤트 키로 중복을 걸러야 한다");
+  assert.match(fn, /perOutlet/, "한 매체가 섹션을 독식하지 않아야 한다");
+  assert.match(fn, /hasProfanity/, "대표 글 선정에서 비속어를 피해야 한다");
+});
+
+// ---------------------------------------------------------------------------
+// ③ 공유 카드 + 아이콘
+// ---------------------------------------------------------------------------
+
+test("공유: 글에 사진이 있으면 그 사진이 og:image가 된다", async () => {
+  const src = (await import("node:fs")).readFileSync(
+    new URL("../src/feed/server.js", import.meta.url), "utf8");
+  const fn = src.slice(src.indexOf("function sharePage("), src.indexOf("function sharePage(") + 2500);
+  // 실측: /p?id= 5개 전부 og:image가 icon.svg 상수였는데, 같은 글의 API에는
+  // 실제 사진이 있었다(피드 60건 중 45건 보유).
+  assert.match(fn, /data\.image/, "아이템 사진을 써야 한다");
+  assert.doesNotMatch(fn, /og:image" content="\$\{escapeHtml\(origin\)\}\/icon\.svg/,
+    "로고 상수로 되돌아가면 안 된다");
+  assert.match(fn, /summary_large_image/, "사진이 있으면 큰 카드로");
+  assert.match(fn, /twitter:image/, "X는 twitter:image가 없으면 이미지 없음으로 확정한다");
+  assert.match(fn, /icon-512\.png/, "폴백은 PNG (SVG를 미리보기로 안 쓰는 크롤러가 있다)");
+});
+
+test("아이콘: PNG가 실제로 존재하고 PNG 시그니처를 갖는다", async () => {
+  const fs = await import("node:fs");
+  // 실측: 라스터 아이콘 14개 경로가 전부 404인데 head에는 iOS 설치 지원 태그가
+  // 있었다 — 아이폰 홈화면에 추가하면 아이콘 자리가 빈다.
+  for (const f of ["icon-192.png", "icon-512.png", "apple-touch-icon.png", "icon-maskable-512.png"]) {
+    const buf = fs.readFileSync(new URL(`../src/feed/public/${f}`, import.meta.url));
+    assert.ok(buf.length > 500, `${f}: 너무 작다 (${buf.length}B)`);
+    assert.deepEqual([...buf.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+      `${f}: PNG 시그니처가 아니다`);
+  }
+  const manifest = JSON.parse(fs.readFileSync(
+    new URL("../src/feed/public/manifest.webmanifest", import.meta.url), "utf8"));
+  const pngs = manifest.icons.filter((i) => i.type === "image/png");
+  assert.ok(pngs.length >= 3, "manifest가 PNG 아이콘을 선언해야 한다");
+  assert.equal(manifest.icons[0].type, "image/png", "SVG를 못 읽는 런처를 위해 PNG가 먼저");
+});

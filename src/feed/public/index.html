@@ -27,7 +27,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="지금핫" />
 <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-<link rel="apple-touch-icon" href="/icon.svg" />
+<link rel="icon" href="/icon-192.png" sizes="192x192" type="image/png" />
+<!-- iOS는 SVG apple-touch-icon을 쓰지 않는다 — PNG가 없으면 홈화면 아이콘이
+     빈 채로 추가된다(2026-08-02 검수: 라스터 아이콘 14개 경로 전부 404였는데
+     head에는 iOS 설치 지원 태그가 있었다). tools/make-icons.mjs가 생성한다. -->
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
 <style>
   :root {
     --bg: #0e0f13;
@@ -613,6 +617,15 @@
   body.immersion #feed .card .editorial-note{margin-top:5px;
     display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
   body.immersion #feed .card .orig-title{display:none} /* 원제는 상세에서 본다 */
+  /* 네트워크 배너(애드핏/애드센스) 카드 — 틀은 유기 카드와 동일, 안쪽 배너만
+     가운데 정렬. 배너 크리에이티브 자체는 외부 iframe이라 색을 못 바꾼다. */
+  .card.ad-net .ad-net-slot{display:flex;justify-content:center;align-items:center;
+    min-height:0;padding:10px 0 2px}
+  .card.ad-net .badge.ad-badge-static{margin-left:auto}
+  /* 몰입 모드에서도 광고는 한 화면 한 칸 — 배너를 가운데 두고 나머지는 여백 */
+  body.immersion #feed .card.ad-net{justify-content:center}
+  body.immersion #feed .card.ad-net .card-top{flex:none;margin-top:0}
+  body.immersion #feed .card.ad-net .ad-net-slot{flex:1 1 auto;align-items:center}
   body.immersion .card.read::after{content:""}
   body.immersion #feed .card .card-meta .actions .rate{padding:8px 10px}
   .heat i:nth-child(2){animation-delay:18ms}.heat i:nth-child(3){animation-delay:36ms}
@@ -1258,10 +1271,26 @@ function maybeInsertAdfit(){
   const feed = document.getElementById("feed");
   const cards = feed.querySelectorAll(".card");
   if(cards.length < 4) return;
-  const slot = document.createElement("div");
+  // 광고도 카드 틀 안에 넣는다 (David 2026-08-02 "다른 기사/컨텐츠랑 같은 디자인으로").
+  // 예전엔 <ins>만 맨몸으로 카드 사이에 끼워 넣어서, 카카오가 흰 배경 배너를
+  // 내보내면 다크 모드 피드 한가운데에 흰 박스가 떠 있었다(David 스크린샷).
+  //
+  // 틀·헤더·배지·여백은 유기 카드(.card)와 완전히 같은 클래스를 쓰므로
+  // 라이트/다크 전환도 같은 CSS 변수를 따라간다. 다만 **배너 안쪽 크리에이티브는
+  // 카카오가 그리는 iframe이라 우리가 색을 바꿀 수 없다** — 완전히 같은 디자인으로
+  // 맞추려면 네이티브 인피드 광고 유닛이 필요하고, 그건 콘솔 설정 사안이다.
+  const slot = document.createElement("article");
   slot.id = "adfitSlot";
-  slot.style.cssText = "display:flex;justify-content:center;margin:6px 0";
-  slot.innerHTML = `<ins class="kakao_ad_area" style="display:none;" data-ad-unit="${unit}" data-ad-width="320" data-ad-height="100"></ins>`;
+  slot.className = "card ad-card ad-net";
+  slot.innerHTML = `
+    <div class="card-top">
+      <span class="dot" style="background:var(--color-accent)"></span>
+      <span class="src">제휴 광고</span>
+      <span class="badge ad-badge-static">AD</span>
+    </div>
+    <div class="ad-net-slot">
+      <ins class="kakao_ad_area" style="display:none;" data-ad-unit="${unit}" data-ad-width="320" data-ad-height="100"></ins>
+    </div>`;
   cards[3].insertAdjacentElement("afterend", slot);
   if(!document.getElementById("adfitLoader")){
     const sc = document.createElement("script");
@@ -1420,25 +1449,41 @@ function onImmersionResize(){
   immResizeTimer = setTimeout(setImmersionHeight, 120);
 }
 
+const IMM_KEY = "feed_immersion";
+
+// 몰입 모드를 껐다 켤 때마다 사용자가 다시 눌러야 했다 — 앱을 다시 열면
+// 항상 일반 모드로 돌아갔다. David가 "집중모드인데 상단 스트립이 아직 있다"고
+// 본 것도 실은 몰입이 꺼진 상태였다(스트립 숨김 규칙은 정상 동작 중).
+// 보기 방식은 취향이므로 정렬(feed_sort)·소스(feed_src)와 같은 급으로 기억한다.
+function applyImmersion(on, { announce = false } = {}){
+  state.immersion = !!on;
+  document.body.classList.toggle("immersion", state.immersion);
+  const btn = document.getElementById("immBtn");
+  if(btn) btn.classList.toggle("on", state.immersion);
+  try{ localStorage.setItem(IMM_KEY, state.immersion ? "1" : "0"); }catch{}
+  window.scrollTo(0,0);
+  if(state.immersion){
+    // 클래스가 붙어 스트립이 사라진 **뒤에** 재야 실제 값이 나온다
+    requestAnimationFrame(setImmersionHeight);
+    startImmersionTracking();
+    if(announce) toast("몰입 모드 · 한 글씩 넘겨보세요");
+  } else {
+    stopImmersionTracking();
+    setImmersionHeight();   // --imm-h 해제
+  }
+}
+
+function restoreImmersion(){
+  let saved = null;
+  try{ saved = localStorage.getItem(IMM_KEY); }catch{}
+  if(saved === "1") applyImmersion(true);
+}
+
 function setupImmersion(){
-  document.getElementById("immBtn").onclick = ()=>{
-    state.immersion = !state.immersion;
-    document.body.classList.toggle("immersion", state.immersion);
-    document.getElementById("immBtn").classList.toggle("on", state.immersion);
-    if(state.immersion){
-      // 클래스가 붙어 스트립이 사라진 **뒤에** 재야 실제 값이 나온다
-      window.scrollTo(0,0);
-      requestAnimationFrame(setImmersionHeight);
-      startImmersionTracking();
-      toast("몰입 모드 · 한 글씩 넘겨보세요");
-    } else {
-      stopImmersionTracking();
-      setImmersionHeight();   // --imm-h 해제
-      window.scrollTo(0,0);
-    }
-  };
+  document.getElementById("immBtn").onclick = ()=> applyImmersion(!state.immersion, { announce:true });
   window.addEventListener("resize", onImmersionResize);
   window.addEventListener("orientationchange", onImmersionResize);
+  restoreImmersion();
 }
 // track how long each card stays centered → dwell signal per swipe
 function startImmersionTracking(){

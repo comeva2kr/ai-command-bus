@@ -1507,8 +1507,17 @@ test("parseListPage: theqoo 핫게시판 — title/url/date/score/comment parse,
   // 이 값들은 항상 정상 범위여야 한다.
   const now = Date.now();
   const fiveYearsMs = 5 * 365.25 * 8.64e7;
-  assert.ok(items.every((i) => !i.publishedAt || (Date.parse(i.publishedAt) <= now && now - Date.parse(i.publishedAt) <= fiveYearsMs)),
-    "every parsed date is sane (not future, not 5+ years stale)");
+  // 미래 허용치가 필요한 이유 (2026-08-02 실측):
+  // 더쿠는 당일 글에 "16:09"처럼 시:분만 표기하고, 파서는 그것을 **오늘 그 시각**
+  // 으로 찍는다. 픽스처는 특정 시점에 떠 온 스냅샷이므로, 테스트를 그 시각보다
+  // 이른 시간에 돌리면 같은 값이 "미래"가 된다 — 실제로 매일 그 시각 이전 구간에
+  // 이 테스트가 실패하고 있었다(고정 결함이 아니라 시각 의존 플레이크).
+  // 하루치를 허용해 플레이크를 없애되, 그 이상 미래는 여전히 오염으로 잡는다.
+  // 근본 대응은 서버 타임존이다 — deploy/docker-compose.yml의 TZ=Asia/Seoul.
+  const oneDayMs = 8.64e7;
+  assert.ok(items.every((i) => !i.publishedAt ||
+      (Date.parse(i.publishedAt) <= now + oneDayMs && now - Date.parse(i.publishedAt) <= fiveYearsMs)),
+    "every parsed date is sane (not far-future, not 5+ years stale)");
 });
 
 // David 2026-07-24 적대적 검수 #1: fetchers.js의 날짜 정규화 sanity 가드.

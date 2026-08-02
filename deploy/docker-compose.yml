@@ -5,6 +5,13 @@ services:
     build: ..
     restart: unless-stopped
     environment:
+      # 컨테이너 기본은 UTC다. 우리 소스는 대부분 한국 사이트라 "16:09" 처럼
+      # 날짜 없는 시:분만 주는 게시판이 많고, 파서는 그걸 "오늘 그 시각"으로
+      # 찍는다. 서버가 UTC면 그 값이 실제보다 9시간 앞서 미래가 되고,
+      # isSaneDate가 통째로 버린다 — 2026-08-02 검수에서 heraldbiz 11건 전부
+      # publishedAt이 null이었던 것과 정합한다(어댑터 주석도 "서버 TZ가 KST여야
+      # 정확"이라고 스스로 적어 두었다).
+      - TZ=Asia/Seoul
       - PORT=4000
       - FEED_DB=/data/feed.json        # 영속화 (재시작에도 유저 데이터 유지)
       - FEED_LIVE=1

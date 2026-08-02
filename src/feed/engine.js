@@ -9,6 +9,8 @@
 import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
 import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK } from "./classify.js";
+import { hasProfanity } from "./profanity.js";
+import { eventKey } from "./dedupe.js";
 import { rankParams, categorySets, selectDiverse } from "./rank.js";
 import {
   rankItems,
@@ -950,7 +952,12 @@ export class FeedEngine {
       title: item.title,
       summary: item.summary,
       category: categoryLabel(item.category),
-      source: sourceLabel(item.source)
+      source: sourceLabel(item.source),
+      // 공유 카드에 기사 사진을 싣기 위해 함께 내보낸다. 2026-08-02 검수 실측:
+      // /p?id= 5개 글의 og:image가 전부 사이트 로고(icon.svg) 상수였고, 정작
+      // 같은 글의 API에는 실제 사진이 있었다(피드 60건 중 45건 보유).
+      // 카톡·X 미리보기가 모든 글에서 똑같은 로고로 나가면 클릭률이 죽는다.
+      image: item.image || null
     };
   }
 
@@ -1142,13 +1149,37 @@ export class FeedEngine {
     for (const [cat, list] of byCat) {
       // 화제성 순: 반응 실측 우선, 무신호 뉴스는 다중보도(coverage) 우선
       list.sort((a, b) => (engagement(b) + (b.coverage || 0) * 50) - (engagement(a) + (a.coverage || 0) * 50));
-      const top = list.slice(0, 3);
+      // 같은 사건 중복 + 한 매체 독식 제거 (2026-08-02 검수 실측: 뉴스 브리핑
+      // 10칸 중 동일 사건 2칸, 한 계열 매체 4칸, 제목에 '폭염' 6칸).
+      // 브리핑은 10칸짜리 요약본이라 피드보다 중복 비용이 훨씬 크다.
+      const seenEvent = new Set();
+      const perOutlet = new Map();
+      const top = [];
+      for (const i of list) {
+        const key = eventKey(i.title);
+        if (key && seenEvent.has(key)) continue;
+        const outlet = i.source || "";
+        if ((perOutlet.get(outlet) || 0) >= 2) continue;
+        if (key) seenEvent.add(key);
+        perOutlet.set(outlet, (perOutlet.get(outlet) || 0) + 1);
+        top.push(i);
+        if (top.length >= 3) break;
+      }
       if (!top.length) continue; // 공급 0인 카테고리만 스킵 — 1건이라도 있으면 싣는다
+      // 대표 글(문장을 우리가 직접 쓰는 자리)은 비속어가 없는 것을 앞으로 당긴다.
+      // 목록 행의 원문 제목은 그대로 둔다 — 표시 단계에서만 마스킹한다.
+      const cleanFirst = top.findIndex((i) => !hasProfanity(i.title));
+      if (cleanFirst > 0) top.unshift(top.splice(cleanFirst, 1)[0]);
       sections.push({
         category: cat,
         label: categoryLabel(cat),
         items: top.map((i) => ({
           id: i.id, title: i.title,
+          // 발췌·원문 링크가 빠져 있어서 브리핑이 "요약"이 아니라 제목 나열이었다
+          // (2026-08-02 검수: 10개 섹션 전부 같은 템플릿, 설명 문장 0개).
+          // 피드에는 이미 summary가 있는데 브리핑에서 한 줄도 안 쓰고 있었다.
+          summary: i.summary || "",
+          url: i.url || "",
           sourceLabel: this._labelFor(i),
           score: i.score || 0, commentCount: i.commentCount || 0,
           coverage: i.coverage || 0, publishedAt: i.publishedAt || null
@@ -1161,8 +1192,11 @@ export class FeedEngine {
       a.items.reduce((s, i) => s + i.score + i.commentCount * 2, 0)
     );
     // 오늘 가장 뜨거운 논쟁(댓글 폭발) 한 건
-    const debate = pool.filter((i) => (i.commentCount || 0) >= 30)
-      .sort((a, b) => (b.commentCount || 0) - (a.commentCount || 0))[0] || null;
+    // '오늘의 논쟁'은 우리가 문장을 붙여 소개하는 자리다 — 비속어 제목은 고르지
+    // 않는다(마스킹으로 덮기보다 다른 글을 고르는 편이 페이지 품질에 낫다).
+    const debatePool = pool.filter((i) => (i.commentCount || 0) >= 30)
+      .sort((a, b) => (b.commentCount || 0) - (a.commentCount || 0));
+    const debate = debatePool.find((i) => !hasProfanity(i.title)) || null;
     return {
       generatedAt: new Date(now).toISOString(),
       itemCount: pool.length,

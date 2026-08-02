@@ -6,8 +6,9 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v44"; // v44: 몰입 모드 1콘텐츠=1화면 + 수집 크래시 방어
-const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg"];
+const CACHE = "feed-shell-v45"; // v45: 몰입 저장 + 광고 카드틀 + 브리핑 요약 + 제목 중복제거 + PNG 아이콘
+const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
+  "/icon-192.png", "/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

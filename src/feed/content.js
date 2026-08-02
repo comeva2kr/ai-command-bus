@@ -9,6 +9,7 @@
 // network access, plus a normalizer that every adapter should route through.
 
 import { isKnownCategory } from "./taxonomy.js";
+import { eventKey } from "./dedupe.js";
 import { SEED_ITEMS } from "./seed-data.js";
 import { classifyTopics } from "./topics.js";
 
@@ -221,13 +222,25 @@ export async function collect(sources, opts = {}) {
       errors.push({ source: sources[i] && sources[i].id, error: String(res.reason) });
     }
   });
-  // de-duplicate by url when present, otherwise by id
+  // 중복 제거: URL(또는 id) + 제목 정규화 키를 **함께** 본다.
+  //
+  // URL만으로는 못 잡는다 — 구글뉴스 항목의 url은 불투명한 리다이렉트라
+  // 원문 매체가 같은 기사를 올려도 절대 겹치지 않는다. 말머리만 다른
+  // "[속보] X" / "X" 쌍도 마찬가지다(2026-08-02 검수 실측, 첫 화면에 나란히).
+  //
+  // 제목 키는 짧으면 null이 되어 묶지 않는다(dedupe.js MIN_KEY_LEN). 커뮤니티의
+  // "ㅋㅋㅋ" 같은 제목을 묶으면 서로 다른 글이 사라진다 — URL 정규화를 과하게
+  // 했다가 게시판 글이 붕괴했던 2026-08-01 회귀와 같은 종류의 사고다.
   const seen = new Set();
+  const seenTitle = new Set();
   const deduped = [];
   for (const item of items) {
     const key = item.url || item.id;
     if (seen.has(key)) continue;
+    const tkey = eventKey(item.title);
+    if (tkey && seenTitle.has(tkey)) continue;
     seen.add(key);
+    if (tkey) seenTitle.add(tkey);
     deduped.push(item);
   }
   return { items: deduped, errors };
