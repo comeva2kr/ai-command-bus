@@ -3255,7 +3255,12 @@ test("/briefing: 실측 데이터 기반 자체 페이지가 렌더되고 정치
     const res = await fetch(`http://localhost:${server.address().port}/briefing`);
     assert.equal(res.status, 200);
     const html = await res.text();
-    assert.match(html, /오늘의 브리핑/);
+    // 2026-08-03: 브리핑이 시간대 편성(모닝/런치/이브닝)으로 바뀌었다.
+    assert.match(html, /지금 브리핑/);
+    assert.match(html, /(모닝|런치|이브닝)/, "편성이 표기되어야 한다");
+    // 검색 노출용 머리 — 없으면 구글이 스니펫을 만들 재료가 없다
+    assert.match(html, /<link rel="canonical"/, "canonical이 있어야 한다");
+    assert.match(html, /<meta name="description"/);
     assert.match(html, /화제의 기술 글/, "실측 상위 글이 실려야");
     assert.match(html, /추천 500/, "수치는 실측 그대로");
     assert.ok(!html.includes("정치 글"), "정치 태그 글은 브리핑에서 제외");

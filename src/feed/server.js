@@ -290,7 +290,9 @@ export function createServer(opts = {}) {
   // 테마별 브리핑, 일·주·월간 화제 랭킹 TOP 20). 문장·수치는 전부 실측 신호로만
   // 조립하고, 페이지들이 서로(그리고 상세뷰로) 내부 링크를 걸어 "대부분
   // 아웃링크" 구조를 실제로 희석한다.
-  const editionShell = (title, desc, inner) => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+  // 자체 콘텐츠 페이지의 검색 노출용 공통 머리. canonical·og:image가 없으면
+  // 같은 내용이 여러 주소로 인식되거나 공유 카드가 비어 나간다.
+  const editionShell = (title, desc, inner, canonicalPath = "") => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} — 지금핫 NowHot</title>
 <meta name="description" content="${escapeHtml(desc)}">
@@ -298,6 +300,10 @@ export function createServer(opts = {}) {
 <meta property="og:description" content="${escapeHtml(desc)}">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="지금핫 NowHot">
+<meta property="og:image" content="https://nowhot.kr/icon-512.png">
+<meta name="twitter:card" content="summary">
+${canonicalPath ? `<link rel="canonical" href="https://nowhot.kr${escapeHtml(canonicalPath)}">
+<meta property="og:url" content="https://nowhot.kr${escapeHtml(canonicalPath)}">` : ""}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&display=swap" rel="stylesheet">
 <style>/* Modernist 스킨 (NowHot.dc, 2026-08-01) — 라이트 기본, OS 다크 추종 */
@@ -534,7 +540,7 @@ ${briefingSectionsHtml(b)}
 ${debateHtml}
 ${archiveHtml}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`오늘의 브리핑 (${dateStr})`, `지금핫이 실측 데이터로 정리한 ${dateStr} 커뮤니티·뉴스 화제 브리핑`, inner));
+        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 더쿠·클리앙·뽐뿌·보배드림 등 커뮤니티와 주요 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing"));
       }
 
       // 홈 최상단 브리핑 스트립용 원자료 (David 2026-07-31: "최상단에 테마별로
@@ -560,7 +566,7 @@ ${rankingNav("")}
 <ol class="rank">${rows}</ol>
 <p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.</p>`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell("X 실시간 트렌드", "한국 X(트위터) 실시간 트렌드 키워드 TOP 20", inner));
+        return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends"));
       }
 
       // /briefing/<YYYY-MM-DD> = 일별 아카이브, /briefing/<카테고리> = 라이브
@@ -575,7 +581,7 @@ ${rankingNav("")}
 ${rankingNav("")}
 ${briefingSectionsHtml(ed.briefing)}`;
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-          return res.end(editionShell(`${seg} 브리핑`, `지금핫 ${seg} 커뮤니티·뉴스 화제 브리핑 아카이브`, inner));
+          return res.end(editionShell(`${seg} 브리핑`, `${seg} 하루 동안 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`));
         }
         // 카테고리 내부 기준(하한 없음) — 전국 랭킹 기준을 빌리면 무반응
         // 뉴스가 많은 카테고리(자동차 등)가 텅 비어 보인다 (2026-08-01 실측).
@@ -592,7 +598,7 @@ ${rankingNav("")}
 <p>지금 ${escapeHtml(label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})입니다${leadBits.length ? ` — ${leadBits.join(" · ")}` : ""}.</p>
 ${rankingRows(catItems)}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 브리핑`, `지금핫이 실측 데이터로 정리한 ${label} 분야 화제 브리핑`, inner));
+        return res.end(editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`));
       }
 
       // 화제 랭킹 TOP 20 — 일간(라이브) / 주간·월간(일별 스냅샷 병합).
@@ -618,7 +624,7 @@ ${note ? `<p class="muted">${escapeHtml(note)}</p>` : ""}
 ${rankingNav(period)}
 ${rankingRows(list)}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 화제 랭킹 TOP 20`, `지금핫 ${label} 커뮤니티·뉴스 화제 랭킹 — 실측 반응 기반 TOP 20`, inner));
+        return res.end(editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`));
       }
 
       // 애드센스 판매자 확인 파일 (https://nowhot.kr/ads.txt). ADSENSE_CLIENT
