@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v61"; // v61: 배너 사진 복귀+글자 폴백, 광고 중간 배치, 상표 제거, 설문 하단바
+const CACHE = "feed-shell-v62"; // v62: 광고 문구를 배너 도착지 단위로 (문구≠도착지 수정) + subId 슬롯 태깅
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png"];
 

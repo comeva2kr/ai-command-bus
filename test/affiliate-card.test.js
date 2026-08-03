@@ -5,6 +5,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isJunkImage } from "../src/feed/enrich.js";
+import * as ADCOPY from "../src/feed/ad-copy.js";
+const AD_COPY_KEYS = Object.keys(ADCOPY.AD_COPY);
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HTML = fs.readFileSync(path.join(ROOT, "src/feed/public/index.html"), "utf8");
@@ -134,4 +136,39 @@ test("설문 제출 바가 콘텐츠를 가리거나 비치지 않는다", () =>
 
 test("취향 재설정에서는 나갈 수 있다", () => {
   assert.match(HTML, /id="surveyBack"/);
+});
+
+test("모든 배너에 도착지(dest)와 그에 맞는 문구가 있다", () => {
+  // 2026-08-03 David 실기기: "가전·디지털"이라 써놓고 로켓직구로, "완구·취미"라
+  // 써놓고 여성패션으로 보냈다. 문구를 배너가 아니라 카테고리 묶음에서 뽑아서,
+  // 같은 묶음에 든 다른 배너의 설명이 붙은 것이다. 문구≠도착지는 허위표시다.
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, "src/feed/products.json"), "utf8"));
+  const copy = AD_COPY_KEYS;
+  for (const b of data.banners || []) {
+    assert.ok(b.dest, `배너에 dest가 없다: ${b.label}`);
+    assert.ok(copy.includes(b.dest), `dest에 대응하는 문구가 없다: ${b.dest} (${b.label})`);
+  }
+});
+
+test("문구의 도착지 표기가 배너 라벨과 일치한다", () => {
+  // 라벨은 David가 쿠팡 콘솔에서 그대로 가져온 이름이라 도착지의 진실이다.
+  // 문구의 브랜드 줄이 그 이름의 핵심어를 담고 있어야 거짓말이 아니다.
+  const { AD_COPY } = ADCOPY;
+  const data = JSON.parse(fs.readFileSync(path.join(ROOT, "src/feed/products.json"), "utf8"));
+  for (const b of data.banners || []) {
+    const brand = AD_COPY[b.dest][1];
+    // 라벨에서 상표(로켓*)와 수식어를 뺀 핵심 명사가 브랜드 줄에 있어야 한다
+    const core = String(b.label).replace(/쿠팡\s*/g, "").replace(/로켓\S*\s*/g, "").replace(/\s*특가$/, "").trim();
+    const head = core.split(/[·\s]/)[0];
+    assert.ok(brand.includes(head),
+      `문구가 도착지를 잘못 말한다: 라벨 "${b.label}" → 문구 "${brand}"`);
+  }
+});
+
+test("카테고리로는 문구를 뽑지 않는다", () => {
+  // 회귀 방지. adCopy에 카테고리를 넘기면 다른 배너 설명이 아니라 폴백이 나와야 한다.
+  const { adCopy } = ADCOPY;
+  for (const cat of ["tech", "life", "humor", "gaming", "sports", "auto", "business", "culture", "news"]) {
+    assert.deepEqual(adCopy(cat), ["쿠팡에서 볼 것 있으면", "쿠팡"], `${cat}가 도착지 키처럼 동작한다`);
+  }
 });

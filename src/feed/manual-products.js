@@ -101,6 +101,9 @@ export function loadProducts({ file = FILE } = {}) {
     .map((b) => ({
       id: `cb_${hash(b.href)}`,
       category: typeof b.category === "string" && b.category ? b.category : "life",
+      // dest = 이 배너가 실제로 여는 곳. 문구는 반드시 여기서 뽑는다 —
+      // 카테고리로 뽑으면 같은 묶음의 다른 배너 설명이 붙는다(2026-08-03).
+      dest: typeof b.dest === "string" ? b.dest : null,
       size: typeof b.size === "string" ? b.size : "320x100",
       href: b.href.trim(),
       img: b.img.trim(),
