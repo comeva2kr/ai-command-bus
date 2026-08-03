@@ -210,6 +210,34 @@
       "href": "https://link.coupang.com/a/fUOFXwU0o8",
       "img": "https://ads-partners.coupang.com/banners/1013486?trackingCode=AF5818321&subId=&traceId=V0-301-5a8c79a76485eb21-I1013486&w=300&h=250",
       "label": "쿠팡 로켓배송 패션·잡화"
+    },
+    {
+      "category": "auto",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOOzQALOm",
+      "img": "https://ads-partners.coupang.com/banners/1013487?trackingCode=AF5818321&subId=&traceId=V0-301-5079b8362432a905-I1013487&w=320&h=100",
+      "label": "쿠팡 로켓설치 타이어"
+    },
+    {
+      "category": "auto",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOPcRUTDg",
+      "img": "https://ads-partners.coupang.com/banners/1013488?trackingCode=AF5818321&subId=&traceId=V0-301-5079b8362432a905-I1013488&w=300&h=250",
+      "label": "쿠팡 로켓설치 타이어"
+    },
+    {
+      "category": "tech",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOQgaotEG",
+      "img": "https://ads-partners.coupang.com/banners/1013490?trackingCode=AF5818321&subId=&traceId=V0-301-50c6c2b97fba9aee-I1013490&w=320&h=100",
+      "label": "쿠팡 로켓직구 해외직구"
+    },
+    {
+      "category": "tech",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOQRjGRgW",
+      "img": "https://ads-partners.coupang.com/banners/1013491?trackingCode=AF5818321&subId=&traceId=V0-301-50c6c2b97fba9aee-I1013491&w=300&h=250",
+      "label": "쿠팡 로켓직구 해외직구"
     }
   ],
   "products": []
