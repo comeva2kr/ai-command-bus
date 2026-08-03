@@ -10,6 +10,7 @@ import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
 import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
+import { isJunkImage } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
 import { buildDigest, MIN_ISSUES, slotForHour } from "./digest.js";
 import { rankParams, categorySets, selectDiverse } from "./rank.js";
@@ -128,6 +129,18 @@ function sourceLeanOf(sourceId) {
     }
   }
   return _sourceLean.get(sourceId);
+}
+
+
+// 이미 저장된 풀에도 적용되는 마지막 관문.
+//
+// isJunkImage는 수집 시점에 거르지만, 그 전에 들어온 항목은 이미 저장돼 있다
+// (2026-08-03 배포 직후 실측: 라이브 풀 79건 중 5건이 알려진 깨진 URL).
+// 파서 수정만으로는 기존 사용자 화면이 안 고쳐지므로, 내보낼 때 한 번 더 본다.
+// 깨진 사진 대신 사진 없는 카드가 나간다.
+function safeImage(url) {
+  if (!url) return null;
+  try { return isJunkImage(new URL(url)) ? null : url; } catch { return null; }
 }
 
 export function leanMultiplier(sourceId, balance) {
@@ -999,7 +1012,7 @@ export class FeedEngine {
       // /p?id= 5개 글의 og:image가 전부 사이트 로고(icon.svg) 상수였고, 정작
       // 같은 글의 API에는 실제 사진이 있었다(피드 60건 중 45건 보유).
       // 카톡·X 미리보기가 모든 글에서 똑같은 로고로 나가면 클릭률이 죽는다.
-      image: item.image || null
+      image: safeImage(item.image)
     };
   }
 
@@ -1122,7 +1135,7 @@ export class FeedEngine {
         source: i.source, sourceLabel: this._labelFor(i),
         category: i.category || "news", categoryLabel: categoryLabel(i.category || "news"),
         score: i.score || 0, commentCount: i.commentCount || 0,
-        coverage: i.coverage || 0, image: i.image || null,
+        coverage: i.coverage || 0, image: safeImage(i.image),
         heat: heatOf(i),
         hot: Math.round(s.hotScore * 1000) / 1000
       });
@@ -1162,7 +1175,7 @@ export class FeedEngine {
         source: i.source, sourceLabel: this._labelFor(i),
         category: cat, categoryLabel: categoryLabel(cat),
         score: i.score || 0, commentCount: i.commentCount || 0,
-        coverage: i.coverage || 0, image: i.image || null
+        coverage: i.coverage || 0, image: safeImage(i.image)
       });
     }
     return { generatedAt: new Date(now).toISOString(), items: out };
