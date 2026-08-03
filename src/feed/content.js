@@ -9,6 +9,7 @@
 // network access, plus a normalizer that every adapter should route through.
 
 import { isKnownCategory } from "./taxonomy.js";
+import { extractTags } from "./tags.js";
 import { eventKey } from "./dedupe.js";
 import { SEED_ITEMS } from "./seed-data.js";
 import { classifyTopics } from "./topics.js";
@@ -90,7 +91,14 @@ export function normalizeItem(raw, source) {
     needsTranslation: raw.needsTranslation === true,
     originalLang: raw.originalLang || null,
     category,
-    tags: Array.isArray(raw.tags) ? raw.tags.slice(0, 12) : [],
+    // 어댑터가 주는 tags를 우선하되, 없으면 제목에서 뽑는다.
+    // 2026-08-02 실측: 라이브 30건 전부 tags가 비어 있었다 — 어댑터가 tags를
+    // 주는 소스가 하나도 없다. 내용 수준 특징이 0이면 좋아요/싫어요가 갈 곳이
+    // 카테고리·소스밖에 없고, 그래서 글 하나에 누른 좋아요가 카테고리 선언이
+    // 돼 버린다(David 지적 "내용에 대한 의견으로 투영될 수 있게").
+    tags: Array.isArray(raw.tags) && raw.tags.length
+      ? raw.tags.slice(0, 12)
+      : extractTags(raw.title),
     title: String(raw.title || "").slice(0, 300),
     // excerpt only for aggregated/out-link items (법적 안전: 발췌 ≤200자);
     // the user's own posts ("me") and the dev seed keep their full body

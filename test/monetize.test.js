@@ -30,7 +30,15 @@ import { SeedSource } from "../src/feed/content.js";
 // without depending on any particular seed item's (hashed, non-sequential)
 // id — applyFeedback only reads .category/.tags/.source/.length off the item
 // it's given, so a minimal stand-in is enough.
-function learnTech(vec, times = 8) {
+// "tech 취향이 학습된 유저"를 만든다.
+// 2026-08-02부터 좋아요 한 번은 **그 글에 대한 의견**이고 카테고리는 그 일부만
+// 받는다(recommender.CATEGORY_STEP_RATIO) — 자동차 글 하나에 누른 좋아요가 곧
+// "자동차 좋아함" 선언이 되던 문제를 없앤 변경이다. 그래서 같은 카테고리 취향에
+// 도달하려면 예전보다 더 많은 반복이 필요하다. 여기서 횟수를 늘리는 것은
+// 테스트를 코드에 맞춰 무르게 만드는 게 아니라, 헬퍼의 의도("이 유저는 tech를
+// 확실히 좋아한다")를 새 학습 속도로 다시 표현하는 것이다.
+// 태그가 빈 아이템이라 내용 신호는 없고 카테고리·소스로만 학습된다.
+function learnTech(vec, times = 32) {
   for (let i = 0; i < times; i++) {
     applyFeedback(vec, { category: "tech", tags: [], source: "clien", length: 200 }, 1);
   }
@@ -765,8 +773,10 @@ test("engine: a user with multiple top categories sees ad slots rotate across th
       const store = new FeedStore({ clock: fixedClock });
       const engine = new FeedEngine(store, [new SeedSource()]);
       const user = store.createUser("mon-multicat-1");
+      // learnTech와 같은 이유로 반복 횟수를 늘렸다 — 카테고리 취향은 이제
+      // 반복된 일관 근거로만 쌓인다(recommender.CATEGORY_STEP_RATIO).
       for (const cat of ["tech", "auto", "gaming"]) {
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < 32; i++) {
           applyFeedback(user.preferences, { category: cat, tags: [], source: "clien", length: 200 }, 1);
         }
       }

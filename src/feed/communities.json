@@ -28,7 +28,9 @@
           "pageUrl": "https://www.bobaedream.co.kr/board/bulletin/list.php?code=best&page={page}",
           "max": 40
         }
-      }
+      },
+      "mixed": true,
+      "mixedNote": "list?code=best — 전 게시판 베스트"
     },
     {
       "id": "getcha",
@@ -78,7 +80,9 @@
         "type": "rss",
         "url": "https://feeds.feedburner.com/c_hot50",
         "note": "서드파티 핫글 피드(댓글50+) — 2026-07-23 헬스체크 통과(40건 수집)"
-      }
+      },
+      "mixed": true,
+      "mixedNote": "c_hot50 — 전 게시판 인기글 50"
     },
     {
       "id": "ppomppu",
@@ -104,7 +108,9 @@
           "charset": "euc-kr",
           "max": 40
         }
-      }
+      },
+      "mixed": true,
+      "mixedNote": "hot.php — 전 게시판 인기글"
     },
     {
       "id": "ruliweb",
@@ -231,7 +237,9 @@
           "windowAfter": 400,
           "dateRegex": "class=\"listno regdate\">(\\d{1,2}:\\d{2})"
         }
-      }
+      },
+      "mixed": true,
+      "mixedNote": "/pt — 인기글 (실측: 사건사고·일상 섞임)"
     },
     {
       "id": "theqoo",
@@ -262,7 +270,9 @@
           "pageUrl": "https://theqoo.net/hot?page={page}",
           "max": 40
         }
-      }
+      },
+      "mixed": true,
+      "mixedNote": "/hot — 전 게시판 핫"
     },
     {
       "id": "mlbpark",
@@ -336,7 +346,9 @@
           "pageUrl": "https://etoland.co.kr/hit/list?page={page}",
           "max": 40
         }
-      }
+      },
+      "mixed": true,
+      "mixedNote": "/hit/list — 사이트 통합 HIT (실측: 연예·상품광고 섞임)"
     },
     {
       "id": "fmkorea",
@@ -398,7 +410,9 @@
           "pageUrl": "https://www.todayhumor.co.kr/board/list.php?table=bestofbest&page={page}",
           "max": 40
         }
-      }
+      },
+      "mixed": true,
+      "mixedNote": "bestofbe — 베스트오브베스트(전 게시판)"
     },
     {
       "id": "slrclub",
@@ -441,7 +455,9 @@
           "dateRegex": "date-today[^>]*>([^<]+)<"
         }
       },
-      "httpsOk": true
+      "httpsOk": true,
+      "mixed": true,
+      "mixedNote": "/free — 자유게시판 (실측: 정치·IT 섞임)"
     },
     {
       "id": "arca",

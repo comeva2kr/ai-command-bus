@@ -168,11 +168,22 @@ export function diversify(ranked, opts = {}) {
 
 // Move the preference vector by `step` in the direction of an item's features.
 // Shared by explicit feedback and implicit signals so both learn the same way.
+// 좋아요/싫어요는 **그 글에 대한 의견**이지 카테고리 투표가 아니다
+// (David 2026-08-02). 예전엔 카테고리·태그·소스에 같은 크기로 밀어붙였고,
+// tasteScore에서 카테고리 가중치가 1.0이라 자동차 글 하나에 누른 좋아요가
+// 곧 "자동차 좋아함" 선언이 됐다 — "갑자기 자동차만 나온다"는 제보의 기전이다.
+//
+// 이제 내용(태그)은 전부 받고 카테고리는 그 일부만 받는다. 그래서 한 번의
+// 좋아요는 "이 글이 좋다"로 남고, **같은 카테고리에서 반복해서 좋아요를 눌러야**
+// 비로소 카테고리 취향이 움직인다(4번이면 예전 1번과 같은 크기). 확신은 증거가
+// 쌓인 만큼만 갖는 게 맞다.
+const CATEGORY_STEP_RATIO = 0.25;
+
 function nudge(vec, item, step) {
   decayAll(vec); // gently fade stale interests
 
   vec.categories[item.category] = clamp(
-    (vec.categories[item.category] || 0) + step,
+    (vec.categories[item.category] || 0) + step * CATEGORY_STEP_RATIO,
     -WEIGHT_CLAMP,
     WEIGHT_CLAMP
   );

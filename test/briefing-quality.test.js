@@ -117,3 +117,45 @@ test("아이콘: PNG가 실제로 존재하고 PNG 시그니처를 갖는다", a
   assert.ok(pngs.length >= 3, "manifest가 PNG 아이콘을 선언해야 한다");
   assert.equal(manifest.icons[0].type, "image/png", "SVG를 못 읽는 런처를 위해 PNG가 먼저");
 });
+
+// ---------------------------------------------------------------------------
+// 좋아요/싫어요 = 내용에 대한 의견 (David 2026-08-02)
+// ---------------------------------------------------------------------------
+
+test("태그: 제목에서 내용 특징을 뽑는다 (어댑터가 tags를 안 주므로)", async () => {
+  const { extractTags } = await import("../src/feed/tags.js");
+  // 라이브 실측 2026-08-02: 30건 전부 tags가 비어 있었다. 내용 특징이 0이면
+  // 좋아요가 카테고리·소스로밖에 갈 곳이 없다.
+  assert.deepEqual(extractTags("신형 그랜저 시승기 연비 실측"), ["그랜저", "시승", "연비"]);
+  assert.ok(extractTags("손흥민 결승골 토트넘 승리").includes("손흥민"));
+  assert.ok(extractTags("강 건넌 ERP 개발").includes("erp"), "영숫자 고유명사도 잡는다");
+  // 사전에 없으면 억지로 만들지 않는다 — 조사·어미를 떼는 휴리스틱은 쓰레기
+  // 태그를 만들고 그게 취향 벡터에 그대로 쌓인다.
+  assert.deepEqual(extractTags("엄마 요새는 꺄! 를 어떻게 쓰는지 알아?"), []);
+});
+
+test("좋아요 한 번은 카테고리 선언이 아니다 — 내용 쪽이 훨씬 크게 움직인다", async () => {
+  const { applyFeedback, emptyPreferenceVector } = await import("../src/feed/recommender.js");
+  const vec = emptyPreferenceVector();
+  const item = { category: "auto", tags: ["그랜저", "시승"], source: "bobae", length: 200 };
+  applyFeedback(vec, item, 1);
+  // 제보 기전: 자동차 글 하나에 누른 좋아요가 곧 "자동차 좋아함" 선언이 되어
+  // 피드가 자동차로 뒤덮였다("갑자기 자동차만 나온다").
+  assert.ok(vec.tags["그랜저"] > vec.categories.auto * 2,
+    `내용(${vec.tags["그랜저"]})이 카테고리(${vec.categories.auto})보다 확실히 커야 한다`);
+  assert.ok(vec.categories.auto > 0, "그래도 약한 카테고리 신호는 남는다");
+});
+
+test("같은 카테고리를 반복해서 좋아하면 카테고리 취향이 쌓인다", async () => {
+  const { applyFeedback, emptyPreferenceVector } = await import("../src/feed/recommender.js");
+  const one = emptyPreferenceVector();
+  applyFeedback(one, { category: "auto", tags: ["그랜저"], source: "bobae", length: 200 }, 1);
+
+  const many = emptyPreferenceVector();
+  // 서로 다른 자동차 글 여러 건 — 이건 진짜 카테고리 신호다
+  for (const t of [["그랜저"], ["전기차"], ["시승"], ["연비"], ["타이어"], ["중고차"]]) {
+    applyFeedback(many, { category: "auto", tags: t, source: "bobae", length: 200 }, 1);
+  }
+  assert.ok(many.categories.auto > one.categories.auto * 3,
+    "반복된 일관 근거는 카테고리를 확실히 움직여야 한다");
+});

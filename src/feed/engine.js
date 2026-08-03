@@ -8,7 +8,7 @@
 
 import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
-import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK } from "./classify.js";
+import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
 import { eventKey } from "./dedupe.js";
 import { rankParams, categorySets, selectDiverse } from "./rank.js";
@@ -457,6 +457,10 @@ export class FeedEngine {
     // 흔들면 정확도가 떨어질 뿐이다. 종합(category==="news")인 소스만 예외로
     // 제목 분류를 태운다 — 종합은 사실상 미분류이기 때문.
     let _newsSectioned;
+    // 레지스트리에서 종합게시판 집합을 뽑아 둔다 (communities.json의 mixed:true).
+    const mixedSources = new Set(
+      loadRegistry().filter((c) => c && c.mixed).map((c) => c.id)
+    );
     const isSectionedNews = (item) => {
       if (item.kind !== "news") return false;
       if (_newsSectioned === undefined) {
@@ -497,6 +501,16 @@ export class FeedEngine {
       if (mixed && item.category === mixed.registryCategory) {
         item.registryCategory = item.category;
         item.category = mixed.fallback;
+        continue;
+      }
+      // 종합게시판(레지스트리 mixed:true)은 여기까지 왔다는 것 자체가
+      // "제목으로 못 정했다"는 뜻이다. 그때 소스의 등록 카테고리를 물려주면
+      // 다모앙 정치글이 life가 되고 인스티즈 사건기사가 culture가 된다
+      // (2026-08-02 라이브 실측). 전문 커뮤니티(인벤 등)는 이 분기를 타지 않으므로
+      // 등록값이 그대로 정답으로 남는다.
+      if (mixedSources.has(item.source) && item.category !== MIXED_NEUTRAL_CATEGORY) {
+        item.registryCategory = item.category;
+        item.category = MIXED_NEUTRAL_CATEGORY;
       }
     }
 

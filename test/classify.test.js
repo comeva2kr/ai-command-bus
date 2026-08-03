@@ -225,17 +225,54 @@ test("engine.refresh: 코퍼스가 부족하면(100건 미만) 아무것도 재�
       { id: "g1", title: "코스피 급락", url: "https://g/1", category: "business",
         publishedAt: new Date(now - 3600e3).toISOString(), sourceRank: 0 }
     ], "news"),
-    new JsonSource("clien", async () => [
+    // 전문 커뮤니티(레지스트리 mixed 아님)여야 이 테스트가 성립한다 —
+    // 종합게시판이면 아래 "종합게시판 중립화"가 먼저 걸려 등록값이 안 남는다.
+    new JsonSource("82cook", async () => [
       // 키워드 사전에 안 걸리는 제목이어야 한다 — 키워드 확정(auto 사전)은
       // 코퍼스 크기와 무관하게 도는 것이 2026-07-31 설계의 의도다.
-      { id: "c1", title: "요즘 점심 뭐 드세요 다들", url: "https://c/1", category: "tech",
+      { id: "c1", title: "요즘 점심 뭐 드세요 다들", url: "https://c/1", category: "life",
         publishedAt: new Date(now - 3600e3).toISOString(), sourceRank: 0 }
     ], "community")
   ]);
   await engine.refresh();
   const c1 = (await engine._items()).find((i) => i.id === "c1");
-  assert.equal(c1.category, "tech", "데이터 부족 상태에서 NB가 성급히 재분류하면 안 됨");
+  assert.equal(c1.category, "life", "데이터 부족 상태에서 NB가 성급히 재분류하면 안 됨");
   assert.equal(c1.registryCategory, undefined);
+});
+
+test("종합게시판은 등록 카테고리를 아이템에 물려주지 않는다 (전문 커뮤니티는 유지)", async () => {
+  // David 2026-08-02: "보배드림에서 올라온다고 다 자동차가 아니고 클리앙이라고
+  // 다 IT가 아니야. 종합게시판 성격은 무조건 다 섞여있다."
+  // 라이브 실측(300건)에서 다모앙 정치글이 life, 인스티즈 살인사건 기사가
+  // culture로 나가고 있었다. 반면 인벤은 두 표본 모두 전부 진짜 게임글이었다.
+  const now = Date.now();
+  const store = new FeedStore();
+  const engine = new FeedEngine(store, [
+    new JsonSource("clien", async () => [
+      { id: "m1", title: "요즘 점심 뭐 드세요 다들", url: "https://c/1", category: "tech",
+        publishedAt: new Date(now - 3600e3).toISOString(), sourceRank: 0 }
+    ], "community"),
+    new JsonSource("damoang", async () => [
+      // 라이브에서 실제로 life로 나가고 있던 제목 (사람이 보면 IT 잡담이다)
+      { id: "m2", title: "개인적으로 본적은 없지만 이 블랙베리 정말 예뻐보였어요", url: "https://d/1", category: "life",
+        publishedAt: new Date(now - 3600e3).toISOString(), sourceRank: 0 }
+    ], "community"),
+    new JsonSource("inven_hot", async () => [
+      { id: "s1", title: "형님들 속보속보 이번 패치 어떰", url: "https://i/1", category: "gaming",
+        publishedAt: new Date(now - 3600e3).toISOString(), sourceRank: 0 }
+    ], "community")
+  ]);
+  await engine.refresh();
+  const items = await engine._items();
+  const get = (id) => items.find((i) => i.id === id);
+
+  assert.equal(get("m1").category, "humor", "클리앙 잡담글이 tech로 나가면 안 된다");
+  assert.equal(get("m1").registryCategory, "tech", "원래 등록값은 추적용으로 남긴다");
+  assert.equal(get("m2").category, "humor", "다모앙 자유게시판 글이 life로 나가면 안 된다");
+  // 전문 커뮤니티는 등록값이 곧 정답이다 — 여기까지 중립화하면 정확한 분류를
+  // 망가뜨린다(적대적 검수 A8 처방을 실측으로 기각한 근거).
+  assert.equal(get("s1").category, "gaming", "인벤은 게임 전문 — 등록값 유지");
+  assert.equal(get("s1").registryCategory, undefined);
 });
 
 // ---------------------------------------------------------------------------

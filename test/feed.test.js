@@ -3147,8 +3147,10 @@ test("getFeed: affiliate/ad slot items never get a populated editorialNote, even
     const store = new FeedStore({ clock: fixedClock });
     const engine = new FeedEngine(store, [new SeedSource()]);
     const user = store.createUser("editorial_ad_u");
-    // strong "tech" preference so pickAffiliateCandidates has something to match
-    for (let i = 0; i < 8; i++) {
+    // strong "tech" preference so pickAffiliateCandidates has something to match.
+    // 2026-08-02부터 좋아요는 그 글에 대한 의견이고 카테고리는 일부만 받는다
+    // (recommender.CATEGORY_STEP_RATIO) — "강한 취향"을 만들려면 반복이 더 필요하다.
+    for (let i = 0; i < 32; i++) {
       applyFeedback(user.preferences, { category: "tech", tags: [], source: "clien", length: 200 }, 1);
     }
     const feed = await engine.getFeed(user.id, { cursor: 0, limit: 20 });
