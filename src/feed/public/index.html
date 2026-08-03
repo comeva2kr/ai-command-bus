@@ -2762,7 +2762,7 @@ async function renderDetail(itemId){
       <span title="추천수">▲ ${item.score||0}</span><span title="원문 댓글 수">💬 ${sourceCommentCount(item)}</span><span>${timeAgo(item.publishedAt)}</span>
       ${item.url?`<a href="${item.url}" target="_blank" rel="noopener" style="color:var(--accent)">원문 →</a>`:""}
     </div>
-    ${item.image?`<img class="detail-img" src="${item.image}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:""}
+    ${item.image?`<img class="detail-img" src="${item.image}" alt="${escapeHtml(item.title)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:""}
     ${item.summary?`<p class="full">${escapeHtml(item.summary)}</p>`:""}
     ${item.url && item.source!=="me" ? `
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">원문에서 계속 읽기 →</a>
