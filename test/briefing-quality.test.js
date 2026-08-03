@@ -326,3 +326,30 @@ test("자체 콘텐츠 페이지에 광고 지면이 있고, 광고 설정이 �
     if (prev.f) process.env.ADFIT_UNIT_MOBILE = prev.f; else delete process.env.ADFIT_UNIT_MOBILE;
   }
 });
+
+test("홈에 크롤러가 읽을 정적 글 목록이 심긴다 (네이버는 JS를 실행하지 않는다)", async () => {
+  // 실측 2026-08-03: 홈 175KB 중 정적 텍스트가 1,499B(0%)였다. 크롤러가 읽는
+  // 것은 "준비 중 / 메뉴 / 화면 테마"뿐이고 글 목록은 전부 JS로 그려진다.
+  // 네이버는 자바스크립트를 거의 실행하지 않아 홈이 빈 페이지로 읽혔다.
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
+
+  // 주입은 스켈레톤 자리를 대체한다 — 사용자도 같은 것을 본다(클로킹 아님)
+  assert.match(src, /function serveStatic\(res, urlPath, seedHtml = ""\)/,
+    "serveStatic이 seed를 받아야 한다");
+  assert.match(src, /seedHtml && ext === "\.html" && rel === "index\.html"/);
+  assert.match(src, /rankingTop\(12\)/, "홈 seed는 화제 랭킹에서 뽑는다");
+  // rankingTop은 { generatedAt, items } 를 준다 — 배열로 착각하면 조용히 빈다
+  assert.match(src, /\)\s*\|\|\s*\{\}\)\.items\s*\|\|\s*\[\]/,
+    "rankingTop의 반환 모양(객체)을 지켜야 한다");
+  // 제목은 이스케이프하고 비속어는 마스킹한다 — 검색 결과에 그대로 노출된다
+  assert.match(src, /escapeHtml\(maskProfanity\(i\.title\)\)/);
+
+  // 스켈레톤 마커가 실제 index.html과 일치해야 치환이 된다
+  const html = fs.readFileSync(new URL("../src/feed/public/index.html", import.meta.url), "utf8");
+  const start = html.indexOf('<div id="feedSkel">');
+  assert.ok(start >= 0, "index.html에 feedSkel 마커가 있어야 한다");
+  assert.ok(html.indexOf("</div>\n    </div>", start) > start,
+    "치환 종료 마커가 index.html 구조와 맞아야 한다");
+  assert.match(html, /\.seed-list\b/, "주입된 목록의 스타일이 있어야 한다");
+});

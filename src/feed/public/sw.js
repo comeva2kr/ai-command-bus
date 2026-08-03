@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v54"; // v54: 네이버 서치어드바이저 소유확인
+const CACHE = "feed-shell-v55"; // v55: 홈 정적 글 목록 주입 — 크롤러가 읽을 콘텐츠
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png"];
 

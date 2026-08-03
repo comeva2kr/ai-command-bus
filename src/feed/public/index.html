@@ -140,6 +140,14 @@
      커져 스냅이 어긋나는 원인이었다. 분산시키지 말 것 — CSS 순서로 서로를
      덮어쓰기 시작하면 어느 값이 실제로 먹는지 추적이 불가능해진다. */
 
+  /* 첫 페인트 정적 목록 — 크롤러가 읽는 유일한 콘텐츠이자, 사용자에게는
+     스켈레톤보다 유용한 첫 화면. JS가 뜨면 개인화 피드가 이 자리를 대체한다. */
+  .seed-h{font-size:13px;font-weight:800;color:var(--muted);padding:14px 16px 6px;margin:0}
+  .seed-list{list-style:none;margin:0;padding:0}
+  .seed-list li{padding:12px 16px;border-bottom:1px solid var(--line)}
+  .seed-list a{color:var(--text);text-decoration:none;font-weight:700;line-height:1.45}
+  .seed-src{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+
   /* ③ 자체 콘텐츠 바 — 정렬 칩과 같은 높이감으로 붙여 위화감을 줄인다 */
   .own-nav{display:flex;gap:8px;padding:8px 16px;border-bottom:1px solid var(--line);
     overflow-x:auto;scrollbar-width:none}

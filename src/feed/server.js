@@ -134,7 +134,7 @@ location.replace(${JSON.stringify(appUrl)});
 </body></html>`;
 }
 
-function serveStatic(res, urlPath) {
+function serveStatic(res, urlPath, seedHtml = "") {
   const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
   const filePath = path.join(PUBLIC_DIR, rel);
   // prevent path traversal outside PUBLIC_DIR
@@ -147,6 +147,24 @@ function serveStatic(res, urlPath) {
     // 없으면 아무것도 주입하지 않는다 — 광고 없는 배포는 완전히 무광고.
     const adsense = process.env.ADSENSE_CLIENT;
     const ga = process.env.GA_MEASUREMENT_ID; // GA4 측정 ID ("G-…") — 설정 시 gtag 주입
+
+    // 홈 정적 콘텐츠 — 호출부(라우트)가 engine으로 만들어 넘긴다.
+    // serveStatic은 engine을 모르는 순수 파일 서빙 함수라 여기서 만들 수 없다.
+    if (seedHtml && ext === ".html" && rel === "index.html") {
+      const html = buf.toString("utf8");
+      const marker = '<div id="feedSkel">';
+      const start = html.indexOf(marker);
+      const endMark = "</div>\n    </div>";
+      const end = start >= 0 ? html.indexOf(endMark, start) : -1;
+      if (start >= 0 && end > start) {
+        buf = Buffer.from(
+          html.slice(0, start) +
+          `<div id="feedSkel"><h2 class="seed-h">지금 화제인 글</h2>${seedHtml}</div>` +
+          html.slice(end + endMark.length)
+        );
+      }
+    }
+
     if ((adsense || ga) && ext === ".html" && rel === "index.html") {
       let tags = "";
       if (adsense) tags += `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsense}" crossorigin="anonymous"></script>\n`;
@@ -1233,7 +1251,36 @@ ${rankingRows(list)}`;
       if ((p === "/" || p === "/index.html") && req.method === "GET") {
         try { store.recordTraffic("page"); } catch {}
       }
-      if (req.method === "GET") return serveStatic(res, p);
+      if (req.method === "GET") {
+        // 홈은 크롤러가 읽을 정적 콘텐츠를 함께 심는다 (2026-08-03).
+        //
+        // 실측: 홈 175KB 중 정적 텍스트가 1,499B(0%)였다. 읽히는 것은
+        // "준비 중 / 메뉴 / 화면 테마"뿐이고 글 목록은 전부 JS로 그려진다.
+        // 네이버는 자바스크립트를 거의 실행하지 않고 구글도 JS 렌더링은 뒤로
+        // 밀린다 — 홈이 검색엔진에게 빈 페이지였다.
+        //
+        // **클로킹이 아니다.** 사용자도 첫 페인트에 이 목록을 그대로 보고
+        // (스켈레톤보다 유용하다), JS가 뜨면 개인화 피드가 같은 자리를 대체한다.
+        // 사람이 보는 것을 크롤러도 읽게 만드는 것이지 다른 것을 보여주는 게 아니다.
+        let seed = "";
+        if (p === "/" || p === "/index.html") {
+          try {
+            // rankingTop은 { generatedAt, items } 를 돌려준다 — 배열이 아니다.
+            const top = (await engine.rankingTop(12) || {}).items || [];
+            if (top.length) {
+              seed = `<ul class="seed-list">` + top.map((i) =>
+                `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>` +
+                ` <span class="seed-src">${escapeHtml(i.sourceLabel || "")}</span></li>`
+              ).join("") + `</ul>`;
+            }
+          } catch {
+            // 수집 전이거나 실패하면 기존 스켈레톤이 남는다 — 홈은 계속 뜬다.
+            // rankingTop은 source가 "seed"인 항목을 제외하므로 FEED_DEV 개발
+            // 모드에서는 비어 있는 것이 정상이다(실수집 배포에서만 채워진다).
+          }
+        }
+        return serveStatic(res, p, seed);
+      }
 
       return send(res, 404, { error: "not found" });
     } catch (err) {
