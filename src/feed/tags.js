@@ -38,6 +38,12 @@ const LATIN_STOP = new Set([
   "png", "gif", "mp4", "amp", "http", "https", "www", "com", "net", "org"
 ]);
 
+// 두 글자여도 내용 신호가 분명한 것들 — 이 목록에 없는 두 글자는 버린다.
+const SHORT_ALLOW = new Set([
+  "ai", "ui", "ux", "vr", "ar", "ev", "tv", "pc", "os", "it", "ip",
+  "5g", "6g", "ps", "xr", "gm", "bj", "mz"
+]);
+
 export const MAX_TAGS = 8;
 
 export function extractTags(title) {
@@ -59,10 +65,16 @@ export function extractTags(title) {
     if (out.length >= MAX_TAGS) return out;
   }
 
-  // 영숫자 고유명사 (ai, erp, chatgpt, rtx, m5 …). 한글 사전이 못 잡는
+  // 영숫자 고유명사 (erp, chatgpt, nvidia, rtx …). 한글 사전이 못 잡는
   // 제품·기술 이름이 여기서 잡힌다.
+  //
+  // 두 글자는 화이트리스트로만 받는다. 라이브 실측(2026-08-02)에서
+  // "'LJ와 이혼' 이선정" 제목이 태그 ["lj"]를 만들었다 — 사람 이니셜·약칭이
+  // 그대로 취향 벡터에 쌓이면 아무 의미 없는 특징이 영구히 남는다. 그렇다고
+  // 두 글자를 통째로 버리면 "ai"·"ev" 같은 진짜 신호를 잃는다.
   for (const m of lower.match(/[a-z][a-z0-9]{1,15}/g) || []) {
     if (LATIN_STOP.has(m)) continue;
+    if (m.length === 2 && !SHORT_ALLOW.has(m)) continue;
     if (out.some((x) => x.toLowerCase() === m)) continue;
     out.push(m);
     if (out.length >= MAX_TAGS) break;
