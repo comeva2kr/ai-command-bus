@@ -238,6 +238,20 @@
       "href": "https://link.coupang.com/a/fUOQRjGRgW",
       "img": "https://ads-partners.coupang.com/banners/1013491?trackingCode=AF5818321&subId=&traceId=V0-301-50c6c2b97fba9aee-I1013491&w=300&h=250",
       "label": "쿠팡 로켓직구 해외직구"
+    },
+    {
+      "category": "life",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOSmf4qFU",
+      "img": "https://ads-partners.coupang.com/banners/1013494?trackingCode=AF5818321&subId=&traceId=V0-301-5f4982b43e2b4522-I1013494&w=320&h=100",
+      "label": "쿠팡 로켓배송 출산·유아동"
+    },
+    {
+      "category": "life",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOSSq6q16",
+      "img": "https://ads-partners.coupang.com/banners/1013495?trackingCode=AF5818321&subId=&traceId=V0-301-5f4982b43e2b4522-I1013495&w=300&h=250",
+      "label": "쿠팡 로켓배송 출산·유아동"
     }
   ],
   "products": []
