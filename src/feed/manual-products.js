@@ -45,9 +45,11 @@ export function loadBanners({ file = FILE } = {}) {
 // 만료되면 죽은 링크가 된다 — 눌렀는데 페이지가 없으면 수익은 0이고 불쾌감만
 // 남는다. 그래서 expires가 지난 것은 자동으로 빠지고 카테고리 배너로 폴백한다.
 // 관리 부담 없이 시의성만 취하는 구조다.
-export function pickBanner({ category = null, size = "320x100", seen = new Set(), pick = 0, now = Date.now(), file } = {}) {
+export function pickBanner({ category = null, size = null, seen = new Set(), pick = 0, now = Date.now(), file } = {}) {
   const all = loadBanners(file ? { file } : {})
-    .filter((b) => b.size === size)
+    // size=null이면 전 재고. 크리에이티브를 우리가 그리게 된 뒤로 배너의 픽셀
+    // 크기는 의미가 없어졌는데, 필터로 남겨두면 재고만 절반으로 자른다.
+    .filter((b) => !size || b.size === size)
     .filter((b) => !b.expires || b.expires >= now);
   if (!all.length) return null;
   // 이벤트가 있으면 먼저 쓴다 — 같은 자리라도 "여름 시즌오프"가 "로켓패션"보다

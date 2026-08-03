@@ -103,7 +103,10 @@ test("서버 렌더: 배너에 AD 표기·대가성 문구·sponsored 링크가 
   try {
     const html = await (await fetch(`http://127.0.0.1:${server.address().port}/briefing`)).text();
     assert.match(html, /class="ad-slot ad-coupang"/, "배너 지면이 있어야 한다");
-    assert.match(html, /AD · 쿠팡 파트너스/, "광고 표기");
+    // 표기 마크업이 바뀌었다(2026-08-03): 예전엔 "AD · 쿠팡 파트너스" 한 줄
+    // 회색 텍스트였는데, 그러면 본문과 같은 색이라 표시로서 기능하지 못했다.
+    // 이제 AD는 잉크/종이 반전 칩이다. 의도(광고임을 밝힌다)는 그대로 검사한다.
+    assert.match(html, /<span class="ad-tag">AD<\/span> 쿠팡 파트너스/, "광고 표기");
     assert.match(html, /쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다/,
       "대가성 문구가 빠지면 수익금 지급이 중단될 수 있다");
     assert.match(html, /rel="nofollow sponsored noopener"/, "제휴 링크는 sponsored로 표시한다");

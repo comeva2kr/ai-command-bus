@@ -10,22 +10,31 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HTML = fs.readFileSync(path.join(ROOT, "src/feed/public/index.html"), "utf8");
 const SERVER = fs.readFileSync(path.join(ROOT, "src/feed/server.js"), "utf8");
 
-test("제휴 크리에이티브는 남의 도메인 이미지에 의존하지 않는다", () => {
-  // ads-partners.coupang.com 이미지는 모바일 사파리 추적 차단에 걸려 실기기에서
-  // 안 떴다. 링크(수수료의 근거)만 쓰고 크리에이티브는 우리가 그린다.
-  // 주석에 도메인 이름이 나오는 건 설명이므로, **실제 마크업**만 본다.
-  const imgTags = [...HTML.matchAll(/<img[^>]*>/g), ...SERVER.matchAll(/<img[^>]*>/g)].map((m) => m[0]);
-  assert.ok(!imgTags.some((t) => /ads-partners|b\.img|cp\.img/.test(t)),
-    "쿠팡 배너 이미지를 <img>로 여전히 렌더한다");
+test("배너 사진은 실으로되, 못 받는 사용자에게도 카드가 성립한다", () => {
+  // 계약 변경 2026-08-03 오후. 오전에는 실기기에서 사진이 안 떠서 이미지를
+  // 통째로 뺐는데, 같은 날 재실측 결과 아이폰 사파리 UA + Referer로도
+  // 302 → 200 image/png 46KB가 정상으로 온다. 쿠팡이 막은 게 아니라 그 폰의
+  // 콘텐츠 차단기가 ads-partners 도메인을 거른 것이었다.
+  // 사진 있는 광고가 글자만 있는 광고보다 잘 눌리므로 사진을 기본으로 두고,
+  // 차단당한 사용자에게만 onerror가 img를 지워 글자 카드가 남게 한다.
+  const imgTags = [...HTML.matchAll(/<img[^>]*ad-img[^>]*>/g), ...SERVER.matchAll(/<img[^>]*ad-img[^>]*>/g)].map((m) => m[0]);
+  assert.ok(imgTags.length >= 2, "피드·발행 페이지 양쪽에 배너 사진이 있어야 한다");
+  for (const t of imgTags) {
+    assert.match(t, /onerror="this\.remove\(\)"/, "못 받으면 깨진 자리를 남기지 말고 지워야 한다");
+    assert.ok(!/alt=""/.test(t), "배너 alt가 비면 안 된다");
+  }
   assert.match(HTML, /ad-native/, "네이티브 제휴 카드가 없다");
 });
 
 test("제휴 카드에는 대가성 문구가 항상 함께 나간다", () => {
   // 쿠팡 활동 준수 사항 — 빠지면 수익금 지급이 중단될 수 있다.
-  const card = HTML.slice(HTML.indexOf("function coupangCardHtml"), HTML.indexOf("function coupangCardHtml") + 900);
+  const card = HTML.slice(HTML.indexOf("function coupangCardHtml"), HTML.indexOf("function coupangCardHtml") + 1600);
   assert.match(card, /ad-disclosure/);
   assert.match(card, /disclosure/);
-  assert.match(SERVER, /이 포스팅은 쿠팡 파트너스 활동의 일환으로/);
+  // 문구 원문은 ad-copy.js 단일 출처로 옮겼다 — server.js에는 더 이상 없다.
+  const copy = fs.readFileSync(path.join(ROOT, "src/feed/ad-copy.js"), "utf8");
+  assert.match(copy, /이 포스팅은 쿠팡 파트너스 활동의 일환으로/);
+  assert.match(SERVER, /class="ad-disclosure">\$\{COUPANG_DISCLOSURE\}/);
 });
 
 test("제휴 링크는 nofollow sponsored로 나간다", () => {
@@ -80,4 +89,49 @@ test("정상 사진은 계속 통과한다", () => {
     "https://img.hankyung.com/photo/202608/contest.jpg",   // 파일명에 test가 들어가지만 정상
     "https://edgio.clien.net/service/board/park/x.webp"
   ]) assert.equal(isJunkImage(new URL(u)), false, u);
+});
+
+test("자체 제작 문구에 쿠팡 하위 상표를 쓰지 않는다", () => {
+  // 쿠팡 파트너스 이용가이드는 로켓·로켓배송·로켓프레시 등을 제한 상표로 두고,
+  // 파트너스가 제공한 배너·위젯 **외에서** 상표를 자체 문구에 넣는 것을 탈퇴
+  // 처리 대상으로 명시한다. 배너 이미지를 우리가 직접 그리기로 한 이상 그
+  // 예외의 보호를 못 받는다. "쿠팡"은 판매처 식별에 불가피하므로 남긴다.
+  const copy = fs.readFileSync(path.join(ROOT, "src/feed/ad-copy.js"), "utf8");
+  const table = copy.slice(copy.indexOf("export const AD_COPY"), copy.indexOf("export function adCopy"));
+  assert.ok(!/로켓/.test(table), "카피에 로켓* 상표가 남아 있다");
+});
+
+test("카피는 한 곳에서만 정의된다", () => {
+  // 예전엔 server.js와 index.html에 같은 표가 복붙돼 있었고 폴백 값마저 달랐다.
+  assert.ok(!HTML.includes("const COUPANG_COPY"), "클라이언트에 카피 사본이 남아 있다");
+  assert.match(SERVER, /from "\.\/ad-copy\.js"/, "서버가 단일 출처를 쓰지 않는다");
+});
+
+test("피드 광고는 바로 앞 카드의 카테고리를 따라간다", () => {
+  // dataset.category는 어디서도 세팅되지 않는 이름이라 항상 undefined였고,
+  // 그 결과 피드 광고 100%가 문맥 무관 라운드로빈이었다(2026-08-03 검수).
+  assert.match(HTML, /pickCoupangLink\(anchor\.dataset\.cat/);
+  // 주석에 옛 이름을 설명으로 적어둔 건 괜찮다 — **코드**만 본다.
+  const code = HTML.replace(/\/\/[^\n]*/g, "");
+  assert.ok(!/dataset\.category/.test(code), "존재하지 않는 dataset 키를 다시 쓰고 있다");
+});
+
+test("AD 배지가 유기 배지와 구별된다", () => {
+  // .badge의 !important가 배경·글자색을 덮어써서 "커뮤"/"뉴스" 배지와
+  // 픽셀 단위로 같게 렌더됐다 — 광고 표시가 표시로서 기능하지 못했다.
+  const rule = HTML.slice(HTML.indexOf(".card-top .badge.ad-badge-static{"), HTML.indexOf(".card-top .badge.ad-badge-static{") + 300);
+  assert.match(rule, /background:var\(--color-text\)!important/);
+  assert.match(rule, /color:var\(--color-bg\)!important/);
+});
+
+test("설문 제출 바가 콘텐츠를 가리거나 비치지 않는다", () => {
+  // 버튼만 sticky로 띄웠더니 disabled의 opacity가 버튼에 걸려 뒤 칩이 비쳤고,
+  // bottom:0이라 사파리 하단 툴바에 가려졌다(David 실기기 2026-08-03).
+  assert.match(HTML, /\.start-bar \{[^}]*background: var\(--bg\)/);
+  assert.match(HTML, /\.start-bar \{[^}]*env\(safe-area-inset-bottom\)/);
+  assert.ok(!/\.start:disabled \{ opacity/.test(HTML), "disabled 투명도로 뒤가 비친다");
+});
+
+test("취향 재설정에서는 나갈 수 있다", () => {
+  assert.match(HTML, /id="surveyBack"/);
 });

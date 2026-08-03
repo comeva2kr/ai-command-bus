@@ -412,9 +412,15 @@
   .opt { padding: 9px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card);
     color: var(--text); font-size: 14px; }
   .opt.sel { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .start { position: sticky; bottom: 0; width: 100%; padding: 15px; margin-top: 10px; font-size: 16px;
+  /* 제출 바 — 버튼만 sticky로 띄우면 (a) disabled의 opacity가 버튼에 걸려
+     뒤 칩들이 그대로 비치고 (b) bottom:0이라 사파리 하단 툴바에 가려진다.
+     불투명 바로 감싸고 safe-area만큼 아래를 띄운다(2026-08-03 David 실기기). */
+  .start-bar { position: sticky; bottom: 0; margin: 18px -20px 0;
+    padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+    background: var(--bg); border-top: 1px solid var(--line); }
+  .start { width: 100%; padding: 15px; font-size: 16px;
     font-weight: 700; border: none; border-radius: 14px; background: var(--accent); color: #fff; }
-  .start:disabled { opacity: .4; }
+  .start:disabled { background: var(--card); color: var(--muted); }
   .warmstart { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 26px; }
   .warmstart .prompt { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
   .warmstart textarea { width: 100%; min-height: 92px; resize: vertical; background: var(--card-2);
@@ -660,12 +666,41 @@
   body.immersion #feed .card .orig-title{display:none} /* 원제는 상세에서 본다 */
   /* 네트워크 배너(애드핏/애드센스) 카드 — 틀은 유기 카드와 동일, 안쪽 배너만
      가운데 정렬. 배너 크리에이티브 자체는 외부 iframe이라 색을 못 바꾼다. */
-  .card .ad-native{display:block;text-decoration:none;color:inherit;
-    border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:10px}
-  .card .ad-native b{display:block;font-size:15.5px;line-height:1.45;margin-bottom:4px}
-  .card .ad-native span{display:block;font-size:12.5px;color:var(--muted)}
-  .card .ad-native em{display:block;font-style:normal;font-size:13px;font-weight:700;
-    color:var(--color-accent);margin-top:10px}
+  /* ── 제휴 카드 ─────────────────────────────────────────────────────
+     AD 배지: 예전엔 마크업이 .ad-badge-static인데 스타일은 .ad-badge에 걸려
+     있었고, 설령 이름을 맞춰도 .badge의 !important 규칙이 배경·글자색을
+     덮어써서 결국 "커뮤"/"뉴스" 배지와 픽셀 단위로 똑같이 렌더됐다.
+     광고 표시가 표시로서 기능하지 못한 상태였다(2026-08-03 디자인 검수).
+     잉크/종이 반전으로 채워 유기 배지(투명+실선)와 채움 여부로 가른다 —
+     강조 빨강은 쓰지 않는다(유채색은 열기 눈금 하나만). */
+  .card-top .badge.ad-badge-static{
+    background:var(--color-text)!important;color:var(--color-bg)!important;
+    border:1px solid var(--color-text)!important;
+    font-weight:800;letter-spacing:.08em;padding:2px 9px;margin-left:auto}
+  /* .src의 구 다크테마 고정색(#c3c8d6)을 덮는다. 유기 카드는 소스 대표색을
+     인라인으로 넣어 덮지만 제휴 카드는 안 덮어서, 라이트 모드에서 배경과
+     대비 1.4:1 — "쿠팡 파트너스"라는 글자가 사실상 안 보였다. */
+  .card .ad-src{color:var(--color-text)}
+  .card .ad-native{display:block;text-decoration:none;color:inherit}
+  /* 후크를 h3로 올려 .card h3(19px/800)를 그대로 상속받는다. 예전엔 15.5px
+     굵은 글씨가 최대 활자라, 위아래 카드 제목 19px 사이에서 광고 카드가
+     "발췌"급 층위로 내려앉아 스크롤 스캔에서 통째로 지나쳐졌다. */
+  .card .ad-native h3{margin:0 0 10px}
+  .card .ad-native .ad-img{display:block;max-width:100%;height:auto;
+    margin-bottom:10px;border:1px solid var(--line)}
+  .card .ad-native .ad-brand{margin:0;font-size:13px;color:var(--muted)}
+  /* CTA — 잉크색 본문 굵게, 화살표만 강조색. 예전 13px 굵은 빨강은 라이트
+     모드에서 대비 3.9:1로 WCAG AA(4.5:1)에 미달했다. 최소 44px = 탭 타겟. */
+  .card .ad-native .ad-cta{display:flex;align-items:center;gap:6px;min-height:44px;
+    margin-top:8px;font-size:15px;font-weight:800;color:var(--color-text)}
+  .card .ad-native .ad-cta::after{content:"→";color:var(--color-accent);font-size:17px}
+  .card .ad-disclosure{margin:8px 0 0;font-size:11.5px;line-height:1.5;
+    color:var(--muted);text-align:left}
+  /* 상세 모달 안 제휴 카드는 #feed 스코프가 안 닿아 면이 사라져 있었다 —
+     같은 크리에이티브가 피드와 상세에서 다르게 보였다. */
+  .card.ad-card{background:var(--color-surface)}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+    overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .card.ad-net .ad-net-slot img{max-width:100%;height:auto}
   .card.ad-net .ad-disclosure{margin:8px 0 0;font-size:11px;line-height:1.5;color:var(--muted);text-align:left}
   .card.ad-net .ad-net-slot{display:flex;justify-content:center;align-items:center;
@@ -973,6 +1008,7 @@
   <section id="survey" class="hidden">
     <div class="survey-inner">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
+        <button class="back" id="surveyBack" aria-label="뒤로" hidden>‹</button>
         <h1 style="margin:0;flex:1">취향을 알려주세요</h1>
         <button id="surveySkip" style="background:none;border:none;color:var(--muted);font-size:14px">나중에 고를게요</button>
       </div>
@@ -1005,7 +1041,7 @@
         </div>
       </details>
 
-      <button class="start" id="startBtn" disabled>이 취향으로 시작하기</button>
+      <div class="start-bar"><button class="start" id="startBtn" disabled>이 취향으로 시작하기</button></div>
     </div>
   </section>
 
@@ -1369,30 +1405,22 @@ function detailAdHtml(category){
 }
 
 function coupangCardHtml(link, disclosure){
-  const [hook, brand] = COUPANG_COPY[link.category] || COUPANG_COPY._;
+  // 카피·이미지는 서버(/api/config)가 준다 — 클라이언트에 표 사본을 두지 않는다.
+  // 배너 사진은 기본으로 싣고, 콘텐츠 차단기에 걸려 못 받는 사용자에게만
+  // onerror가 img를 지워 글자 카드가 남는다. 빈 자리도 깨진 아이콘도 안 남는다.
   return `<div class="card-top">
       <span class="dot" style="background:var(--color-accent)"></span>
-      <span class="src">쿠팡 파트너스</span>
-      <span class="badge ad-badge-static">AD</span>
+      <span class="src ad-src">쿠팡 파트너스</span>
+      <span class="badge ad-badge-static">AD<span class="sr-only"> 광고</span></span>
     </div>
     <a class="ad-native" href="${escapeHtml(link.href)}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
-      <b>${escapeHtml(hook)}</b><span>${escapeHtml(brand)}</span><em>쿠팡에서 보기 →</em></a>
+      <h3>${escapeHtml(link.hook)}</h3>
+      ${link.img?`<img class="ad-img" src="${escapeHtml(link.img)}" width="320" height="100" alt="${escapeHtml(link.brand)}" loading="lazy" onerror="this.remove()">`:""}
+      <p class="ad-brand">${escapeHtml(link.brand)}</p>
+      <span class="ad-cta">쿠팡에서 보기<span class="sr-only"> — 새 창에서 쿠팡으로 이동합니다</span></span>
+    </a>
     <p class="ad-disclosure">${escapeHtml(disclosure)}</p>`;
 }
-
-// 카피는 그 링크가 실제로 여는 것만 말한다 — 없는 할인율·가격을 지어내면 허위표시다.
-const COUPANG_COPY = {
-  tech: ["노트북·모니터 바꿀 때가 됐다면", "쿠팡 로켓배송 가전·디지털"],
-  life: ["장 볼 것 있으면 오늘 주문해두기", "쿠팡 로켓프레시 · 새벽배송"],
-  auto: ["차 관리 미루고 있던 것들", "쿠팡 자동차용품·타이어"],
-  humor: ["심심할 때 하나쯤", "쿠팡 완구·취미"],
-  sports: ["운동 다시 시작할 거라면", "쿠팡 등산·아웃도어·골프"],
-  business: ["회원이면 배송비 없이", "쿠팡 로켓와우"],
-  culture: ["읽으려고 담아둔 책", "쿠팡 로켓배송 도서"],
-  gaming: ["게이밍 장비 손볼 때", "쿠팡 로켓배송 가전·디지털"],
-  news: ["필요한 건 미리 챙겨두기", "쿠팡 로켓배송"],
-  _: ["오늘 필요한 것 빠르게", "쿠팡 로켓배송"]
-};
 
 // 문맥에 맞는 제휴 링크를 고른다. 같은 카테고리가 있으면 그걸 쓰고, 없으면 회전.
 let adRotate = 0;
@@ -1436,7 +1464,10 @@ function maybeInsertAdfit(){
       <ins class="kakao_ad_area" style="display:none;" data-ad-unit="${unit}" data-ad-width="320" data-ad-height="100"></ins>
     </div>`;
     } else {
-      const link = pickCoupangLink(anchor.dataset.category || null);
+      // dataset.cat이다. dataset.category는 어디서도 세팅되지 않아 항상
+      // undefined였고, 그래서 피드 광고 100%가 문맥 무관 라운드로빈이었다
+      // (2026-08-03 마케팅 검수 실측). 상세 화면만 제대로 동작하고 있었다.
+      const link = pickCoupangLink(anchor.dataset.cat || null);
       if(!link) continue;
       slot.innerHTML = coupangCardHtml(link, cp.disclosure);
     }
@@ -1883,7 +1914,14 @@ async function openSpace(){
     const retake = document.getElementById("retakeSurvey");
     if(retake) retake.onclick = ()=>{
       closeSpace();
-      document.getElementById("survey").classList.remove("hidden");
+      const sv = document.getElementById("survey");
+      sv.classList.remove("hidden");
+      sv.scrollTop = 0;
+      // 최초 온보딩에는 돌아갈 곳이 없지만 재설정으로 들어왔으면 취소할 수
+      // 있어야 한다. 나가면 기존 취향은 그대로 남는다(저장은 제출할 때만).
+      const back = document.getElementById("surveyBack");
+      back.hidden = false;
+      back.onclick = ()=>{ sv.classList.add("hidden"); back.hidden = true; openSpace(); };
       showSurvey();
     };
     // unmute buttons

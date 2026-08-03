@@ -7,6 +7,7 @@
 
 import http from "node:http";
 import { pickBanner, loadBanners } from "./manual-products.js";
+import { adCopy, AD_DISCLOSURE } from "./ad-copy.js";
 import { makeIndexNow } from "./indexnow.js";
 import { maskProfanity } from "./profanity.js";
 import fs from "node:fs";
@@ -365,35 +366,35 @@ export function createServer(opts = {}) {
   // 대가성 문구는 **법적 의무**이고 쿠팡도 "활동 준수 사항을 지키지 않으면
   // 수익금 지급이 중단될 수 있습니다"라고 명시한다. 배너가 렌더될 때 반드시
   // 함께 나가야 하므로 같은 함수 안에서 붙인다 — 따로 두면 한쪽만 빠진다.
-  const COUPANG_DISCLOSURE =
-    "이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.";
-  // 카테고리별 한 줄 카피 — 쿠팡 배너 이미지를 대신하는 우리 크리에이티브.
-  //
-  // 배너 이미지(ads-partners.coupang.com)는 모바일 사파리의 추적 차단과 광고
-  // 차단 목록에 걸려 실기기에서 안 떴다(2026-08-03 David 실측: alt 텍스트만 표시).
-  // 수수료를 만드는 건 link.coupang.com 클릭이지 이미지가 아니므로, **링크는
-  // 그대로 두고 크리에이티브만 우리가 그린다.** 차단에 면역이고 페이지 디자인과도
-  // 맞는다. 문구는 실제로 그 링크가 여는 것만 말한다 — 없는 할인율이나 가격을
-  // 지어내면 허위표시가 된다.
-  const COUPANG_COPY = {
-    tech: ["노트북·모니터 바꿀 때가 됐다면", "쿠팡 로켓배송 가전·디지털"],
-    life: ["장 볼 것 있으면 오늘 주문해두기", "쿠팡 로켓프레시 · 새벽배송"],
-    auto: ["차 관리 미루고 있던 것들", "쿠팡 자동차용품·타이어"],
-    humor: ["심심할 때 하나쯤", "쿠팡 완구·취미"],
-    sports: ["운동 다시 시작할 거라면", "쿠팡 등산·아웃도어·골프"],
-    business: ["회원이면 배송비 없이", "쿠팡 로켓와우"],
-    culture: ["읽으려고 담아둔 책", "쿠팡 로켓배송 도서"],
-    gaming: ["게이밍 장비 손볼 때", "쿠팡 로켓배송 가전·디지털"],
-    news: ["필요한 건 미리 챙겨두기", "쿠팡 로켓배송"]
-  };
-  const coupangCopy = (cat) => COUPANG_COPY[cat] || ["오늘 필요한 것 빠르게", "쿠팡 로켓배송"];
-  const coupangBannerHtml = (category, size) => {
-    const b = pickBanner({ category, size });
+  const COUPANG_DISCLOSURE = AD_DISCLOSURE;
+  // pick — 회전 인덱스. 예전엔 인자를 안 넘겨 pick=0으로 고정됐고, 그래서
+  // 32장 재고가 있어도 **모든 방문자가 매 페이지에서 같은 배너 한 장**을 봤다
+  // (2026-08-03 검수 실측: /briefing·/trends·/ranking 전부 tech 배너).
+  // size도 이미지 시대의 유물이다 — 크리에이티브를 우리가 그리므로 배너의
+  // 픽셀 크기는 의미가 없고, 필터로 두면 재고만 절반으로 자른다.
+  const coupangBannerHtml = (category, size = null, pick = 0) => {
+    const b = pickBanner({ category, size, pick });
     if (!b) return "";
-    const [hook, brand] = coupangCopy(b.category);
-    return `<aside class="ad-slot ad-coupang"><span class="ad-mark">AD · 쿠팡 파트너스</span>
+    const [hook, brand] = adCopy(b.category);
+    // 배너 사진을 **다시 싣는다.**
+    //
+    // 2026-08-03 오전에는 실기기에서 사진이 안 떠서 이미지를 통째로 뺐다.
+    // 그날 오후 재실측: 아이폰 사파리 UA + Referer로 요청해도 302 → 200
+    // image/png 46KB가 정상으로 온다. 즉 쿠팡이 막은 게 아니라 그 폰의
+    // 콘텐츠 차단기가 ads-partners 도메인을 거른 것이다.
+    // 사진이 있는 광고가 글자만 있는 광고보다 확실히 잘 눌린다. 그래서
+    // **사진을 기본으로 두고, 못 받는 사용자에게만** 글자 카드가 남게 한다
+    // (onerror로 img만 지운다 — 나머지 문구가 그 자체로 완결된 카드다).
+    // 프록시로 우회하지 않는 이유: 노출 집계가 사용자 IP가 아니라 우리 서버
+    // IP에서 발생해 무효 트래픽으로 읽힐 수 있다. 계정을 오래 지키는 게 우선이다.
+    const [w, h] = String(b.size || "320x100").split("x");
+    return `<aside class="ad-slot ad-coupang">
+      <p class="ad-mark"><span class="ad-tag">AD</span> 쿠팡 파트너스</p>
       <a class="ad-native" href="${escapeHtml(b.href)}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
-        <b>${escapeHtml(hook)}</b><span>${escapeHtml(brand)}</span><em>쿠팡에서 보기 →</em></a>
+        <img class="ad-img" src="${escapeHtml(b.img)}" width="${escapeHtml(w)}" height="${escapeHtml(h)}"
+             alt="${escapeHtml(brand)}" loading="lazy" onerror="this.remove()">
+        <b>${escapeHtml(hook)}</b><span class="ad-brand">${escapeHtml(brand)}</span>
+        <span class="ad-go">쿠팡에서 보기 &rarr;</span></a>
       <p class="ad-disclosure">${COUPANG_DISCLOSURE}</p></aside>`;
   };
 
@@ -494,19 +495,29 @@ ol.rank li a{color:var(--text);font-weight:700}
 .heat i.e{height:3px;background:color-mix(in srgb,var(--text) 12%,transparent)}
 /* 광고 지면 — 본문과 확실히 분리되게 괘선으로 감싸고 AD 표기를 붙인다.
    콘텐츠로 오인되면 애드센스 정책 위반이고, 사용자 신뢰도 깎인다. */
-.ad-slot{margin:24px 0;padding:10px 0;border-top:1px solid var(--line);
-  border-bottom:1px solid var(--line);min-height:60px}
-.ad-mark{display:block;font-size:10px;letter-spacing:.12em;color:var(--muted);
-  margin-bottom:6px}
-.ad-coupang{text-align:center}
-.ad-native{display:block;text-align:left;text-decoration:none;color:inherit;
-  border:1px solid var(--line);border-radius:12px;padding:14px 16px}
-.ad-native b{display:block;font-size:15px;line-height:1.45;margin-bottom:4px}
-.ad-native span{display:block;font-size:12.5px;color:var(--muted)}
-.ad-native em{display:block;font-style:normal;font-size:13px;font-weight:700;
-  color:var(--accent);margin-top:10px}
-/* 대가성 문구 — 작아도 읽히는 크기여야 한다(공정위 표시 기준의 취지) */
-.ad-disclosure{margin:8px 0 0;font-size:11.5px;line-height:1.5;color:var(--muted)}</style>${adLoadersHtml()}</head><body><div class="wrap">
+/* 광고 지면 — 본문과 확실히 분리되게 면으로 감싸고 AD 표기를 붙인다.
+  콘텐츠로 오인되면 애드센스 게재위치 정책 위반이고 신뢰도 깎인다.
+  radius 0 — 이 페이지의 다른 모든 요소와 같은 문법을 쓴다. */
+.ad-slot{margin:28px 0;padding:14px 16px;border:1px solid var(--line)}
+.ad-mark{display:flex;align-items:center;gap:9px;margin:0 0 12px;
+  font-size:12px;font-weight:800;letter-spacing:.02em;color:var(--text)}
+/* AD 칩 = 잉크/종이 반전. 페이지 최대 대비라 라이트·다크 양쪽에서 확실히 보인다.
+  예전엔 본문과 같은 회색이라 표시로서 기능하지 못했다. */
+.ad-tag{background:var(--text);color:var(--bg);padding:3px 9px;
+  font-size:11px;font-weight:800;letter-spacing:.08em}
+.ad-coupang{text-align:left}
+/* 사진 자리 타일 — 배너 이미지가 차단당해 사라진 자리를 글자로 메운다.
+  해칭·스켈레톤은 "사진이 깨졌다"로 읽히지만(실기기 전례) 글자는 그렇지 않다. */
+.ad-native{display:block;text-decoration:none;color:inherit;min-height:44px}
+/* 배너 사진 — 차단기에 걸려 못 받으면 onerror가 이 요소만 지우고, 남은
+  문구가 그대로 완결된 카드가 된다. 빈 자리나 깨진 아이콘은 남지 않는다. */
+.ad-native .ad-img{display:block;max-width:100%;height:auto;margin-bottom:12px;
+  border:1px solid var(--line)}
+.ad-native b{display:block;font-size:17px;line-height:1.35;margin-bottom:3px}
+.ad-native .ad-brand{display:block;font-size:13px;color:var(--muted)}
+.ad-native .ad-go{display:block;margin-top:8px;font-size:14px;font-weight:800;color:var(--text)}
+.ad-disclosure{margin:10px 0 0;padding-top:9px;border-top:1px solid var(--line);
+  font-size:11.5px;line-height:1.55;color:var(--muted)}</style>${adLoadersHtml()}</head><body><div class="wrap">
 <a class="back" href="/">← 지금핫 피드로</a>
 ${inner}
 ${coupangBanner}
@@ -565,12 +576,20 @@ ${adSlotHtml("adfit")}
     { from: 6, to: 10, label: "6~10위" },
     { from: 11, to: 20, label: "11~20위" }
   ];
-  const rankingRows = (items) => RANK_BANDS.map((b) => {
-    const slice = items.slice(b.from - 1, b.to);
-    if (!slice.length) return "";
-    return `<section><h2>${escapeHtml(b.label)}</h2>
+  // mid — 첫 밴드 뒤에 끼워 넣을 지면. 광고를 페이지 맨 아래에만 두면 TOP 20을
+  // 전부 스크롤한 사람만 보게 되고, 실제로 아무도 보지 못했다(David 2026-08-03:
+  // "제일 하단에만 하나 띡 들어가있고 하면 누가 이걸 보지도 못하겠다").
+  const rankingRows = (items, mid = "") => {
+    let placed = false;
+    return RANK_BANDS.map((b) => {
+      const slice = items.slice(b.from - 1, b.to);
+      if (!slice.length) return "";
+      const html = `<section><h2>${escapeHtml(b.label)}</h2>
       <ol class="rank" start="${b.from}">${slice.map((i, k) => rankRow(i, b.from + k)).join("")}</ol></section>`;
-  }).join("");
+      if (mid && !placed) { placed = true; return html + mid; }
+      return html;
+    }).join("");
+  };
   // 주간/월간: 일별 스냅샷 병합 — 같은 글은 최고 기록으로 dedup, 소스당 2개 상한 재적용
   const mergeRankings = (editions, limit = 20) => {
     const best = new Map();
@@ -605,7 +624,7 @@ ${adSlotHtml("adfit")}
         <span class="m">${escapeHtml(r.sourceLabel)}${evidenceBits(r).length ? " · " + evidenceBits(r).join(" · ") : ""}</span></li>`).join("")}</ul>
     </section>`).join("");
 
-  const briefingSectionsHtml = (b) => b.sections.map((sec) => {
+  const briefingSectionsHtml = (b, mid = "") => { let midPlaced = false; return b.sections.map((sec) => {
     const lead = sec.items[0];
     // 실측이 0인 지표는 문장에서 아예 뺀다 — "추천 0·댓글 86을 모으며 화제의
     // 중심"은 자기모순이다(적대적 검수 2026-07-31, 태호·지영 페르소나 지적).
@@ -624,10 +643,12 @@ ${adSlotHtml("adfit")}
       return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
         <span class="m">${escapeHtml(i.sourceLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></li>`;
     }).join("");
-    return `<section><h2><a href="/briefing/${encodeURIComponent(sec.category)}" style="color:inherit">${escapeHtml(sec.label)}</a></h2>
+    const html = `<section><h2><a href="/briefing/${encodeURIComponent(sec.category)}" style="color:inherit">${escapeHtml(sec.label)}</a></h2>
       <p>${escapeHtml(sec.label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(maskProfanity(lead.title))}”</b>(${escapeHtml(lead.sourceLabel)})입니다. ${leadLine}</p>
       <ul>${rows}</ul></section>`;
-  }).join("");
+    if (mid && !midPlaced) { midPlaced = true; return html + mid; }
+    return html;
+  }).join(""); };
   // 자체 콘텐츠 상호 링크.
   //
   // 실측(2026-08-03): sitemap에 /briefing/tech 등 카테고리 브리핑 10개가 있는데
@@ -826,15 +847,15 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         const inner = `<h1>지금 브리핑 · ${escapeHtml(slotLabel)}</h1>
 <p class="muted">${dateStr} · 커뮤니티·뉴스 ${b.sourceCount}곳에서 모은 ${b.itemCount}건을 지금핫이 실측 데이터로 정리했습니다. 원문 인용 없이 우리가 잰 수치로만 씁니다.</p>
 ${bodyHtml}
-${coupangBannerHtml(null, "320x100")}
+${coupangBannerHtml(null, null, 9)}
 ${b.digestSummary ? `<section class="issue"><h2>종합</h2><p>${escapeHtml(b.digestSummary)}</p></section>` : ""}
 ${rankingNav("")}
 <h2 style="margin-top:28px">분야별 상위 글</h2>
-${briefingSectionsHtml(b)}
+${briefingSectionsHtml(b, coupangBannerHtml(null, null, 3))}
 ${debateHtml}
 ${archiveHtml}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 더쿠·클리앙·뽐뿌·보배드림 등 커뮤니티와 주요 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing"), coupangBannerHtml(null, "300x250")));
+        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 더쿠·클리앙·뽐뿌·보배드림 등 커뮤니티와 주요 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing"), coupangBannerHtml(null, null, 7)));
       }
 
       // 홈 최상단 브리핑 스트립용 원자료 (David 2026-07-31: "최상단에 테마별로
@@ -852,15 +873,17 @@ ${archiveHtml}`;
       if (p === "/trends" && req.method === "GET") {
         const t = trendsCache ? await trendsCache.get() : null;
         if (!t || !t.trends.length) return send(res, 404, { error: "no trends yet" });
-        const rows = t.trends.map((x) =>
-          `<li><div><a href="${escapeHtml(x.searchUrl)}" target="_blank" rel="noopener">${escapeHtml(x.name)}</a>${x.count ? `<span class="m">게시물 ${escapeHtml(x.count)}</span>` : ""}</div></li>`).join("");
+        const row = (x) =>
+          `<li><div><a href="${escapeHtml(x.searchUrl)}" target="_blank" rel="noopener">${escapeHtml(x.name)}</a>${x.count ? `<span class="m">게시물 ${escapeHtml(x.count)}</span>` : ""}</div></li>`;
         const inner = `<h1>지금 X(트위터) 실시간 트렌드</h1>
 <p class="muted">${kstLabel(t.fetchedAt)} 기준 한국 실시간 트렌드 TOP ${t.trends.length} · 약 20분마다 갱신 · 키워드를 누르면 X 검색이 새 탭으로 열립니다.</p>
 ${rankingNav("")}
-<ol class="rank">${rows}</ol>
+<ol class="rank">${t.trends.slice(0, 8).map(row).join("")}</ol>
+${coupangBannerHtml(null, null, 6)}
+<ol class="rank" start="9">${t.trends.slice(8).map(row).join("")}</ol>
 <p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.</p>`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends"), coupangBannerHtml(null, "300x250")));
+        return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends"), coupangBannerHtml(null, null, 7)));
       }
 
       // /briefing/<YYYY-MM-DD> = 일별 아카이브, /briefing/<카테고리> = 라이브
@@ -873,9 +896,9 @@ ${rankingNav("")}
           const inner = `<h1>${seg} 브리핑</h1>
 <p class="muted">해당 일자의 마지막 수집 시점 기준 스냅샷입니다 · 화제글 ${ed.briefing.itemCount}건 / 소스 ${ed.briefing.sourceCount}곳</p>
 ${rankingNav("")}
-${briefingSectionsHtml(ed.briefing)}`;
+${briefingSectionsHtml(ed.briefing, coupangBannerHtml(null, null, 4))}`;
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-          return res.end(editionShell(`${seg} 브리핑`, `${seg} 하루 동안 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`, ownContentNav()));
+          return res.end(editionShell(`${seg} 브리핑`, `${seg} 하루 동안 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`, ownContentNav(), coupangBannerHtml(null, null, 5)));
         }
         // 카테고리 내부 기준(하한 없음) — 전국 랭킹 기준을 빌리면 무반응
         // 뉴스가 많은 카테고리(자동차 등)가 텅 비어 보인다 (2026-08-01 실측).
@@ -890,9 +913,9 @@ ${briefingSectionsHtml(ed.briefing)}`;
 <p class="muted">${kstLabel(all.generatedAt)} · 지금 ${escapeHtml(label)} 분야에서 가장 화제인 글을 실측 반응 기준으로 정리했습니다. 15분마다 갱신됩니다.</p>
 ${rankingNav("")}
 <p>지금 ${escapeHtml(label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})입니다${leadBits.length ? ` — ${leadBits.join(" · ")}` : ""}.</p>
-${rankingRows(catItems)}`;
+${rankingRows(catItems, coupangBannerHtml(seg, null, 1))}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`, ownContentNav(`/briefing/${encodeURIComponent(seg)}`), coupangBannerHtml(seg, "300x250")));
+        return res.end(editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`, ownContentNav(`/briefing/${encodeURIComponent(seg)}`), coupangBannerHtml(seg, null, 8)));
       }
 
       // 화제 랭킹 TOP 20 — 일간(라이브) / 주간·월간(일별 스냅샷 병합).
@@ -916,9 +939,9 @@ ${rankingRows(catItems)}`;
 <p class="muted">소스별 반응 분포로 정규화한 화제성 순위입니다 — 큰 게시판의 절대 추천수가 아니라 "그 동네에서 얼마나 이례적으로 터졌는가"와 교차 보도를 봅니다. 항목마다 근거 수치를 함께 표기합니다.</p>
 ${note ? `<p class="muted">${escapeHtml(note)}</p>` : ""}
 ${rankingNav(period)}
-${rankingRows(list)}`;
+${rankingRows(list, coupangBannerHtml(null, null, 2))}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`, ownContentNav("/ranking/daily"), coupangBannerHtml(null, "300x250")));
+        return res.end(editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`, ownContentNav("/ranking/daily"), coupangBannerHtml(null, null, 7)));
       }
 
       // 애드센스 판매자 확인 파일 (https://nowhot.kr/ads.txt). ADSENSE_CLIENT
@@ -976,11 +999,16 @@ ${rankingRows(list)}`;
         // 차단 목록의 서브리소스 규칙에 걸리지 않는다. 덤으로 피드 카드와 같은
         // 디자인이 되어 다크모드에서 흰 배너가 튀는 문제도 사라진다.
         const coupang = (() => {
-          const byCat = new Map();
-          for (const b of loadBanners()) {
-            if (!byCat.has(b.category)) byCat.set(b.category, { category: b.category, href: b.href, label: b.label });
-          }
-          const items = [...byCat.values()];
+          // 카테고리당 하나가 아니라 **전 재고**를 내려보낸다. 예전엔 첫 배너만
+          // 담아서 32장 중 24장이 앱에서 영원히 도달 불가였다(검수 실측).
+          // 카피도 여기서 붙인다 — 클라이언트가 같은 표를 복사해 두면 한쪽만
+          // 고쳐질 때 피드와 발행 페이지가 다른 말을 한다.
+          const items = loadBanners()
+            .filter((b) => b.size === "320x100")
+            .map((b) => {
+              const [hook, brand] = adCopy(b.category);
+              return { category: b.category, href: b.href, img: b.img, hook, brand };
+            });
           return items.length ? { disclosure: COUPANG_DISCLOSURE, items } : null;
         })();
 

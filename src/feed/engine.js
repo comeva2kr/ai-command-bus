@@ -310,6 +310,12 @@ export class FeedEngine {
 
   async _items() {
     if (!this._cache) await this.refresh();
+    // 풀 전체에 한 번 건다. 여기가 피드·랭킹·브리핑·공유가 모두 지나가는
+    // 유일한 길목이라, 출력 지점마다 따로 거는 것보다 새는 곳이 없다
+    // (2026-08-03 1차 시도에서 shareData에만 걸어 피드는 그대로였다).
+    for (const item of this._cache) {
+      if (item.image) item.image = safeImage(item.image);
+    }
     return this._cache;
   }
 
