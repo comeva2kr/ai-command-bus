@@ -2414,7 +2414,7 @@ function adMetaHtml(item){
 // 없이 그대로 노출된다.
 function cardThumbHtml(item){
   if(!item.image) return "";
-  return `<div class="card-thumb" data-src-label="${escapeHtml(srcLabel(item.source)).toLowerCase()}"><img src="${escapeHtml(item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.card-thumb').classList.add('noimg')"></div>`;
+  return `<div class="card-thumb" data-src-label="${escapeHtml(srcLabel(item.source)).toLowerCase()}"><img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title)} — ${escapeHtml(srcLabel(item.source))}" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.card-thumb').classList.add('noimg')"></div>`;
 }
 // AD 배지 탭 → 고지 팝오버 (progressive disclosure). 배지 자체가 1차 고지
 // (항상 카드 최초 뷰포트에 보임 — Warner Bros 판례상 필수), 고지 "전문"은

@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v56"; // v56: RSS + IndexNow + 구조화 데이터
+const CACHE = "feed-shell-v57"; // v57: 가이드 대조 — 랭킹 섹션화·썸네일 alt·자체콘텐츠 상호링크
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png"];
 

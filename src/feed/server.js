@@ -371,7 +371,7 @@ export function createServer(opts = {}) {
 
   // 자체 콘텐츠 페이지의 검색 노출용 공통 머리. canonical·og:image가 없으면
   // 같은 내용이 여러 주소로 인식되거나 공유 카드가 비어 나간다.
-  const editionShell = (title, desc, inner, canonicalPath = "") => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+  const editionShell = (title, desc, inner, canonicalPath = "", ownLinks = "") => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} — 지금핫 NowHot</title>
 <meta name="description" content="${escapeHtml(desc)}">
@@ -408,6 +408,12 @@ h1{font:800 24px/1.2 "Archivo",sans-serif;letter-spacing:-.015em;margin:0 0 2px}
 h2{font-size:16px;font-weight:800;letter-spacing:-.01em;margin:26px 0 8px;padding-top:14px;border-top:2px solid var(--divider)}
 .muted{color:var(--muted);font-size:13px}a{color:var(--accent);text-decoration:none;text-underline-offset:3px}
 ul{padding-left:18px;margin:8px 0}li{margin:6px 0}.m{color:var(--muted);font-size:12.5px;display:block}
+/* 자체 콘텐츠 상호 링크 — 검색으로 들어온 사람이 다음 페이지로 가는 통로 */
+.own-links{margin:28px 0 0;padding-top:14px;border-top:2px solid var(--divider)}
+.own-links h2{border:none;padding:0;margin:0 0 8px;font-size:15px}
+.own-links ul{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.own-links li{margin:0}
+.own-links a{display:inline-block;border:1px solid var(--line);padding:5px 11px;font-size:13px;font-weight:700}
 /* ④ 이슈 블록 — 본문이 읽히는 글이 되도록 문단에 무게를 준다 */
 .issue{margin:22px 0}
 .issue h2{font-size:17px;margin:0 0 6px}
@@ -437,6 +443,7 @@ ol.rank li a{color:var(--text);font-weight:700}
   margin-bottom:6px}</style>${adLoadersHtml()}</head><body><div class="wrap">
 <a class="back" href="/">← 지금핫 피드로</a>
 ${inner}
+${ownLinks}
 ${adSlotHtml("adsense")}
 ${adSlotHtml("adfit")}
 <p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
@@ -474,12 +481,29 @@ ${adSlotHtml("adfit")}
     });
     return `<span class="heat" title="최근 화제도 추이">${cells.join("")}</span>`;
   };
-  const rankingRows = (items) => `<ol class="rank">${items.map((i) => {
+  const rankRow = (i, n) => {
     const bits = evidenceBits(i);
-    return `<li><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(i.title)}</a>
+    return `<li value="${n}"><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
       <span class="m">${escapeHtml(i.sourceLabel)} · ${escapeHtml(i.categoryLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span>
       ${heatBar(i.heat)}</div></li>`;
-  }).join("")}</ol>`;
+  };
+  // 랭킹을 구간별 h2 섹션으로 나눈다.
+  //
+  // 구글 SEO 가이드: "긴 콘텐츠를 단락과 섹션으로 나누고 사용자가 페이지를
+  // 탐색하는 데 도움이 되는 제목을 제공". 실측(2026-08-03)에서 랭킹 페이지는
+  // h1 하나 아래 20개가 통째로 있어 h2가 0개였다(브리핑은 19개).
+  // 구간 제목에 순위를 넣으면 검색 결과에서 "TOP 5" 같은 질의와도 맞는다.
+  const RANK_BANDS = [
+    { from: 1, to: 5, label: "1~5위 — 오늘 가장 크게 터진 글" },
+    { from: 6, to: 10, label: "6~10위" },
+    { from: 11, to: 20, label: "11~20위" }
+  ];
+  const rankingRows = (items) => RANK_BANDS.map((b) => {
+    const slice = items.slice(b.from - 1, b.to);
+    if (!slice.length) return "";
+    return `<section><h2>${escapeHtml(b.label)}</h2>
+      <ol class="rank" start="${b.from}">${slice.map((i, k) => rankRow(i, b.from + k)).join("")}</ol></section>`;
+  }).join("");
   // 주간/월간: 일별 스냅샷 병합 — 같은 글은 최고 기록으로 dedup, 소스당 2개 상한 재적용
   const mergeRankings = (editions, limit = 20) => {
     const best = new Map();
@@ -537,6 +561,27 @@ ${adSlotHtml("adfit")}
       <p>${escapeHtml(sec.label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(maskProfanity(lead.title))}”</b>(${escapeHtml(lead.sourceLabel)})입니다. ${leadLine}</p>
       <ul>${rows}</ul></section>`;
   }).join("");
+  // 자체 콘텐츠 상호 링크.
+  //
+  // 실측(2026-08-03): sitemap에 /briefing/tech 등 카테고리 브리핑 10개가 있는데
+  // **어느 페이지에서도 링크가 없는 고아 페이지**였다. 구글은 내부 링크로
+  // 발견 가능한지를 중요하게 보고, 링크 없는 페이지는 색인 우선순위가 낮다.
+  // 사용자 쪽으로도 이득이다 — 검색으로 한 페이지에 들어온 사람이 다른 자체
+  // 콘텐츠로 넘어갈 길이 생기면 체류·페이지뷰가 늘고 그게 곧 광고 수익이다.
+  const ownContentNav = (current = "") => {
+    const cats = [...new Set(registry.filter((c) => c.enabled && c.category).map((c) => c.category))];
+    const links = [
+      { href: "/briefing", label: "지금 브리핑" },
+      { href: "/ranking/daily", label: "화제 랭킹" },
+      { href: "/trends", label: "실시간 트렌드" },
+      ...cats.map((c) => ({ href: `/briefing/${encodeURIComponent(c)}`, label: `${categoryLabel(c)} 브리핑` }))
+    ].filter((l) => l.href !== current);
+    return `<nav class="own-links" aria-label="지금핫이 만든 다른 콘텐츠">
+      <h2>다른 브리핑도 보기</h2>
+      <ul>${links.map((l) => `<li><a href="${l.href}">${escapeHtml(l.label)}</a></li>`).join("")}</ul>
+    </nav>`;
+  };
+
   const rankingNav = (active) => `<div class="nav">
     <a href="/ranking/daily" class="${active === "daily" ? "on" : ""}">일간</a>
     <a href="/ranking/weekly" class="${active === "weekly" ? "on" : ""}">주간</a>
@@ -721,7 +766,7 @@ ${briefingSectionsHtml(b)}
 ${debateHtml}
 ${archiveHtml}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 더쿠·클리앙·뽐뿌·보배드림 등 커뮤니티와 주요 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing"));
+        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 더쿠·클리앙·뽐뿌·보배드림 등 커뮤니티와 주요 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing")));
       }
 
       // 홈 최상단 브리핑 스트립용 원자료 (David 2026-07-31: "최상단에 테마별로
@@ -747,7 +792,7 @@ ${rankingNav("")}
 <ol class="rank">${rows}</ol>
 <p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.</p>`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends"));
+        return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends")));
       }
 
       // /briefing/<YYYY-MM-DD> = 일별 아카이브, /briefing/<카테고리> = 라이브
@@ -762,7 +807,7 @@ ${rankingNav("")}
 ${rankingNav("")}
 ${briefingSectionsHtml(ed.briefing)}`;
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-          return res.end(editionShell(`${seg} 브리핑`, `${seg} 하루 동안 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`));
+          return res.end(editionShell(`${seg} 브리핑`, `${seg} 하루 동안 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`, ownContentNav()));
         }
         // 카테고리 내부 기준(하한 없음) — 전국 랭킹 기준을 빌리면 무반응
         // 뉴스가 많은 카테고리(자동차 등)가 텅 비어 보인다 (2026-08-01 실측).
@@ -779,7 +824,7 @@ ${rankingNav("")}
 <p>지금 ${escapeHtml(label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})입니다${leadBits.length ? ` — ${leadBits.join(" · ")}` : ""}.</p>
 ${rankingRows(catItems)}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`));
+        return res.end(editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`, ownContentNav(`/briefing/${encodeURIComponent(seg)}`)));
       }
 
       // 화제 랭킹 TOP 20 — 일간(라이브) / 주간·월간(일별 스냅샷 병합).
@@ -805,7 +850,7 @@ ${note ? `<p class="muted">${escapeHtml(note)}</p>` : ""}
 ${rankingNav(period)}
 ${rankingRows(list)}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`));
+        return res.end(editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`, ownContentNav("/ranking/daily")));
       }
 
       // 애드센스 판매자 확인 파일 (https://nowhot.kr/ads.txt). ADSENSE_CLIENT

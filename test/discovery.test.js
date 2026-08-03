@@ -118,3 +118,44 @@ test("RSS 위치를 robots와 각 페이지 head가 알린다", async () => {
   const home = fs.readFileSync(new URL("../src/feed/public/index.html", import.meta.url), "utf8");
   assert.match(home, /rel="alternate" type="application\/rss\+xml"/);
 });
+
+test("자체 콘텐츠 페이지가 서로 링크된다 (고아 페이지 방지)", async () => {
+  // 실측 2026-08-03: sitemap에 카테고리 브리핑 10개가 있는데 **어디서도
+  // 링크되지 않는 고아 페이지**였다. 구글은 내부 링크로 발견 가능한지를
+  // 중요하게 보고, 링크 없는 페이지는 색인 우선순위가 낮다. 사용자 쪽으로도
+  // 검색 유입이 다음 페이지로 넘어갈 통로가 없으면 한 장 보고 나간다.
+  await withServer({}, async (base) => {
+    const html = await (await fetch(`${base}/briefing`)).text();
+    assert.match(html, /class="own-links"/, "상호 링크 영역이 있어야 한다");
+    const cats = [...html.matchAll(/href="\/briefing\/([a-z]+)"/g)].map((m) => m[1]);
+    assert.ok(cats.length >= 5, `카테고리 브리핑 링크가 부족: ${cats.length}개`);
+    // 자기 자신은 링크하지 않는다
+    assert.ok(!html.includes('<li><a href="/briefing">'), "현재 페이지를 자기 자신에게 링크하면 안 된다");
+    // 다른 자체 콘텐츠로도 이어져야 한다
+    assert.match(html, /href="\/ranking\/daily"/);
+    assert.match(html, /href="\/trends"/);
+  });
+});
+
+test("랭킹 페이지가 구간별 h2 섹션으로 나뉜다", async () => {
+  // 구글 가이드: "긴 콘텐츠를 단락과 섹션으로 나누고 사용자가 페이지를
+  // 탐색하는 데 도움이 되는 제목을 제공". 실측에서 랭킹은 h1 하나 아래
+  // 20개가 통째로 있어 h2가 0개였다(브리핑은 19개).
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
+  assert.match(src, /RANK_BANDS/, "구간 정의가 있어야 한다");
+  assert.match(src, /<section><h2>\$\{escapeHtml\(b\.label\)\}<\/h2>/);
+  // 순위 번호가 구간을 넘어가도 이어져야 한다 (6위가 다시 1로 보이면 안 된다)
+  assert.match(src, /start="\$\{b\.from\}"/, "ol start로 번호를 이어야 한다");
+  assert.match(src, /rankRow\(i, b\.from \+ k\)/);
+});
+
+test("카드 썸네일에 설명 alt가 붙는다 (네이버 가이드)", async () => {
+  // 네이버 가이드: "이미지에는 alt 속성을 부여해 내용을 설명해야 한다".
+  // 빈 alt("")는 '장식 이미지' 선언이라 내용 설명이 아니다.
+  const fs = await import("node:fs");
+  const html = fs.readFileSync(new URL("../src/feed/public/index.html", import.meta.url), "utf8");
+  const thumb = html.slice(html.indexOf("function cardThumbHtml"), html.indexOf("function cardThumbHtml") + 700);
+  assert.match(thumb, /alt="\$\{escapeHtml\(item\.title\)\}/, "제목을 alt에 넣어야 한다");
+  assert.doesNotMatch(thumb, /alt=""/, "빈 alt로 되돌아가면 안 된다");
+});
