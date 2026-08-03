@@ -6,6 +6,7 @@
 //   FEED_DB=./feed-data.json node src/feed/server.js   # persisted
 
 import http from "node:http";
+import { makeIndexNow } from "./indexnow.js";
 import { maskProfanity } from "./profanity.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -176,6 +177,11 @@ function serveStatic(res, urlPath, seedHtml = "") {
   });
 }
 
+// IndexNow 키 — 없으면 기능 전체가 비활성(키 파일도, 통보도 없다).
+// 모듈 로드 시점이 아니라 **쓰는 시점**에 읽는다. 상수로 굳히면 프로세스를
+// 재시작하지 않고는 켤 수 없고, 테스트에서도 설정을 바꿀 수 없다.
+const indexNowKey = () => process.env.INDEXNOW_KEY || null;
+
 export function createServer(opts = {}) {
   const store = new FeedStore({ file: opts.file || process.env.FEED_DB || null });
 
@@ -303,6 +309,22 @@ export function createServer(opts = {}) {
     if (pushTimer.unref) pushTimer.unref();
   }
 
+  // IndexNow — 수집 사이클마다 자체 콘텐츠 URL을 통보한다.
+  // 브리핑이 하루 3회 갱신되는데 크롤러를 기다리면 그만큼 유입이 늦다.
+  // 키가 없으면 아무 일도 하지 않는다(no-op).
+  const indexNow = makeIndexNow({
+    key: indexNowKey(),
+    host: process.env.PUBLIC_HOST || "nowhot.kr"
+  });
+  if (indexNowKey()) {
+    const notify = () => {
+      indexNow.ping(["/", "/briefing", "/ranking/daily", "/trends"]).catch(() => {});
+    };
+    notify();
+    const t = setInterval(notify, Number(process.env.INDEXNOW_INTERVAL_MS || 6 * 3600 * 1000));
+    if (t.unref) t.unref();
+  }
+
   // ---- 자체 콘텐츠 페이지(브리핑·랭킹) 공통 렌더링 --------------------------
   // 애드핏 3차 보류("자체 콘텐츠 부족") 대응 + David 지시(2026-07-31: 홈 최상단
   // 테마별 브리핑, 일·주·월간 화제 랭킹 TOP 20). 문장·수치는 전부 실측 신호로만
@@ -359,6 +381,16 @@ export function createServer(opts = {}) {
 <meta property="og:site_name" content="지금핫 NowHot">
 <meta property="og:image" content="https://nowhot.kr/icon-512.png">
 <meta name="twitter:card" content="summary">
+<link rel="alternate" type="application/rss+xml" title="지금핫 NowHot" href="https://nowhot.kr/rss.xml">
+<script type="application/ld+json">${JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  name: title,
+  description: desc,
+  inLanguage: "ko",
+  isPartOf: { "@type": "WebSite", name: "지금핫 NowHot", url: "https://nowhot.kr/" },
+  publisher: { "@type": "Organization", name: "페퍼클럽", url: "https://nowhot.kr/" }
+})}</script>
 ${canonicalPath ? `<link rel="canonical" href="https://nowhot.kr${escapeHtml(canonicalPath)}">
 <meta property="og:url" content="https://nowhot.kr${escapeHtml(canonicalPath)}">` : ""}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -539,6 +571,72 @@ ${adSlotHtml("adfit")}
       // "오늘의 브리핑" — 실측 데이터로 서버가 직접 작성하는 일일 편집 페이지.
       // 애드핏 보류 사유("대부분 아웃링크, 자체 콘텐츠 부족") 대응이자 애드센스
       // "부가가치" 요건 보강. 문장은 전부 실측 수치로만 조립한다(숫자 조작 금지).
+      // ---- RSS 피드 (2026-08-03) ------------------------------------------
+      //
+      // 네이버 서치어드바이저는 사이트맵과 **별개로 RSS를 받아** 새 글을 훨씬
+      // 빨리 수집한다. 우리는 브리핑이 하루 3회 갱신되는 구조라 RSS가 붙으면
+      // 그 리듬을 검색엔진이 따라온다.
+      //
+      // 싣는 것은 **우리가 쓴 문장**뿐이다 — 이슈 문단과 실측 지표. 외부 원문
+      // 본문을 RSS로 재배포하면 저작권 문제이자, 애드핏이 지적한 "외부 콘텐츠
+      // 비중"을 스스로 키우는 짓이다.
+      if (p === "/rss.xml" && req.method === "GET") {
+        const origin = originOf(req);
+        const b = await engine.briefing();
+        const rankTop = ((await engine.rankingTop(20)) || {}).items || [];
+        const now = new Date().toUTCString();
+        const esc = (t) => escapeHtml(maskProfanity(String(t || "")));
+        const items = [];
+        // 1) 이번 편 브리핑 이슈 — 우리가 쓴 문단이 그대로 description이 된다
+        for (const is of (b.issues || [])) {
+          items.push({
+            title: `${b.slot ? b.slot.label + " · " : ""}${is.headline}`,
+            link: `${origin}/briefing`,
+            desc: is.paragraph,
+            guid: `${origin}/briefing#${encodeURIComponent(is.headline)}`
+          });
+        }
+        // 2) 화제 랭킹 상위 — 설명은 원문 발췌가 아니라 우리 실측 지표다
+        for (const i of rankTop.slice(0, 15)) {
+          const bits = [];
+          if (i.score > 0) bits.push(`추천 ${i.score}`);
+          if (i.commentCount > 0) bits.push(`댓글 ${i.commentCount}`);
+          if (i.coverage >= 3) bits.push(`${i.coverage}개 매체 보도`);
+          items.push({
+            title: i.title,
+            link: `${origin}/#post-${encodeURIComponent(i.id)}`,
+            desc: `${i.sourceLabel || ""}${bits.length ? " — " + bits.join(" · ") : ""} (지금핫 실측)`,
+            guid: `${origin}/#post-${encodeURIComponent(i.id)}`
+          });
+        }
+        const body = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+<title>지금핫 NowHot — 커뮤니티·뉴스 실시간 인기글</title>
+<link>${esc(origin)}/</link>
+<description>여러 커뮤니티와 주요 뉴스에서 지금 가장 화제인 글을 지금핫이 실측 반응 수치로 정리합니다.</description>
+<language>ko</language>
+<lastBuildDate>${now}</lastBuildDate>
+${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}</link>` +
+  `<guid isPermaLink="false">${esc(it.guid)}</guid><description>${esc(it.desc)}</description>` +
+  `<pubDate>${now}</pubDate></item>`).join("\n")}
+</channel></rss>
+`;
+        res.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
+        res.end(body);
+        return;
+      }
+
+      // ---- IndexNow 키 파일 -------------------------------------------------
+      // 네이버·빙이 지원하는 즉시 색인 통보 프로토콜(네이버 웹마스터 공지
+      // 2023-07-25). 새 콘텐츠가 생기면 우리가 먼저 알린다 — 크롤러가 올 때까지
+      // 기다리지 않아도 된다. 키는 env로 주고, 이 파일이 소유 증명이 된다.
+      const inKey = indexNowKey();
+      if (inKey && p === `/${inKey}.txt` && req.method === "GET") {
+        res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        res.end(inKey);
+        return;
+      }
+
       // ② robots.txt · sitemap.xml (2026-08-03)
       //
       // 둘 다 404였다. 즉 이미 만들어 둔 자체 콘텐츠 페이지들이 검색엔진에
@@ -554,6 +652,7 @@ ${adSlotHtml("adfit")}
           "Disallow: /admin",
           "Disallow: /p?",           // 공유 링크는 앱으로 튕기는 중계 페이지
           `Sitemap: ${origin}/sitemap.xml`,
+          `Sitemap: ${origin}/rss.xml`,
           ""
         ].join("\n"));
         return;
