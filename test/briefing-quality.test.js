@@ -213,3 +213,75 @@ test("같은 카테고리를 반복해서 좋아하면 카테고리 취향이 �
   assert.ok(many.categories.auto > one.categories.auto * 3,
     "반복된 일관 근거는 카테고리를 확실히 움직여야 한다");
 });
+
+// ---------------------------------------------------------------------------
+// 검색 노출 배관 — 2026-08-03 서치콘솔 제출에서 실제로 막혔던 지점
+// ---------------------------------------------------------------------------
+
+test("HEAD 요청이 GET과 같은 상태코드를 준다 (sitemap '가져올 수 없음' 원인)", async () => {
+  // 실측: 서치콘솔에 sitemap을 제출하니 "가져올 수 없음"이 떴다. XML은 유효하고
+  // GET은 200인데 **HEAD가 404**였다 — 모든 라우트가 method==="GET"만 보기
+  // 때문이다. 구글은 가져오기 전에 HEAD를 보내는 경우가 있다.
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({ dev: true });
+  await new Promise((r) => server.listen(0, r));
+  const port = server.address().port;
+  try {
+    for (const path of ["/sitemap.xml", "/robots.txt", "/"]) {
+      const head = await fetch(`http://127.0.0.1:${port}${path}`, { method: "HEAD" });
+      const get = await fetch(`http://127.0.0.1:${port}${path}`);
+      assert.equal(head.status, get.status, `${path}: HEAD와 GET 상태가 달라선 안 된다`);
+      assert.equal(head.headers.get("content-type"), get.headers.get("content-type"),
+        `${path}: HEAD도 같은 content-type을 줘야 한다`);
+      const body = await head.text();
+      assert.equal(body, "", `${path}: HEAD 응답에 본문이 있으면 안 된다`);
+      await get.text();
+    }
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("sitemap.xml이 유효한 XML이고 자체 콘텐츠 페이지를 담는다", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({ dev: true });
+  await new Promise((r) => server.listen(0, r));
+  const port = server.address().port;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/sitemap.xml`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type") || "", /xml/);
+    const xml = await res.text();
+    assert.match(xml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
+    assert.match(xml, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
+    assert.match(xml, /<\/urlset>\s*$/);
+    // 자체 콘텐츠가 실려야 의미가 있다 — 이게 애드핏 지적에 대한 답이다
+    // 오리진은 요청 호스트에서 만든다(originOf) — 테스트 서버는 127.0.0.1이다.
+    // 도메인을 하드코딩하면 스테이징·로컬에서 틀린 sitemap이 나가는 것을 놓친다.
+    const origin = `http://127.0.0.1:${port}`;
+    for (const must of ["/briefing", "/ranking/daily", "/trends"]) {
+      assert.ok(xml.includes(`<loc>${origin}${must}</loc>`), `sitemap에 ${must}가 없다`);
+    }
+    // 개인화 API는 색인 대상이 아니다
+    assert.ok(!xml.includes("/api/"), "API 경로가 sitemap에 들어가면 안 된다");
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("robots.txt가 sitemap을 가리키고 개인화·관리 경로를 막는다", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({ dev: true });
+  await new Promise((r) => server.listen(0, r));
+  const port = server.address().port;
+  try {
+    const txt = await (await fetch(`http://127.0.0.1:${port}/robots.txt`)).text();
+    assert.ok(txt.includes(`Sitemap: http://127.0.0.1:${port}/sitemap.xml`),
+      "robots가 자기 오리진의 sitemap을 가리켜야 한다");
+    assert.match(txt, /Disallow: \/api\//);
+    assert.match(txt, /Disallow: \/admin/);
+    assert.match(txt, /Allow: \//, "자체 콘텐츠는 열려 있어야 한다");
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});

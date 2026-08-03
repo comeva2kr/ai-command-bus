@@ -450,6 +450,23 @@ ${inner}
     const url = new URL(req.url, "http://localhost");
     const p = url.pathname;
 
+    // HEAD를 GET처럼 라우팅하고 본문만 비운다.
+    //
+    // 2026-08-03 실측: 서치콘솔에 sitemap을 제출했더니 "가져올 수 없음"이 떴다.
+    // XML도 유효하고 GET은 200인데, **HEAD가 404**였다 — 모든 라우트가
+    // `req.method === "GET"`만 보기 때문이다. 구글은 sitemap·robots를 가져오기
+    // 전에 HEAD를 보내는 경우가 있고, 404를 받으면 가져오기 실패로 판정한다.
+    // HEAD는 GET과 같은 헤더에 본문만 없어야 한다는 것이 HTTP 규약이기도 하다.
+    const isHead = req.method === "HEAD";
+    if (isHead) {
+      req.method = "GET";
+      const origEnd = res.end.bind(res);
+      const origWrite = res.write.bind(res);
+      res.write = () => true;                 // 본문은 버린다
+      res.end = (...args) => origEnd(typeof args[0] === "function" ? args[0] : undefined);
+      void origWrite; // 위에서 교체됐음을 명시 (원본은 쓰지 않는다)
+    }
+
     try {
       // --- API ---
       if (p === "/api/health") return send(res, 200, { ok: true });
