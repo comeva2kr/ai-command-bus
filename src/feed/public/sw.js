@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v59"; // v59: 쿠팡 파트너스 배너 26개 (API 승인 전 제휴 수익)
+const CACHE = "feed-shell-v60"; // v60: 네이티브 제휴 카드(이미지 차단 우회) + 이미지 위생 + 내 공간 정리
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png"];
 

@@ -37,12 +37,26 @@ export function loadBanners({ file = FILE } = {}) {
   return bannerCache || [];
 }
 
-// size로 고르고, 같은 사이즈 안에서 카테고리 문맥 → 나머지 순으로 회전한다.
-export function pickBanner({ category = null, size = "320x100", seen = new Set(), pick = 0, file } = {}) {
-  const all = loadBanners(file ? { file } : {}).filter((b) => b.size === size);
+// size로 고르고, 같은 사이즈 안에서 **이벤트 우선 → 카테고리 문맥 → 나머지**
+// 순으로 회전한다.
+//
+// 이벤트/프로모션 배너는 "여름 액세서리", "썸머펫 페스티벌"처럼 구체적이고
+// 시의성이 있어 카테고리 배너보다 클릭 유인이 크다. 다만 **기간 한정**이라
+// 만료되면 죽은 링크가 된다 — 눌렀는데 페이지가 없으면 수익은 0이고 불쾌감만
+// 남는다. 그래서 expires가 지난 것은 자동으로 빠지고 카테고리 배너로 폴백한다.
+// 관리 부담 없이 시의성만 취하는 구조다.
+export function pickBanner({ category = null, size = "320x100", seen = new Set(), pick = 0, now = Date.now(), file } = {}) {
+  const all = loadBanners(file ? { file } : {})
+    .filter((b) => b.size === size)
+    .filter((b) => !b.expires || b.expires >= now);
   if (!all.length) return null;
-  const inCat = category ? all.filter((b) => b.category === category) : [];
-  const tiers = inCat.length ? [inCat, all.filter((b) => b.category !== category)] : [all];
+  // 이벤트가 있으면 먼저 쓴다 — 같은 자리라도 "여름 시즌오프"가 "로켓패션"보다
+  // 눌릴 이유가 분명하다. 문맥까지 맞으면 최우선.
+  const ev = all.filter((b) => b.expires);
+  const evCat = category ? ev.filter((b) => b.category === category) : [];
+  const inCat = category ? all.filter((b) => !b.expires && b.category === category) : [];
+  const rest = all.filter((b) => !b.expires && b.category !== category);
+  const tiers = [evCat, inCat, ev, rest].filter((t) => t.length);
   for (const tier of tiers) {
     for (const group of [tier.filter((b) => !seen.has(b.id)), tier.filter((b) => seen.has(b.id))]) {
       if (group.length) return group[pick % group.length];
@@ -90,11 +104,22 @@ export function loadProducts({ file = FILE } = {}) {
       img: b.img.trim(),
       // 쿠팡 배너 원본은 alt=""다. 네이버 가이드가 alt로 내용을 설명하라고
       // 요구하므로 label로 채운다 — 비면 최소한 광고임은 밝힌다.
-      label: (typeof b.label === "string" && b.label.trim()) || "쿠팡 파트너스 광고"
+      label: (typeof b.label === "string" && b.label.trim()) || "쿠팡 파트너스 광고",
+      // "2026-08-09" 같은 종료일. 그 날 하루는 살아 있어야 하므로 23:59:59로 본다.
+      // 값이 없으면 상시 배너(만료 없음).
+      expires: parseExpiry(b.expires)
     }));
 
   cacheMtime = stat.mtimeMs;
   return cache;
+}
+
+// 종료일 파싱. 형식이 이상하면 null(= 상시)로 두지 않고 **0으로 만들어 제외**한다 —
+// 만료 관리가 목적인데 오타 하나로 죽은 배너가 영원히 남으면 의미가 없다.
+function parseExpiry(v) {
+  if (v == null || v === "") return null;
+  const t = Date.parse(`${String(v).trim()}T23:59:59+09:00`);
+  return Number.isFinite(t) ? t : 0;
 }
 
 function hash(s) {

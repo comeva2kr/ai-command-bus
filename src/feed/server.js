@@ -6,7 +6,7 @@
 //   FEED_DB=./feed-data.json node src/feed/server.js   # persisted
 
 import http from "node:http";
-import { pickBanner } from "./manual-products.js";
+import { pickBanner, loadBanners } from "./manual-products.js";
 import { makeIndexNow } from "./indexnow.js";
 import { maskProfanity } from "./profanity.js";
 import fs from "node:fs";
@@ -152,6 +152,25 @@ function serveStatic(res, urlPath, seedHtml = "") {
 
     // 홈 정적 콘텐츠 — 호출부(라우트)가 engine으로 만들어 넘긴다.
     // serveStatic은 engine을 모르는 순수 파일 서빙 함수라 여기서 만들 수 없다.
+    // 브리핑 스트립 자리에 정적 링크를 심는다.
+    //
+    // 스트립은 JS로 채워지므로 크롤러에게는 빈 div다. 자체 콘텐츠 페이지로 가는
+    // 유일한 통로가 그 안에 있는데 색인에서는 안 보이는 상태였다. 여기에 정적
+    // <a>를 넣어두면 크롤러가 읽고, JS가 뜨면 실제 브리핑 카드가 같은 자리를
+    // 대체한다(seed-list와 같은 방식). 별도 칩줄을 두는 것보다 화면이 깔끔하다.
+    if (ext === ".html" && rel === "index.html") {
+      const html0 = buf.toString("utf8");
+      const mk = '<div class="brief-strip" id="briefStrip" hidden></div>';
+      if (html0.includes(mk)) {
+        buf = Buffer.from(html0.replace(mk,
+          '<div class="brief-strip" id="briefStrip">' +
+          '<a class="bs-seed" href="/briefing">지금 브리핑</a>' +
+          '<a class="bs-seed" href="/ranking/daily">화제 랭킹 TOP 20</a>' +
+          '<a class="bs-seed" href="/trends">실시간 트렌드</a>' +
+          '</div>'));
+      }
+    }
+
     if (seedHtml && ext === ".html" && rel === "index.html") {
       const html = buf.toString("utf8");
       const marker = '<div id="feedSkel">';
@@ -348,15 +367,34 @@ export function createServer(opts = {}) {
   // 함께 나가야 하므로 같은 함수 안에서 붙인다 — 따로 두면 한쪽만 빠진다.
   const COUPANG_DISCLOSURE =
     "이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.";
+  // 카테고리별 한 줄 카피 — 쿠팡 배너 이미지를 대신하는 우리 크리에이티브.
+  //
+  // 배너 이미지(ads-partners.coupang.com)는 모바일 사파리의 추적 차단과 광고
+  // 차단 목록에 걸려 실기기에서 안 떴다(2026-08-03 David 실측: alt 텍스트만 표시).
+  // 수수료를 만드는 건 link.coupang.com 클릭이지 이미지가 아니므로, **링크는
+  // 그대로 두고 크리에이티브만 우리가 그린다.** 차단에 면역이고 페이지 디자인과도
+  // 맞는다. 문구는 실제로 그 링크가 여는 것만 말한다 — 없는 할인율이나 가격을
+  // 지어내면 허위표시가 된다.
+  const COUPANG_COPY = {
+    tech: ["노트북·모니터 바꿀 때가 됐다면", "쿠팡 로켓배송 가전·디지털"],
+    life: ["장 볼 것 있으면 오늘 주문해두기", "쿠팡 로켓프레시 · 새벽배송"],
+    auto: ["차 관리 미루고 있던 것들", "쿠팡 자동차용품·타이어"],
+    humor: ["심심할 때 하나쯤", "쿠팡 완구·취미"],
+    sports: ["운동 다시 시작할 거라면", "쿠팡 등산·아웃도어·골프"],
+    business: ["회원이면 배송비 없이", "쿠팡 로켓와우"],
+    culture: ["읽으려고 담아둔 책", "쿠팡 로켓배송 도서"],
+    gaming: ["게이밍 장비 손볼 때", "쿠팡 로켓배송 가전·디지털"],
+    news: ["필요한 건 미리 챙겨두기", "쿠팡 로켓배송"]
+  };
+  const coupangCopy = (cat) => COUPANG_COPY[cat] || ["오늘 필요한 것 빠르게", "쿠팡 로켓배송"];
   const coupangBannerHtml = (category, size) => {
     const b = pickBanner({ category, size });
     if (!b) return "";
-    const [w, h] = b.size.split("x");
-    return `<div class="ad-slot ad-coupang"><span class="ad-mark">AD · 쿠팡 파트너스</span>
-      <a href="${escapeHtml(b.href)}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
-        <img src="${escapeHtml(b.img)}" width="${escapeHtml(w)}" height="${escapeHtml(h)}"
-             alt="${escapeHtml(b.label)}" loading="lazy"></a>
-      <p class="ad-disclosure">${COUPANG_DISCLOSURE}</p></div>`;
+    const [hook, brand] = coupangCopy(b.category);
+    return `<aside class="ad-slot ad-coupang"><span class="ad-mark">AD · 쿠팡 파트너스</span>
+      <a class="ad-native" href="${escapeHtml(b.href)}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
+        <b>${escapeHtml(hook)}</b><span>${escapeHtml(brand)}</span><em>쿠팡에서 보기 →</em></a>
+      <p class="ad-disclosure">${COUPANG_DISCLOSURE}</p></aside>`;
   };
 
   const adSlotHtml = (slot) => {
@@ -461,7 +499,12 @@ ol.rank li a{color:var(--text);font-weight:700}
 .ad-mark{display:block;font-size:10px;letter-spacing:.12em;color:var(--muted);
   margin-bottom:6px}
 .ad-coupang{text-align:center}
-.ad-coupang img{max-width:100%;height:auto;display:inline-block}
+.ad-native{display:block;text-align:left;text-decoration:none;color:inherit;
+  border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.ad-native b{display:block;font-size:15px;line-height:1.45;margin-bottom:4px}
+.ad-native span{display:block;font-size:12.5px;color:var(--muted)}
+.ad-native em{display:block;font-style:normal;font-size:13px;font-weight:700;
+  color:var(--accent);margin-top:10px}
 /* 대가성 문구 — 작아도 읽히는 크기여야 한다(공정위 표시 기준의 취지) */
 .ad-disclosure{margin:8px 0 0;font-size:11.5px;line-height:1.5;color:var(--muted)}</style>${adLoadersHtml()}</head><body><div class="wrap">
 <a class="back" href="/">← 지금핫 피드로</a>
@@ -783,6 +826,7 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         const inner = `<h1>지금 브리핑 · ${escapeHtml(slotLabel)}</h1>
 <p class="muted">${dateStr} · 커뮤니티·뉴스 ${b.sourceCount}곳에서 모은 ${b.itemCount}건을 지금핫이 실측 데이터로 정리했습니다. 원문 인용 없이 우리가 잰 수치로만 씁니다.</p>
 ${bodyHtml}
+${coupangBannerHtml(null, "320x100")}
 ${b.digestSummary ? `<section class="issue"><h2>종합</h2><p>${escapeHtml(b.digestSummary)}</p></section>` : ""}
 ${rankingNav("")}
 <h2 style="margin-top:28px">분야별 상위 글</h2>
@@ -918,7 +962,29 @@ ${rankingRows(list)}`;
         // 에서도 뺀다. 목록에는 있는데 피드에 0건인 소스는 신뢰만 깎는다.
         const disabledIds = new Set(registry.filter((c) => c.enabled === false).map((c) => c.id));
         const liveCatalog = SOURCE_CATALOG.filter((s) => !disabledIds.has(s.id));
-        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: liveCatalog, topics: TOPIC_CATALOG, monetization, adfit, auth });
+
+        // 피드용 제휴 카드 데이터.
+        //
+        // **이미지를 보내지 않는다.** 쿠팡 배너 크리에이티브는
+        // ads-partners.coupang.com에서 오는데, 도메인 이름에 "ads-"가 들어가
+        // 모바일 사파리의 크로스사이트 추적 차단과 광고 차단 목록에 걸린다
+        // (2026-08-03 David 실기기: 배너 자리에 alt 텍스트만 떴다). 광고 수익을
+        // 남의 도메인 이미지 한 장에 걸어두면 차단하는 사용자 비율만큼 통째로 0이 된다.
+        //
+        // 대신 **링크는 그대로 쓰고 크리에이티브만 우리가 그린다.** 수수료를 만드는
+        // 것은 link.coupang.com 클릭이지 이미지가 아니다. 링크는 내비게이션이라
+        // 차단 목록의 서브리소스 규칙에 걸리지 않는다. 덤으로 피드 카드와 같은
+        // 디자인이 되어 다크모드에서 흰 배너가 튀는 문제도 사라진다.
+        const coupang = (() => {
+          const byCat = new Map();
+          for (const b of loadBanners()) {
+            if (!byCat.has(b.category)) byCat.set(b.category, { category: b.category, href: b.href, label: b.label });
+          }
+          const items = [...byCat.values()];
+          return items.length ? { disclosure: COUPANG_DISCLOSURE, items } : null;
+        })();
+
+        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: liveCatalog, topics: TOPIC_CATALOG, monetization, adfit, coupang, auth });
       }
 
       if (p === "/api/communities" && req.method === "GET") {

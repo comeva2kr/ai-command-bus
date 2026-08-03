@@ -77,6 +77,38 @@ function metaContent(html, name) {
 // 로고·아이콘·추적픽셀처럼 대표 이미지가 될 수 없는 URL 패턴 (본문 폴백 전용)
 const NON_CONTENT_IMG = /(logo|icon|sprite|avatar|profile|blank|spacer|pixel|1x1|banner_|btn_|emoticon)/i;
 
+// 대표 이미지가 될 수 없는 URL — **모든 후보**(og/twitter/영상/본문)에 적용한다.
+//
+// 2026-08-03 실측(David: "82쿡 사진 x박스, 오유도 일부, 뉴스 일부"). 라이브 피드
+// 39개 호스트를 실제로 받아 보니 깨지는 건 핫링크 차단이 아니라 전부 **파서가
+// 본문 사진 대신 사이트 장식물을 집어온** 경우였다:
+//   - 82쿡    https://www.82cook.com//banner/data/20130725_kit.gif
+//             2013년 배너 광고. 게다가 그 호스트는 443 포트가 닫혀 있어
+//             https로는 ECONNREFUSED — 브라우저에서 무조건 깨진다.
+//   - 오늘의유머 http://thimg.todayhumor.co.kr/test.png
+//             페이지에 박혀 있는 플레이스홀더. 404.
+//   - 인스티즈  https://img.youtube.com/vi/player/cliplink/<네이버클립ID>/mqdefault.jpg
+//             유튜브 영상 ID 자리에 네이버TV 클립 ID가 들어가 404.
+// 기존 NON_CONTENT_IMG는 본문 폴백에만 걸려서 og:image로 들어온 것들을 못 막았다.
+const JUNK_IMG_PATH = /(?:^|\/)(?:banner|banners|ad|ads|adimg)\//i;
+const JUNK_IMG_FILE = /(?:^|\/)(?:test|sample|noimage|no_image|noimg|default|dummy|thumb_default)\.(?:png|jpe?g|gif|webp)$/i;
+
+// 유튜브 썸네일은 경로가 /vi/<11자 영상ID>/... 여야 한다. 다른 서비스의 클립
+// ID를 끼워 넣은 URL은 200처럼 보여도 실제로는 404다.
+function badYoutubeThumb(u) {
+  if (!/(^|\.)youtube\.com$/i.test(u.hostname) && !/(^|\.)ytimg\.com$/i.test(u.hostname)) return false;
+  const m = u.pathname.match(/^\/vi\/([^/]+)\//);
+  return !m || !/^[\w-]{11}$/.test(m[1]);
+}
+
+// 후보 URL이 대표 이미지로 쓸 수 없는 것인지 판정. 절대 URL(URL 객체)을 받는다.
+export function isJunkImage(u) {
+  if (JUNK_IMG_PATH.test(u.pathname)) return true;
+  if (JUNK_IMG_FILE.test(u.pathname)) return true;
+  if (badYoutubeThumb(u)) return true;
+  return false;
+}
+
 // 유튜브·비메오 임베드에서 공개 썸네일 URL을 유도한다 — 영상 글도 대표
 // 이미지를 갖게 하는 경로(David 2026-08-01: "첫번째 사진이나 영상을 썸네일로").
 // 두 서비스 모두 공개 썸네일 엔드포인트를 제공하므로 핫링크 원칙 그대로다.
@@ -125,6 +157,7 @@ export function extractOgImage(html, baseUrl) {
     let abs;
     try { abs = new URL(decoded, baseUrl); } catch { continue; }
     if (abs.protocol !== "http:" && abs.protocol !== "https:") continue;
+    if (isJunkImage(abs)) continue;
     return abs.toString();
   }
   return null;

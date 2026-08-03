@@ -158,16 +158,6 @@
   .seed-list a{color:var(--text);text-decoration:none;font-weight:700;line-height:1.45}
   .seed-src{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
 
-  /* ③ 자체 콘텐츠 바 — 정렬 칩과 같은 높이감으로 붙여 위화감을 줄인다 */
-  .own-nav{display:flex;gap:8px;padding:8px 16px;border-bottom:1px solid var(--line);
-    overflow-x:auto;scrollbar-width:none}
-  .own-nav::-webkit-scrollbar{display:none}
-  .own-nav a{flex:none;font-size:12.5px;font-weight:700;color:var(--text);
-    text-decoration:none;border:1px solid var(--line);padding:5px 11px;
-    white-space:nowrap}
-  .own-nav a:hover,.own-nav a:focus-visible{border-color:var(--accent);color:var(--accent)}
-  body.immersion .own-nav{display:none}
-
   /* floating action bar */
   .fab { position: fixed; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 30; display: flex; flex-direction: column; gap: 10px; }
   .fab button { width: 52px; height: 52px; border-radius: 50%; border: none; font-size: 22px; color: #fff;
@@ -259,6 +249,9 @@
   .sort-bar { display: flex; gap: 8px; padding: 10px 16px 0; margin: 0 0 4px; }
 
   /* 지금 브리핑 스트립 — 가로 스크롤 카드 */
+  /* JS 전에 크롤러·사용자가 보는 정적 링크. 실제 브리핑 카드가 오면 대체된다. */
+  .bs-seed{flex:none;font-size:12.5px;font-weight:700;color:var(--text);text-decoration:none;
+    border:1px solid var(--line);padding:6px 12px;white-space:nowrap}
   .brief-strip { display: flex; gap: 10px; overflow-x: auto; padding: 12px 16px 2px;
     scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .brief-strip::-webkit-scrollbar { display: none; }
@@ -325,6 +318,10 @@
   .card.read { opacity: .5; }
   .card.read h3 { color: var(--muted); }
   .card.read::after { content: "읽음"; float: right; font-size: 10px; color: var(--muted); }
+  .space-btn { margin-top: 14px; width: 100%; padding: 11px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: none; color: var(--text);
+    font-size: 13.5px; font-weight: 700; cursor: pointer; }
+  .space-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.55; }
   .mute-btn { margin-left: auto; background: none; border: 1px solid var(--line); color: var(--muted);
     border-radius: 8px; padding: 5px 10px; font-size: 12px; }
   .muted-row { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line);
@@ -663,6 +660,14 @@
   body.immersion #feed .card .orig-title{display:none} /* 원제는 상세에서 본다 */
   /* 네트워크 배너(애드핏/애드센스) 카드 — 틀은 유기 카드와 동일, 안쪽 배너만
      가운데 정렬. 배너 크리에이티브 자체는 외부 iframe이라 색을 못 바꾼다. */
+  .card .ad-native{display:block;text-decoration:none;color:inherit;
+    border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:10px}
+  .card .ad-native b{display:block;font-size:15.5px;line-height:1.45;margin-bottom:4px}
+  .card .ad-native span{display:block;font-size:12.5px;color:var(--muted)}
+  .card .ad-native em{display:block;font-style:normal;font-size:13px;font-weight:700;
+    color:var(--color-accent);margin-top:10px}
+  .card.ad-net .ad-net-slot img{max-width:100%;height:auto}
+  .card.ad-net .ad-disclosure{margin:8px 0 0;font-size:11px;line-height:1.5;color:var(--muted);text-align:left}
   .card.ad-net .ad-net-slot{display:flex;justify-content:center;align-items:center;
     min-height:0;padding:10px 0 2px}
   .card.ad-net .badge.ad-badge-static{margin-left:auto}
@@ -682,12 +687,10 @@
   @keyframes heatrise{from{transform:scaleY(.12)}to{transform:scaleY(1)}}
   @media (prefers-reduced-motion:reduce){.heat i{animation:none}}
   /* 썸네일 실패 = 기본 상태: 45도 해칭 (문구·아이콘 금지) */
-  .card-thumb.noimg{background:repeating-linear-gradient(45deg,
-    var(--color-surface),var(--color-surface) 6px,transparent 6px,transparent 12px);
-    border:1px solid var(--line);position:relative;min-height:72px}
-  .card-thumb.noimg img{display:none}
-  .card-thumb.noimg::after{content:attr(data-src-label);position:absolute;left:6px;bottom:4px;
-    font:600 10px var(--font-heading);color:var(--muted);text-transform:lowercase}
+  /* 이미지가 안 열리면 썸네일 영역 자체를 지운다. 예전엔 빗금 플레이스홀더를
+     남겼는데 실기기에서 "사진이 깨졌다"로 읽혔다(David 2026-08-03). 사진 없는
+     텍스트 카드가 깨진 사진 자리보다 낫다. */
+  .card-thumb.noimg{display:none}
   /* 상세 바텀시트: 상단 2px 괘선 + 사각 핸들, 그림자 허용(상위 레이어) */
   .detail-panel{border:none;border-top:2px solid var(--color-divider);
     box-shadow:0 -12px 32px color-mix(in srgb,#000 22%,transparent)}
@@ -912,17 +915,9 @@
 
   <!-- 정렬 바 (#12, "상단에 필터링 옵션에 최신순도") — 핫=기존 추천,
        최신=시간버킷×소스 인터리브의 중립 최신 뷰 (engine.js sort:"latest") -->
-  <!-- ③ 자체 콘텐츠 정적 링크 (2026-08-03).
-       예전엔 브리핑·랭킹으로 가는 길이 햄버거 메뉴 안에만 있었다. 메뉴는
-       스크립트로 열리므로, 심사원이 홈에서 자체 콘텐츠를 못 보고 크롤러도
-       못 따라간다 — 홈 HTML 172KB 중 대부분이 스크립트라 자체 콘텐츠 텍스트가
-       사실상 0으로 읽혔다. 여기 있는 것은 정적 <a>라 스크립트 없이도 보인다. -->
-  <nav class="own-nav" aria-label="지금핫이 만든 콘텐츠">
-    <a href="/briefing">지금 브리핑</a>
-    <a href="/ranking/daily">화제 랭킹</a>
-    <a href="/trends">실시간 트렌드</a>
-  </nav>
-
+  <!-- 자체 콘텐츠로 가는 정적 링크는 브리핑 스트립(#briefStrip) 안에 서버가
+       심는다 — 2026-08-03에 여기 별도 칩줄을 뒀더니 스트립과 같은 곳을 가리키는
+       줄이 둘이 되어 상단이 어정쩡해졌다(David 지적). 링크는 한 자리에만 둔다. -->
   <div class="sort-bar" id="sortBar" role="tablist" aria-label="정렬">
     <button class="chip active" data-sort="hot" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hot"></use></svg>핫</button>
     <button class="chip" data-sort="latest" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-latest"></use></svg>최신</button>
@@ -1351,30 +1346,87 @@ function setupLeanSlider(session){
   });
 }
 
-// 카카오 애드핏 배너 (애드센스 심사 공백 메우기, ).
-// 첫 페이지 4번째 카드 뒤에 페이지당 1회만 삽입한다 — 첫 화면(카드 1~3)은
-// 콘텐츠 첫인상을 지키고(적대적 검수: 첫 화면 민감), 같은 광고단위의 페이지 내
-// 중복 노출은 애드핏 정책상 피한다. <ins>는 display:none으로 시작하고 애드핏
-// 스크립트가 실광고를 받았을 때만 펼치므로, 심사 중/무광고 상태에선 빈 박스도
-// 생기지 않는다(레이아웃 시프트 없음).
+// 피드 안 제휴 카드 + 애드핏.
+//
+// ── 왜 이렇게 바뀌었나 (2026-08-03, David 실기기 제보 2건)
+// 1) "폰에서 광고 안 보인다" — 애드핏 매체 심사가 보류라 <ins>가 빈 채로 남았다.
+// 2) "배너 그림도 없어 안 떠"  — 쿠팡 배너 크리에이티브는 ads-partners.coupang.com
+//    에서 오는데 모바일 사파리 추적 차단·광고 차단 목록에 걸려 alt 텍스트만 떴다.
+// 3) "제일 하단에만 하나 띡" — 한 페이지에 1회, 그것도 접히는 자리라 볼 일이 없다.
+//
+// 그래서: 이미지를 버리고 **링크만 살려** 우리 카드 디자인으로 직접 그린다(차단 면역,
+// 다크모드 일치). 자리는 스크롤 중간에 주기적으로 — 무한스크롤로 로드되는 뒤쪽
+// 페이지에도 계속 들어간다. 문맥은 **바로 앞 카드의 카테고리**를 따라간다.
+const AD_FIRST = 6;   // 첫 광고는 6번째 카드 뒤 — 첫 화면(1~3)은 콘텐츠로만 채운다
+const AD_EVERY = 10;  // 이후 10카드마다
+
+// 상세 화면용 — 카드 틀 안에 같은 크리에이티브를 넣는다.
+function detailAdHtml(category){
+  const cp = state.config && state.config.coupang;
+  const link = pickCoupangLink(category);
+  if(!link) return "";
+  return `<article class="card ad-card ad-net" style="margin:18px 0">${coupangCardHtml(link, cp.disclosure)}</article>`;
+}
+
+function coupangCardHtml(link, disclosure){
+  const [hook, brand] = COUPANG_COPY[link.category] || COUPANG_COPY._;
+  return `<div class="card-top">
+      <span class="dot" style="background:var(--color-accent)"></span>
+      <span class="src">쿠팡 파트너스</span>
+      <span class="badge ad-badge-static">AD</span>
+    </div>
+    <a class="ad-native" href="${escapeHtml(link.href)}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
+      <b>${escapeHtml(hook)}</b><span>${escapeHtml(brand)}</span><em>쿠팡에서 보기 →</em></a>
+    <p class="ad-disclosure">${escapeHtml(disclosure)}</p>`;
+}
+
+// 카피는 그 링크가 실제로 여는 것만 말한다 — 없는 할인율·가격을 지어내면 허위표시다.
+const COUPANG_COPY = {
+  tech: ["노트북·모니터 바꿀 때가 됐다면", "쿠팡 로켓배송 가전·디지털"],
+  life: ["장 볼 것 있으면 오늘 주문해두기", "쿠팡 로켓프레시 · 새벽배송"],
+  auto: ["차 관리 미루고 있던 것들", "쿠팡 자동차용품·타이어"],
+  humor: ["심심할 때 하나쯤", "쿠팡 완구·취미"],
+  sports: ["운동 다시 시작할 거라면", "쿠팡 등산·아웃도어·골프"],
+  business: ["회원이면 배송비 없이", "쿠팡 로켓와우"],
+  culture: ["읽으려고 담아둔 책", "쿠팡 로켓배송 도서"],
+  gaming: ["게이밍 장비 손볼 때", "쿠팡 로켓배송 가전·디지털"],
+  news: ["필요한 건 미리 챙겨두기", "쿠팡 로켓배송"],
+  _: ["오늘 필요한 것 빠르게", "쿠팡 로켓배송"]
+};
+
+// 문맥에 맞는 제휴 링크를 고른다. 같은 카테고리가 있으면 그걸 쓰고, 없으면 회전.
+let adRotate = 0;
+function pickCoupangLink(category){
+  const cp = state.config && state.config.coupang;
+  if(!cp || !cp.items || !cp.items.length) return null;
+  const inCat = cp.items.filter(x => x.category === category);
+  const pool = inCat.length ? inCat : cp.items;
+  return pool[(adRotate++) % pool.length];
+}
+
 function maybeInsertAdfit(){
+  const cp = state.config && state.config.coupang;
   const unit = state.config && state.config.adfit && state.config.adfit.mobileUnit;
-  if(!unit || document.getElementById("adfitSlot")) return;
+  // 애드핏도 쿠팡도 없으면 지면 자체를 만들지 않는다 — 빈 광고 박스는 지면만
+  // 차지하고 수익은 0이며 "고장난 화면"으로 읽힌다.
+  if(!unit && !cp) return;
+
   const feed = document.getElementById("feed");
-  const cards = feed.querySelectorAll(".card");
-  if(cards.length < 4) return;
-  // 광고도 카드 틀 안에 넣는다 (David 2026-08-02 "다른 기사/컨텐츠랑 같은 디자인으로").
-  // 예전엔 <ins>만 맨몸으로 카드 사이에 끼워 넣어서, 카카오가 흰 배경 배너를
-  // 내보내면 다크 모드 피드 한가운데에 흰 박스가 떠 있었다(David 스크린샷).
-  //
-  // 틀·헤더·배지·여백은 유기 카드(.card)와 완전히 같은 클래스를 쓰므로
-  // 라이트/다크 전환도 같은 CSS 변수를 따라간다. 다만 **배너 안쪽 크리에이티브는
-  // 카카오가 그리는 iframe이라 우리가 색을 바꿀 수 없다** — 완전히 같은 디자인으로
-  // 맞추려면 네이티브 인피드 광고 유닛이 필요하고, 그건 콘솔 설정 사안이다.
-  const slot = document.createElement("article");
-  slot.id = "adfitSlot";
-  slot.className = "card ad-card ad-net";
-  slot.innerHTML = `
+  const cards = [...feed.querySelectorAll(".card:not(.ad-card)")];
+
+  for(let i = AD_FIRST - 1; i < cards.length; i += AD_EVERY){
+    const anchor = cards[i];
+    if(!anchor || anchor.dataset.adAfter) continue;
+    anchor.dataset.adAfter = "1";
+
+    const slot = document.createElement("article");
+    slot.className = "card ad-card ad-net";
+    // 애드핏은 페이지당 1회만 — 같은 광고단위의 중복 노출은 애드핏 정책상 피한다.
+    // 나머지 자리는 전부 쿠팡 제휴 카드가 채운다.
+    const useAdfit = unit && !document.getElementById("adfitSlot");
+    if(useAdfit){
+      slot.id = "adfitSlot";
+      slot.innerHTML = `
     <div class="card-top">
       <span class="dot" style="background:var(--color-accent)"></span>
       <span class="src">제휴 광고</span>
@@ -1383,12 +1435,19 @@ function maybeInsertAdfit(){
     <div class="ad-net-slot">
       <ins class="kakao_ad_area" style="display:none;" data-ad-unit="${unit}" data-ad-width="320" data-ad-height="100"></ins>
     </div>`;
-  cards[3].insertAdjacentElement("afterend", slot);
-  if(!document.getElementById("adfitLoader")){
-    const sc = document.createElement("script");
-    sc.id = "adfitLoader"; sc.async = true;
-    sc.src = "https://t1.kakaocdn.net/kas/static/ba.min.js";
-    document.body.appendChild(sc);
+    } else {
+      const link = pickCoupangLink(anchor.dataset.category || null);
+      if(!link) continue;
+      slot.innerHTML = coupangCardHtml(link, cp.disclosure);
+    }
+    anchor.insertAdjacentElement("afterend", slot);
+
+    if(useAdfit && !document.getElementById("adfitLoader")){
+      const sc = document.createElement("script");
+      sc.id = "adfitLoader"; sc.async = true;
+      sc.src = "https://t1.kakaocdn.net/kas/static/ba.min.js";
+      document.body.appendChild(sc);
+    }
   }
 }
 
@@ -1800,7 +1859,10 @@ async function openSpace(){
         <div class="stat"><b>${s.counts.likes}</b><span>좋아요</span></div>
         <div class="stat"><b>${s.counts.comments}</b><span>댓글</span></div>
       </div>
-      <div class="space-sec"><h4>📊 내 취향 (학습된 결과)</h4>${tasteHtml(s.taste)}</div>
+      <div class="space-sec"><h4>📊 내 취향 (학습된 결과)</h4>${tasteHtml(s.taste)}
+        <button class="space-btn" id="retakeSurvey">취향 다시 설정하기</button>
+        <p class="space-hint">처음 고른 관심사를 다시 고를 수 있어요. 좋아요·별로예요로 배운 결과는 그대로 남습니다.</p>
+      </div>
       <div class="space-sec"><h4>콘텐츠 필터</h4><div class="content-filter-block">${contentFilterHtml()}</div></div>
       <div class="space-sec"><h4>스크랩</h4>${
         (s.saved&&s.saved.length) ? s.saved.map(p=>`<article class="card" data-id="${p.id}"><div class="card-top"><span class="dot" style="background:${srcColor(p.source)}"></span><span class="src">${srcLabel(p.source)}</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3></article>`).join("")
@@ -1818,6 +1880,12 @@ async function openSpace(){
         s.comments.length ? s.comments.slice().reverse().map(c=>`<div class="comment"><div class="who">${timeAgo(c.at)}</div><div class="txt">${escapeHtml(c.body)}</div></div>`).join("")
           : '<p style="color:var(--muted);font-size:13px">아직 댓글이 없어요.</p>'}
       </div>`;
+    const retake = document.getElementById("retakeSurvey");
+    if(retake) retake.onclick = ()=>{
+      closeSpace();
+      document.getElementById("survey").classList.remove("hidden");
+      showSurvey();
+    };
     // unmute buttons
     body.querySelectorAll(".muted-row button").forEach(btn=>{
       btn.onclick = async ()=>{ try { await API.mute(state.userId, btn.dataset.src, false);
@@ -2744,7 +2812,7 @@ async function renderDetail(itemId){
     try { await navigator.clipboard.writeText(text); toast("링크가 클립보드에 복사되었습니다"); }
     catch { prompt("복사해 주세요", text); }
   };
-  const head = document.querySelector(".detail-head");
+  const head = document.querySelector("#detail .detail-head");
   let muteBtn = head.querySelector(".mute-btn:not(#shareBtn)");
   if(!muteBtn){ muteBtn = document.createElement("button"); muteBtn.className="mute-btn"; head.appendChild(muteBtn); }
   if(item.source==="me"){ muteBtn.style.display="none"; }
@@ -2768,6 +2836,7 @@ async function renderDetail(itemId){
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">원문에서 계속 읽기 →</a>
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
     `:""}
+    ${detailAdHtml(item.category)}
     <div class="detail-actions">
       <button class="rate up ${item.myRating>0?'on':''}" id="dUp">${ic('like',15)} 좋아요</button>
       <button class="rate down ${item.myRating<0?'on':''}" id="dDown">${ic('dislike',15)} 별로예요</button>

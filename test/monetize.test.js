@@ -1239,7 +1239,7 @@ test("privacy.html: 개인정보처리방침이 존재하고 실수집 항목·�
   assert.match(html, /comeva2kr@gmail\.com/, "문의처");
 });
 
-test("adfit: 광고단위는 env 설정 시에만 /api/config에 노출되고, 클라이언트는 4번째 카드 뒤 1회만 삽입한다", async () => {
+test("adfit: 광고단위는 env 설정 시에만 /api/config에 노출되고, 애드핏은 페이지당 1회만 쓴다", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const prev = process.env.ADFIT_UNIT_MOBILE;
   try {
@@ -1266,8 +1266,14 @@ test("adfit: 광고단위는 env 설정 시에만 /api/config에 노출되고, �
   const { fileURLToPath } = await import("node:url");
   const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html"), "utf8");
   const fn = html.slice(html.indexOf("function maybeInsertAdfit"), html.indexOf("// Soft, dismissible"));
-  assert.ok(fn.includes('getElementById("adfitSlot")'), "페이지당 1회 가드");
-  assert.ok(fn.includes("cards.length < 4"), "첫 3장은 콘텐츠 유지 — 4번째 카드 뒤 삽입");
-  assert.ok(fn.includes("display:none"), "실광고 수신 전 빈 박스 금지");
+  assert.ok(fn.includes('getElementById("adfitSlot")'), "애드핏은 페이지당 1회 — 같은 광고단위 중복 노출 금지");
+  // 계약 변경 2026-08-03: 예전엔 "4번째 카드 뒤에 딱 1개"였다. 실기기에서
+  // David가 "제일 하단에만 하나 띡 들어가 있으면 누가 이걸 보지도 못하겠다"고
+  // 지적했고, 실제로 지면이 1개면 스크롤하는 사용자 대부분에게 노출이 0이다.
+  // 이제 AD_FIRST 뒤부터 AD_EVERY마다 들어가고, 애드핏 자리 하나를 뺀 나머지는
+  // 쿠팡 제휴 카드가 채운다. 첫 화면 보호(AD_FIRST >= 4)는 그대로다.
+  assert.ok(Number(html.match(/const AD_FIRST = (\d+)/)[1]) >= 4, "첫 화면은 콘텐츠로만");
+  assert.ok(fn.includes("display:none"), "애드핏 실광고 수신 전 빈 박스 금지");
+  assert.ok(fn.includes("if(!unit && !cp) return;"), "지면이 채울 게 없으면 만들지 않는다");
   assert.match(html, /maybeInsertAdfit\(\);/, "loadMore에서 호출되어야");
 });
