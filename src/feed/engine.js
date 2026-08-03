@@ -11,6 +11,7 @@ import { loadRegistry } from "./registry.js";
 import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
 import { eventKey } from "./dedupe.js";
+import { buildDigest, MIN_ISSUES, slotForHour } from "./digest.js";
 import { rankParams, categorySets, selectDiverse } from "./rank.js";
 import {
   rankItems,
@@ -1219,16 +1220,11 @@ export class FeedEngine {
           // 발췌·원문 링크가 빠져 있어서 브리핑이 "요약"이 아니라 제목 나열이었다
           // (2026-08-02 검수: 10개 섹션 전부 같은 템플릿, 설명 문장 0개).
           // 피드에는 이미 summary가 있는데 브리핑에서 한 줄도 안 쓰고 있었다.
-          summary: i.summary || "",
-          // 발췌가 없는 글(커뮤니티 list 어댑터는 법적 제약으로 본문을 안 가져온다)
-          // 을 위한 폴백. editorial.js가 실측 지표로 만드는 한 줄이라 없는 내용을
-          // 지어내지 않는다 — "더쿠에서 2시간 만에 추천 5.3만·댓글 349".
-          // 이게 있어야 브리핑이 제목 나열이 아니라 읽히는 페이지가 된다.
-          //
-          // 여기서 직접 만든다: editorialNote는 원래 _decorate(사용자별 렌더)에서
-          // 붙기 때문에 풀 아이템에는 없다. 브리핑은 로그인과 무관한 공개
-          // 페이지라 그 경로를 타지 않는다.
-          editorialNote: buildEditorialNote(i, { now }) || "",
+          // ① 외부 본문 발췌를 브리핑에 싣지 않는다 (2026-08-03).
+          // 애드핏 보류 사유가 "외부 콘텐츠 비중"인데, 실측에서 이 자리에
+          // 원문 URL("https://xcancel.com/...")과 영어 원문이 그대로 실리고
+          // 있었다 — 우리 손으로 그 지적을 증명하던 셈이다.
+          // 대신 우리가 측정한 값으로 쓴 문장이 digest.js에서 나온다(④).
           url: i.url || "",
           sourceLabel: this._labelFor(i),
           score: i.score || 0, commentCount: i.commentCount || 0,
@@ -1247,10 +1243,53 @@ export class FeedEngine {
     const debatePool = pool.filter((i) => (i.commentCount || 0) >= 30)
       .sort((a, b) => (b.commentCount || 0) - (a.commentCount || 0));
     const debate = debatePool.find((i) => !hasProfanity(i.title)) || null;
+    // ④ 이슈 다이제스트 — 브리핑의 본문. 카테고리별 top3가 아니라 **풀 상위
+    // 전체**를 재료로 묶는다(카테고리로 먼저 쪼개면 같은 사건이 서로 다른
+    // 카테고리로 흩어져 묶이지 않는다 — 실측에서 6개 이슈가 전부 1건짜리였다).
+    const ranked = [...pool]
+      .map((i) => ({
+        id: i.id, title: i.title, source: i.source, sourceLabel: this._labelFor(i),
+        score: i.score || 0, commentCount: i.commentCount || 0,
+        coverage: i.coverage || 0, tags: i.tags || []
+      }))
+      .filter((i) => !hasProfanity(i.title))
+      .sort((a, b) => engagement(b) + (b.coverage || 0) * 50 - (engagement(a) + (a.coverage || 0) * 50));
+
+    // 후보 단계에서 소스 균형을 잡는다.
+    //
+    // 그냥 상위 60건을 자르면 그 60건이 한 소스로 채워진다 — 소스마다 score의
+    // 의미와 스케일이 다르기 때문이다(더쿠 추천 16만 vs 해커뉴스 563, 뉴스는
+    // 아예 0). 실측에서 브리핑 이슈 6개 중 5개가 더쿠였다. 다이제스트 쪽
+    // 소스 상한만으로는 못 막는다 — 후보에 다른 소스가 아예 없으면 상한이
+    // 풀리기 때문이다.
+    //
+    // 근본 해결은 소스 간 점수 정규화이고 그건 별건이다(검수 P1 "hotScore가
+    // 정규화되지 않은 velocity 항 하나로 결정된다"). 여기서는 브리핑이 목적을
+    // 잃지 않도록 편성 단계에서 막는다.
+    const perSourceCandidates = new Map();
+    const balancedPool = [];
+    for (const i of ranked) {
+      const key = i.source || i.sourceLabel;
+      const n = perSourceCandidates.get(key) || 0;
+      if (n >= 6) continue;
+      perSourceCandidates.set(key, n + 1);
+      balancedPool.push(i);
+      if (balancedPool.length >= 60) break;
+    }
+    const digest = buildDigest(balancedPool);
+    const kstHour = new Date(now + 9 * 3600 * 1000).getUTCHours();
+    const slot = slotForHour(kstHour);
+
     return {
       generatedAt: new Date(now).toISOString(),
       itemCount: pool.length,
       sourceCount: new Set(pool.map((i) => i.source)).size,
+      // ④⑤ 이슈 본문 + 편성. publishable=false면 서버가 발행하지 않는다 —
+      // 수집이 멈춘 시간대에 빈 브리핑이 나가는 것을 막는 안전장치.
+      slot: { id: slot.id, label: slot.label },
+      issues: digest.issues,
+      digestSummary: digest.summary,
+      publishable: digest.issues.length >= MIN_ISSUES,
       // 카테고리 컷 없음 (David 2026-08-01 "모든 카테고리 다, 안 빼먹고") —
       // 공급이 2건 이상인 카테고리는 전부 싣는다. 정치만 공개 페이지 원칙상
       // 제외(위 pool 필터), 라이프처럼 공급이 빈 카테고리는 소스가 생기면

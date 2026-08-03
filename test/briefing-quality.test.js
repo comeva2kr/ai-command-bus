@@ -62,16 +62,66 @@ test("비속어: 일상어를 오탐하지 않는다", () => {
   }
 });
 
-test("브리핑: 항목에 발췌와 원문 링크가 실린다", async () => {
-  // 실측: /api/briefing 항목 키에 summary·url이 아예 없어서 브리핑이 "요약"이
-  // 아니라 제목 나열이었다 — 애드핏이 요구한 자체 콘텐츠의 반대편이다.
-  const engine = await import("../src/feed/engine.js");
-  const src = (await import("node:fs")).readFileSync(
-    new URL("../src/feed/engine.js", import.meta.url), "utf8");
-  const fn = src.slice(src.indexOf("async briefing()"), src.indexOf("async briefing()") + 4000);
-  assert.match(fn, /summary: i\.summary/, "발췌를 실어야 한다");
-  assert.match(fn, /url: i\.url/, "원문 링크를 실어야 한다");
-  assert.ok(engine.FeedEngine, "엔진이 정상 로드되어야 한다");
+test("브리핑: 외부 원문 발췌를 싣지 않는다 (애드핏 '외부 콘텐츠 비중' 대응)", async () => {
+  // 2026-08-02에는 "발췌를 실어야 요약이 된다"고 판단해 summary를 넣었는데,
+  // 2026-08-03 실측에서 그 자리에 원문 URL("https://xcancel.com/...")과 영어
+  // 원문("Qwen Studio offers comprehensive functionality…")이 그대로 실리고
+  // 있었다. 애드핏 보류 사유가 "외부 콘텐츠·외부 링크 비중"인데 그 지적을 우리
+  // 손으로 증명하던 셈이라 계약을 뒤집었다.
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/feed/engine.js", import.meta.url), "utf8");
+  const fn = src.slice(src.indexOf("async briefing()"), src.indexOf("async briefing()") + 6000);
+  assert.doesNotMatch(fn, /summary: i\.summary/, "브리핑 항목에 원문 발췌를 넘기면 안 된다");
+  const server = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
+  assert.ok(!server.includes("briefingSummary"), "발췌 렌더러가 남아 있으면 안 된다");
+});
+
+test("브리핑: 이슈 문단이 본문이 된다 (자체 저작 문장)", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  // 구글 정책의 "논평·큐레이션·기타 부가가치" — 우리가 잰 값으로만 쓴 문장.
+  const items = [
+    { id: "a", title: "메모리 가격 역대 최고치 경신했다는 소식", sourceLabel: "비즈니스포스트",
+      score: 0, commentCount: 0, coverage: 5, tags: ["메모리"] },
+    { id: "b", title: "인벤에서 딜 계산 두고 벌어진 긴 논쟁", sourceLabel: "인벤",
+      score: 140, commentCount: 300, coverage: 0, tags: [] },
+    { id: "c", title: "해커뉴스 상위에 오른 새 오픈소스 도구", sourceLabel: "해커뉴스",
+      score: 560, commentCount: 380, coverage: 0, tags: [] }
+  ];
+  const d = buildDigest(items);
+  assert.ok(d.issues.length >= 3, "이슈가 만들어져야 한다");
+  assert.ok(d.summary.length > 20, "종합 문단이 있어야 한다");
+  // 참조 글에 원문 발췌 필드가 절대 실리면 안 된다
+  for (const is of d.issues) {
+    for (const r of is.refs) {
+      assert.ok(!("summary" in r), "참조에 원문 발췌가 실리면 안 된다");
+      assert.ok(!("url" in r), "브리핑은 내부 링크만 쓴다");
+    }
+    assert.ok(is.paragraph.length > 10, "문단이 비면 안 된다");
+  }
+  // 헤드라인이 서로 달라야 한다 — 같은 문장 반복이 "자체 콘텐츠로 안 보인다"의 원인
+  const heads = d.issues.map((i) => i.headline);
+  assert.equal(new Set(heads).size, heads.length, `헤드라인 중복: ${JSON.stringify(heads)}`);
+});
+
+test("브리핑: 이슈가 부족하면 발행하지 않는다 (빈 글 방지)", async () => {
+  const { buildDigest, MIN_ISSUES } = await import("../src/feed/digest.js");
+  // ⑤ 하루 3회 고정 편성이라, 수집이 멈춘 시간대에 알맹이 없는 페이지가
+  // 발행될 수 있다. 빈 글은 자체 콘텐츠가 아니라 오히려 감점이다.
+  const thin = buildDigest([
+    { id: "x", title: "혼자 올라온 글 하나뿐입니다", sourceLabel: "어딘가",
+      score: 3, commentCount: 0, coverage: 0, tags: [] }
+  ]);
+  assert.ok(thin.issues.length < MIN_ISSUES, "1건짜리는 발행 임계 미만이어야 한다");
+});
+
+test("브리핑: 수치가 자기모순이면 안 된다", async () => {
+  const { issueParagraph, issueShape } = await import("../src/feed/digest.js");
+  // 실측 사고: coverage=5인데 우리 풀엔 1건이라 "1곳이 함께 다뤘다"가 나왔다.
+  const items = [{ id: "a", title: "여러 매체가 다루는 사안입니다 제목", sourceLabel: "한국방송뉴스",
+    score: 0, commentCount: 0, coverage: 5, tags: [] }];
+  const para = issueParagraph(items, issueShape(items));
+  assert.doesNotMatch(para, /1곳이 함께 다뤘다/, "자기모순 문장이 나오면 안 된다");
+  assert.match(para, /5개 매체/, "교차보도 수치를 정직하게 써야 한다");
 });
 
 test("브리핑: 같은 사건 중복과 한 매체 독식을 막는다", async () => {

@@ -124,6 +124,16 @@
      커져 스냅이 어긋나는 원인이었다. 분산시키지 말 것 — CSS 순서로 서로를
      덮어쓰기 시작하면 어느 값이 실제로 먹는지 추적이 불가능해진다. */
 
+  /* ③ 자체 콘텐츠 바 — 정렬 칩과 같은 높이감으로 붙여 위화감을 줄인다 */
+  .own-nav{display:flex;gap:8px;padding:8px 16px;border-bottom:1px solid var(--line);
+    overflow-x:auto;scrollbar-width:none}
+  .own-nav::-webkit-scrollbar{display:none}
+  .own-nav a{flex:none;font-size:12.5px;font-weight:700;color:var(--text);
+    text-decoration:none;border:1px solid var(--line);padding:5px 11px;
+    white-space:nowrap}
+  .own-nav a:hover,.own-nav a:focus-visible{border-color:var(--accent);color:var(--accent)}
+  body.immersion .own-nav{display:none}
+
   /* floating action bar */
   .fab { position: fixed; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 30; display: flex; flex-direction: column; gap: 10px; }
   .fab button { width: 52px; height: 52px; border-radius: 50%; border: none; font-size: 22px; color: #fff;
@@ -868,6 +878,17 @@
 
   <!-- 정렬 바 (#12, "상단에 필터링 옵션에 최신순도") — 핫=기존 추천,
        최신=시간버킷×소스 인터리브의 중립 최신 뷰 (engine.js sort:"latest") -->
+  <!-- ③ 자체 콘텐츠 정적 링크 (2026-08-03).
+       예전엔 브리핑·랭킹으로 가는 길이 햄버거 메뉴 안에만 있었다. 메뉴는
+       스크립트로 열리므로, 심사원이 홈에서 자체 콘텐츠를 못 보고 크롤러도
+       못 따라간다 — 홈 HTML 172KB 중 대부분이 스크립트라 자체 콘텐츠 텍스트가
+       사실상 0으로 읽혔다. 여기 있는 것은 정적 <a>라 스크립트 없이도 보인다. -->
+  <nav class="own-nav" aria-label="지금핫이 만든 콘텐츠">
+    <a href="/briefing">지금 브리핑</a>
+    <a href="/ranking/daily">화제 랭킹</a>
+    <a href="/trends">실시간 트렌드</a>
+  </nav>
+
   <div class="sort-bar" id="sortBar" role="tablist" aria-label="정렬">
     <button class="chip active" data-sort="hot" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hot"></use></svg>핫</button>
     <button class="chip" data-sort="latest" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-latest"></use></svg>최신</button>

@@ -313,6 +313,11 @@ h1{font:800 24px/1.2 "Archivo",sans-serif;letter-spacing:-.015em;margin:0 0 2px}
 h2{font-size:16px;font-weight:800;letter-spacing:-.01em;margin:26px 0 8px;padding-top:14px;border-top:2px solid var(--divider)}
 .muted{color:var(--muted);font-size:13px}a{color:var(--accent);text-decoration:none;text-underline-offset:3px}
 ul{padding-left:18px;margin:8px 0}li{margin:6px 0}.m{color:var(--muted);font-size:12.5px;display:block}
+/* ④ 이슈 블록 — 본문이 읽히는 글이 되도록 문단에 무게를 준다 */
+.issue{margin:22px 0}
+.issue h2{font-size:17px;margin:0 0 6px}
+.issue p{font-size:15px;line-height:1.7;margin:0 0 8px}
+.issue .tone{border:1px solid var(--line);padding:1px 6px;font-size:11px}
 /* 브리핑 목록의 한 줄 요약 — 제목보다 약하고 지표줄보다 강한 층위 */
 .s{display:block;margin:3px 0 1px;font-size:13.5px;line-height:1.5;color:var(--color-text)}
 ol.rank{padding-left:0;margin:14px 0;list-style:none;counter-reset:r;border-top:2px solid var(--divider)}
@@ -393,33 +398,19 @@ ${inner}
     }
     return out;
   };
-  // 브리핑 목록 한 줄 요약. summary가 늘 쓸 만한 것은 아니라서 폴백이 필요하다:
-  //  - 해외 소스는 summary가 영어 원문인 경우가 있다(번역 파이프라인 구멍)
-  //  - 커뮤니티 list 어댑터는 법적 제약으로 본문을 안 가져와 비어 있다
-  //  - tildes 같은 곳은 "NN comments in the discussion of this post" 같은
-  //    정보량 0인 문장이 들어온다
-  // 못 쓸 때는 억지로 문장을 만들지 않고 지표 한 줄로 대신한다 — 없는 내용을
-  // 지어내는 것보다 낫다.
-  const USELESS_SUMMARY = /^\s*\d+\s+comments?\s+in\s+the\s+discussion/i;
-  const briefingSummary = (i) => {
-    const raw = String(i.summary || "").replace(/\s+/g, " ").trim();
-    // 발췌를 못 쓰면 편집 코멘트(실측 지표 한 줄)로 대신한다. 억지 문장을
-    // 만들어내지 않으면서도 모든 행이 한 줄을 갖게 하는 유일한 재료다.
-    if (!raw || raw.length < 20 || USELESS_SUMMARY.test(raw)) {
-      // 폴백은 **실측 수치를 담은** 코멘트만 쓴다. "여러 매체가 함께 다루는 뉴스"
-      // 같은 일반 문구는 여러 행에 똑같이 반복돼, 검수가 지적한 "10개 섹션이
-      // 전부 같은 템플릿"을 다른 형태로 재현할 뿐이다. 숫자가 없으면 차라리
-      // 줄을 비운다 — 바로 아래 지표줄(.m)에 출처·근거가 이미 있다.
-      const note = String(i.editorialNote || "").replace(/\s+/g, " ").trim();
-      return note && /\d/.test(note) ? maskProfanity(note) : "";
-    }
-    const clean = maskProfanity(raw);
-    if (clean.length <= 110) return clean;
-    // 단어 경계에서 자른다 — 사람 이름 중간을 끊으면 요약이 아니라 사고다
-    const cut = clean.slice(0, 110);
-    const sp = cut.lastIndexOf(" ");
-    return (sp > 60 ? cut.slice(0, sp) : cut) + "…";
-  };
+  // ④ 이슈 다이제스트 렌더 — 브리핑의 본문.
+  // 예전엔 카테고리마다 같은 템플릿 한 줄 + 원문 발췌였다. 발췌 자리에 원문
+  // URL과 영어 원문이 그대로 실려, 애드핏이 지적한 "외부 콘텐츠 비중"을 우리
+  // 손으로 증명하고 있었다(2026-08-03 실측). 이제 본문은 전부 우리가 측정한
+  // 값으로 쓴 문장이고(digest.js), 외부 원문은 한 줄도 싣지 않는다.
+  const issuesHtml = (b) => (b.issues || []).map((is, n) => `<section class="issue">
+      <h2>${n + 1}. ${escapeHtml(maskProfanity(is.headline))}</h2>
+      <p>${escapeHtml(maskProfanity(is.paragraph))}</p>
+      <div class="m"><span class="tone">${escapeHtml(is.tone)}</span> · 관련 글 ${is.refs.length}건</div>
+      <ul>${is.refs.map((r) => `<li><a href="/#post-${encodeURIComponent(r.id)}">${escapeHtml(maskProfanity(r.title))}</a>
+        <span class="m">${escapeHtml(r.sourceLabel)}${evidenceBits(r).length ? " · " + evidenceBits(r).join(" · ") : ""}</span></li>`).join("")}</ul>
+    </section>`).join("");
+
   const briefingSectionsHtml = (b) => b.sections.map((sec) => {
     const lead = sec.items[0];
     // 실측이 0인 지표는 문장에서 아예 뺀다 — "추천 0·댓글 86을 모으며 화제의
@@ -436,9 +427,7 @@ ${inner}
       // 섹션 전부가 같은 템플릿 문장 + 제목 나열이었고 설명 문장이 0개였다 —
       // 애드핏이 요구한 "자체 콘텐츠"의 반대편이다. 피드에는 이미 summary가
       // 있는데 브리핑에서 한 줄도 쓰지 않고 있었다.
-      const sum = briefingSummary(i);
       return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
-        ${sum ? `<span class="s">${escapeHtml(sum)}</span>` : ""}
         <span class="m">${escapeHtml(i.sourceLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></li>`;
     }).join("");
     return `<section><h2><a href="/briefing/${encodeURIComponent(sec.category)}" style="color:inherit">${escapeHtml(sec.label)}</a></h2>
@@ -462,6 +451,59 @@ ${inner}
       // "오늘의 브리핑" — 실측 데이터로 서버가 직접 작성하는 일일 편집 페이지.
       // 애드핏 보류 사유("대부분 아웃링크, 자체 콘텐츠 부족") 대응이자 애드센스
       // "부가가치" 요건 보강. 문장은 전부 실측 수치로만 조립한다(숫자 조작 금지).
+      // ② robots.txt · sitemap.xml (2026-08-03)
+      //
+      // 둘 다 404였다. 즉 이미 만들어 둔 자체 콘텐츠 페이지들이 검색엔진에
+      // 제출된 적이 없다 — 심사에서도 검색에서도 존재하지 않는 것과 같았다.
+      // /api/*는 개인화 응답이라 색인 대상이 아니다.
+      if (p === "/robots.txt" && req.method === "GET") {
+        const origin = originOf(req);
+        res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        res.end([
+          "User-agent: *",
+          "Allow: /",
+          "Disallow: /api/",
+          "Disallow: /admin",
+          "Disallow: /p?",           // 공유 링크는 앱으로 튕기는 중계 페이지
+          `Sitemap: ${origin}/sitemap.xml`,
+          ""
+        ].join("\n"));
+        return;
+      }
+
+      if (p === "/sitemap.xml" && req.method === "GET") {
+        const origin = originOf(req);
+        const cats = registry
+          .filter((c) => c.enabled && c.category)
+          .map((c) => c.category);
+        const urls = [
+          { loc: "/", freq: "hourly", pri: "1.0" },
+          { loc: "/briefing", freq: "hourly", pri: "0.9" },
+          { loc: "/ranking/daily", freq: "daily", pri: "0.8" },
+          { loc: "/ranking/weekly", freq: "daily", pri: "0.7" },
+          { loc: "/ranking/monthly", freq: "weekly", pri: "0.6" },
+          { loc: "/trends", freq: "hourly", pri: "0.6" },
+          { loc: "/about.html", freq: "monthly", pri: "0.4" },
+          { loc: "/privacy.html", freq: "yearly", pri: "0.2" }
+        ];
+        for (const cat of [...new Set(cats)]) {
+          urls.push({ loc: `/briefing/${encodeURIComponent(cat)}`, freq: "hourly", pri: "0.7" });
+        }
+        // ⑤ 날짜별 아카이브 — 매일 쌓이므로 sitemap이 함께 자란다
+        const dates = store.listEditionDates ? store.listEditionDates().slice(-90) : [];
+        for (const d of dates) urls.push({ loc: `/briefing/${d}`, freq: "never", pri: "0.5" });
+
+        const body = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+          `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+          urls.map((u) =>
+            `  <url><loc>${escapeHtml(origin + u.loc)}</loc>` +
+            `<changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`
+          ).join("\n") + `\n</urlset>\n`;
+        res.writeHead(200, { "content-type": "application/xml; charset=utf-8" });
+        res.end(body);
+        return;
+      }
+
       if (p === "/briefing" && req.method === "GET") {
         const b = await engine.briefing();
         const dateStr = kstLabel(b.generatedAt);
@@ -472,9 +514,22 @@ ${inner}
         const archiveHtml = archiveDates.length > 1
           ? `<section><h2>지난 브리핑</h2><div class="nav">${archiveDates.map((d) => `<a href="/briefing/${d}">${d}</a>`).join("")}</div></section>`
           : "";
-        const inner = `<h1>오늘의 브리핑</h1>
-<p class="muted">${dateStr} · 커뮤니티·뉴스 ${b.sourceCount}곳의 화제글 ${b.itemCount}건을 지금핫이 실측 데이터로 정리했습니다. 15분마다 갱신됩니다.</p>
+        // ⑤ 편성 — 하루 3회(모닝/런치/이브닝). 지금 시간대의 편이 정본이고,
+        // 지난 편은 아카이브(/briefing/<날짜>)로 남는다.
+        const slotLabel = b.slot ? b.slot.label : "";
+        const slotNav = `<div class="nav">${["모닝", "런치", "이브닝"]
+          .map((l) => `<span class="${l === slotLabel ? "on" : ""}">${l}</span>`).join("")}</div>`;
+        // publishable=false = 수집이 얇아 이슈가 MIN_ISSUES 미만. 빈 글을 발행하지
+        // 않는다 — 알맹이 없는 페이지는 자체 콘텐츠가 아니라 오히려 감점이다.
+        const bodyHtml = b.publishable
+          ? `${slotNav}${issuesHtml(b)}`
+          : `<p class="muted">이 시간대는 아직 정리할 만큼 화제가 모이지 않았습니다. 다음 편에서 이어집니다.</p>`;
+        const inner = `<h1>지금 브리핑 · ${escapeHtml(slotLabel)}</h1>
+<p class="muted">${dateStr} · 커뮤니티·뉴스 ${b.sourceCount}곳에서 모은 ${b.itemCount}건을 지금핫이 실측 데이터로 정리했습니다. 원문 인용 없이 우리가 잰 수치로만 씁니다.</p>
+${bodyHtml}
+${b.digestSummary ? `<section class="issue"><h2>종합</h2><p>${escapeHtml(b.digestSummary)}</p></section>` : ""}
 ${rankingNav("")}
+<h2 style="margin-top:28px">분야별 상위 글</h2>
 ${briefingSectionsHtml(b)}
 ${debateHtml}
 ${archiveHtml}`;
