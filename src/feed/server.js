@@ -847,7 +847,6 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         const inner = `<h1>지금 브리핑 · ${escapeHtml(slotLabel)}</h1>
 <p class="muted">${dateStr} · 커뮤니티·뉴스 ${b.sourceCount}곳에서 모은 ${b.itemCount}건을 지금핫이 실측 데이터로 정리했습니다. 원문 인용 없이 우리가 잰 수치로만 씁니다.</p>
 ${bodyHtml}
-${coupangBannerHtml(null, null, 9)}
 ${b.digestSummary ? `<section class="issue"><h2>종합</h2><p>${escapeHtml(b.digestSummary)}</p></section>` : ""}
 ${rankingNav("")}
 <h2 style="margin-top:28px">분야별 상위 글</h2>
