@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v52"; // v52: HEAD 요청 지원 — 서치콘솔 sitemap "가져올 수 없음" 수정
+const CACHE = "feed-shell-v53"; // v53: 자체 콘텐츠 페이지 광고 지면
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png"];
 

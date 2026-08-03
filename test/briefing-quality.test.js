@@ -238,7 +238,7 @@ test("HEAD 요청이 GET과 같은 상태코드를 준다 (sitemap '가져올 �
       await get.text();
     }
   } finally {
-    await new Promise((r) => server.close(r));
+    server.closeAllConnections?.(); await new Promise((r) => server.close(r));
   }
 });
 
@@ -265,7 +265,7 @@ test("sitemap.xml이 유효한 XML이고 자체 콘텐츠 페이지를 담는다
     // 개인화 API는 색인 대상이 아니다
     assert.ok(!xml.includes("/api/"), "API 경로가 sitemap에 들어가면 안 된다");
   } finally {
-    await new Promise((r) => server.close(r));
+    server.closeAllConnections?.(); await new Promise((r) => server.close(r));
   }
 });
 
@@ -282,6 +282,47 @@ test("robots.txt가 sitemap을 가리키고 개인화·관리 경로를 막는�
     assert.match(txt, /Disallow: \/admin/);
     assert.match(txt, /Allow: \//, "자체 콘텐츠는 열려 있어야 한다");
   } finally {
-    await new Promise((r) => server.close(r));
+    server.closeAllConnections?.(); await new Promise((r) => server.close(r));
+  }
+});
+
+test("자체 콘텐츠 페이지에 광고 지면이 있고, 광고 설정이 없으면 아무것도 안 나온다", async () => {
+  // 2026-08-03 실측: /briefing·/ranking·/trends에 광고 코드가 0개였다.
+  // sitemap에 올린 URL 대부분이 이 페이지들이고 검색 유입이 실제로 닿는
+  // 화면인데 수익 지면이 없어 유입이 통째로 샜다.
+  const { createServer } = await import("../src/feed/server.js");
+  const prev = { a: process.env.ADSENSE_CLIENT, f: process.env.ADFIT_UNIT_MOBILE };
+  try {
+    // (1) 광고 설정이 있으면 지면이 붙는다
+    process.env.ADSENSE_CLIENT = "ca-pub-TEST";
+    process.env.ADFIT_UNIT_MOBILE = "DAN-TEST";
+    let server = createServer({ dev: true });
+    await new Promise((r) => server.listen(0, r));
+    let port = server.address().port;
+    let html = await (await fetch(`http://127.0.0.1:${port}/briefing`)).text();
+    assert.match(html, /adsbygoogle/, "애드센스 지면이 있어야 한다");
+    assert.match(html, /kakao_ad_area/, "애드핏 지면이 있어야 한다");
+    // 광고를 콘텐츠로 오인시키면 애드센스 정책 위반이자 신뢰 손실이다
+    assert.match(html, /class="ad-mark"/, "AD 표기가 있어야 한다");
+    // 본문보다 광고가 앞서면 안 된다 — 읽는 흐름을 끊으면 체류가 죽는다
+    assert.ok(html.indexOf("<h1>") < html.indexOf('<div class="ad-slot">'),
+      "본문이 광고보다 앞서야 한다");
+    server.closeAllConnections?.(); await new Promise((r) => server.close(r));
+
+    // (2) 설정이 없으면 완전 무광고 — 광고 없는 배포에 빈 박스가 생기면 안 된다
+    delete process.env.ADSENSE_CLIENT;
+    delete process.env.ADFIT_UNIT_MOBILE;
+    server = createServer({ dev: true });
+    await new Promise((r) => server.listen(0, r));
+    port = server.address().port;
+    html = await (await fetch(`http://127.0.0.1:${port}/briefing`)).text();
+    assert.doesNotMatch(html, /adsbygoogle/);
+    assert.doesNotMatch(html, /kakao_ad_area/);
+    // CSS 규칙(.ad-slot{})은 항상 있어도 무해하다 — 실제 지면 div만 없으면 된다
+    assert.ok(!html.includes('<div class="ad-slot">'), '광고 설정이 없으면 지면이 없어야 한다');
+    server.closeAllConnections?.(); await new Promise((r) => server.close(r));
+  } finally {
+    if (prev.a) process.env.ADSENSE_CLIENT = prev.a; else delete process.env.ADSENSE_CLIENT;
+    if (prev.f) process.env.ADFIT_UNIT_MOBILE = prev.f; else delete process.env.ADFIT_UNIT_MOBILE;
   }
 });

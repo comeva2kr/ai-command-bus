@@ -290,6 +290,45 @@ export function createServer(opts = {}) {
   // 테마별 브리핑, 일·주·월간 화제 랭킹 TOP 20). 문장·수치는 전부 실측 신호로만
   // 조립하고, 페이지들이 서로(그리고 상세뷰로) 내부 링크를 걸어 "대부분
   // 아웃링크" 구조를 실제로 희석한다.
+  // 자체 콘텐츠 페이지의 광고 지면.
+  //
+  // 2026-08-03 실측: /briefing·/ranking·/trends에 광고 코드가 **0개**였다.
+  // sitemap에 올린 21개 URL의 대부분이 이 페이지들이고, 검색으로 들어온 사람이
+  // 실제로 보는 화면인데 수익 지면이 없어 유입이 통째로 새고 있었다.
+  //
+  // 배치 원칙: 본문 위에 얹지 않고 **본문이 한 덩어리 끝난 뒤**에 넣는다.
+  // 읽는 흐름을 끊으면 체류가 죽고, 애드센스 정책상으로도 콘텐츠보다 광고가
+  // 앞서는 배치는 위험하다. 페이지당 2개까지만 — 애드핏 정책 상한(3개)보다
+  // 보수적으로 두되, 지면이 0인 지금보다는 확실히 낫다.
+  const adSlotHtml = (slot) => {
+    const adsense = process.env.ADSENSE_CLIENT;
+    const adfitUnit = process.env.ADFIT_UNIT_MOBILE;
+    if (slot === "adfit" && adfitUnit) {
+      return `<div class="ad-slot"><span class="ad-mark">AD</span>
+        <ins class="kakao_ad_area" style="display:none;" data-ad-unit="${escapeHtml(adfitUnit)}" data-ad-width="320" data-ad-height="100"></ins></div>`;
+    }
+    if (slot === "adsense" && adsense) {
+      // 반응형 자동 크기 — 페이지 폭(720px)에 맞춰 구글이 채운다
+      return `<div class="ad-slot"><span class="ad-mark">AD</span>
+        <ins class="adsbygoogle" style="display:block" data-ad-client="${escapeHtml(adsense)}"
+          data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle=window.adsbygoogle||[]).push({});</script></div>`;
+    }
+    return "";
+  };
+  // 광고 로더 — 자체 콘텐츠 페이지는 index.html의 주입 경로를 타지 않으므로
+  // 여기서 직접 넣는다.
+  const adLoadersHtml = () => {
+    let out = "";
+    if (process.env.ADSENSE_CLIENT) {
+      out += `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${escapeHtml(process.env.ADSENSE_CLIENT)}" crossorigin="anonymous"></script>`;
+    }
+    if (process.env.ADFIT_UNIT_MOBILE) {
+      out += `<script async src="https://t1.kakaocdn.net/kas/static/ba.min.js"></script>`;
+    }
+    return out;
+  };
+
   // 자체 콘텐츠 페이지의 검색 노출용 공통 머리. canonical·og:image가 없으면
   // 같은 내용이 여러 주소로 인식되거나 공유 카드가 비어 나간다.
   const editionShell = (title, desc, inner, canonicalPath = "") => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
@@ -339,9 +378,17 @@ ol.rank li a{color:var(--text);font-weight:700}
 .heat{display:inline-flex;align-items:flex-end;gap:3px;height:18px;margin-top:6px}
 .heat i{display:block;width:4px;background:color-mix(in srgb,var(--text) 30%,transparent)}
 .heat i.a{background:var(--accent)}
-.heat i.e{height:3px;background:color-mix(in srgb,var(--text) 12%,transparent)}</style></head><body><div class="wrap">
+.heat i.e{height:3px;background:color-mix(in srgb,var(--text) 12%,transparent)}
+/* 광고 지면 — 본문과 확실히 분리되게 괘선으로 감싸고 AD 표기를 붙인다.
+   콘텐츠로 오인되면 애드센스 정책 위반이고, 사용자 신뢰도 깎인다. */
+.ad-slot{margin:24px 0;padding:10px 0;border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);min-height:60px}
+.ad-mark{display:block;font-size:10px;letter-spacing:.12em;color:var(--muted);
+  margin-bottom:6px}</style>${adLoadersHtml()}</head><body><div class="wrap">
 <a class="back" href="/">← 지금핫 피드로</a>
 ${inner}
+${adSlotHtml("adsense")}
+${adSlotHtml("adfit")}
 <p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
 </div></body></html>`;
   const fmtNum = (n) => n >= 10000 ? `${Math.round(n / 1000) / 10}만` : String(n);
