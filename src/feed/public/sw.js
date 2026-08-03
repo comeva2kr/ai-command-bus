@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v48"; // v48: 커뮤·뉴스 비율 슬라이더
+const CACHE = "feed-shell-v49"; // v49: 애드핏 재심사 대응 — 노출·신체 묘사 관용구 게이트
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png"];
 
