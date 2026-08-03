@@ -109,6 +109,8 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
   const picked = opts.picked instanceof Set ? opts.picked : new Set();
   const hated = opts.hated instanceof Set ? opts.hated : new Set();
   const exposure = opts.exposure || null;
+  // 커뮤니티(오락성) ↔ 뉴스(소식성) 비율 슬라이더 (-1 커뮤 ~ 0 균형 ~ +1 뉴스).
+  const mixBalance = Number.isFinite(opts.mixBalance) ? opts.mixBalance : 0;
   const exposureOf = (src) => {
     if (!exposure) return 0;
     const v = typeof exposure.get === "function" ? exposure.get(src) : exposure[src];
@@ -137,6 +139,22 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
 
   // 쿼터는 공급량으로 클램프 — 없는 걸 있는 척하지 않는다(정직한 부족 처리).
   const cap = Math.max(1, Math.ceil(params.pageSourceShare * limit));
+  // 종류별 소스 상한 — 비율 슬라이더가 실제로 먹는 지점.
+  //
+  // 처음엔 hot에 승수만 곱했는데 첫 페이지 구성이 전혀 안 바뀌었다(실측:
+  // 슬라이더 양 끝에서 뉴스 비중 0.60으로 동일). 이 선택기는 **소스 상한이
+  // 구성을 먼저 고정**하기 때문이다 — 점수를 아무리 올려도 소스당 cap을 넘겨
+  // 담지 못하니 뉴스:커뮤 비율은 소스 개수 비율에 묶여 있었다. 그래서 슬라이더는
+  // 점수가 아니라 **쿼터**를 움직여야 한다.
+  //
+  // 아래 완화 사다리가 이미 있어서 한쪽 공급이 얇아도 페이지가 비지 않는다:
+  // 자격 후보가 없으면 cap이 풀리고 양쪽이 다시 흐른다.
+  const capFor = (c) => {
+    const k = c.item && c.item.kind;
+    if (!mixBalance || (k !== "news" && k !== "community")) return cap;
+    const dir = k === "news" ? 1 : -1;
+    return Math.max(1, Math.round(cap * (1 + dir * mixBalance * 0.8)));
+  };
   const pickedSupply = pool.filter(isPicked).length;
   const pickedShare = firstPage ? params.firstPickedShare : params.laterPickedShare;
   const pickedTarget = picked.size ? Math.ceil(pickedShare * limit) : 0;
@@ -177,7 +195,7 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
     const eligible = (relaxCap, relaxCat, relaxGap) =>
       remaining.filter(
         (c) =>
-          (relaxCap || (pagePicks.get(c.item.source) || 0) < cap) &&
+          (relaxCap || (pagePicks.get(c.item.source) || 0) < capFor(c)) &&
           (relaxCat || (pageCats.get(c.item.category) || 0) < catCapFor(c)) &&
           (relaxCat || !isOther(c) || otherCount < neutralTotalCap) &&
           (relaxGap || !recentSrcs.includes(c.item.source)) &&

@@ -704,6 +704,18 @@ ${rankingRows(list)}`;
         return send(res, 200, { ok: true, balance });
       }
 
+      // 커뮤니티(오락성) ↔ 뉴스(소식성) 비율 (David 2026-08-02).
+      // /api/lean과 같은 계약 — 검증도 똑같이 엄격하게 한다.
+      if (p === "/api/mix" && req.method === "POST") {
+        const body = await readBody(req);
+        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        if (typeof body.balance !== "number" || !Number.isFinite(body.balance)) {
+          return send(res, 400, { error: "balance must be a number in [-1, 1]" });
+        }
+        const balance = store.setMixBalance(body.userId, body.balance);
+        return send(res, 200, { ok: true, balance });
+      }
+
       if (p === "/api/topics" && req.method === "POST") {
         const body = await readBody(req);
         const user = store.getUser(body.userId);
@@ -736,7 +748,8 @@ ${rankingRows(list)}`;
           ageVerified: user.ageVerified === true,
           showAdult: user.showAdult === true,
           showTopics: user.showTopics || [],
-          leanBalance: Number.isFinite(user.leanBalance) ? user.leanBalance : 0
+          leanBalance: Number.isFinite(user.leanBalance) ? user.leanBalance : 0,
+          mixBalance: Number.isFinite(user.mixBalance) ? user.mixBalance : 0
         });
       }
 

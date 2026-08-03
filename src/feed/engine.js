@@ -135,6 +135,26 @@ export function leanMultiplier(sourceId, balance) {
   return Math.max(0.2, Math.min(1.8, 1 + balance * (lean / 2)));
 }
 
+// 커뮤니티(오락성) ↔ 뉴스(소식성) 비율 슬라이더 (David 2026-08-02
+// "커뮤니티(오락성) 뉴스(소식성)의 비율을 조절하는 좌우 슬라이더, 정치성향
+// 슬라이더처럼"). balance: -1 커뮤니티 쪽 ~ 0 균형 ~ +1 뉴스 쪽.
+//
+// 성향 슬라이더와 같은 방식으로 hot에 곱한다 — 후보를 **빼지 않고 순위만**
+// 바꾸므로 다양성 제약(소스 상한·연속 금지·카테고리 쿼터)과 충돌하지 않는다.
+// 필터로 구현하면 한쪽 공급이 얇은 시간대에 피드가 비어 버린다.
+//
+// 끝까지 밀어도 반대편이 사라지지 않는다(0.2~1.8, 최대 9배 차이) — 이건
+// 비율 다이얼이지 on/off 필터가 아니다. 광고·제휴·내가 쓴 글은 건드리지 않는다.
+export function mixMultiplier(item, balance) {
+  if (!Number.isFinite(balance) || balance === 0) return 1;
+  const kind = item && item.kind;
+  let dir = 0;
+  if (kind === "news") dir = 1;
+  else if (kind === "community") dir = -1;
+  else return 1; // ad/affiliate/me/seed 등은 이 축의 대상이 아니다
+  return Math.max(0.2, Math.min(1.8, 1 + dir * balance * 0.8));
+}
+
 // 이 글의 나이(시간). 발행일이 없으면 우리가 처음 본 시각으로 대체하고,
 // 그마저 없으면 null(판단 불가).
 export function itemAgeHours(item, nowMs) {
@@ -707,6 +727,7 @@ export class FeedEngine {
       const minGap = Number(process.env.HOT_MIN_GAP ?? 1);
       const exposure = this.store.sourceExposureFor ? this.store.sourceExposureFor(userId) : {};
       const balance = Number.isFinite(user.leanBalance) ? user.leanBalance : 0;
+      const mixBalance = Number.isFinite(user.mixBalance) ? user.mixBalance : 0;
 
       // "개인화 유저"의 판별: user.preferences는 createUser가 빈 벡터를 만들어
       // **항상 truthy**다 — 진짜 기준은 취향 신호가 실제로 존재하는가이다
@@ -728,13 +749,19 @@ export class FeedEngine {
         const { picked, hated } = categorySets(user.preferences, params);
         const cands = entries.map((e) => ({
           item: e.item,
-          // 성향 슬라이더는 hot에 승수로 — 라운드로빈 가중치의 v2 대응물.
-          hot: (e.hotScore ?? 0) * leanMultiplier(e.item.source, balance),
+          // 두 슬라이더 모두 hot에 승수로 — 라운드로빈 가중치의 v2 대응물.
+          // 축이 달라서(뉴스 내부 성향 / 뉴스↔커뮤 비율) 곱해도 서로를 상쇄하지 않는다.
+          hot: (e.hotScore ?? 0)
+            * leanMultiplier(e.item.source, balance)
+            * mixMultiplier(e.item, mixBalance),
           taste: Math.tanh(tasteScore(e.item, user.preferences) / 2),
           collab: collabBoosts.get(e.item.id) || 0
         }));
         const sel = selectDiverse(cands, {
-          limit, minGap, exposure, firstPage: cursor === 0, picked, hated
+          limit, minGap, exposure, firstPage: cursor === 0, picked, hated,
+          // 비율 슬라이더는 점수(위 mixMultiplier)와 쿼터(여기) 양쪽에 건다 —
+          // 점수만으로는 소스 상한에 막혀 구성이 안 바뀐다(rank.js capFor 주석).
+          mixBalance
         }, params);
         this._lastSelectMeta = { shortfall: sel.shortfall, bannedHatedCount: sel.bannedHatedCount };
         unseen = sel.picks.map((item) => ({

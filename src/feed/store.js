@@ -349,6 +349,18 @@ export class FeedStore {
     return user.leanBalance;
   }
 
+  // 커뮤니티(오락성) ↔ 뉴스(소식성) 비율 슬라이더.
+  // -1 = 커뮤니티 쪽, 0 = 균형, +1 = 뉴스 쪽. 기본 0 = 미개입.
+  // 성향 슬라이더(leanBalance)와 같은 골격 — 하나는 "뉴스 안에서 어느 쪽",
+  // 다른 하나는 "뉴스냐 커뮤냐"로 축이 다르고 서로 곱해져 함께 작동한다.
+  setMixBalance(userId, balance) {
+    const user = this.requireUser(userId);
+    const v = Number(balance);
+    user.mixBalance = Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
+    this._persist();
+    return user.mixBalance;
+  }
+
   setShowAdult(userId, on) {
     const user = this.requireUser(userId);
     user.showAdult = Boolean(on) && user.ageVerified === true;

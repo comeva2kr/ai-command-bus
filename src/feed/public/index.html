@@ -814,6 +814,19 @@
         <div id="drawerFilters"></div>
       </div>
 
+      <!-- 커뮤니티(오락성) ↔ 뉴스(소식성) 비율 (David 2026-08-02).
+           성향 슬라이더와 같은 방식이지만 축이 다르다: 이건 "뭘 볼까",
+           아래 것은 "뉴스 안에서 어느 쪽". 끝까지 밀어도 반대편이 사라지지는
+           않는다(engine.mixMultiplier, 0.2~1.8) — 비율 다이얼이지 필터가 아니다. -->
+      <div class="drawer-sec" id="mixSec">
+        <h4>커뮤 · 뉴스 비율</h4>
+        <input type="range" id="mixSlider" min="-100" max="100" step="25" value="0"
+               style="width:100%;accent-color:var(--accent)" aria-label="커뮤니티와 뉴스 비율">
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:2px">
+          <span>커뮤 더</span><span id="mixMid">고르게</span><span>뉴스 더</span>
+        </div>
+      </div>
+
       <!-- 뉴스 성향 슬라이더 . 매체별 라벨은 노출하지 않고
            혼합 비율만 조절한다. 기본값 0 = 고르게. 끝까지 밀어도 반대편이
            완전히 사라지지 않는다(하한 20% — 필터버블 방지, engine.leanMultiplier). -->
@@ -968,6 +981,7 @@ const API = {
   async vapidKey() { return get("/api/push/vapid-key"); },
   async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
   async setLean(userId, balance) { return post("/api/lean", { userId, balance }); },
+  async setMix(userId, balance) { return post("/api/mix", { userId, balance }); },
   async adSignal(userId, itemId, type, variant) { return post("/api/ad-signal", { userId, itemId, type, variant }).catch(()=>{}); },
   async setTopic(userId, topic, on) { return post("/api/topics", { userId, topic, on }); },
   async feed(userId, cursor, limit=10, source=null, sort="hot") {
@@ -1155,6 +1169,7 @@ syncHeaderHeight();
   setupBrandHome(); setupThemeChips(); loadBriefStrip(); setupSortBar(); renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
   setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver(); setupAdImpressionObserver();
   setupLeanSlider(s);
+  setupMixSlider(s);
   // Always show content first — a preview feed (popularity-ranked when no taste
   // yet). Personalization is invited, never a gate. (adversarial review #1)
   updateMeter(s); loadMore(); openFromHash();
@@ -1237,6 +1252,28 @@ function maybeShowOnboarding(){
 // 뉴스 성향 슬라이더 . 값은 서버(user.leanBalance)에 저장돼
 // 기기 간 동기화된다. 변경 즉시 저장하되 피드 재적재는 700ms 디바운스 —
 // 슬라이더를 드래그하는 동안 요청이 연발되지 않게.
+function setupMixSlider(session){
+  const el = document.getElementById("mixSlider");
+  const mid = document.getElementById("mixMid");
+  if(!el) return;
+  const label = (v)=> v===0 ? "고르게" : (v<0 ? "커뮤 "+Math.abs(v)+"%" : "뉴스 "+v+"%");
+  const init = Math.round(((session && session.mixBalance) || 0) * 100);
+  el.value = String(init); mid.textContent = label(init);
+  let t = null;
+  el.addEventListener("input", ()=>{ mid.textContent = label(Number(el.value)); });
+  el.addEventListener("change", ()=>{
+    const v = Number(el.value) / 100;
+    clearTimeout(t);
+    t = setTimeout(async ()=>{
+      try {
+        await API.setMix(state.userId, v);
+        toast(v===0 ? "커뮤와 뉴스를 고르게 섞어요" : (v<0 ? "커뮤니티 글을 더 보여드려요" : "뉴스를 더 보여드려요"));
+        reloadFeedSilently();
+      } catch(e){ toast("저장 실패: "+e.message); }
+    }, 700);
+  });
+}
+
 function setupLeanSlider(session){
   const el = document.getElementById("leanSlider");
   const mid = document.getElementById("leanMid");
