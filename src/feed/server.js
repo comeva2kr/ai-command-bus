@@ -6,6 +6,7 @@
 //   FEED_DB=./feed-data.json node src/feed/server.js   # persisted
 
 import http from "node:http";
+import { pickBanner } from "./manual-products.js";
 import { makeIndexNow } from "./indexnow.js";
 import { maskProfanity } from "./profanity.js";
 import fs from "node:fs";
@@ -340,6 +341,24 @@ export function createServer(opts = {}) {
   // 읽는 흐름을 끊으면 체류가 죽고, 애드센스 정책상으로도 콘텐츠보다 광고가
   // 앞서는 배치는 위험하다. 페이지당 2개까지만 — 애드핏 정책 상한(3개)보다
   // 보수적으로 두되, 지면이 0인 지금보다는 확실히 낫다.
+  // 쿠팡 파트너스 배너 — API 승인 전에도 쓸 수 있는 유일한 제휴 수익 경로.
+  //
+  // 대가성 문구는 **법적 의무**이고 쿠팡도 "활동 준수 사항을 지키지 않으면
+  // 수익금 지급이 중단될 수 있습니다"라고 명시한다. 배너가 렌더될 때 반드시
+  // 함께 나가야 하므로 같은 함수 안에서 붙인다 — 따로 두면 한쪽만 빠진다.
+  const COUPANG_DISCLOSURE =
+    "이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.";
+  const coupangBannerHtml = (category, size) => {
+    const b = pickBanner({ category, size });
+    if (!b) return "";
+    const [w, h] = b.size.split("x");
+    return `<div class="ad-slot ad-coupang"><span class="ad-mark">AD · 쿠팡 파트너스</span>
+      <a href="${escapeHtml(b.href)}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
+        <img src="${escapeHtml(b.img)}" width="${escapeHtml(w)}" height="${escapeHtml(h)}"
+             alt="${escapeHtml(b.label)}" loading="lazy"></a>
+      <p class="ad-disclosure">${COUPANG_DISCLOSURE}</p></div>`;
+  };
+
   const adSlotHtml = (slot) => {
     const adsense = process.env.ADSENSE_CLIENT;
     const adfitUnit = process.env.ADFIT_UNIT_MOBILE;
@@ -371,7 +390,7 @@ export function createServer(opts = {}) {
 
   // 자체 콘텐츠 페이지의 검색 노출용 공통 머리. canonical·og:image가 없으면
   // 같은 내용이 여러 주소로 인식되거나 공유 카드가 비어 나간다.
-  const editionShell = (title, desc, inner, canonicalPath = "", ownLinks = "") => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+  const editionShell = (title, desc, inner, canonicalPath = "", ownLinks = "", coupangBanner = "") => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} — 지금핫 NowHot</title>
 <meta name="description" content="${escapeHtml(desc)}">
@@ -440,9 +459,14 @@ ol.rank li a{color:var(--text);font-weight:700}
 .ad-slot{margin:24px 0;padding:10px 0;border-top:1px solid var(--line);
   border-bottom:1px solid var(--line);min-height:60px}
 .ad-mark{display:block;font-size:10px;letter-spacing:.12em;color:var(--muted);
-  margin-bottom:6px}</style>${adLoadersHtml()}</head><body><div class="wrap">
+  margin-bottom:6px}
+.ad-coupang{text-align:center}
+.ad-coupang img{max-width:100%;height:auto;display:inline-block}
+/* 대가성 문구 — 작아도 읽히는 크기여야 한다(공정위 표시 기준의 취지) */
+.ad-disclosure{margin:8px 0 0;font-size:11.5px;line-height:1.5;color:var(--muted)}</style>${adLoadersHtml()}</head><body><div class="wrap">
 <a class="back" href="/">← 지금핫 피드로</a>
 ${inner}
+${coupangBanner}
 ${ownLinks}
 ${adSlotHtml("adsense")}
 ${adSlotHtml("adfit")}
@@ -766,7 +790,7 @@ ${briefingSectionsHtml(b)}
 ${debateHtml}
 ${archiveHtml}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 더쿠·클리앙·뽐뿌·보배드림 등 커뮤니티와 주요 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing")));
+        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 더쿠·클리앙·뽐뿌·보배드림 등 커뮤니티와 주요 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing"), coupangBannerHtml(null, "300x250")));
       }
 
       // 홈 최상단 브리핑 스트립용 원자료 (David 2026-07-31: "최상단에 테마별로
@@ -792,7 +816,7 @@ ${rankingNav("")}
 <ol class="rank">${rows}</ol>
 <p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.</p>`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends")));
+        return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends"), coupangBannerHtml(null, "300x250")));
       }
 
       // /briefing/<YYYY-MM-DD> = 일별 아카이브, /briefing/<카테고리> = 라이브
@@ -824,7 +848,7 @@ ${rankingNav("")}
 <p>지금 ${escapeHtml(label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})입니다${leadBits.length ? ` — ${leadBits.join(" · ")}` : ""}.</p>
 ${rankingRows(catItems)}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`, ownContentNav(`/briefing/${encodeURIComponent(seg)}`)));
+        return res.end(editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`, ownContentNav(`/briefing/${encodeURIComponent(seg)}`), coupangBannerHtml(seg, "300x250")));
       }
 
       // 화제 랭킹 TOP 20 — 일간(라이브) / 주간·월간(일별 스냅샷 병합).
@@ -850,7 +874,7 @@ ${note ? `<p class="muted">${escapeHtml(note)}</p>` : ""}
 ${rankingNav(period)}
 ${rankingRows(list)}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`, ownContentNav("/ranking/daily")));
+        return res.end(editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`, ownContentNav("/ranking/daily"), coupangBannerHtml(null, "300x250")));
       }
 
       // 애드센스 판매자 확인 파일 (https://nowhot.kr/ads.txt). ADSENSE_CLIENT

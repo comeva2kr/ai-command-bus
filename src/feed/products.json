@@ -1,0 +1,216 @@
+{
+  "_note": [
+    "쿠팡 파트너스 배너/상품 (2026-08-03).",
+    "",
+    "왜 배너인가: Open API(productFeed)는 '최종 승인' 회원만 키가 나오고 그 조건이",
+    "판매금액 15만원 + 사업자 인증이다. 즉 API는 매출이 먼저 나야 열린다.",
+    "카테고리 배너는 승인 없이 지금 쓸 수 있고, 어떤 상품을 보여줄지는 쿠팡이",
+    "정한다 — 품절·시즌·가격 변동을 우리가 관리하지 않아도 된다. 개별 상품 링크는",
+    "품절되면 죽은 링크가 되지만 배너는 그렇지 않다.",
+    "",
+    "친척·지인 구매로 15만원을 채우지 않는다. 쿠팡은 같은 IP·배송지·결제수단·가입",
+    "직후 몰린 전환을 부정 전환으로 탐지하고, 걸리면 계정 정지 + 수익 몰수다.",
+    "",
+    "── banners 항목",
+    "  category  우리 카테고리 id. 이 카테고리 글 옆에 우선 노출된다.",
+    "            auto gaming tech life culture sports business humor news",
+    "  size      \"320x100\" (피드 카드 사이) 또는 \"300x250\" (자체 콘텐츠 페이지 하단)",
+    "  href      https://link.coupang.com/... (파트너스 추적 링크)",
+    "  img       https://ads-partners.coupang.com/banners/... (배너 이미지)",
+    "  label     화면·alt에 쓸 사람 말. 쿠팡 배너 원본은 alt=\"\"라 비어 있는데,",
+    "            네이버 가이드가 alt로 내용을 설명하라고 요구하므로 여기서 채운다.",
+    "",
+    "── products 항목 (개별 상품 링크를 쓸 때)",
+    "  title / url / category / image(선택) / hook(선택)",
+    "",
+    "── 금지",
+    "  확인하지 않은 가격·할인율·후기수를 쓰지 않는다(다크패턴 금지).",
+    "  정치/종교/성인 카테고리에는 광고를 붙이지 않는다.",
+    "  대가성 문구는 코드가 자동으로 붙인다 — 여기 적지 않는다."
+  ],
+  "banners": [
+    {
+      "category": "tech",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUN5D0kfue",
+      "img": "https://ads-partners.coupang.com/banners/1013444?trackingCode=AF5818321&subId=&traceId=V0-301-5f9bd61900e673c0-I1013444&w=320&h=100",
+      "label": "쿠팡 로켓배송 가전·디지털 특가"
+    },
+    {
+      "category": "tech",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUN7sEpr3c",
+      "img": "https://ads-partners.coupang.com/banners/1013448?trackingCode=AF5818321&subId=&traceId=V0-301-5f9bd61900e673c0-I1013448&w=300&h=250",
+      "label": "쿠팡 로켓배송 가전·디지털 특가"
+    },
+    {
+      "category": "life",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUN9aBQOfk",
+      "img": "https://ads-partners.coupang.com/banners/1013450?trackingCode=AF5818321&subId=&traceId=V0-301-371ae01f4226dec2-I1013450&w=320&h=100",
+      "label": "쿠팡 로켓프레시 신선식품 특가"
+    },
+    {
+      "category": "life",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOaerwYEu",
+      "img": "https://ads-partners.coupang.com/banners/1013451?trackingCode=AF5818321&subId=&traceId=V0-301-371ae01f4226dec2-I1013451&w=300&h=250",
+      "label": "쿠팡 로켓프레시 신선식품 특가"
+    },
+    {
+      "category": "life",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOdb1J9rw",
+      "img": "https://ads-partners.coupang.com/banners/1013454?trackingCode=AF5818321&subId=&traceId=V0-301-2f679fc6bd8f2e58-I1013454&w=320&h=100",
+      "label": "쿠팡 로켓배송 홈인테리어·생활용품"
+    },
+    {
+      "category": "life",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOeG62p5g",
+      "img": "https://ads-partners.coupang.com/banners/1013455?trackingCode=AF5818321&subId=&traceId=V0-301-2f679fc6bd8f2e58-I1013455&w=300&h=250",
+      "label": "쿠팡 로켓배송 홈인테리어·생활용품"
+    },
+    {
+      "category": "life",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOgKTmWpU",
+      "img": "https://ads-partners.coupang.com/banners/1013457?trackingCode=AF5818321&subId=&traceId=V0-301-2b8ef06377ec8f50-I1013457&w=320&h=100",
+      "label": "쿠팡 로켓배송 주방용품"
+    },
+    {
+      "category": "life",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOhfLd9ps",
+      "img": "https://ads-partners.coupang.com/banners/1013458?trackingCode=AF5818321&subId=&traceId=V0-301-2b8ef06377ec8f50-I1013458&w=300&h=250",
+      "label": "쿠팡 로켓배송 주방용품"
+    },
+    {
+      "category": "auto",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOl5q5Vsq",
+      "img": "https://ads-partners.coupang.com/banners/1013460?trackingCode=AF5818321&subId=&traceId=V0-301-c1744fa69c93f626-I1013460&w=320&h=100",
+      "label": "쿠팡 로켓배송 자동차용품"
+    },
+    {
+      "category": "auto",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOmBVVEVo",
+      "img": "https://ads-partners.coupang.com/banners/1013461?trackingCode=AF5818321&subId=&traceId=V0-301-c1744fa69c93f626-I1013461&w=300&h=250",
+      "label": "쿠팡 로켓배송 자동차용품"
+    },
+    {
+      "category": "business",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOn1XJDK8",
+      "img": "https://ads-partners.coupang.com/banners/1013463?trackingCode=AF5818321&subId=&traceId=V0-301-bae0f72e5e59e45f-I1013463&w=320&h=100",
+      "label": "쿠팡 로켓와우 멤버십 혜택"
+    },
+    {
+      "category": "business",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOpDMwqGW",
+      "img": "https://ads-partners.coupang.com/banners/1013464?trackingCode=AF5818321&subId=&traceId=V0-301-bae0f72e5e59e45f-I1013464&w=300&h=250",
+      "label": "쿠팡 로켓와우 멤버십 혜택"
+    },
+    {
+      "category": "culture",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOqtK6qpo",
+      "img": "https://ads-partners.coupang.com/banners/1013466?trackingCode=AF5818321&subId=&traceId=V0-301-f5c692db558def48-I1013466&w=320&h=100",
+      "label": "쿠팡 로켓배송 도서"
+    },
+    {
+      "category": "culture",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOrvxRwCO",
+      "img": "https://ads-partners.coupang.com/banners/1013467?trackingCode=AF5818321&subId=&traceId=V0-301-f5c692db558def48-I1013467&w=300&h=250",
+      "label": "쿠팡 로켓배송 도서"
+    },
+    {
+      "category": "humor",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOsAt7zC8",
+      "img": "https://ads-partners.coupang.com/banners/1013469?trackingCode=AF5818321&subId=&traceId=V0-301-7e6e8eb8ddfa1bfb-I1013469&w=320&h=100",
+      "label": "쿠팡 로켓배송 반려동물용품"
+    },
+    {
+      "category": "humor",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOtCH0yia",
+      "img": "https://ads-partners.coupang.com/banners/1013470?trackingCode=AF5818321&subId=&traceId=V0-301-7e6e8eb8ddfa1bfb-I1013470&w=300&h=250",
+      "label": "쿠팡 로켓배송 반려동물용품"
+    },
+    {
+      "category": "sports",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOwmWstz2",
+      "img": "https://ads-partners.coupang.com/banners/1013471?trackingCode=AF5818321&subId=&traceId=V0-301-0fd2df58973b32a5-I1013471&w=320&h=100",
+      "label": "쿠팡 로켓배송 캠핑·레저용품"
+    },
+    {
+      "category": "sports",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOxrJsOaG",
+      "img": "https://ads-partners.coupang.com/banners/1013472?trackingCode=AF5818321&subId=&traceId=V0-301-0fd2df58973b32a5-I1013472&w=300&h=250",
+      "label": "쿠팡 로켓배송 캠핑·레저용품"
+    },
+    {
+      "category": "sports",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOyhuHEL6",
+      "img": "https://ads-partners.coupang.com/banners/1013474?trackingCode=AF5818321&subId=&traceId=V0-301-12cd6d67384e2afb-I1013474&w=320&h=100",
+      "label": "쿠팡 로켓배송 등산·아웃도어"
+    },
+    {
+      "category": "sports",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOzsj0kTc",
+      "img": "https://ads-partners.coupang.com/banners/1013475?trackingCode=AF5818321&subId=&traceId=V0-301-12cd6d67384e2afb-I1013475&w=300&h=250",
+      "label": "쿠팡 로켓배송 등산·아웃도어"
+    },
+    {
+      "category": "sports",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOAcn4LDw",
+      "img": "https://ads-partners.coupang.com/banners/1013477?trackingCode=AF5818321&subId=&traceId=V0-301-efafde73812c2264-I1013477&w=320&h=100",
+      "label": "쿠팡 로켓배송 골프용품"
+    },
+    {
+      "category": "sports",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOA2ePBKK",
+      "img": "https://ads-partners.coupang.com/banners/1013478?trackingCode=AF5818321&subId=&traceId=V0-301-efafde73812c2264-I1013478&w=300&h=250",
+      "label": "쿠팡 로켓배송 골프용품"
+    },
+    {
+      "category": "gaming",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOBPzlshU",
+      "img": "https://ads-partners.coupang.com/banners/1013480?trackingCode=AF5818321&subId=&traceId=V0-301-8be2627c04ed5569-I1013480&w=320&h=100",
+      "label": "쿠팡 로켓배송 완구·취미"
+    },
+    {
+      "category": "gaming",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOCveCA5k",
+      "img": "https://ads-partners.coupang.com/banners/1013482?trackingCode=AF5818321&subId=&traceId=V0-301-8be2627c04ed5569-I1013482&w=300&h=250",
+      "label": "쿠팡 로켓배송 완구·취미"
+    },
+    {
+      "category": "humor",
+      "size": "320x100",
+      "href": "https://link.coupang.com/a/fUOFnSlboq",
+      "img": "https://ads-partners.coupang.com/banners/1013485?trackingCode=AF5818321&subId=&traceId=V0-301-5a8c79a76485eb21-I1013485&w=320&h=100",
+      "label": "쿠팡 로켓배송 패션·잡화"
+    },
+    {
+      "category": "humor",
+      "size": "300x250",
+      "href": "https://link.coupang.com/a/fUOFXwU0o8",
+      "img": "https://ads-partners.coupang.com/banners/1013486?trackingCode=AF5818321&subId=&traceId=V0-301-5a8c79a76485eb21-I1013486&w=300&h=250",
+      "label": "쿠팡 로켓배송 패션·잡화"
+    }
+  ],
+  "products": []
+}
