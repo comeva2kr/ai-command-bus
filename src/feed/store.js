@@ -375,6 +375,17 @@ export class FeedStore {
     return n;
   }
 
+  // 세션 발급 때 신원 경로를 남긴다(server.js /api/session).
+  recordIdentity(source) {
+    if (!this.analytics) this.analytics = {};
+    const day = this._trafficDay(new Date(this._nowMs()));
+    if (!this.analytics[day]) this.analytics[day] = emptyBucket();
+    const m = this.analytics[day].identity || (this.analytics[day].identity = {});
+    const k = String(source || "new").slice(0, 20);
+    m[k] = (m[k] || 0) + 1;
+    this._persist();
+  }
+
   analyticsBuckets() {
     return this.analytics || {};
   }

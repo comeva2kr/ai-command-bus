@@ -81,6 +81,9 @@ export function emptyBucket() {
     ref: {}, camp: {}, entry: {}, exit: {},
     dwellMs: 0, dwellN: 0,
     depth: 0, depthN: 0,
+    // 방문자를 무엇으로 알아봤나 — login / cookie / storage / new.
+    // 이게 없으면 "쿠키 복구가 실제로 되고 있나"를 영영 확인할 수 없다.
+    identity: {},
     clicks: { total: 0, bySource: {}, byCategory: {}, byRank: {} },
     ads: { imp: 0, click: 0, bySlot: {}, byVariant: {} }
   };
@@ -186,6 +189,7 @@ export function mergeBuckets(list) {
     for (const u of b.newUids || []) news.add(u);
     mergeCounts(out.ref, b.ref); mergeCounts(out.camp, b.camp);
     mergeCounts(out.entry, b.entry); mergeCounts(out.exit, b.exit);
+    mergeCounts(out.identity, b.identity);
     out.clicks.total += (b.clicks && b.clicks.total) || 0;
     mergeCounts(out.clicks.bySource, b.clicks && b.clicks.bySource);
     mergeCounts(out.clicks.byCategory, b.clicks && b.clicks.byCategory);
@@ -241,6 +245,10 @@ export function summarize(bucket, { key, label } = {}) {
     referrers: topN(b.ref, 12),
     campaigns: topN(b.camp, 20),
     entries: topN(b.entry, 10),
+    // 세션이 어떤 신원 경로로 열렸는지. new가 압도적이면 쿠키가 안 남고 있다는 뜻이다.
+    identity: topN(b.identity, 6),
+    identityNew: (b.identity && b.identity["new"]) || 0,
+    identityRecovered: ((b.identity && b.identity.cookie) || 0) + ((b.identity && b.identity.login) || 0),
     exits: topN(b.exit, 10),
     clickSources: topN(b.clicks.bySource, 12),
     clickCategories: topN(b.clicks.byCategory, 10),

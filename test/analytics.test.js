@@ -260,3 +260,76 @@ test("광고: 파트너 ID조차 없으면 여전히 광고를 내지 않는다"
   const c = pickAffiliateCandidates({ tech: 5 }, { partnerId: null, preview: false, productFeed: null });
   assert.equal(c.length, 0, "자격증명 없이 제휴 카드를 내보내지 않는다는 원칙은 그대로다");
 });
+
+// ── 신원 확정 (GA4 blended identity 벤치마크) ───────────────────────────────
+//
+// 실측 2026-08-04: 8/3 방문자 135명 중 133명이 그날 새로 만들어진 ID였다.
+// David 제보로 이게 사실이 아님이 확인됐다 — 매일 오는 사람이 실제로 있다.
+// 원인은 신원을 localStorage 하나에만 의존한 것. 카카오톡·네이버 앱 내장
+// 브라우저가 저장소를 비우면 매번 새 사용자가 발급됐고, 로그인 쿠키가
+// 살아 있어도 쓰이지 않았다.
+//
+// GA4는 client_id를 1st-party 쿠키(2년)에 두고, 로그인하면 user_id로 덮는다.
+// 같은 우선순위를 여기서 못 박는다.
+test("resolveIdentity: 로그인 세션이 가장 강하다 — 기기가 달라도 한 사람", async () => {
+  const { resolveIdentity, SESSION_COOKIE, DEVICE_COOKIE } = await import("../src/feed/auth.js");
+  const store = {
+    sessionUser: (t) => (t === "tok" ? "acct_1" : null),
+    getUser: (id) => (["acct_1", "dev_9", "ls_3"].includes(id) ? { id } : null)
+  };
+  const r = resolveIdentity({
+    cookies: { [SESSION_COOKIE]: "tok", [DEVICE_COOKIE]: "dev_9" },
+    bodyUserId: "ls_3", store
+  });
+  assert.deepEqual([r.userId, r.source, r.loggedIn], ["acct_1", "login", true]);
+});
+
+test("resolveIdentity: 저장소가 비어도 기기 쿠키로 같은 사람을 이어간다", async () => {
+  const { resolveIdentity, DEVICE_COOKIE } = await import("../src/feed/auth.js");
+  const store = { sessionUser: () => null, getUser: (id) => (id === "dev_9" ? { id } : null) };
+  // 앱 내장 브라우저가 localStorage를 비운 상황: bodyUserId가 null이다.
+  const r = resolveIdentity({ cookies: { [DEVICE_COOKIE]: "dev_9" }, bodyUserId: null, store });
+  assert.deepEqual([r.userId, r.source], ["dev_9", "cookie"]);
+});
+
+test("resolveIdentity: 쿠키가 없으면 기존 localStorage 사용자를 잃지 않는다", async () => {
+  // 배포 직후 기존 사용자는 쿠키가 없다. 여기서 새 사람으로 만들면 그동안의
+  // 취향·스크랩이 통째로 끊긴다.
+  const { resolveIdentity } = await import("../src/feed/auth.js");
+  const store = { sessionUser: () => null, getUser: (id) => (id === "ls_3" ? { id } : null) };
+  const r = resolveIdentity({ cookies: {}, bodyUserId: "ls_3", store });
+  assert.deepEqual([r.userId, r.source], ["ls_3", "storage"]);
+});
+
+test("resolveIdentity: 아무 단서도 없을 때만 신규다", async () => {
+  const { resolveIdentity } = await import("../src/feed/auth.js");
+  const store = { sessionUser: () => null, getUser: () => null };
+  const r = resolveIdentity({ cookies: {}, bodyUserId: null, store });
+  assert.deepEqual([r.userId, r.source], [null, "new"]);
+  // 서버에 없는 유령 ID를 들고 와도 신규로 떨어져야 한다(데이터 삭제 후 등).
+  const r2 = resolveIdentity({ cookies: { nh_cid: "지워진ID" }, bodyUserId: "이것도없음", store });
+  assert.equal(r2.source, "new");
+});
+
+test("기기 쿠키: GA4와 같은 2년 · HttpOnly · SameSite=Lax", async () => {
+  const { serializeDeviceCookie } = await import("../src/feed/auth.js");
+  const c = serializeDeviceCookie("user_1", { secure: true });
+  assert.match(c, /^nh_cid=user_1/);
+  assert.match(c, /Max-Age=63072000/);       // 2년 — 방문마다 갱신된다
+  assert.match(c, /HttpOnly/);                // 페이지 스크립트가 실수로 지울 수 없다
+  assert.match(c, /SameSite=Lax/);
+  assert.match(c, /Secure/);
+  // http 로컬 개발에서는 Secure를 빼야 브라우저가 쿠키를 버리지 않는다
+  assert.ok(!/Secure/.test(serializeDeviceCookie("user_1", { secure: false })));
+});
+
+test("analytics: 신원 경로가 집계돼 쿠키 복구가 작동하는지 볼 수 있다", () => {
+  const b = emptyBucket();
+  for (const s of ["new", "new", "cookie", "cookie", "cookie", "login"]) {
+    b.identity[s] = (b.identity[s] || 0) + 1;
+  }
+  const sum = summarize(b, { key: "d" });
+  assert.equal(sum.identityNew, 2);
+  assert.equal(sum.identityRecovered, 4, "쿠키+로그인으로 복구된 세션");
+  assert.equal(sum.identity[0].key, "cookie");
+});

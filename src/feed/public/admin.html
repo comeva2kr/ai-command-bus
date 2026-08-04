@@ -197,7 +197,17 @@ async function renderAnalytics(panel){
     </table>
     <p class="empty" style="text-align:left">평균 체류·깊이 옆의 건수는 그 평균이 몇 건의 표본에서 나왔는지입니다. 표본이 없으면 0이 아니라 —로 표시합니다.</p>
 
-    <div class="panel-h">🚪 어디에서 들어오나 (최근 ${esc(L.label||L.key)})</div>
+    <div class="panel-h">🪪 방문자를 무엇으로 알아봤나 (최근 ${esc(L.label||L.key)})</div>
+    <div class="cards">
+      <div class="card"><div class="k">복구된 세션</div><div class="v">${num(L.identityRecovered)}</div><div class="n">로그인·기기 쿠키로 같은 사람으로 이어짐</div></div>
+      <div class="card"><div class="k">새로 발급</div><div class="v">${num(L.identityNew)}</div><div class="n">단서가 없어 새 사람으로 잡힘</div></div>
+    </div>
+    ${kvTable(L.identity, ["판별 경로","세션","비중"])}
+    <p class="empty" style="text-align:left">GA4와 같은 순서로 확정합니다 — <b>로그인 → 기기 쿠키 → 브라우저 저장소 → 신규</b>.
+    "새로 발급"이 압도적이면 쿠키가 안 남고 있다는 뜻이라 재방문 수치를 믿으면 안 됩니다.
+    앱 내장 브라우저(카카오톡·네이버)는 저장소를 자주 비우지만 쿠키는 살아남습니다.</p>
+
+    <div class="panel-h">🚪 어디에서 들어오나</div>
     ${kvTable(L.referrers, ["유입 출처","방문","비중"])}
 
     <div class="panel-h">📣 대외 광고 캠페인 (utm)</div>

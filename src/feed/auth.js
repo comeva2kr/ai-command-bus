@@ -230,3 +230,66 @@ export function clearSessionCookie({ secure = true } = {}) {
   if (secure) attrs.push("Secure");
   return attrs.join("; ");
 }
+
+// ── 기기 식별 쿠키 (client_id) ─────────────────────────────────────────────
+//
+// ── 레퍼런스: Google Analytics 4 (David 고정법칙 "혼자 만들지 말고 벤치마킹")
+// GA4는 익명 방문자를 `_ga` **1st-party 쿠키**(2년, 방문마다 max-age 갱신)로
+// 식별하고, 로그인하면 user_id를 얹어 기기를 가로질러 합친다("blended
+// identity": user_id → 시그널 → client_id). **localStorage를 쓰지 않는다.**
+//
+// ── 왜 우리에게 이게 필요한가 (2026-08-04 실측)
+// 우리는 신원을 localStorage(`feed_uid`) 하나에만 의존했다. 그 결과:
+//   8/2 방문자 116 · 그날 새로 만들어진 ID 112 → 재방문 4명
+//   8/3 방문자 135 · 그날 새로 만들어진 ID 133 → 재방문 2명
+// David 제보로 이게 사실이 아님이 드러났다 — 매일 오는 사람이 실제로 있다.
+// 원인은 카카오톡·네이버 앱 내장 브라우저다. 이 웹뷰들은 localStorage를 자주
+// 비우고, 그러면 부팅 때 `feed_uid`가 null이라 **매번 새 사용자**가 발급된다.
+// 로그인 쿠키(feed_session)는 살아 있었는데도 신원 복구에 쓰이지 않았다.
+//
+// 쿠키는 웹뷰가 저장소를 비워도 살아남는 경우가 많고, HttpOnly라 페이지
+// 스크립트가 실수로 지울 수도 없다. GA4가 쿠키를 고른 이유가 그것이다.
+export const DEVICE_COOKIE = "nh_cid";
+const DEVICE_MAX_AGE_SEC = 2 * 365 * 24 * 60 * 60; // GA4와 같은 2년
+
+// 방문마다 다시 내보내 max-age를 갱신한다(GA4 동작). 그래야 꾸준히 오는
+// 사람의 ID가 사실상 만료되지 않는다.
+export function serializeDeviceCookie(userId, { secure = true } = {}) {
+  const attrs = [
+    `${DEVICE_COOKIE}=${encodeURIComponent(userId)}`,
+    "Path=/",
+    `Max-Age=${DEVICE_MAX_AGE_SEC}`,
+    "HttpOnly",
+    "SameSite=Lax"
+  ];
+  if (secure) attrs.push("Secure");
+  return attrs.join("; ");
+}
+
+// 신원 확정 — GA4의 blended identity와 같은 우선순위.
+//
+//   1) 로그인 세션   가장 강하다. 기기가 몇 개든 한 사람으로 합쳐진다.
+//   2) 기기 쿠키     localStorage보다 오래 살아남는다.
+//   3) localStorage  기존 사용자를 잃지 않기 위한 하위호환. 이 값이 쿠키로
+//                    승격되므로, 배포 직후 한 번만 쓰이고 그 뒤로는 2)가 맡는다.
+//   4) 신규 발급
+//
+// 반환의 `source`는 관리자 화면에서 "이 방문자를 무엇으로 알아봤나"를 보여주기
+// 위한 것이다 — 쿠키 복구가 실제로 작동하는지 수치로 확인할 수 있어야 한다.
+export function resolveIdentity({ cookies = {}, bodyUserId = null, store }) {
+  const sessionUserId = cookies[SESSION_COOKIE] ? store.sessionUser(cookies[SESSION_COOKIE]) : null;
+  if (sessionUserId && store.getUser(sessionUserId)) {
+    return { userId: sessionUserId, source: "login", loggedIn: true };
+  }
+  const cid = cookies[DEVICE_COOKIE];
+  if (cid && store.getUser(cid)) return { userId: cid, source: "cookie", loggedIn: false };
+  if (bodyUserId && store.getUser(bodyUserId)) return { userId: bodyUserId, source: "storage", loggedIn: false };
+  // 클라이언트가 들고 온 ID가 서버에 없을 때도 **그 ID로** 만들어 준다.
+  // 서버 데이터가 유실돼도 브라우저에 남은 ID로 같은 사람이 이어지던 기존
+  // 동작이고, 이걸 끊으면 그 사람의 취향·스크랩이 통째로 남남이 된다.
+  // 다만 아무 문자열이나 사용자 키가 되면 저장소가 오염되므로 형태를 검증한다.
+  if (bodyUserId && /^[A-Za-z0-9_-]{1,64}$/.test(bodyUserId)) {
+    return { userId: bodyUserId, source: "new", loggedIn: false };
+  }
+  return { userId: null, source: "new", loggedIn: false };
+}

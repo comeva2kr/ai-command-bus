@@ -46,7 +46,9 @@ import {
   AuthStateStore,
   parseCookies,
   serializeSessionCookie,
-  clearSessionCookie
+  clearSessionCookie,
+  serializeDeviceCookie,
+  resolveIdentity
 } from "./auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -93,6 +95,12 @@ function readBody(req) {
 function originOf(req) {
   const proto = req.headers["x-forwarded-proto"] || "http";
   return `${proto}://${req.headers.host}`;
+}
+
+// Secure 속성은 실제로 https로 들어온 요청에만 붙인다 — 브라우저는 http에서
+// 설정된 Secure 쿠키를 조용히 버려서 로컬 개발이 통째로 깨진다(auth.js 주석).
+function isSecureRequest(req) {
+  return (req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https";
 }
 
 function escapeHtml(s) {
@@ -1311,9 +1319,24 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/session" && req.method === "POST") {
         const body = await readBody(req);
-        const user = store.createUser(body.userId);
+        // 신원 확정은 GA4 blended identity와 같은 순서다 (auth.js resolveIdentity):
+        // 로그인 세션 > 기기 쿠키 > localStorage > 신규.
+        //
+        // 예전에는 body.userId(=localStorage) 하나만 봤다. 카카오톡·네이버 앱
+        // 내장 브라우저가 localStorage를 비우면 그 값이 null이라 **매번 새
+        // 사용자**가 발급됐고, 로그인 쿠키가 살아 있어도 쓰이지 않았다.
+        // 실측(2026-08-04): 8/3 방문자 135명 중 133명이 그날 새로 만들어진 ID.
+        const ident = resolveIdentity({ cookies: parseCookies(req.headers.cookie), bodyUserId: body.userId, store });
+        const user = store.createUser(ident.userId);
+        try { store.recordIdentity(ident.source); } catch {}
+        // 방문마다 다시 내보내 만료를 미룬다(GA4 동작). localStorage에서 온
+        // 기존 사용자도 이 순간 쿠키로 승격되므로, 다음 방문부터는 저장소가
+        // 비워져도 같은 사람으로 이어진다.
+        res.setHeader("set-cookie", serializeDeviceCookie(user.id, { secure: isSecureRequest(req) }));
         return send(res, 200, {
           userId: user.id,
+          identitySource: ident.source,
+          loggedIn: ident.loggedIn,
           nickname: user.nickname,
           surveyed: user.surveyed,
           feedbackCount: user.feedbackCount,
