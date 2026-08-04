@@ -1295,13 +1295,17 @@ const READ_KEY = "feed_reading";
 const RESUME_MAX_AGE_MS = 30 * 60 * 1000;  // 30분 넘으면 새 화제글을 보는 게 낫다
 const RESUME_MAX_PAGES = 6;                // 60건. 그 이상은 복원 대기가 더 답답하다
 const RESUME_MIN_Y = 240;                  // 첫 화면 언저리면 복원할 것도 없다
+// 떠나 있던 시간. 이보다 빨리 돌아왔으면 **스스로 새로고침한 것**이다.
+const RESUME_MIN_AWAY_MS = 15 * 1000;
+// 새로고침으로 기록된 진입은 더 오래 떠나 있었을 때만 복원한다. 느린 회선에서
+// 당겨서 새로고침이 20초 걸리는 일은 있어도, 2분 걸리지는 않는다.
+const RESUME_RELOAD_AWAY_MS = 2 * 60 * 1000;
 
-function saveReading(hidden){
+function saveReading(){
   try {
     sessionStorage.setItem(READ_KEY, JSON.stringify({
       y: window.scrollY, pages: state.pagesLoaded,
-      sort: state.sortMode, source: state.activeSource || "",
-      hidden: !!hidden, at: Date.now()
+      sort: state.sortMode, source: state.activeSource || "", at: Date.now()
     }));
   } catch {}
 }
@@ -1309,47 +1313,93 @@ function readSaved(){
   try { return JSON.parse(sessionStorage.getItem(READ_KEY) || "null"); } catch { return null; }
 }
 function clearReading(){ try { sessionStorage.removeItem(READ_KEY); } catch {} }
+function navKind(){
+  try {
+    const n = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+    return (n && n.type) || "";
+  } catch { return ""; }
+}
 
-// 복원할 만한 기록이 있는가. 조건이 하나라도 어긋나면 평소대로 홈을 보여준다 —
-// 애매할 때 억지로 되돌리면 "왜 여기 있지"가 되어 더 나쁘다.
-function resumable(){
-  const r = readSaved();
-  if(!r || !r.hidden) return null;                       // 보고 있다 죽었으면 의도한 새로고침
-  if(Date.now() - r.at > RESUME_MAX_AGE_MS) return null;
-  if(r.sort !== state.sortMode) return null;             // 정렬이 바뀌었으면 다른 목록이다
-  if((r.source || "") !== (state.activeSource || "")) return null;
+// ── 복원할지 말지 (순수 함수 — 테스트가 이걸 직접 돌린다)
+//
+// 첫 판(2026-08-05 오전)은 "언로드 시점에 화면이 숨겨져 있었는가"로 갈랐다.
+// **틀렸다.** 적대적 검수가 잡았다: 문서를 떠날 때 브라우저는 visibilitychange를
+// hidden으로 한 번 발화한 뒤 pagehide를 보낸다. 그래서 당겨서 새로고침처럼
+// 사용자가 빤히 보면서 하는 행동에서도 기록은 hidden=true가 된다 —
+// 판별 신호가 상시 참으로 굳어 아무것도 가르지 못한다.
+//
+// 대신 **떠나 있던 시간**으로 가른다. 이건 브라우저 이벤트 순서에 기대지 않는다:
+//   · 당겨서 새로고침 → 1~3초 뒤 돌아온다  → 의도 → 홈으로
+//   · 앱 전환·탭 폐기   → 최소 수십 초, 보통 몇 분 → 사고 → 자리 복원
+// 느린 회선에서 새로고침이 20초 걸리는 경우까지 막으려고, 진입 유형이
+// "reload"면 문턱을 2분으로 올린다. 탭 폐기가 어느 유형으로 잡히는지는
+// 브라우저마다 다르므로 유형만으로 판단하지는 않는다.
+function resumeDecision(r, ctx){
+  if(!r) return null;
+  const away = ctx.now - r.at;
+  if(!(away >= 0)) return null;                          // 시계가 뒤로 간 기록은 못 믿는다
+  if(away > RESUME_MAX_AGE_MS) return null;
+  const floor = ctx.navKind === "reload" ? RESUME_RELOAD_AWAY_MS : RESUME_MIN_AWAY_MS;
+  if(away < floor) return null;                          // 금방 돌아왔다 = 스스로 새로고침
+  if(r.sort !== ctx.sortMode) return null;               // 정렬이 바뀌었으면 다른 목록이다
+  if((r.source || "") !== (ctx.source || "")) return null;
   if(!(r.y > RESUME_MIN_Y) || !(r.pages > 0)) return null;
-  if(location.hash.indexOf("#post-") === 0) return null; // 딥링크는 상세를 여는 게 먼저
-  return r;
+  if(ctx.hash.indexOf("#post-") === 0) return null;      // 딥링크는 상세를 여는 게 먼저
+  return { y: r.y, pages: Math.min(r.pages, RESUME_MAX_PAGES), clipped: r.pages > RESUME_MAX_PAGES };
+}
+
+function resumable(){
+  return resumeDecision(readSaved(), {
+    now: Date.now(), navKind: navKind(), sortMode: state.sortMode,
+    source: state.activeSource, hash: location.hash
+  });
 }
 
 async function resumeOrLoad(){
-  const r = resumable();
-  if(!r){ clearReading(); loadMore(); return; }
-  const want = Math.min(r.pages, RESUME_MAX_PAGES);
-  for(let i = 0; i < want && !state.exhausted; i++) await loadMore();
-  // 목록이 줄었을 수 있다(오래된 글이 빠진다) — 문서 끝을 넘지 않게 자른다.
-  const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-  const y = Math.min(r.y, max);
-  requestAnimationFrame(()=> requestAnimationFrame(()=> {
-    window.scrollTo(0, y);
-    // 말없이 옮기면 고장으로 읽힌다. 무슨 일이 있었는지 한 줄로 알린다.
-    toast(r.pages > RESUME_MAX_PAGES ? "읽던 근처로 돌아왔어요" : "읽던 자리로 돌아왔어요");
-  }));
+  const plan = resumable();
+  if(!plan){ clearReading(); await loadMore(); return; }
+  // 복원이 끝나기 전에는 카드를 누를 수 없게 한다. 페이지를 채우는 몇 초 동안
+  // 화면은 이미 최상단 글을 보여 주고 있어서, 그때 누르면 로딩이 끝나며
+  // 화면이 아래로 튀어 엉뚱한 글이 열린다(적대적 검수 지적).
+  const feed = document.getElementById("feed");
+  feed.style.pointerEvents = "none";
+  try {
+    for(let i = 0; i < plan.pages && !state.exhausted; i++) await loadMore();
+  } finally { feed.style.pointerEvents = ""; }
+
+  const maxY = ()=> Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  const target = ()=> Math.min(plan.y, maxY());
+  const short = target() < plan.y;   // 목록이 줄어 원래 자리까지 못 간다
+  window.scrollTo(0, target());
+  toast(plan.clipped || short ? "읽던 근처로 돌아왔어요" : "읽던 자리로 돌아왔어요");
+
+  // 광고와 사진이 뒤늦게 자리를 차지하면 그만큼 아래로 밀린다. 잠깐 동안
+  // 목표를 다시 맞춘다 — 사용자가 스스로 움직이기 시작하면 즉시 그만둔다.
+  let left = 6, done = false;
+  const stop = ()=>{ done = true; };
+  addEventListener("wheel", stop, { once:true, passive:true });
+  addEventListener("touchstart", stop, { once:true, passive:true });
+  const settle = ()=>{
+    if(done || left-- <= 0) return;
+    const t = target();
+    if(Math.abs(window.scrollY - t) > 8) window.scrollTo(0, t);
+    setTimeout(settle, 250);
+  };
+  setTimeout(settle, 250);
 }
 
-// 스크롤 중에는 화면을 보고 있는 것이므로 hidden=false로 남긴다.
+// 언제 저장하나. 화면을 보고 있는 동안(스크롤)과 떠나는 순간(visibilitychange)
+// 둘 다 남긴다 — 탭이 폐기될 때는 pagehide가 아예 안 뜨는 기기가 있다.
 (function(){
   let queued = false;
   addEventListener("scroll", ()=>{
     if(queued) return; queued = true;
-    requestAnimationFrame(()=>{ queued = false; saveReading(false); });
+    requestAnimationFrame(()=>{ queued = false; saveReading(); });
   }, { passive:true });
   addEventListener("visibilitychange", ()=>{
-    if(document.visibilityState === "hidden") saveReading(true);
+    if(document.visibilityState === "hidden") saveReading();
   });
-  // pagehide 시점의 visibilityState가 이 언로드의 성격을 그대로 말해 준다.
-  addEventListener("pagehide", ()=> saveReading(document.visibilityState === "hidden"));
+  addEventListener("pagehide", saveReading);
 })();
 
 const SRC_COLORS = {}; // stable color per source
@@ -1440,13 +1490,17 @@ syncHeaderHeight();
   setupMixSlider(s);
   // Always show content first — a preview feed (popularity-ranked when no taste
   // yet). Personalization is invited, never a gate. (adversarial review #1)
-  updateMeter(s); resumeOrLoad(); openFromHash();
+  updateMeter(s);
+  // 무한스크롤은 복원이 끝난 뒤에 건다 — 문서가 짧을 때 미리 걸면
+  // 1400px 마진 안에 센티널이 바로 들어와 필요 없는 페이지까지 받아온다.
+  const restored = resumeOrLoad().then(()=> setupInfiniteScroll());
+  openFromHash();
   // 이미 취향을 맞춘 적 있는 계정이면(다른 기기에서 로그인해 온 경우 등)
   // 사용법 설명은 건너뛴다 — 아는 사람에게 다시 띄우면 방해다.
   if(!s.surveyed) maybeShowOnboarding();
   if(!s.surveyed) showPersonalizeBanner(); else showDigest();
   maybeShowAdNotice();
-  setupInfiniteScroll(); setupImmersion();
+  void restored; setupImmersion();
 
   // 소셜 로그인: 쿠키 기반 세션 상태를 한 번 확인해 드로어/내 공간의 로그인
   // 블록을 채운다. 설정된 provider가 하나도 없으면(auth.providers==[])
@@ -2316,6 +2370,9 @@ function wireKakaoAppLogin(container){
 }
 // refresh the underlying feed without scrolling the space away
 function reloadFeedSilently(){
+  // 취향·성향 조정으로 목록이 통째로 달라진다. 옛 페이지 수·좌표를 그대로
+  // 적용하면 엉뚱한 자리로 간다(적대적 검수 지적).
+  state.pagesLoaded = 0; clearReading();
   state.cursor = 0; state.exhausted = false; state.loading = false;
   state.prefetch = null;
   state.cardsById.clear();
