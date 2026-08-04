@@ -333,3 +333,34 @@ test("analytics: 신원 경로가 집계돼 쿠키 복구가 작동하는지 볼
   assert.equal(sum.identityRecovered, 4, "쿠키+로그인으로 복구된 세션");
   assert.equal(sum.identity[0].key, "cookie");
 });
+
+// ── 발췌 품질 (2026-08-04) ──────────────────────────────────────────────────
+test("랭킹: 사이트 소개문·유도 문구가 발췌로 새어 나가지 않는다", async () => {
+  // 발췌는 원문의 og:description에서 오는데, 상당수 사이트가 글별 설명 대신
+  // 사이트 소개문을 통째로 내려준다. 실측: 이토랜드 글 전부에 같은 소개문이
+  // 붙었고 "직접 눌러서 내용을 확인해 주세요" 같은 유도 문구도 섞였다.
+  // 같은 문단이 페이지에 반복되면 정확히 "템플릿으로 찍어낸 페이지"가 된다.
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const boiler = "이토랜드는 유머, 연예, 정보, 이슈를 빠르게 공유하는 커뮤니티입니다.";
+  const mk = (id, source, summary, score) => ({
+    id, source, title: "글 " + id, url: "https://x/" + id, summary,
+    score, commentCount: score, category: "humor",
+    publishedAt: new Date(Date.now() - 3600e3).toISOString()
+  });
+  const engine = new FeedEngine({ firstSeenOf: () => undefined, rememberFirstSeen: () => {} }, []);
+  engine._cache = [
+    mk("a", "etoland", boiler, 90),
+    mk("b", "etoland", boiler, 80),
+    mk("c", "instiz", "직접 눌러서 내용을 확인해 주세요", 70),
+    mk("d", "clien", "새 맥북 프로 사용기를 정리했습니다. 배터리와 발열 위주로 봤습니다.", 60),
+    mk("e", "ppomppu", "짧다", 50)
+  ];
+  engine._itemLabels = new Map();
+  const { items } = await engine.rankingTop(10);
+  const by = Object.fromEntries(items.map((i) => [i.id, i.summary]));
+  assert.equal(by.a, "", "여러 글에 똑같이 붙은 소개문은 그 글의 것이 아니다");
+  assert.equal(by.b, "");
+  assert.equal(by.c, "", "알맹이 없는 유도 문구");
+  assert.equal(by.e, "", "한 문장도 안 되는 발췌");
+  assert.match(by.d, /맥북/, "진짜 글별 발췌는 남아야 한다");
+});

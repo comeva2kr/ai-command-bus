@@ -314,8 +314,13 @@ export class FeedEngine {
     // 풀 전체에 한 번 건다. 여기가 피드·랭킹·브리핑·공유가 모두 지나가는
     // 유일한 길목이라, 출력 지점마다 따로 거는 것보다 새는 곳이 없다
     // (2026-08-03 1차 시도에서 shareData에만 걸어 피드는 그대로였다).
+    // 두 캐시를 각각 확인한다 — 예전엔 _itemGroups 초기화가 _itemLabels 검사
+    // 안에 들어 있어서, 한쪽만 설정된 상태(테스트·부분 초기화)에서는
+    // _itemGroups가 undefined인 채로 .get()을 부르며 터졌다.
     if (this._itemLabels === undefined) {
       this._itemLabels = new Map(loadRegistry().map((c) => [c.id, c.labelKo || c.label]));
+    }
+    if (this._itemGroups === undefined) {
       // feedGroup — 다양성 계산에서 여러 소스를 **한 몫**으로 묶는다.
       //
       // 구글뉴스는 섹션마다 소스 하나씩이라 8칸(주요·세계·대한민국·과학기술·
@@ -1235,6 +1240,28 @@ export class FeedEngine {
         heat: heatOf(i),
         hot: Math.round(s.hotScore * 1000) / 1000
       });
+    }
+    // ── 발췌 품질 필터 (2026-08-04) ─────────────────────────────────────
+    //
+    // 발췌는 원문 페이지의 og:description에서 온다. 그런데 상당수 사이트는
+    // 글마다 다른 설명 대신 **사이트 소개문을 통째로** 내려준다. 실측:
+    //   "이토랜드는 유머, 연예, 정보, 이슈를 빠르게 공유하는 커뮤니티입니다…"
+    //   → 이토랜드 글 전부에 똑같이 붙었다
+    //   "직접 눌러서 내용을 확인해 주세요" → 알맹이 없는 유도 문구
+    //
+    // 이런 걸 그대로 실으면 같은 문단이 페이지에 반복되어, 검색엔진이 보기에
+    // 정확히 "템플릿으로 찍어낸 페이지"가 된다 — 발췌를 넣은 이유와 정반대다.
+    // 목록 안에서 두 번 이상 겹치는 발췌는 그 글의 것이 아니므로 버린다.
+    const seen = new Map();
+    for (const o of out) {
+      const k = (o.summary || "").trim();
+      if (k) seen.set(k, (seen.get(k) || 0) + 1);
+    }
+    const FILLER = /^(직접 눌러|자세한 내용은|내용을 확인|클릭하여|더 보기)/;
+    for (const o of out) {
+      const k = (o.summary || "").trim();
+      // 너무 짧은 것도 버린다 — 한 문장도 안 되면 알맹이가 없다.
+      if (!k || k.length < 20 || seen.get(k) > 1 || FILLER.test(k)) o.summary = "";
     }
     return { generatedAt: new Date(now).toISOString(), items: out };
   }
