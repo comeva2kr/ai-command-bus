@@ -857,6 +857,22 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         res.end([
           "User-agent: *",
           "Allow: /",
+          // 읽기 전용 GET만 열어 둔다 (2026-08-04).
+          //
+          // 예전엔 `Disallow: /api/` 하나로 전부 막았다. 그런데 홈 피드는
+          // JS가 /api/feed를 불러 채우고, 구글 크롤러는 **렌더링 도중에도**
+          // robots를 지킨다 — 즉 우리가 우리 콘텐츠를 스스로 막고 있었다.
+          // 실측(2026-08-04): 크롤러가 보는 홈 본문 936자, 카드 0개, 첫 문구
+          // "준비 중". 색인되는 홈이 빈 화면이었다.
+          //
+          // 이 엔드포인트들은 이미 누구나 열 수 있는 공개 GET이라 여는 것만으로
+          // 새로 드러나는 정보가 없다. 쓰기·세션·관리자 경로는 계속 막는다.
+          "Allow: /api/feed",
+          "Allow: /api/item",
+          "Allow: /api/briefing",
+          "Allow: /api/trends",
+          "Allow: /api/communities",
+          "Allow: /api/config",
           "Disallow: /api/",
           "Disallow: /admin",
           "Disallow: /p?",           // 공유 링크는 앱으로 튕기는 중계 페이지
@@ -881,8 +897,9 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
           { loc: "/trends", freq: "hourly", pri: "0.6" },
           { loc: "/communities", freq: "hourly", pri: "0.8" },
           { loc: "/keywords", freq: "hourly", pri: "0.7" },
-          { loc: "/about.html", freq: "monthly", pri: "0.4" },
-          { loc: "/privacy.html", freq: "yearly", pri: "0.2" }
+          { loc: "/about", freq: "monthly", pri: "0.4" },
+          { loc: "/terms", freq: "yearly", pri: "0.2" },
+          { loc: "/privacy", freq: "yearly", pri: "0.2" }
         ];
         for (const cat of [...new Set(cats)]) {
           urls.push({ loc: `/briefing/${encodeURIComponent(cat)}`, freq: "hourly", pri: "0.7" });
@@ -1783,6 +1800,11 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       // --- admin page ---
       if (p === "/admin" && req.method === "GET") return serveStatic(res, "/admin.html");
+      // 정책 페이지는 확장자 없는 주소로도 열린다. 심사관·크롤러·다른 사이트가
+      // 관행적으로 /privacy, /terms, /about을 치는데 예전엔 전부 404였다
+      // (2026-08-04 실측). 링크가 죽으면 "필수 페이지 없음"으로 판정된다.
+      const STATIC_ALIASES = { "/privacy": "/privacy.html", "/terms": "/terms.html", "/about": "/about.html" };
+      if (STATIC_ALIASES[p] && req.method === "GET") return serveStatic(res, STATIC_ALIASES[p]);
 
       // --- shareable link with OG tags (crawlers read this; humans bounce to app) ---
       if (p === "/p" && req.method === "GET") {
@@ -1813,12 +1835,35 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         if (p === "/" || p === "/index.html") {
           try {
             // rankingTop은 { generatedAt, items } 를 돌려준다 — 배열이 아니다.
-            const top = (await engine.rankingTop(12) || {}).items || [];
+            const top = (await engine.rankingTop(20) || {}).items || [];
+            // 우리가 직접 만드는 페이지로 가는 길 — 사람에게도 크롤러에게도
+            // 서비스의 구성이 보여야 한다. 예전엔 이 링크들이 드로어 안에만
+            // 있어서 /communities·/keywords는 홈에서 갈 방법이 아예 없었다
+            // (2026-08-04 실측: 링크 0개).
+            const navHtml =
+              `<nav class="seed-nav" aria-label="지금핫이 만드는 페이지">` +
+              [["/briefing", "오늘의 브리핑"], ["/ranking/daily", "화제 랭킹"],
+               ["/communities", "커뮤니티 순위"], ["/keywords", "화제 키워드"],
+               ["/trends", "실시간 트렌드"]]
+                .map(([href, label]) => `<a href="${href}">${escapeHtml(label)}</a>`).join("") +
+              `</nav>`;
             if (top.length) {
-              seed = `<ul class="seed-list">` + top.map((i) =>
-                `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>` +
-                ` <span class="seed-src">${escapeHtml(i.sourceLabel || "")}</span></li>`
-              ).join("") + `</ul>`;
+              // 제목만 심던 것을 **출처·실측 반응·발췌**까지로 넓힌다.
+              // 제목 12줄로는 "남의 제목 모음"과 구분되지 않고, 실제로 크롤러가
+              // 읽는 본문이 936자에 그쳤다. 반응 수치는 우리가 잰 값이고
+              // 발췌는 원문 200자 이내 인용이라 여기가 이 페이지의 알맹이다.
+              seed = navHtml + `<ol class="seed-list">` + top.map((i) => {
+                const react = [];
+                if (Number(i.score) > 0) react.push(`추천 ${Number(i.score).toLocaleString("ko-KR")}`);
+                if (Number(i.commentCount) > 0) react.push(`댓글 ${Number(i.commentCount).toLocaleString("ko-KR")}`);
+                const meta = [escapeHtml(i.sourceLabel || ""), react.join(" · ")].filter(Boolean).join(" · ");
+                const summary = typeof i.summary === "string" && i.summary.trim()
+                  ? `<p class="seed-sum">${escapeHtml(maskProfanity(i.summary.slice(0, 200)))}</p>` : "";
+                return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>` +
+                  `<span class="seed-src">${meta}</span>${summary}</li>`;
+              }).join("") + `</ol>`;
+            } else {
+              seed = navHtml;   // 수집 전이라도 구성은 보여준다
             }
           } catch {
             // 수집 전이거나 실패하면 기존 스켈레톤이 남는다 — 홈은 계속 뜬다.

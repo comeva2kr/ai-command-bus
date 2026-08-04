@@ -343,7 +343,17 @@ test("홈에 크롤러가 읽을 정적 글 목록이 심긴다 (네이버는 JS
   assert.match(src, /function serveStatic\(res, urlPath, seedHtml = ""\)/,
     "serveStatic이 seed를 받아야 한다");
   assert.match(src, /seedHtml && ext === "\.html" && rel === "index\.html"/);
-  assert.match(src, /rankingTop\(12\)/, "홈 seed는 화제 랭킹에서 뽑는다");
+  assert.match(src, /rankingTop\(20\)/, "홈 seed는 화제 랭킹에서 뽑는다");
+  // 2026-08-04: 제목만 심던 것을 출처·실측 반응·발췌까지로 넓혔다. 제목 12줄로는
+  // 크롤러가 읽는 본문이 936자에 그쳤고 "남의 제목 모음"과 구분되지 않았다.
+  assert.match(src, /seed-sum/, "발췌가 있어야 알맹이가 생긴다");
+  assert.match(src, /추천 \$\{Number\(i\.score\)/, "우리가 잰 반응 수치를 함께 심는다");
+  // 서비스 구성이 첫 화면에서 드러나야 한다 — /communities·/keywords는
+  // 만들어 놓고도 홈에서 갈 링크가 0개였다.
+  assert.match(src, /seed-nav/, "자체 페이지로 가는 내비게이션");
+  for (const href of ["/briefing", "/ranking/daily", "/communities", "/keywords", "/trends"]) {
+    assert.ok(src.includes(`"${href}"`), `홈 내비에 ${href} 누락`);
+  }
   // rankingTop은 { generatedAt, items } 를 준다 — 배열로 착각하면 조용히 빈다
   assert.match(src, /\)\s*\|\|\s*\{\}\)\.items\s*\|\|\s*\[\]/,
     "rankingTop의 반환 모양(객체)을 지켜야 한다");

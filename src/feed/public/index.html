@@ -156,6 +156,14 @@
   .seed-list li{padding:12px 16px;border-bottom:1px solid var(--line)}
   .seed-list a{color:var(--text);text-decoration:none;font-weight:700;line-height:1.45}
   .seed-src{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+  /* 발췌 한 줄 — 제목만 있으면 "남의 제목 모음"과 구분이 안 된다.
+     JS가 뜨기 전 사람이 보는 화면이자 크롤러가 읽는 본문이다. */
+  .seed-sum{margin:6px 0 0;font-size:13px;line-height:1.5;color:var(--muted)}
+  /* 우리가 만드는 페이지로 가는 길 — 서비스의 구성이 첫 화면에서 드러나야 한다 */
+  .seed-nav{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px 4px}
+  .seed-nav a{font-size:12.5px;font-weight:700;color:var(--text);text-decoration:none;
+    border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+  .seed-nav a:hover,.seed-nav a:focus-visible{border-color:var(--accent);color:var(--accent)}
 
   /* floating action bar */
   .fab { position: fixed; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 30; display: flex; flex-direction: column; gap: 10px; }
@@ -189,7 +197,7 @@
   /* 편집 코멘트 한 줄 (editorialNote, engine.js/editorial.js) — 알고리즘
      추천 이유 칩(.why, 파란 필/체크 아이콘)과는 다른 느낌을 의도적으로 낸다:
      칩이 아니라 이탤릭 인용구 한 줄로, "이 피드가 직접 단 코멘트"처럼 읽히게
-     — 애드센스 심사 근거(자체 논평/부가가치, docs/monetization.md)이자
+     — 알고리즘이 왜 이 글을 골랐는지 독자가 알 수 있게 하는 편집 코멘트이자
      취향 큐레이션 신호이기도 해서 알고리즘 사유와 시각적으로 분리해야 한다. */
   .editorial-note { font-style: italic; font-size: 12.5px; color: #d8b374; opacity: .92;
     margin: 8px 0 0; line-height: 1.45; }
@@ -330,12 +338,25 @@
   /* ---- 제휴/광고 슬롯 카드 ----
      레이아웃은 .card를 공유하되 "AD" 배지로 광고임을 표시하고, 배지를 탭하면
      고지 전문이 팝오버로 뜬다(.ad-disclosure-pop). 고지 요건은
-     "고지 존재 + 인지 가능 + 접근 가능"이면
-     충족되므로, 배지 자체가 1차 고지이고 상세는 요청 시 보여주는 progressive
-     disclosure 구조가 성립한다. 단, 배지는 카드 최초 뷰포트에서 항상
+     "고지 존재 + 인지 가능 + 접근 가능"을 모두 요구하므로, 배지(1차) +
+     카드 내 상시 문구(2차) + 팝오버 전문(3차)의 3단으로 둔다. 팝오버만으로는
+     "인식 가능성" 요건을 못 채운다. 단, 배지는 카드 최초 뷰포트에서 항상
      보여야 하고(Warner Bros 판례 — 숨겨진 고지는 위법), "AD"라는 단어를
      추천/카테고리 등으로 위장해서는 절대 안 된다(기사형광고 규제선). */
-  .ad-card { border-color: var(--line); } /* 유기 카드와 테두리까지 동일 — 배지만 다르다 */
+  /* 광고 카드는 유기 카드와 **한눈에 구분**되어야 한다.
+     예전엔 테두리까지 동일하고 배지만 달랐는데, 배지 하나로는 스크롤 중에
+     구분이 안 된다. 광고를 콘텐츠로 오인시키는 UI는 애드핏·애드센스 양쪽이
+     금지하고, 기사형광고 규제선이기도 하다. 배경을 살짝 눕히고 좌측에
+     띠를 둬서 훑기만 해도 갈리게 한다. */
+  .ad-card { border-color: var(--ad-edge); background: var(--ad-bg); }
+  .ad-card::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background: var(--ad-badge-bg); border-radius: 12px 0 0 12px; }
+  .ad-card { position: relative; }
+  /* 대가성 문구는 **카드 안에 항상** 보인다. 팝오버로만 두면 탭해야 보이는데,
+     공정위 표시·광고 심사지침은 "위치의 접근성·표현의 인식 가능성"을 요구한다.
+     글자를 줄이더라도 상시 노출이 요건이다. */
+  .ad-disclosure-inline { font-size: 12.5px; line-height: 1.45; color: var(--text);
+    opacity: .82; margin-top: 8px; }
   .ad-card .card-top { position: relative; } /* 팝오버 앵커 */
   .card-top .ad-badge {
     margin-left: auto; /* 유기 카드의 카테고리 배지처럼 우상단으로 */
@@ -345,7 +366,8 @@
     cursor: pointer;
   }
   .card-top .ad-badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  /* 배지 탭 시 뜨는 고지 전문 팝오버 — 상시 노출 없이, 접근 가능하게.
+  /* 배지 탭 시 뜨는 고지 전문 팝오버 — 카드 안 상시 문구(.ad-disclosure-inline)에
+     더해 전문을 보여주는 보조 장치다.
      hidden 속성으로 기본 닫힘, JS(appendAdCard)가 토글한다. */
   .ad-disclosure-pop {
     position: absolute; top: calc(100% + 6px); left: 0; z-index: 5;
@@ -355,6 +377,14 @@
     box-shadow: 0 8px 24px rgba(0,0,0,.35);
   }
   .ad-disclosure-pop[hidden] { display: none; }
+
+  /* 드로어 내비 — 인라인 style을 대체한다. 링크가 어디로 가는지 한눈에
+     보이도록 블록으로 세우고, 보조 링크(sub)만 톤을 낮춘다. */
+  .drawer-nav a, .drawer-meta a { display: block; text-decoration: none; }
+  .drawer-nav a + a, .drawer-meta a + a { margin-top: 6px; }
+  .drawer-meta { border-top: 1px solid var(--line); padding-top: 12px; }
+  .drawer-link.sub { color: var(--muted); font-size: 13px; }
+  .drawer-copy { color: var(--muted); font-size: 12px; margin: 10px 0 0; padding-left: 14px; }
 
   .sentinel { height: 40px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
   .spinner { width: 18px; height: 18px; border: 2px solid var(--line); border-top-color: var(--accent);
@@ -490,6 +520,10 @@
     --accent:var(--color-accent);
     --line:color-mix(in srgb,var(--color-text) 32%,transparent);
     --like:var(--color-accent); --dislike:var(--color-text);
+    /* 광고 카드 배경·테두리 — 색을 새로 박지 않고 기존 토큰에서 파생시킨다.
+       라이트/다크가 바뀌면 자동으로 따라가므로 테마마다 값을 관리할 필요가 없다. */
+    --ad-bg:color-mix(in srgb, var(--color-surface) 55%, var(--color-bg));
+    --ad-edge:color-mix(in srgb, var(--color-text) 24%, transparent);
     --radius:0px;
   }
   html[data-theme="dark"]{
@@ -694,14 +728,14 @@
     margin-top:8px;font-size:15px;font-weight:800;color:var(--color-text)}
   .card .ad-native .ad-cta::after{content:"→";color:var(--color-accent);font-size:17px}
   .card .ad-disclosure{margin:8px 0 0;font-size:11.5px;line-height:1.5;
-    color:var(--muted);text-align:left}
+    color:var(--text);text-align:left}
   /* 상세 모달 안 제휴 카드는 #feed 스코프가 안 닿아 면이 사라져 있었다 —
      같은 크리에이티브가 피드와 상세에서 다르게 보였다. */
   .card.ad-card{background:var(--color-surface)}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
     overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .card.ad-net .ad-net-slot img{max-width:100%;height:auto}
-  .card.ad-net .ad-disclosure{margin:8px 0 0;font-size:11px;line-height:1.5;color:var(--muted);text-align:left}
+  .card.ad-net .ad-disclosure{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--text);text-align:left}
   .card.ad-net .ad-net-slot{display:flex;justify-content:center;align-items:center;
     min-height:0;padding:10px 0 2px}
   .card.ad-net .badge.ad-badge-static{margin-left:auto}
@@ -925,16 +959,24 @@
       <!-- 소셜 로그인: 설정된 provider가 있을 때만 채워짐 (renderAuthBlock) -->
       <div class="drawer-sec" id="authDrawerSec"></div>
 
-      <!-- 자체 콘텐츠·운영 정보 (애드핏/애드센스 심사: 운영 주체 표시 + 자체 편집 콘텐츠) -->
-      <div class="drawer-sec">
-        <a class="drawer-link" href="/briefing" style="display:block;text-decoration:none">오늘의 브리핑</a>
-        <a class="drawer-link" href="/ranking/daily" style="display:block;text-decoration:none">화제 랭킹 TOP 20</a>
-      </div>
-      <div class="drawer-sec" style="border-top:1px solid var(--line);padding-top:12px">
-        <a class="drawer-link" href="/about.html" style="display:block;text-decoration:none;color:var(--muted);font-size:13px">서비스 소개</a>
-        <a class="drawer-link" href="/privacy.html" style="display:block;text-decoration:none;color:var(--muted);font-size:13px;margin-top:6px">개인정보처리방침</a>
-        <div style="color:var(--muted);font-size:12px;margin-top:10px;padding-left:14px">ⓒ 페퍼클럽 · 지금핫 NowHot</div>
-      </div>
+      <!-- 우리가 직접 만드는 페이지들. 예전엔 브리핑·랭킹 둘만 있어서
+           커뮤니티 순위·키워드는 만들어 놓고도 들어갈 길이 없었다
+           (2026-08-04 실측: 홈에서 /communities·/keywords 링크 0개).
+           인라인 style은 전부 클래스로 뺐다 — 값이 코드에 박히면 테마가
+           바뀔 때 여기만 안 따라온다. -->
+      <nav class="drawer-sec drawer-nav" aria-label="지금핫이 만드는 페이지">
+        <a class="drawer-link" href="/briefing">오늘의 브리핑</a>
+        <a class="drawer-link" href="/ranking/daily">화제 랭킹 TOP 20</a>
+        <a class="drawer-link" href="/communities">커뮤니티 순위</a>
+        <a class="drawer-link" href="/keywords">화제 키워드</a>
+        <a class="drawer-link" href="/trends">실시간 트렌드</a>
+      </nav>
+      <nav class="drawer-sec drawer-meta" aria-label="서비스 정보">
+        <a class="drawer-link sub" href="/about">서비스 소개</a>
+        <a class="drawer-link sub" href="/terms">이용약관</a>
+        <a class="drawer-link sub" href="/privacy">개인정보처리방침</a>
+        <p class="drawer-copy">ⓒ 페퍼클럽 · 지금핫 NowHot</p>
+      </nav>
     </div>
   </aside>
 
@@ -942,7 +984,7 @@
 
   <!-- 지금 브리핑 스트립 
        — 카테고리별 대표 이슈 카드, /api/briefing 실측 데이터. 탭하면 자체
-       브리핑 페이지(/briefing/<cat>)로 — 애드핏 "자체 콘텐츠" 보강의 홈 노출부 -->
+       브리핑 페이지(/briefing/<cat>)로 -->
   <div class="brief-strip" id="briefStrip" hidden></div>
 
   <!-- 정렬 바 (#12, "상단에 필터링 옵션에 최신순도") — 핫=기존 추천,
@@ -1432,7 +1474,7 @@ function setupLeanSlider(session){
 // 피드 안 제휴 카드 + 애드핏.
 //
 // ── 왜 이렇게 바뀌었나 (2026-08-03, David 실기기 제보 2건)
-// 1) "폰에서 광고 안 보인다" — 애드핏 매체 심사가 보류라 <ins>가 빈 채로 남았다.
+// 1) 광고 네트워크가 지면을 채우지 못하면 <ins>가 빈 채로 남는다.
 // 2) "배너 그림도 없어 안 떠"  — 쿠팡 배너 크리에이티브는 ads-partners.coupang.com
 //    에서 오는데 모바일 사파리 추적 차단·광고 차단 목록에 걸려 alt 텍스트만 떴다.
 // 3) "제일 하단에만 하나 띡" — 한 페이지에 1회, 그것도 접히는 자리라 볼 일이 없다.
@@ -1580,9 +1622,9 @@ function pickCoupangLink(catBefore, catAfter){
 // ins 객체를 인자로 호출).
 //
 // ── 왜 (2026-08-04 David 실기기 제보 "하나도 안 보이는데")
-// 애드핏이 심사 보류라 광고가 안 내려오는데, 그 자리를 169px 빈 칸이 그대로
+// 네트워크가 지면을 못 채우면 그 자리를 169px 빈 칸이 그대로
 // 차지하고 있었다. 지면만 먹고 수익은 0이며 사용자에겐 고장으로 읽힌다.
-// 심사를 통과하면 콜백이 안 불리므로 애드핏이 그대로 이긴다 — 폴백은
+// 지면이 채워지면 콜백이 안 불리므로 네트워크 광고가 그대로 이긴다 — 폴백은
 // 채워지지 않았을 때만 동작한다.
 function adfitFallback(slot){
   if(!slot || !slot.isConnected || slot.dataset.adFallback) return;
@@ -2648,7 +2690,7 @@ function adMetaHtml(item){
 // 참조할 뿐 우리 서버는 아무것도 받거나 저장하지 않는다(카톡/트위터 링크
 // 미리보기와 동일한 핫링크 방식). loading="lazy"로 화면 밖 이미지는 요청조차
 // 안 나가고, referrerpolicy="no-referrer"는 우리 도메인을 원본 서버에 안
-// 흘려보내면서(프라이버시) 일부 사이트의 리퍼러 기반 핫링크 차단도 피해간다.
+// 흘려보내면서(프라이버시) 이용자 열람 경로를 제3자에 넘기지 않는다.
 // onerror는 깨진 이미지를 남기지 않고 썸네일 영역 자체를 지워 텍스트 카드로
 // 자연스럽게 폴백한다(레이아웃 재계산만 있고 별도 요청/재시도는 없음).
 // 유기 카드(appendCard)와 광고 카드(appendAdCard)가 완전히 동일한 마크업을
@@ -2700,7 +2742,8 @@ function appendAdCard(item){
     </div>
     ${cardThumbHtml(item)}
     </div>
-    ${adMetaHtml(item)}`;
+    ${adMetaHtml(item)}
+    ${item.disclosure?`<p class="ad-disclosure-inline">${escapeHtml(item.disclosure)}</p>`:""}`;
   const badgeBtn = card.querySelector(".ad-badge");
   const pop = card.querySelector(".ad-disclosure-pop");
   badgeBtn.addEventListener("click", (e)=>{
@@ -2784,11 +2827,11 @@ function appendCard(item){
       </div>
     </div>`;
   if(state.readSet.has(item.id)) card.classList.add("read");
-  // Card body tap: **내부 상세 우선** (2026-08-01 전환 — 애드핏 매체심사 보류
+  // Card body tap: **내부 상세 우선** (2026-08-01 전환
   // 사유 "대부분의 콘텐츠가 아웃 링크로 연결" 대응).
   //
   // 예전엔 카드 탭이 곧바로 원문 새 탭이었다 — 사이트의 모든 클릭이 외부로
-  // 나가는 구조라 광고 심사 관점에서 "링크 모음"으로 판정됐다. 이제 카드 탭은
+  // 나가는 구조라 우리 화면에 남는 것이 없었다. 이제 카드 탭은
   // 발췌·편집 코멘트·지금핫 댓글이 있는 **내부 상세**를 열고, 원문 이동은 상세
   // 안의 "원문에서 계속 읽기" 버튼(기존부터 있던 것)이 담당한다. 제목 옆 ↗
   // 아이콘은 "바로 원문" 지름길로 남긴다 — 헤비유저의 한 탭 이동권 보존.

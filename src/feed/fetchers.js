@@ -377,7 +377,12 @@ export function redditFetcher(subreddit, fetchImpl = fetch, limit = 30) {
 //                 "euc-kr" decodes via the full CP949/UHC table in
 //                 cp949-table.js — see that file for why the platform
 //                 TextDecoder isn't enough for real Korean boards)
-const LIST_UA = "taste-feed/1.0 (+https://taste-feed.onrender.com)";
+// 수집기 신원. **살아 있는 주소여야 한다** — 사이트 운영자가 로그에서 이 UA를
+// 보고 문의하거나 차단을 요청할 수 있어야 하고, 그게 "선의의 크롤러"라는
+// 사실관계의 근거다. 예전 값(taste-feed.onrender.com)은 이미 죽은 주소여서
+// 연락 경로가 끊겨 있었다(2026-08-04 법무 검수).
+// /about.html에 수집 정책과 차단 요청 방법을 게시한다.
+const LIST_UA = "nowhot-bot/1.0 (+https://nowhot.kr/about.html)";
 
 function resolveUrl(base, href) {
   const h = String(href || "").trim();

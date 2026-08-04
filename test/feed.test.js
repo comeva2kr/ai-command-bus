@@ -1758,7 +1758,11 @@ test("makeFetcher dispatches adapter.type 'list' through listFetcher, decoding b
   const rows = await makeFetcher(entry, fakeFetch)();
   assert.ok(rows.length > 0);
   assert.equal(calledWith.url, "https://theqoo.net/hot");
-  assert.match(calledWith.ua, /^taste-feed\/1\.0/, "identifying UA required by handoff.md's list-page adapter rule");
+  // 2026-08-04: UA가 죽은 주소(taste-feed.onrender.com)를 가리키고 있었다.
+  // 사이트 운영자가 로그를 보고 문의·차단 요청을 할 수 있어야 "선의의 크롤러"라는
+  // 사실관계가 성립한다 — 연락 경로가 끊긴 신원은 방어 근거가 되지 못한다.
+  assert.match(calledWith.ua, /^nowhot-bot\/1\.0/, "식별 가능한 UA가 필요하다");
+  assert.match(calledWith.ua, /\+https:\/\/nowhot\.kr\//, "UA의 연락 주소가 살아 있어야 한다");
 });
 
 test("communities.json: fmkorea/arca stay disabled and dcinside stays seed-only per David's 2026-07-23 exclusion", async () => {
@@ -3330,7 +3334,27 @@ test("운영 주체 표기: about·privacy·드로어에 페퍼클럽이 명시�
   const idx = fs.readFileSync(path.join(pub, "index.html"), "utf8");
   assert.match(idx, /페퍼클럽/, "드로어 운영자 표기");
   assert.match(idx, /href="\/briefing"/, "브리핑 진입점");
-  assert.match(idx, /href="\/about\.html"/, "소개 진입점");
+  // 2026-08-04: 정책 페이지를 확장자 없는 정식 주소로 통일했다(/about, /terms,
+  // /privacy). 심사관·크롤러가 관행적으로 치는 주소가 전부 404였다.
+  assert.match(idx, /href="\/about"/, "소개 진입점");
+  assert.match(idx, /href="\/terms"/, "이용약관 진입점 — 댓글·글쓰기를 운영하면 약관이 필요하다");
+  assert.match(idx, /href="\/privacy"/, "개인정보처리방침 진입점");
+  // 만들어 놓고 들어갈 길이 없던 자체 콘텐츠 페이지들
+  for (const href of ["/communities", "/keywords", "/trends"]) {
+    assert.ok(idx.includes(`href="${href}"`), `드로어에 ${href} 누락`);
+  }
+  // 이용약관 실체와 필수 조항
+  const terms = fs.readFileSync(path.join(pub, "terms.html"), "utf8");
+  assert.match(terms, /페퍼클럽/);
+  assert.match(terms, /제44조의2/, "게시중단 절차 — OSP 면책의 전제");
+  assert.match(terms, /제103조/, "저작권 침해 신고 창구");
+  assert.match(terms, /nowhot-bot/, "수집 정책과 차단 요청 방법");
+  // 개인정보처리방침 법정 필수 항목
+  const priv = fs.readFileSync(path.join(pub, "privacy.html"), "utf8");
+  assert.match(priv, /개인정보 보호책임자/, "보호법 제31조 — 재량 없는 형식 요건");
+  assert.match(priv, /국외/, "AdSense가 미국으로 전송한다 — 제28조의8 고지");
+  assert.match(priv, /체류시간/, "실제 수집 항목이 고지보다 넓으면 안 된다");
+  assert.ok(!/받을 수 있습니다/.test(priv), "조건부 대가성 표현은 2023 개정에서 금지됐다");
 });
 
 // ── 2026-08-04 회귀 방지: 뉴스 편중을 만든 두 가지 구조적 편향 ──────────────
