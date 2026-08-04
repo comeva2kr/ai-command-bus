@@ -1259,26 +1259,40 @@ test("privacy.html: 개인정보처리방침이 존재하고 실수집 항목·�
   assert.match(html, /comeva2kr@gmail\.com/, "문의처");
 });
 
-test("adfit: 광고단위는 env 설정 시에만 /api/config에 노출되고, 애드핏은 페이지당 1회만 쓴다", async () => {
+test("adfit: 광고단위는 env + 승인 플래그가 모두 있을 때만 노출되고, 애드핏은 페이지당 1회만 쓴다", async () => {
   const { createServer } = await import("../src/feed/server.js");
-  const prev = process.env.ADFIT_UNIT_MOBILE;
+  const prevUnit = process.env.ADFIT_UNIT_MOBILE;
+  const prevOn = process.env.ADFIT_ENABLED;
+  // 서버는 assert가 던져도 반드시 닫는다 — 안 닫으면 테스트 러너가
+  // 핸들이 살아 있어 그대로 멈춘다(2026-08-04에 실제로 10분 행이 났다).
+  const withServer = async (fn) => {
+    const server = createServer({});
+    await new Promise((r) => server.listen(0, r));
+    try { return await fn(server.address().port); }
+    finally { server.close(); }
+  };
   try {
+    // 2026-08-04 계약 추가: 심사 보류 상태의 애드핏은 onfail을 부르지 않으면서
+    // 아무것도 안 보여준다(실측). 크로스오리진이라 채워졌는지 알 수 없어
+    // 패스백으로도 못 잡으므로, 승인 전에는 지면 자체를 내주지 않는다.
     process.env.ADFIT_UNIT_MOBILE = "DAN-testunit";
-    let server = createServer({});
-    await new Promise((r) => server.listen(0, r));
-    let cfg = await (await fetch(`http://localhost:${server.address().port}/api/config`)).json();
+    process.env.ADFIT_ENABLED = "1";
+    let cfg = await withServer(async (port) => (await fetch(`http://localhost:${port}/api/config`)).json());
     assert.equal(cfg.adfit.mobileUnit, "DAN-testunit");
-    server.close();
 
+    delete process.env.ADFIT_ENABLED;
+    cfg = await withServer(async (port) => (await fetch(`http://localhost:${port}/api/config`)).json());
+    assert.equal(cfg.adfit.mobileUnit, null, "승인 전에는 빈 지면을 만들지 않는다");
+
+    process.env.ADFIT_ENABLED = "1";
     delete process.env.ADFIT_UNIT_MOBILE;
-    server = createServer({});
-    await new Promise((r) => server.listen(0, r));
-    cfg = await (await fetch(`http://localhost:${server.address().port}/api/config`)).json();
-    assert.equal(cfg.adfit.mobileUnit, null, "미설정 배포는 배너 없음");
-    server.close();
+    cfg = await withServer(async (port) => (await fetch(`http://localhost:${port}/api/config`)).json());
+    assert.equal(cfg.adfit.mobileUnit, null, "광고단위 미설정 배포는 배너 없음");
   } finally {
-    if (prev === undefined) delete process.env.ADFIT_UNIT_MOBILE;
-    else process.env.ADFIT_UNIT_MOBILE = prev;
+    if (prevUnit === undefined) delete process.env.ADFIT_UNIT_MOBILE;
+    else process.env.ADFIT_UNIT_MOBILE = prevUnit;
+    if (prevOn === undefined) delete process.env.ADFIT_ENABLED;
+    else process.env.ADFIT_ENABLED = prevOn;
   }
 
   const fs = await import("node:fs");

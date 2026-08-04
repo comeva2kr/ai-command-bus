@@ -49,3 +49,15 @@ test("광고: 클라이언트가 끼운 카드도 노출이 기록된다", async
   assert.match(html, /if\(!useAdfit\) observeAdImpression\(slot/, "클라이언트 쿠팡 카드 추적 누락");
   assert.match(html, /observeAdImpression\(slot, "feed-passback"\)/, "폴백 카드 추적 누락");
 });
+
+test("광고: 애드핏은 승인 플래그가 켜져야만 지면을 차지한다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync("src/feed/server.js", "utf8");
+  // 실측 2026-08-04: 심사 보류 상태의 애드핏은 onfail을 부르지 않으면서
+  // 아무것도 안 보여준다. 크로스오리진이라 채워졌는지 알 수 없어 패스백으로도
+  // 못 잡는다 — 유일하게 확실한 건 "승인 전에는 그리지 않는 것"이다.
+  assert.match(src, /ADFIT_ENABLED === "1"/, "승인 플래그 게이트 누락");
+  // 게이트가 두 지면(피드 config·발행 페이지 서버 렌더) 모두에 걸려야 한다.
+  const gates = src.match(/ADFIT_ENABLED === "1"/g) || [];
+  assert.ok(gates.length >= 2, `게이트가 ${gates.length}곳뿐 — 지면 하나가 새고 있다`);
+});

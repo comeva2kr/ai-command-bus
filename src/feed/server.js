@@ -474,7 +474,7 @@ export function createServer(opts = {}) {
   const adSlotHtml = (slot) => {
     const adsense = process.env.ADSENSE_CLIENT;
     const adfitUnit = process.env.ADFIT_UNIT_MOBILE;
-    if (slot === "adfit" && adfitUnit) {
+    if (slot === "adfit" && adfitUnit && process.env.ADFIT_ENABLED === "1") {
       return `<div class="ad-slot"><span class="ad-mark">AD</span>
         <ins class="kakao_ad_area" style="display:none;" data-ad-unit="${escapeHtml(adfitUnit)}" data-ad-width="320" data-ad-height="100"></ins></div>`;
     }
@@ -1143,7 +1143,19 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         // 카카오 애드핏 배너 광고단위(공개값). 미설정이면 클라이언트는 배너를
         // 아예 렌더하지 않는다. 애드센스 심사 기간(수일~2주)의 수익 공백을
         // 메우는 국내 모바일 배너 — docs/monetization.md 채널 구성 참고.
-        const adfit = { mobileUnit: process.env.ADFIT_UNIT_MOBILE || null };
+        // 심사 통과 전에는 슬롯을 아예 그리지 않는다 (2026-08-04).
+        //
+        // 실측: 애드핏 SDK는 정상 동작하는데 심사 보류 상태에서 **onfail을 부르지
+        // 않는다** — 아무것도 안 보여주면서 "채웠다"로 처리한다. ins 안에
+        // safeframe iframe이 생기고 크로스오리진이라, 우리 쪽에서는 채워졌는지
+        // 빈 칸인지 구분할 방법이 없다. 그래서 워터폴 패스백으로도 안 잡힌다.
+        // 그 결과 169px 빈 칸이 지면만 먹고 수익은 0이었다(David 실기기 제보
+        // "하나도 안 보이는데"). 그 자리를 쿠팡이 대신 받는다.
+        //
+        // 승인되면 ADFIT_ENABLED=1로 켠다. 패스백 배선(data-ad-onfail →
+        // 쿠팡)은 그대로 두므로, 켠 뒤 미충족이 생기면 그때는 넘어간다.
+        const adfitOn = process.env.ADFIT_ENABLED === "1" && process.env.ADFIT_UNIT_MOBILE;
+        const adfit = { mobileUnit: adfitOn ? process.env.ADFIT_UNIT_MOBILE : null };
         const auth = {
           providers: enabledProviders(authEnv),
           kakaoJsKey: process.env.KAKAO_JS_KEY || null

@@ -291,11 +291,14 @@ test("자체 콘텐츠 페이지에 광고 지면이 있고, 광고 설정이 �
   // sitemap에 올린 URL 대부분이 이 페이지들이고 검색 유입이 실제로 닿는
   // 화면인데 수익 지면이 없어 유입이 통째로 샜다.
   const { createServer } = await import("../src/feed/server.js");
-  const prev = { a: process.env.ADSENSE_CLIENT, f: process.env.ADFIT_UNIT_MOBILE };
+  const prev = { a: process.env.ADSENSE_CLIENT, f: process.env.ADFIT_UNIT_MOBILE, e: process.env.ADFIT_ENABLED };
   try {
     // (1) 광고 설정이 있으면 지면이 붙는다
     process.env.ADSENSE_CLIENT = "ca-pub-TEST";
     process.env.ADFIT_UNIT_MOBILE = "DAN-TEST";
+    // 2026-08-04: 애드핏은 승인 플래그가 켜져야만 지면을 차지한다. 심사 보류
+    // 상태에서는 onfail도 안 부르면서 아무것도 안 보여줘 빈 칸만 남기 때문이다.
+    process.env.ADFIT_ENABLED = "1";
     let server = createServer({ dev: true });
     await new Promise((r) => server.listen(0, r));
     let port = server.address().port;
@@ -312,6 +315,7 @@ test("자체 콘텐츠 페이지에 광고 지면이 있고, 광고 설정이 �
     // (2) 설정이 없으면 완전 무광고 — 광고 없는 배포에 빈 박스가 생기면 안 된다
     delete process.env.ADSENSE_CLIENT;
     delete process.env.ADFIT_UNIT_MOBILE;
+    delete process.env.ADFIT_ENABLED;
     server = createServer({ dev: true });
     await new Promise((r) => server.listen(0, r));
     port = server.address().port;
@@ -324,6 +328,7 @@ test("자체 콘텐츠 페이지에 광고 지면이 있고, 광고 설정이 �
   } finally {
     if (prev.a) process.env.ADSENSE_CLIENT = prev.a; else delete process.env.ADSENSE_CLIENT;
     if (prev.f) process.env.ADFIT_UNIT_MOBILE = prev.f; else delete process.env.ADFIT_UNIT_MOBILE;
+    if (prev.e) process.env.ADFIT_ENABLED = prev.e; else delete process.env.ADFIT_ENABLED;
   }
 });
 
