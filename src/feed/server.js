@@ -8,6 +8,7 @@
 import http from "node:http";
 import { pickBanner, loadBanners } from "./manual-products.js";
 import { adCopy, AD_DISCLOSURE, withSubId } from "./ad-copy.js";
+import { makeWriter } from "./llm.js";
 import { makeIndexNow } from "./indexnow.js";
 import { maskProfanity } from "./profanity.js";
 import fs from "node:fs";
@@ -366,6 +367,17 @@ export function createServer(opts = {}) {
   // 대가성 문구는 **법적 의무**이고 쿠팡도 "활동 준수 사항을 지키지 않으면
   // 수익금 지급이 중단될 수 있습니다"라고 명시한다. 배너가 렌더될 때 반드시
   // 함께 나가야 하므로 같은 함수 안에서 붙인다 — 따로 두면 한쪽만 빠진다.
+  // 브리핑 해설 생성기. ANTHROPIC_API_KEY가 없으면 호출 자체를 안 하고
+  // 규칙 기반 브리핑이 그대로 나간다 — 로컬 개발과 키 미설정 배포가 안 깨진다.
+  const llmWriter = makeWriter({
+    apiKey: process.env.ANTHROPIC_API_KEY || null,
+    log: (m) => console.log(m)
+  });
+  // 슬롯(모닝/런치/이브닝)과 이슈 구성이 같으면 같은 해설을 쓴다. 15분마다
+  // 갱신되는 브리핑이 매번 API를 부르지 않도록 헤드라인 조합을 키에 넣는다.
+  const llmKey = (b) => `${b.date}|${b.slot}|${(b.issues || []).map((i) => i.headline).join("|")}`;
+  const withEssay = async (b) => (b && b.publishable ? llmWriter(b, llmKey(b)) : b);
+
   const COUPANG_DISCLOSURE = AD_DISCLOSURE;
   // pick — 회전 인덱스. 예전엔 인자를 안 넘겨 pick=0으로 고정됐고, 그래서
   // 32장 재고가 있어도 **모든 방문자가 매 페이지에서 같은 배너 한 장**을 봤다
@@ -618,6 +630,7 @@ ${adSlotHtml("adfit")}
   // 값으로 쓴 문장이고(digest.js), 외부 원문은 한 줄도 싣지 않는다.
   const issuesHtml = (b) => (b.issues || []).map((is, n) => `<section class="issue">
       <h2>${n + 1}. ${escapeHtml(maskProfanity(is.headline))}</h2>
+      ${is.essay ? `<p>${escapeHtml(maskProfanity(is.essay))}</p>` : ""}
       <p>${escapeHtml(maskProfanity(is.paragraph))}</p>
       <div class="m"><span class="tone">${escapeHtml(is.tone)}</span> · 관련 글 ${is.refs.length}건</div>
       <ul>${is.refs.map((r) => `<li><a href="/#post-${encodeURIComponent(r.id)}">${escapeHtml(maskProfanity(r.title))}</a>
@@ -715,7 +728,7 @@ ${adSlotHtml("adfit")}
       // 비중"을 스스로 키우는 짓이다.
       if (p === "/rss.xml" && req.method === "GET") {
         const origin = originOf(req);
-        const b = await engine.briefing();
+        const b = await withEssay(await engine.briefing());
         const rankTop = ((await engine.rankingTop(20)) || {}).items || [];
         const now = new Date().toUTCString();
         const esc = (t) => escapeHtml(maskProfanity(String(t || "")));
@@ -825,7 +838,7 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
       }
 
       if (p === "/briefing" && req.method === "GET") {
-        const b = await engine.briefing();
+        const b = await withEssay(await engine.briefing());
         const dateStr = kstLabel(b.generatedAt);
         const debateHtml = b.debate
           ? `<section><h2>오늘의 논쟁</h2><p>가장 많은 댓글이 달린 글은 <b>“${escapeHtml(b.debate.title)}”</b>(${escapeHtml(b.debate.sourceLabel)})입니다 — 댓글 ${fmtNum(b.debate.commentCount)}개가 이어지고 있습니다. <a href="/#post-${encodeURIComponent(b.debate.id)}">지금핫 댓글로 의견 남기기 →</a></p></section>`
@@ -847,7 +860,7 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         const inner = `<h1>지금 브리핑 · ${escapeHtml(slotLabel)}</h1>
 <p class="muted">${dateStr} · 커뮤니티·뉴스 ${b.sourceCount}곳에서 모은 ${b.itemCount}건을 지금핫이 실측 데이터로 정리했습니다. 원문 인용 없이 우리가 잰 수치로만 씁니다.</p>
 ${bodyHtml}
-${b.digestSummary ? `<section class="issue"><h2>종합</h2><p>${escapeHtml(b.digestSummary)}</p></section>` : ""}
+${b.essay || b.digestSummary ? `<section class="issue"><h2>종합 분석</h2>${b.essay ? `<p>${escapeHtml(maskProfanity(b.essay))}</p>` : ""}${b.digestSummary ? `<p>${escapeHtml(b.digestSummary)}</p>` : ""}</section>` : ""}
 ${rankingNav("")}
 <h2 style="margin-top:28px">분야별 상위 글</h2>
 ${briefingSectionsHtml(b, coupangBannerHtml(null, null, 3, "brief_mid"))}
