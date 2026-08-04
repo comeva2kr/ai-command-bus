@@ -529,3 +529,36 @@ test("수집: 동시 요청을 제한하되 순서와 실패 격리는 그대로
   // 입력 순서가 유지돼야 sourceRank 같은 순서 의존 로직이 안 깨진다
   assert.equal(items[0].source, "s0");
 });
+
+test("수집: 동시성 값이 잘못돼도 조용히 죽지 않는다", async () => {
+  const { collect } = await import("../src/feed/content.js");
+  // 적대적 검수 P0. limit이 NaN이면 워커가 0개가 되고 결과 배열이 통째로
+  // 구멍이 된다 → forEach가 한 번도 안 돌아 "신규 0건, 오류 0건"으로 조용히
+  // 끝난다. FEED_CONCURRENCY에 오타 하나면 수집이 무증상으로 멈춘다.
+  const mk = (id) => ({ id, kind: "news", async fetch() {
+    return [{ id: `${id}-1`, title: `${id} 글`, url: `https://x/${id}`, source: id }];
+  }});
+  const sources = [mk("a"), mk("b"), mk("c")];
+  for (const bad of [NaN, 0, -1, undefined, "prod"]) {
+    const { items } = await collect(sources, { concurrency: bad });
+    assert.equal(items.length, 3, `concurrency=${String(bad)}에서 수집이 죽었다`);
+  }
+  // 빈 입력에서 멈추지 않는다
+  assert.deepEqual((await collect([], { concurrency: 4 })).items, []);
+});
+
+test("수집: 갱신이 겹쳐 돌지 않는다", async () => {
+  // 상대 서버가 느린 날 한 사이클이 15분을 넘기면 타이머가 또 돈다.
+  // 겹치면 소켓·워커가 계속 쌓인다.
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  let calls = 0, release;
+  const gate = new Promise((r) => { release = r; });
+  // 생성자는 (store, sources) — 위치 인자다
+  const engine = new FeedEngine(null, [{ id: "s", kind: "news", async fetch() {
+    calls++; await gate; return [];
+  }}]);
+  const a = engine.refresh(), b = engine.refresh();
+  release();
+  await Promise.all([a, b]);
+  assert.equal(calls, 1, "두 번째 refresh가 수집을 또 시작했다");
+});

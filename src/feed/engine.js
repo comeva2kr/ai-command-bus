@@ -414,7 +414,17 @@ export class FeedEngine {
   // again post-accumulation, newest-first, so the pool can't grow unbounded
   // over many refresh cycles even though a single collect() already capped
   // each individual fetch batch.
+  // 재진입 가드. 수집 한 사이클은 보통 10초 안쪽이지만 상대 서버가 느린 날은
+  // 분 단위로 늘어난다. 그 사이 15분 타이머가 또 돌면 collect가 겹쳐 실행되고
+  // 소켓과 워커가 계속 쌓인다. 이미 도는 사이클이 있으면 **그 약속을 함께
+  // 기다린다** — 그냥 return하면 await하던 쪽이 갱신 전 데이터를 받는다.
   async refresh() {
+    if (this._refreshing) return this._refreshing;
+    this._refreshing = this._refresh().finally(() => { this._refreshing = null; });
+    return this._refreshing;
+  }
+
+  async _refresh() {
     const { items: freshItems, errors } = await collect(this.sources);
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
 

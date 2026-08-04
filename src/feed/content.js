@@ -232,9 +232,19 @@ const FETCH_CONCURRENCY = Number(process.env.FEED_CONCURRENCY || 6);
 // 동시 실행 수를 제한하면서 **입력 순서대로** 결과를 돌려준다.
 // Promise.allSettled와 같은 모양이라 호출부는 바뀌지 않는다.
 async function settledWithLimit(tasks, limit) {
+  // limit이 NaN·0·음수면 워커가 0개가 되고, 결과 배열이 통째로 **구멍**인 채
+  // 반환된다. 그러면 호출부의 results.forEach가 구멍을 건너뛰어 **한 번도 안
+  // 돈다** — 예외도 없고 errors도 비어서 "신규 0건, 오류 0건"으로 조용히
+  // 끝난다. 15분마다 그걸 반복하면 풀이 48시간에 걸쳐 말라 죽는데 로그엔
+  // 아무것도 안 남는다. 환경변수에 오타 하나면 이렇게 된다(FEED_CONCURRENCY=prod
+  // → Number()가 NaN, ||는 truthy라 못 거른다).
+  // 적대적 검수가 잡아낸 지점이다. 조용히 죽는 실패가 제일 나쁘다.
+  const n = Number.isFinite(limit) && limit >= 1
+    ? Math.min(Math.floor(limit), tasks.length)
+    : tasks.length;
   const out = new Array(tasks.length);
   let next = 0;
-  const workers = Array.from({ length: Math.min(limit, tasks.length) }, async () => {
+  const workers = Array.from({ length: n }, async () => {
     while (true) {
       const i = next++;
       if (i >= tasks.length) return;
