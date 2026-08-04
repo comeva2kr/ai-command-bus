@@ -418,15 +418,44 @@ export function createServer(opts = {}) {
   // 함께 나가야 하므로 같은 함수 안에서 붙인다 — 따로 두면 한쪽만 빠진다.
   // 브리핑 해설 생성기. ANTHROPIC_API_KEY가 없으면 호출 자체를 안 하고
   // 규칙 기반 브리핑이 그대로 나간다 — 로컬 개발과 키 미설정 배포가 안 깨진다.
+  // 해설 캐시를 우리가 직접 들고 있는다. makeWriter 안의 기본 캐시를 쓰면
+  // "이미 있는지"를 밖에서 물어볼 수 없어, 캐시 미스일 때 사용자가 API 응답을
+  // 그대로 기다리게 된다(아래 withEssay 주석 참조).
+  const essayCache = new Map();
   const llmWriter = makeWriter({
     onUsage: (u) => { try { store.recordLlmCall(u); } catch {} },
     apiKey: process.env.ANTHROPIC_API_KEY || null,
+    store: { get: (k) => essayCache.get(k), set: (k, v) => essayCache.set(k, v) },
     log: (m) => console.log(m)
   });
+  const essayPending = new Set();
   // 슬롯(모닝/런치/이브닝)과 이슈 구성이 같으면 같은 해설을 쓴다. 15분마다
   // 갱신되는 브리핑이 매번 API를 부르지 않도록 헤드라인 조합을 키에 넣는다.
   const llmKey = (b) => `${b.date}|${b.slot}|${(b.issues || []).map((i) => i.headline).join("|")}`;
-  const withEssay = async (b) => (b && b.publishable ? llmWriter(b, llmKey(b)) : b);
+  // 해설은 **기다리지 않는다** (2026-08-04, David 실기기 제보 "지금 브리핑
+  // 누르면 아무것도 안 되는 것 같다").
+  //
+  // 실측: /briefing 응답이 24초였다. 캐시는 있었지만 미스일 때 LLM API 응답을
+  // 요청 안에서 그대로 기다렸다. 24초면 사용자는 고장으로 판단하고 떠난다 —
+  // 해설이 붙은 페이지를 24초 뒤에 보여주는 것보다, 해설 없는 페이지를 즉시
+  // 보여주고 다음 방문에 해설을 붙이는 쪽이 낫다.
+  //
+  // 캐시에 있으면 쓰고, 없으면 규칙 기반 브리핑을 즉시 내보내면서 생성만
+  // 뒤에서 돌린다. 같은 키로 중복 호출하지 않도록 진행 중 표시를 둔다 —
+  // 없으면 첫 방문자 여러 명이 동시에 같은 API를 부른다.
+  const withEssay = async (b) => {
+    if (!b || !b.publishable) return b;
+    const key = llmKey(b);
+    const hit = essayCache.get(key);
+    if (hit) return hit;
+    if (!essayPending.has(key)) {
+      essayPending.add(key);
+      llmWriter(b, key)
+        .catch((e) => console.warn("[llm] 해설 생성 실패:", e && e.message))
+        .finally(() => essayPending.delete(key));
+    }
+    return b;
+  };
 
   // 광고 문구 행렬. 배치가 파일을 새로 쓰면 다음 기동 때 반영된다.
   const adMatrix = loadMatrix();
@@ -552,7 +581,13 @@ ul{padding-left:18px;margin:8px 0}li{margin:6px 0}.m{color:var(--muted);font-siz
 .issue .tone{border:1px solid var(--line);padding:1px 6px;font-size:11px}
 /* 브리핑 목록의 한 줄 요약 — 제목보다 약하고 지표줄보다 강한 층위 */
 .s{display:block;margin:3px 0 1px;font-size:13.5px;line-height:1.5;color:var(--color-text)}
-ol.rank{padding-left:0;margin:14px 0;list-style:none;counter-reset:r;border-top:2px solid var(--divider)}
+/* 순위 번호는 CSS 카운터로 그린다. 그런데 목록이 광고 때문에 여러 <ol>로
+   쪼개지면 카운터가 <ol>마다 1로 되돌아간다 — David 실측 "제목 앞 숫자가
+   계속 1부터 반복됨". <li value>와 <ol start>는 이미 정확했지만
+   list-style:none + counter 조합에서는 그 값들이 무시된다.
+   그래서 각 <ol>이 자기 start 값에서 이어지도록 인라인으로 카운터를 세운다
+   (--rank-start는 서버가 심는다). */
+ol.rank{padding-left:0;margin:14px 0;list-style:none;counter-reset:r var(--rank-start,0);border-top:2px solid var(--divider)}
 ol.rank li{counter-increment:r;display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line);margin:0}
 ol.rank li::before{content:counter(r);font:800 20px "Archivo",sans-serif;color:var(--muted);min-width:30px}
 ol.rank li:first-child::before{color:var(--accent)}
@@ -658,7 +693,7 @@ ${adSlotHtml("adfit")}
       const slice = items.slice(b.from - 1, b.to);
       if (!slice.length) return "";
       const html = `<section><h2>${escapeHtml(b.label)}</h2>
-      <ol class="rank" start="${b.from}">${slice.map((i, k) => rankRow(i, b.from + k)).join("")}</ol></section>`;
+      <ol class="rank" start="${b.from}" style="--rank-start:${b.from - 1}">${slice.map((i, k) => rankRow(i, b.from + k)).join("")}</ol></section>`;
       if (mid && !placed) { placed = true; return html + mid; }
       return html;
     }).join("");
@@ -974,7 +1009,7 @@ ${archiveHtml}`;
 ${rankingNav("")}
 <ol class="rank">${t.trends.slice(0, 8).map(row).join("")}</ol>
 ${coupangBannerHtml(null, null, 6, "trends_mid")}
-<ol class="rank" start="9">${t.trends.slice(8).map(row).join("")}</ol>
+<ol class="rank" start="9" style="--rank-start:8">${t.trends.slice(8).map(row).join("")}</ol>
 <p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.</p>`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends"), coupangBannerHtml(null, null, 7, "page_bot")));

@@ -372,3 +372,28 @@ test("홈에 크롤러가 읽을 정적 글 목록이 심긴다 (네이버는 JS
     "치환 종료 마커가 index.html 구조와 맞아야 한다");
   assert.match(html, /\.seed-list\b/, "주입된 목록의 스타일이 있어야 한다");
 });
+
+// ── 2026-08-04 David 실기기 제보 2건 ────────────────────────────────────────
+test("브리핑: LLM 해설을 요청 안에서 기다리지 않는다", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
+  // 실측: /briefing 응답이 24초였다. 캐시는 있었지만 미스일 때 API 응답을
+  // 요청 안에서 그대로 기다렸다 — 사용자에겐 "아무것도 안 되는" 화면이다.
+  // 해설 없는 페이지를 즉시 주고 생성은 뒤에서 돌린다.
+  assert.match(src, /const hit = essayCache\.get\(key\);/, "캐시 적중 여부를 밖에서 물어볼 수 있어야 한다");
+  assert.match(src, /if \(hit\) return hit;/);
+  assert.match(src, /essayPending/, "같은 키로 중복 호출하면 첫 방문자 여러 명이 같은 API를 부른다");
+  // await로 기다리면 안 된다 — 이게 무너지면 다시 24초가 된다
+  const fn = src.slice(src.indexOf("const withEssay = async"), src.indexOf("const withEssay = async") + 900);
+  assert.ok(!/await llmWriter/.test(fn), "해설 생성을 await하면 요청이 다시 막힌다");
+});
+
+test("랭킹: 목록이 광고로 쪼개져도 순위 번호가 이어진다", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
+  // 실측(David): "제목 앞 숫자가 계속 1부터 반복됨". <li value>와 <ol start>는
+  // 정확했지만 list-style:none + CSS 카운터 조합에서는 그 값들이 무시되고
+  // counter-reset이 <ol>마다 1로 되돌린다.
+  assert.match(src, /counter-reset:r var\(--rank-start,0\)/, "카운터 시작값을 밖에서 줄 수 있어야 한다");
+  assert.match(src, /style="--rank-start:\$\{b\.from - 1\}"/, "각 묶음이 자기 시작 번호에서 이어져야 한다");
+});
