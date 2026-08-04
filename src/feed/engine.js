@@ -27,7 +27,7 @@ import {
 } from "./recommender.js";
 import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
-import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams, latestInterleave } from "./ingest.js";
+import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams, latestInterleave, diversityKey } from "./ingest.js";
 import { FILTERABLE_TOPICS } from "./topics.js";
 import { buildEditorialNote } from "./editorial.js";
 import {
@@ -315,9 +315,21 @@ export class FeedEngine {
     // (2026-08-03 1차 시도에서 shareData에만 걸어 피드는 그대로였다).
     if (this._itemLabels === undefined) {
       this._itemLabels = new Map(loadRegistry().map((c) => [c.id, c.labelKo || c.label]));
+      // feedGroup — 다양성 계산에서 여러 소스를 **한 몫**으로 묶는다.
+      //
+      // 구글뉴스는 섹션마다 소스 하나씩이라 8칸(주요·세계·대한민국·과학기술·
+      // 경제·스포츠·연예·건강)을 차지했다. 라운드로빈은 소스 수가 곧 피드
+      // 지분이므로, 47개 소스 중 8개가 구글 하나에서 나오면 구글이 17%를
+      // 가져간다 — 실측 2026-08-04: 360건 중 104건(29%)이 gnews-*였다.
+      // 섹션을 유지해야 카테고리 균형이 사니까 수집은 그대로 두고,
+      // **다양성 계산에서만** 한 소스로 센다.
+      this._itemGroups = new Map(
+        loadRegistry().filter((c) => c.feedGroup).map((c) => [c.id, c.feedGroup]));
     }
     for (const item of this._cache) {
       if (item.image) item.image = safeImage(item.image);
+      const g = this._itemGroups.get(item.source);
+      if (g) item.feedGroup = g;
       // sourceLabel이 비면 API를 쓰는 쪽(발행 페이지·공유 카드)에서 소스 id가
       // 그대로 노출된다. 2026-08-04 실측: 피드 30건 중 22건이 null이었고,
       // 커뮤니티 순위에 "dcinside"처럼 id가 찍힌 것과 같은 뿌리다.
@@ -770,7 +782,7 @@ export class FeedEngine {
         if (markSeen && latestBatch.length) {
           this.store.markSeen(userId, latestBatch.map((b) => b.id));
           if (this.store.recordSourceExposure) {
-            this.store.recordSourceExposure(userId, latestBatch.map((b) => b.source));
+            this.store.recordSourceExposure(userId, latestFresh.map((r) => diversityKey(r.item)));
           }
         }
         const latestMonetizeAllowed = !allowAdult && !showTopics.has("politics") && !showTopics.has("religion");
@@ -881,7 +893,9 @@ export class FeedEngine {
       // regardless of view — a source shown via source= should count too, so
       // the home feed doesn't re-show it excessively right after.
       if (this.store.recordSourceExposure) {
-        this.store.recordSourceExposure(userId, batch.map((b) => b.source));
+        // 노출 이력도 다양성 키로 적는다 — 조회(rank.js/roundRobin)와 기록이
+        // 다른 키를 쓰면 그룹 소스의 적자가 영원히 0으로 보인다.
+        this.store.recordSourceExposure(userId, fresh.map((r) => diversityKey(r.item)));
       }
     }
 

@@ -1295,7 +1295,11 @@ test("sourceHotScores: engagement-less source path uses sourceRank->percentile->
   );
   const scored = sourceHotScores(items, now);
   assert.ok(scored.every((s) => s.hasSignal === false), "no engagement anywhere in this group");
-  assert.ok(scored.every((s) => s.confidence === 1), "no sample-size axis for a percentile-ranked source -> neutral confidence");
+  // 2026-08-04 계약 변경: 순위만 있는 경로는 **약한 증거**라 신뢰도를 할인한다.
+  // 예전엔 1.0(중립)이었는데, 그러면 probit(1위 백분위)=4.75가 그대로 살아
+  // 추천 466건짜리 실측 신호(z≈2.9)를 이겼다. 아래 별도 테스트가 그 역전이
+  // 다시 생기지 않는지 지킨다.
+  assert.ok(scored.every((s) => s.confidence > 0 && s.confidence < 1), "순위만 있는 경로는 신뢰도를 할인한다");
   assert.ok(scored[0].hotScore > scored[1].hotScore && scored[1].hotScore > scored[2].hotScore, "board's own rank order preserved when age is equal");
 });
 
@@ -3322,4 +3326,71 @@ test("운영 주체 표기: about·privacy·드로어에 페퍼클럽이 명시�
   assert.match(idx, /페퍼클럽/, "드로어 운영자 표기");
   assert.match(idx, /href="\/briefing"/, "브리핑 진입점");
   assert.match(idx, /href="\/about\.html"/, "소개 진입점");
+});
+
+// ── 2026-08-04 회귀 방지: 뉴스 편중을 만든 두 가지 구조적 편향 ──────────────
+//
+// David 질문("html 로 가져오는거에 단점이나 부담이나 위험성은 없는건가")을
+// 계기로 소스별 실측을 돌리다 발견한 것들이다. 둘 다 "뉴스가 더 화제라서"가
+// 아니라 점수 계산이 커뮤니티를 구조적으로 벌하고 있던 문제였다.
+test("hot: 실측 반응이 있는 글이 '순위만 있는' 글에게 지지 않는다 (probit 클램프 인공물)", async () => {
+  const { sourceHotScores } = await import("../src/feed/ingest.js");
+  const now = Date.UTC(2026, 7, 4, 12, 0, 0);
+  const at = new Date(now - 3600e3).toISOString(); // 나이를 동일하게 고정
+  // A: 실측 반응이 있는 커뮤니티 베스트
+  const withSignal = sourceHotScores([
+    { id: "a1", source: "c", publishedAt: at, score: 466, commentCount: 736 },
+    { id: "a2", source: "c", publishedAt: at, score: 40, commentCount: 12 },
+    { id: "a3", source: "c", publishedAt: at, score: 8, commentCount: 1 }
+  ], now);
+  // B: 숫자가 전혀 없고 RSS 순서만 있는 소스
+  const rankOnly = sourceHotScores([
+    { id: "b1", source: "n", publishedAt: at, sourceRank: 0 },
+    { id: "b2", source: "n", publishedAt: at, sourceRank: 1 },
+    { id: "b3", source: "n", publishedAt: at, sourceRank: 2 }
+  ], now);
+  assert.equal(withSignal[0].hasSignal, true);
+  assert.equal(rankOnly[0].hasSignal, false);
+  const topSignal = Math.max(...withSignal.map((s) => s.hotScore));
+  const topRank = Math.max(...rankOnly.map((s) => s.hotScore));
+  assert.ok(
+    topSignal > topRank,
+    `추천 466건이 'RSS 1번째'에게 져서는 안 된다 (실측 ${topSignal} vs ${topRank})`
+  );
+  // 순위 경로 내부의 순서 자체는 그대로여야 한다 — 할인은 단조 곱셈이다.
+  assert.ok(rankOnly[0].hotScore > rankOnly[1].hotScore && rankOnly[1].hotScore > rankOnly[2].hotScore);
+});
+
+test("hot: 화제성 나이는 firstSeenAt(화제가 된 시각) 기준이다", async () => {
+  const { sourceHotScores } = await import("../src/feed/ingest.js");
+  const now = Date.UTC(2026, 7, 4, 12, 0, 0);
+  // 어제 써졌지만 방금 베스트에 오른 글 — publishedAt으로 재면 24시간 벌점을
+  // 먹는다. 반응이 쌓이는 데 걸린 시간이 곧 감점이 되던 구조가 뉴스 편중의
+  // 최대 원인이었다(실측: 신호 있는 소스 중앙 23.0h vs 없는 소스 3.0h).
+  const late = { id: "l", source: "c", publishedAt: new Date(now - 24 * 3600e3).toISOString(), firstSeenAt: now - 3600e3, score: 100 };
+  const asPublished = { id: "p", source: "c", publishedAt: new Date(now - 24 * 3600e3).toISOString(), score: 100 };
+  const [a] = sourceHotScores([late], now);
+  const [b] = sourceHotScores([asPublished], now);
+  assert.ok(Math.abs(a.age - 1) < 0.01, `firstSeenAt 기준 1시간이어야 한다 (실측 ${a.age})`);
+  assert.ok(b.age > 20, "firstSeenAt이 없으면 publishedAt으로 떨어진다");
+  assert.ok(a.hotScore > b.hotScore, "베스트 진입이 최근인 글이 앞선다");
+});
+
+test("다양성: feedGroup을 준 소스들은 라운드로빈에서 한 몫으로 센다", async () => {
+  const { rankBySource, diversityKey } = await import("../src/feed/ingest.js");
+  const now = Date.UTC(2026, 7, 4, 12, 0, 0);
+  const at = new Date(now - 3600e3).toISOString();
+  const mk = (id, source, feedGroup) => ({ id, source, feedGroup, publishedAt: at, sourceRank: 0 });
+  const items = [
+    mk("g1", "gnews", "gnews"), mk("g2", "gnews-biz", "gnews"),
+    mk("g3", "gnews-ent", "gnews"), mk("g4", "gnews-world", "gnews"),
+    mk("c1", "clien", undefined)
+  ];
+  assert.equal(diversityKey(items[0]), "gnews");
+  assert.equal(diversityKey(items[4]), "clien");
+  const ranked = rankBySource(items, now);
+  // 구글뉴스 4개 소스가 큐 4개가 아니라 1개여야 한다 — 아니면 라운드로빈에서
+  // 지분을 4배로 가져간다(실측 2026-08-04: 8섹션이 피드의 29%).
+  assert.deepEqual([...ranked.keys()].sort(), ["clien", "gnews"]);
+  assert.equal(ranked.get("gnews").length, 4);
 });

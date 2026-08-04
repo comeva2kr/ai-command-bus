@@ -823,7 +823,9 @@
       "adapter": {
         "type": "rss",
         "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFZxYUdjU0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko"
-      }
+      },
+      "feedGroup": "gnews",
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
     },
     {
       "id": "hani-rank",
@@ -978,7 +980,9 @@
       "adapter": {
         "type": "rss",
         "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko"
-      }
+      },
+      "feedGroup": "gnews",
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
     },
     {
       "id": "gnews-kr",
@@ -994,7 +998,9 @@
       "adapter": {
         "type": "rss",
         "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFp4WkRNU0FtdHZLQUFQAQ?hl=ko&gl=KR&ceid=KR:ko"
-      }
+      },
+      "feedGroup": "gnews",
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
     },
     {
       "id": "gnews-auto",
@@ -1011,7 +1017,9 @@
         "type": "rss",
         "url": "https://news.google.com/rss/search?q=자동차&hl=ko&gl=KR&ceid=KR:ko",
         "note": " [2026-08-01 비활성] rss/search 검색 피드 — 순서에 화제성이 없어 hotScore를 왜곡한다(뉴스=핫/랭킹만 방침). 자동차는 모터그래프·오토헤럴드, 게임은 커뮤니티 소스가 대체."
-      }
+      },
+      "feedGroup": "gnews",
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
     },
     {
       "id": "gnews-tech",
@@ -1027,7 +1035,9 @@
       "adapter": {
         "type": "rss",
         "url": "https://news.google.com/rss/topics/CAAqKAgKIiJDQkFTRXdvSkwyMHZNR1ptZHpWbUVnSnJieG9DUzFJb0FBUAE?hl=ko&gl=KR&ceid=KR:ko"
-      }
+      },
+      "feedGroup": "gnews",
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
     },
     {
       "id": "gnews-biz",
@@ -1043,7 +1053,9 @@
       "adapter": {
         "type": "rss",
         "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko"
-      }
+      },
+      "feedGroup": "gnews",
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
     },
     {
       "id": "gnews-sports",
@@ -1059,7 +1071,9 @@
       "adapter": {
         "type": "rss",
         "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFp1ZEdvU0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko"
-      }
+      },
+      "feedGroup": "gnews",
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
     },
     {
       "id": "gnews-ent",
@@ -1075,7 +1089,9 @@
       "adapter": {
         "type": "rss",
         "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNREpxYW5RU0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko"
-      }
+      },
+      "feedGroup": "gnews",
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
     },
     {
       "id": "gnews-science",
@@ -1092,7 +1108,9 @@
         "type": "rss",
         "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR3QwTlRFU0FtdHZLQUFQAQ?hl=ko&gl=KR&ceid=KR:ko",
         "note": " [2026-08-01 교정] 이 피드는 구글뉴스 건강 섹션이다 — science로 태깅·학습되며 과학 카테고리 오분류 65%(2차 검수 실측)의 근원이었다. 건강=라이프/취미(life)로 재배치 (life 공급 0 문제도 동시 해소)."
-      }
+      },
+      "feedGroup": "gnews",
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
     },
     {
       "id": "gnews-game",
@@ -1109,7 +1127,9 @@
         "type": "rss",
         "url": "https://news.google.com/rss/search?q=게임&hl=ko&gl=KR&ceid=KR:ko",
         "note": " [2026-08-01 비활성] rss/search 검색 피드 — 순서에 화제성이 없어 hotScore를 왜곡한다(뉴스=핫/랭킹만 방침). 자동차는 모터그래프·오토헤럴드, 게임은 커뮤니티 소스가 대체."
-      }
+      },
+      "feedGroup": "gnews",
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
     },
     {
       "id": "44bits",

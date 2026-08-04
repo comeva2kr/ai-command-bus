@@ -259,6 +259,10 @@ const HOT_NEUTRAL_AGE_H_DEFAULT = 12;
 // "노출 한 번당 화제성 z 0.7 정도를 깎는" 크기다 — 같은 소스가 연달아
 // 나가는 건 확실히 막으면서, 압도적으로 화제인 글은 그래도 앞에 선다.
 const EXPOSURE_PENALTY_W = Number(process.env.HOT_EXPOSURE_W || 1.0);
+// 순위만 있고 실측 반응이 없는 소스의 신뢰도 할인 (sourceHotScores 백분위 경로).
+// 0.6이면 probit 1위(4.753)가 2.85로 눌려, 강한 실측 신호(z≈2.9)와 비슷한
+// 자리에 선다 — 순위 증거가 실측을 이기지 못하되 무시되지도 않는 지점이다.
+const RANK_ONLY_CONF = Number(process.env.HOT_RANK_CONF || 0.6);
 
 function envNum(name, dflt) {
   const v = process.env[name];
@@ -346,7 +350,33 @@ export function bayesianConfidence(n, m) {
   return nn / (nn + mm);
 }
 
-function hoursSincePublished(item, nowMs, neutralAgeH) {
+// 화제성 축의 나이 = "언제 화제가 됐나". **"언제 써졌나"가 아니다.**
+//
+// ── 왜 바꿨나 (2026-08-04 실측)
+// 감쇠 기준이 publishedAt이던 동안, 소스별 중앙 나이가 이렇게 갈렸다:
+//   신호 있는 소스(커뮤니티 베스트) 23.0h → 감쇠계수 0.0130
+//   신호 없는 소스(뉴스 RSS)         3.0h → 감쇠계수 0.1133   ← 8.7배 유리
+//
+// 이건 화제성 차이가 아니라 **구조**다. 추천을 받으려면 시간이 걸린다.
+// 커뮤니티 베스트글은 반응이 쌓인 뒤에야 베스트에 오르므로 본질적으로
+// 10~40시간 묵어 있고, 뉴스 RSS는 방금 나온 기사를 싣는다. publishedAt으로
+// 재면 **화제가 되는 데 걸린 시간을 그대로 벌점으로 매기는** 꼴이라,
+// 화제성을 얻는 과정 자체가 감점 사유가 된다. 뉴스 편중의 최대 원인이었다.
+//
+// firstSeenAt(우리가 그 글을 목록에서 처음 본 시각)이 커뮤니티에서는 곧
+// "베스트에 진입한 시각" = 화제가 된 시각이다. 뉴스는 15분 주기로 폴링하니
+// firstSeenAt ≈ publishedAt이라 사실상 변화가 없다. 즉 이 교체는 뉴스를
+// 깎는 게 아니라 커뮤니티에 걸려 있던 구조적 벌점만 걷어낸다.
+//
+// 발행일을 아예 주지 않는 소스(실측 6곳: 뽐뿌·보배드림·82쿡·이토랜드·
+// 경향신문·Slashdot)도 이 경로에서 neutralAgeH 대신 실제 시각을 얻는다.
+//
+// 안전장치: "오래된 글 노출 차단"(engine.tooOld)은 여전히 publishedAt을 본다.
+// 새 소스를 붙인 직후 그 소스의 과거 글이 전부 firstSeenAt=now가 되어도,
+// 실제로 오래된 글은 그 게이트에서 걸린다.
+function hotAgeHours(item, nowMs, neutralAgeH) {
+  const seen = Number.isFinite(item.firstSeenAt) ? item.firstSeenAt : null;
+  if (seen != null) return Math.max(0, (nowMs - seen) / 3.6e6);
   if (item.publishedAt == null) return neutralAgeH;
   const t = typeof item.publishedAt === "number" ? item.publishedAt : Date.parse(item.publishedAt);
   if (!Number.isFinite(t)) return neutralAgeH;
@@ -415,7 +445,21 @@ export function sourceHotScores(items, nowMs, opts = {}) {
       const covBonus = coverageW * Math.min(1, cov / COVERAGE_MAX);
       return probit(pct) + covBonus;
     });
-    confs = items.map(() => 1); // no sample-size concept to shrink against — neutral
+    // ── 순위 증거는 **약한 증거다** (2026-08-04 교정)
+    //
+    // 예전 주석은 "샘플 크기 개념이 없으니 신뢰도 1.0(중립)"이라고 했는데
+    // 방향이 반대였다. 정보가 적으면 신뢰도를 **낮춰야** 한다.
+    //
+    // 실측으로 드러난 증상: 어떤 소스든 1위 항목의 백분위는 1.0이고,
+    // probit(1.0)은 클램프되어 4.753 → logistic 0.9915가 된다. 반면 추천
+    // 466건을 받은 해커뉴스 1위는 robust-z 약 2.9 → logistic 0.948이다.
+    // **숫자가 없는 쪽이 이긴다.** 4.75는 화제성이 아니라 클램프가 만든
+    // 인공물이고, "RSS가 1번으로 실어줬다"는 사실이 "추천 466건"보다 강한
+    // 증거일 리 없다.
+    //
+    // 그래서 순위 경로에 고정 할인을 건다. 순서는 그대로 보존되고(단조
+    // 곱셈), 소스 간 비교에서만 실측 신호에 자리를 내준다.
+    confs = items.map(() => RANK_ONLY_CONF);
   }
 
   return items.map((item, i) => {
@@ -436,7 +480,7 @@ export function sourceHotScores(items, nowMs, opts = {}) {
     // 유지되고, 다만 소스 간 크기 차이가 (0,1)로 묶여 덧셈 보정이 일정한
     // 의미를 갖게 된다.
     const shifted = 1 / (1 + Math.exp(-normScore));
-    const age = hoursSincePublished(item, now, neutralAgeH);
+    const age = hotAgeHours(item, now, neutralAgeH);
     const decayed = hnDecay(shifted, age, gravity);
     // v1 velocity proxy: engagement/hour, NOT true Δreaction/Δt (that needs
     // periodic snapshots stored over time so a real delta can be computed —
@@ -583,11 +627,19 @@ export function hotGate(items, nowMs, opts = {}) {
 // the top of that board's own scan order — hotScore always decays it by age
 // regardless of source type, on top of whatever `nowMs` the caller supplies
 // (real time by default; injectable for deterministic tests).
+// 다양성 계산에서 이 아이템이 속한 "한 몫"의 키.
+//
+// 기본은 소스 자신이지만, registry에서 feedGroup을 준 소스는 그 그룹으로
+// 묶인다(engine.js `_itemGroups`가 아이템에 실어 준다). 라운드로빈·소스
+// 상한·연속 금지·노출 이력이 모두 이 키를 쓰므로, 구글뉴스 8개 섹션이
+// 피드 지분을 8배로 가져가는 일이 사라진다. 라벨·링크·수집은 그대로다.
+export const diversityKey = (item) => item.feedGroup || item.source || "unknown";
+
 export function rankBySource(items, nowMs, opts = {}) {
   const now = nowMs || Date.now();
   const bySource = new Map();
   items.forEach((item, i) => {
-    const src = item.source || "unknown";
+    const src = diversityKey(item);
     if (!bySource.has(src)) bySource.set(src, []);
     bySource.get(src).push(item);
   });

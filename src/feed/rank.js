@@ -1,3 +1,4 @@
+import { diversityKey } from "./ingest.js";
 // 추천 골격 v2 — "소스 순번"에서 "아이템 경쟁 + 다양성 제약"으로.
 // (설계: docs/redesign-rank.md, 2026-07-31 설계 검수 완료. David 지시:
 //  "개인화를 쓸모있게 — 타오바오처럼", 페르소나 실측: 취향 정반대 6명의
@@ -183,7 +184,7 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
     const slotsLeft = limit - out.length;
     const needP = Math.max(0, minPicked - pickedCount);
     const needO = Math.max(0, minOther - otherCount);
-    const recentSrcs = out.slice(-minGap).map((c) => c.item.source);
+    const recentSrcs = out.slice(-minGap).map((c) => diversityKey(c.item));
 
     // 쿼터 룩어헤드: 남은 슬롯이 미충족 쿼터 합과 같아지면 그 클래스만 자격.
     const quotaOk = (c) => {
@@ -195,10 +196,10 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
     const eligible = (relaxCap, relaxCat, relaxGap) =>
       remaining.filter(
         (c) =>
-          (relaxCap || (pagePicks.get(c.item.source) || 0) < capFor(c)) &&
+          (relaxCap || (pagePicks.get(diversityKey(c.item)) || 0) < capFor(c)) &&
           (relaxCat || (pageCats.get(c.item.category) || 0) < catCapFor(c)) &&
           (relaxCat || !isOther(c) || otherCount < neutralTotalCap) &&
-          (relaxGap || !recentSrcs.includes(c.item.source)) &&
+          (relaxGap || !recentSrcs.includes(diversityKey(c.item))) &&
           quotaOk(c)
       );
 
@@ -217,15 +218,15 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
     for (const c of feasible) {
       const adj =
         c.global -
-        params.exposureW * Math.log(1 + exposureOf(c.item.source)) -
-        params.pageRepeatW * (pagePicks.get(c.item.source) || 0) -
+        params.exposureW * Math.log(1 + exposureOf(diversityKey(c.item))) -
+        params.pageRepeatW * (pagePicks.get(diversityKey(c.item)) || 0) -
         params.pageCatRepeatW * (pageCats.get(c.item.category) || 0);
       if (adj > bestAdj) { bestAdj = adj; best = c; }
     }
 
     out.push(best);
     remaining.splice(remaining.indexOf(best), 1);
-    pagePicks.set(best.item.source, (pagePicks.get(best.item.source) || 0) + 1);
+    pagePicks.set(diversityKey(best.item), (pagePicks.get(diversityKey(best.item)) || 0) + 1);
     pageCats.set(best.item.category, (pageCats.get(best.item.category) || 0) + 1);
     if (isPicked(best)) pickedCount++;
     else if (isOther(best)) otherCount++;
