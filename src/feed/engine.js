@@ -319,6 +319,27 @@ export class FeedEngine {
     return this._cache;
   }
 
+  // 수집 풀 공개 접근자 — 자체 콘텐츠 페이지(커뮤니티 순위/키워드/그룹별
+  // 베스트)가 같은 데이터를 본다. 성인 태그 글은 뺀다: 연령 게이트 UI를
+  // 걷어낸 뒤로 켤 방법이 없으므로 피드에도 안 나오고, 발행 페이지에만
+  // 나오면 앞뒤가 안 맞는다.
+  async pool() {
+    // sourceLabel이 비면 발행 페이지에 소스 id("dcinside")가 그대로 노출된다.
+    // 레지스트리 라벨로 메운다.
+    if (this._poolLabels === undefined) {
+      const reg = loadRegistry();
+      this._poolLabels = new Map(reg.map((c) => [c.id, c.labelKo || c.label]));
+      // 수집 금지 소스(enabled:false — 디시 등)는 발행 페이지에도 실리지 않는다.
+      // 풀에 남아 있을 이유는 없지만, 커뮤니티 순위는 소스 이름을 대놓고
+      // 광고하는 페이지라 여기서 한 번 더 막는다.
+      this._poolDisabled = new Set(reg.filter((c) => c.enabled === false).map((c) => c.id));
+    }
+    const byId = this._poolLabels;
+    return (await this._items())
+      .filter((i) => !i.adult && !this._poolDisabled.has(i.source))
+      .map((i) => (i.sourceLabel ? i : { ...i, sourceLabel: byId.get(i.source) || i.source }));
+  }
+
   // Per-source item counts in the current collected pool (David 2026-07-24
   // adversarial review #5 — "죽은 소스 칩 자동 숨김"). A source can be
   // `enabled` in the registry yet consistently return 0 items in production

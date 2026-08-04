@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v64"; // v64: 연령 게이트 UI 제거 (애드핏 보류 근거였음)
+const CACHE = "feed-shell-v65"; // v65: 커뮤니티 순위·화제 키워드 페이지 + 브리핑 해설
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png"];
 

@@ -117,3 +117,16 @@ test("검증기는 짧은 글·태그·한자 수사를 거른다", () => {
   assert.equal(validParagraph("관련 글이 십여 건 올라오며 화제가 됐다. 여러 커뮤니티에서 반응이 이어졌고 관심이 쏠렸다."), false);
   assert.equal(validParagraph(GOOD), true);
 });
+
+test("구세대 모델에는 effort를 보내지 않는다", async () => {
+  // Haiku 4.5 등 4.5대는 effort를 400으로 거부한다. LLM_MODEL로 모델을 갈아끼울
+  // 수 있게 해 둔 이상, 그 약속이 Haiku에서 깨지면 안 된다.
+  let sent;
+  const enrich = makeWriter({ apiKey: "k", model: "claude-haiku-4-5", fetchImpl: async (u, o) => {
+    sent = JSON.parse(o.body);
+    return ok({ issues: [{ n: 1, paragraph: GOOD }], summary: GOOD })();
+  }});
+  await enrich(BRIEF, "haiku");
+  assert.equal(sent.output_config.effort, undefined, "Haiku에 effort를 보냈다");
+  assert.equal(sent.output_config.format.type, "json_schema", "구조화 출력은 유지돼야 한다");
+});

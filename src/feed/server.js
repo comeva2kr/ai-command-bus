@@ -9,6 +9,7 @@ import http from "node:http";
 import { pickBanner, loadBanners } from "./manual-products.js";
 import { adCopy, AD_DISCLOSURE, withSubId } from "./ad-copy.js";
 import { makeWriter } from "./llm.js";
+import { communityRanking, sourceBest, keywordIndex, keywordPage } from "./pages.js";
 import { makeIndexNow } from "./indexnow.js";
 import { maskProfanity } from "./profanity.js";
 import fs from "node:fs";
@@ -675,6 +676,8 @@ ${adSlotHtml("adfit")}
       { href: "/briefing", label: "지금 브리핑" },
       { href: "/ranking/daily", label: "화제 랭킹" },
       { href: "/trends", label: "실시간 트렌드" },
+      { href: "/communities", label: "커뮤니티 순위" },
+      { href: "/keywords", label: "화제 키워드" },
       ...cats.map((c) => ({ href: `/briefing/${encodeURIComponent(c)}`, label: `${categoryLabel(c)} 브리핑` }))
     ].filter((l) => l.href !== current);
     return `<nav class="own-links" aria-label="지금핫이 만든 다른 콘텐츠">
@@ -816,6 +819,8 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
           { loc: "/ranking/weekly", freq: "daily", pri: "0.7" },
           { loc: "/ranking/monthly", freq: "weekly", pri: "0.6" },
           { loc: "/trends", freq: "hourly", pri: "0.6" },
+          { loc: "/communities", freq: "hourly", pri: "0.8" },
+          { loc: "/keywords", freq: "hourly", pri: "0.7" },
           { loc: "/about.html", freq: "monthly", pri: "0.4" },
           { loc: "/privacy.html", freq: "yearly", pri: "0.2" }
         ];
@@ -932,6 +937,97 @@ ${rankingRows(catItems, coupangBannerHtml(seg, null, 1, "briefcat_mid"))}`;
 
       // 화제 랭킹 TOP 20 — 일간(라이브) / 주간·월간(일별 스냅샷 병합).
       // 데이터가 기간만큼 쌓이기 전에는 있는 날짜만 합산하고 그 사실을 밝힌다.
+      // ── 커뮤니티 순위 (2026-08-04) ────────────────────────────────────
+      // 벤치마킹한 오늘의베스트는 "방문 289.5M" 같은 외부 트래픽 추정치로
+      // 줄을 세운다. 우리는 그 수를 잰 적이 없으므로 쓰지 않고, **우리가
+      // 실제로 측정한 값**(수집한 베스트글 수, 총 반응량, 평균 댓글)으로
+      // 매긴다. 지어낸 수가 없어 검증이 우리 로그로 끝나고, 남이 복사할 수
+      // 없는 데이터라는 점에서도 이쪽이 낫다.
+      if (p === "/communities" && req.method === "GET") {
+        const items = await engine.pool();
+        const rank = communityRanking(items);
+        if (!rank.length) return send(res, 404, { error: "no data yet" });
+        const total = rank.reduce((a, b) => a + b.posts, 0);
+        const lead = rank[0];
+        const inner = `<h1>커뮤니티 순위</h1>
+<p class="muted">지금핫이 지금 수집해 둔 화제글 ${total}건을 커뮤니티별로 집계했습니다. 순위 기준은 <b>반응량</b>(추천 + 댓글)이며, 방문자수 같은 외부 추정치는 쓰지 않습니다 — 우리가 직접 잰 값만 싣습니다.</p>
+${rankingNav("")}
+<p>지금 반응이 가장 큰 곳은 <b>${escapeHtml(lead.label)}</b>입니다. 화제글 ${lead.posts}건에 추천과 댓글을 합쳐 ${fmtNum(lead.reactions)}의 반응이 모였고, 글 하나당 댓글은 평균 ${lead.avgComments}개입니다${lead.topCategory ? `. 오늘 이곳에서 가장 많이 다룬 분야는 ${escapeHtml(categoryLabel(lead.topCategory))}입니다` : ""}.</p>
+<section><h2>반응량 순위</h2>
+<ol class="rank">${rank.map((e) => `<li><div><a href="/community/${encodeURIComponent(e.source)}">${escapeHtml(e.label)}</a>
+  <span class="m">화제글 ${e.posts}건 · 반응 ${fmtNum(e.reactions)} · 글당 댓글 ${e.avgComments}${e.topCategory ? ` · 주로 ${escapeHtml(categoryLabel(e.topCategory))}` : ""}</span></div></li>`).join("")}</ol></section>
+${coupangBannerHtml(null, null, 10, "communities")}
+<p class="muted">집계 대상은 각 커뮤니티의 베스트·인기 게시판이며, 15분마다 갱신됩니다. 전체 게시물이 아니라 <b>반응이 큰 글만</b> 모으므로 커뮤니티의 총 활동량과는 다릅니다.</p>`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(editionShell("커뮤니티 순위 — 어디가 지금 가장 뜨거운가",
+          "국내 커뮤니티를 지금핫이 실측한 반응량(추천+댓글)으로 줄 세운 순위. 방문자 추정치가 아니라 직접 잰 값입니다.",
+          inner, "/communities", ownContentNav("/communities"), coupangBannerHtml(null, null, 11, "communities_bot")));
+      }
+
+      // ── 커뮤니티별 베스트 ────────────────────────────────────────────
+      // 소스마다 페이지를 쪼갠다 — 색인 대상이 소스 수만큼 늘고,
+      // "클리앙 인기글" 같은 검색어에 각각 대응된다.
+      if (p.startsWith("/community/") && req.method === "GET") {
+        const seg = decodeURIComponent(p.slice("/community/".length));
+        const b = sourceBest(await engine.pool(), seg);
+        if (!b) return send(res, 404, { error: "no data for source" });
+        const cats = b.categories.slice(0, 3)
+          .map((c) => `${escapeHtml(categoryLabel(c.key))} ${c.count}건`).join(" · ");
+        const inner = `<h1>${escapeHtml(b.label)} 인기글</h1>
+<p class="muted">${escapeHtml(b.label)}에서 지금 반응이 큰 글 ${b.total}건을 지금핫이 모아 정리했습니다. 추천과 댓글을 합친 반응량 순입니다.</p>
+${rankingNav("")}
+${cats ? `<p>지금 ${escapeHtml(b.label)}에서 가장 많이 다뤄지는 분야는 ${cats} 순입니다.</p>` : ""}
+<section><h2>반응량 TOP ${b.items.length}</h2>
+<ol class="rank">${b.items.map((i) => `<li><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+  <span class="m">${escapeHtml(categoryLabel(i.category))}${evidenceBits(i).length ? " · " + evidenceBits(i).join(" · ") : ""}</span></div></li>`).join("")}</ol></section>
+${coupangBannerHtml(b.items[0] && b.items[0].category, null, 12, "community_mid")}
+<p class="muted"><a href="/communities">다른 커뮤니티 순위도 보기 →</a></p>`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(editionShell(`${b.label} 인기글 모아보기`,
+          `${b.label}에서 지금 반응이 큰 글을 지금핫이 실측 추천·댓글 순으로 정리했습니다.`,
+          inner, `/community/${encodeURIComponent(seg)}`, ownContentNav(), coupangBannerHtml(null, null, 13, "community_bot")));
+      }
+
+      // ── 키워드 ───────────────────────────────────────────────────────
+      // 두 곳 이상에서 나온 말만 페이지로 만든다. 한 커뮤니티에서만 나온
+      // 단어는 그 글의 고유명사일 뿐이고, 알맹이 없는 페이지를 수백 개
+      // 만들면 자체 콘텐츠를 늘리는 게 아니라 오히려 감점이다.
+      if (p === "/keywords" && req.method === "GET") {
+        const idx = keywordIndex(await engine.pool());
+        if (!idx.length) return send(res, 404, { error: "no keywords yet" });
+        const inner = `<h1>지금 화제 키워드</h1>
+<p class="muted">여러 커뮤니티에서 동시에 언급되고 있는 말들입니다. 한 곳에서만 나온 단어는 싣지 않습니다 — 두 곳 이상에서 나와야 실제로 퍼지는 말입니다.</p>
+${rankingNav("")}
+<section><h2>키워드 ${idx.length}개</h2>
+<ol class="rank">${idx.map((k) => `<li><div><a href="/keyword/${encodeURIComponent(k.tag)}">${escapeHtml(k.tag)}</a>
+  <span class="m">${k.sources}곳에서 ${k.count}건 · 반응 ${fmtNum(k.reactions)}</span></div></li>`).join("")}</ol></section>
+${coupangBannerHtml(null, null, 14, "keywords")}`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(editionShell("지금 화제 키워드",
+          "여러 커뮤니티에서 동시에 언급되는 키워드를 지금핫이 실측 반응량으로 정리했습니다.",
+          inner, "/keywords", ownContentNav("/keywords"), coupangBannerHtml(null, null, 15, "keywords_bot")));
+      }
+
+      if (p.startsWith("/keyword/") && req.method === "GET") {
+        const tag = decodeURIComponent(p.slice("/keyword/".length));
+        const k = keywordPage(await engine.pool(), tag);
+        if (!k) return send(res, 404, { error: "no data for keyword" });
+        const srcs = k.sources.slice(0, 4).map((x) => `${escapeHtml(x.key)} ${x.count}건`).join(" · ");
+        const inner = `<h1>“${escapeHtml(tag)}” 관련 화제글</h1>
+<p class="muted">‘${escapeHtml(tag)}’이(가) 언급된 글 ${k.total}건을 커뮤니티·뉴스에서 모았습니다. 반응량 순입니다.</p>
+${rankingNav("")}
+${srcs ? `<p>이 키워드는 ${srcs} 순으로 언급되고 있습니다.</p>` : ""}
+<section><h2>관련 글</h2>
+<ol class="rank">${k.items.map((i) => `<li><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+  <span class="m">${escapeHtml(i.sourceLabel || i.source)}${evidenceBits(i).length ? " · " + evidenceBits(i).join(" · ") : ""}</span></div></li>`).join("")}</ol></section>
+${coupangBannerHtml(k.categories[0] && k.categories[0].key, null, 16, "keyword_mid")}
+<p class="muted"><a href="/keywords">다른 화제 키워드도 보기 →</a></p>`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(editionShell(`${tag} — 지금 커뮤니티 반응`,
+          `‘${tag}’이 언급된 커뮤니티·뉴스 화제글을 지금핫이 실측 반응 순으로 모았습니다.`,
+          inner, `/keyword/${encodeURIComponent(tag)}`, ownContentNav(), coupangBannerHtml(null, null, 17, "keyword_bot")));
+      }
+
       if ((p === "/ranking" || /^\/ranking\/(daily|weekly|monthly)$/.test(p)) && req.method === "GET") {
         const period = p.split("/")[2] || "daily";
         const label = period === "daily" ? "일간" : period === "weekly" ? "주간" : "월간";

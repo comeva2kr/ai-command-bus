@@ -29,7 +29,23 @@
 // "실측 안 된 숫자 절대 금지"가 이 저장소의 오래된 원칙이고, 생성 모델을
 // 들인다고 그게 느슨해질 이유는 없다.
 const API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-opus-5";
+// 기본값 Sonnet 5. 판단 근거(2026-08-04, David "객관적으로"):
+//
+// - 토큰 수는 두 모델이 같다. Sonnet 5는 Opus 4.7/4.8과 같은 토크나이저를
+//   쓰고 Opus 5도 같은 계열이라, 같은 글이면 토큰이 같다. 순수 단가 차이다.
+// - 단가: Opus 5 $5/$25, Sonnet 5 $3/$15 (2026-08-31까지 도입가 $2/$10)
+// - 이 작업(하루 3회, 입력 ~1.5k·출력 ~2k)이면 월 $5.2 대 $2.1.
+//   **차이가 월 3~4천원이라 비용은 판단 근거가 못 된다.**
+// - 근거가 되는 건 확장이다. 카테고리 브리핑 10종에 붙이면 하루 30회가 되고
+//   월 $52 대 $21로 벌어진다. 그 확장은 /briefing/<카테고리>가 이미 있어
+//   자연스러운 다음 수순이다.
+// - 작업 성격: 2~4문장, 숫자 금지, 정치 중립. 제약이 강하고 짧다.
+//   뒤에 검증기가 있어 실패해도 규칙 기반으로 안전하게 떨어진다.
+//
+// 아직 안 해 본 것: 한국어 문장 품질의 실제 비교. 키가 들어오면 같은
+// 브리핑으로 두 모델을 돌려 보고, 품질이 모자라면 env 한 줄로 옮긴다.
+// 요청 형식은 두 모델이 동일해서 바꿀 코드가 없다.
+const MODEL = process.env.LLM_MODEL || "claude-sonnet-5";
 const ANTHROPIC_VERSION = "2023-06-01";
 
 // 출력 스키마 — 이슈별 해설 + 종합 분석. 모델이 형식을 어길 여지를 없앤다.
@@ -112,10 +128,12 @@ export function makeWriter({
       model,
       max_tokens: 4000,          // 사고 + 본문 합산 상한. 본문은 1.5k 안팎이라 여유.
       system: SYSTEM,
-      output_config: {
-        effort: "low",
-        format: { type: "json_schema", schema: SCHEMA }
-      },
+      // effort는 세대가 갈린다. Haiku 4.5 같은 4.5대 모델은 effort를 **거부**하므로
+       // (400) 함께 보내면 요청 자체가 죽는다. LLM_MODEL로 모델을 갈아끼울 수
+       // 있게 해 둔 이상, 그 약속이 Haiku에서 거짓말이 되지 않게 분기한다.
+      output_config: /-4-5$|haiku/.test(model)
+        ? { format: { type: "json_schema", schema: SCHEMA } }
+        : { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
       messages: [{ role: "user", content: buildPrompt(brief) }]
     };
     const ctl = new AbortController();
