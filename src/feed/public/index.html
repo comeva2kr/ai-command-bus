@@ -1402,20 +1402,41 @@ function detailAdHtml(category){
   const cp = state.config && state.config.coupang;
   const link = pickCoupangLink(category, category);
   if(!link) return "";
-  return `<article class="card ad-card ad-net" style="margin:18px 0">${coupangCardHtml(link, cp.disclosure, "detail")}</article>`;
+  return `<article class="card ad-card ad-net" style="margin:18px 0">${coupangCardHtml(link, cp.disclosure, "detail", category, adRotate)}</article>`;
 }
 
-function coupangCardHtml(link, disclosure, slot){
+// 피드 카테고리 → 문구 맥락. 서버 ad-matrix.js의 CTX_OF와 같은 표다.
+// (클라이언트는 모듈을 import할 수 없어 부득이 복제한다. 맥락은 5개뿐이고
+//  거의 바뀌지 않으므로, 카피 표를 서버 단일 출처로 옮긴 것과는 사정이 다르다.)
+const AD_CTX_OF = { tech:"tech", gaming:"tech", life:"life", auto:"life",
+  humor:"fun", culture:"fun", news:"news", business:"news", sports:"hobby" };
+
+// 맥락에 맞는 문구를 고른다. 행렬이 없거나 칸이 비면 서버가 준 기본 문구로
+// 떨어진다 — 배치가 실패해도 광고가 사라지지 않는다.
+function adVariant(link, category, rotate){
+  const cp = state.config && state.config.coupang;
+  const ctx = AD_CTX_OF[category] || "news";
+  const cell = cp && cp.matrix && cp.matrix[link.dest] && cp.matrix[link.dest][ctx];
+  if(!Array.isArray(cell) || !cell.length) return { hook: link.hook, variant: "base" };
+  const v = cell[rotate % cell.length];
+  if(!v || !v.hook) return { hook: link.hook, variant: "base" };
+  // 브랜드 줄(도착지 이름)은 행렬에서 가져오지 않는다 — 도착지 이름이 바뀌면
+  // 문구≠도착지가 된다(2026-08-03 사고).
+  return { hook: v.hook, variant: `${link.dest}_${ctx}_${rotate % cell.length}` };
+}
+
+function coupangCardHtml(link, disclosure, slot, category, rotate){
   // 카피·이미지는 서버(/api/config)가 준다 — 클라이언트에 표 사본을 두지 않는다.
   // 배너 사진은 기본으로 싣고, 콘텐츠 차단기에 걸려 못 받는 사용자에게만
   // onerror가 img를 지워 글자 카드가 남는다. 빈 자리도 깨진 아이콘도 안 남는다.
+  const v = adVariant(link, category, rotate || 0);
   return `<div class="card-top">
       <span class="dot" style="background:var(--color-accent)"></span>
       <span class="src ad-src">쿠팡 파트너스</span>
       <span class="badge ad-badge-static">AD<span class="sr-only"> 광고</span></span>
     </div>
-    <a class="ad-native" href="${escapeHtml(withSubId(link.href, slot))}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
-      <h3>${escapeHtml(link.hook)}</h3>
+    <a class="ad-native" href="${escapeHtml(withSubId(link.href, slot + "~" + v.variant))}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
+      <h3>${escapeHtml(v.hook)}</h3>
       ${link.img?`<img class="ad-img" src="${escapeHtml(link.img)}" width="320" height="100" alt="${escapeHtml(link.brand)}" loading="lazy" onerror="this.remove()">`:""}
       <p class="ad-brand">${escapeHtml(link.brand)}</p>
       <span class="ad-cta">쿠팡에서 보기<span class="sr-only"> — 새 창에서 쿠팡으로 이동합니다</span></span>
@@ -1528,7 +1549,7 @@ function maybeInsertAdfit(){
       const link = pickCoupangLink(anchor.dataset.cat || null,
                                    (cards[i + 1] && cards[i + 1].dataset.cat) || null);
       if(!link) continue;
-      slot.innerHTML = coupangCardHtml(link, cp.disclosure, `feed${i + 1}`);
+      slot.innerHTML = coupangCardHtml(link, cp.disclosure, `feed${i + 1}`, anchor.dataset.cat || null, i);
     }
     anchor.insertAdjacentElement("afterend", slot);
 

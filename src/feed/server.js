@@ -10,6 +10,7 @@ import { pickBanner, loadBanners } from "./manual-products.js";
 import { adCopy, AD_DISCLOSURE, withSubId } from "./ad-copy.js";
 import { makeWriter } from "./llm.js";
 import { communityRanking, sourceBest, keywordIndex, keywordPage } from "./pages.js";
+import { loadMatrix, pickVariant } from "./ad-matrix.js";
 import { makeIndexNow } from "./indexnow.js";
 import { maskProfanity } from "./profanity.js";
 import fs from "node:fs";
@@ -379,6 +380,14 @@ export function createServer(opts = {}) {
   const llmKey = (b) => `${b.date}|${b.slot}|${(b.issues || []).map((i) => i.headline).join("|")}`;
   const withEssay = async (b) => (b && b.publishable ? llmWriter(b, llmKey(b)) : b);
 
+  // 광고 문구 행렬. 배치가 파일을 새로 쓰면 다음 기동 때 반영된다.
+  const adMatrix = loadMatrix();
+  if (adMatrix) {
+    const n = Object.values(adMatrix.variants || {})
+      .reduce((a, ctxs) => a + Object.values(ctxs).reduce((b, arr) => b + arr.length, 0), 0);
+    console.log(`[admatrix] 문구 ${n}개 로드 (${adMatrix.generatedAt})`);
+  }
+
   const COUPANG_DISCLOSURE = AD_DISCLOSURE;
   // pick — 회전 인덱스. 예전엔 인자를 안 넘겨 pick=0으로 고정됐고, 그래서
   // 32장 재고가 있어도 **모든 방문자가 매 페이지에서 같은 배너 한 장**을 봤다
@@ -388,7 +397,10 @@ export function createServer(opts = {}) {
   const coupangBannerHtml = (category, size = null, pick = 0, slot = "page") => {
     const b = pickBanner({ category, size, pick });
     if (!b) return "";
-    const [hook, brand] = adCopy(b.dest);
+    // 맥락별 문구 행렬에서 고른다. 행렬이 없으면 ad-copy.js 기본 문구로
+    // 떨어진다 — 배치가 실패해도 광고가 사라지지 않는다.
+    const v = pickVariant(b.dest, category, { matrix: adMatrix, rotate: pick });
+    const hook = v.hook, brand = v.brand;
     // 배너 사진을 **다시 싣는다.**
     //
     // 2026-08-03 오전에는 실기기에서 사진이 안 떠서 이미지를 통째로 뺐다.
@@ -403,7 +415,7 @@ export function createServer(opts = {}) {
     const [w, h] = String(b.size || "320x100").split("x");
     return `<aside class="ad-slot ad-coupang">
       <p class="ad-mark"><span class="ad-tag">AD</span> 쿠팡 파트너스</p>
-      <a class="ad-native" href="${escapeHtml(withSubId(b.href, slot))}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
+      <a class="ad-native" href="${escapeHtml(withSubId(b.href, `${slot}~${v.variant}`))}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
         <img class="ad-img" src="${escapeHtml(b.img)}" width="${escapeHtml(w)}" height="${escapeHtml(h)}"
              alt="${escapeHtml(brand)}" loading="lazy" onerror="this.remove()">
         <b>${escapeHtml(hook)}</b><span class="ad-brand">${escapeHtml(brand)}</span>
@@ -1119,7 +1131,12 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
               // 중복을 거른다. href는 사이즈마다 달라 같은 도착지를 못 잡는다.
               return { category: b.category, dest: b.dest, href: b.href, img: b.img, hook, brand };
             });
-          return items.length ? { disclosure: COUPANG_DISCLOSURE, items } : null;
+          // 행렬을 함께 내려보낸다(짧은 문자열 240개, 세션당 1회).
+          // 노출마다 서버를 부르면 지연이 생기고, 그러면 스크롤 중에 빈 칸이
+          // 뜨거나 레이아웃이 밀린다 — 2026-08-03에 고친 그 증상이다.
+          return items.length
+            ? { disclosure: COUPANG_DISCLOSURE, items, matrix: adMatrix ? adMatrix.variants : null }
+            : null;
         })();
 
         return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: liveCatalog, topics: TOPIC_CATALOG, monetization, adfit, coupang, auth });

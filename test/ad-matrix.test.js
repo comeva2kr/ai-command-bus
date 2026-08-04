@@ -1,0 +1,84 @@
+// 광고 문구 행렬 — 문구≠도착지 사고를 두 번 내지 않는 게 핵심이다.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { pickVariant, validHook, contextOf, CONTEXTS, generateMatrix, buildMatrixPrompt } from "../src/feed/ad-matrix.js";
+import { AD_COPY } from "../src/feed/ad-copy.js";
+
+const MATRIX = { variants: { dgt: { tech: [{ hook: "모니터 하나 더 둘까 싶으면" }, { hook: "책상 위 정리할 때 됐으면" }] } } };
+
+test("브랜드 줄은 행렬이 아니라 도착지 표에서 온다", () => {
+  // 2026-08-03에 "가전·디지털"이라 써놓고 로켓직구로 보낸 사고가 있었다.
+  // 모델이 도착지 이름을 바꿔 쓰면 같은 사고가 반복되므로 그 자리는 안 맡긴다.
+  const v = pickVariant("dgt", "tech", { matrix: MATRIX });
+  assert.equal(v.hook, "모니터 하나 더 둘까 싶으면");
+  assert.equal(v.brand, AD_COPY.dgt[1], "브랜드 줄이 행렬에서 왔다");
+});
+
+test("행렬이 없으면 기본 문구로 떨어진다", () => {
+  // 배치가 실패해도 광고가 사라지면 안 된다.
+  for (const m of [null, {}, { variants: {} }, { variants: { dgt: {} } }, { variants: { dgt: { tech: [] } } }]) {
+    const v = pickVariant("dgt", "tech", { matrix: m });
+    assert.deepEqual([v.hook, v.brand], AD_COPY.dgt);
+    assert.equal(v.variant, "base");
+  }
+});
+
+test("변형마다 subId가 갈린다", () => {
+  // 어느 문구가 실제로 팔리는지 쿠팡 대시보드에서 갈려야 최적화가 된다.
+  const a = pickVariant("dgt", "tech", { matrix: MATRIX, rotate: 0 });
+  const b = pickVariant("dgt", "tech", { matrix: MATRIX, rotate: 1 });
+  assert.notEqual(a.variant, b.variant);
+  assert.notEqual(a.hook, b.hook);
+});
+
+test("맥락 매핑은 모든 피드 카테고리를 받는다", () => {
+  const ids = CONTEXTS.map((c) => c.id);
+  for (const cat of ["tech", "life", "humor", "news", "sports", "auto", "business", "culture", "gaming", null, "없는카테고리"]) {
+    assert.ok(ids.includes(contextOf(cat)), `${cat} → ${contextOf(cat)} 가 맥락 목록에 없다`);
+  }
+});
+
+test("검증기: 가격·할인·과장·숫자를 막는다", () => {
+  // 우리는 가격도 재고도 확인할 수 없다. 쓰는 순간 허위표시다.
+  for (const bad of ["최저가 노트북 지금", "30% 할인 중인 모니터", "오늘만 이 가격", "역대급 특가 모음",
+                     "짧다", "<b>태그</b> 섞인 문구입니다", "이 문구는 서른 자를 훌쩍 넘겨서 카드 한 줄에 도저히 안 들어가는 길이입니다"]) {
+    assert.equal(validHook(bad), false, `통과하면 안 되는 문구: ${bad}`);
+  }
+  for (const good of ["차 관리 미루고 있던 것들", "장 볼 것 있으면 오늘", "모니터 하나 더 둘까 싶으면"]) {
+    assert.equal(validHook(good), true, `막히면 안 되는 문구: ${good}`);
+  }
+});
+
+test("프롬프트에 도착지 이름을 정확히 싣는다", () => {
+  const p = buildMatrixPrompt(["dgt", "fresh"]);
+  assert.ok(p.includes(AD_COPY.dgt[1]));
+  assert.ok(p.includes(AD_COPY.fresh[1]));
+  for (const c of CONTEXTS) assert.ok(p.includes(c.id));
+});
+
+test("생성 실패는 null — 기존 행렬을 덮어쓰지 않는다", async () => {
+  // 광고가 사라지는 것보다 지난주 문구를 계속 쓰는 편이 낫다.
+  const cases = [
+    async () => ({ ok: false, status: 500, text: async () => "" }),
+    async () => ({ ok: true, json: async () => ({ stop_reason: "refusal", content: [] }) }),
+    async () => ({ ok: true, json: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: "{{{" }] }) }),
+    async () => { throw new Error("net"); }
+  ];
+  for (const f of cases) {
+    assert.equal(await generateMatrix({ apiKey: "k", dests: ["dgt"], fetchImpl: f }), null);
+  }
+  assert.equal(await generateMatrix({ apiKey: null, dests: ["dgt"] }), null, "키 없으면 호출조차 안 한다");
+});
+
+test("생성 결과에서 불량 문구만 걸러낸다", async () => {
+  const payload = { cells: [{ dest: "dgt", context: "tech", hooks: ["모니터 바꿀 때 됐으면", "30% 할인 중", "최저가 보장"] },
+                            { dest: "없는도착지", context: "tech", hooks: ["아무거나"] },
+                            { dest: "dgt", context: "없는맥락", hooks: ["아무거나"] }] };
+  const m = await generateMatrix({ apiKey: "k", dests: ["dgt"], fetchImpl: async () => ({
+    ok: true, json: async () => ({ stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(payload) }], usage: {} })
+  })});
+  assert.equal(m.variants.dgt.tech.length, 1, "불량 문구가 남았다");
+  assert.equal(m.variants.dgt.tech[0].hook, "모니터 바꿀 때 됐으면");
+  assert.equal(m.variants["없는도착지"], undefined, "모르는 도착지가 들어왔다");
+  assert.equal(m.variants.dgt["없는맥락"], undefined, "모르는 맥락이 들어왔다");
+});
