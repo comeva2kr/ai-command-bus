@@ -2687,6 +2687,26 @@ function adMetaHtml(item){
   if(!parts.length) return ""; // 실측 지표가 하나도 없으면(샘플 등) 행 생략 — 가짜 금지
   return `<div class="card-meta">${parts.join("")}</div>`;
 }
+// 조회수 — 잡히는 소스에서만 보여준다 (David 2026-08-04, 오늘의베스트 대조:
+// "얘들은 조회수 추천수 댓글 작성일 다 표시된다").
+//
+// 넷이 함께 보여야 "지금 화제인 글을 실제로 재고 있구나"가 읽힌다. 그게 이
+// 서비스가 파는 것이다 — 남의 제목을 모으는 게 아니라 얼마나 터졌는지를
+// 재서 보여주는 것.
+//
+// **화제성 점수에는 넣지 않는다.** 조회수는 게시판마다 자릿수가 완전히 달라
+// (한쪽은 수백, 다른 쪽은 수십만) 같은 축에 올리면 순위가 통째로 뒤집힌다.
+// 표시는 표시고 순위는 순위다.
+//
+// 없으면 아무것도 그리지 않는다 — "조회 0"은 "아무도 안 봤다"로 읽혀서
+// 거짓말이 된다. 안 잡히는 것과 0은 다르다.
+function viewMetaHtml(item){
+  const v = item && item.viewCount;
+  if(!Number.isFinite(v) || v <= 0) return "";
+  const label = v >= 10000 ? (Math.round(v / 1000) / 10) + "만" : v.toLocaleString("ko-KR");
+  return `<span title="조회수">조회 ${label}</span>`;
+}
+
 // 썸네일  — item.image가
 // 있을 때만 렌더되는 소형 정사각 썸네일. 원본 서버 URL을 그대로 <img src>로
 // 참조할 뿐 우리 서버는 아무것도 받거나 저장하지 않는다(카톡/트위터 링크
@@ -2848,7 +2868,7 @@ function appendCard(item){
     ${cardThumbHtml(item)}
     </div>
     <div class="card-meta">
-      <span title="추천수">▲ ${item.score||0}</span>${commentMetaHtml(item)}<span>${timeAgo(item.publishedAt)}</span>
+      <span title="추천수">▲ ${item.score||0}</span>${commentMetaHtml(item)}${viewMetaHtml(item)}<span>${timeAgo(item.publishedAt)}</span>
       <div class="actions">
         <button class="rate save ${item.saved?'on':''}" title="스크랩">${ic('scrap',15)}</button>
         <button class="rate up ${item.myRating>0?'on':''}" data-s="1" title="좋아요">${ic('like',15)}</button>

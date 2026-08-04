@@ -445,3 +445,56 @@ test("승격 제외: 저속·비하 표현은 대표 자리에서만 빼고 피�
     assert.equal(promotable({ title: bad, topics: [] }), false, `놓침: ${bad}`);
   }
 });
+
+// ── 조회수·작성일 (David 2026-08-04, 오늘의베스트 대조) ─────────────────────
+test("파서: 조회수와 작성일이 실제로 들어온다", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const fs = await import("node:fs");
+  const R = loadRegistry();
+  // 실측 2026-08-04: 조회수 0/306건, 작성일도 이토랜드·뽐뿌·인스티즈 전부 0.
+  // "얘들은 조회수 추천수 댓글 작성일 다 표시된다. 애들이 가져오는 건 우리도
+  // 다 가져올 수 있잖아" — HTML에는 처음부터 다 있었고 정규식만 없었다.
+  const cases = [
+    { id: "ppomppu", file: "ppomppu_hot.html", charset: "euc-kr", minView: 15 },
+    { id: "instiz", file: "instiz_pt.html", charset: "utf-8", minView: 8, minDate: 8 },
+    { id: "etoland", file: "etoland_hit.html", charset: "utf-8", minView: 30, minDate: 30 }
+  ];
+  for (const c of cases) {
+    const buf = fs.readFileSync(new URL("./fixtures/" + c.file, import.meta.url));
+    const html = new TextDecoder(c.charset).decode(buf);
+    const items = parseListPage(html, R.find((x) => x.id === c.id).adapter.list);
+    const views = items.filter((i) => i.viewCount > 0).length;
+    assert.ok(views >= c.minView, `${c.id}: 조회수 ${views}건 (>= ${c.minView} 기대)`);
+    if (c.minDate) {
+      const dates = items.filter((i) => i.publishedAt).length;
+      assert.ok(dates >= c.minDate, `${c.id}: 작성일 ${dates}건 (>= ${c.minDate} 기대)`);
+    }
+  }
+});
+
+test("날짜: 게시판이 쓰는 네 가지 형식을 다 읽는다", async () => {
+  const { normalizeListDate } = await import("../src/feed/fetchers.js");
+  const now = () => Date.UTC(2026, 7, 4, 12, 0, 0);
+  assert.ok(normalizeListDate("12:52", now), "HH:MM");
+  assert.ok(normalizeListDate("00:15:01", now), "HH:MM:SS — 뽐뿌. 이걸 못 읽어 작성일이 통째로 비었다");
+  assert.ok(normalizeListDate("08.04 12:52", now), "MM.DD HH:MM — 인스티즈의 지난 날 글");
+  assert.ok(normalizeListDate("5분전", now), "상대 시각");
+  // 연말·연초 경계: 연도를 안 주는 형식이 미래로 계산되면 작년 글이다
+  const y = normalizeListDate("12.31 23:50", now);
+  assert.ok(y && new Date(y).getUTCFullYear() === 2025, `작년으로 보정돼야 한다 (실제 ${y})`);
+  // 못 읽는 것은 지어내지 않는다
+  assert.equal(normalizeListDate("알 수 없음", now), null);
+});
+
+test("표시: 조회수는 잡힐 때만 그리고 화제성 점수에는 넣지 않는다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  assert.match(html, /function viewMetaHtml\(item\)/);
+  // "조회 0"은 "아무도 안 봤다"로 읽힌다 — 안 잡히는 것과 0은 다르다
+  assert.match(html, /if\(!Number\.isFinite\(v\) \|\| v <= 0\) return "";/);
+  // 조회수는 게시판마다 자릿수가 달라 순위 축에 올리면 순서가 뒤집힌다
+  const ingest = readFileSync("src/feed/ingest.js", "utf8");
+  const raw = ingest.slice(ingest.indexOf("function rawEngagement"), ingest.indexOf("function rawEngagement") + 700);
+  assert.ok(!/viewCount/.test(raw), "조회수를 화제성 점수에 넣으면 순위가 통째로 뒤집힌다");
+});

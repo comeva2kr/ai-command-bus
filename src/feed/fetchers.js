@@ -350,6 +350,12 @@ export function redditFetcher(subreddit, fetchImpl = fetch, limit = 30) {
 //                 parsed; unparseable text is dropped rather than guessed)
 //   scoreRegex    1 capture group: a public engagement number (recommend/view)
 //   commentRegex  1 capture group: a public comment count
+//   viewRegex     1 capture group: 조회수. 화제성 점수에는 넣지 않고 **표시용**
+//                 으로만 쓴다 — 조회수는 게시판마다 자릿수가 완전히 달라
+//                 (한쪽은 수백, 다른 쪽은 수백만) 같은 축에 올리면 순위가
+//                 통째로 뒤집힌다. 다만 화면에는 있어야 한다: 조회·추천·댓글·
+//                 시각이 함께 보여야 "지금 화제인 글을 실제로 재고 있구나"가
+//                 읽힌다(David 2026-08-04, 오늘의베스트 대조).
 //   thumbRegex    1 capture group: the row's own thumbnail <img src> (or a
 //                 data-src/lazy-load attribute holding the same). Only add
 //                 this where a real per-post thumbnail sits within
@@ -421,6 +427,25 @@ export function normalizeListDate(raw, now = () => Date.now()) {
     if (d.getTime() > nowMs + 60000) d.setTime(d.getTime() - 8.64e7);
     return finish(d.getTime());
   }
+  // "HH:MM:SS" — 뽐뿌가 이 형식을 쓴다. 초까지 주는 것뿐이라 위와 같은 규칙이다.
+  // 이걸 못 읽어서 뽐뿌 글 전체에 작성일이 비어 있었다(2026-08-04 실측 0/19).
+  const hms = s.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (hms) {
+    const d = new Date(nowMs);
+    d.setHours(Number(hms[1]), Number(hms[2]), Number(hms[3]), 0);
+    if (d.getTime() > nowMs + 60000) d.setTime(d.getTime() - 8.64e7);
+    return finish(d.getTime());
+  }
+  // "MM.DD HH:MM" — 인스티즈가 지난 날 글에 쓴다. 연도를 안 주므로 올해로 보되,
+  // 그 결과가 미래면 작년 글이다(1월에 보는 12월 글).
+  const mdhm = s.match(/^(\d{1,2})[.\-\/](\d{1,2})\s+(\d{1,2}):(\d{2})$/);
+  if (mdhm) {
+    const d = new Date(nowMs);
+    d.setMonth(Number(mdhm[1]) - 1, Number(mdhm[2]));
+    d.setHours(Number(mdhm[3]), Number(mdhm[4]), 0, 0);
+    if (d.getTime() > nowMs + 60000) d.setFullYear(d.getFullYear() - 1);
+    return finish(d.getTime());
+  }
   const relH = s.match(/^(\d+)\s*시간\s*전$/);
   if (relH) return finish(nowMs - Number(relH[1]) * 3.6e6);
   const relM = s.match(/^(\d+)\s*분\s*전$/);
@@ -472,6 +497,8 @@ export function parseListPage(html, cfg = {}) {
     if (sm) raw.score = toNumber(sm[1]);
     const cm = pick(cfg.commentRegex, cfg.commentIn);
     if (cm) raw.commentCount = toNumber(cm[1]);
+    const vm = pick(cfg.viewRegex, cfg.viewIn);
+    if (vm) raw.viewCount = toNumber(vm[1]);
     const tm = pick(cfg.thumbRegex, cfg.thumbIn);
     if (tm && tm[1]) {
       const img = resolveUrl(cfg.urlBase, tm[1].trim());

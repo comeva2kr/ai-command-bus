@@ -677,6 +677,13 @@ ul{padding-left:18px;margin:8px 0}li{margin:6px 0}.m{color:var(--muted);font-siz
    list-style:none + counter 조합에서는 그 값들이 무시된다.
    그래서 각 <ol>이 자기 start 값에서 이어지도록 인라인으로 카운터를 세운다
    (--rank-start는 서버가 심는다). */
+.day-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0 6px;font-size:14px}
+.day-nav a{color:var(--accent);text-decoration:none;font-weight:700}
+.day-cur{font-weight:800}
+.slot-nav{display:flex;gap:8px;margin:6px 0 14px}
+.slot-nav a{font-size:13px;font-weight:700;color:var(--muted);text-decoration:none;
+  border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+.slot-nav a.on{color:var(--accent);border-color:var(--accent)}
 ol.rank{padding-left:0;margin:14px 0;list-style:none;counter-reset:r var(--rank-start,0);border-top:2px solid var(--divider)}
 ol.rank li{counter-increment:r;display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line);margin:0}
 ol.rank li::before{content:counter(r);font:800 20px "Archivo",sans-serif;color:var(--muted);min-width:30px}
@@ -1031,7 +1038,8 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         }
         // ⑤ 날짜별 아카이브 — 매일 쌓이므로 sitemap이 함께 자란다
         const dates = store.listEditionDates ? store.listEditionDates().slice(-90) : [];
-        for (const d of dates) urls.push({ loc: `/briefing/${d}`, freq: "never", pri: "0.5" });
+        const briefDates = new Set([...dates, ...(store.briefingDates ? store.briefingDates() : [])]);
+        for (const d of briefDates) urls.push({ loc: `/briefing/${d}`, freq: "never", pri: "0.5" });
 
         const body = `<?xml version="1.0" encoding="UTF-8"?>\n` +
           `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
@@ -1110,14 +1118,43 @@ ${coupangBannerHtml(null, null, 6, "trends_mid")}
       if (p.startsWith("/briefing/") && req.method === "GET") {
         const seg = decodeURIComponent(p.slice("/briefing/".length));
         if (/^\d{4}-\d{2}-\d{2}$/.test(seg)) {
-          const ed = store.getDailyEdition ? store.getDailyEdition(seg) : null;
-          if (!ed || !ed.briefing) return send(res, 404, { error: "no edition for that date" });
-          const inner = `<h1>${seg} 브리핑</h1>
-<p class="muted">해당 일자의 마지막 수집 시점 기준 스냅샷입니다 · 화제글 ${ed.briefing.itemCount}건 / 소스 ${ed.briefing.sourceCount}곳</p>
+          // 그날 발행된 편들을 보여준다. 슬롯을 지정하면 그 편, 없으면 마지막 편.
+          // 예전엔 dailyEdition(수집 스냅샷)을 읽어서 **해설이 없었다** —
+          // 지금은 하루 3편을 해설과 함께 저장하므로 아카이브에도 그대로 남는다.
+          const wantSlot = url.searchParams.get("slot");
+          const day = SLOTS.map((sl) => ({ def: sl, data: store.getBriefing(seg, sl.id) })).filter((x) => x.data);
+          let picked = wantSlot ? day.find((x) => x.def.id === wantSlot) : day[day.length - 1];
+          // 새 저장본이 없는 지난 날짜는 예전 스냅샷으로 폴백한다 — 이미 색인된
+          // 주소가 갑자기 404가 되면 그건 우리 손해다.
+          let b = picked && picked.data;
+          if (!b) {
+            const ed = store.getDailyEdition ? store.getDailyEdition(seg) : null;
+            b = ed && ed.briefing;
+          }
+          if (!b) return send(res, 404, { error: "no edition for that date" });
+
+          const dates = store.briefingDates ? store.briefingDates() : [];
+          const at = dates.indexOf(seg);
+          const prev = at > 0 ? dates[at - 1] : null;
+          const next = at >= 0 && at < dates.length - 1 ? dates[at + 1] : null;
+          const slotNav = day.length > 1
+            ? `<nav class="slot-nav" aria-label="시간대">` + day.map((x) =>
+                `<a href="/briefing/${seg}?slot=${x.def.id}"${picked && x.def.id === picked.def.id ? ' class="on"' : ""}>${escapeHtml(x.def.label)}</a>`
+              ).join("") + `</nav>`
+            : "";
+          const dayNav = `<nav class="day-nav" aria-label="날짜 이동">` +
+            (prev ? `<a href="/briefing/${prev}">← ${prev}</a>` : `<span></span>`) +
+            `<span class="day-cur">${seg}</span>` +
+            (next ? `<a href="/briefing/${next}">${next} →</a>` : `<span></span>`) +
+            `</nav>`;
+          const slotLabel = picked ? ` · ${picked.def.label}` : "";
+          const inner = `<h1>${seg} 브리핑${escapeHtml(slotLabel)}</h1>
+<p class="muted">화제글 ${b.itemCount}건 / 소스 ${b.sourceCount}곳${b.slot && b.slot.lead ? ` · ${escapeHtml(b.slot.lead)}` : ""}</p>
+${dayNav}${slotNav}
 ${rankingNav("")}
-${briefingSectionsHtml(ed.briefing, coupangBannerHtml(null, null, 4, "archive_mid"))}`;
+${briefingSectionsHtml(b, coupangBannerHtml(null, null, 4, "archive_mid"))}`;
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-          return res.end(editionShell(`${seg} 브리핑`, `${seg} 하루 동안 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`, ownContentNav(), coupangBannerHtml(null, null, 5, "archive_bot")));
+          return res.end(editionShell(`${seg} 브리핑${slotLabel}`, `${seg} 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`, ownContentNav(), coupangBannerHtml(null, null, 5, "archive_bot")));
         }
         // 카테고리 내부 기준(하한 없음) — 전국 랭킹 기준을 빌리면 무반응
         // 뉴스가 많은 카테고리(자동차 등)가 텅 비어 보인다 (2026-08-01 실측).

@@ -111,7 +111,10 @@
           "max": 40,
           "scoreRegex": "board_date\"[^>]*>\\s*(\\d+)\\s*-\\s*\\d+\\s*<",
           "scoreNote": "hot.php 행 끝 3개 td(시각 / \"추천 - 반대\" / 조회) 중 두 번째. 창 400→900: 제목에서 추천 td까지 약 500자라 기존 창으로는 닿지 못했다(실측 추천>0이 0/20 → 15/20).",
-          "parserCheckedAt": "2026-08-04"
+          "parserCheckedAt": "2026-08-04",
+          "viewRegex": "board_date\"[^>]*>\\s*(\\d{2,})\\s*</td>",
+          "dateRegex": "board_date\"[^>]*>\\s*(\\d{2}:\\d{2}:\\d{2})\\s*<",
+          "signalsCheckedAt": "2026-08-04"
         }
       },
       "mixed": true,
@@ -242,11 +245,13 @@
           "urlBase": "https://www.instiz.net",
           "titleRegex": "class=\"r\\d+ listsubject\"><a href=\"(https://www\\.instiz\\.net/pt/\\d+)[^\"]*\">[\\s\\S]{0,200}?</i>\\s*([^<]{3,90})",
           "windowAfter": 500,
-          "dateRegex": "class=\"listno regdate\">(\\d{1,2}:\\d{2})",
+          "dateRegex": "class=\"listno\" width=\"60\">\\s*((?:\\d{2}\\.\\d{2}\\s+)?\\d{1,2}:\\d{2})\\s*<",
           "commentRegex": "class=\"cmt3\"[^>]*>(\\d+)<",
           "scoreRegex": "class=\"listno\" width=\"25\">\\s*(\\d+)\\s*<",
           "note": "2026-08-04 교체: 기존 div.sbj 블록은 일반 목록이라 조회수만 있고 추천·댓글이 없었다(실측 20건 전부 신호 0). 상단 실시간 인기글 블록(tr#topboard, td.listno)에는 시각·조회·추천과 댓글(span.cmt3)이 모두 있다. 12건으로 줄지만 전 건에 실측 반응이 붙는다 — David 원칙 \"커뮤니티는 베스트게시판만\"에도 이쪽이 맞다. robots.txt 특별 차단 없음.",
-          "parserCheckedAt": "2026-08-04"
+          "parserCheckedAt": "2026-08-04",
+          "viewRegex": "class=\"listno\" width=\"45\">\\s*(\\d+)\\s*<",
+          "signalsCheckedAt": "2026-08-04"
         }
       },
       "mixed": true,
@@ -359,7 +364,10 @@
           "scoreRegex": "추천\\s*<!--\\s*-->\\s*(\\d+)",
           "windowAfter": 1600,
           "note": "2026-08-04 교체: 기존 titleRegex는 JSON-LD ItemList를 읽었는데 거기엔 name/item뿐이라 숫자가 원천적으로 없었다(실측 38건 전부 신호 0). HTML 행에는 조회·추천(<span>추천 <!-- -->15</span>, React 주석이 끼어 있음)과 댓글(span.comment-s)이 있다. 실측 39건 중 추천 38·댓글 39. robots.txt는 Disallow:/ 이나 David 2026-08-04 판단으로 유지(차단당하면 그때 제외).",
-          "parserCheckedAt": "2026-08-04"
+          "parserCheckedAt": "2026-08-04",
+          "viewRegex": "조회\\s*<!--\\s*-->\\s*(\\d+)",
+          "dateRegex": "<time[^>]*>([^<]{2,14})</time>",
+          "signalsCheckedAt": "2026-08-04"
         }
       },
       "mixed": true,

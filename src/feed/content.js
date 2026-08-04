@@ -117,6 +117,10 @@ export function normalizeItem(raw, source) {
     // engagement metadata used as weak popularity signals
     score: Number.isFinite(raw.score) ? raw.score : 0,
     commentCount: Number.isFinite(raw.commentCount) ? raw.commentCount : 0,
+    // 조회수는 **표시용**이다. 화제성 점수(rawEngagement)에는 넣지 않는다 —
+    // 게시판마다 자릿수가 달라(수백 ~ 수백만) 같은 축에 올리면 순위가 뒤집힌다.
+    // 0은 "0명이 봤다"가 아니라 "안 잡힌다"이므로 null로 남긴다.
+    viewCount: Number.isFinite(raw.viewCount) && raw.viewCount > 0 ? raw.viewCount : null,
     // 뉴스 전용 화제성 신호 — 구글뉴스가 이 사건으로 함께 묶은 관련 기사 수
     // (fetchers.js의 relatedCoverage). 뉴스에는 추천수·댓글수가 아예 없어서
     // 이게 유일한 실측 반응 대용이다. 그 개념이 없는 소스는 0.
