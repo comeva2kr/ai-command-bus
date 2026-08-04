@@ -1228,6 +1228,10 @@ export class FeedEngine {
         category: i.category || "news", categoryLabel: categoryLabel(i.category || "news"),
         score: i.score || 0, commentCount: i.commentCount || 0,
         coverage: i.coverage || 0, image: safeImage(i.image),
+        // 발췌 — 홈 서버 렌더(seed)와 랭킹 페이지가 함께 쓴다. 제목만 있으면
+        // "남의 제목 모음"과 구분되지 않는다(2026-08-04 검수). 200자 상한은
+        // 인용 범위를 지키기 위한 것이고 원문 전체 복제는 어느 경로에도 없다.
+        summary: typeof i.summary === "string" ? i.summary.slice(0, 200) : "",
         heat: heatOf(i),
         hot: Math.round(s.hotScore * 1000) / 1000
       });
