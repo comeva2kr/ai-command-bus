@@ -48,6 +48,42 @@ export const LOW_VALUE_PATTERNS = [
   { re: /^(테스트|test)\s*\d*$/i, why: "테스트 글" }
 ];
 
+// 우리 이름으로 "오늘의 대표"라고 붙이기엔 부적합한 표현.
+//
+// 앞의 주석에서 "의미 판별은 정규식으로 못 한다"고 했고 그건 여전히 맞다 —
+// 국적·성별 갈등은 문맥이라 못 잡는다. 하지만 **표현 자체가 저속한 것**은
+// 형식으로 잡힌다. 실측(2026-08-04): 검수 3인이 전원 지적한
+//   "우리나라 못생남 빨아주느라 단어가 점점 하타치가 됨"
+// 이 고친 뒤에도 브리핑 1위였다. 해설을 붙이려던 모델조차 그 이슈만
+// 건너뛰었다(5/6) — 사람이 봐도 대표로 내세울 글이 아니라는 뜻이다.
+//
+// 마스킹 사전(profanity.js)과 분리한 이유: 저기 넣으면 피드 화면의 제목까지
+// ●로 바뀐다. 여기 것은 **대표 자리에서만** 빼고 피드에는 원문 그대로 남긴다.
+// 애드핏 정책의 "성적 비하 / 혐오" 조항에 걸리는 것을 우리 지면에서만 막는다.
+//
+// 일반어와 겹치는 것은 넣지 않는다 — 오탐 하나가 진짜 화제를 대표에서 밀어낸다.
+// 짧은 말이 다른 단어에 묻히면 오탐이 난다 — 내 테스트가 실제로 잡았다:
+// "일베이스캠프 등반기"가 "일베"에 걸렸다. 그래서 단어 경계를 함께 본다.
+// 한국어는 조사가 붙으므로 뒤쪽은 느슨하게, 앞쪽은 다른 음절이 붙지 않도록.
+export const UNPROMOTABLE_EXPRESSIONS = [
+  { re: /빨아(주|준|댄)/, why: "성적 비하 표현" },
+  { re: /못생(남|녀)/, why: "외모 비하" },       // 일상어 "못생겼다"는 넣지 않는다
+  { re: /(김치녀|한남충|된장녀|맘충)/, why: "성별 비하 호칭" },
+  // "일베이스캠프"가 "일베" + 조사 "이"로 읽혀 걸렸다(내 첫 시도의 오탐).
+  // 조사를 경계로 인정하면 이런 합성어를 못 가른다. 그래서 **뒤에 한글이
+  // 이어지면 다른 낱말로 본다** — 조사는 한 글자 뒤에 공백·문장부호가 온다.
+  { re: /(^|[^가-힣])(일베|메갈)(?![가-힣])/, why: "극단 커뮤니티 지칭" },
+  { re: /(^|[^가-힣])(일베|메갈)(의|는|가|를|에|와|과|도)(?![가-힣])/, why: "극단 커뮤니티 지칭" },
+  { re: /(성매매|몰카|불법촬영)/, why: "범죄 소재" }
+];
+
+export function unpromotableReason(title) {
+  const t = String(title || "");
+  for (const { re, why } of UNPROMOTABLE_EXPRESSIONS) if (re.test(t)) return why;
+  return null;
+}
+export const hasUnpromotableExpression = (title) => unpromotableReason(title) !== null;
+
 // 제목이 저가치 형식인가. 이유를 함께 돌려준다 — 관리자 화면에서 "왜 빠졌나"를
 // 볼 수 있어야 규칙을 고칠 수 있다.
 export function lowValueReason(title) {
@@ -79,6 +115,7 @@ export function promotable(item) {
   if (!item) return false;
   if (item.adult) return false;
   if (hasProfanity(item.title)) return false;
+  if (hasUnpromotableExpression(item.title)) return false;
   if (isLowValue(item.title)) return false;
   return true;
 }

@@ -420,3 +420,28 @@ test("광고 인접: 민감한 글 옆에는 광고를 붙이지 않되 글은 �
   // 안전한 자리에는 정상적으로 붙는다
   assert.ok(r.slots.length > 0, "민감하지 않은 자리에는 광고가 들어가야 한다");
 });
+
+test("승격 제외: 저속·비하 표현은 대표 자리에서만 빼고 피드에는 남긴다", async () => {
+  const { promotable, hasUnpromotableExpression } = await import("../src/feed/promotion.js");
+  const { maskProfanity } = await import("../src/feed/profanity.js");
+  // 검수 3인이 전원 지적했고, 고친 뒤에도 브리핑 1위였던 실제 제목
+  const t = "우리나라 못생남 빨아주느라 단어가 점점 하타치가 됨";
+  assert.equal(hasUnpromotableExpression(t), true);
+  assert.equal(promotable({ title: t, topics: [] }), false, "브리핑·랭킹 대표에서 제외");
+  // 그러나 **마스킹 사전에는 넣지 않았다** — 피드 화면의 제목은 원문 그대로다.
+  // 넣었다면 여기서 ● 가 나온다(David 원칙: 삭제·왜곡 금지, 승격 제외만).
+  assert.equal(maskProfanity(t), t, "피드 표시는 건드리지 않는다");
+
+  for (const bad of ["미성년자 성매매범을 바라보는 일베의 시선.jpg", "몰카 적발 현장"]) {
+    assert.equal(promotable({ title: bad, topics: [] }), false, bad);
+  }
+  // 오탐 방지 — 짧은 말이 다른 낱말에 묻히면 안 된다.
+  // "일베이스캠프"가 "일베"+조사로 읽혀 걸렸던 실제 오탐을 여기 고정한다.
+  for (const ok of ["못생겼다고 놀림받던 강아지 근황", "일베이스캠프 등반기", "메갈리아 논쟁사"]) {
+    assert.equal(promotable({ title: ok, topics: [] }), true, `오탐: ${ok}`);
+  }
+  // 조사가 붙어도 잡아야 한다
+  for (const bad of ["김어준 일베 추적 결과", "일베 회원 검거", "성매매 처벌법 개정안 국회 통과"]) {
+    assert.equal(promotable({ title: bad, topics: [] }), false, `놓침: ${bad}`);
+  }
+});
