@@ -104,6 +104,29 @@ function isSecureRequest(req) {
   return (req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https";
 }
 
+// 조사 자동 선택. "'xbox'이(가) 언급된"처럼 두 형태를 괄호로 함께 쓰면
+// 기계가 만든 문장이라는 게 그대로 드러난다(2026-08-04 검색 품질 검수 지적).
+//
+// 한글은 마지막 글자의 받침 유무로 갈린다. 한글이 아닌 경우(영문·숫자)는
+// 한국인이 그 말을 읽을 때의 소리를 따른다 — "xbox"는 "엑스박스"라 받침이
+// 있고, "ai"는 "에이아이"라 없다. 영문 끝 글자로 근사하되, 틀릴 수 있는
+// 경우(l, m, n, ng 등 받침으로 읽히는 자음)를 목록으로 둔다.
+export const hasFinalConsonant = (word) => {
+  const w = String(word || "").trim();
+  if (!w) return false;
+  const last = w[w.length - 1];
+  const code = last.charCodeAt(0);
+  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0;
+  // 숫자: 읽는 소리 기준 (0 영, 1 일, 3 삼, 6 육, 7 칠, 8 팔 → 받침 있음)
+  if (/[0-9]/.test(last)) return "0136780".includes(last);
+  // 영문: 받침으로 읽히는 자음으로 끝나면 있음 (l, m, n, ng, k, p, t 계열)
+  if (/[a-zA-Z]/.test(last)) return /[lmnkptbcdfgszx]$/i.test(last);
+  return false;
+};
+export const particle = (word, withFinal, withoutFinal) =>
+  hasFinalConsonant(word) ? withFinal : withoutFinal;
+
+
 function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
@@ -126,7 +149,7 @@ function sharePage(data, origin, id) {
   // 주는 것 자체가 결함이므로 이 수정의 근거는 SVG 지원 여부와 무관하다).
   const shareImage = data.image && /^https?:\/\//i.test(data.image)
     ? data.image
-    : `${origin}/icon-512.png`;
+    : `${origin}/og.png`;
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
@@ -136,6 +159,8 @@ function sharePage(data, origin, id) {
 <meta property="og:description" content="${desc}">
 <meta property="og:url" content="${escapeHtml(url)}">
 <meta property="og:image" content="${escapeHtml(shareImage)}">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 <meta name="twitter:card" content="${data.image ? "summary_large_image" : "summary"}">
 <meta name="twitter:image" content="${escapeHtml(shareImage)}">
 <meta name="twitter:title" content="${title}">
@@ -621,7 +646,11 @@ export function createServer(opts = {}) {
 
   // 자체 콘텐츠 페이지의 검색 노출용 공통 머리. canonical·og:image가 없으면
   // 같은 내용이 여러 주소로 인식되거나 공유 카드가 비어 나간다.
-  const editionShell = (title, desc, inner, canonicalPath = "", ownLinks = "", coupangBanner = "") => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+  // noindex: 페이지는 그대로 열리되 검색 색인만 막는다. 알맹이가 얇은 페이지를
+  // 대량으로 색인시키면 사이트 전체 품질 평가가 그쪽으로 끌려간다
+  // (2026-08-04 검색 품질 검수: 키워드 43개 중 28개가 수록 글 4건 이하).
+  const editionShell = (title, desc, inner, canonicalPath = "", ownLinks = "", coupangBanner = "", noindex = false) => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+${noindex ? '<meta name="robots" content="noindex,follow">' : ""}
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} — 지금핫 NowHot</title>
 <meta name="description" content="${escapeHtml(desc)}">
@@ -629,8 +658,8 @@ export function createServer(opts = {}) {
 <meta property="og:description" content="${escapeHtml(desc)}">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="지금핫 NowHot">
-<meta property="og:image" content="https://nowhot.kr/icon-512.png">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="https://nowhot.kr/og.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="alternate" type="application/rss+xml" title="지금핫 NowHot" href="https://nowhot.kr/rss.xml">
 <script type="application/ld+json">${JSON.stringify({
   "@context": "https://schema.org",
@@ -1020,6 +1049,13 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         const cats = registry
           .filter((c) => c.enabled && c.category)
           .map((c) => c.category);
+        // 색인에 올릴 만한 알맹이가 있는가 (2026-08-04 검색 품질 검수).
+        //
+        // 키워드 43개 중 28개(65%)가 수록 글 4건 이하였다. 그런 페이지는
+        // "이 키워드가 왜 지금 뜨는가"를 말해 주지 못하고 남의 제목 서너 줄만
+        // 남는다 — 구글 스팸 정책의 "가치 없는 페이지 대량 생성"에 해당한다.
+        // 지우지는 않는다. 목록에서 들어갈 수는 있되 **색인만 안 한다.**
+        const INDEXABLE_MIN_ITEMS = 8;
         const urls = [
           { loc: "/", freq: "hourly", pri: "1.0" },
           { loc: "/briefing", freq: "hourly", pri: "0.9" },
@@ -1040,6 +1076,21 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         const dates = store.listEditionDates ? store.listEditionDates().slice(-90) : [];
         const briefDates = new Set([...dates, ...(store.briefingDates ? store.briefingDates() : [])]);
         for (const d of briefDates) urls.push({ loc: `/briefing/${d}`, freq: "never", pri: "0.5" });
+        // 실재하는 페이지의 4분의 1만 사이트맵에 있었다(검수 지적: 24개 vs 107개).
+        // 알맹이가 있는 것만 올린다 — 올릴 것은 빼고 뺄 것은 올리던 상태였다.
+        try {
+          const pool = await engine.pool();
+          for (const k of keywordIndex(pool)) {
+            if (k.count >= INDEXABLE_MIN_ITEMS) {
+              urls.push({ loc: `/keyword/${encodeURIComponent(k.tag)}`, freq: "daily", pri: "0.5" });
+            }
+          }
+          for (const c of communityRanking(pool)) {
+            if (c.posts >= INDEXABLE_MIN_ITEMS) {
+              urls.push({ loc: `/community/${encodeURIComponent(c.source)}`, freq: "daily", pri: "0.6" });
+            }
+          }
+        } catch { /* 수집 전이면 기본 목록만 나간다 */ }
 
         const body = `<?xml version="1.0" encoding="UTF-8"?>\n` +
           `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
@@ -1210,6 +1261,9 @@ ${coupangBannerHtml(null, null, 10, "communities")}
         const seg = decodeURIComponent(p.slice("/community/".length));
         const b = sourceBest(await engine.pool(), seg);
         if (!b) return send(res, 404, { error: "no data for source" });
+        // 알맹이가 얇으면 색인만 막는다. 페이지는 그대로 열린다 —
+        // 목록에서 눌러 들어온 사람에게 404를 주는 건 다른 문제다.
+        const thin = b.items.length < 8;
         const cats = b.categories.slice(0, 3)
           .map((c) => `${escapeHtml(categoryLabel(c.key))} ${c.count}건`).join(" · ");
         const inner = `<h1>${escapeHtml(b.label)} 인기글</h1>
@@ -1224,7 +1278,7 @@ ${coupangBannerHtml(b.items[0] && b.items[0].category, null, 12, "community_mid"
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(editionShell(`${b.label} 인기글 모아보기`,
           `${b.label}에서 지금 반응이 큰 글을 지금핫이 실측 추천·댓글 순으로 정리했습니다.`,
-          inner, `/community/${encodeURIComponent(seg)}`, ownContentNav(), coupangBannerHtml(null, null, 13, "community_bot")));
+          inner, `/community/${encodeURIComponent(seg)}`, ownContentNav(), coupangBannerHtml(null, null, 13, "community_bot"), thin));
       }
 
       // ── 키워드 ───────────────────────────────────────────────────────
@@ -1253,7 +1307,7 @@ ${coupangBannerHtml(null, null, 14, "keywords")}`;
         if (!k) return send(res, 404, { error: "no data for keyword" });
         const srcs = k.sources.slice(0, 4).map((x) => `${escapeHtml(x.key)} ${x.count}건`).join(" · ");
         const inner = `<h1>“${escapeHtml(tag)}” 관련 화제글</h1>
-<p class="muted">‘${escapeHtml(tag)}’이(가) 언급된 글 ${k.total}건을 커뮤니티·뉴스에서 모았습니다. 반응량 순입니다.</p>
+<p class="muted">‘${escapeHtml(tag)}’${particle(tag, "이", "가")} 언급된 글 ${k.total}건을 커뮤니티·뉴스에서 모았습니다. 반응량 순입니다.</p>
 ${rankingNav("")}
 ${srcs ? `<p>이 키워드는 ${srcs} 순으로 언급되고 있습니다.</p>` : ""}
 <section><h2>관련 글</h2>
@@ -1264,7 +1318,8 @@ ${coupangBannerHtml(k.categories[0] && k.categories[0].key, null, 16, "keyword_m
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(editionShell(`${tag} — 지금 커뮤니티 반응`,
           `‘${tag}’이 언급된 커뮤니티·뉴스 화제글을 지금핫이 실측 반응 순으로 모았습니다.`,
-          inner, `/keyword/${encodeURIComponent(tag)}`, ownContentNav(), coupangBannerHtml(null, null, 17, "keyword_bot")));
+          inner, `/keyword/${encodeURIComponent(tag)}`, ownContentNav(), coupangBannerHtml(null, null, 17, "keyword_bot"),
+          k.total < 8));
       }
 
       if ((p === "/ranking" || /^\/ranking\/(daily|weekly|monthly)$/.test(p)) && req.method === "GET") {

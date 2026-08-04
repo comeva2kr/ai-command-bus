@@ -105,3 +105,64 @@ test("번역 링크: 원문을 한글로 보는 경로가 정확히 만들어진
   // 우리 콘텐츠로 오인하지 않도록 nofollow를 단다.
   assert.match(html, /translatedReadUrl\(item\)[\s\S]{0,200}?rel="noopener nofollow"/);
 });
+
+// ── 유입 경로 (2026-08-04, David "사람 유입량을 늘리는 가장 좋은 방법") ──────
+test("발견 경로: 구글 Discover·카톡 공유 자격을 갖췄다", async () => {
+  const { readFileSync, statSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const server = readFileSync("src/feed/server.js", "utf8");
+
+  // max-image-preview:large가 없으면 **구글 Discover 진입 자체가 안 된다.**
+  // 뉴스성 사이트가 구글에서 받는 트래픽의 상당 부분이 그 경로다.
+  for (const [name, src] of [["index.html", html], ["server.js", server]]) {
+    assert.match(src, /max-image-preview:large/, `${name}: Discover 자격 미달`);
+  }
+  // og:image가 512 정사각 앱 아이콘이면 카톡 미리보기가 작은 정사각형으로 뜬다.
+  // 한국에서 링크가 퍼지는 가장 큰 경로가 카톡이다.
+  assert.match(html, /og:image" content="https:\/\/nowhot\.kr\/og\.png"/);
+  assert.match(html, /og:image:width" content="1200"/);
+  assert.ok(!/og:image[^>]*icon-512/.test(html), "앱 아이콘을 공유 이미지로 쓰면 안 된다");
+  assert.match(html, /twitter:card" content="summary_large_image"/);
+  // 이미지가 실제로 1200x630인지 — 규격이 안 맞으면 크롭되거나 작은 카드가 된다
+  const png = readFileSync("src/feed/public/og.png");
+  assert.equal(png.readUInt32BE(16), 1200);
+  assert.equal(png.readUInt32BE(20), 630);
+  assert.ok(statSync("src/feed/public/og.png").size < 300_000, "공유 이미지가 너무 무거우면 미리보기가 안 뜬다");
+});
+
+test("색인: 알맹이가 얇은 페이지는 색인만 막고 페이지는 살려 둔다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync("src/feed/server.js", "utf8");
+  // 검수 지적: 키워드 43개 중 28개(65%)가 수록 글 4건 이하.
+  // 그런 페이지를 대량 색인시키면 사이트 전체 품질 평가가 그쪽으로 끌려간다.
+  assert.match(src, /INDEXABLE_MIN_ITEMS = 8/);
+  assert.match(src, /noindex,follow/, "색인만 막고 링크는 따라가게 둔다");
+  // 사이트맵에는 실재하는 페이지가 올라가야 한다(24개 vs 107개였다)
+  assert.match(src, /loc: `\/keyword\/\$\{encodeURIComponent\(k\.tag\)\}`/);
+  assert.match(src, /loc: `\/community\/\$\{encodeURIComponent\(c\.source\)\}`/);
+  // 404를 주면 안 된다 — 목록에서 눌러 들어온 사람에게는 열려야 한다
+  assert.match(src, /const thin = b\.items\.length < 8;/);
+});
+
+test("문장: 조사를 괄호로 얼버무리지 않는다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { hasFinalConsonant, particle } = await import("../src/feed/server.js");
+  const src = readFileSync("src/feed/server.js", "utf8");
+  // "'xbox'이(가) 언급된"이 화면에 그대로 나갔다 — 기계가 만든 문장이라는
+  // 표시가 노출된다는 검수 지적. 주석의 설명 문구는 남아 있어도 된다.
+  const code = src.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.ok(!/이\(가\)|을\(를\)|은\(는\)|와\(과\)/.test(code), "괄호 조사가 화면 문자열에 남아 있다");
+
+  // 한글은 받침으로 갈린다
+  assert.equal(hasFinalConsonant("삼성전자"), false);
+  assert.equal(hasFinalConsonant("폭염"), true);
+  // 영문·숫자는 한국인이 읽는 소리를 따른다
+  assert.equal(hasFinalConsonant("xbox"), true, "엑스박스");
+  assert.equal(hasFinalConsonant("ai"), false, "에이아이");
+  assert.equal(hasFinalConsonant("llm"), true, "엘엘엠");
+  // 빈 입력에 예외를 던지면 페이지가 통째로 죽는다
+  assert.equal(hasFinalConsonant(""), false);
+  assert.equal(hasFinalConsonant(null), false);
+  assert.equal(particle("폭염", "이", "가"), "이");
+  assert.equal(particle("엔비디아", "이", "가"), "가");
+});

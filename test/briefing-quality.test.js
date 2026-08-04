@@ -160,7 +160,10 @@ test("공유: 글에 사진이 있으면 그 사진이 og:image가 된다", asyn
     "로고 상수로 되돌아가면 안 된다");
   assert.match(fn, /summary_large_image/, "사진이 있으면 큰 카드로");
   assert.match(fn, /twitter:image/, "X는 twitter:image가 없으면 이미지 없음으로 확정한다");
-  assert.match(fn, /icon-512\.png/, "폴백은 PNG (SVG를 미리보기로 안 쓰는 크롤러가 있다)");
+  // 2026-08-04: 폴백을 og.png(1200x630)로 올렸다. 512 정사각 아이콘은
+  // 카톡·X 미리보기에서 작은 정사각형으로 뜨고, 큰 카드 자격도 못 채운다.
+  // PNG여야 하는 이유는 그대로다 — SVG를 미리보기로 안 쓰는 크롤러가 있다.
+  assert.match(fn, /og\.png/, "폴백은 1200x630 PNG");
 });
 
 test("아이콘: PNG가 실제로 존재하고 PNG 시그니처를 갖는다", async () => {
