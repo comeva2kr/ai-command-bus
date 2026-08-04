@@ -341,6 +341,13 @@ export class FeedEngine {
       // 그대로 노출된다. 2026-08-04 실측: 피드 30건 중 22건이 null이었고,
       // 커뮤니티 순위에 "dcinside"처럼 id가 찍힌 것과 같은 뿌리다.
       if (!item.sourceLabel) item.sourceLabel = this._itemLabels.get(item.source) || item.source;
+
+      // 번역된 글에 옮기지 못한 영문 발췌가 붙어 있으면 여기서도 지운다.
+      // 수집 단계(translate.js)에서 이미 거르지만, 풀은 48시간을 안고 가므로
+      // **규칙을 바꾸기 전에 들어온 글**이 그대로 남는다 — 2026-08-05 배포
+      // 직후 라이브에서 2건이 그 상태였다. 길목에서 한 번 더 걸어 두면
+      // 오래된 항목도 즉시 정리되고, 나중에 다른 경로가 생겨도 새지 않는다.
+      if (item.translated && item.summaryTranslated === false && item.summary) item.summary = "";
     }
     return this._cache;
   }

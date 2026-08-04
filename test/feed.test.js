@@ -3473,3 +3473,21 @@ test("communities: 클리앙은 robots상 인기글 HTML을 읽을 수 없어 RS
   assert.ok(!/clien\.net\/service\/(group|recommend)/.test(clien.adapter.url),
     "robots가 막은 경로를 수집원으로 쓰지 않는다");
 });
+
+test("번역: 규칙 이전에 들어온 글도 내보낼 때 걸러진다", async () => {
+  // 수집 단계에서 거르지만 풀은 48시간을 안고 간다 — 규칙을 바꾸기 전에
+  // 들어온 글은 영문 발췌를 그대로 달고 남는다(2026-08-05 배포 직후 라이브 2건).
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const stale = {
+    id: "s", kind: "news", async fetch() {
+      return [{ id: "old1", title: "한글 제목", summary: "Longtime Slashdot reader shares",
+                translated: true, summaryTranslated: false, url: "https://x/1", source: "slashdot" }];
+    }
+  };
+  const engine = new FeedEngine(null, [stale]);
+  const items = await engine.pool();
+  const it = items.find((i) => i.id === "old1");
+  assert.ok(it, "글이 사라지면 안 된다 — 발췌만 지운다");
+  assert.equal(it.summary, "");
+  assert.equal(it.title, "한글 제목");
+});
