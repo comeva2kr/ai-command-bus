@@ -1060,38 +1060,58 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         // 남는다 — 구글 스팸 정책의 "가치 없는 페이지 대량 생성"에 해당한다.
         // 지우지는 않는다. 목록에서 들어갈 수는 있되 **색인만 안 한다.**
         const INDEXABLE_MIN_ITEMS = 8;
+        // lastmod — 구글이 "이 페이지가 언제 바뀌었나"를 판단하는 사실상 유일한
+        // 신호다. 없으면 사이트맵을 다시 읽어도 무엇이 바뀌었는지 알 수 없어
+        // 재크롤링 우선순위가 안 올라간다. 반대로 changefreq·priority는 구글이
+        // 사실상 무시한다고 공식적으로 밝힌 항목이다.
+        // 실측(2026-08-04): 61개 URL 전부 lastmod가 없었다 — 3일 전 제출한
+        // 사이트맵이 그 뒤 바뀐 걸 구글에 알릴 방법이 없던 상태다.
+        //
+        // **지어내지 않는다.** 수집이 15분마다 도는 목록형 페이지는 마지막
+        // 갱신 시각이 실제로 지금에 가깝고, 날짜 아카이브는 그날 저장 시각이,
+        // 정책 문서는 파일의 수정 시각이 진짜 값이다.
+        const isoOf = (ms) => new Date(ms).toISOString();
+        const liveMod = isoOf(engine.lastRefreshedAt || Date.now());
+        const fileMod = (rel) => {
+          try { return isoOf(fs.statSync(path.join(PUBLIC_DIR, rel)).mtimeMs); } catch { return undefined; }
+        };
         const urls = [
-          { loc: "/", freq: "hourly", pri: "1.0" },
-          { loc: "/briefing", freq: "hourly", pri: "0.9" },
-          { loc: "/ranking/daily", freq: "daily", pri: "0.8" },
-          { loc: "/ranking/weekly", freq: "daily", pri: "0.7" },
-          { loc: "/ranking/monthly", freq: "weekly", pri: "0.6" },
-          { loc: "/trends", freq: "hourly", pri: "0.6" },
-          { loc: "/communities", freq: "hourly", pri: "0.8" },
-          { loc: "/keywords", freq: "hourly", pri: "0.7" },
-          { loc: "/about", freq: "monthly", pri: "0.4" },
-          { loc: "/terms", freq: "yearly", pri: "0.2" },
-          { loc: "/privacy", freq: "yearly", pri: "0.2" }
+          { loc: "/", freq: "hourly", pri: "1.0", mod: liveMod },
+          { loc: "/briefing", freq: "hourly", pri: "0.9", mod: liveMod },
+          { loc: "/ranking/daily", freq: "daily", pri: "0.8", mod: liveMod },
+          { loc: "/ranking/weekly", freq: "daily", pri: "0.7", mod: liveMod },
+          { loc: "/ranking/monthly", freq: "weekly", pri: "0.6", mod: liveMod },
+          { loc: "/trends", freq: "hourly", pri: "0.6", mod: liveMod },
+          { loc: "/communities", freq: "hourly", pri: "0.8", mod: liveMod },
+          { loc: "/keywords", freq: "hourly", pri: "0.7", mod: liveMod },
+          { loc: "/about", freq: "monthly", pri: "0.4", mod: fileMod("about.html") },
+          { loc: "/terms", freq: "yearly", pri: "0.2", mod: fileMod("terms.html") },
+          { loc: "/privacy", freq: "yearly", pri: "0.2", mod: fileMod("privacy.html") }
         ];
         for (const cat of [...new Set(cats)]) {
-          urls.push({ loc: `/briefing/${encodeURIComponent(cat)}`, freq: "hourly", pri: "0.7" });
+          urls.push({ loc: `/briefing/${encodeURIComponent(cat)}`, freq: "hourly", pri: "0.7", mod: liveMod });
         }
         // ⑤ 날짜별 아카이브 — 매일 쌓이므로 sitemap이 함께 자란다
         const dates = store.listEditionDates ? store.listEditionDates().slice(-90) : [];
         const briefDates = new Set([...dates, ...(store.briefingDates ? store.briefingDates() : [])]);
-        for (const d of briefDates) urls.push({ loc: `/briefing/${d}`, freq: "never", pri: "0.5" });
+        for (const d of briefDates) {
+          // 날짜 아카이브는 그날 마지막으로 저장된 시각이 진짜 lastmod다.
+          const day = SLOTS.map((sl) => store.getBriefing(d, sl.id)).filter(Boolean);
+          const savedAt = day.length ? Math.max(...day.map((x) => x.savedAt || 0)) : 0;
+          urls.push({ loc: `/briefing/${d}`, freq: "never", pri: "0.5", mod: savedAt ? isoOf(savedAt) : undefined });
+        }
         // 실재하는 페이지의 4분의 1만 사이트맵에 있었다(검수 지적: 24개 vs 107개).
         // 알맹이가 있는 것만 올린다 — 올릴 것은 빼고 뺄 것은 올리던 상태였다.
         try {
           const pool = await engine.pool();
           for (const k of keywordIndex(pool)) {
             if (k.count >= INDEXABLE_MIN_ITEMS) {
-              urls.push({ loc: `/keyword/${encodeURIComponent(k.tag)}`, freq: "daily", pri: "0.5" });
+              urls.push({ loc: `/keyword/${encodeURIComponent(k.tag)}`, freq: "daily", pri: "0.5", mod: liveMod });
             }
           }
           for (const c of communityRanking(pool)) {
             if (c.posts >= INDEXABLE_MIN_ITEMS) {
-              urls.push({ loc: `/community/${encodeURIComponent(c.source)}`, freq: "daily", pri: "0.6" });
+              urls.push({ loc: `/community/${encodeURIComponent(c.source)}`, freq: "daily", pri: "0.6", mod: liveMod });
             }
           }
         } catch { /* 수집 전이면 기본 목록만 나간다 */ }
@@ -1100,6 +1120,7 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
           `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
           urls.map((u) =>
             `  <url><loc>${escapeHtml(origin + u.loc)}</loc>` +
+            (u.mod ? `<lastmod>${u.mod}</lastmod>` : "") +
             `<changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`
           ).join("\n") + `\n</urlset>\n`;
         res.writeHead(200, { "content-type": "application/xml; charset=utf-8" });

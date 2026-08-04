@@ -171,3 +171,17 @@ test("문장: 조사를 괄호로 얼버무리지 않는다", async () => {
   assert.equal(particle("폭염", "이", "가"), "이");
   assert.equal(particle("엔비디아", "이", "가"), "가");
 });
+
+test("사이트맵: lastmod가 있어야 구글이 바뀐 걸 안다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync("src/feed/server.js", "utf8");
+  // 실측 2026-08-04: 61개 URL 전부 lastmod가 없었다. 3일 전 제출한 사이트맵이
+  // 그 뒤 바뀐 걸 구글에 알릴 방법이 없던 상태다. changefreq·priority는
+  // 구글이 사실상 무시한다고 공식적으로 밝혔고, 실제 신호는 lastmod 하나다.
+  assert.match(src, /u\.mod \? `<lastmod>\$\{u\.mod\}<\/lastmod>` : ""/);
+  // 지어내지 않는다 — 목록형은 마지막 수집 시각, 아카이브는 저장 시각,
+  // 정책 문서는 파일 수정 시각이 진짜 값이다.
+  assert.match(src, /const liveMod = isoOf\(engine\.lastRefreshedAt \|\| Date\.now\(\)\)/);
+  assert.match(src, /fileMod\("terms\.html"\)/);
+  assert.match(src, /savedAt \? isoOf\(savedAt\) : undefined/, "저장 기록이 없으면 lastmod를 비운다");
+});
