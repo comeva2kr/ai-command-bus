@@ -255,6 +255,10 @@ const HOT_BAYES_M_DEFAULT = 10;
 const HOT_VEL_W_DEFAULT = 0.3;
 const HOT_TASTE_W_DEFAULT = 0.15; // read by engine.js, exported below too
 const HOT_NEUTRAL_AGE_H_DEFAULT = 12;
+// 노출 적자 감점의 세기. hotScore가 probit 축(대략 ±2.5)이므로 1.0이면
+// "노출 한 번당 화제성 z 0.7 정도를 깎는" 크기다 — 같은 소스가 연달아
+// 나가는 건 확실히 막으면서, 압도적으로 화제인 글은 그래도 앞에 선다.
+const EXPOSURE_PENALTY_W = Number(process.env.HOT_EXPOSURE_W || 1.0);
 
 function envNum(name, dflt) {
   const v = process.env[name];
@@ -722,14 +726,28 @@ export function roundRobinInterleave(topKBySource, opts = {}) {
     }
     if (!cands.length) break; // 방어: remaining과 큐가 어긋나도 무한루프 금지
     cands.sort((a, b) => {
-      // 적자(deficit) = 지금까지 보여준 횟수 / 이 소스의 배정 가중치.
-      const defA = localExposure.get(a.src) / weightOf(a.src);
-      const defB = localExposure.get(b.src) / weightOf(b.src);
-      if (defA !== defB) return defA - defB; // 덜 받은 소스 먼저
-      return (
-        scoreFn(b.entry.item, b.entry.rank, b.entry.hasSignal, b.entry.hotScore) -
-        scoreFn(a.entry.item, a.entry.rank, a.entry.hasSignal, a.entry.hotScore)
-      );
+      // ── 화제성이 1순위, 노출 적자는 감점 (2026-08-04 재설계) ──────────
+      //
+      // 예전에는 적자가 **1순위 키**였고 hotScore는 동점자 처리용이었다.
+      // 그러면 소스 A의 1등과 소스 B의 1등이 있을 때 반응이 511이든 0이든
+      // 무조건 한 칸씩 번갈아 나간다 — 화제성이 순서에 개입하지 못한다.
+      // 실측(2026-08-04): 익명 핫 첫 30건 중 25건이 추천 0·댓글 0이었고,
+      // 소스별 노출이 정확히 12씩 균등했다. 화제성 랭킹이 아니라 배급표였다.
+      // "핫을 눌렀는데 최신이랑 비슷하면 정렬 버튼 자체를 안 믿게 된다"는
+      // 지적이 정확하다.
+      //
+      // 이제 화제성이 순서를 정하고, 적자는 로그 감점으로 붙는다. 개인화
+      // 경로(rank.js)가 이미 쓰던 방식과 같다 — 익명 경로만 구식이었다.
+      // 로그를 쓰는 이유: 선형 감점이면 많이 노출된 소스가 영구히 배제되는데,
+      // 로그는 초반 노출에 크게 반응하고 뒤로 갈수록 완만해져서 "골고루"와
+      // "화제 우선"이 둘 다 성립한다.
+      const penalty = (src) =>
+        EXPOSURE_PENALTY_W * Math.log1p(localExposure.get(src) / weightOf(src));
+      const sa = scoreFn(a.entry.item, a.entry.rank, a.entry.hasSignal, a.entry.hotScore) - penalty(a.src);
+      const sb = scoreFn(b.entry.item, b.entry.rank, b.entry.hasSignal, b.entry.hotScore) - penalty(b.src);
+      if (sa !== sb) return sb - sa;
+      // 완전 동점이면 예전처럼 덜 받은 소스 먼저 — 다양성 계약의 안전망이다.
+      return localExposure.get(a.src) / weightOf(a.src) - localExposure.get(b.src) / weightOf(b.src);
     });
 
     const recentSrcs = out.slice(-minGap).map((it) => it.source);

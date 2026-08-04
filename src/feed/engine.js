@@ -313,8 +313,15 @@ export class FeedEngine {
     // 풀 전체에 한 번 건다. 여기가 피드·랭킹·브리핑·공유가 모두 지나가는
     // 유일한 길목이라, 출력 지점마다 따로 거는 것보다 새는 곳이 없다
     // (2026-08-03 1차 시도에서 shareData에만 걸어 피드는 그대로였다).
+    if (this._itemLabels === undefined) {
+      this._itemLabels = new Map(loadRegistry().map((c) => [c.id, c.labelKo || c.label]));
+    }
     for (const item of this._cache) {
       if (item.image) item.image = safeImage(item.image);
+      // sourceLabel이 비면 API를 쓰는 쪽(발행 페이지·공유 카드)에서 소스 id가
+      // 그대로 노출된다. 2026-08-04 실측: 피드 30건 중 22건이 null이었고,
+      // 커뮤니티 순위에 "dcinside"처럼 id가 찍힌 것과 같은 뿌리다.
+      if (!item.sourceLabel) item.sourceLabel = this._itemLabels.get(item.source) || item.source;
     }
     return this._cache;
   }
@@ -324,20 +331,15 @@ export class FeedEngine {
   // 걷어낸 뒤로 켤 방법이 없으므로 피드에도 안 나오고, 발행 페이지에만
   // 나오면 앞뒤가 안 맞는다.
   async pool() {
-    // sourceLabel이 비면 발행 페이지에 소스 id("dcinside")가 그대로 노출된다.
-    // 레지스트리 라벨로 메운다.
-    if (this._poolLabels === undefined) {
-      const reg = loadRegistry();
-      this._poolLabels = new Map(reg.map((c) => [c.id, c.labelKo || c.label]));
-      // 수집 금지 소스(enabled:false — 디시 등)는 발행 페이지에도 실리지 않는다.
-      // 풀에 남아 있을 이유는 없지만, 커뮤니티 순위는 소스 이름을 대놓고
-      // 광고하는 페이지라 여기서 한 번 더 막는다.
-      this._poolDisabled = new Set(reg.filter((c) => c.enabled === false).map((c) => c.id));
+    // 발행 페이지(커뮤니티 순위/키워드/그룹별 베스트)용 풀.
+    // 성인 태그 글은 뺀다: 연령 게이트 UI를 걷어낸 뒤로 켤 방법이 없어
+    // 피드에도 안 나오는데 발행 페이지에만 나오면 앞뒤가 안 맞는다.
+    // 수집 금지 소스(enabled:false — 디시 등)도 뺀다: 커뮤니티 순위는 소스
+    // 이름을 대놓고 싣는 페이지라 여기서 한 번 더 막는다.
+    if (this._poolDisabled === undefined) {
+      this._poolDisabled = new Set(loadRegistry().filter((c) => c.enabled === false).map((c) => c.id));
     }
-    const byId = this._poolLabels;
-    return (await this._items())
-      .filter((i) => !i.adult && !this._poolDisabled.has(i.source))
-      .map((i) => (i.sourceLabel ? i : { ...i, sourceLabel: byId.get(i.source) || i.source }));
+    return (await this._items()).filter((i) => !i.adult && !this._poolDisabled.has(i.source));
   }
 
   // Per-source item counts in the current collected pool (David 2026-07-24
@@ -650,6 +652,10 @@ export class FeedEngine {
     const allowAdult = user.ageVerified === true && user.showAdult === true;
     const muted = new Set(user.mutedSources || []);
     const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
+      // 통합 피드에서만 제외하는 소스(registry mainFeed:false).
+      // 삭제가 아니라 "메인에 안 올림"이다 — 칩으로 고르면 볼 수 있다.
+      const offMain = this._offMain || (this._offMain = new Set(
+        loadRegistry().filter((c) => c.mainFeed === false).map((c) => c.id)));
     const showTopics = new Set(user.showTopics || []);
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
 
@@ -695,15 +701,32 @@ export class FeedEngine {
       // hotGate/rankItems path did) so the round-robin/min-gap diversity
       // guarantees below hold on *every* page of the infinite scroll, not
       // just a fresh user's first load.
-      const pool = items.filter(
+      const base = items.filter(
         (i) =>
           (allowAdult || !i.adult) &&
           !muted.has(i.source) &&
           !disabled.has(i.source) &&
+          // mainFeed:false — 수집은 하되 통합 피드에서만 뺀다. 소스 칩으로
+          // 직접 고른 경우(source 지정)에는 그대로 나온다.
+          !(offMain.has(i.source) && !source) &&
           !topicsBlocked(i, showTopics) &&
           !seen.has(i.id) &&
           !tooOld(i, now)
       );
+      // ── 화제성 신호가 없는 글은 **뒤로 민다** (컷이 아니라 강등) ──────
+      //
+      // 실측(2026-08-04): 핫 첫 30건 중 16건이 추천 0 · 댓글 0 · 교차보도 0.
+      // 7위부터는 사실상 신호 없는 글이 채우고 있었다.
+      //
+      // 하드 컷을 걸어 봤더니 "모든 활성 소스가 최소 한 번은 나온다"는 다양성
+      // 계약이 깨졌다(테스트 2건 실패). 지금 26개 소스가 파서 고장으로 추천수를
+      // 0으로 내보내고 있어서, 신호로 자르면 피드가 4개 소스로 쪼그라든다 —
+      // 원인(파서)을 안 고치고 증상(0점)으로 자르면 더 나빠진다.
+      //
+      // 그래서 자르지 않고 순서만 내린다. 신호 있는 글이 먼저 나가고, 신호
+      // 없는 글은 그 뒤에 남는다. 파서를 복구하면 이 강등은 저절로 무의미해진다.
+      const pool = base;
+
       // "게시판별 핫 + 다양성 라운드로빈" (David 2026-07-24 redesign). Every
       // active source is already a community's own best/hot board (see
       // ingest.js's rankBySource header comment for why even a 0-engagement

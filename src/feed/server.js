@@ -14,6 +14,7 @@ import { loadMatrix, pickVariant } from "./ad-matrix.js";
 import { makeIndexNow } from "./indexnow.js";
 import { maskProfanity } from "./profanity.js";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -140,6 +141,30 @@ location.replace(${JSON.stringify(appUrl)});
 </body></html>`;
 }
 
+// 캐시 정책 — 2026-08-04까지 **헤더가 아예 없었다.**
+//
+// Cache-Control도 ETag도 Last-Modified도 안 나가면 브라우저가 자체 판단으로
+// 캐시한다(휴리스틱 캐싱). 그중 치명적인 게 /sw.js다: 서비스워커 파일이
+// HTTP 캐시에서 나오면 브라우저가 **새 워커의 존재 자체를 모르고**, 옛 워커가
+// 계속 옛 index.html을 Cache API에서 서빙한다. 아이폰 사파리가 특히 오래 붙든다.
+//
+// 실증(2026-08-04): 메뉴 버튼 회귀를 고쳐 배포하고 서버에서 정상 동작을 확인한
+// 뒤에도 David 폰에서는 여전히 안 눌렸다. 서버는 멀쩡했고 폰이 옛 번들을 쓰고
+// 있었다. 이 클래스는 "배포했는데 사용자에겐 안 닿는" 침묵 실패라, 배포 검증을
+// 아무리 해도 잡히지 않는다.
+//
+// 정책:
+//   HTML·sw.js·manifest → no-cache (= 매번 서버에 물어보되 안 바뀌었으면 304)
+//   아이콘·이미지        → 1주일 (파일명이 안 바뀌지만 아이콘은 거의 안 바뀐다)
+// no-store가 아니라 no-cache인 이유: 재검증만 강제하고, 안 바뀌었으면 304로
+// 본문을 안 보낸다 — 오프라인 폴백(서비스워커)도 그대로 산다.
+const REVALIDATE = new Set([".html", ".js", ".webmanifest", ".json", ".xml", ".txt"]);
+function cacheHeadersFor(ext) {
+  return REVALIDATE.has(ext)
+    ? "no-cache"
+    : "public, max-age=604800";
+}
+
 function serveStatic(res, urlPath, seedHtml = "") {
   const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
   const filePath = path.join(PUBLIC_DIR, rel);
@@ -196,7 +221,19 @@ function serveStatic(res, urlPath, seedHtml = "") {
       if (ga) tags += `<script async src="https://www.googletagmanager.com/gtag/js?id=${ga}"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','${ga}');</script>\n`;
       buf = Buffer.from(buf.toString("utf8").replace("</head>", tags + "</head>"));
     }
-    res.writeHead(200, { "content-type": MIME[ext] || "application/octet-stream" });
+    // ETag는 **주입 후 최종 바이트** 기준이어야 한다. 파일 mtime으로 만들면
+    // 시드 주입·애드센스 태그가 바뀌어도 같은 ETag가 나가 304로 옛 화면이 남는다.
+    const etag = '"' + createHash("sha1").update(buf).digest("base64").slice(0, 22) + '"';
+    const headers = {
+      "content-type": MIME[ext] || "application/octet-stream",
+      "cache-control": cacheHeadersFor(ext),
+      etag
+    };
+    if (res.req && res.req.headers["if-none-match"] === etag) {
+      res.writeHead(304, headers);
+      return res.end();
+    }
+    res.writeHead(200, headers);
     res.end(buf);
   });
 }

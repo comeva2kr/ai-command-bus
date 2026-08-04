@@ -1172,23 +1172,59 @@ test("roundRobinInterleave: a genuine outlier's engagement can lead its own roun
 // 수정: roundRobinInterleave가 exposure(지금까지 이 유저에게 노출된 횟수)를 1순위
 // 정렬 기준으로 삼는다 — engagement/개인화 점수는 노출 횟수가 비슷한 소스끼리의
 // 타이브레이크로만 작동한다.
-test("roundRobinInterleave: exposure (least-shown-first) overrides a raw engagement-score gap between sources", async () => {
+test("roundRobinInterleave: 화제성이 순서를 정하고, 노출은 감점으로 붙는다", async () => {
+  // ── 계약 변경 2026-08-04 ─────────────────────────────────────────────
+  // 예전 계약: "노출 적자가 화제성 격차를 이긴다"(적자가 1순위 키, hotScore는
+  // 동점자 처리용). 실측에서 이게 치명적이었다 — 익명 핫 첫 30건 중 25건이
+  // 추천 0·댓글 0이었고, 소스별 노출이 정확히 12씩 균등했다. 화제성 랭킹이
+  // 아니라 배급표였다. "핫을 눌렀는데 최신이랑 비슷하면 정렬 버튼 자체를
+  // 안 믿게 된다"(헤비유저 검수)가 정확한 진단이다.
+  //
+  // 새 계약: 화제성이 순서를 정하고 노출 적자는 로그 감점으로 붙는다.
+  // 개인화 경로(rank.js)가 이미 쓰던 방식이고, 익명 경로만 구식이었다.
   const { roundRobinInterleave } = await import("../src/feed/ingest.js");
   const mk = (id, src, rank) => ({ item: { id, source: src }, rank, hasSignal: true });
   const topK = new Map([
     ["loud", [mk("loud0", "loud", 0), mk("loud1", "loud", 1)]],
     ["quiet", [mk("quiet0", "quiet", 0)]]
   ]);
-  // "loud" wins every round on raw score alone
   const scoreFn = (item) => (item.source === "loud" ? 999 : 1);
-  const noExposure = roundRobinInterleave(topK, { minGap: 1, scoreFn }).map((it) => it.id);
-  assert.equal(noExposure[0], "loud0", "sanity: with no exposure history, the higher score goes first");
 
-  // "loud" has already been shown to this user 20 times; "quiet" has never
-  // been shown. Despite the huge score gap, quiet0 must go first.
+  const noExposure = roundRobinInterleave(topK, { minGap: 1, scoreFn }).map((it) => it.id);
+  assert.equal(noExposure[0], "loud0", "노출 이력이 없으면 화제성 높은 쪽이 먼저");
+
+  // 압도적 화제성(999 대 1)은 20회 노출 감점을 이긴다 — 이게 새 계약의 핵심이다.
+  // log1p(20) × 1.0 ≈ 3.04 감점이라 998 대 1로 여전히 loud가 앞선다.
   const exposure = new Map([["loud", 20], ["quiet", 0]]);
   const withExposure = roundRobinInterleave(topK, { minGap: 1, scoreFn, exposure }).map((it) => it.id);
-  assert.equal(withExposure[0], "quiet0", "a never-shown source is prioritized over a much-higher-scoring, already-heavily-shown one");
+  assert.equal(withExposure[0], "loud0",
+    "압도적으로 화제인 글은 많이 노출된 소스의 것이라도 앞에 선다");
+
+  // 그러나 화제성이 비슷하면 노출 감점이 순서를 뒤집는다 — 다양성은 살아 있다.
+  const evenScore = () => 1;
+  const evenOrder = roundRobinInterleave(topK, { minGap: 1, scoreFn: evenScore, exposure }).map((it) => it.id);
+  assert.equal(evenOrder[0], "quiet0",
+    "화제성이 비슷하면 덜 보여준 소스가 먼저 — 다양성 계약은 유지된다");
+});
+
+test("roundRobinInterleave: 한 소스가 연달아 피드를 먹지 않는다", async () => {
+  // 감점이 로그라 초반 노출에 크게 반응한다. 같은 소스가 계속 이기지 못한다.
+  const { roundRobinInterleave } = await import("../src/feed/ingest.js");
+  const mk = (id, src) => ({ item: { id, source: src }, rank: 0, hasSignal: true });
+  const topK = new Map([
+    ["a", Array.from({ length: 10 }, (_, i) => mk(`a${i}`, "a"))],
+    ["b", Array.from({ length: 10 }, (_, i) => mk(`b${i}`, "b"))],
+    ["c", Array.from({ length: 10 }, (_, i) => mk(`c${i}`, "c"))]
+  ]);
+  // a가 조금 더 화제인 상황 — 그래도 독식하면 안 된다.
+  const scoreFn = (item) => (item.source === "a" ? 1.5 : 1.0);
+  const out = roundRobinInterleave(topK, { minGap: 1, scoreFn }).map((it) => it.source);
+  const first9 = out.slice(0, 9);
+  const counts = {};
+  for (const s of first9) counts[s] = (counts[s] || 0) + 1;
+  assert.ok(Math.max(...Object.values(counts)) <= 5,
+    `한 소스가 앞 9칸 중 ${Math.max(...Object.values(counts))}칸을 먹었다: ${first9.join(",")}`);
+  assert.equal(Object.keys(counts).length, 3, "세 소스가 모두 앞 9칸에 나와야 한다");
 });
 
 // --- Hot curation v1 (David 2026-07-24) -------------------------------------

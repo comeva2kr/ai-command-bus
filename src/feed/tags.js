@@ -31,16 +31,41 @@ const DICT = [...new Set([
   .sort((a, b) => b.length - a.length);
 
 // 영숫자 토큰에서 걸러낼 것 — 흔한 기능어와 단위. 고유명사만 남기는 게 목적이다.
+// 2026-08-04 검수 실측: /keywords 상위가 open · source · code · more · what ·
+// its · own · week 로 채워져 있었다. "화제 키워드"라는 이름의 페이지 절반이
+// 영어 기능어면 그 페이지를 한 번 본 사용자는 다시 오지 않는다. 목록이 짧아
+// 못 걸렀던 것이라, 실제로 올라온 것들을 넣어 넓혔다.
 const LATIN_STOP = new Set([
+  // 관사·대명사·전치사·접속사
   "the", "and", "for", "with", "you", "your", "その", "from", "this", "that",
-  "new", "how", "why", "not", "are", "was", "has", "his", "her", "who", "all",
+  "these", "those", "they", "them", "their", "its", "our", "own", "out", "off",
+  "into", "onto", "over", "under", "about", "after", "before", "between",
+  "but", "nor", "yet", "than", "then", "when", "what", "where", "which", "while",
+  "who", "whom", "whose", "why", "how", "here", "there", "any", "some", "each",
+  "more", "most", "less", "least", "much", "many", "very", "just", "only",
+  "also", "still", "even", "ever", "never", "always", "again", "once",
+  // be동사·조동사·흔한 동사
+  "are", "was", "were", "been", "being", "has", "had", "have", "having",
+  "does", "did", "done", "can", "could", "will", "would", "should", "may",
+  "might", "must", "get", "got", "make", "made", "making", "use", "used",
+  "using", "like", "want", "need", "know", "think", "take", "give", "come",
+  "look", "find", "work", "works", "say", "says", "said", "let", "put", "try",
+  // 흔한 명사·형용사 — 그 자체로는 화제를 특정하지 못한다
+  "new", "old", "good", "best", "bad", "big", "small", "long", "short",
+  "next", "last", "first", "top", "day", "days", "week", "weeks", "month",
+  "year", "years", "time", "times", "way", "ways", "thing", "things",
+  "people", "one", "two", "not", "all", "his", "her", "him", "she", "hers",
+  // 개발·기술 문맥에서 너무 흔해 신호가 없는 것들
+  "open", "source", "code", "app", "apps", "web", "site", "data", "file",
+  "files", "post", "posts", "show", "ask", "help", "guide", "part",
+  // 단위·확장자·프로토콜
   "kg", "cm", "mm", "km", "ml", "gb", "mb", "kb", "hz", "vs", "etc", "jpg",
   "png", "gif", "mp4", "amp", "http", "https", "www", "com", "net", "org"
 ]);
 
 // 두 글자여도 내용 신호가 분명한 것들 — 이 목록에 없는 두 글자는 버린다.
 const SHORT_ALLOW = new Set([
-  "ai", "ui", "ux", "vr", "ar", "ev", "tv", "pc", "os", "it", "ip",
+  "ai", "ui", "ux", "vr", "ar", "ev", "tv", "pc", "os", "ip",
   "5g", "6g", "ps", "xr", "gm", "bj", "mz"
 ]);
 
