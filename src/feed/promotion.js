@@ -53,9 +53,10 @@ export const LOW_VALUE_PATTERNS = [
 export function lowValueReason(title) {
   const t = String(title || "").trim();
   if (!t) return "제목 없음";
-  // 너무 짧은 제목은 그 자체로 정보가 없다. 다만 한국어 제목은 짧아도
-  // 내용이 있는 경우가 많아 기준을 낮게 잡는다.
-  if (t.length < 6) return "제목이 너무 짧다";
+  // 사실상 비어 있는 제목만 막는다. 한국어는 짧아도 내용이 있다 —
+  // "尹 구속"(5자)처럼 5자짜리 진짜 뉴스가 있으므로 기준을 6자로 잡으면
+  // 정상 글이 대표 자리에서 밀려난다. 오탐 하나가 진짜 화제를 죽인다.
+  if (t.length < 3) return "제목이 사실상 비어 있다";
   for (const { re, why } of LOW_VALUE_PATTERNS) if (re.test(t)) return why;
   return null;
 }

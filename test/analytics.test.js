@@ -343,7 +343,7 @@ test("랭킹: 사이트 소개문·유도 문구가 발췌로 새어 나가지 �
   const { FeedEngine } = await import("../src/feed/engine.js");
   const boiler = "이토랜드는 유머, 연예, 정보, 이슈를 빠르게 공유하는 커뮤니티입니다.";
   const mk = (id, source, summary, score) => ({
-    id, source, title: "글 " + id, url: "https://x/" + id, summary,
+    id, source, title: "테스트 게시물 " + id, url: "https://x/" + id, summary,
     score, commentCount: score, category: "humor",
     publishedAt: new Date(Date.now() - 3600e3).toISOString()
   });
@@ -363,4 +363,60 @@ test("랭킹: 사이트 소개문·유도 문구가 발췌로 새어 나가지 �
   assert.equal(by.c, "", "알맹이 없는 유도 문구");
   assert.equal(by.e, "", "한 문장도 안 되는 발췌");
   assert.match(by.d, /맥북/, "진짜 글별 발췌는 남아야 한다");
+});
+
+// ── 승격 제외 (2026-08-04 적대적 검수) ──────────────────────────────────────
+test("승격 제외: 알맹이 없는 글은 대표 자리에 올리지 않되 삭제하지 않는다", async () => {
+  const { promotable, isLowValue, lowValueReason, adUnsafe } = await import("../src/feed/promotion.js");
+  // 실측으로 대표 자리에 올라왔던 것들
+  assert.equal(isLowValue("300추 가능한가요?"), true);
+  assert.equal(lowValueReason("300추 가능한가요?"), "추천 구걸");
+  assert.equal(isLowValue("실시간 세르카 나메 2관 파티모집창"), true);
+  assert.equal(isLowValue("출석 체크합니다"), true);
+
+  // 정상 글은 절대 걸리면 안 된다 — 오탐 하나가 진짜 화제를 밀어낸다
+  for (const ok of [
+    "제작비 100억 이상 쓰고 폭망한 영화.jpg",
+    "애플이 잘못하고 있다",
+    "이번에 발표된 청년혜택 진짜 파격적이네요",
+    "LLMs reward expertise",
+    "수학과 이론 컴퓨터 과학의 10가지 발전",
+    "5000원으로 장보기 성공한 후기"        // 숫자 + 후기 — 구걸 패턴과 헷갈리기 쉽다
+  ]) {
+    assert.equal(isLowValue(ok), false, `오탐: "${ok}"`);
+  }
+
+  // 광고 인접 판정은 **글을 막는 게 아니라 그 옆에 광고를 안 붙이는 것**이다.
+  // 이미 붙어 있는 태그만 쓴다 — 새로 의미를 판별하려 들지 않는다.
+  assert.equal(adUnsafe({ title: "평범한 글", topics: [] }), false);
+  assert.equal(adUnsafe({ title: "평범한 글", topics: ["politics"] }), true);
+  assert.equal(adUnsafe({ title: "평범한 글", adult: true, topics: [] }), true);
+
+  // 종합 판정
+  assert.equal(promotable({ title: "애플이 잘못하고 있다", topics: [] }), true);
+  assert.equal(promotable({ title: "300추 가능한가요?", topics: [] }), false);
+  assert.equal(promotable({ title: "성인 글", adult: true, topics: [] }), false);
+  // 정치는 대표 자리에서 빼지 않는다 — 광고만 안 붙인다(뉴스가 통째로 죽는다)
+  assert.equal(promotable({ title: "예산안 처리 무산", topics: ["politics"] }), true);
+});
+
+test("광고 인접: 민감한 글 옆에는 광고를 붙이지 않되 글은 그대로 둔다", async () => {
+  const { injectSlots, adParams } = await import("../src/feed/monetize.js");
+  const cand = Array.from({ length: 4 }, (_, k) => ({
+    id: "ad" + k, relevance: 0.9, url: "https://link.coupang.com/a/x" + k
+  }));
+  const p = { ...adParams(), every: 3, skipFirst: 0, maxPerPage: 5, minRelevance: 0.3 };
+  const mk = (id, topics = []) => ({ id, title: "글 " + id, topics });
+  // 0번(광고가 붙을 자리)이 정치 글이면 그 자리는 건너뛴다
+  const items = [mk("a", ["politics"]), mk("b"), mk("c"), mk("d"), mk("e"), mk("f"), mk("g")];
+  const r = injectSlots(items, cand, { ...p, startIndex: 0 });
+  // 글은 하나도 사라지지 않는다 — 승격 제외와 같은 원칙이다
+  const kept = r.items.filter((x) => !String(x.id).startsWith("ad")).map((x) => x.id);
+  assert.deepEqual(kept, ["a", "b", "c", "d", "e", "f", "g"], "민감한 글도 피드에는 그대로 남는다");
+  // 정치 글 바로 옆에는 광고가 없다
+  const idxA = r.items.findIndex((x) => x.id === "a");
+  assert.ok(!String(r.items[idxA - 1]?.id || "").startsWith("ad"), "앞에 광고 없음");
+  assert.ok(!String(r.items[idxA + 1]?.id || "").startsWith("ad"), "뒤에 광고 없음");
+  // 안전한 자리에는 정상적으로 붙는다
+  assert.ok(r.slots.length > 0, "민감하지 않은 자리에는 광고가 들어가야 한다");
 });

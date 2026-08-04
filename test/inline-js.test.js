@@ -77,3 +77,31 @@ test("광고: 배너 이미지는 지연 로딩하지 않는다", async () => {
   assert.match(readFileSync("src/feed/public/index.html", "utf8"),
     /card-thumb[^>]*>.*loading="lazy"/s, "본문 썸네일까지 eager로 바꾸면 안 된다");
 });
+
+test("번역 링크: 원문을 한글로 보는 경로가 정확히 만들어진다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const src = html.match(/function translatedReadUrl\(item\)\{[\s\S]*?\n\}/);
+  assert.ok(src, "translatedReadUrl 함수 누락");
+  // eslint-disable-next-line no-new-func
+  const fn = new Function("item", src[0].replace(/^function translatedReadUrl\(item\)\{/, "").replace(/\}$/, ""));
+
+  // 구글 공식 진입 주소로 보낸다 — translate.goog 서브도메인을 우리가 조립하면
+  // 문서화되지 않은 규칙에 의존하게 되고, 우리 서버 IP에서는 403이라 동작
+  // 확인도 불가능했다. 리다이렉트는 구글이 사용자 브라우저에서 처리한다.
+  assert.equal(fn({ url: "https://news.ycombinator.com/item?id=1", originalLang: "en" }),
+    "https://translate.google.com/translate?sl=auto&tl=ko&u=" + encodeURIComponent("https://news.ycombinator.com/item?id=1"));
+  assert.equal(fn({ url: "https://dev.to/a/b", lang: "en" }),
+    "https://translate.google.com/translate?sl=auto&tl=ko&u=" + encodeURIComponent("https://dev.to/a/b"));
+  // 한국어 원문에는 붙이지 않는다 — 번역할 것이 없다
+  assert.equal(fn({ url: "https://www.clien.net/x", lang: "ko" }), null);
+  assert.equal(fn({ url: "https://x.com/y" }), null, "언어를 모르면 붙이지 않는다");
+  // 깨진 입력에 예외를 던지면 상세 화면 전체가 죽는다
+  assert.equal(fn({ url: "not-a-url", lang: "en" }), null);
+  assert.equal(fn(null), null);
+  assert.equal(fn({ url: "javascript:alert(1)", lang: "en" }), null, "http(s)만 허용");
+
+  // 우리가 번역본을 호스팅하는 게 아니라 링크만 건다 — 검색엔진이 번역본을
+  // 우리 콘텐츠로 오인하지 않도록 nofollow를 단다.
+  assert.match(html, /translatedReadUrl\(item\)[\s\S]{0,200}?rel="noopener nofollow"/);
+});

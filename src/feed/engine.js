@@ -10,6 +10,7 @@ import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
 import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
+import { promotable, isLowValue } from "./promotion.js";
 import { isJunkImage } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
 import { buildDigest, MIN_ISSUES, slotForHour } from "./digest.js";
@@ -1209,6 +1210,10 @@ export class FeedEngine {
         !(i.topics || []).includes("politics") &&
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
+        // 우리가 "오늘의 화제"라고 이름 붙이는 자리다. 그 커뮤니티 안에서만
+        // 통하는 글(추천 구걸·모집 공고)은 여기 올리지 않는다 — 피드에서는
+        // 그대로 보이므로 삭제가 아니라 승격 제외다(promotion.js).
+        promotable(i) &&
         !tooOld(i, now)
     );
     const engagement = (i) => (i.score || 0) + (i.commentCount || 0) * 2;
@@ -1346,7 +1351,9 @@ export class FeedEngine {
       if (!top.length) continue; // 공급 0인 카테고리만 스킵 — 1건이라도 있으면 싣는다
       // 대표 글(문장을 우리가 직접 쓰는 자리)은 비속어가 없는 것을 앞으로 당긴다.
       // 목록 행의 원문 제목은 그대로 둔다 — 표시 단계에서만 마스킹한다.
-      const cleanFirst = top.findIndex((i) => !hasProfanity(i.title));
+      // 대표 문장에 쓸 글 — 비속어뿐 아니라 "그 커뮤니티 안에서만 통하는 글"도
+      // 뺀다. 브리핑 대표에 "300추 가능한가요?"가 올라온 실측이 있었다.
+      const cleanFirst = top.findIndex((i) => promotable(i));
       if (cleanFirst > 0) top.unshift(top.splice(cleanFirst, 1)[0]);
       sections.push({
         category: cat,
@@ -1378,7 +1385,7 @@ export class FeedEngine {
     // 않는다(마스킹으로 덮기보다 다른 글을 고르는 편이 페이지 품질에 낫다).
     const debatePool = pool.filter((i) => (i.commentCount || 0) >= 30)
       .sort((a, b) => (b.commentCount || 0) - (a.commentCount || 0));
-    const debate = debatePool.find((i) => !hasProfanity(i.title)) || null;
+    const debate = debatePool.find((i) => promotable(i)) || null;
     // ④ 이슈 다이제스트 — 브리핑의 본문. 카테고리별 top3가 아니라 **풀 상위
     // 전체**를 재료로 묶는다(카테고리로 먼저 쪼개면 같은 사건이 서로 다른
     // 카테고리로 흩어져 묶이지 않는다 — 실측에서 6개 이슈가 전부 1건짜리였다).
@@ -1388,7 +1395,7 @@ export class FeedEngine {
         score: i.score || 0, commentCount: i.commentCount || 0,
         coverage: i.coverage || 0, tags: i.tags || []
       }))
-      .filter((i) => !hasProfanity(i.title))
+      .filter((i) => promotable(i))
       .sort((a, b) => engagement(b) + (b.coverage || 0) * 50 - (engagement(a) + (a.coverage || 0) * 50));
 
     // 후보 단계에서 소스 균형을 잡는다.

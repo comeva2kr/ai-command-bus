@@ -31,6 +31,7 @@
 //     impression costs revenue.
 
 import { adCopy } from "./ad-copy.js";
+import { adUnsafe } from "./promotion.js";
 import { loadBanners } from "./manual-products.js";
 import { topPreferences } from "./recommender.js";
 import { categoryLabel } from "./taxonomy.js";
@@ -224,7 +225,12 @@ export function injectSlots(items, candidates, opts = {}) {
       globalPos >= skipFirst &&
       (globalPos - skipFirst) % every === 0 &&
       slots.length < maxPerPage;
-    if (dueForSlot && poolIdx < pool.length) {
+    // 이 글 **옆에** 광고를 붙여도 되는가 (promotion.adUnsafe).
+    // 성인·정치/종교·비속어가 붙은 글 바로 옆의 광고는 광고주 브랜드 안전
+    // 문제이고, 애드센스·애드핏 양쪽이 문제 삼는 지점이다. 글은 그대로 두고
+    // 광고만 다음 자리로 미룬다 — 콘텐츠를 지우지 않는다.
+    const neighborUnsafe = adUnsafe(item) || adUnsafe(items[i + 1]);
+    if (dueForSlot && !neighborUnsafe && poolIdx < pool.length) {
       const candidate = pool[poolIdx++];
       built.push(candidate);
       slots.push({ position: built.length - 1, globalPos, id: candidate.id, relevance: candidate.relevance });

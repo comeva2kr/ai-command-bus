@@ -130,7 +130,11 @@ test("브리핑: 같은 사건 중복과 한 매체 독식을 막는다", async 
   const fn = src.slice(src.indexOf("async briefing()"), src.indexOf("async briefing()") + 4000);
   assert.match(fn, /eventKey\(i\.title\)/, "이벤트 키로 중복을 걸러야 한다");
   assert.match(fn, /perOutlet/, "한 매체가 섹션을 독식하지 않아야 한다");
-  assert.match(fn, /hasProfanity/, "대표 글 선정에서 비속어를 피해야 한다");
+  // 2026-08-04: 비속어만 보던 것을 promotable()로 넓혔다. 비속어에 더해
+  // "그 커뮤니티 안에서만 통하는 글"(추천 구걸·모집 공고)도 대표 자리에서 뺀다 —
+  // 브리핑 대표에 "300추 가능한가요?"가 올라온 실측이 있었다. 삭제가 아니라
+  // 승격 제외라 피드에는 그대로 남는다(promotion.js).
+  assert.match(fn, /promotable/, "대표 글 선정은 승격 가능 여부로 판단한다");
 });
 
 // ---------------------------------------------------------------------------

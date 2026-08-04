@@ -60,14 +60,28 @@ export class TranslatingSource {
       // 텍스트는 한글을 포함하므로, 원문과 완전히 동일하다는 건 곧 번역이 전혀
       // 안 됐다는 신뢰할 수 있는 신호다.
       const titleTranslated = Boolean(title) && title !== item.title;
-      const summaryTranslated = !item.summary || (Boolean(summary) && summary !== item.summary);
-      if (!titleTranslated || !summaryTranslated) {
+      const summaryTranslated = Boolean(item.summary) && Boolean(summary) && summary !== item.summary;
+
+      // ── 제목과 요약을 따로 판정한다 (2026-08-04 실측으로 뒤집은 규칙)
+      //
+      // 예전엔 둘 중 하나라도 실패하면 **전체를 원문으로 되돌렸다**. 취지는
+      // "절반만 번역된 상태를 보여주지 않는다"였는데, 실제로는 정반대로
+      // 작동했다: 영문 소스 57건 중 제목이 번역된 건 12건뿐이었고, 나머지
+      // 45건은 **요약이 보일러플레이트라 번역기가 원문을 그대로 돌려준 탓에**
+      // 멀쩡히 번역된 제목까지 버려진 것이었다.
+      //   예) Tildes 요약 = "23 comments in the discussion of this post on Tildes"
+      //
+      // 한글 제목 + 영문 발췌가, 영문 제목 + 영문 발췌보다 낫다. 사용자가
+      // 목록에서 먼저 읽는 것은 제목이다. 요약은 번역되면 쓰고 아니면 원문을
+      // 남긴다 — 어느 쪽이든 배지로 상태를 밝힌다.
+      if (!titleTranslated) {
         return { ...item, needsTranslation: true, originalLang: lang };
       }
       return {
         ...item,
         title,
-        summary,
+        summary: summaryTranslated ? summary : item.summary,
+        summaryTranslated,
         lang: this._target,
         translated: true,
         originalLang: lang,

@@ -354,32 +354,36 @@ test("TranslatingSource always requests translation with sl=auto, never the sour
 // 원자적 처리: 제목/요약 중 하나만 번역되고 나머지는 원문 그대로 돌아오면(엔드포인트가
 // 언어를 오판했거나 일부만 성공한 경우) 절반만 번역된 상태로 보여주지 않고 전체를
 // 원문+needsTranslation("원문" 배지)으로 되돌린다.
-test("TranslatingSource is atomic: if the translator silently no-ops on either title or summary, the WHOLE item falls back to original + needsTranslation, never half-translated", async () => {
+test("번역: 요약이 안 되더라도 제목 번역은 살린다 (2026-08-04 규칙 뒤집기)", async () => {
+  // 예전 규칙은 "둘 중 하나라도 실패하면 전체를 원문으로" 였다. 취지는 절반만
+  // 번역된 카드를 막는 것이었는데, 실측에서 정반대로 작동했다: 영문 소스 57건
+  // 중 제목이 번역된 건 12건뿐이었고 나머지 45건은 **요약이 보일러플레이트라
+  // 번역기가 원문을 그대로 돌려준 탓에** 멀쩡한 제목 번역까지 버려졌다.
+  //   예) Tildes 요약 = "23 comments in the discussion of this post on Tildes"
+  // 한글 제목 + 영문 발췌가, 영문 제목 + 영문 발췌보다 낫다.
   const foreign = {
     id: "devto", kind: "community", async fetch() {
-      return [{ id: "pt2", title: "Título em português", summary: "Resumo em português", lang: "en", category: "tech", tags: [], source: "devto" }];
+      return [{ id: "pt2", title: "Título em português", summary: "23 comments in the discussion", lang: "en", category: "tech", tags: [], source: "devto" }];
     }
   };
-  // simulates the real bug: title translates fine, summary silently comes back untouched
-  // (e.g. googleFreeTranslator's own no-throw fallback path — see translator.js)
-  const partial = async (text) => (text.startsWith("Título") ? "번역된 제목" : text);
-  const out = await new TranslatingSource(foreign, partial, "ko").fetch();
-  assert.equal(out[0].translated, undefined, "must NOT be marked translated — it was only half-done");
-  assert.equal(out[0].needsTranslation, true, "falls back to the '원문' badge instead of a mixed-language card");
-  assert.equal(out[0].title, "Título em português", "title stays original too — atomic, not per-field");
-  assert.equal(out[0].summary, "Resumo em português");
+  const titleOnly = async (text) => (text.startsWith("Título") ? "번역된 제목" : text);
+  const out = await new TranslatingSource(foreign, titleOnly, "ko").fetch();
+  assert.equal(out[0].translated, true, "제목이 번역됐으면 번역된 것으로 표시한다");
+  assert.equal(out[0].title, "번역된 제목");
+  assert.equal(out[0].summary, "23 comments in the discussion", "요약은 원문 유지");
+  assert.equal(out[0].summaryTranslated, false, "요약이 원문임을 화면이 알 수 있어야 한다");
 
-  // the inverse: summary translates but title doesn't — still atomic
+  // 제목이 안 되면 그때는 전체를 원문으로 — 목록에서 먼저 읽는 게 제목이다
   const foreign2 = {
     id: "devto", kind: "community", async fetch() {
       return [{ id: "pt3", title: "Untranslatable Title", summary: "Resumo em português", lang: "en", category: "tech", tags: [], source: "devto" }];
     }
   };
-  const partial2 = async (text) => (text.startsWith("Resumo") ? "번역된 요약" : text);
-  const out2 = await new TranslatingSource(foreign2, partial2, "ko").fetch();
+  const summaryOnly = async (text) => (text.startsWith("Resumo") ? "번역된 요약" : text);
+  const out2 = await new TranslatingSource(foreign2, summaryOnly, "ko").fetch();
   assert.equal(out2[0].translated, undefined);
   assert.equal(out2[0].needsTranslation, true);
-  assert.equal(out2[0].summary, "Resumo em português", "summary reverted too, even though it alone translated fine");
+  assert.equal(out2[0].title, "Untranslatable Title");
 });
 
 test("user posts flow into the feed and into 내 공간", async () => {
