@@ -215,8 +215,40 @@ export function resolveCap(kind, opts) {
 
 // Collect and merge items from many sources. Failures in one source never take
 // down the whole collection — the feed degrades gracefully to whatever loaded.
+// 한 번에 몇 곳까지 동시에 가져올지.
+//
+// ── 왜 제한하나 (2026-08-04 실측)
+// 47곳을 한꺼번에 던지면 15곳이 8초 타임아웃에 걸렸다. 소스가 고장난 게
+// 아니다 — 개별로 부르면 한겨레 랭킹 70건, 44BITS 30건이 정상으로 온다.
+// 동시 요청이 몰리면서 우리 쪽 소켓·DNS가 밀려 느려진 것이다.
+//
+// 그 결과 활성 47곳 중 20곳만 풀에 들어왔고, 화면에서는 "소스가 죽었다"로
+// 보였다. 공급의 절반이 사라지면 화제성 순위 자체가 흔들린다.
+//
+// 6은 상대 사이트에도 예의다 — 우리가 47개 연결을 한 번에 여는 것보다
+// 순차에 가깝게 도는 편이 차단당할 일도 적다.
+const FETCH_CONCURRENCY = Number(process.env.FEED_CONCURRENCY || 6);
+
+// 동시 실행 수를 제한하면서 **입력 순서대로** 결과를 돌려준다.
+// Promise.allSettled와 같은 모양이라 호출부는 바뀌지 않는다.
+async function settledWithLimit(tasks, limit) {
+  const out = new Array(tasks.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= tasks.length) return;
+      try { out[i] = { status: "fulfilled", value: await tasks[i]() }; }
+      catch (reason) { out[i] = { status: "rejected", reason }; }
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
 export async function collect(sources, opts = {}) {
-  const results = await Promise.allSettled(sources.map((s) => s.fetch()));
+  const limit = opts.concurrency || FETCH_CONCURRENCY;
+  const results = await settledWithLimit(sources.map((s) => () => s.fetch()), limit);
   const items = [];
   const errors = [];
   results.forEach((res, i) => {

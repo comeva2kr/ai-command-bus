@@ -18,7 +18,12 @@ import { decodeCp949 } from "./cp949-table.js";
 
 const DEFAULT_UA = "ai-command-bus-feed/0.1 (+https://github.com/comeva2kr/ai-command-bus)";
 
-const FETCH_TIMEOUT_MS = 8000; // a slow feed must never stall collection
+// 느린 피드 하나가 수집 전체를 멈추면 안 된다. 다만 8초는 빠듯했다 —
+// 47곳을 동시에 던지던 시절엔 15곳이 여기 걸렸다(2026-08-04 실측).
+// 동시성을 6으로 제한(content.js FETCH_CONCURRENCY)한 뒤로는 여유가 생겼지만,
+// 상대 서버가 느린 날을 위해 12초로 둔다. 6개씩 도므로 최악의 경우에도
+// 수집 한 사이클은 (47/6)×12초 ≈ 95초로 갱신 주기(15분) 안에 넉넉히 든다.
+const FETCH_TIMEOUT_MS = Number(process.env.FEED_FETCH_TIMEOUT_MS || 12000);
 
 // 읽지 않은 응답 본문을 안전하게 버린다.
 //

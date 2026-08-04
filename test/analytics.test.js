@@ -498,3 +498,34 @@ test("표시: 조회수는 잡힐 때만 그리고 화제성 점수에는 넣지
   const raw = ingest.slice(ingest.indexOf("function rawEngagement"), ingest.indexOf("function rawEngagement") + 700);
   assert.ok(!/viewCount/.test(raw), "조회수를 화제성 점수에 넣으면 순위가 통째로 뒤집힌다");
 });
+
+// ── 수집 동시성 (2026-08-04) ────────────────────────────────────────────────
+test("수집: 동시 요청을 제한하되 순서와 실패 격리는 그대로다", async () => {
+  const { collect } = await import("../src/feed/content.js");
+  // 실측: 47곳을 한꺼번에 던지자 15곳이 8초 타임아웃에 걸렸다. 소스가 고장난
+  // 게 아니라 동시 요청이 몰려 느려진 것이었고, 활성 47곳 중 20곳만 풀에
+  // 들어왔다. 공급이 절반이면 화제성 순위 자체가 흔들린다.
+  let running = 0, peak = 0;
+  const mk = (id, n, fail) => ({
+    id, kind: "news",
+    async fetch() {
+      running++; peak = Math.max(peak, running);
+      await new Promise((r) => setTimeout(r, 5));
+      running--;
+      if (fail) throw new Error("boom");
+      return Array.from({ length: n }, (_, k) => ({
+        id: `${id}-${k}`, title: `${id} 글 ${k}`, url: `https://x/${id}/${k}`, source: id
+      }));
+    }
+  });
+  const sources = Array.from({ length: 20 }, (_, i) => mk(`s${i}`, 2, i === 3));
+  const { items, errors } = await collect(sources, { concurrency: 4 });
+  assert.ok(peak <= 4, `동시 실행이 ${peak}개 — 제한이 안 걸렸다`);
+  // 한 소스가 실패해도 나머지는 그대로 들어온다(Promise.allSettled와 같은 계약)
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].source, "s3");
+  assert.equal(items.filter((i) => i.source === "s3").length, 0);
+  assert.ok(items.length >= 38, `나머지 19곳 × 2건이 들어와야 한다 (실제 ${items.length})`);
+  // 입력 순서가 유지돼야 sourceRank 같은 순서 의존 로직이 안 깨진다
+  assert.equal(items[0].source, "s0");
+});
