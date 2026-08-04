@@ -650,7 +650,11 @@ export function createServer(opts = {}) {
   // 대량으로 색인시키면 사이트 전체 품질 평가가 그쪽으로 끌려간다
   // (2026-08-04 검색 품질 검수: 키워드 43개 중 28개가 수록 글 4건 이하).
   const editionShell = (title, desc, inner, canonicalPath = "", ownLinks = "", coupangBanner = "", noindex = false) => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
-${noindex ? '<meta name="robots" content="noindex,follow">' : ""}
+${noindex
+  ? '<meta name="robots" content="noindex,follow">'
+  // 자체 콘텐츠 페이지(브리핑·랭킹·커뮤니티순위)가 정작 Discover가 가장
+  // 필요한 쪽인데 이 줄이 공유 페이지에만 들어가 있었다(2026-08-04 배포 후 실측).
+  : '<meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1">'}
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} — 지금핫 NowHot</title>
 <meta name="description" content="${escapeHtml(desc)}">

@@ -117,6 +117,11 @@ test("발견 경로: 구글 Discover·카톡 공유 자격을 갖췄다", async 
   for (const [name, src] of [["index.html", html], ["server.js", server]]) {
     assert.match(src, /max-image-preview:large/, `${name}: Discover 자격 미달`);
   }
+  // 자체 콘텐츠 페이지가 정작 Discover가 가장 필요한 쪽인데, 처음엔 공유
+  // 페이지에만 들어가 브리핑·랭킹이 빠져 있었다(배포 후 실측으로 발견).
+  const shell = server.slice(server.indexOf("const editionShell ="), server.indexOf("const editionShell =") + 1200);
+  assert.match(shell, /max-image-preview:large/, "editionShell(브리핑·랭킹)에 누락");
+  assert.match(shell, /noindex,follow/, "얇은 페이지는 색인만 막는다");
   // og:image가 512 정사각 앱 아이콘이면 카톡 미리보기가 작은 정사각형으로 뜬다.
   // 한국에서 링크가 퍼지는 가장 큰 경로가 카톡이다.
   assert.match(html, /og:image" content="https:\/\/nowhot\.kr\/og\.png"/);
