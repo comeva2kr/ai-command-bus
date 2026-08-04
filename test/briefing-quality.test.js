@@ -466,3 +466,17 @@ test("편성: 같은 편을 두 번 만들지 않는다 (타이머와 요청의 
   assert.match(src, /const running = briefingInFlight\.get\(key\);/);
   assert.match(src, /if \(running\) return running;/, "이미 만들고 있으면 그 약속을 함께 기다린다");
 });
+
+test("편성: mainFeed:false 소스는 브리핑·랭킹에서도 빠진다", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/feed/engine.js", import.meta.url), "utf8");
+  // 실측 2026-08-04: David가 "인벤은 메인에서 좀 빼자"고 해서 mainFeed:false로
+  // 껐는데도 브리핑 1위와 3위가 인벤 메이플스토리였다. 설정이 통합 피드에만
+  // 걸려 있었기 때문이다 — 우리 이름으로 "오늘의 대표"라고 붙이는 자리야말로
+  // 이 설정이 가장 필요하다.
+  assert.match(src, /_offMainSet\(\)/, "공용 게터로 한 곳에서 판단해야 한다");
+  const brief = src.slice(src.indexOf("async briefing("), src.indexOf("async briefing(") + 2000);
+  assert.match(brief, /_offMainSet\(\)\.has\(i\.source\)/, "브리핑에서 제외");
+  const rank = src.slice(src.indexOf("async rankingTop("), src.indexOf("async rankingTop(") + 2500);
+  assert.match(rank, /_offMainSet\(\)\.has\(i\.source\)/, "랭킹에서 제외");
+});

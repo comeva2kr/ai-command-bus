@@ -374,6 +374,20 @@ export class FeedEngine {
     return this._health || [];
   }
 
+  // registry mainFeed:false — 수집은 하되 **우리가 편성하는 자리**에서는 뺀다.
+  // 통합 피드·브리핑·랭킹이 모두 여기 해당한다. 소스 칩으로 직접 고르면 나온다.
+  //
+  // 예전엔 통합 피드에만 걸려 있었다. 그래서 David가 "인벤은 메인에서 좀 빼자,
+  // 너무 매니악하고 친목에 비주류"라고 해서 껐는데도 브리핑 1·3위가 인벤
+  // 메이플스토리였다(2026-08-04 실측). 우리 이름으로 "오늘의 대표"라고 붙이는
+  // 자리야말로 이 설정이 가장 필요한 곳이다.
+  _offMainSet() {
+    if (!this._offMain) {
+      this._offMain = new Set(loadRegistry().filter((c) => c.mainFeed === false).map((c) => c.id));
+    }
+    return this._offMain;
+  }
+
   async sourceCounts() {
     const items = await this._items();
     const counts = {};
@@ -700,8 +714,7 @@ export class FeedEngine {
     const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
       // 통합 피드에서만 제외하는 소스(registry mainFeed:false).
       // 삭제가 아니라 "메인에 안 올림"이다 — 칩으로 고르면 볼 수 있다.
-      const offMain = this._offMain || (this._offMain = new Set(
-        loadRegistry().filter((c) => c.mainFeed === false).map((c) => c.id)));
+      const offMain = this._offMainSet();
     const showTopics = new Set(user.showTopics || []);
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
 
@@ -1214,6 +1227,7 @@ export class FeedEngine {
         // 통하는 글(추천 구걸·모집 공고)은 여기 올리지 않는다 — 피드에서는
         // 그대로 보이므로 삭제가 아니라 승격 제외다(promotion.js).
         promotable(i) &&
+        !this._offMainSet().has(i.source) &&
         !tooOld(i, now)
     );
     const engagement = (i) => (i.score || 0) + (i.commentCount || 0) * 2;
@@ -1332,6 +1346,7 @@ export class FeedEngine {
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
         promotable(i) &&
+        !this._offMainSet().has(i.source) &&
         inWindow(i) &&
         !tooOld(i, now)
     );
