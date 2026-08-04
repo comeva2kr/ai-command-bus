@@ -483,3 +483,22 @@ test("편성: mainFeed:false 소스는 브리핑·랭킹에서도 빠진다", as
   const rank = src.slice(src.indexOf("async rankingTop("), src.indexOf("async rankingTop(") + 2500);
   assert.match(rank, /_offMainSet\(\)\.has\(i\.source\)/, "랭킹에서 제외");
 });
+
+test("편성 화면: 슬롯이 무엇인지 알 수 있고 발행된 편은 눌러 갈 수 있다", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
+  // David 실기기 제보: "눌러서 들어가도 뭔 모닝 런치 이브닝, 만들다 만 형태".
+  // 예전엔 슬롯 이름 세 개를 <span>으로 나열만 해서 누를 수도 없고 무엇인지도
+  // 알 수 없었다. 발행 시각과 그 편의 성격을 함께 보여준다.
+  assert.match(src, /slot-rail/, "편성 레일 누락");
+  assert.match(src, /\$\{sl\.publishHour\}시/, "발행 시각을 보여줘야 무엇인지 안다");
+  assert.match(src, /escapeHtml\(sl\.lead \|\| ""\)/, "그 편의 성격 설명");
+  assert.match(src, /href="\/briefing\/\$\{todayKey\}\?slot=\$\{sl\.id\}"/, "발행된 편은 실제 링크");
+  assert.match(src, /published && !isCur/, "지금 보는 편은 자기 자신으로 링크하지 않는다");
+  // 홈 브리핑과 아카이브가 같은 모양을 써야 같은 기능인 걸 알아본다
+  const rails = src.match(/slot-rail/g) || [];
+  assert.ok(rails.length >= 3, `레일이 ${rails.length}곳 — 홈·아카이브·CSS 모두 필요`);
+  // "15분마다 갱신"은 이제 사실이 아니다 — 하루 3편이다
+  assert.ok(!/브리핑[^<]*15분마다 갱신됩니다/.test(src), "옛 갱신 주기 문구가 남아 있다");
+  assert.match(src, /하루 세 번 — 아침 7시·점심 12시·저녁 7시/, "실제 편성 주기를 밝힌다");
+});

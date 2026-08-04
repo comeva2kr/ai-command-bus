@@ -710,6 +710,19 @@ ul{padding-left:18px;margin:8px 0}li{margin:6px 0}.m{color:var(--muted);font-siz
    list-style:none + counter 조합에서는 그 값들이 무시된다.
    그래서 각 <ol>이 자기 start 값에서 이어지도록 인라인으로 카운터를 세운다
    (--rank-start는 서버가 심는다). */
+/* 오늘의 편성 레일 — 슬롯 이름만 나열하면 무엇인지 알 수 없다.
+   발행 시각과 그 편의 성격을 함께 보여주고, 발행된 편은 눌러 갈 수 있게 한다. */
+.slot-rail{display:flex;gap:8px;margin:16px 0 20px;flex-wrap:wrap}
+.slot-item{display:flex;flex-direction:column;gap:2px;min-width:140px;flex:1 1 140px;
+  border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-decoration:none;color:var(--text)}
+.slot-item b{font-size:14px}
+.slot-item .t{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.slot-item .d{font-size:12px;color:var(--muted);line-height:1.4}
+.slot-item.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.slot-item.on b{color:var(--accent)}
+.slot-item.pending{opacity:.55}
+a.slot-item:hover,a.slot-item:focus-visible{border-color:var(--accent)}
+.muted.small{font-size:12.5px}
 .day-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0 6px;font-size:14px}
 .day-nav a{color:var(--accent);text-decoration:none;font-weight:700}
 .day-cur{font-weight:800}
@@ -1136,20 +1149,38 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
           : "";
         const archiveDates = store.listEditionDates ? store.listEditionDates().slice(-14).reverse() : [];
         const archiveHtml = archiveDates.length > 1
-          ? `<section><h2>지난 브리핑</h2><div class="nav">${archiveDates.map((d) => `<a href="/briefing/${d}">${d}</a>`).join("")}</div></section>`
+          ? `<section><h2>지난 브리핑</h2><div class="nav">${archiveDates.slice(-14).reverse().map((d) => `<a href="/briefing/${d}">${d}</a>`).join("")}</div></section>`
           : "";
-        // ⑤ 편성 — 하루 3회(모닝/런치/이브닝). 지금 시간대의 편이 정본이고,
-        // 지난 편은 아카이브(/briefing/<날짜>)로 남는다.
+        // ⑤ 편성 — 하루 3편. 예전엔 슬롯 이름 세 개를 <span>으로 나열만 해서
+        // 누를 수도 없고 무엇인지도 알 수 없었다(David 실기기 제보: "눌러서
+        // 들어가도 뭔 모닝 런치 이브닝, 만들다 만 형태"). 발행 시각과 그 편의
+        // 성격을 함께 보여주고, 이미 발행된 편은 실제로 눌러 갈 수 있게 한다.
+        const todayKey = kstDate(Date.now());
+        const curSlotId = b.slot ? b.slot.id : null;
+        const nowHour = kstHour(Date.now());
+        const slotNav = `<nav class="slot-rail" aria-label="오늘의 편성">` + SLOTS.map((sl) => {
+          const saved = store.getBriefing(todayKey, sl.id);
+          const isCur = sl.id === curSlotId;
+          const published = Boolean(saved);
+          const cls = [isCur ? "on" : "", published ? "" : "pending"].filter(Boolean).join(" ");
+          const inner2 = `<b>${escapeHtml(sl.label)}</b><span class="t">${sl.publishHour}시</span>` +
+            `<span class="d">${published ? escapeHtml(sl.lead || "") : (nowHour < sl.publishHour ? "발행 예정" : "준비 중")}</span>`;
+          // 지금 보고 있는 편은 링크로 만들지 않는다 — 자기 자신으로 가는 링크는
+          // 사용자를 헷갈리게 하고 크롤러에게도 의미가 없다.
+          return published && !isCur
+            ? `<a class="slot-item ${cls}" href="/briefing/${todayKey}?slot=${sl.id}">${inner2}</a>`
+            : `<span class="slot-item ${cls}">${inner2}</span>`;
+        }).join("") + `</nav>`;
         const slotLabel = b.slot ? b.slot.label : "";
-        const slotNav = `<div class="nav">${["모닝", "런치", "이브닝"]
-          .map((l) => `<span class="${l === slotLabel ? "on" : ""}">${l}</span>`).join("")}</div>`;
         // publishable=false = 수집이 얇아 이슈가 MIN_ISSUES 미만. 빈 글을 발행하지
         // 않는다 — 알맹이 없는 페이지는 자체 콘텐츠가 아니라 오히려 감점이다.
         const bodyHtml = b.publishable
           ? `${slotNav}${issuesHtml(b)}`
           : `<p class="muted">이 시간대는 아직 정리할 만큼 화제가 모이지 않았습니다. 다음 편에서 이어집니다.</p>`;
         const inner = `<h1>지금 브리핑 · ${escapeHtml(slotLabel)}</h1>
-<p class="muted">${dateStr} · 커뮤니티·뉴스 ${b.sourceCount}곳에서 모은 ${b.itemCount}건을 지금핫이 실측 데이터로 정리했습니다. 원문 인용 없이 우리가 잰 수치로만 씁니다.</p>
+<p class="muted">${dateStr} ${escapeHtml(slotLabel)} · 커뮤니티·뉴스 ${b.sourceCount}곳에서 모은 ${b.itemCount}건을 정리했습니다.
+${b.slot && b.slot.lead ? escapeHtml(b.slot.lead) + " 위주로 봅니다. " : ""}원문 인용 없이 우리가 잰 수치로만 씁니다.</p>
+<p class="muted small">하루 세 번 — 아침 7시·점심 12시·저녁 7시에 한 편씩 발행합니다. 각 편은 그 시간대에 새로 화제가 된 것만 봅니다.</p>
 ${bodyHtml}
 ${b.essay || b.digestSummary ? `<section class="issue"><h2>종합 분석</h2>${b.essay ? `<p>${escapeHtml(maskProfanity(b.essay))}</p>` : ""}${b.digestSummary ? `<p>${escapeHtml(b.digestSummary)}</p>` : ""}</section>` : ""}
 ${rankingNav("")}
@@ -1213,11 +1244,18 @@ ${coupangBannerHtml(null, null, 6, "trends_mid")}
           const at = dates.indexOf(seg);
           const prev = at > 0 ? dates[at - 1] : null;
           const next = at >= 0 && at < dates.length - 1 ? dates[at + 1] : null;
-          const slotNav = day.length > 1
-            ? `<nav class="slot-nav" aria-label="시간대">` + day.map((x) =>
-                `<a href="/briefing/${seg}?slot=${x.def.id}"${picked && x.def.id === picked.def.id ? ' class="on"' : ""}>${escapeHtml(x.def.label)}</a>`
-              ).join("") + `</nav>`
-            : "";
+          // 홈 브리핑과 같은 레일을 쓴다 — 화면마다 다른 모양이면 같은 기능인 걸
+          // 알아보지 못한다. 그날 발행되지 않은 편은 흐리게 두고 누를 수 없게 한다.
+          const slotNav = `<nav class="slot-rail" aria-label="그날의 편성">` + SLOTS.map((sl) => {
+            const has = day.find((x) => x.def.id === sl.id);
+            const isCur = picked && picked.def.id === sl.id;
+            const inner2 = `<b>${escapeHtml(sl.label)}</b><span class="t">${sl.publishHour}시</span>` +
+              `<span class="d">${has ? escapeHtml(sl.lead || "") : "발행 없음"}</span>`;
+            const cls = [isCur ? "on" : "", has ? "" : "pending"].filter(Boolean).join(" ");
+            return has && !isCur
+              ? `<a class="slot-item ${cls}" href="/briefing/${seg}?slot=${sl.id}">${inner2}</a>`
+              : `<span class="slot-item ${cls}">${inner2}</span>`;
+          }).join("") + `</nav>`;
           const dayNav = `<nav class="day-nav" aria-label="날짜 이동">` +
             (prev ? `<a href="/briefing/${prev}">← ${prev}</a>` : `<span></span>`) +
             `<span class="day-cur">${seg}</span>` +
@@ -1226,6 +1264,7 @@ ${coupangBannerHtml(null, null, 6, "trends_mid")}
           const slotLabel = picked ? ` · ${picked.def.label}` : "";
           const inner = `<h1>${seg} 브리핑${escapeHtml(slotLabel)}</h1>
 <p class="muted">화제글 ${b.itemCount}건 / 소스 ${b.sourceCount}곳${b.slot && b.slot.lead ? ` · ${escapeHtml(b.slot.lead)}` : ""}</p>
+<p class="muted small">하루 세 번 — 아침 7시·점심 12시·저녁 7시에 한 편씩 발행합니다.</p>
 ${dayNav}${slotNav}
 ${rankingNav("")}
 ${briefingSectionsHtml(b, coupangBannerHtml(null, null, 4, "archive_mid"))}`;
@@ -1242,7 +1281,7 @@ ${briefingSectionsHtml(b, coupangBannerHtml(null, null, 4, "archive_mid"))}`;
         const lead = catItems[0];
         const leadBits = evidenceBits(lead);
         const inner = `<h1>${escapeHtml(label)} 브리핑</h1>
-<p class="muted">${kstLabel(all.generatedAt)} · 지금 ${escapeHtml(label)} 분야에서 가장 화제인 글을 실측 반응 기준으로 정리했습니다. 15분마다 갱신됩니다.</p>
+<p class="muted">${kstLabel(all.generatedAt)} · 지금 ${escapeHtml(label)} 분야에서 가장 화제인 글을 실측 반응 기준으로 정리했습니다. 수집은 15분마다 돌고, 이 목록은 그때마다 최신 반응을 반영합니다.</p>
 ${rankingNav("")}
 <p>지금 ${escapeHtml(label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})입니다${leadBits.length ? ` — ${leadBits.join(" · ")}` : ""}.</p>
 ${rankingRows(catItems, coupangBannerHtml(seg, null, 1, "briefcat_mid"))}`;
