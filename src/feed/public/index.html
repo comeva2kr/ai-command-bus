@@ -1562,6 +1562,54 @@ function pickCoupangLink(catBefore, catAfter){
   return chosen;
 }
 
+// 애드핏이 채우지 못한 자리를 쿠팡 카드로 넘긴다 (워터폴 패스백).
+//
+// ── 레퍼런스: AdMob 미디에이션 워터폴 / Ad Manager 패스백 태그
+// 업계 표준은 1순위 네트워크가 못 채우면 다음 순위로 넘기는 것이고, AdMob도
+// **자동 패스백을 해주지 않아 퍼블리셔가 직접 구현**해야 한다. 카카오 애드핏은
+// 그 신호로 `data-ad-onfail` 콜백을 제공한다(광고가 없거나 요청이 실패할 때
+// ins 객체를 인자로 호출).
+//
+// ── 왜 (2026-08-04 David 실기기 제보 "하나도 안 보이는데")
+// 애드핏이 심사 보류라 광고가 안 내려오는데, 그 자리를 169px 빈 칸이 그대로
+// 차지하고 있었다. 지면만 먹고 수익은 0이며 사용자에겐 고장으로 읽힌다.
+// 심사를 통과하면 콜백이 안 불리므로 애드핏이 그대로 이긴다 — 폴백은
+// 채워지지 않았을 때만 동작한다.
+function adfitFallback(slot){
+  if(!slot || !slot.isConnected || slot.dataset.adFallback) return;
+  slot.dataset.adFallback = "1";
+  const cp = state.config && state.config.coupang;
+  const catBefore = (slot.previousElementSibling && slot.previousElementSibling.dataset.cat) || null;
+  const catAfter = (slot.nextElementSibling && slot.nextElementSibling.dataset.cat) || null;
+  const link = cp ? pickCoupangLink(catBefore, catAfter) : null;
+  // 넘길 곳이 없으면 빈 칸을 남기지 않고 지운다 — 빈 광고 박스보다 아예 없는
+  // 편이 낫다.
+  if(!link){ slot.remove(); return; }
+  slot.classList.remove("ad-net");
+  slot.removeAttribute("id");   // adfitSlot 해제 — 다음 페이지에서 애드핏 재시도
+  slot.dataset.cat = catBefore || "";
+  slot.innerHTML = coupangCardHtml(link, cp.disclosure, "feed-passback", catBefore, 0);
+  observeAdImpression(slot, "feed-passback");
+}
+// SDK가 이름으로 찾아 부르므로 전역이어야 한다 — 이 스크립트는 type="module"이라
+// 선언만으로는 전역이 되지 않는다. (typeof 가드는 이 파일 일부를 브라우저 전역
+// 없이 돌리는 회귀 테스트 하네스 때문이다.)
+if (typeof window !== "undefined") {
+  window.onAdfitNoAd = function(ins){
+    adfitFallback(ins && ins.closest ? ins.closest(".ad-card") : null);
+  };
+}
+
+// 클라이언트가 직접 끼운 광고 카드의 노출 기록. 서버가 보낸 카드는
+// appendAdCard가 이미 걸어 두는데, 이쪽 경로는 빠져 있어서 발행 지면과 같은
+// 측정 사각지대였다.
+function observeAdImpression(slot, slotName){
+  if(!slot) return;
+  if(!slot.dataset.id) slot.dataset.id = slotName || "feed-client";
+  if(!slot.dataset.slot) slot.dataset.slot = slotName || "feed-client";
+  if(adImpressionObserver) adImpressionObserver.observe(slot);
+}
+
 function maybeInsertAdfit(){
   const cp = state.config && state.config.coupang;
   const unit = state.config && state.config.adfit && state.config.adfit.mobileUnit;
@@ -1575,6 +1623,12 @@ function maybeInsertAdfit(){
   for(let i = AD_FIRST - 1; i < cards.length; i += AD_EVERY){
     const anchor = cards[i];
     if(!anchor || anchor.dataset.adAfter) continue;
+    // 광고 주입 경로가 둘이다 — 서버(_monetize가 피드 응답에 끼워 보내는 제휴
+    // 카드)와 여기(클라이언트). 서로를 모르면 두 광고가 붙어서 나간다
+    // (2026-08-04 실측: 6·7번 자리에 연속). 이웃이 이미 광고면 건너뛴다.
+    const prevEl = anchor.previousElementSibling, nextEl = anchor.nextElementSibling;
+    if((prevEl && prevEl.classList.contains("ad-card")) ||
+       (nextEl && nextEl.classList.contains("ad-card"))) continue;
     anchor.dataset.adAfter = "1";
 
     const slot = document.createElement("article");
@@ -1591,7 +1645,7 @@ function maybeInsertAdfit(){
       <span class="badge ad-badge-static">AD</span>
     </div>
     <div class="ad-net-slot">
-      <ins class="kakao_ad_area" style="display:none;" data-ad-unit="${unit}" data-ad-width="320" data-ad-height="100"></ins>
+      <ins class="kakao_ad_area" style="display:none;" data-ad-unit="${unit}" data-ad-width="320" data-ad-height="100" data-ad-onfail="onAdfitNoAd"></ins>
     </div>`;
     } else {
       // dataset.cat이다. dataset.category는 어디서도 세팅되지 않아 항상
@@ -1605,12 +1659,25 @@ function maybeInsertAdfit(){
       slot.innerHTML = coupangCardHtml(link, cp.disclosure, `feed${i + 1}`, anchor.dataset.cat || null, i);
     }
     anchor.insertAdjacentElement("afterend", slot);
+    if(!useAdfit) observeAdImpression(slot, `feed${i + 1}`);
 
     if(useAdfit && !document.getElementById("adfitLoader")){
       const sc = document.createElement("script");
       sc.id = "adfitLoader"; sc.async = true;
       sc.src = "https://t1.kakaocdn.net/kas/static/ba.min.js";
+      sc.onerror = ()=> adfitFallback(slot);   // SDK 자체가 못 뜨는 경우(차단 확장 등)
       document.body.appendChild(sc);
+    }
+    if(useAdfit){
+      // 안전망: onfail 콜백은 SDK가 살아 있어야 불린다. 스크립트가 차단되거나
+      // 응답이 없으면 콜백도 영영 안 오고 빈 칸만 남는다. SDK가 슬롯을
+      // 처리했다면 ins 안에 iframe이 생기므로, 그게 없으면 미처리로 본다.
+      // 대기 시간은 3초 — AdMob 미디에이션 권장이 전면광고 기준 5~10초인데,
+      // 피드 배너가 그만큼 비어 있으면 그 자체가 고장으로 읽힌다.
+      setTimeout(()=>{
+        const ins = slot.querySelector("ins.kakao_ad_area");
+        if(ins && !ins.querySelector("iframe")) adfitFallback(slot);
+      }, 3000);
     }
   }
 }
