@@ -354,13 +354,18 @@ test("TranslatingSource always requests translation with sl=auto, never the sour
 // 원자적 처리: 제목/요약 중 하나만 번역되고 나머지는 원문 그대로 돌아오면(엔드포인트가
 // 언어를 오판했거나 일부만 성공한 경우) 절반만 번역된 상태로 보여주지 않고 전체를
 // 원문+needsTranslation("원문" 배지)으로 되돌린다.
-test("번역: 요약이 안 되더라도 제목 번역은 살린다 (2026-08-04 규칙 뒤집기)", async () => {
+test("번역: 제목만 옮겨졌으면 제목만 쓰고, 영문 발췌는 버린다", async () => {
   // 예전 규칙은 "둘 중 하나라도 실패하면 전체를 원문으로" 였다. 취지는 절반만
   // 번역된 카드를 막는 것이었는데, 실측에서 정반대로 작동했다: 영문 소스 57건
   // 중 제목이 번역된 건 12건뿐이었고 나머지 45건은 **요약이 보일러플레이트라
   // 번역기가 원문을 그대로 돌려준 탓에** 멀쩡한 제목 번역까지 버려졌다.
   //   예) Tildes 요약 = "23 comments in the discussion of this post on Tildes"
-  // 한글 제목 + 영문 발췌가, 영문 제목 + 영문 발췌보다 낫다.
+  // 그래서 제목과 요약을 따로 판정한다 — 이 부분은 그대로 유효하다.
+  //
+  // 다만 **남은 영문 발췌를 그대로 보여 주던 것은 뒤집었다** (David 2026-08-05):
+  // "제목 한글 / 요약 영문 섞임. 진짜 한 것만 띄우자." 화면에 두 언어가 섞여
+  // 보이는 손해가, 영문 한 줄에서 얻는 정보보다 컸다. 게다가 저 Tildes 예시는
+  // 애초에 발췌도 아니다. 발췌가 없으면 제목만 보여 주면 된다.
   const foreign = {
     id: "devto", kind: "community", async fetch() {
       return [{ id: "pt2", title: "Título em português", summary: "23 comments in the discussion", lang: "en", category: "tech", tags: [], source: "devto" }];
@@ -370,8 +375,8 @@ test("번역: 요약이 안 되더라도 제목 번역은 살린다 (2026-08-04 
   const out = await new TranslatingSource(foreign, titleOnly, "ko").fetch();
   assert.equal(out[0].translated, true, "제목이 번역됐으면 번역된 것으로 표시한다");
   assert.equal(out[0].title, "번역된 제목");
-  assert.equal(out[0].summary, "23 comments in the discussion", "요약은 원문 유지");
-  assert.equal(out[0].summaryTranslated, false, "요약이 원문임을 화면이 알 수 있어야 한다");
+  assert.equal(out[0].summary, "", "영문 발췌를 그대로 남기면 안 된다");
+  assert.equal(out[0].summaryTranslated, false);
 
   // 제목이 안 되면 그때는 전체를 원문으로 — 목록에서 먼저 읽는 게 제목이다
   const foreign2 = {

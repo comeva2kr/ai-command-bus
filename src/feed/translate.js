@@ -77,10 +77,22 @@ export class TranslatingSource {
       if (!titleTranslated) {
         return { ...item, needsTranslation: true, originalLang: lang };
       }
+      // ── 번역 안 된 요약은 **남기지 않고 버린다** (David 2026-08-05 2차 리포트)
+      //
+      // 어제는 반대로 정했다. "한글 제목 + 영문 발췌가, 영문 제목 + 영문 발췌보다
+      // 낫다"고. 논리는 맞았지만 화면을 보니 아니었다 — David가 바로 잡아냈다:
+      // "일부 뉴스는 제목 한글 / 요약 영문 섞임. 진짜 한 것만 띄우자."
+      //
+      // 실측(2026-08-05 라이브 32건): 번역 5건 중 2건이 이 상태였고, 그중 하나는
+      // 애초에 요약도 아니었다 — "16 comments in the discussion of this post on
+      // Tildes". 영문 한 줄을 남겨서 얻는 정보보다, 한 화면에 두 언어가 섞여
+      // 보이는 손해가 크다. 발췌가 없으면 제목만 보여 주면 된다.
+      //
+      // 영문 처리 자체는 후순위다(David). 제대로 옮길 수 있게 되면 그때 살린다.
       return {
         ...item,
         title,
-        summary: summaryTranslated ? summary : item.summary,
+        summary: summaryTranslated ? summary : "",
         summaryTranslated,
         lang: this._target,
         translated: true,

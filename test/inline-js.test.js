@@ -78,32 +78,17 @@ test("광고: 배너 이미지는 지연 로딩하지 않는다", async () => {
     /card-thumb[^>]*>.*loading="lazy"/s, "본문 썸네일까지 eager로 바꾸면 안 된다");
 });
 
-test("번역 링크: 원문을 한글로 보는 경로가 정확히 만들어진다", async () => {
+test("번역 링크: 되는 척하는 버튼을 남겨 두지 않았다", async () => {
   const { readFileSync } = await import("node:fs");
   const html = readFileSync("src/feed/public/index.html", "utf8");
-  const src = html.match(/function translatedReadUrl\(item\)\{[\s\S]*?\n\}/);
-  assert.ok(src, "translatedReadUrl 함수 누락");
-  // eslint-disable-next-line no-new-func
-  const fn = new Function("item", src[0].replace(/^function translatedReadUrl\(item\)\{/, "").replace(/\}$/, ""));
-
-  // 구글 공식 진입 주소로 보낸다 — translate.goog 서브도메인을 우리가 조립하면
-  // 문서화되지 않은 규칙에 의존하게 되고, 우리 서버 IP에서는 403이라 동작
-  // 확인도 불가능했다. 리다이렉트는 구글이 사용자 브라우저에서 처리한다.
-  assert.equal(fn({ url: "https://news.ycombinator.com/item?id=1", originalLang: "en" }),
-    "https://translate.google.com/translate?sl=auto&tl=ko&u=" + encodeURIComponent("https://news.ycombinator.com/item?id=1"));
-  assert.equal(fn({ url: "https://dev.to/a/b", lang: "en" }),
-    "https://translate.google.com/translate?sl=auto&tl=ko&u=" + encodeURIComponent("https://dev.to/a/b"));
-  // 한국어 원문에는 붙이지 않는다 — 번역할 것이 없다
-  assert.equal(fn({ url: "https://www.clien.net/x", lang: "ko" }), null);
-  assert.equal(fn({ url: "https://x.com/y" }), null, "언어를 모르면 붙이지 않는다");
-  // 깨진 입력에 예외를 던지면 상세 화면 전체가 죽는다
-  assert.equal(fn({ url: "not-a-url", lang: "en" }), null);
-  assert.equal(fn(null), null);
-  assert.equal(fn({ url: "javascript:alert(1)", lang: "en" }), null, "http(s)만 허용");
-
-  // 우리가 번역본을 호스팅하는 게 아니라 링크만 건다 — 검색엔진이 번역본을
-  // 우리 콘텐츠로 오인하지 않도록 nofollow를 단다.
-  assert.match(html, /translatedReadUrl\(item\)[\s\S]{0,200}?rel="noopener nofollow"/);
+  // David 2026-08-05 실기기: 다크 모드에서 버튼이 배경에 묻혀 안 보였고,
+  // 어렵게 찾아 눌렀더니 **번역 서비스 지역 제한 오류**가 떴다.
+  // 안 되는 기능은 고쳐 살리기 전까지 화면에서 빼는 게 낫다(영문 처리는 후순위).
+  assert.doesNotMatch(html, /translatedReadUrl/, "죽은 번역 링크가 아직 남아 있다");
+  assert.doesNotMatch(html, /한글로 번역해서 보기/, "죽은 번역 버튼 문구가 남아 있다");
+  assert.doesNotMatch(html, /translate\.google\.com/, "지역 제한에 걸리는 주소가 남아 있다");
+  // 원문으로 가는 길은 막지 않았다 — 읽을 방법 자체가 사라지면 안 된다
+  assert.match(html, /class="readmore"/, "원문 링크까지 사라졌다");
 });
 
 // ── 유입 경로 (2026-08-04, David "사람 유입량을 늘리는 가장 좋은 방법") ──────
