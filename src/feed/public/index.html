@@ -92,13 +92,12 @@
   .brand-mark { border-radius: 6px; flex: 0 0 auto; }
   .brand small { font-weight: 500; color: var(--muted); font-size: 12px; }
   .brand-en { font-weight: 700; font-size: 13px; color: var(--muted); letter-spacing: .01em; }
-  .adult-btn { margin-left: auto; width: 34px; height: 26px; border-radius: 8px; font-weight: 800; font-size: 13px;
+  .icon-btn { margin-left: auto; width: 34px; height: 26px; border-radius: 8px; font-weight: 800; font-size: 13px;
     border: 1px solid var(--line); background: var(--card-2); color: var(--muted); position: relative; }
-  .adult-btn.locked::after { content: "🔒"; position: absolute; top: -7px; right: -7px; font-size: 11px; }
-  .adult-btn.on { background: var(--dislike); border-color: var(--dislike); color: #fff; }
-  .badge.adult { color: #fff; background: var(--dislike); }
+  .icon-btn.locked::after { content: "🔒"; position: absolute; top: -7px; right: -7px; font-size: 11px; }
+  .icon-btn.on { background: var(--dislike); border-color: var(--dislike); color: #fff; }
   .badge.trans { color: #0e0f13; background: #39c0d3; }
-  .adult-btn.on#immBtn, #immBtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .icon-btn.on#immBtn, #immBtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   /* ---------- hamburger menu + drawer  ---------- */
   .menu-btn { margin-left: auto; width: 36px; height: 32px; border-radius: 9px; border: 1px solid var(--line);
@@ -502,7 +501,7 @@
   html,body{background:var(--color-bg);color:var(--color-text);
     font-family:"Archivo","Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
   /* radius 0 전면 — 예외 없음 (DESIGN.md) */
-  .card,.chip,.badge,.rate,.mute-btn,.adult-btn,.menu-btn,.brief-card,.why,
+  .card,.chip,.badge,.rate,.mute-btn,.icon-btn,.menu-btn,.brief-card,.why,
   .detail-panel,.detail-img,.modal,.onb,.drawer,.meter-bar,.meter-fill,
   .card-thumb,.card-thumb img,button,input,textarea,select,.editorial-note,
   .sort-bar .chip,.readmore,.comment-form textarea,.ad-disclosure-pop,.orig-title,
@@ -815,12 +814,10 @@
   .editorial-note{color:color-mix(in srgb,var(--color-text) 86%,transparent)}
   .muted,.comments h4,.chip{color:inherit}
   #detailBody p,#spaceBody p{color:color-mix(in srgb,var(--color-text) 94%,transparent)}
-  /* 배지 팔레트 정리 — 유채색은 Signal 하나 원칙. 19금만 액센트 아웃라인 */
+  /* 배지 팔레트 정리 — 유채색은 Signal 하나 원칙 */
   .badge,.badge.news,.badge.community,.badge.trans{background:transparent!important;
     border:1px solid color-mix(in srgb,var(--color-text) 45%,transparent);
     color:color-mix(in srgb,var(--color-text) 82%,transparent)!important;font-weight:700}
-  .badge.adult{background:transparent!important;border:1px solid var(--color-accent);
-    color:var(--color-accent)!important}
   .why{background:transparent!important;border:1px solid color-mix(in srgb,var(--color-text) 40%,transparent);
     color:color-mix(in srgb,var(--color-text) 80%,transparent)!important}
   .editorial-note{background:transparent;border-left:2px solid var(--color-divider);color:var(--muted)}
@@ -869,7 +866,7 @@
 
       <div class="drawer-row">
         <span>🎬 몰입 모드 (한 글씩 넘겨보기)</span>
-        <button id="immBtn" class="adult-btn" title="몰입 모드">🎬</button>
+        <button id="immBtn" class="icon-btn" title="몰입 모드">🎬</button>
       </div>
 
       <div class="drawer-sec">
@@ -1055,8 +1052,6 @@ const API = {
   async rules() { return get("/api/rules"); },
   async saveSurvey(userId, answers) { return post("/api/survey", { userId, answers }); },
   async history(userId, entries) { return post("/api/history", { userId, entries }); },
-  async verifyAge(userId) { return post("/api/verify-age", { userId, confirmAdult: true }); },
-  async setAdult(userId, on) { return post("/api/adult", { userId, on }); },
   async createPost(userId, p) { return post("/api/post", { userId, ...p }); },
   async submitLink(userId, url, opts={}) { return post("/api/submit", { userId, url, ...opts }); },
   async mySpace(userId) { return get(`/api/me?userId=${userId}`); },
@@ -1150,7 +1145,6 @@ const state = {
   communities: [], activeSource: null, // 홈은 항상 "전체"로 시작 (필터 선택이 저장돼 갇히지 않게 )
   feedScrollY: 0, // remembered scroll position for exact back-restore
   cardsById: new Map(),
-  ageVerified: false, showAdult: false,
   // 정치/종교처럼 기본 숨김인 토픽 중 유저가 켠 것들. 서버가 진실의 원천이고
   // (session/me 응답으로 매번 덮어써짐), localStorage는 다음 로드 전까지의 캐시일 뿐.
   showTopics: JSON.parse(localStorage.getItem("feed_topics") || "[]"),
@@ -1212,7 +1206,7 @@ function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg
 // Keep --header-h in sync with the header's real rendered height, so the
 // sticky source-chip bar (.src-chips, top: var(--header-h)) sits flush under
 // it instead of at a guessed fixed pixel value — the header wraps to more
-// lines on a narrow phone, shows/hides the 19금 lock badge, etc. ResizeObserver
+// lines on a narrow phone, etc. ResizeObserver
 // catches all of that automatically; the resize listener is just a fallback
 // for the rare engine without it.
 function syncHeaderHeight(){
@@ -1238,11 +1232,11 @@ syncHeaderHeight();
   ]);
   state.config = config; state.rules = rulesRes.rules;
   state.userId = s.userId; localStorage.setItem("feed_uid", s.userId);
-  state.ageVerified = s.ageVerified; state.showAdult = s.showAdult; state.nickname = s.nickname;
+  state.nickname = s.nickname;
   state.showTopics = Array.isArray(s.showTopics) ? s.showTopics : [];
   localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
   state.surveyed = s.surveyed;
-  // 소스 칩은 레지스트리에서 동적으로 — 하드코딩 목록 없음. 활성(enabled) + 비성인 소스만.
+  // 소스 칩은 레지스트리에서 동적으로 — 하드코딩 목록 없음. 활성(enabled) 소스만.
   // 추가로 죽은 소스 칩 자동 숨김: liveCount(현재
   // 수집 풀에 있는 이 소스 아이템 수)가 0인 소스는 칩에서 뺀다 — todayhumor처럼
   // enabled는 유지하되(해외IP 차단, 국내 이전 시 부활 예정) 프로덕션에서 꾸준히
@@ -1754,77 +1748,12 @@ function flushImmersionDwell(){
 }
 function stopImmersionTracking(){ flushImmersionDwell(); if(immObserver){ immObserver.disconnect(); immObserver=null; } }
 
-// ---- 19금 toggle + 성인인증 ----
-// The always-visible header "19" quick-toggle was removed in the 2026-07-24
-// UX overhaul (home = feed only); adult access now lives in the ☰ drawer's
-// 콘텐츠 필터 section (renderDrawerFilters/contentFilterHtml below) and in
-// 내 공간. These two functions are kept as safe no-ops in case anything still
-// calls them, rather than deleting every call site.
-function renderAdultBtn(){
-  const b = document.getElementById("adultBtn");
-  if(!b) return;
-  b.style.display = state.ageVerified ? "" : "none";
-  b.classList.toggle("on", state.showAdult);
-  b.title = state.showAdult ? "19금 숨기기" : "19금 보기";
-}
-function setupAdultToggle(){
-  const b = document.getElementById("adultBtn");
-  if(!b) return;
-  b.onclick = async ()=>{
-    if(state.showAdult){                 // 켜져 있으면 끄기 (필터링)
-      await toggleAdult(false); return;
-    }
-    if(!state.ageVerified){ showAgeGate(); return; }  // 미인증이면 인증부터
-    await toggleAdult(true);              // 인증됨 → 켜기
-  };
-}
-async function toggleAdult(on){
-  try {
-    const r = await API.setAdult(state.userId, on);
-    state.showAdult = r.showAdult; renderAdultBtn(); refreshDrawerFilters();
-    reloadFeed(on ? "19금 포함" : "19금 숨김");
-  } catch(e){ toast("전환 실패: "+e.message); }
-}
-function showAgeGate(){
-  closeDrawer(); // avoid a double-dim backdrop if opened from inside the drawer
-  const back = document.createElement("div"); back.className="modal-back";
-  back.innerHTML = `
-    <div class="modal">
-      <h3>🔞 성인 콘텐츠</h3>
-      <p>19금 게시글을 보려면 성인인증이 필요합니다. 만 19세 이상 성인이 맞으신가요? (데모에서는 실제 본인확인 대신 확인만 진행됩니다.)</p>
-      <div class="row">
-        <button class="cancel" id="ageCancel">취소</button>
-        <button class="confirm" id="ageOk">성인인증하기</button>
-      </div>
-    </div>`;
-  document.body.appendChild(back);
-  back.querySelector("#ageCancel").onclick = ()=> back.remove();
-  back.querySelector("#ageOk").onclick = async ()=>{
-    try {
-      await API.verifyAge(state.userId); state.ageVerified = true;
-      back.remove(); renderAdultBtn(); await toggleAdult(true);
-      toast("성인인증 완료");
-    } catch(e){ toast("인증 실패: "+e.message); }
-  };
-}
+// ---- 콘텐츠 게이트 (2026-08-04) -----------------------------------------
+// 연령 게이트 UI를 걷어냈다. 경위와 근거는 docs/monetization.md 참고.
+// 태깅은 서버에 남아 있고 켤 방법이 없으므로 태그된 글은 피드에 나오지 않는다.
+// 특정 매체를 안 보고 싶으면 기존 "그만보기"로 끄면 된다.
 
-// ---- 정치/종교 콘텐츠 필터 (기본 숨김, 유저가 켜면 노출) ----
-// 성인은 기존 19금 인증/토글(toggleAdult, showAgeGate)을 그대로 재사용한다.
-function topicLabel(id){
-  const t = state.config?.topics?.find(x=>x.id===id);
-  return t ? t.label : id;
-}
-async function toggleTopic(topic, on){
-  try {
-    const r = await API.setTopic(state.userId, topic, on);
-    state.showTopics = r.showTopics || state.showTopics;
-    localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
-    reloadFeedSilently(); refreshDrawerFilters();
-    toast(`${topicLabel(topic)} 글 ${on?"보기":"숨기기"}`);
-  } catch(e){ toast("전환 실패: "+e.message); }
-}
-
-// Shared "콘텐츠 필터" (정치/종교/19금) block — rendered both in 내 공간 and in
+// Shared "콘텐츠 필터" (정치/종교) block — rendered both in 내 공간 and in
 // the ☰ drawer, driven by the same state/toggle functions above. Uses
 // data-attributes instead of ids so both places can render it at once without
 // id collisions.
@@ -1832,16 +1761,9 @@ function contentFilterHtml(){
   return `
     <div class="muted-row">🗳️ 정치 글 보기 <button data-topic-toggle="politics">${state.showTopics.includes("politics")?"숨기기":"보기"}</button></div>
     <div class="muted-row">⛪ 종교 글 보기 <button data-topic-toggle="religion">${state.showTopics.includes("religion")?"숨기기":"보기"}</button></div>
-    <div class="muted-row">🔞 성인 콘텐츠(19금) 보기 <button data-adult-toggle>${state.ageVerified?(state.showAdult?"끄기":"켜기"):"성인인증"}</button></div>
-    <p style="color:var(--muted);font-size:11.5px;line-height:1.5;margin:6px 0 0">정치·종교 글은 기본적으로 피드에서 숨겨져요. 위 버튼으로 켜고 끌 수 있어요.</p>`;
+    <p style="color:var(--muted);font-size:11.5px;line-height:1.5;margin:6px 0 0">정치·종교 글은 기본적으로 피드에서 숨겨져요. 위 버튼으로 켜고 끌 수 있어요. 특정 매체를 안 보고 싶으면 글을 열어 “그만보기”를 누르세요.</p>`;
 }
 function wireContentFilterButtons(container, onAfter){
-  const ae = container.querySelector("[data-adult-toggle]");
-  if(ae) ae.onclick = ()=>{
-    if(!state.ageVerified){ showAgeGate(); return; }
-    toggleAdult(!state.showAdult);
-    if(onAfter) onAfter();
-  };
   container.querySelectorAll("[data-topic-toggle]").forEach(btn=>{
     btn.onclick = async ()=>{ await toggleTopic(btn.dataset.topicToggle, !state.showTopics.includes(btn.dataset.topicToggle)); if(onAfter) onAfter(); };
   });
@@ -1862,7 +1784,7 @@ function refreshSpaceFilters(spaceBody){
   block.innerHTML = contentFilterHtml();
   wireContentFilterButtons(block, ()=> refreshSpaceFilters(spaceBody));
 }
-// 19금 포함/제외가 바뀌면 후보군이 달라지므로 피드를 새로 로드
+// 토픽 필터가 바뀌면 후보군이 달라지므로 피드를 새로 로드
 function reloadFeed(msg){
   state.cursor = 0; state.exhausted = false; state.loading = false;
   state.prefetch = null; // 조건이 바뀌었으니 선반입분은 버린다
@@ -1998,7 +1920,7 @@ async function openSpace(){
     body.querySelectorAll(".space-sec .card[data-id]").forEach(c=>{
       c.onclick = ()=> openDetail(c.dataset.id);
     });
-    // 콘텐츠 필터 (정치/종교/19금) — shared with the ☰ drawer's copy of the
+    // 콘텐츠 필터 (정치/종교) — shared with the ☰ drawer's copy of the
     // same controls; re-renders this block in place after each toggle.
     refreshSpaceFilters(body);
     renderAuthBlock(document.getElementById("authSpaceSec"));
@@ -2505,7 +2427,6 @@ function heatRuleHtml(item){
 function statusBadgesHtml(item){
   let out = hotBadge(item);
   if(item.via==="submit") out += '<span class="badge">유저 제출</span>';
-  if(item.adult) out += '<span class="badge adult">19</span>';
   if((item.topics||[]).includes("politics")) out += '<span class="badge">정치</span>';
   if((item.topics||[]).includes("religion")) out += '<span class="badge">종교</span>';
   if(item.translated) out += '<span class="badge trans">번역</span>';

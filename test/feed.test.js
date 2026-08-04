@@ -2339,8 +2339,14 @@ test("GET /api/config exposes the topic catalog for the UI toggles", async () =>
   try {
     const res = await (await fetch(`http://localhost:${server.address().port}/api/config`)).json();
     const ids = res.topics.map((t) => t.id).sort();
-    assert.deepEqual(ids, ["adult", "politics", "religion"]);
-    assert.ok(res.topics.every((t) => t.defaultVisible === false), "all three default to hidden");
+    // 계약 변경 2026-08-04: "adult"를 카탈로그에서 뺐다. 애드핏 심사자가 보류
+    // 근거로 지목한 것이 게시글이 아니라 "성인 콘텐츠(19금) 보기" 토글 UI
+    // 한 줄이었다(참고 이미지 i.imgur.com/tz7vGUc.png). 실측상 그 시점 라이브
+    // 피드 160건 중 성인 태그는 0건 — 삭제할 콘텐츠 없이 UI만 비용을 치렀다.
+    // 카탈로그에서 빼면 API에도 UI에도 "성인" 항목이 나타나지 않는다.
+    assert.deepEqual(ids, ["politics", "religion"]);
+    assert.ok(!ids.includes("adult"), "성인 토글이 되살아났다");
+    assert.ok(res.topics.every((t) => t.defaultVisible === false), "둘 다 기본 숨김");
   } finally {
     server.close();
   }

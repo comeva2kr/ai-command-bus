@@ -21,19 +21,21 @@
 // `adult` field so the one 19금 gate the app already has (age-verify + toggle,
 // engine.js) keeps being the single source of truth — no parallel adult gate.
 
-// The three toggleable topics the client shows, in a fixed order. `adult`'s
-// visibility is still fully governed by the existing 19금 gate (verify-age +
-// /api/adult) — it's listed here only so the UI/API can describe it alongside
-// politics/religion in one catalog.
+// 클라이언트가 켜고 끌 수 있는 토픽. 2026-08-04부터 `adult`는 여기 없다.
+//
+// 애드핏 매체 심사 보류의 참고 이미지(i.imgur.com/tz7vGUc.png)에서 심사자가
+// 지목한 것이 게시글이 아니라 우리 메뉴의 "성인 콘텐츠(19금) 보기" 토글
+// 한 줄이었다. 같은 캡처의 피드는 미용실·닭다리살·메이플이었고, 실측으로도
+// 그 시점 라이브 160건 중 성인 태그는 0건이었다.
+// 목록에서 빼면 API 응답과 UI 어디에도 "성인"이라는 항목이 나타나지 않는다.
+// 태깅(item.adult) 자체는 남는다 — 켤 방법이 없으니 태그된 글은 그냥 안 나온다.
 export const TOPIC_CATALOG = [
   { id: "politics", label: "정치", defaultVisible: false },
-  { id: "religion", label: "종교", defaultVisible: false },
-  { id: "adult", label: "성인", defaultVisible: false }
+  { id: "religion", label: "종교", defaultVisible: false }
 ];
 
 // Topics a user can flip on/off directly via POST /api/topics (mutedTopics-style
-// per-user state in store.js). "adult" is deliberately excluded — it stays on
-// the existing verify-age + /api/adult path so there's exactly one adult gate.
+// per-user state in store.js).
 export const FILTERABLE_TOPICS = ["politics", "religion"];
 
 // ---- board-slug rules ----------------------------------------------------
