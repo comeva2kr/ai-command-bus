@@ -5,6 +5,8 @@
 // survives restarts. No external database required — this keeps the project's
 // zero-dependency posture while still being real enough to demo end to end.
 
+import { emptyBucket, applyEvent } from "./analytics.js";
+import { emptyCostBucket, recordCall } from "./costs.js";
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { emptyPreferenceVector, buildPreferenceVector } from "./survey.js";
@@ -343,6 +345,89 @@ export class FeedStore {
 
   getSourceHealth() {
     return this.sourceHealth || {};
+  }
+
+  // ---- 행동 분석 (analytics.js) -------------------------------------------
+  // 이벤트는 들어오는 즉시 그날 버킷에 더한다. 원본 로그를 쌓지 않는 이유는
+  // store가 단일 JSON 파일이라 선형으로 커지면 어느 시점에 못 읽기 때문이다.
+  recordEvents(events, ctx = {}) {
+    if (!Array.isArray(events) || !events.length) return 0;
+    if (!this.analytics) this.analytics = {};
+    const day = this._trafficDay(new Date(this._nowMs()));
+    if (!this.analytics[day]) this.analytics[day] = emptyBucket();
+    const b = this.analytics[day];
+    let n = 0;
+    for (const ev of events.slice(0, 50)) { // 한 요청이 버킷을 통째로 흔들지 못하게
+      if (applyEvent(b, ev, ctx)) n++;
+    }
+    if (ctx.userId) {
+      if (!b.uids.includes(ctx.userId) && b.uids.length < 100000) b.uids.push(ctx.userId);
+      // "신규"는 그 유저의 가입 시각이 오늘인지로 본다 — 오늘 버킷에 처음
+      // 나타났다는 것만으로는 어제 온 사람과 구분되지 않는다.
+      const u = this.getUser(ctx.userId);
+      const created = u && (u.createdAt || u.joinedAt);
+      if (created && this._trafficDay(new Date(created)) === day && !b.newUids.includes(ctx.userId)) {
+        b.newUids.push(ctx.userId);
+      }
+    }
+    this._pruneBuckets("analytics", 400);
+    this._persist();
+    return n;
+  }
+
+  analyticsBuckets() {
+    return this.analytics || {};
+  }
+
+  // ---- 지출 (costs.js) ----------------------------------------------------
+  recordLlmCall({ model, inputTokens, outputTokens, purpose }) {
+    if (!this.costs) this.costs = {};
+    const day = this._trafficDay(new Date(this._nowMs()));
+    if (!this.costs[day]) this.costs[day] = emptyCostBucket();
+    recordCall(this.costs[day], { model, inputTokens, outputTokens, purpose });
+    this._pruneBuckets("costs", 400);
+    this._persist();
+  }
+
+  costBuckets() {
+    return this.costs || {};
+  }
+
+  // 고정비는 자동으로 알 길이 없어 David가 월 단위로 입력한다.
+  // 미입력 달은 0이 아니라 "미입력"으로 보고된다(costs.fixedForRange).
+  setFixedCosts(monthKey, entries) {
+    if (!this.fixedCosts) this.fixedCosts = {};
+    this.fixedCosts[monthKey] = (entries || [])
+      .filter((e) => e && e.label)
+      .slice(0, 30)
+      .map((e) => ({ label: String(e.label).slice(0, 40), krw: Number(e.krw) || 0 }));
+    this._persist();
+    return this.fixedCosts[monthKey];
+  }
+
+  fixedCostsAll() {
+    return this.fixedCosts || {};
+  }
+
+  // 쿠팡 정산액은 우리가 자동으로 읽을 수 없다 — David가 대시보드에서 넣는다.
+  // 넣기 전에는 null로 남아 순이익 계산 자체를 하지 않는다.
+  setRevenue(monthKey, krw) {
+    if (!this.revenue) this.revenue = {};
+    this.revenue[monthKey] = Number(krw) || 0;
+    this._persist();
+    return this.revenue[monthKey];
+  }
+
+  revenueAll() {
+    return this.revenue || {};
+  }
+
+  _pruneBuckets(field, keep) {
+    const m = this[field];
+    if (!m) return;
+    const keys = Object.keys(m);
+    if (keys.length <= keep) return;
+    for (const k of keys.sort().slice(0, keys.length - keep)) delete m[k];
   }
 
   getDailyEdition(date) {
@@ -899,6 +984,10 @@ export class FeedStore {
       // 재시작에도 반드시 유지 (애드핏 대응, David 2026-07-31)
       dailyEditions: [...(this.dailyEditions || new Map())].map(([date, e]) => ({ date, ...e })),
       sourceHealth: this.sourceHealth || {},
+      analytics: this.analytics || {},
+      costs: this.costs || {},
+      fixedCosts: this.fixedCosts || {},
+      revenue: this.revenue || {},
       firstSeen: this.firstSeen || {}, // 수집 풀 최초 관측 시각 — 재시작 뒷북 방지 (P1-a)
       heatHist: this.heatHist || {}, // 열기 눈금 시계열 — 배포마다 리셋되면 시그니처가 죽는다
       enrichCache: this.enrichCache || {}, // og:image/발췌 — 재수집 비용이 커 반드시 유지
@@ -922,6 +1011,10 @@ export class FeedStore {
       this.traffic = data.traffic || {};
       this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
       this.sourceHealth = data.sourceHealth || {};
+      this.analytics = data.analytics || {};
+      this.costs = data.costs || {};
+      this.fixedCosts = data.fixedCosts || {};
+      this.revenue = data.revenue || {};
       this.firstSeen = data.firstSeen || {};
       this.heatHist = data.heatHist || {};
       this.enrichCache = data.enrichCache || {};

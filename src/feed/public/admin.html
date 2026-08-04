@@ -47,6 +47,16 @@
   .empty { color:var(--muted); font-size:13px; padding:20px 0; }
   .country { font-size:11px; color:var(--muted); }
   /* --- 대시보드 패널 --- */
+  /* 2026-08-04 행동분석·수익 탭용 — 요약을 먼저, 상세를 뒤에 */
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:6px; }
+  .card { background:var(--card2,#1a1d24); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .card .k { font-size:12px; color:var(--muted); }
+  .card .v { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:2px; }
+  .card .n { font-size:11px; color:var(--muted); margin-top:2px; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .grid2 h4, h4 { font-size:13px; font-weight:650; margin:10px 0 6px; color:var(--muted); }
+  /* 넓은 표는 자기 컨테이너 안에서만 가로 스크롤 — 페이지가 옆으로 밀리면 안 된다 */
+  table { display:block; overflow-x:auto; max-width:100%; }
   .panel-h { font-size:14px; font-weight:700; margin:24px 0 10px; }
   .panel-h:first-child { margin-top:0; }
   .big b { font-size:34px; }
@@ -90,9 +100,13 @@
 
 <script>
 const TABS = [
-  ["dashboard","대시보드"], ["communities","커뮤니티"], ["posts","게시글"],
-  ["comments","댓글"], ["words","금지어"], ["users","사용자"]
+  ["dashboard","대시보드"], ["analytics","행동 분석"], ["finance","수익·지출"],
+  ["communities","커뮤니티"], ["posts","게시글"],
+  ["comments","댓글"], ["words","금지어"], ["users","사용자"], ["blueprint","개발관리"]
 ];
+// 개발관리 페이지 — David 고정법칙(2026-08-04): 블루프린트를 일회성 문서가
+// 아니라 살아 있는 개발관리 페이지로 쓰고, 관리자에서 바로 열 수 있어야 한다.
+const BLUEPRINT_URL = "https://claude.ai/code/artifact/8b9e7c06-306c-4dc6-ae70-0022db898419";
 let token = localStorage.getItem("admin_token") || "";
 let active = "dashboard";
 
@@ -127,12 +141,176 @@ async function render(){
   const panel=document.getElementById("panel"); panel.innerHTML='<p class="empty">불러오는 중…</p>';
   try {
     if (active==="dashboard") return renderDashboard(panel);
+    if (active==="analytics") return renderAnalytics(panel);
+    if (active==="finance") return renderFinance(panel);
+    if (active==="blueprint") return renderBlueprint(panel);
     if (active==="communities") return renderCommunities(panel);
     if (active==="posts") return renderPosts(panel);
     if (active==="comments") return renderComments(panel);
     if (active==="words") return renderWords(panel);
     if (active==="users") return renderUsers(panel);
   } catch(e){ panel.innerHTML='<p class="empty" style="color:var(--danger)">'+esc(e.message)+'</p>'; }
+}
+
+
+// ── 행동 분석 ───────────────────────────────────────────────────────────────
+let anGran = "day";
+function pct(v){ return v==null ? "—" : (v*100).toFixed(2)+"%"; }
+function num(v){ return v==null ? "—" : Number(v).toLocaleString("ko-KR"); }
+function sec(v){ return v==null ? "—" : (v>=60 ? Math.floor(v/60)+"분 "+(v%60)+"초" : v+"초"); }
+
+function kvTable(rows, headers){
+  if(!rows || !rows.length) return '<p class="empty">아직 기록이 없어요</p>';
+  const max = Math.max(...rows.map(r=>r.count||0), 1);
+  return '<table><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(r=>'<tr><td>'+esc(r.key)+'</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+num(r.count)+
+      '</td><td style="width:38%"><div style="background:var(--accent);height:8px;border-radius:4px;width:'+
+      Math.round((r.count/max)*100)+'%"></div></td></tr>').join('')+'</tbody></table>';
+}
+function adTable(rows){
+  if(!rows || !rows.length) return '<p class="empty">아직 노출 기록이 없어요</p>';
+  return '<table><thead><tr><th>슬롯 / 문구</th><th>노출</th><th>클릭</th><th>CTR</th></tr></thead><tbody>'+
+    rows.map(r=>'<tr><td>'+esc(r.key)+'</td><td>'+num(r.imp)+'</td><td>'+num(r.click)+'</td><td>'+pct(r.ctr)+'</td></tr>').join('')+
+    '</tbody></table>';
+}
+
+async function renderAnalytics(panel){
+  const res = await api("/api/admin/analytics?granularity="+anGran+"&limit=30");
+  const rows = res.rows || [];
+  const L = res.latest;
+  const gbtn = (id,label)=>'<button class="tab'+(anGran===id?" active":"")+'" onclick="anGran=\''+id+'\';render()">'+label+'</button>';
+  if(!rows.length){
+    panel.innerHTML = '<div class="panel-h">📊 행동 분석</div><p class="empty">아직 수집된 이벤트가 없어요. 방문이 발생하면 여기에 쌓입니다.</p>';
+    return;
+  }
+  panel.innerHTML = `
+    <div class="panel-h">📊 행동 분석 <span style="float:right">${gbtn("day","일별")} ${gbtn("week","주별")} ${gbtn("month","월별")}</span></div>
+    <table>
+      <thead><tr><th>기간</th><th>방문자</th><th>신규</th><th>재방문</th><th>PV</th><th>1인당 PV</th><th>평균 체류</th><th>평균 깊이</th><th>글 클릭</th><th>광고 노출</th><th>광고 클릭</th><th>CTR</th></tr></thead>
+      <tbody>${rows.slice().reverse().map(r=>`<tr>
+        <td>${esc(r.label||r.key)}</td><td>${num(r.visitors)}</td><td>${num(r.newVisitors)}</td><td>${num(r.returning)}</td>
+        <td>${num(r.pv)}</td><td>${r.pvPerVisitor==null?"—":r.pvPerVisitor}</td>
+        <td>${sec(r.avgDwellSec)}${r.dwellSamples?'<span class="pill" style="margin-left:4px">'+r.dwellSamples+'건</span>':''}</td>
+        <td>${r.avgDepth==null?"—":r.avgDepth}</td>
+        <td>${num(r.contentClicks)}</td><td>${num(r.adImpressions)}</td><td>${num(r.adClicks)}</td><td>${pct(r.adCtr)}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+    <p class="empty" style="text-align:left">평균 체류·깊이 옆의 건수는 그 평균이 몇 건의 표본에서 나왔는지입니다. 표본이 없으면 0이 아니라 —로 표시합니다.</p>
+
+    <div class="panel-h">🚪 어디에서 들어오나 (최근 ${esc(L.label||L.key)})</div>
+    ${kvTable(L.referrers, ["유입 출처","방문","비중"])}
+
+    <div class="panel-h">📣 대외 광고 캠페인 (utm)</div>
+    ${L.campaigns && L.campaigns.length ? kvTable(L.campaigns, ["source | medium | campaign","유입","비중"])
+      : '<p class="empty">캠페인 유입이 아직 없어요. 외부에 링크를 뿌릴 때 <code>?utm_source=naver_blog&utm_medium=post&utm_campaign=0804</code> 같은 파라미터를 붙이면 여기서 채널별 성과가 갈립니다.</p>'}
+
+    <div class="panel-h">🧭 어느 화면으로 들어와서 어디서 나가나</div>
+    <div class="grid2">
+      <div><h4>진입 화면</h4>${kvTable(L.entries, ["화면","진입","비중"])}</div>
+      <div><h4>이탈 화면</h4>${kvTable(L.exits, ["화면","이탈","비중"])}</div>
+    </div>
+
+    <div class="panel-h">👆 무엇을 누르나</div>
+    <div class="grid2">
+      <div><h4>소스별 클릭</h4>${kvTable(L.clickSources, ["소스","클릭","비중"])}</div>
+      <div><h4>카테고리별 클릭</h4>${kvTable(L.clickCategories, ["카테고리","클릭","비중"])}</div>
+    </div>
+    <h4>순위대별 클릭 — 첫 화면에서 눌리나, 내려가서 눌리나</h4>
+    ${kvTable(L.clickRanks, ["순위대","클릭","비중"])}
+
+    <div class="panel-h">💰 광고 성과</div>
+    <div class="grid2">
+      <div><h4>슬롯별</h4>${adTable(L.adSlots)}</div>
+      <div><h4>문구(variant)별</h4>${adTable(L.adVariants)}</div>
+    </div>`;
+}
+
+// ── 수익·지출 ───────────────────────────────────────────────────────────────
+let finMonth = null;
+async function renderFinance(panel){
+  const q = finMonth ? "?month="+encodeURIComponent(finMonth) : "";
+  const res = await api("/api/admin/finance"+q);
+  finMonth = res.month;
+  const { usage, pl, fixed } = res;
+  const won = (v)=> v==null ? "—" : Math.round(v).toLocaleString("ko-KR")+"원";
+  const purposes = Object.entries(usage.byPurpose||{}).sort((a,b)=>b[1].usd-a[1].usd);
+  const models = Object.entries(usage.byModel||{}).sort((a,b)=>b[1].usd-a[1].usd);
+  panel.innerHTML = `
+    <div class="panel-h">💵 ${esc(finMonth)} 손익</div>
+    <div class="cards">
+      <div class="card"><div class="k">매출</div><div class="v">${pl.revenueKrw==null?'<span style="color:var(--muted)">미입력</span>':won(pl.revenueKrw)}</div><div class="n">쿠팡 정산액 — 직접 입력</div></div>
+      <div class="card"><div class="k">API 실비</div><div class="v">${won(pl.variableKrw)}</div><div class="n">$${pl.variableUsd.toFixed(4)} · 토큰×공개단가 실측</div></div>
+      <div class="card"><div class="k">고정비</div><div class="v">${pl.fixedMissingMonths.length?'<span style="color:var(--warn,#e0a54b)">미입력</span>':won(pl.fixedKrw)}</div><div class="n">VM·도메인 등</div></div>
+      <div class="card"><div class="k">총 지출</div><div class="v">${won(pl.totalKrw)}</div><div class="n">실비 + 고정비</div></div>
+      <div class="card"><div class="k">순이익</div><div class="v">${pl.netKrw==null?'<span style="color:var(--muted)">계산 불가</span>':won(pl.netKrw)}</div><div class="n">${pl.netKrw==null?"매출을 넣어야 계산됩니다":"매출 − 총 지출"}</div></div>
+    </div>
+    ${pl.unpricedCalls ? '<p class="empty" style="text-align:left;color:var(--warn,#e0a54b)">단가가 등록되지 않은 모델 호출 '+pl.unpricedCalls+'건이 비용에서 빠져 있습니다 (costs.js MODEL_PRICING에 추가 필요).</p>' : ''}
+    <p class="empty" style="text-align:left">원화는 참고 환산입니다(1달러 ${pl.usdKrwReference}원 기준). 원장은 달러로 남습니다.</p>
+
+    <div class="panel-h">🤖 API 호출 (${esc(finMonth)} 실측)</div>
+    <div class="cards">
+      <div class="card"><div class="k">호출 수</div><div class="v">${num(usage.calls)}</div></div>
+      <div class="card"><div class="k">입력 토큰</div><div class="v">${num(usage.inputTokens)}</div></div>
+      <div class="card"><div class="k">출력 토큰</div><div class="v">${num(usage.outputTokens)}</div></div>
+    </div>
+    <h4>용도별</h4>
+    ${purposes.length ? '<table><thead><tr><th>용도</th><th>호출</th><th>비용(USD)</th></tr></thead><tbody>'+
+      purposes.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td>'+num(v.calls)+'</td><td>$'+v.usd.toFixed(4)+'</td></tr>').join('')+'</tbody></table>'
+      : '<p class="empty">이번 달 API 호출 기록이 없어요</p>'}
+    <h4>모델별</h4>
+    ${models.length ? '<table><thead><tr><th>모델</th><th>호출</th><th>입력</th><th>출력</th><th>비용(USD)</th></tr></thead><tbody>'+
+      models.map(([k,v])=>'<tr><td>'+esc(k)+'</td><td>'+num(v.calls)+'</td><td>'+num(v.inputTokens)+'</td><td>'+num(v.outputTokens)+'</td><td>$'+v.usd.toFixed(4)+'</td></tr>').join('')+'</tbody></table>'
+      : ''}
+
+    <div class="panel-h">✍️ 입력 — 매출과 고정비</div>
+    <p class="empty" style="text-align:left">쿠팡 정산액과 VM·도메인 비용은 우리가 자동으로 읽을 수 없어요. 여기 넣은 값만 손익에 반영되고, 넣기 전에는 0이 아니라 "미입력"으로 남습니다.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;max-width:520px">
+      <label>월 <input id="finM" value="${esc(finMonth)}" style="width:110px"></label>
+      <label>매출(원) <input id="finRev" type="number" value="${pl.revenueKrw==null?"":pl.revenueKrw}" placeholder="쿠팡 정산액"></label>
+      <div id="fixedRows">${(fixed&&fixed.length?fixed:[{label:"VM",krw:""},{label:"도메인",krw:""}])
+        .map((e,i)=>'<div style="display:flex;gap:6px;margin-bottom:4px"><input class="fxL" value="'+esc(e.label)+'" placeholder="항목" style="flex:1"><input class="fxK" type="number" value="'+(e.krw||"")+'" placeholder="월 금액(원)" style="width:150px"></div>').join("")}</div>
+      <div style="display:flex;gap:6px">
+        <button onclick="addFixedRow()" style="background:var(--card2);border:1px solid var(--line);color:var(--text)">＋ 항목 추가</button>
+        <button onclick="saveFinance()">저장</button>
+      </div>
+      <span id="finMsg" class="pill"></span>
+    </div>`;
+}
+function addFixedRow(){
+  const d=document.createElement("div");
+  d.style.cssText="display:flex;gap:6px;margin-bottom:4px";
+  d.innerHTML='<input class="fxL" placeholder="항목" style="flex:1"><input class="fxK" type="number" placeholder="월 금액(원)" style="width:150px">';
+  document.getElementById("fixedRows").appendChild(d);
+}
+async function saveFinance(){
+  const month=document.getElementById("finM").value.trim();
+  const rev=document.getElementById("finRev").value;
+  const labels=[...document.querySelectorAll(".fxL")].map(i=>i.value.trim());
+  const krws=[...document.querySelectorAll(".fxK")].map(i=>i.value);
+  const fixed=labels.map((label,i)=>({label,krw:Number(krws[i])||0})).filter(e=>e.label);
+  try{
+    await api("/api/admin/finance",{method:"POST",body:JSON.stringify({month,fixed,revenueKrw:rev===""?null:Number(rev)})});
+    document.getElementById("finMsg").textContent="저장했어요";
+    finMonth=month; render();
+  }catch(e){ document.getElementById("finMsg").textContent="저장 실패: "+e.message; }
+}
+
+// ── 개발관리 ────────────────────────────────────────────────────────────────
+function renderBlueprint(panel){
+  panel.innerHTML = `
+    <div class="panel-h">🗺 개발관리 — 업그레이드 블루프린트</div>
+    <p class="empty" style="text-align:left">지금 무엇을 왜 만들고 있고 다음이 뭔지, 실측 기준선과 완료 판정이 전부 여기 있습니다. 새 결정과 측정이 나올 때마다 갱신됩니다.</p>
+    <p style="margin:12px 0"><a href="${BLUEPRINT_URL}" target="_blank" rel="noopener"
+      style="display:inline-block;background:var(--accent);color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:600">
+      블루프린트 열기 ↗</a></p>
+    <div class="panel-h">현재 단계</div>
+    <table><thead><tr><th>단계</th><th>내용</th><th>상태</th></tr></thead><tbody>
+      <tr><td>P0</td><td>수익 파이프라인 측정 복구</td><td><span class="pill">진행 중</span></td></tr>
+      <tr><td>P1</td><td>딜 섹션 독립 (구매 의도 트래픽)</td><td>대기</td></tr>
+      <tr><td>P2</td><td>우리 클릭을 랭킹에 반영</td><td>대기</td></tr>
+      <tr><td>P3</td><td>품질 게이트 (2단 승급)</td><td>대기</td></tr>
+      <tr><td>P4</td><td>차별점 — 언론 대 여론</td><td>대기</td></tr>
+    </tbody></table>`;
 }
 
 async function renderDashboard(panel){

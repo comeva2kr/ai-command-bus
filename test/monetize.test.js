@@ -307,12 +307,32 @@ test("pickAffiliateCandidates: AD_PREVIEW=1 without a credential yields clearly-
   });
 });
 
-test("pickAffiliateCandidates: a real partner id with no wired product feed still yields zero cards", () => {
+test("pickAffiliateCandidates: 상품 피드가 없으면 실제 카테고리 배너로 채운다 (2026-08-04 계약 변경)", () => {
+  // 예전 계약은 "빈 배열"이었다. 그 결과 **서비스 시작 이래 피드 광고 노출이
+  // 0건**이었다 — 쿠팡 Open API 키가 서버에 없어 productFeed가 null이었고,
+  // 그 상태를 "광고를 아예 안 낸다"로 처리했기 때문이다(라이브 실측: 응답
+  // 30건 중 광고 카드 0, 노출·클릭 누적 0).
+  //
+  // "자격증명 없으면 광고 금지"의 취지는 **가짜 상품 카드 금지**다. 카테고리
+  // 배너는 우리가 파트너스에서 받아 products.json에 넣어 둔 실제 링크이고
+  // 가격도 상품명도 지어내지 않는다 — 발행 페이지가 이미 같은 배너를 쓴다.
   withEnv({ COUPANG_PARTNER_ID: "AF1234567", AD_PREVIEW: null }, () => {
     const vec = emptyPreferenceVector();
     vec.categories.tech = 3;
     const out = pickAffiliateCandidates(vec, {}); // no opts.productFeed supplied
-    assert.deepEqual(out, []);
+    assert.ok(out.length > 0, "후보가 0이면 피드 광고가 통째로 사라진다");
+    assert.ok(out.every((c) => /^https:\/\/link\.coupang\.com\//.test(c.url)), "실제 파트너스 링크만");
+    assert.ok(out.every((c) => c.priceSale == null && c.priceOriginal == null), "없는 가격을 만들지 않는다");
+    assert.ok(out.every((c) => !c.sample), "샘플 카드가 아니다");
+  });
+});
+
+test("pickAffiliateCandidates: 파트너 ID조차 없으면 여전히 광고가 0이다", () => {
+  // 원래 원칙은 그대로다 — 자격증명 없이 제휴 카드를 내보내지 않는다.
+  withEnv({ COUPANG_PARTNER_ID: null, AD_PREVIEW: null }, () => {
+    const vec = emptyPreferenceVector();
+    vec.categories.tech = 3;
+    assert.deepEqual(pickAffiliateCandidates(vec, {}), []);
   });
 });
 

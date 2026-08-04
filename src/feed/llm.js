@@ -152,6 +152,9 @@ export function makeWriter({
   fetchImpl = fetch,
   store = null,          // { get(key), set(key, value) } — 없으면 메모리
   log = () => {},
+  // 호출 실비 기록 훅 (costs.js). 토큰 수를 아는 유일한 자리가 여기다 —
+  // 여기서 안 붙이면 "이번 달 API로 얼마 썼나"를 영영 알 수 없다.
+  onUsage = null,
   timeoutMs = 120000
 } = {}) {
   const mem = new Map();
@@ -200,7 +203,16 @@ export function makeWriter({
 
     const text = (j.content || []).find((b) => b.type === "text");
     if (!text) throw new Error("no text block");
-    return { parsed: JSON.parse(text.text), usage: j.usage || {} };
+    const usage = j.usage || {};
+    if (onUsage) {
+      try {
+        onUsage({
+          model, purpose: "브리핑 해설",
+          inputTokens: usage.input_tokens, outputTokens: usage.output_tokens
+        });
+      } catch {}
+    }
+    return { parsed: JSON.parse(text.text), usage };
   }
 
   // brief를 받아 해설이 채워진 사본을 돌려준다.

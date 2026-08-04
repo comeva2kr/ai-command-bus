@@ -30,6 +30,8 @@
 //     an irrelevant ad reads as spam and erodes trust faster than a missed
 //     impression costs revenue.
 
+import { adCopy } from "./ad-copy.js";
+import { loadBanners } from "./manual-products.js";
 import { topPreferences } from "./recommender.js";
 import { categoryLabel } from "./taxonomy.js";
 
@@ -433,13 +435,75 @@ export function makeSlotItem({
 // a user's top category, it must omit that slot, not backfill from an
 // unrelated category and mislabel it. politics/religion/adult are additionally
 // hard-excluded below regardless of what productFeed returns (라운드2 검수 #2).
+// 카테고리 배너를 슬롯 후보로. 가격·상품명·평점을 만들지 않는다 — 배너가
+// 여는 곳(dest)을 문구로 정확히 예고하기만 한다.
+//
+// 관련성: 취향 벡터에 그 카테고리가 있으면 그 가중치를, 없으면 바닥값을 준다.
+// 바닥값이 필요한 이유는 우리 방문자 대부분이 익명이라 취향 벡터가 비어 있고,
+// 그러면 minRelevance 게이트에 전부 걸려 또 광고가 0이 되기 때문이다.
+// 취향이 있는 사람에겐 맞는 배너가 먼저 가고, 없는 사람에겐 골고루 돈다.
+const BANNER_BASE_RELEVANCE = 0.35;
+export function bannerCandidates(preferences, opts = {}) {
+  const seed = Number.isFinite(opts.seed) ? opts.seed : 1;
+  const excludeIds = opts.excludeIds instanceof Set ? opts.excludeIds : new Set(opts.excludeIds || []);
+  const banners = (opts.banners || loadBanners()).filter((b) => !BANNED_AD_CATEGORIES.has(b.category));
+  if (!banners.length) return [];
+
+  const weights = new Map(topPreferences(preferences, 6).categories.map((c) => [c.id, c.weight]));
+  const scored = banners.map((b, i) => {
+    const w = weights.get(b.category);
+    const relevance = w != null ? clamp(w / 6, BANNER_BASE_RELEVANCE, 1) : BANNER_BASE_RELEVANCE;
+    return { b, i, relevance };
+  });
+  // 최근 본 배너는 뒤로 민다(제외가 아니라 강등 — 재고가 32개뿐이라 제외하면
+  // 금방 후보가 비어 광고가 다시 0이 된다).
+  scored.sort((a, b) => {
+    const sa = excludeIds.has(a.b.id) ? -1 : 0, sb = excludeIds.has(b.b.id) ? -1 : 0;
+    if (sa !== sb) return sb - sa;
+    if (a.relevance !== b.relevance) return b.relevance - a.relevance;
+    return ((a.i + seed) % scored.length) - ((b.i + seed) % scored.length);
+  });
+
+  return scored.slice(0, 6).map(({ b, relevance }) => {
+    const [hook, brand] = adCopy(b.dest || "_");
+    return makeSlotItem({
+      id: b.id,
+      category: b.category,
+      hook,
+      // productName 자리에 도착지 이름을 넣는다 — 카드에 "어디로 가는지"가
+      // 항상 보여야 한다(2026-08-03 문구≠도착지 사고의 재발 방지).
+      productName: brand,
+      summary: brand,
+      url: b.href,
+      image: b.img,
+      relevance,
+      reason: null
+    });
+  });
+}
+
 export function pickAffiliateCandidates(preferences, opts = {}) {
   const partnerId = opts.partnerId ?? process.env.COUPANG_PARTNER_ID ?? null;
   const preview = opts.preview ?? Boolean(process.env.AD_PREVIEW);
 
   let candidates;
   if (partnerId && opts.productFeed) candidates = opts.productFeed(preferences, opts) || [];
-  else if (!preview) return []; // 절대원칙 1: no credential + no preview -> zero affiliate cards, ever
+  // ── 상품 피드가 없을 때: 실제 카테고리 배너로 채운다 (2026-08-04) ────────
+  //
+  // 그동안 여기서 곧바로 빈 배열을 돌려줬다. 그 결과 **서비스 시작 이래 피드
+  // 광고 노출이 0건**이었다(실측: 라이브 응답 30건 중 광고 카드 0). 쿠팡
+  // Open API 키(ACCESS_KEY/SECRET)가 서버에 없어서 opts.productFeed가 null인데,
+  // 그 상태를 "광고를 아예 안 낸다"로 처리한 탓이다.
+  //
+  // 하지만 "자격증명 없으면 광고 금지"의 진짜 취지는 **가짜 상품 카드 금지**다
+  // (없는 가격·재고를 지어내지 말라는 것). 카테고리 배너는 우리가 파트너스에서
+  // 직접 받아 products.json에 넣어 둔 **실제 링크**이고, 가격도 상품명도 쓰지
+  // 않는다 — 발행 페이지가 이미 같은 배너를 쓰고 있다. 지어내는 게 없으므로
+  // 그 원칙에 걸리지 않는다.
+  //
+  // 상품 단위 카드는 Open API 키가 배포되면 위 분기가 알아서 가져간다.
+  else if (partnerId) candidates = bannerCandidates(preferences, opts);
+  else if (!preview) return []; // 파트너 ID조차 없으면 광고 자체가 없다
   else candidates = sampleAffiliateCandidates(preferences, opts);
 
   // 라운드2 검수 #2 (치명, "정치 게이트 갭"): 토글 상태와 무관하게, 정치/종교/

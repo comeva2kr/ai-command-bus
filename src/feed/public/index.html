@@ -1078,6 +1078,54 @@ const API = {
   async authSession(){ const r = await fetch("/api/auth/session", { credentials:"include" }); return r.json(); },
   async logout(){ const r = await fetch("/api/auth/logout", { method:"POST", credentials:"include" }); return r.json(); }
 };
+
+// ── 행동 추적 (analytics.js) ────────────────────────────────────────────────
+// 이벤트를 한 건씩 보내면 요청이 폭발하므로 큐에 모아 보낸다. 페이지를 떠날
+// 때는 진행 중인 fetch가 취소되므로 sendBeacon을 쓴다 — 이탈 이벤트는 정확히
+// 그 순간에만 보낼 수 있어서 여기서 놓치면 "어디서 나갔나"를 영영 알 수 없다.
+//
+// 개인 식별 정보는 보내지 않는다. 우리가 서버에 넘기는 건 유입 도메인,
+// 화면 종류, 눌린 글의 소스·카테고리·순위대, 체류 시간뿐이다 — 제목이나
+// URL 자체를 보내지 않으므로 "무엇을 읽었는지"가 아니라 "어떤 종류를 눌렀는지"만 남는다.
+const Track = (()=>{
+  const q = [];
+  let timer = null, entered = false, maxDepth = 0, sent = false;
+  const t0 = Date.now();
+
+  function flush(useBeacon){
+    if(!q.length) return;
+    const payload = JSON.stringify({ userId: (window.state && state.userId) || null, events: q.splice(0, q.length) });
+    if(useBeacon && navigator.sendBeacon){
+      try { navigator.sendBeacon("/api/track", new Blob([payload], { type:"application/json" })); return; } catch {}
+    }
+    fetch("/api/track", { method:"POST", headers:{"content-type":"application/json"}, body:payload, keepalive:true }).catch(()=>{});
+  }
+  function push(ev){
+    q.push(ev);
+    if(q.length >= 20){ clearTimeout(timer); timer=null; flush(false); return; }
+    if(!timer) timer = setTimeout(()=>{ timer=null; flush(false); }, 4000);
+  }
+  return {
+    // 첫 진입에만 유입 출처·캠페인을 싣는다. 앱 내부 이동에서 referrer를 다시
+    // 보내면 "내부 이동"이 유입 표를 덮어써서 진짜 출처가 안 보인다.
+    view(){
+      const sp = new URLSearchParams(location.search);
+      const params = {};
+      for(const k of ["utm_source","utm_medium","utm_campaign"]) if(sp.get(k)) params[k] = sp.get(k);
+      push({ type:"view", path:location.pathname, entry:!entered, referrer: entered ? "" : document.referrer, params });
+      entered = true;
+    },
+    click(item, rank){ push({ type:"click", source:(item&&item.source)||null, category:(item&&item.category)||null, rank }); },
+    ad(kind, slot, variant){ push({ type: kind==="click" ? "ad_click" : "ad_impression", slot, variant }); },
+    depth(n){ if(n > maxDepth) maxDepth = n; },
+    exit(){
+      if(sent) return;           // pagehide와 visibilitychange가 둘 다 뜰 수 있다
+      sent = true;
+      push({ type:"exit", path:location.pathname, dwellMs: Date.now()-t0, depth: maxDepth });
+      flush(true);
+    }
+  };
+})();
 // ── 전역 로딩 표시 (David 2026-08-01: "어떤 상황에서도 멈춰있거나 비어있는
 // 상태로 기다릴 땐 로딩 애니메이션 — 에러인지 헷갈리니까") ─────────────────
 // 모든 요청이 여기를 지난다. 진행 중 요청이 하나라도 있으면 상단에 얇은
@@ -1248,6 +1296,11 @@ syncHeaderHeight();
   state.communities = state.registry.filter(c => c.enabled && !c.adult && (!anyLive || (c.liveCount || 0) > 0));
   setupBrandHome(); setupThemeChips(); loadBriefStrip(); setupSortBar(); renderChips(); renderSourceChips(); refreshDrawerFilters();
   setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver(); setupAdImpressionObserver();
+  Track.view();
+  // 이탈은 pagehide가 가장 확실하고, 모바일에서 탭 전환만 하는 경우를 위해
+  // visibilitychange도 함께 본다(Track.exit가 중복을 막는다).
+  addEventListener("pagehide", ()=> Track.exit());
+  addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "hidden") Track.exit(); });
   setupLeanSlider(s);
   setupMixSlider(s);
   // Always show content first — a preview feed (popularity-ranked when no taste
@@ -2584,10 +2637,12 @@ function appendAdCard(item){
   ensureAdPopoverOutsideClick();
   card.addEventListener("click", ()=>{
     API.adSignal(state.userId, item.id, "click", item.variant);
+    Track.ad("click", item.slot || item.id, item.variant);
     window.open(item.url, "_blank", "noopener,noreferrer");
   });
   document.getElementById("feed").appendChild(card);
   state.cardsById.set(item.id, card);
+  Track.depth(state.cardsById.size); // 얼마나 내려갔나 = 그려진 카드 수
   if(adImpressionObserver) adImpressionObserver.observe(card);
 }
 // 슬롯 노출 로깅 — 실제로 화면에 보였을 때만 1회 기록(전송됐다고 곧 "봤다"는
@@ -2611,6 +2666,7 @@ function setupAdImpressionObserver(){
       const id = el.dataset.id; if(!id) continue;
       el.dataset.impressionLogged = "1";
       API.adSignal(state.userId, id, "impression", el.dataset.variant);
+      Track.ad("impression", el.dataset.slot || id, el.dataset.variant);
       adImpressionObserver.unobserve(el);
     }
   }, { threshold: 0.5 });
@@ -2664,6 +2720,9 @@ function appendCard(item){
   // 경로의 기본값뿐이다.
   card.addEventListener("click", (e)=>{
     if(e.target.closest(".rate")) return;
+    // 순위는 지금 피드에 그려진 카드 수로 센다 — 서버 rank를 따로 싣지 않아도
+    // "첫 화면에서 눌렸나, 한참 내려가서 눌렸나"를 알 수 있다.
+    Track.click(item, state.cardsById ? state.cardsById.size : 0);
     if(e.target.closest(".newtab-hint")){ if(item.via !== "me" && item.url){ openOriginal(item); return; } }
     openDetail(item.id);
   });

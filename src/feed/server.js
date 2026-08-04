@@ -9,6 +9,8 @@ import http from "node:http";
 import { pickBanner, loadBanners } from "./manual-products.js";
 import { adCopy, AD_DISCLOSURE, withSubId } from "./ad-copy.js";
 import { makeWriter } from "./llm.js";
+import { series } from "./analytics.js";
+import { mergeCostBuckets, profitAndLoss, daysInMonth } from "./costs.js";
 import { communityRanking, sourceBest, keywordIndex, keywordPage } from "./pages.js";
 import { loadMatrix, pickVariant } from "./ad-matrix.js";
 import { makeIndexNow } from "./indexnow.js";
@@ -409,6 +411,7 @@ export function createServer(opts = {}) {
   // 브리핑 해설 생성기. ANTHROPIC_API_KEY가 없으면 호출 자체를 안 하고
   // 규칙 기반 브리핑이 그대로 나간다 — 로컬 개발과 키 미설정 배포가 안 깨진다.
   const llmWriter = makeWriter({
+    onUsage: (u) => { try { store.recordLlmCall(u); } catch {} },
     apiKey: process.env.ANTHROPIC_API_KEY || null,
     log: (m) => console.log(m)
   });
@@ -1544,6 +1547,24 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         return send(res, 200, { ok: true, stats });
       }
 
+      // 행동 이벤트 수집 (analytics.js). sendBeacon으로 오므로 응답 본문을
+      // 기다리지 않는다 — 204로 즉시 닫는다. 인증은 걸지 않는다: 익명 방문자의
+      // 유입 경로가 우리가 가장 알고 싶은 것이고, userId가 없어도 집계는 된다.
+      if (p === "/api/track" && req.method === "POST") {
+        let body = null;
+        try { body = await readBody(req); } catch { body = null; }
+        const events = body && Array.isArray(body.events) ? body.events : null;
+        if (!events) { res.writeHead(204); return res.end(); }
+        try {
+          store.recordEvents(events, {
+            userId: body.userId && store.getUser(body.userId) ? body.userId : null,
+            selfHost: (req.headers.host || "").split(":")[0].toLowerCase()
+          });
+        } catch {}
+        res.writeHead(204);
+        return res.end();
+      }
+
       if (p === "/api/rate" && req.method === "POST") {
         const body = await readBody(req);
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
@@ -1631,6 +1652,52 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
           }
           return send(res, 200, { sources, alerts: bad, checkedAt: engine.lastRefreshedAt || null });
         }
+        // 행동 분석 — 일/주/월. 기간 축만 바꿔 같은 표를 그린다.
+        if (p === "/api/admin/analytics" && req.method === "GET") {
+          const g = url.searchParams.get("granularity") || "day";
+          const granularity = ["day", "week", "month"].includes(g) ? g : "day";
+          const limit = Math.min(120, Math.max(1, Number(url.searchParams.get("limit")) || 30));
+          const buckets = store.analyticsBuckets();
+          const rows = series(buckets, granularity, limit);
+          // 최신 기간의 상세(출처·화면·클릭·광고 표)를 함께 준다 — 화면이
+          // 한 번 더 왕복하지 않도록.
+          return send(res, 200, { granularity, rows, latest: rows[rows.length - 1] || null });
+        }
+
+        // 지출·손익. 실비는 실측(토큰×공개단가), 고정비와 매출은 David 입력값.
+        if (p === "/api/admin/finance" && req.method === "GET") {
+          const month = url.searchParams.get("month") || new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 7);
+          const costBuckets = store.costBuckets();
+          const days = Object.keys(costBuckets).filter((d) => d.startsWith(month));
+          // 그 달에 지출 기록이 없는 날도 고정비는 발생한다 — 달의 모든 날을 쓴다.
+          const allDays = [];
+          const dim = daysInMonth(month);
+          for (let i = 1; i <= dim; i++) allDays.push(`${month}-${String(i).padStart(2, "0")}`);
+          const merged = mergeCostBuckets(days.map((d) => costBuckets[d]));
+          const revenue = store.revenueAll()[month];
+          const pl = profitAndLoss({
+            costBucket: merged,
+            fixedByMonth: store.fixedCostsAll(),
+            days: allDays,
+            revenueKrw: revenue == null ? null : revenue
+          });
+          return send(res, 200, {
+            month, usage: merged, pl,
+            fixed: store.fixedCostsAll()[month] || null,
+            months: [...new Set([...Object.keys(costBuckets).map((d) => d.slice(0, 7)), ...Object.keys(store.fixedCostsAll())])].sort()
+          });
+        }
+
+        if (p === "/api/admin/finance" && req.method === "POST") {
+          const body = await readBody(req);
+          const month = typeof body.month === "string" && /^\d{4}-\d{2}$/.test(body.month) ? body.month : null;
+          if (!month) return send(res, 400, { error: "month must be YYYY-MM" });
+          const out = {};
+          if (Array.isArray(body.fixed)) out.fixed = store.setFixedCosts(month, body.fixed);
+          if (body.revenueKrw != null) out.revenueKrw = store.setRevenue(month, body.revenueKrw);
+          return send(res, 200, { ok: true, month, ...out });
+        }
+
         if (p === "/api/admin/delete-post" && req.method === "POST") {
           const body = await readBody(req);
           const ok = store.deletePost(body.id);
