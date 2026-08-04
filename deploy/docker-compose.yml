@@ -22,6 +22,13 @@ services:
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:comeva2kr@gmail.com}
       - ADMIN_TOKEN=${ADMIN_TOKEN}
+      # IndexNow — 새 콘텐츠를 검색엔진에 우리가 먼저 알린다(네이버 2023-07-25
+      # 지원 공지, 빙도 같은 엔드포인트). 브리핑이 하루 3회 갱신되는 구조에서
+      # 크롤러를 기다리면 그만큼 색인이 늦고 곧 유입 손실이다.
+      # 키는 우리가 정하는 임의 문자열이고, /{키}.txt 응답이 소유 증명이 된다.
+      # 비어 있으면 통보 자체를 안 한다(no-op) — 키 없는 배포도 정상 동작.
+      - INDEXNOW_KEY=${INDEXNOW_KEY:-}
+      - PUBLIC_HOST=${PUBLIC_HOST:-nowhot.kr}
       # 브리핑 해설 생성 (src/feed/llm.js). 비어 있으면 호출 자체를 안 하고
       # 규칙 기반 브리핑이 그대로 나간다 — 키 없는 배포도 정상 동작한다.
       # LLM_MODEL 미지정 시 claude-sonnet-5 (2026-08-04 3모델 실측 비교 결과).
