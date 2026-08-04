@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back to the cached shell offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v74"; // v74: 브리핑 편성 화면 완성(슬롯 레일·날짜 이동) // v73: IndexNow 배선 + 설명문 정정(죽은 소스 제거·80자) // v72: 유입 경로 개방(Discover·카톡 공유·색인 정리) // v71: 조회수·작성일 수집 + 브리핑 날짜·시간대 이동 // v70: 하루 3편 브리핑 편성(아침·점심·저녁) + 랭킹 순위 번호 // v69: 승격 제외·광고 인접 가드·제목 번역 복구·한글 번역 링크 (2026-08-04) // v68: 광고 지면 정상화·홈 서버렌더·신원 확정·약관/방침 보강 (2026-08-04)
+const CACHE = "feed-shell-v75"; // v75: 읽던 자리로 돌아오기(강제 재로드 복원) // v74: 브리핑 편성 화면 완성(슬롯 레일·날짜 이동) // v73: IndexNow 배선 + 설명문 정정(죽은 소스 제거·80자) // v72: 유입 경로 개방(Discover·카톡 공유·색인 정리) // v71: 조회수·작성일 수집 + 브리핑 날짜·시간대 이동 // v70: 하루 3편 브리핑 편성(아침·점심·저녁) + 랭킹 순위 번호 // v69: 승격 제외·광고 인접 가드·제목 번역 복구·한글 번역 링크 (2026-08-04) // v68: 광고 지면 정상화·홈 서버렌더·신원 확정·약관/방침 보강 (2026-08-04)
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png"];
 

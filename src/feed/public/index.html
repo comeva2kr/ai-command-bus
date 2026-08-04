@@ -1246,6 +1246,7 @@ const state = {
   registry: [], // full /api/communities list (all sources, unfiltered) — labels + frameable lookups
   communities: [], activeSource: null, // 홈은 항상 "전체"로 시작 (필터 선택이 저장돼 갇히지 않게 )
   feedScrollY: 0, // remembered scroll position for exact back-restore
+  pagesLoaded: 0, // 읽던 자리 복원용 — 몇 페이지까지 봤나
   cardsById: new Map(),
   // 정치/종교처럼 기본 숨김인 토픽 중 유저가 켠 것들. 서버가 진실의 원천이고
   // (session/me 응답으로 매번 덮어써짐), localStorage는 다음 로드 전까지의 캐시일 뿐.
@@ -1267,9 +1268,90 @@ addEventListener("pageshow", (e)=>{
   const nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
   const isBack = e.persisted || (nav && nav.type === "back_forward");
   if(!isBack) return;
+  if(resumable()) return;   // 자리 복원이 페이지까지 다시 불러 온다 — 그쪽이 정확하다
   let y = 0; try { y = Number(sessionStorage.getItem(SCROLL_KEY) || 0); } catch {}
   if(y > 0) requestAnimationFrame(()=> requestAnimationFrame(()=> window.scrollTo(0, y)));
 });
+
+// ── 읽던 자리로 돌아오기 (David 2026-08-05 2차 리포트 4번, "심각")
+//
+// 증상은 "갱신되면 맨 위로 튄다"였는데, 파 보니 **자동 갱신 타이머는 없었다.**
+// reloadFeed는 사용자가 누를 때만 돈다. 진짜 원인은 복원 조건이다 — 위치를
+// 저장은 하면서(pagehide) 복원은 **뒤로가기일 때만** 했다. 그래서 어떤 이유로든
+// 문서가 다시 로드되면 무조건 맨 위였다. 휴대폰에서 앱을 전환했다 돌아오면
+// 브라우저가 탭을 버리고 다시 읽는데, 그게 정확히 이 경우다.
+//
+// ── 어려운 부분: 새로고침과 강제 재로드를 가르는 일
+// David의 기존 규칙은 "새로고침 = 홈 다시 보기"(2026-08-01)다. 그런데 둘 다
+// 문서 재로드라 navigation type으로는 안 갈린다. 가르는 신호는 **죽을 때 화면을
+// 보고 있었는가**다:
+//   · 당겨서 새로고침 → 보고 있는 상태에서 언로드 → 의도한 것 → 홈으로
+//   · 앱 전환·탭 폐기   → 숨겨진 뒤에 죽음            → 사고    → 자리 복원
+// visibilitychange(hidden)에서 한 번, 스크롤 중에 한 번 기록해 두면 어느
+// 경로로 죽어도 마지막 기록에 그 사실이 남는다.
+//
+// 위치만 되돌리면 소용없다 — 그 자리에 글이 없다. 보던 페이지 수만큼 다시
+// 불러온 **뒤에** 옮긴다.
+const READ_KEY = "feed_reading";
+const RESUME_MAX_AGE_MS = 30 * 60 * 1000;  // 30분 넘으면 새 화제글을 보는 게 낫다
+const RESUME_MAX_PAGES = 6;                // 60건. 그 이상은 복원 대기가 더 답답하다
+const RESUME_MIN_Y = 240;                  // 첫 화면 언저리면 복원할 것도 없다
+
+function saveReading(hidden){
+  try {
+    sessionStorage.setItem(READ_KEY, JSON.stringify({
+      y: window.scrollY, pages: state.pagesLoaded,
+      sort: state.sortMode, source: state.activeSource || "",
+      hidden: !!hidden, at: Date.now()
+    }));
+  } catch {}
+}
+function readSaved(){
+  try { return JSON.parse(sessionStorage.getItem(READ_KEY) || "null"); } catch { return null; }
+}
+function clearReading(){ try { sessionStorage.removeItem(READ_KEY); } catch {} }
+
+// 복원할 만한 기록이 있는가. 조건이 하나라도 어긋나면 평소대로 홈을 보여준다 —
+// 애매할 때 억지로 되돌리면 "왜 여기 있지"가 되어 더 나쁘다.
+function resumable(){
+  const r = readSaved();
+  if(!r || !r.hidden) return null;                       // 보고 있다 죽었으면 의도한 새로고침
+  if(Date.now() - r.at > RESUME_MAX_AGE_MS) return null;
+  if(r.sort !== state.sortMode) return null;             // 정렬이 바뀌었으면 다른 목록이다
+  if((r.source || "") !== (state.activeSource || "")) return null;
+  if(!(r.y > RESUME_MIN_Y) || !(r.pages > 0)) return null;
+  if(location.hash.indexOf("#post-") === 0) return null; // 딥링크는 상세를 여는 게 먼저
+  return r;
+}
+
+async function resumeOrLoad(){
+  const r = resumable();
+  if(!r){ clearReading(); loadMore(); return; }
+  const want = Math.min(r.pages, RESUME_MAX_PAGES);
+  for(let i = 0; i < want && !state.exhausted; i++) await loadMore();
+  // 목록이 줄었을 수 있다(오래된 글이 빠진다) — 문서 끝을 넘지 않게 자른다.
+  const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  const y = Math.min(r.y, max);
+  requestAnimationFrame(()=> requestAnimationFrame(()=> {
+    window.scrollTo(0, y);
+    // 말없이 옮기면 고장으로 읽힌다. 무슨 일이 있었는지 한 줄로 알린다.
+    toast(r.pages > RESUME_MAX_PAGES ? "읽던 근처로 돌아왔어요" : "읽던 자리로 돌아왔어요");
+  }));
+}
+
+// 스크롤 중에는 화면을 보고 있는 것이므로 hidden=false로 남긴다.
+(function(){
+  let queued = false;
+  addEventListener("scroll", ()=>{
+    if(queued) return; queued = true;
+    requestAnimationFrame(()=>{ queued = false; saveReading(false); });
+  }, { passive:true });
+  addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState === "hidden") saveReading(true);
+  });
+  // pagehide 시점의 visibilityState가 이 언로드의 성격을 그대로 말해 준다.
+  addEventListener("pagehide", ()=> saveReading(document.visibilityState === "hidden"));
+})();
 
 const SRC_COLORS = {}; // stable color per source
 // 소스 대표색 (David 2026-08-01 "플랫폼 이름도 대표색으로 색만 봐도 구분되게").
@@ -1359,7 +1441,7 @@ syncHeaderHeight();
   setupMixSlider(s);
   // Always show content first — a preview feed (popularity-ranked when no taste
   // yet). Personalization is invited, never a gate. (adversarial review #1)
-  updateMeter(s); loadMore(); openFromHash();
+  updateMeter(s); resumeOrLoad(); openFromHash();
   // 이미 취향을 맞춘 적 있는 계정이면(다른 기기에서 로그인해 온 경우 등)
   // 사용법 설명은 건너뛴다 — 아는 사람에게 다시 띄우면 방해다.
   if(!s.surveyed) maybeShowOnboarding();
@@ -2002,6 +2084,8 @@ function reloadFeed(msg){
     '<div class="skel skel-line" style="width:30%"></div>' +
     '<div class="skel skel-line" style="width:88%;height:18px"></div></div></div>';
   window.scrollTo(0, 0);
+  state.pagesLoaded = 0;
+  clearReading();   // 스스로 새로고침한 것이니 읽던 자리는 버린다 (David 2026-08-01)
   if(msg) toast(msg);
   loadMore();
 }
@@ -2559,6 +2643,7 @@ function prefetchNext(){
 function renderBatch(res){
   const sk = document.getElementById("feedSkel"); if(sk) sk.remove();
   state.cursor = res.nextCursor;
+  state.pagesLoaded++;
   updateMeter(res);
   for(const item of res.items) appendCard(item);
   maybeInsertAdfit(); // 첫 페이지 4번째 카드 뒤 1회 (config에 광고단위 있을 때만)
