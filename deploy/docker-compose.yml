@@ -22,6 +22,11 @@ services:
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:comeva2kr@gmail.com}
       - ADMIN_TOKEN=${ADMIN_TOKEN}
+      # 브리핑 해설 생성 (src/feed/llm.js). 비어 있으면 호출 자체를 안 하고
+      # 규칙 기반 브리핑이 그대로 나간다 — 키 없는 배포도 정상 동작한다.
+      # LLM_MODEL 미지정 시 claude-sonnet-5 (2026-08-04 3모델 실측 비교 결과).
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-}
       # 소셜 로그인 — 키가 설정된 provider만 앱에 버튼이 노출된다(auth.js 게이트).
       # 비어 있으면 그 provider는 비활성일 뿐, 앱은 익명으로 정상 동작한다.
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}

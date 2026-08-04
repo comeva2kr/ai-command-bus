@@ -93,20 +93,41 @@ export function buildPrompt(brief) {
   return `다음은 지금 한국 커뮤니티와 뉴스에서 화제인 사안들입니다.\n\n${lines.join("\n\n")}`;
 }
 
-// 생성 문장 검증. 하나라도 걸리면 그 이슈는 버리고 규칙 기반 문장을 쓴다.
+// 생성 문장 검증. 걸리면 그 이슈는 버리고 규칙 기반 문장을 쓴다.
 //
-// 숫자를 통째로 막는 이유: 모델이 "댓글 300여 개"처럼 그럴듯한 수를 지어내면
-// 사람 눈에는 사실처럼 보이는데 우리는 그 수를 잰 적이 없다. 잰 수치는 코드가
-// 붙이므로 생성 문장에는 숫자가 있을 이유가 없다.
-export function validParagraph(text, { min = 40, max = 700 } = {}) {
+// ── 판정 기준 (2026-08-04 실측 후 정밀화)
+// 처음엔 숫자를 통째로 막았는데, 실제로 돌려 보니 양쪽으로 틀렸다.
+//   너무 적게 막음: "열 가지", "스물" 같은 한글 고유수사를 안 걸렀다.
+//   너무 많이 막음: 제목에 있던 "성과 10가지"를 옮겨 쓴 것까지 버렸다.
+//                   그건 지어낸 게 아니라 출처에 있는 사실이다.
+// 실측에서 6개 중 5개만 통과한 게 후자 때문이었다.
+//
+// 막아야 할 것은 **지어낸 수치**지 내용을 설명하는 수가 아니다. 그래서
+// 기준을 "입력에 없던 수를 썼는가"로 바꿨다 — 출처 제목에 있던 숫자는
+// 통과하고, 모델이 만들어 낸 숫자만 걸린다. 판정이 기계적이라 사람 판단이
+// 끼어들 여지도 없다.
+//
+// 여기에 반응 수치는 한 겹 더 막는다. "추천 300", "댓글 수백 건"처럼
+// 우리가 재서 붙이는 값을 모델이 문장 안에 또 쓰면, 설령 입력에 있던
+// 수라도 우리 수치와 어긋날 위험이 있다 — 그 자리는 코드가 채운다.
+const NUM_WORD = "[0-9〇一二三四五六七八九十百千万億일이삼사오육칠팔구십백천만억하나둘셋넷다섯여섯일곱여덟아홉열스물서른마흔쉰수몇여러]";
+const METRIC = new RegExp(`(추천|댓글|조회|반응|좋아요)\\s*(수|가|은|는|이)?\\s*${NUM_WORD}|${NUM_WORD}[여만천]?\\s*(건|개|명|회)\\s*(의)?\\s*(추천|댓글|조회|반응)`);
+
+const digits = (t) => new Set((String(t).match(/[0-9]+/g) || []));
+
+export function validParagraph(text, { min = 40, max = 700, source = "" } = {}) {
   if (typeof text !== "string") return false;
   const t = text.trim();
   if (t.length < min || t.length > max) return false;
-  if (/[0-9]/.test(t)) return false;          // 아라비아 숫자
-  // 한자·한글 수사도 막는다. "십여 건", "수백 개"처럼 세어 본 적 없는 양을
-  // 문장으로 쓰면 아라비아 숫자와 똑같이 지어낸 수치다.
-  if (/[〇一二三四五六七八九十百千万億일이삼사오육칠팔구십백천만억수여러몇]\s*[여명]?\s*(개|건|명|곳|위|배|퍼센트|%)/.test(t)) return false;
-  if (/<[^>]+>/.test(t)) return false;         // 태그 누출
+  if (/<[^>]+>/.test(t)) return false;              // 태그 누출
+
+  // ① 입력에 없던 숫자 = 지어낸 수
+  const allowed = digits(source);
+  for (const n of digits(t)) if (!allowed.has(n)) return false;
+
+  // ② 반응 수치는 입력에 있어도 문장에 쓰지 않는다 — 그 자리는 코드가 채운다
+  if (METRIC.test(t)) return false;
+
   return true;
 }
 
@@ -178,6 +199,7 @@ export function makeWriter({
     const hit = cache.get(cacheKey);
     if (hit) return hit;
 
+    const promptText = buildPrompt(brief);
     let out;
     try {
       out = await call(brief);
@@ -190,13 +212,13 @@ export function makeWriter({
     let written = 0;
     const issues = brief.issues.map((is, n) => {
       const p = byN.get(n + 1);
-      if (!validParagraph(p)) return is;
+      if (!validParagraph(p, { source: promptText })) return is;
       written++;
       // 측정값 문장(is.paragraph)은 해설 뒤에 그대로 남긴다. 해석은 모델이,
       // 수치는 우리가 — 독자는 둘 다 본다.
       return { ...is, essay: p.trim() };
     });
-    const summary = validParagraph(out.parsed.summary, { min: 40, max: 900 })
+    const summary = validParagraph(out.parsed.summary, { min: 40, max: 900, source: promptText })
       ? out.parsed.summary.trim() : null;
 
     const result = { ...brief, issues, essay: summary, llm: { written, model } };
