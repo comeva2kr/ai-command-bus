@@ -13,7 +13,7 @@ import { hasProfanity } from "./profanity.js";
 import { promotable, isLowValue } from "./promotion.js";
 import { isJunkImage } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
-import { buildDigest, MIN_ISSUES, slotForHour } from "./digest.js";
+import { buildDigest, MIN_ISSUES, slotForHour, slotById, isOverseas } from "./digest.js";
 import { rankParams, categorySets, selectDiverse } from "./rank.js";
 import {
   rankItems,
@@ -1309,15 +1309,30 @@ export class FeedEngine {
     return { generatedAt: new Date(now).toISOString(), items: out };
   }
 
-  async briefing() {
+  // slotId를 주면 그 시간대의 성격으로 편성한다 (David 2026-08-04).
+  // 안 주면 지금 시각의 슬롯 — 기존 호출부와 호환된다.
+  async briefing({ slotId = null } = {}) {
     const items = await this._items();
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+    const kstHour0 = new Date(now + 9 * 3600 * 1000).getUTCHours();
+    const slotDef = slotId ? slotById(slotId) : slotForHour(kstHour0);
+    // 그 시간대에 **새로 화제가 된 것**만 본다. 예전엔 풀 전체(48시간)를 그대로
+    // 봐서 아침·점심·저녁 브리핑이 사실상 같은 글을 실었다. 창을 나눠야
+    // "아침엔 밤사이 일, 저녁엔 오늘 일"이 성립한다.
+    const windowMs = (slotDef.windowHours || 12) * 3600 * 1000;
+    const inWindow = (i) => {
+      const t = Number.isFinite(i.firstSeenAt) ? i.firstSeenAt
+        : (i.publishedAt ? Date.parse(i.publishedAt) : NaN);
+      return !Number.isFinite(t) || (now - t) <= windowMs;
+    };
     const pool = items.filter(
       (i) =>
         !i.adult &&
         !(i.topics || []).includes("politics") &&
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
+        promotable(i) &&
+        inWindow(i) &&
         !tooOld(i, now)
     );
     const engagement = (i) => (i.score || 0) + (i.commentCount || 0) * 2;
@@ -1419,9 +1434,17 @@ export class FeedEngine {
       balancedPool.push(i);
       if (balancedPool.length >= 60) break;
     }
-    const digest = buildDigest(balancedPool);
-    const kstHour = new Date(now + 9 * 3600 * 1000).getUTCHours();
-    const slot = slotForHour(kstHour);
+    // 아침에는 해외를 앞으로 당긴다. 한국이 자는 동안 새로 생긴 이야기는
+    // 대부분 해외 쪽이고, 국내 커뮤니티는 그 시간에 조용하다.
+    // 가중은 순서만 바꾸고 무엇을 뺄지는 정하지 않는다 — 국내가 크게 터진
+    // 아침이면 국내가 그대로 앞에 온다.
+    const bias = slotDef.overseasBias || 1;
+    const slotPool = bias === 1 ? balancedPool : balancedPool.slice().sort((a, b) => {
+      const w = (i) => ((i.score || 0) + (i.commentCount || 0) * 2) * (isOverseas(i) ? bias : 1);
+      return w(b) - w(a);
+    });
+    const digest = buildDigest(slotPool);
+    const slot = slotDef;
 
     return {
       generatedAt: new Date(now).toISOString(),
@@ -1429,7 +1452,9 @@ export class FeedEngine {
       sourceCount: new Set(pool.map((i) => i.source)).size,
       // ④⑤ 이슈 본문 + 편성. publishable=false면 서버가 발행하지 않는다 —
       // 수집이 멈춘 시간대에 빈 브리핑이 나가는 것을 막는 안전장치.
-      slot: { id: slot.id, label: slot.label },
+      slot: { id: slot.id, label: slot.label, lead: slot.lead || null,
+        windowHours: slot.windowHours, overseasBias: slot.overseasBias },
+      overseasShare: pool.length ? Math.round(pool.filter(isOverseas).length / pool.length * 100) : 0,
       issues: digest.issues,
       digestSummary: digest.summary,
       publishable: digest.issues.length >= MIN_ISSUES,

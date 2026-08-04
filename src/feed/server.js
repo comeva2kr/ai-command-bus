@@ -9,6 +9,7 @@ import http from "node:http";
 import { pickBanner, loadBanners } from "./manual-products.js";
 import { adCopy, AD_DISCLOSURE, withSubId } from "./ad-copy.js";
 import { makeWriter } from "./llm.js";
+import { SLOTS } from "./digest.js";
 import { series } from "./analytics.js";
 import { mergeCostBuckets, profitAndLoss, daysInMonth } from "./costs.js";
 import { communityRanking, sourceBest, keywordIndex, keywordPage } from "./pages.js";
@@ -457,6 +458,80 @@ export function createServer(opts = {}) {
     return b;
   };
 
+  // ── 하루 3편 편성 (David 2026-08-04) ─────────────────────────────────────
+  //
+  // "15분마다 갱신될 필요는 없지 않니? 사람들 활동시간 기준으로 아침 점심
+  //  저녁에만 한번씩 브리핑 해도 될 것 같은데 내용 충실하게 해서."
+  //
+  // 예전엔 요청이 올 때마다 그 순간의 풀로 다시 만들었다. 그래서 (1) 캐시가
+  // 빗나가면 사용자가 LLM 응답을 24초 기다렸고, (2) 15분마다 내용이 바뀌어
+  // "오늘의 브리핑"이라 부를 만한 고정된 편이 없었으며, (3) 날짜별 아카이브에
+  // 해설이 한 건도 남지 않았다.
+  //
+  // 이제 슬롯 시각(아침 7시·점심 12시·저녁 19시 KST)에 한 번 만들어 저장하고,
+  // 페이지는 읽기만 한다. 해설도 그 시점에 함께 붙여 저장하므로 아카이브에
+  // 영구히 남는다.
+  const kstDate = (ms) => new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const kstHour = (ms) => new Date(ms + 9 * 3600 * 1000).getUTCHours();
+  const SLOT_ORDER = SLOTS.map((x) => x.id);
+
+  // 지금 시각에 "이미 발행됐어야 하는" 슬롯. 발행 시각을 지나지 않았으면 null.
+  function dueSlot(nowMs) {
+    const h = kstHour(nowMs);
+    let due = null;
+    for (const sl of SLOTS) if (h >= sl.publishHour) due = sl;
+    return due;   // 새벽(0~6시)이면 null — 전날 이브닝을 그대로 쓴다
+  }
+
+  async function buildAndStoreBriefing(slotId, nowMs) {
+    const date = kstDate(nowMs);
+    const base = await engine.briefing({ slotId });
+    if (!base || !base.publishable) return null;
+    // 해설은 **여기서만** 기다린다. 사용자 요청이 아니라 배경 작업이라
+    // 24초가 걸려도 아무도 기다리지 않는다.
+    let full = base;
+    try { full = await llmWriter(base, llmKey(base)); } catch (e) {
+      console.warn("[briefing] 해설 생성 실패, 규칙 기반으로 발행:", e && e.message);
+    }
+    store.saveBriefing(date, slotId, full);
+    console.log(`[briefing] ${date} ${slotId} 발행 — 이슈 ${(full.issues || []).length}개, 해설 ${full.llm ? full.llm.written : 0}개`);
+    return full;
+  }
+
+  // 저장본을 읽는다. 아직 없으면(첫 기동·새 슬롯 직후) 즉시 만들어 채운다.
+  async function currentBriefing() {
+    const now = Date.now();
+    const date = kstDate(now);
+    const due = dueSlot(now);
+    if (due) {
+      const stored = store.getBriefing(date, due.id);
+      if (stored) return stored;
+      const made = await buildAndStoreBriefing(due.id, now);
+      if (made) return made;
+    }
+    // 오늘 것이 아직 없으면 어제 마지막 편이라도 보여준다 — 빈 화면보다 낫다.
+    const y = kstDate(now - 24 * 3600 * 1000);
+    return store.latestBriefing(date, SLOT_ORDER) || store.latestBriefing(y, SLOT_ORDER)
+      || withEssay(await engine.briefing());
+  }
+
+  // 슬롯 시각마다 한 번씩 발행. 정각을 놓쳐도(재기동 등) 다음 점검에서
+  // 저장본이 없으면 만든다 — 정각 트리거가 아니라 "있어야 할 게 있는가"로 본다.
+  const BRIEFING_CHECK_MS = Number(process.env.BRIEFING_CHECK_MS || 5 * 60 * 1000);
+  async function briefingTick() {
+    try {
+      const now = Date.now();
+      const due = dueSlot(now);
+      if (!due) return;
+      if (store.getBriefing(kstDate(now), due.id)) return;
+      await buildAndStoreBriefing(due.id, now);
+    } catch (e) { console.warn("[briefing] 편성 점검 실패:", e && e.message); }
+  }
+  if (process.env.FEED_LIVE) {
+    setInterval(briefingTick, BRIEFING_CHECK_MS).unref?.();
+    setTimeout(briefingTick, 30_000).unref?.();   // 기동 직후 수집이 끝난 뒤
+  }
+
   // 광고 문구 행렬. 배치가 파일을 새로 쓰면 다음 기동 때 반영된다.
   const adMatrix = loadMatrix();
   if (adMatrix) {
@@ -826,7 +901,7 @@ ${adSlotHtml("adfit")}
       // 비중"을 스스로 키우는 짓이다.
       if (p === "/rss.xml" && req.method === "GET") {
         const origin = originOf(req);
-        const b = await withEssay(await engine.briefing());
+        const b = await currentBriefing();
         const rankTop = ((await engine.rankingTop(20)) || {}).items || [];
         const now = new Date().toUTCString();
         const esc = (t) => escapeHtml(maskProfanity(String(t || "")));
@@ -955,7 +1030,7 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
       }
 
       if (p === "/briefing" && req.method === "GET") {
-        const b = await withEssay(await engine.briefing());
+        const b = await currentBriefing();
         const dateStr = kstLabel(b.generatedAt);
         const debateHtml = b.debate
           ? `<section><h2>오늘의 논쟁</h2><p>가장 많은 댓글이 달린 글은 <b>“${escapeHtml(b.debate.title)}”</b>(${escapeHtml(b.debate.sourceLabel)})입니다 — 댓글 ${fmtNum(b.debate.commentCount)}개가 이어지고 있습니다. <a href="/#post-${encodeURIComponent(b.debate.id)}">지금핫 댓글로 의견 남기기 →</a></p></section>`

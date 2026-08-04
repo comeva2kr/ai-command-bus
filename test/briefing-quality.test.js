@@ -127,7 +127,11 @@ test("브리핑: 수치가 자기모순이면 안 된다", async () => {
 test("브리핑: 같은 사건 중복과 한 매체 독식을 막는다", async () => {
   const src = (await import("node:fs")).readFileSync(
     new URL("../src/feed/engine.js", import.meta.url), "utf8");
-  const fn = src.slice(src.indexOf("async briefing()"), src.indexOf("async briefing()") + 4000);
+  // 2026-08-04: 시그니처가 briefing({ slotId })로 바뀌었다 — 슬롯마다 창과
+  // 해외 가중이 달라진다. 문자열로 자를 때 괄호까지 박아 두면 이렇게 깨진다.
+  const at = src.indexOf("async briefing(");
+  assert.ok(at > 0, "briefing 함수를 찾을 수 없다");
+  const fn = src.slice(at, at + 9000);
   assert.match(fn, /eventKey\(i\.title\)/, "이벤트 키로 중복을 걸러야 한다");
   assert.match(fn, /perOutlet/, "한 매체가 섹션을 독식하지 않아야 한다");
   // 2026-08-04: 비속어만 보던 것을 promotable()로 넓혔다. 비속어에 더해
@@ -135,6 +139,10 @@ test("브리핑: 같은 사건 중복과 한 매체 독식을 막는다", async 
   // 브리핑 대표에 "300추 가능한가요?"가 올라온 실측이 있었다. 삭제가 아니라
   // 승격 제외라 피드에는 그대로 남는다(promotion.js).
   assert.match(fn, /promotable/, "대표 글 선정은 승격 가능 여부로 판단한다");
+  // 하루 3편 — 슬롯마다 보는 구간과 해외 비중이 달라야 아침·점심·저녁이
+  // 같은 글을 싣지 않는다(David 2026-08-04).
+  assert.match(fn, /windowHours/, "슬롯별 시간 창");
+  assert.match(fn, /overseasBias/, "아침에는 해외를 앞으로 당긴다");
 });
 
 // ---------------------------------------------------------------------------
@@ -396,4 +404,54 @@ test("랭킹: 목록이 광고로 쪼개져도 순위 번호가 이어진다", a
   // counter-reset이 <ol>마다 1로 되돌린다.
   assert.match(src, /counter-reset:r var\(--rank-start,0\)/, "카운터 시작값을 밖에서 줄 수 있어야 한다");
   assert.match(src, /style="--rank-start:\$\{b\.from - 1\}"/, "각 묶음이 자기 시작 번호에서 이어져야 한다");
+});
+
+// ── 하루 3편 편성 (David 2026-08-04) ────────────────────────────────────────
+test("편성: 슬롯마다 보는 구간과 해외 비중이 다르다", async () => {
+  const { SLOTS, slotById, isOverseas } = await import("../src/feed/digest.js");
+  assert.deepEqual(SLOTS.map((s) => s.id), ["morning", "lunch", "evening"]);
+  // 발행 시각은 사람들 활동시간 기준 — 아침 7시, 점심 12시, 저녁 7시
+  assert.deepEqual(SLOTS.map((s) => s.publishHour), [7, 12, 19]);
+  // 아침은 자는 동안 쌓인 것을 봐야 하므로 창이 가장 길고, 해외를 앞으로 당긴다.
+  assert.equal(slotById("morning").windowHours, 12);
+  assert.ok(slotById("morning").overseasBias > 1, "아침에는 해외 가중");
+  assert.equal(slotById("lunch").overseasBias, 1, "점심·저녁은 자연스러운 반응량으로");
+  assert.equal(slotById("evening").overseasBias, 1);
+  // 창이 다르면 아침·점심·저녁이 같은 글을 싣지 않는다
+  assert.ok(slotById("morning").windowHours > slotById("lunch").windowHours);
+
+  // 해외 판별은 언어로 한다 — kind는 국적을 말해 주지 않는다(해커뉴스가 community다)
+  assert.equal(isOverseas({ lang: "en" }), true);
+  assert.equal(isOverseas({ originalLang: "en", lang: "ko", translated: true }), true);
+  assert.equal(isOverseas({ lang: "ko" }), false);
+  assert.equal(isOverseas(null), false);
+});
+
+test("편성: 요청이 아니라 슬롯 시각에 만들어 저장한다", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
+  // 예전엔 요청마다 다시 만들어서 (1) 캐시 미스 시 24초 대기 (2) 15분마다 내용이
+  // 바뀌어 "오늘의 브리핑"이라 부를 편이 없었고 (3) 아카이브에 해설이 0건이었다.
+  assert.match(src, /function dueSlot/, "지금 발행됐어야 할 슬롯을 판단해야 한다");
+  assert.match(src, /store\.saveBriefing/, "만든 편을 저장해야 아카이브에 남는다");
+  assert.match(src, /async function currentBriefing/, "페이지는 저장본을 읽는다");
+  // 배경 작업에서는 해설을 기다린다 — 아무도 그 시간을 체감하지 않는다
+  const bg = src.slice(src.indexOf("async function buildAndStoreBriefing"), src.indexOf("async function buildAndStoreBriefing") + 900);
+  assert.match(bg, /await llmWriter/, "배경 생성에서는 해설을 붙여 저장한다");
+  // 정각을 놓쳐도(재기동 등) 다음 점검에서 채운다
+  assert.match(src, /if \(store\.getBriefing\(kstDate\(now\), due\.id\)\) return;/, "이미 있으면 다시 만들지 않는다");
+});
+
+test("store: 브리핑 저장·조회·최근 편 되찾기", async () => {
+  const { FeedStore } = await import("../src/feed/store.js");
+  const store = new FeedStore();
+  assert.equal(store.getBriefing("2026-08-04", "morning"), null);
+  store.saveBriefing("2026-08-04", "morning", { issues: [1, 2, 3], slot: { id: "morning" } });
+  store.saveBriefing("2026-08-04", "lunch", { issues: [4], slot: { id: "lunch" } });
+  assert.deepEqual(store.getBriefing("2026-08-04", "morning").issues, [1, 2, 3]);
+  // 슬롯 경계 직후 아직 안 만들어졌으면 이전 슬롯을 보여준다 — 빈 화면보다 낫다
+  const order = ["morning", "lunch", "evening"];
+  assert.deepEqual(store.latestBriefing("2026-08-04", order).slot.id, "lunch");
+  assert.equal(store.latestBriefing("2026-08-03", order), null);
+  assert.deepEqual(store.briefingDates(), ["2026-08-04"]);
 });

@@ -441,6 +441,37 @@ export class FeedStore {
     for (const k of keys.sort().slice(0, keys.length - keep)) delete m[k];
   }
 
+  // 브리핑 한 편을 저장한다 (날짜 + 슬롯). 요청 때마다 만들지 않고 하루 3번만
+  // 만들어 두는 구조의 저장소다 — 페이지는 읽기만 하므로 항상 즉시 응답하고,
+  // 해설도 그 시점 그대로 아카이브에 남는다(예전엔 실시간 /briefing에만
+  // 있고 날짜별 아카이브에는 한 건도 없었다).
+  saveBriefing(date, slotId, data) {
+    if (!this.briefings) this.briefings = {};
+    if (!this.briefings[date]) this.briefings[date] = {};
+    this.briefings[date][slotId] = { ...data, savedAt: this._nowMs() };
+    // 아카이브는 400일이면 충분하다 — 그 이상은 파일만 불린다.
+    const dates = Object.keys(this.briefings).sort();
+    for (const d of dates.slice(0, Math.max(0, dates.length - 400))) delete this.briefings[d];
+    this._persist();
+    return this.briefings[date][slotId];
+  }
+
+  getBriefing(date, slotId) {
+    return (this.briefings && this.briefings[date] && this.briefings[date][slotId]) || null;
+  }
+
+  // 그날 저장된 편들 중 가장 최근 것. 슬롯 경계 직후 아직 안 만들어졌으면
+  // 이전 슬롯을 보여준다 — 빈 화면보다 낫다.
+  latestBriefing(date, order) {
+    const day = (this.briefings && this.briefings[date]) || {};
+    for (let k = order.length - 1; k >= 0; k--) if (day[order[k]]) return day[order[k]];
+    return null;
+  }
+
+  briefingDates() {
+    return this.briefings ? Object.keys(this.briefings).sort() : [];
+  }
+
   getDailyEdition(date) {
     return (this.dailyEditions && this.dailyEditions.get(date)) || null;
   }
@@ -995,6 +1026,7 @@ export class FeedStore {
       // 재시작에도 반드시 유지 (애드핏 대응, David 2026-07-31)
       dailyEditions: [...(this.dailyEditions || new Map())].map(([date, e]) => ({ date, ...e })),
       sourceHealth: this.sourceHealth || {},
+      briefings: this.briefings || {},
       analytics: this.analytics || {},
       costs: this.costs || {},
       fixedCosts: this.fixedCosts || {},
@@ -1022,6 +1054,7 @@ export class FeedStore {
       this.traffic = data.traffic || {};
       this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
       this.sourceHealth = data.sourceHealth || {};
+      this.briefings = data.briefings || {};
       this.analytics = data.analytics || {};
       this.costs = data.costs || {};
       this.fixedCosts = data.fixedCosts || {};

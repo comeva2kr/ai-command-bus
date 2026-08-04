@@ -162,11 +162,53 @@ export function issueTone(shape) {
 
 // slot: 하루 편성. 수집이 멈춘 시간대에 빈 글이 발행되지 않도록 호출부가
 // MIN_ISSUES로 막는다(server/engine).
+// ── 하루 3편, 시간대마다 성격이 다르다 (David 2026-08-04)
+//
+// "15분마다 갱신될 필요는 없지 않니? 사람들 활동시간 기준으로 아침 점심
+//  저녁에만 한번씩 브리핑 해도 될 것 같은데 내용 충실하게 해서.
+//  아침 브리핑이면 지난 밤 있던 얘기들 위주에 해외 핫토픽을 한글로 정리해서
+//  올리는 게 많을 거고 점심 저녁은 국내 비중이 많을 수 있고."
+//
+// 그래서 슬롯마다 두 가지가 달라진다:
+//   windowHours — 어느 구간의 글을 볼 것인가
+//   overseasBias — 해외 소스를 얼마나 앞에 둘 것인가 (1이면 가중 없음)
+//
+// 아침은 한국이 자는 동안 쌓인 해외 이야기가 주된 새 정보다. 국내 커뮤니티는
+// 밤사이 조용하고, 반대로 해커뉴스·Techmeme은 그 시간이 한창이다.
+// 점심·저녁은 국내가 활발하므로 가중을 두지 않는다 — 자연스러운 반응량으로
+// 겨루게 둔다.
 export const SLOTS = [
-  { id: "morning", label: "모닝", fromHour: 5, toHour: 11 },
-  { id: "lunch", label: "런치", fromHour: 11, toHour: 17 },
-  { id: "evening", label: "이브닝", fromHour: 17, toHour: 5 }
+  {
+    id: "morning", label: "모닝", fromHour: 5, toHour: 11,
+    publishHour: 7,
+    windowHours: 12,      // 전날 저녁부터 오늘 아침까지 — 자는 동안 있었던 일
+    overseasBias: 1.6,
+    lead: "밤사이 해외에서 오간 이야기부터"
+  },
+  {
+    id: "lunch", label: "런치", fromHour: 11, toHour: 17,
+    publishHour: 12,
+    windowHours: 6,
+    overseasBias: 1,
+    lead: "오전에 가장 많이 오간 이야기"
+  },
+  {
+    id: "evening", label: "이브닝", fromHour: 17, toHour: 5,
+    publishHour: 19,
+    windowHours: 7,
+    overseasBias: 1,
+    lead: "오늘 하루 가장 크게 번진 이야기"
+  }
 ];
+
+export const slotById = (id) => SLOTS.find((s) => s.id === id) || SLOTS[0];
+
+// 해외 소스인가 — 언어로 판별한다. kind는 community/news로 갈릴 뿐 국적을
+// 말해 주지 않고(해커뉴스가 community다), 소스 목록을 하드코딩하면 소스를
+// 추가할 때마다 여기도 고쳐야 한다.
+export const isOverseas = (item) =>
+  Boolean(item && ((item.originalLang && item.originalLang !== "ko") ||
+    (item.lang && item.lang !== "ko") || item.translated));
 
 export const MIN_ISSUES = 3; // 이보다 적으면 발행하지 않는다 — 빈 글은 자체 콘텐츠가 아니다
 
