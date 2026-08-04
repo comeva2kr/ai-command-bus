@@ -1006,7 +1006,9 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
             .filter((b) => b.size === "320x100")
             .map((b) => {
               const [hook, brand] = adCopy(b.dest);
-              return { category: b.category, href: b.href, img: b.img, hook, brand };
+              // dest도 함께 — 클라이언트가 "방금 이 도착지를 썼는지"로
+              // 중복을 거른다. href는 사이즈마다 달라 같은 도착지를 못 잡는다.
+              return { category: b.category, dest: b.dest, href: b.href, img: b.img, hook, brand };
             });
           return items.length ? { disclosure: COUPANG_DISCLOSURE, items } : null;
         })();

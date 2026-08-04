@@ -1406,7 +1406,7 @@ function withSubId(href, slot){
 // 상세 화면용 — 카드 틀 안에 같은 크리에이티브를 넣는다.
 function detailAdHtml(category){
   const cp = state.config && state.config.coupang;
-  const link = pickCoupangLink(category);
+  const link = pickCoupangLink(category, category);
   if(!link) return "";
   return `<article class="card ad-card ad-net" style="margin:18px 0">${coupangCardHtml(link, cp.disclosure, "detail")}</article>`;
 }
@@ -1429,14 +1429,69 @@ function coupangCardHtml(link, disclosure, slot){
     <p class="ad-disclosure">${escapeHtml(disclosure)}</p>`;
 }
 
-// 문맥에 맞는 제휴 링크를 고른다. 같은 카테고리가 있으면 그걸 쓰고, 없으면 회전.
+// 문맥에 맞는 제휴 링크를 고른다.
+//
+// ── 왜 이렇게 복잡한가 (2026-08-03 David 실기기)
+// "같은 광고가 반복돼서 보이는 경우가 잦다. 와우 가입하라는 것만 몇 번 연속으로
+//  나오고 생활용품만 두세 번 나온다."
+// 원인 둘:
+//  1. 회전 카운터(adRotate) 하나로 **서로 다른 후보 풀**을 돌렸다. 길이 7짜리
+//     풀과 길이 1짜리 풀에 같은 카운터를 mod 하면 주기가 어긋나 반복이 난다.
+//     특히 멤버십(wow)은 business 묶음에 하나뿐이라, business 글이 연달아
+//     나오는 구간에서는 매번 같은 광고가 나왔다.
+//  2. 위 카드만 봤다. 광고는 카드 **사이**에 끼므로 위아래 둘 다 문맥이다.
+//
+// 그래서 (a) 최근에 내보낸 것은 후보에서 뺀다 (b) 위·아래 카테고리를 함께 보고
+// (c) 문맥이 맞아도 방금 쓴 것이면 다른 걸 먼저 고른다.
+// 피드 카테고리 → 붙일 만한 배너 카테고리.
+//
+// 1:1로만 매칭하면 재고가 하나뿐인 분야에서 그 하나가 계속 나온다. 실제로
+// 경제(business)에는 멤버십 배너 하나, 문화(culture)에는 도서 하나뿐이라
+// 시뮬레이션에서 멤버십이 40회 중 6회를 먹었다(David: "와우 가입하라는 것만
+// 몇 번"). 그래서 **인접 분야까지 후보로 연다** — 억지로 붙이는 게 아니라
+// 그 글을 읽는 사람이 실제로 살 만한 범위까지만 넓힌다.
+// 뉴스는 전용 재고가 없으므로 생활·가전으로 받는다.
+const AD_CTX = {
+  business: ["business", "tech", "life"],
+  news:     ["life", "tech"],
+  tech:     ["tech", "life"],
+  gaming:   ["tech", "humor"],
+  culture:  ["culture", "life"],
+  humor:    ["humor", "life"],
+  sports:   ["sports", "life"],
+  auto:     ["auto"],
+  life:     ["life"]
+};
+const AD_NO_REPEAT = 5;        // 최근 5개 안에 나온 도착지는 다시 안 고른다
+const recentAds = [];
 let adRotate = 0;
-function pickCoupangLink(category){
+
+function adKey(x){ return x.dest || x.href; }
+
+function pickCoupangLink(catBefore, catAfter){
   const cp = state.config && state.config.coupang;
   if(!cp || !cp.items || !cp.items.length) return null;
-  const inCat = cp.items.filter(x => x.category === category);
-  const pool = inCat.length ? inCat : cp.items;
-  return pool[(adRotate++) % pool.length];
+  // 정확 매칭(위·아래 카드의 실제 카테고리)과 인접 매칭을 **단계로 나눈다.**
+  // 하나로 합치면 재고가 많은 생활(7개)이 자동차(2개)를 밀어내, 자동차 글
+  // 옆에서 자동차 광고가 아예 안 나온다(실측). 인접은 정확 매칭이 최근 목록에
+  // 걸려 비었을 때만 쓰는 예비 재고다.
+  const exact = new Set([catBefore, catAfter].filter(Boolean));
+  const near = new Set();
+  for (const c of exact) for (const t of (AD_CTX[c] || [])) if (!exact.has(t)) near.add(t);
+  const notRecent = (x) => !recentAds.includes(adKey(x));
+
+  const tiers = [
+    cp.items.filter((x) => exact.has(x.category) && notRecent(x)),
+    cp.items.filter((x) => near.has(x.category) && notRecent(x)),
+    cp.items.filter(notRecent),
+    cp.items.filter((x) => exact.has(x.category)),
+    cp.items
+  ];
+  const pool = tiers.find((t) => t.length);
+  const chosen = pool[(adRotate++) % pool.length];
+  recentAds.push(adKey(chosen));
+  while(recentAds.length > AD_NO_REPEAT) recentAds.shift();
+  return chosen;
 }
 
 function maybeInsertAdfit(){
@@ -1474,7 +1529,10 @@ function maybeInsertAdfit(){
       // dataset.cat이다. dataset.category는 어디서도 세팅되지 않아 항상
       // undefined였고, 그래서 피드 광고 100%가 문맥 무관 라운드로빈이었다
       // (2026-08-03 마케팅 검수 실측). 상세 화면만 제대로 동작하고 있었다.
-      const link = pickCoupangLink(anchor.dataset.cat || null);
+      // 광고는 카드 사이에 끼므로 위아래 둘 다 문맥이다 — 한쪽만 보면
+      // "위아래 카테고리랑 맞춰서"(David)가 절반만 지켜진다.
+      const link = pickCoupangLink(anchor.dataset.cat || null,
+                                   (cards[i + 1] && cards[i + 1].dataset.cat) || null);
       if(!link) continue;
       slot.innerHTML = coupangCardHtml(link, cp.disclosure, `feed${i + 1}`);
     }
