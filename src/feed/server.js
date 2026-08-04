@@ -1158,7 +1158,7 @@ ${briefingSectionsHtml(b, coupangBannerHtml(null, null, 3, "brief_mid"))}
 ${debateHtml}
 ${archiveHtml}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 더쿠·클리앙·뽐뿌·보배드림 등 커뮤니티와 주요 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing"), coupangBannerHtml(null, null, 7, "page_bot")));
+        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 클리앙·뽐뿌·보배드림·이토랜드 등 커뮤니티와 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing"), coupangBannerHtml(null, null, 7, "page_bot")));
       }
 
       // 홈 최상단 브리핑 스트립용 원자료 (David 2026-07-31: "최상단에 테마별로

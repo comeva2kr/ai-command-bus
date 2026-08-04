@@ -185,3 +185,21 @@ test("사이트맵: lastmod가 있어야 구글이 바뀐 걸 안다", async () 
   assert.match(src, /fileMod\("terms\.html"\)/);
   assert.match(src, /savedAt \? isoOf\(savedAt\) : undefined/, "저장 기록이 없으면 lastmod를 비운다");
 });
+
+test("설명문: 없는 소스를 검색 스니펫에 광고하지 않는다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const server = readFileSync("src/feed/server.js", "utf8");
+  // 실측 2026-08-04: 더쿠·루리웹은 수집이 멈춘 지 오래인데(0건, stalled)
+  // 검색 설명문에서는 계속 "데려온다"고 말하고 있었다. 사실과 다른 서술이고,
+  // 스니펫과 실제 화면이 다르면 사용자 만족도 신호를 직접 깎는다.
+  const desc = html.match(/<meta name="description" content="([^"]*)"/)[1];
+  for (const dead of ["더쿠", "루리웹"]) {
+    assert.ok(!desc.includes(dead), `설명문에 죽은 소스: ${dead}`);
+    assert.ok(!/더쿠·클리앙/.test(server), "서버 렌더 설명문에도 남아 있다");
+  }
+  // 네이버 웹마스터 권고 — 80자 이내
+  assert.ok(desc.length <= 80, `설명문 ${desc.length}자 (80자 이내 권고)`);
+  const og = html.match(/<meta property="og:description" content="([^"]*)"/)[1];
+  assert.ok(og.length <= 80, `og:description ${og.length}자`);
+});
