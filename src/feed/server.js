@@ -465,7 +465,7 @@ export function createServer(opts = {}) {
       <p class="ad-mark"><span class="ad-tag">AD</span> 쿠팡 파트너스</p>
       <a class="ad-native" href="${escapeHtml(withSubId(b.href, `${slot}~${v.variant}`))}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
         <img class="ad-img" src="${escapeHtml(b.img)}" width="${escapeHtml(w)}" height="${escapeHtml(h)}"
-             alt="${escapeHtml(brand)}" loading="lazy" onerror="this.remove()">
+             alt="${escapeHtml(brand)}" loading="eager" fetchpriority="high" onerror="this.remove()">
         <b>${escapeHtml(hook)}</b><span class="ad-brand">${escapeHtml(brand)}</span>
         <span class="ad-go">쿠팡에서 보기 &rarr;</span></a>
       <p class="ad-disclosure">${COUPANG_DISCLOSURE}</p></aside>`;

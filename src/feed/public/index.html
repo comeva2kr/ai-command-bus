@@ -1478,6 +1478,15 @@ function adVariant(link, category, rotate){
   return { hook: v.hook, variant: `${link.dest}_${ctx}_${rotate % cell.length}` };
 }
 
+// 광고 배너 이미지는 **지연 로딩하지 않는다** (2026-08-04 실측).
+//
+// loading="lazy"를 걸었더니 화면 안에 들어와도 요청이 아예 발생하지 않는 환경이
+// 있었다(브라우저에서 재현: 뷰포트 812px, 이미지가 top 323에 있는데 complete=false.
+// 같은 URL을 eager로 바꾸자 즉시 320x100 로드). David가 실기기에서 "배너 그림도
+// 없어 안 뜬다"고 한 것과 같은 증상이고, 앱 내장 브라우저에서 특히 잦다.
+//
+// 광고 배너는 화면당 1~2장뿐이라 아끼는 대역폭은 미미한데, 안 보이면 수익이
+// 그대로 0이다. 본문 썸네일은 수십 장이라 lazy를 그대로 둔다 — 여기만 예외다.
 function coupangCardHtml(link, disclosure, slot, category, rotate){
   // 카피·이미지는 서버(/api/config)가 준다 — 클라이언트에 표 사본을 두지 않는다.
   // 배너 사진은 기본으로 싣고, 콘텐츠 차단기에 걸려 못 받는 사용자에게만
@@ -1490,7 +1499,7 @@ function coupangCardHtml(link, disclosure, slot, category, rotate){
     </div>
     <a class="ad-native" href="${escapeHtml(withSubId(link.href, slot + "~" + v.variant))}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
       <h3>${escapeHtml(v.hook)}</h3>
-      ${link.img?`<img class="ad-img" src="${escapeHtml(link.img)}" width="320" height="100" alt="${escapeHtml(link.brand)}" loading="lazy" onerror="this.remove()">`:""}
+      ${link.img?`<img class="ad-img" src="${escapeHtml(link.img)}" width="320" height="100" alt="${escapeHtml(link.brand)}" loading="eager" fetchpriority="high" onerror="this.remove()">`:""}
       <p class="ad-brand">${escapeHtml(link.brand)}</p>
       <span class="ad-cta">쿠팡에서 보기<span class="sr-only"> — 새 창에서 쿠팡으로 이동합니다</span></span>
     </a>

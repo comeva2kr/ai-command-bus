@@ -61,3 +61,19 @@ test("광고: 애드핏은 승인 플래그가 켜져야만 지면을 차지한�
   const gates = src.match(/ADFIT_ENABLED === "1"/g) || [];
   assert.ok(gates.length >= 2, `게이트가 ${gates.length}곳뿐 — 지면 하나가 새고 있다`);
 });
+
+test("광고: 배너 이미지는 지연 로딩하지 않는다", async () => {
+  const { readFileSync } = await import("node:fs");
+  // 실측 2026-08-04: loading="lazy"를 건 광고 배너가 화면 안에 들어와도 요청이
+  // 발생하지 않는 환경이 있었다(브라우저 재현: top 323, 뷰포트 812, complete=false.
+  // eager로 바꾸자 즉시 320x100 로드). 안 보이면 수익이 0이라 여기만 예외로 둔다.
+  for (const [file, re] of [
+    ["src/feed/public/index.html", /class="ad-img"[^>]*loading="eager"/],
+    ["src/feed/server.js", /alt="\$\{escapeHtml\(brand\)\}" loading="eager"/]
+  ]) {
+    assert.match(readFileSync(file, "utf8"), re, `${file}: 광고 배너가 lazy로 되돌아갔다`);
+  }
+  // 본문 썸네일은 수십 장이라 lazy를 유지해야 한다 — 전부 eager로 바꾸면 안 된다.
+  assert.match(readFileSync("src/feed/public/index.html", "utf8"),
+    /card-thumb[^>]*>.*loading="lazy"/s, "본문 썸네일까지 eager로 바꾸면 안 된다");
+});
