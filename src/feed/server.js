@@ -483,8 +483,23 @@ export function createServer(opts = {}) {
     return due;   // 새벽(0~6시)이면 null — 전날 이브닝을 그대로 쓴다
   }
 
+  // 진행 중인 편성. 타이머와 페이지 요청이 **동시에** 저장 여부를 확인하면
+  // 둘 다 "아직 없다"로 통과해 같은 편을 두 번 만든다 — 해설 API가 20초쯤
+  // 걸려서 그 창이 넓다. 실측(2026-08-04 배포 직후): 같은 편이 두 번 발행됐고
+  // 그만큼 토큰을 두 번 썼다. 약속(Promise)을 공유해 한 번만 만든다.
+  const briefingInFlight = new Map();
   async function buildAndStoreBriefing(slotId, nowMs) {
     const date = kstDate(nowMs);
+    const key = `${date}|${slotId}`;
+    const running = briefingInFlight.get(key);
+    if (running) return running;
+    const p = _buildAndStoreBriefing(slotId, nowMs, date)
+      .finally(() => briefingInFlight.delete(key));
+    briefingInFlight.set(key, p);
+    return p;
+  }
+
+  async function _buildAndStoreBriefing(slotId, nowMs, date) {
     const base = await engine.briefing({ slotId });
     if (!base || !base.publishable) return null;
     // 해설은 **여기서만** 기다린다. 사용자 요청이 아니라 배경 작업이라

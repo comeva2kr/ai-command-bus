@@ -455,3 +455,14 @@ test("store: 브리핑 저장·조회·최근 편 되찾기", async () => {
   assert.equal(store.latestBriefing("2026-08-03", order), null);
   assert.deepEqual(store.briefingDates(), ["2026-08-04"]);
 });
+
+test("편성: 같은 편을 두 번 만들지 않는다 (타이머와 요청의 경합)", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
+  // 실측(2026-08-04 배포 직후): 같은 편이 두 번 발행됐다. 타이머와 페이지
+  // 요청이 동시에 저장 여부를 확인하면 둘 다 "아직 없다"로 통과한다 —
+  // 해설 API가 20초쯤 걸려 그 창이 넓다. 토큰도 두 번 쓴다.
+  assert.match(src, /briefingInFlight/, "진행 중인 편성을 공유해야 한다");
+  assert.match(src, /const running = briefingInFlight\.get\(key\);/);
+  assert.match(src, /if \(running\) return running;/, "이미 만들고 있으면 그 약속을 함께 기다린다");
+});
