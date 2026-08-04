@@ -27,6 +27,7 @@ import {
 } from "./recommender.js";
 import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
+import { sampleSources, evaluate, summarize } from "./health.js";
 import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams, latestInterleave, diversityKey } from "./ingest.js";
 import { FILTERABLE_TOPICS } from "./topics.js";
 import { buildEditorialNote } from "./editorial.js";
@@ -361,6 +362,12 @@ export class FeedEngine {
   // enabled/disabled flag for every such case, the source-chip bar hides
   // itself once there's nothing behind it. See server.js's GET
   // /api/communities and public/index.html's chip-filtering.
+  // 마지막 수집 사이클의 소스 헬스 판정 (health.js evaluate 결과).
+  // 아직 한 번도 갱신하지 않았으면 빈 배열 — 없는 판정을 지어내지 않는다.
+  health() {
+    return this._health || [];
+  }
+
   async sourceCounts() {
     const items = await this._items();
     const counts = {};
@@ -603,6 +610,27 @@ export class FeedEngine {
     this._cache = capped;
     this._errors = errors;
     this.lastRefreshedAt = now;
+
+    // ---- 소스 헬스 판정 (health.js) ---------------------------------------
+    // 여기가 사이클마다 반드시 지나는 자리라, 여기서 재지 않으면 "언제부터
+    // 죽어 있었나"를 영영 알 수 없다. 판정은 capped(노출 후보)가 아니라
+    // pool 전체가 아닌 이번 수집 결과 기준 — 상한에 잘려 0건으로 보이는
+    // 착시를 피한다.
+    if (this.store && this.store.saveSourceHealth) {
+      try {
+        const samples = sampleSources(capped, loadRegistry());
+        const { report, next } = evaluate(samples, this.store.getSourceHealth(), now);
+        this.store.saveSourceHealth(next);
+        this._health = report;
+        const sum = summarize(report);
+        if (sum.down || sum.signalLost) {
+          // 로그에도 남긴다 — 대시보드를 아무도 안 봐도 여기서는 보인다.
+          const bad = report.filter((r) => r.status === "down" || r.status === "signal-lost");
+          console.warn(`[health] 수집중단 ${sum.down} · 신호소실 ${sum.signalLost} / 전체 ${sum.total}` +
+            bad.slice(0, 8).map((r) => `\n  - ${r.id}(${r.label}) ${r.status}: ${r.reason}`).join(""));
+        }
+      } catch (e) { console.warn("[health] 판정 실패:", e.message); }
+    }
 
     // ---- 일별 에디션 스냅샷 (브리핑+화제랭킹, 자체 콘텐츠 아카이브) --------
     // 사이클마다 그날(KST) 키로 덮어쓴다 — 하루의 마지막 기록이 최종판.

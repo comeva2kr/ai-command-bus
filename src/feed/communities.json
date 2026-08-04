@@ -21,12 +21,14 @@
         "list": {
           "urlBase": "https://www.bobaedream.co.kr",
           "titleRegex": "class=\"bsubject\"[^>]*href=\"([^\"]+)\"[^>]*title=\"([^\"]+)\"",
-          "windowAfter": 500,
+          "windowAfter": 1400,
           "dateRegex": "class=\"date\"[^>]*>([^<]+)<",
           "scoreRegex": "class=\"recomm\">[\\s\\S]*?>(\\d+)<",
           "commentRegex": "class=\"totreply\">(\\d+)<",
           "pageUrl": "https://www.bobaedream.co.kr/board/bulletin/list.php?code=best&page={page}",
-          "max": 40
+          "max": 40,
+          "scoreNote": "정규식(class=\"recomm\")은 정확했으나 창이 500이라 추천 컬럼(제목에서 약 1030자 뒤)에 닿지 못했다. 댓글(totreply, 약 200자)만 잡히던 이유(실측 추천>0이 0/19 → 19/19).",
+          "parserCheckedAt": "2026-08-04"
         }
       },
       "mixed": true,
@@ -103,10 +105,13 @@
         "list": {
           "urlBase": "https://www.ppomppu.co.kr",
           "titleRegex": "<a href=\"(/zboard/(?:view|zboard)\\.php\\?id=[a-zA-Z0-9_]+&no=\\d+)\" class=\"baseList-title\"\\s*>(?:<img[^>]*>)?\\s*([^<]+)",
-          "windowAfter": 200,
+          "windowAfter": 900,
           "commentRegex": "class=\"list_comment2\">(\\d+)<",
           "charset": "euc-kr",
-          "max": 40
+          "max": 40,
+          "scoreRegex": "board_date\"[^>]*>\\s*(\\d+)\\s*-\\s*\\d+\\s*<",
+          "scoreNote": "hot.php 행 끝 3개 td(시각 / \"추천 - 반대\" / 조회) 중 두 번째. 창 400→900: 제목에서 추천 td까지 약 500자라 기존 창으로는 닿지 못했다(실측 추천>0이 0/20 → 15/20).",
+          "parserCheckedAt": "2026-08-04"
         }
       },
       "mixed": true,
@@ -235,9 +240,13 @@
         "note": "2026-08-01 재조사(David: 자게이가 하는 건 우리도). 이전 기록의 AJAX 문제는 하단 게시물 목록 얘기였고, 페이지 상단 실시간 인기글 20행은 서버 렌더라 파싱 가능(실측 20건, 제목은 div.sbj, 시각은 .listno.regdate). robots.txt에 특별 차단 없음(사이트맵만 명시). 전 카테고리 통합 랭킹이라 category는 대표값 culture로 두되 실제 분류는 키워드·NB 재분류가 담당.",
         "list": {
           "urlBase": "https://www.instiz.net",
-          "titleRegex": "href=\"(https://www\\.instiz\\.net/pt/\\d+)[^\"]*\"[\\s\\S]{0,300}?class=\"sbj\"[^>]*>(?:<i[^>]*></i>)?\\s*([^<]{3,90})",
-          "windowAfter": 400,
-          "dateRegex": "class=\"listno regdate\">(\\d{1,2}:\\d{2})"
+          "titleRegex": "class=\"r\\d+ listsubject\"><a href=\"(https://www\\.instiz\\.net/pt/\\d+)[^\"]*\">[\\s\\S]{0,200}?</i>\\s*([^<]{3,90})",
+          "windowAfter": 500,
+          "dateRegex": "class=\"listno regdate\">(\\d{1,2}:\\d{2})",
+          "commentRegex": "class=\"cmt3\"[^>]*>(\\d+)<",
+          "scoreRegex": "class=\"listno\" width=\"25\">\\s*(\\d+)\\s*<",
+          "note": "2026-08-04 교체: 기존 div.sbj 블록은 일반 목록이라 조회수만 있고 추천·댓글이 없었다(실측 20건 전부 신호 0). 상단 실시간 인기글 블록(tr#topboard, td.listno)에는 시각·조회·추천과 댓글(span.cmt3)이 모두 있다. 12건으로 줄지만 전 건에 실측 반응이 붙는다 — David 원칙 \"커뮤니티는 베스트게시판만\"에도 이쪽이 맞다. robots.txt 특별 차단 없음.",
+          "parserCheckedAt": "2026-08-04"
         }
       },
       "mixed": true,
@@ -342,11 +351,15 @@
         "pages": 3,
         "note": "David 2026-07-24 지시로 교체: 유머게시판(etohumor02, 최신순 일반 게시판)은 '베스트/인기글' 기준에 안 맞아 힛게시판(/hit/list, 사이트 전역 인기글 HIT 랭킹)으로 교체. 같은 JSON-LD ItemList 구조 재사용, 게시물 URL 패턴만 /b/etohumor02/view/ → /hit/{보드}/view/ (여러 보드 혼재)로 일반화. robots.txt는 /private/만 차단(User-agent:* 기준 — 명시된 개별 봇 차단 목록과 무관), /hit/list 허용 확인. 2~3페이지는 ?page=N, 페이지마다 다른 랭킹 확인(2026-07-24 검증).",
         "list": {
-          "titleRegex": "\\{\"@type\":\"ListItem\",\"position\":\\d+,\"name\":\"((?:[^\"\\\\]|\\\\.)+)\",\"item\":\"(https://etoland\\.co\\.kr/hit/[^\"]+)\"",
-          "urlGroup": 2,
-          "titleGroup": 1,
+          "titleRegex": "href=\"(/hit/[^\"]+/view/[^\"]+)\"[\\s\\S]{0,500}?class=\"truncate font-semibold[^\"]*\">([^<]{2,120})<",
           "pageUrl": "https://etoland.co.kr/hit/list?page={page}",
-          "max": 40
+          "max": 40,
+          "urlBase": "https://etoland.co.kr",
+          "commentRegex": "comment-s[^\"]*\"[^>]*>\\(<!--\\s*-->(\\d+)",
+          "scoreRegex": "추천\\s*<!--\\s*-->\\s*(\\d+)",
+          "windowAfter": 1600,
+          "note": "2026-08-04 교체: 기존 titleRegex는 JSON-LD ItemList를 읽었는데 거기엔 name/item뿐이라 숫자가 원천적으로 없었다(실측 38건 전부 신호 0). HTML 행에는 조회·추천(<span>추천 <!-- -->15</span>, React 주석이 끼어 있음)과 댓글(span.comment-s)이 있다. 실측 39건 중 추천 38·댓글 39. robots.txt는 Disallow:/ 이나 David 2026-08-04 판단으로 유지(차단당하면 그때 제외).",
+          "parserCheckedAt": "2026-08-04"
         }
       },
       "mixed": true,

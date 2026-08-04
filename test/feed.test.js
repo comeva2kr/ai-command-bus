@@ -1644,17 +1644,22 @@ test("parseListPage: 웃긴대학 웃긴자료(pds) — EUC-KR page decodes corr
   assert.ok(items.some((i) => i.commentCount > 0));
 });
 
-test("parseListPage: 이토랜드 힛게시판(HIT, 사이트 전역 인기글) — parses the page's own JSON-LD ItemList (url/title group order swapped)", async () => {
+test("parseListPage: 이토랜드 힛게시판 — HTML 행에서 조회·추천·댓글까지 읽는다", async () => {
   const { parseListPage } = await import("../src/feed/fetchers.js");
   const { loadRegistry } = await import("../src/feed/registry.js");
   const entry = loadRegistry().find((c) => c.id === "etoland");
-  assert.match(entry.adapter.url, /\/hit\/list$/, "David 2026-07-24: 최신순 일반 게시판(etohumor02) 대신 힛게시판으로 교체");
-  assert.equal(entry.adapter.list.urlGroup, 2);
-  assert.equal(entry.adapter.list.titleGroup, 1);
+  assert.match(entry.adapter.url, /\/hit\/list$/, "David 2026-07-24: 최신순 일반 게시판(etohumor02) 대신 힛게시판");
+  // 2026-08-04: JSON-LD ItemList → HTML 행으로 교체. JSON-LD에는 name/item뿐이라
+  // 숫자가 원천적으로 없어 38건 전부 신호 0으로 나갔다. 그 상태로는 화제성
+  // 순위에서 커뮤니티가 뉴스에게 구조적으로 진다.
+  assert.ok(!entry.adapter.list.urlGroup && !entry.adapter.list.titleGroup,
+    "HTML 행 정규식은 url/title이 정상 순서 — JSON-LD 시절의 그룹 스왑이 남으면 뒤집힌다");
   const items = parseListPage(fixture("etoland_hit.html"), entry.adapter.list);
   assert.ok(items.length >= 20);
   assert.ok(items.every((i) => i.url.startsWith("https://etoland.co.kr/hit/")), "HIT board urls (span multiple sub-boards)");
   assert.ok(items.every((i) => i.title && !i.title.startsWith("http")), "title/url groups not swapped");
+  assert.ok(items.filter((i) => i.commentCount > 0).length >= items.length - 1, "댓글은 사실상 전 건에 붙는다");
+  assert.ok(items.filter((i) => i.score > 0).length >= items.length - 2, "추천도 전 건에 붙는다(<span>추천 <!-- -->N</span>)");
 });
 
 test("parseListPage: 네이트판 톡커들의 선택 — title attribute + recommend/reply counts", async () => {
@@ -3393,4 +3398,45 @@ test("다양성: feedGroup을 준 소스들은 라운드로빈에서 한 몫으�
   // 지분을 4배로 가져간다(실측 2026-08-04: 8섹션이 피드의 29%).
   assert.deepEqual([...ranked.keys()].sort(), ["clien", "gnews"]);
   assert.equal(ranked.get("gnews").length, 4);
+});
+
+// ── 2026-08-04 파서 복구: 반응 수치가 실제로 들어오는지 ─────────────────────
+//
+// 실측으로 드러난 세 가지 실패 모드. 전부 "정규식이 틀렸다"가 아니라 서로
+// 다른 이유였고, 그래서 셋 다 테스트로 못박아 둔다.
+//   뽐뿌·보배  — 정규식은 맞는데 windowAfter가 좁아 추천 컬럼에 닿지 못함
+//   이토랜드   — 숫자가 없는 JSON-LD를 읽고 있었음
+//   인스티즈   — 숫자가 없는 블록(일반 목록)을 읽고 있었음
+test("parseListPage: 커뮤니티 소스의 반응 수치가 실제로 파싱된다 (창 크기·블록 선택 회귀)", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const reg = loadRegistry();
+  const cases = [
+    { id: "ppomppu", file: "ppomppu_hot.html", charset: "euc-kr", minScore: 10, minComment: 15 },
+    { id: "bobae", file: "bobaedream_best.html", charset: "utf-8", minScore: 15, minComment: 12 },
+    { id: "instiz", file: "instiz_pt.html", charset: "utf-8", minScore: 3, minComment: 8 }
+  ];
+  for (const c of cases) {
+    const entry = reg.find((x) => x.id === c.id);
+    const items = parseListPage(fixture(c.file, c.charset), entry.adapter.list);
+    const withScore = items.filter((i) => i.score > 0).length;
+    const withComment = items.filter((i) => i.commentCount > 0).length;
+    assert.ok(withScore >= c.minScore, `${c.id}: 추천이 붙은 글 ${withScore}건 (>= ${c.minScore} 기대)`);
+    assert.ok(withComment >= c.minComment, `${c.id}: 댓글이 붙은 글 ${withComment}건 (>= ${c.minComment} 기대)`);
+  }
+});
+
+test("communities: 클리앙은 robots상 인기글 HTML을 읽을 수 없어 RSS를 유지한다", async () => {
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const clien = loadRegistry().find((c) => c.id === "clien");
+  // 2026-08-04 robots.txt 실측: Allow:/service/board/ 이지만
+  //   Disallow:/service/group/     ← 통합 인기글(clien_all)
+  //   Disallow:/service/recommend  ← 추천글 모음
+  //   Disallow: /*?*               ← 쿼리스트링 붙은 URL 전부(정렬 파라미터 포함)
+  // 즉 "인기순 목록"에 해당하는 경로가 전부 막혀 있다. 조회·공감 숫자가
+  // HTML에는 있지만 가져올 길이 없으므로 feedburner RSS를 유지한다.
+  // 이 테스트는 "숫자가 없으니 HTML로 바꾸자"는 미래의 되돌림을 막는 기록이다.
+  assert.equal(clien.adapter.type, "rss");
+  assert.ok(!/clien\.net\/service\/(group|recommend)/.test(clien.adapter.url),
+    "robots가 막은 경로를 수집원으로 쓰지 않는다");
 });

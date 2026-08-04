@@ -332,6 +332,19 @@ export class FeedStore {
     this._persist();
   }
 
+  // 소스 헬스 기록 — "마지막으로 건수가 있었던 시각"과 "마지막으로 반응
+  // 수치가 있었던 시각". 판정 자체는 health.js가 하고 여기는 시각만 보관한다.
+  // 이게 영속되지 않으면 재시작할 때마다 모든 소스가 "기록 없음"으로 돌아가
+  // "3일째 죽어 있다"를 영영 말할 수 없다.
+  saveSourceHealth(next) {
+    this.sourceHealth = { ...(this.sourceHealth || {}), ...next };
+    this._persist();
+  }
+
+  getSourceHealth() {
+    return this.sourceHealth || {};
+  }
+
   getDailyEdition(date) {
     return (this.dailyEditions && this.dailyEditions.get(date)) || null;
   }
@@ -885,6 +898,7 @@ export class FeedStore {
       // 일별 에디션(브리핑+화제랭킹 스냅샷) — 자체 콘텐츠 아카이브의 원천이라
       // 재시작에도 반드시 유지 (애드핏 대응, David 2026-07-31)
       dailyEditions: [...(this.dailyEditions || new Map())].map(([date, e]) => ({ date, ...e })),
+      sourceHealth: this.sourceHealth || {},
       firstSeen: this.firstSeen || {}, // 수집 풀 최초 관측 시각 — 재시작 뒷북 방지 (P1-a)
       heatHist: this.heatHist || {}, // 열기 눈금 시계열 — 배포마다 리셋되면 시그니처가 죽는다
       enrichCache: this.enrichCache || {}, // og:image/발췌 — 재수집 비용이 커 반드시 유지
@@ -907,6 +921,7 @@ export class FeedStore {
       this.adEvents = data.adEvents || [];
       this.traffic = data.traffic || {};
       this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
+      this.sourceHealth = data.sourceHealth || {};
       this.firstSeen = data.firstSeen || {};
       this.heatHist = data.heatHist || {};
       this.enrichCache = data.enrichCache || {};

@@ -1600,17 +1600,36 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         if (p === "/api/admin/source-health" && req.method === "GET") {
           const counts = await engine.sourceCounts();
           const disabled = store.disabledSources();
-          const sources = registry.map((c) => ({
-            id: c.id,
-            label: c.label,
-            category: c.category,
-            kind: c.kind,
-            enabled: c.enabled === true,
-            disabled: disabled.has(c.id),
-            seed: Boolean(c.adapter && c.adapter.type === "seed"),
-            liveCount: counts[c.id] || 0
-          }));
-          return send(res, 200, { sources });
+          // 판정(health.js)은 수집 사이클마다 engine.refresh가 계산해 둔다.
+          // 여기서 다시 세지 않는 이유: "언제부터 0건인가"는 지금 이 순간의
+          // 스냅샷으로는 알 수 없고, 사이클마다 쌓아 둔 기록에서만 나온다.
+          const health = new Map((engine.health() || []).map((h) => [h.id, h]));
+          const sources = registry.map((c) => {
+            const h = health.get(c.id);
+            return {
+              id: c.id,
+              label: c.label,
+              category: c.category,
+              kind: c.kind,
+              enabled: c.enabled === true,
+              disabled: disabled.has(c.id),
+              seed: Boolean(c.adapter && c.adapter.type === "seed"),
+              liveCount: counts[c.id] || 0,
+              // 아래 넷이 이번에 추가된 것 — 건수만으로는 "38건 들어오는데
+              // 반응 수치가 전부 0"인 파서 고장을 잡을 수 없었다.
+              withSignal: h ? h.withSignal : null,
+              expectsSignal: h ? h.expectsSignal : null,
+              status: h ? h.status : null,
+              statusReason: h ? h.reason : null
+            };
+          });
+          const bad = { down: 0, signalLost: 0, stalled: 0 };
+          for (const s2 of sources) {
+            if (s2.status === "down") bad.down++;
+            else if (s2.status === "signal-lost") bad.signalLost++;
+            else if (s2.status === "stalled") bad.stalled++;
+          }
+          return send(res, 200, { sources, alerts: bad, checkedAt: engine.lastRefreshedAt || null });
         }
         if (p === "/api/admin/delete-post" && req.method === "POST") {
           const body = await readBody(req);
