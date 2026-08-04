@@ -1246,7 +1246,7 @@ syncHeaderHeight();
   state.registry = communitiesRes.communities || [];
   const anyLive = state.registry.some(c => (c.liveCount || 0) > 0);
   state.communities = state.registry.filter(c => c.enabled && !c.adult && (!anyLive || (c.liveCount || 0) > 0));
-  setupBrandHome(); setupThemeChips(); loadBriefStrip(); setupSortBar(); renderChips(); renderSourceChips(); renderAdultBtn(); setupAdultToggle(); refreshDrawerFilters();
+  setupBrandHome(); setupThemeChips(); loadBriefStrip(); setupSortBar(); renderChips(); renderSourceChips(); refreshDrawerFilters();
   setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver(); setupAdImpressionObserver();
   setupLeanSlider(s);
   setupMixSlider(s);
