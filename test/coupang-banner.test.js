@@ -116,3 +116,43 @@ test("서버 렌더: 배너에 AD 표기·대가성 문구·sponsored 링크가 
     await new Promise((r) => server.close(r));
   }
 });
+
+test("광고 카드가 콘텐츠 카드와 같은 모양이다", async () => {
+  // David 실기기 2026-08-05: "쿠팡이야말로 목록에서 사진 정사각형 비슷한 비율로
+  // 우측에 넣고 내용 더 혹하게 왼쪽에 제목이랑 정리글처럼 넣어서 게시글처럼
+  // 보이게 해야 되는 거 아냐? 지금 사진 너무 큰데."
+  //
+  // 예전엔 가로 배너(320x100, 3.2:1)를 카드 폭 전체에 깔아서 광고 카드만
+  // 혼자 다른 모양이었다 — 스크롤하다 보면 광고 티가 확 났다.
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const from = html.indexOf("function coupangCardHtml");
+  const block = html.slice(from, from + 1400);
+
+  assert.match(block, /class="ad-row"/, "가로 배치(제목 왼쪽·썸네일 오른쪽)가 아니다");
+  assert.match(block, /class="ad-thumb"/, "썸네일 자리가 없다");
+  // 클래스 이름이 아니라 **자리**를 본다 — ad-img는 이제 썸네일 안에 있다.
+  assert.match(block, /class="ad-thumb"><img class="ad-img"/, "이미지가 썸네일 상자 안에 있지 않다");
+  assert.doesNotMatch(html.slice(from, from + 1400), /width="320" height="100"/, "가로 배너 규격이 남아 있다");
+  // 콘텐츠 카드 썸네일과 같은 규격(76px 정사각)이어야 나란히 놓았을 때 어긋나지 않는다
+  assert.match(html, /\.card \.ad-native \.ad-thumb\{[^}]*width:76px;height:76px/,
+    "썸네일이 콘텐츠 카드(76px 정사각)와 다른 규격이다");
+  assert.match(html, /\.card \.ad-native \.ad-thumb img\{[^}]*object-fit:cover/,
+    "정사각이 아닌 이미지가 들어와도 찌그러지지 않게 잘라야 한다");
+});
+
+test("정사각 배너를 먼저 쓴다", async () => {
+  // 배너 크기는 URL의 w/h가 아니라 **배너 ID 자체**가 정한다
+  // (1013444=320x100, 1014366=200x200). 그래서 크기별로 쿠팡 콘솔에서 따로
+  // 뽑아야 하고 그건 David만 할 수 있다 — 내가 ID를 추측하면 링크와 이미지가 어긋난다.
+  const { loadBanners, pickBanner } = await import("../src/feed/manual-products.js");
+  const square = loadBanners().filter((b) => b.size === "200x200");
+  assert.ok(square.length >= 10, `정사각 배너가 모자란다: ${square.length}개`);
+
+  // 정사각 재고가 있는 분야는 정사각이 먼저 나와야 한다
+  for (const cat of ["tech", "life", "auto", "sports", "culture"]) {
+    const picked = pickBanner({ category: cat });
+    assert.ok(picked, `${cat}: 배너가 안 골라진다`);
+    assert.equal(picked.size, "200x200", `${cat}: 가로 배너가 먼저 나온다 (${picked.size})`);
+  }
+});

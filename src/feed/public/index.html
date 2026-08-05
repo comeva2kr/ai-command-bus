@@ -730,8 +730,16 @@
      굵은 글씨가 최대 활자라, 위아래 카드 제목 19px 사이에서 광고 카드가
      "발췌"급 층위로 내려앉아 스크롤 스캔에서 통째로 지나쳐졌다. */
   .card .ad-native h3{margin:0 0 10px}
-  .card .ad-native .ad-img{display:block;max-width:100%;height:auto;
-    margin-bottom:10px;border:1px solid var(--line)}
+  /* 광고 카드도 콘텐츠 카드와 같은 모양 — 제목 왼쪽, 정사각 썸네일 오른쪽.
+     예전엔 가로 배너(320x100, 3.2:1)를 카드 폭 전체에 깔아서 **혼자만 배너**였고
+     그래서 광고 티가 확 났다(David 실기기 2026-08-05: "사진 너무 큰데").
+     정사각(200x200)은 David가 쿠팡 콘솔에서 따로 뽑아 줬다 — 크기는 URL
+     파라미터가 아니라 배너 ID가 정하므로 우리가 만들 수 없다. */
+  .card .ad-native .ad-row{display:flex;gap:12px;align-items:flex-start}
+  .card .ad-native .ad-text{flex:1 1 auto;min-width:0}
+  .card .ad-native .ad-thumb{flex:0 0 auto;width:76px;height:76px;border-radius:10px;
+    overflow:hidden;border:1px solid var(--line)}
+  .card .ad-native .ad-thumb img{width:100%;height:100%;object-fit:cover;display:block}
   .card .ad-native .ad-brand{margin:0;font-size:13px;color:var(--muted)}
   /* CTA — 잉크색 본문 굵게, 화살표만 강조색. 예전 13px 굵은 빨강은 라이트
      모드에서 대비 3.9:1로 WCAG AA(4.5:1)에 미달했다. 최소 44px = 탭 타겟. */
@@ -1687,10 +1695,14 @@ function coupangCardHtml(link, disclosure, slot, category, rotate){
       <span class="badge ad-badge-static">AD<span class="sr-only"> 광고</span></span>
     </div>
     <a class="ad-native" href="${escapeHtml(withSubId(link.href, slot + "~" + v.variant))}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
-      <h3>${escapeHtml(v.hook)}</h3>
-      ${link.img?`<img class="ad-img" src="${escapeHtml(link.img)}" width="320" height="100" alt="${escapeHtml(link.brand)}" loading="eager" fetchpriority="high" onerror="this.remove()">`:""}
-      <p class="ad-brand">${escapeHtml(link.brand)}</p>
-      <span class="ad-cta">쿠팡에서 보기<span class="sr-only"> — 새 창에서 쿠팡으로 이동합니다</span></span>
+      <div class="ad-row">
+        <div class="ad-text">
+          <h3>${escapeHtml(v.hook)}</h3>
+          <p class="ad-brand">${escapeHtml(link.brand)}</p>
+          <span class="ad-cta">쿠팡에서 보기<span class="sr-only"> — 새 창에서 쿠팡으로 이동합니다</span></span>
+        </div>
+        ${link.img?`<div class="ad-thumb"><img class="ad-img" src="${escapeHtml(link.img)}" width="200" height="200" alt="${escapeHtml(link.brand)}" loading="eager" fetchpriority="high" onerror="this.parentNode.remove()"></div>`:""}
+      </div>
     </a>
     <p class="ad-disclosure">${escapeHtml(disclosure)}</p>`;
 }

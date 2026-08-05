@@ -22,7 +22,9 @@ test("배너 사진은 실으로되, 못 받는 사용자에게도 카드가 성
   const imgTags = [...HTML.matchAll(/<img[^>]*ad-img[^>]*>/g), ...SERVER.matchAll(/<img[^>]*ad-img[^>]*>/g)].map((m) => m[0]);
   assert.ok(imgTags.length >= 2, "피드·발행 페이지 양쪽에 배너 사진이 있어야 한다");
   for (const t of imgTags) {
-    assert.match(t, /onerror="this\.remove\(\)"/, "못 받으면 깨진 자리를 남기지 말고 지워야 한다");
+    // 썸네일 상자째 지운다 — img만 지우면 76px 빈 테두리가 남는다
+    // (카드가 콘텐츠 카드와 같은 모양이 된 2026-08-05부터).
+    assert.match(t, /onerror="this\.parentNode\.remove\(\)"/, "못 받으면 깨진 자리를 남기지 말고 지워야 한다");
     assert.ok(!/alt=""/.test(t), "배너 alt가 비면 안 된다");
   }
   assert.match(HTML, /ad-native/, "네이티브 제휴 카드가 없다");

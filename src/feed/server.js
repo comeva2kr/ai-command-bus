@@ -626,10 +626,14 @@ export function createServer(opts = {}) {
     return `<aside class="ad-slot ad-coupang">
       <p class="ad-mark"><span class="ad-tag">AD</span> 쿠팡 파트너스</p>
       <a class="ad-native" href="${escapeHtml(withSubId(b.href, `${slot}~${v.variant}`))}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
-        <img class="ad-img" src="${escapeHtml(b.img)}" width="${escapeHtml(w)}" height="${escapeHtml(h)}"
-             alt="${escapeHtml(brand)}" loading="eager" fetchpriority="high" onerror="this.remove()">
-        <b>${escapeHtml(hook)}</b><span class="ad-brand">${escapeHtml(brand)}</span>
-        <span class="ad-go">쿠팡에서 보기 &rarr;</span></a>
+        <span class="ad-row">
+          <span class="ad-text">
+            <b>${escapeHtml(hook)}</b><span class="ad-brand">${escapeHtml(brand)}</span>
+            <span class="ad-go">쿠팡에서 보기 &rarr;</span>
+          </span>
+          <span class="ad-thumb"><img class="ad-img" src="${escapeHtml(b.img)}" width="${escapeHtml(w)}" height="${escapeHtml(h)}"
+             alt="${escapeHtml(brand)}" loading="eager" fetchpriority="high" onerror="this.parentNode.remove()"></span>
+        </span></a>
       <p class="ad-disclosure">${COUPANG_DISCLOSURE}</p></aside>`;
   };
 
@@ -780,8 +784,13 @@ ol.rank li a{color:var(--text);font-weight:700}
 .ad-native{display:block;text-decoration:none;color:inherit;min-height:44px}
 /* 배너 사진 — 차단기에 걸려 못 받으면 onerror가 이 요소만 지우고, 남은
   문구가 그대로 완결된 카드가 된다. 빈 자리나 깨진 아이콘은 남지 않는다. */
-.ad-native .ad-img{display:block;max-width:100%;height:auto;margin-bottom:12px;
-  border:1px solid var(--line)}
+/* 제목 왼쪽 · 정사각 썸네일 오른쪽 — 앱 카드와 같은 규격.
+   예전엔 가로 배너를 카드 폭 전체에 깔아서 광고만 혼자 다른 모양이었다. */
+.ad-native .ad-row{display:flex;gap:12px;align-items:flex-start}
+.ad-native .ad-text{flex:1 1 auto;min-width:0;display:block}
+.ad-native .ad-thumb{flex:0 0 auto;width:76px;height:76px;border-radius:10px;
+  overflow:hidden;border:1px solid var(--line);display:block}
+.ad-native .ad-thumb .ad-img{width:100%;height:100%;object-fit:cover;display:block}
 .ad-native b{display:block;font-size:17px;line-height:1.35;margin-bottom:3px}
 .ad-native .ad-brand{display:block;font-size:13px;color:var(--muted)}
 .ad-native .ad-go{display:block;margin-top:8px;font-size:14px;font-weight:800;color:var(--text)}

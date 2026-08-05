@@ -50,7 +50,12 @@ export function pickBanner({ category = null, size = null, seen = new Set(), pic
     // size=null이면 전 재고. 크리에이티브를 우리가 그리게 된 뒤로 배너의 픽셀
     // 크기는 의미가 없어졌는데, 필터로 남겨두면 재고만 절반으로 자른다.
     .filter((b) => !size || b.size === size)
-    .filter((b) => !b.expires || b.expires >= now);
+    .filter((b) => !b.expires || b.expires >= now)
+    // 정사각(200x200)을 먼저 쓴다. 카드가 콘텐츠 카드와 같은 모양이 되려면
+    // 썸네일이 정사각이어야 한다 — 가로 배너(3.2:1)를 76px 정사각에 넣으면
+    // 가운데만 남고 글자가 잘린다(David 실기기 2026-08-05: "사진 너무 큰데").
+    // 정사각 재고가 없는 분야는 기존 배너로 자연히 내려간다.
+    .sort((a, b) => (b.size === "200x200") - (a.size === "200x200"));
   if (!all.length) return null;
   // 이벤트가 있으면 먼저 쓴다 — 같은 자리라도 "여름 시즌오프"가 "로켓패션"보다
   // 눌릴 이유가 분명하다. 문맥까지 맞으면 최우선.

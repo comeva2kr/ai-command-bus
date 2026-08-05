@@ -26,7 +26,15 @@
     "── 금지",
     "  확인하지 않은 가격·할인율·후기수를 쓰지 않는다(다크패턴 금지).",
     "  정치/종교/성인 카테고리에는 광고를 붙이지 않는다.",
-    "  대가성 문구는 코드가 자동으로 붙인다 — 여기 적지 않는다."
+    "  대가성 문구는 코드가 자동으로 붙인다 — 여기 적지 않는다.",
+    "",
+    "2026-08-05: David가 콘솔에서 200x200 정사각 18종을 뽑아 줬다.",
+    "피드 카드를 콘텐츠 카드와 같은 모양(제목 왼쪽 · 정사각 썸네일 오른쪽)으로",
+    "만들려면 정사각이 필요하다 — 320x100은 3.2:1이라 썸네일 자리에 넣으면 글자가 잘린다.",
+    "배너 크기는 URL의 w/h 파라미터가 아니라 **배너 ID 자체**가 정한다",
+    "(1013444=320x100, 1014366=200x200). 그래서 크기별로 콘솔에서 따로 뽑아야 하고,",
+    "그건 David만 할 수 있다 — 내가 ID를 추측해 쓰면 링크와 이미지가 어긋난다.",
+    "category가 null인 것(쿠팡·골드박스·로켓와우·로켓직구)은 분야를 못 고를 때 쓰는 범용이다."
   ],
   "banners": [
     {
@@ -284,6 +292,150 @@
       "img": "https://ads-partners.coupang.com/banners/1013495?trackingCode=AF5818321&subId=&traceId=V0-301-5f4982b43e2b4522-I1013495&w=300&h=250",
       "label": "쿠팡 로켓배송 출산·유아동",
       "dest": "baby"
+    },
+    {
+      "category": null,
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRcdGono4",
+      "img": "https://ads-partners.coupang.com/banners/1014349?trackingCode=AF5818321&subId=&traceId=V0-301-879dd1202e5c73b2-I1014349&w=200&h=200",
+      "label": "쿠팡 쇼핑",
+      "dest": "shop"
+    },
+    {
+      "category": null,
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRfpIMp9U",
+      "img": "https://ads-partners.coupang.com/banners/1014355?trackingCode=AF5818321&subId=&traceId=V0-301-969b06e95b87326d-I1014355&w=200&h=200",
+      "label": "쿠팡 골드박스",
+      "dest": "gold"
+    },
+    {
+      "category": null,
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRgmy1E2C",
+      "img": "https://ads-partners.coupang.com/banners/1014359?trackingCode=AF5818321&subId=&traceId=V0-301-bae0f72e5e59e45f-I1014359&w=200&h=200",
+      "label": "쿠팡 로켓와우 멤버십",
+      "dest": "wow"
+    },
+    {
+      "category": null,
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRheGJwLk",
+      "img": "https://ads-partners.coupang.com/banners/1014363?trackingCode=AF5818321&subId=&traceId=V0-301-50c6c2b97fba9aee-I1014363&w=200&h=200",
+      "label": "쿠팡 로켓직구",
+      "dest": "oversea"
+    },
+    {
+      "category": "life",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRhQeIWqW",
+      "img": "https://ads-partners.coupang.com/banners/1014364?trackingCode=AF5818321&subId=&traceId=V0-301-371ae01f4226dec2-I1014364&w=200&h=200",
+      "label": "쿠팡 로켓프레시 신선식품",
+      "dest": "fresh"
+    },
+    {
+      "category": "culture",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRi5ktUqa",
+      "img": "https://ads-partners.coupang.com/banners/1014365?trackingCode=AF5818321&subId=&traceId=V0-301-5a8c79a76485eb21-I1014365&w=200&h=200",
+      "label": "쿠팡 로켓 패션",
+      "dest": "fashion"
+    },
+    {
+      "category": "tech",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRjNwNp80",
+      "img": "https://ads-partners.coupang.com/banners/1014366?trackingCode=AF5818321&subId=&traceId=V0-301-5f9bd61900e673c0-I1014366&w=200&h=200",
+      "label": "쿠팡 로켓 가전·디지털",
+      "dest": "dgt"
+    },
+    {
+      "category": "culture",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRkEphBtc",
+      "img": "https://ads-partners.coupang.com/banners/1014367?trackingCode=AF5818321&subId=&traceId=V0-301-f5c692db558def48-I1014367&w=200&h=200",
+      "label": "쿠팡 로켓 도서",
+      "dest": "book"
+    },
+    {
+      "category": "life",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRlHDkJCm",
+      "img": "https://ads-partners.coupang.com/banners/1014368?trackingCode=AF5818321&subId=&traceId=V0-301-2f679fc6bd8f2e58-I1014368&w=200&h=200",
+      "label": "쿠팡 로켓 홈인테리어",
+      "dest": "home"
+    },
+    {
+      "category": "life",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRnKPCcqO",
+      "img": "https://ads-partners.coupang.com/banners/1014370?trackingCode=AF5818321&subId=&traceId=V0-301-2b8ef06377ec8f50-I1014370&w=200&h=200",
+      "label": "쿠팡 로켓 주방용품",
+      "dest": "kitchen"
+    },
+    {
+      "category": "life",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRpsVg1Zs",
+      "img": "https://ads-partners.coupang.com/banners/1014371?trackingCode=AF5818321&subId=&traceId=V0-301-5f4982b43e2b4522-I1014371&w=200&h=200",
+      "label": "쿠팡 로켓 출산·유아동",
+      "dest": "baby"
+    },
+    {
+      "category": "life",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRqWkdYHY",
+      "img": "https://ads-partners.coupang.com/banners/1014372?trackingCode=AF5818321&subId=&traceId=V0-301-7e6e8eb8ddfa1bfb-I1014372&w=200&h=200",
+      "label": "쿠팡 로켓 반려동물용품",
+      "dest": "pet"
+    },
+    {
+      "category": "auto",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRv2bXTSC",
+      "img": "https://ads-partners.coupang.com/banners/1014375?trackingCode=AF5818321&subId=&traceId=V0-301-c1744fa69c93f626-I1014375&w=200&h=200",
+      "label": "쿠팡 로켓 자동차용품",
+      "dest": "carparts"
+    },
+    {
+      "category": "life",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRyjF9rEq",
+      "img": "https://ads-partners.coupang.com/banners/1014376?trackingCode=AF5818321&subId=&traceId=V0-301-0fd2df58973b32a5-I1014376&w=200&h=200",
+      "label": "쿠팡 로켓 캠핑",
+      "dest": "camp"
+    },
+    {
+      "category": "sports",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRyPUfJQW",
+      "img": "https://ads-partners.coupang.com/banners/1014377?trackingCode=AF5818321&subId=&traceId=V0-301-12cd6d67384e2afb-I1014377&w=200&h=200",
+      "label": "쿠팡 로켓 등산·아웃도어",
+      "dest": "outdoor"
+    },
+    {
+      "category": "sports",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRzxkxcYu",
+      "img": "https://ads-partners.coupang.com/banners/1014378?trackingCode=AF5818321&subId=&traceId=V0-301-efafde73812c2264-I1014378&w=200&h=200",
+      "label": "쿠팡 로켓 골프",
+      "dest": "golf"
+    },
+    {
+      "category": "humor",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRAkdvXTo",
+      "img": "https://ads-partners.coupang.com/banners/1014379?trackingCode=AF5818321&subId=&traceId=V0-301-8be2627c04ed5569-I1014379&w=200&h=200",
+      "label": "쿠팡 로켓 완구·취미",
+      "dest": "toy"
+    },
+    {
+      "category": "auto",
+      "size": "200x200",
+      "href": "https://link.coupang.com/a/fXRBBHQcQS",
+      "img": "https://ads-partners.coupang.com/banners/1014380?trackingCode=AF5818321&subId=&traceId=V0-301-5079b8362432a905-I1014380&w=200&h=200",
+      "label": "쿠팡 로켓설치 타이어",
+      "dest": "tire"
     }
   ],
   "products": []
