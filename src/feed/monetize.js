@@ -232,23 +232,44 @@ export function injectSlots(items, candidates, opts = {}) {
     for (let k = 0; k < pool.length; k++) if (!used.has(k)) { used.add(k); return pool[k]; }
     return null;
   };
+  // 자리가 됐는데 두세 칸 뒤에 딜 글이 있으면 **그 아래까지 기다린다.**
+  //
+  // 왜: 딜 옆 광고를 매 N칸 규칙에 맡기면 붙는 건 우연이다 — 실측
+  // (2026-08-05 라이브 126칸): 딜 10건, 광고 6건이었는데 서로 이웃한 경우가
+  // 0건이었다. 광고 개수는 그대로 두고 **자리만 옮기는** 것이라 광고가
+  // 늘지 않는다. 기다림은 3칸까지만 — 그 이상 밀면 원래 밀도가 무너진다.
+  const DEAL_WAIT = 3;
+  let due = false;
   items.forEach((item, i) => {
     const globalPos = startIndex + i; // this organic item's position in the whole session, ads excluded
-    const dueForSlot =
-      globalPos >= skipFirst &&
-      (globalPos - skipFirst) % every === 0 &&
-      slots.length < maxPerPage;
+    if (globalPos >= skipFirst && (globalPos - skipFirst) % every === 0) due = true;
     // 이 글 **옆에** 광고를 붙여도 되는가 (promotion.adUnsafe).
     // 성인·정치/종교·비속어가 붙은 글 바로 옆의 광고는 광고주 브랜드 안전
     // 문제이고, 애드센스·애드핏 양쪽이 문제 삼는 지점이다. 글은 그대로 두고
     // 광고만 다음 자리로 미룬다 — 콘텐츠를 지우지 않는다.
-    const neighborUnsafe = adUnsafe(item) || adUnsafe(items[i + 1]);
-    if (dueForSlot && !neighborUnsafe && used.size < pool.length) {
-      const wantDest = (items[i - 1] && items[i - 1].dealDest) || item.dealDest || null;
-      const candidate = take(wantDest);
-      if (!candidate) { built.push(item); return; }
-      built.push(candidate);
-      slots.push({ position: built.length - 1, globalPos, id: candidate.id, relevance: candidate.relevance });
+    // 슬롯은 items[i] **앞**에 들어가므로 실제 이웃은 items[i-1]과 items[i]다.
+    // 예전엔 items[i]와 items[i+1]을 봤다 — 자리가 고정일 때는 티가 안 났지만,
+    // 자리가 밀릴 수 있게 되자 정치 글 **바로 아래**에 광고가 붙었다
+    // (2026-08-05 analytics 테스트가 잡음).
+    const neighborUnsafe = adUnsafe(items[i - 1]) || adUnsafe(item);
+    if (due && !neighborUnsafe && slots.length < maxPerPage && used.size < pool.length) {
+      // 슬롯은 items[i] **앞**에 들어간다. 그래서 "딜 바로 아래"가 되려면
+      // 바로 윗칸(items[i-1])이 딜이어야 한다.
+      const above = items[i - 1] && items[i - 1].dealDest ? items[i - 1].dealDest : null;
+      let waitForDeal = false;
+      if (!above) {
+        for (let k = i; k < Math.min(items.length, i + DEAL_WAIT); k++) {
+          if (items[k] && items[k].dealDest) { waitForDeal = true; break; }
+        }
+      }
+      if (!waitForDeal) {
+        const candidate = take(above || item.dealDest || null);
+        if (candidate) {
+          built.push(candidate);
+          slots.push({ position: built.length - 1, globalPos, id: candidate.id, relevance: candidate.relevance });
+          due = false;
+        }
+      }
     }
     built.push(item);
   });

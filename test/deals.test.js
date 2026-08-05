@@ -91,3 +91,22 @@ test("딜이 아니면 원래 로테이션 순서를 흐트러뜨리지 않는�
   const ads = r.items.filter((x) => x.id && x.id.startsWith("ad-")).map((x) => x.id);
   assert.deepEqual(ads, ["ad-1", "ad-2"]);
 });
+
+test("광고 자리가 코앞의 딜 글 아래까지 기다린다 (개수는 그대로)", async () => {
+  const { injectSlots } = await import("../src/feed/monetize.js");
+  // 자리가 되는 지점(1번)에는 일반 글이 있고, 두 칸 뒤에 딜이 있다.
+  const items = [
+    { id: "a", title: "글1" },
+    { id: "b", title: "글2" },
+    { id: "c", title: "[네이버] 한돈 등뼈", isDeal: true, dealDest: "fresh" },
+    { id: "d", title: "글4" },
+    { id: "e", title: "글5" }
+  ];
+  const candidates = [{ id: "ad-dgt", dest: "dgt", relevance: 1 }, { id: "ad-fresh", dest: "fresh", relevance: 1 }];
+  const r = injectSlots(items, candidates, { every: 4, skipFirst: 1, maxPerPage: 2, minRelevance: 0 });
+  const idx = r.items.findIndex((x) => x.id && x.id.startsWith("ad-"));
+  assert.equal(r.items[idx - 1].id, "c", "광고가 딜 글 바로 아래에 붙지 않았다");
+  assert.equal(r.items[idx].id, "ad-fresh", "딜 상품군과 다른 배너가 붙었다");
+  // 자리를 옮긴 것이지 늘린 것이 아니다.
+  assert.equal(r.slots.length, 1);
+});
