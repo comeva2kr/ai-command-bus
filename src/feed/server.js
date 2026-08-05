@@ -6,6 +6,7 @@
 //   FEED_DB=./feed-data.json node src/feed/server.js   # persisted
 
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import { pickBanner, loadBanners } from "./manual-products.js";
 import { adCopy, AD_DISCLOSURE, withSubId } from "./ad-copy.js";
 import { makeWriter } from "./llm.js";
@@ -47,6 +48,10 @@ import {
   completeOAuth,
   AuthStateStore,
   parseCookies,
+  DEVICE_COOKIE,
+  SESSION_COOKIE,
+  KEY_COOKIE,
+  serializeKeyCookie,
   serializeSessionCookie,
   clearSessionCookie,
   serializeDeviceCookie,
@@ -979,6 +984,39 @@ ${adSlotHtml("adfit")}
 
     try {
       // --- API ---
+      // ── 이 요청이 정말 그 사람인가 (2026-08-05 전수검사 P0)
+      //
+      // 예전에는 라우트들이 `store.getUser(body.userId)`만 확인했다. 그건
+      // "이 사용자가 존재하는가"이지 "당신이 그 사람인가"가 아니다.
+      // 순번 ID(user_1, user_2 …)와 겹쳐서, 아무나 남의 내 공간을 읽고 그
+      // 이름으로 글을 쓸 수 있었다 — 라이브에서 재현했다.
+      //
+      // 판정 순서: 로그인 세션 > 기기 결속 > (처음 보는 짝이면) 결속하고 통과.
+      // 어긋나면 403. 자세한 근거는 store.bindDevice의 주석에 있다.
+      const ownerOf = (claimedId) => {
+        if (!claimedId) return { ok: false, status: 400, error: "userId required" };
+        const cookies = parseCookies(req.headers.cookie);
+        const sessionUserId = cookies[SESSION_COOKIE] ? store.sessionUser(cookies[SESSION_COOKIE]) : null;
+        if (sessionUserId) {
+          // 로그인한 사람은 자기 계정만 만질 수 있다.
+          if (sessionUserId !== claimedId) return { ok: false, status: 403, error: "not your account" };
+          return { ok: true, userId: sessionUserId };
+        }
+        if (!store.getUser(claimedId)) return { ok: false, status: 400, error: "unknown user" };
+        const key = cookies[KEY_COOKIE] || null;
+        if (!store.bindDevice(claimedId, key)) {
+          return { ok: false, status: 403, error: "not your account" };
+        }
+        return { ok: true, userId: claimedId };
+      };
+      // 라우트에서 한 줄로 쓰기 위한 래퍼 — 거절이면 응답까지 보내고 true를 준다.
+      const denied = (claimedId) => {
+        const r = ownerOf(claimedId);
+        if (r.ok) return false;
+        send(res, r.status, { error: r.error });
+        return true;
+      };
+
       if (p === "/api/health") return send(res, 200, { ok: true });
 
       // "오늘의 브리핑" — 실측 데이터로 서버가 직접 작성하는 일일 편집 페이지.
@@ -1544,6 +1582,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/post" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         try {
           const post = store.createPost(body.userId, body);
@@ -1574,6 +1613,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
       }
 
       if (p === "/api/me" && req.method === "GET") {
+        if (denied(url.searchParams.get("userId"))) return;
         const userId = url.searchParams.get("userId");
         if (!store.getUser(userId)) return send(res, 400, { error: "unknown user" });
         const space = store.mySpace(userId);
@@ -1593,6 +1633,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/save" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         const saved = store.toggleSave(body.userId, body.itemId, body.on);
         return send(res, 200, { ok: true, saved });
@@ -1600,6 +1641,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/mute" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         const muted = store.setMute(body.userId, body.source, body.on === true);
         return send(res, 200, { ok: true, mutedSources: muted });
@@ -1610,6 +1652,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
       // 뉴스 성향 슬라이더 저장 (David 2026-07-31 "슬라이드로")
       if (p === "/api/lean" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         // "abc" 같은 비수치가 조용히 0으로 접히면 클라이언트 버그가 은폐된다
         if (typeof body.balance !== "number" || !Number.isFinite(body.balance)) {
@@ -1623,6 +1666,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
       // /api/lean과 같은 계약 — 검증도 똑같이 엄격하게 한다.
       if (p === "/api/mix" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         if (typeof body.balance !== "number" || !Number.isFinite(body.balance)) {
           return send(res, 400, { error: "balance must be a number in [-1, 1]" });
@@ -1633,6 +1677,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/topics" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         const user = store.getUser(body.userId);
         if (!user) return send(res, 400, { error: "unknown user" });
         const topic = body.topic;
@@ -1663,7 +1708,21 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         // 방문마다 다시 내보내 만료를 미룬다(GA4 동작). localStorage에서 온
         // 기존 사용자도 이 순간 쿠키로 승격되므로, 다음 방문부터는 저장소가
         // 비워져도 같은 사람으로 이어진다.
-        res.setHeader("set-cookie", serializeDeviceCookie(user.id, { secure: isSecureRequest(req) }));
+        // 기기 쿠키(누구인지 기억)와 **열쇠**(본인임을 증명)를 함께 심는다.
+        //
+        // 열쇠는 **아직 열쇠 쿠키가 없을 때만** 새로 만든다. 이미 들고 있으면
+        // 그대로 둔다 — 새로 발급해 덮어쓰면 이미 묶인 계정이 자기 열쇠를
+        // 잃고 스스로 잠긴다.
+        //
+        // 여기서는 계정에 저장하지 않는다. 저장은 **클라이언트가 그 열쇠를
+        // 실제로 돌려보냈을 때**(bindDevice) 일어난다. 세션 생성 시점에 박으면
+        // 쿠키를 못 쓰는 클라이언트가 곧바로 잠긴다.
+        const secureCookie = isSecureRequest(req);
+        const setCookies = [serializeDeviceCookie(user.id, { secure: secureCookie })];
+        if (!parseCookies(req.headers.cookie)[KEY_COOKIE]) {
+          setCookies.push(serializeKeyCookie(randomUUID().replace(/-/g, ""), { secure: secureCookie }));
+        }
+        res.setHeader("set-cookie", setCookies);
         return send(res, 200, {
           userId: user.id,
           identitySource: ident.source,
@@ -1798,6 +1857,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/survey" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         const { ok, errors } = validateAnswers(body.answers);
         if (!ok) return send(res, 400, { error: "invalid survey", details: errors });
         store.createUser(body.userId);
@@ -1807,6 +1867,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/history" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         store.createUser(body.userId);
         if (!Array.isArray(body.entries)) return send(res, 400, { error: "entries must be an array" });
         const result = store.applyHistory(body.userId, body.entries.slice(0, 500));
@@ -1872,6 +1933,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/signal" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         const result = await engine.signal(body.userId, body.itemId, {
           type: body.type,
@@ -1914,6 +1976,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/rate" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         // signal 화이트리스트 — signal:99 같은 임의 값이 그대로 수용되면
         // 취향 벡터가 한 번에 오염된다(적대적 검수 P1-c, API 페르소나 실측).
@@ -1924,6 +1987,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/comment" && req.method === "POST") {
         const body = await readBody(req);
+        if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         try {
           const comment = store.addComment(body.userId, body.itemId, body.body);

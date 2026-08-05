@@ -8,6 +8,7 @@
 import { emptyBucket, applyEvent } from "./analytics.js";
 import { emptyCostBucket, recordCall } from "./costs.js";
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import crypto from "node:crypto";
 import { emptyPreferenceVector, buildPreferenceVector } from "./survey.js";
 import { inferFromHistory, mergeVectors } from "./history.js";
@@ -32,9 +33,18 @@ export class FeedStore {
     if (this.file && fs.existsSync(this.file)) this._load();
   }
 
+  // ── 순번 ID를 쓰지 않는다 (2026-08-05 전수검사 P0)
+  //
+  // 예전엔 user_1, user_2 … 순번이었다. 라이브에서 세 번 부르니 user_300,
+  // user_301, user_302가 나왔다 — 즉 **전 사용자 목록을 1부터 세면 얻는다.**
+  // 여기에 "요청 본문의 userId를 그대로 믿는" 라우트가 겹쳐, 아무나 남의
+  // 내 공간을 읽고 그 이름으로 글을 쓸 수 있었다(재현 확인).
+  //
+  // 순번은 그대로 두되(내부 카운터·정렬에 쓰인다) **ID에는 무작위를 붙인다.**
+  // 기존 user_N 들은 그대로 유효하다 — 새로 만드는 것만 바뀐다.
   _id(prefix) {
     this._seq += 1;
-    return `${prefix}_${this._seq}`;
+    return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 22)}`;
   }
 
   createUser(userId) {
@@ -66,6 +76,40 @@ export class FeedStore {
     this._persist();
     return user;
   }
+
+  // ── 계정을 기기에 묶는다 (2026-08-05 전수검사 P0)
+  //
+  // 요청 본문의 userId를 그대로 믿으면 아무나 남이 될 수 있다. 그렇다고
+  // 지금 당장 쿠키를 강제하면 기존 471명이 전부 로그아웃된다.
+  //
+  // 그래서 계정마다 **열쇠**를 하나 두고, 그 열쇠를 HttpOnly 쿠키로만 준다.
+  // 처음 보는 짝을 그대로 채택한다: 아직 열쇠가 없는 계정이면 지금 온 열쇠를
+  // 그 계정의 열쇠로 삼고, 그 뒤로는 다른 열쇠를 거절한다.
+  //
+  // **기기 쿠키(nh_cid)를 쓰지 않는 이유**: 그 쿠키에는 userId가 그대로 들어
+  // 있다. 쿠키는 사용자가 직접 만들 수 있으므로 "nh_cid=user_10"이라고 쓰면
+  // 그만이다 — 비밀이 아니면 열쇠가 아니다. 첫 판에서 이 함정에 빠졌다.
+  //
+  // 완벽하지 않다 — 주인이 돌아오기 **전에** 공격자가 먼저 주장하면 뺏긴다.
+  // 다만 그 창은 각 계정이 다음에 접속할 때까지이고, 지금처럼 "누구나 아무
+  // 계정이나" 열려 있는 것과는 비교가 안 된다. 로그인(소셜) 계정은 이 경로를
+  // 타지 않는다 — 세션 쿠키가 우선한다.
+  //
+  bindDevice(userId, key) {
+    const user = this.getUser(userId);
+    if (!user) return true;               // 없는 사용자는 여기서 판단하지 않는다
+    if (!user.deviceKey) {
+      // 아직 열쇠가 없는 계정. 열쇠를 들고 왔으면 그것을 이 계정의 열쇠로
+      // 삼는다. 안 들고 왔으면 통과시킨다 — 아직 지킬 것이 없고, 여기서
+      // 막으면 배포 직후 기존 사용자 471명이 전부 막힌다.
+      if (key) { user.deviceKey = key; this._persist(); }
+      return true;
+    }
+    // 이미 열쇠가 있는 계정. 열쇠를 안 들고 왔으면 거절한다 — 통과시키면
+    // 공격자는 쿠키를 빼고 요청하면 그만이라 결속이 무의미해진다.
+    return Boolean(key) && user.deviceKey === key;
+  }
+
 
   getUser(userId) {
     return this.users.get(userId) || null;

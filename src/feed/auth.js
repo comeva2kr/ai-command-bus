@@ -250,6 +250,26 @@ export function clearSessionCookie({ secure = true } = {}) {
 // 쿠키는 웹뷰가 저장소를 비워도 살아남는 경우가 많고, HttpOnly라 페이지
 // 스크립트가 실수로 지울 수도 없다. GA4가 쿠키를 고른 이유가 그것이다.
 export const DEVICE_COOKIE = "nh_cid";
+
+// ── 계정 열쇠 쿠키 (2026-08-05 전수검사 P0)
+//
+// nh_cid에는 userId가 그대로 들어 있다. 쿠키는 사용자가 직접 만들 수 있으므로
+// 그걸로는 본인 확인이 안 된다 — "nh_cid=user_10"이라고 쓰면 그만이다.
+// 그래서 **추측할 수 없는 무작위 열쇠**를 따로 둔다. HttpOnly라 화면
+// 스크립트가 읽지 못하고, 서버가 계정에 저장된 값과 대조한다.
+export const KEY_COOKIE = "nh_k";
+
+export function serializeKeyCookie(key, { secure = true, maxAgeSec = 60 * 60 * 24 * 730 } = {}) {
+  const parts = [
+    `${KEY_COOKIE}=${encodeURIComponent(key)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${maxAgeSec}`
+  ];
+  if (secure) parts.push("Secure");
+  return parts.join("; ");
+}
 const DEVICE_MAX_AGE_SEC = 2 * 365 * 24 * 60 * 60; // GA4와 같은 2년
 
 // 방문마다 다시 내보내 max-age를 갱신한다(GA4 동작). 그래야 꾸준히 오는
