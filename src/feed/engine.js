@@ -1303,12 +1303,25 @@ export class FeedEngine {
   async categoryTop(cat, limit = 10) {
     const items = await this._items();
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+    // 카테고리 브리핑도 **우리 이름으로 발행하는 지면**이다. 그런데 다른 지면
+    // (홈 피드·화제 랭킹·브리핑)에 다 걸려 있는 두 가지가 여기만 빠져 있었다
+    // (2026-08-05 전수검사):
+    //   promotable    — "300추 가능한가요?" 같은 저가치 제목, 비하 표현 제외
+    //   _offMainSet   — 메인에서 빼기로 한 소스
+    // 검사 시점에 라이브 27건 중 걸린 것은 0건이었지만, **막는 장치가 없다는 것과
+    // 지금 깨끗한 것은 다른 이야기다.** 광고 심사를 앞두고 운에 맡길 자리가 아니다.
+    // 종교 태그도 함께 뺀다 — 이 페이지는 로그인 없이 열리는 공개 지면이라
+    // 기본 숨김 토픽이 그대로 나가면 앱과 앞뒤가 안 맞는다.
+    const offMain = this._offMainSet();
     const pool = items.filter(
       (i) =>
         (i.category || "news") === cat &&
         !(i.topics || []).includes("politics") &&
+        !(i.topics || []).includes("religion") &&
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
+        !offMain.has(i.source) &&
+        promotable(i) &&
         !tooOld(i, now)
     );
     pool.sort((a, b) =>

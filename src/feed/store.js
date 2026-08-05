@@ -957,6 +957,10 @@ export class FeedStore {
       savedIds: user.saved || [],
       mutedSources: user.mutedSources || [],
       showTopics: user.showTopics || [],
+      // 저장된 취향 답 — 내 공간에서 "지금 이렇게 돼 있다"를 보여 주고 거기서
+      // 고칠 수 있어야 한다(David 2026-08-05). 예전엔 매번 빈 화면에서 처음부터
+      // 다시 고르게 해서, 무엇을 골랐었는지 알 수 없었다.
+      surveyAnswers: user.surveyAnswers || null,
       level: userLevel(counts),
       counts
     };

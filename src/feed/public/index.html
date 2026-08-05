@@ -2092,14 +2092,47 @@ function stopImmersionTracking(){ flushImmersionDwell(); if(immObserver){ immObs
 // 태깅은 서버에 남아 있고 켤 방법이 없으므로 태그된 글은 피드에 나오지 않는다.
 // 특정 매체를 안 보고 싶으면 기존 "그만보기"로 끄면 된다.
 
+// 정치·종교 글 보기를 켜고 끈다.
+//
+// 이 함수는 **없었다.** 2026-08-04 "연령 게이트 UI를 걷어낸다" 커밋에서 19금
+// 토글을 지우면서 같이 지웠는데, 정치·종교 버튼은 계속 이걸 부르고 있었다.
+// 그래서 David가 실기기에서 눌렀을 때 아무 일도 안 일어났다 — 오류는 콘솔에만
+// 뜨고 화면은 멀쩡해 보인다.
+//
+// 문법 검사기도, 부팅 경로 검사기도 못 잡았다. 문법은 맞고, 이건 부팅이 아니라
+// **버튼을 눌러야** 실행되는 자리다. 그래서 검사기 범위를 넓혔다
+// (test/no-dangling-calls.test.js).
+async function toggleTopic(topic, on){
+  const label = topic === "politics" ? "정치" : "종교";
+  const prev = state.showTopics.slice();
+  // 화면을 먼저 바꾼다 — 누른 즉시 반응해야 한다. 실패하면 되돌린다.
+  state.showTopics = on ? [...new Set([...prev, topic])] : prev.filter(t => t !== topic);
+  try {
+    const res = await API.setTopic(state.userId, topic, on);
+    if (Array.isArray(res.showTopics)) state.showTopics = res.showTopics;
+    localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
+    reloadFeedSilently();
+    toast(on ? label + " 글도 함께 보여드릴게요" : label + " 글을 숨겼어요");
+  } catch (e) {
+    state.showTopics = prev;
+    refreshDrawerFilters();
+    toast("바꾸지 못했어요 — 잠시 후 다시 시도해 주세요");
+  }
+}
+
 // Shared "콘텐츠 필터" (정치/종교) block — rendered both in 내 공간 and in
 // the ☰ drawer, driven by the same state/toggle functions above. Uses
 // data-attributes instead of ids so both places can render it at once without
 // id collisions.
 function contentFilterHtml(){
   return `
-    <div class="muted-row">🗳️ 정치 글 보기 <button data-topic-toggle="politics">${state.showTopics.includes("politics")?"숨기기":"보기"}</button></div>
-    <div class="muted-row">⛪ 종교 글 보기 <button data-topic-toggle="religion">${state.showTopics.includes("religion")?"숨기기":"보기"}</button></div>
+    ${[["politics","🗳️","정치"],["religion","⛪","종교"]].map(([id,icon,label])=>{
+      // 지금 켜져 있는지가 **색으로** 보여야 한다 — 버튼 글자만 바뀌면
+      // "보기"가 현재 상태인지 누르면 될 일인지 헷갈린다(David 2026-08-05).
+      const on = state.showTopics.includes(id);
+      return `<div class="muted-row">${icon} ${label} 글 <b>${on?"보는 중":"숨김"}</b>
+        <button class="chip${on?" active":""}" data-topic-toggle="${id}" aria-pressed="${on}">${on?"숨기기":"보기"}</button></div>`;
+    }).join("")}
     <p style="color:var(--muted);font-size:11.5px;line-height:1.5;margin:6px 0 0">정치·종교 글은 기본적으로 피드에서 숨겨져요. 위 버튼으로 켜고 끌 수 있어요. 특정 매체를 안 보고 싶으면 글을 열어 “그만보기”를 누르세요.</p>`;
 }
 function wireContentFilterButtons(container, onAfter){
@@ -2203,6 +2236,9 @@ async function openSpace(){
   history.pushState({ view:"space" }, "", "#space");
   try {
     const s = await API.mySpace(state.userId);
+    // 저장된 취향 답을 기억해 둔다 — 재설정 화면이 "처음부터 다시"가 아니라
+    // "지금 이렇게 돼 있다"에서 시작해야 한다(David 2026-08-05).
+    if (s.surveyAnswers) state.surveyAnswers = s.surveyAnswers;
     const lv = s.level || { title: "새싹", level: 0, score: 0, toNext: 0, nextAt: null };
     body.innerHTML = `
       <div class="drawer-sec" id="authSpaceSec" style="margin-top:0"></div>
@@ -2416,7 +2452,13 @@ function renderSurveyAuthNudge(){
 function showSurvey(){
   renderSurveyAuthNudge();
   const wrap = document.getElementById("questions");
+  // 지금 설정된 값에서 시작한다. 예전엔 매번 빈 화면이라 무엇을 골랐었는지
+  // 알 수 없었고, 하나만 바꾸려 해도 전부 다시 골라야 했다(David 2026-08-05).
+  const saved = state.surveyAnswers || null;
   const answers = {};
+  if (saved) {
+    for (const [k, v] of Object.entries(saved)) answers[k] = Array.isArray(v) ? v.slice() : v;
+  }
   wrap.innerHTML = "";
   for(const q of state.config.survey){
     const qEl = document.createElement("div"); qEl.className="q";
@@ -2424,6 +2466,10 @@ function showSurvey(){
     const opts = document.createElement("div"); opts.className="opts";
     for(const o of q.options){
       const b = document.createElement("button"); b.className="opt"; b.textContent=o.label;
+      // 지금 골라져 있는 것은 색으로 드러난다 — 누른 것과 안 누른 것이 구분돼야
+      // 거기서 이어서 고칠 수 있다.
+      const cur = answers[q.id];
+      if (Array.isArray(cur) ? cur.includes(o.id) : cur === o.id) b.classList.add("sel");
       b.onclick = ()=>{
         if(q.type==="multi"){
           answers[q.id] = answers[q.id]||[];
@@ -2440,6 +2486,9 @@ function showSurvey(){
     }
     qEl.appendChild(opts); wrap.appendChild(qEl);
   }
+  // 이미 고른 값이 있으면 제출을 처음부터 열어 둔다 — 하나만 바꾸러 들어온
+  // 사람에게 "아무것도 안 눌렀으니 제출 불가"는 말이 안 된다.
+  document.getElementById("startBtn").disabled = !(answers.categories && answers.categories.length);
   // warm-start from browsing history
   document.getElementById("histSample").onclick = ()=>{
     document.getElementById("histInput").value =

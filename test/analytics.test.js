@@ -560,3 +560,39 @@ test("수집: 갱신이 겹쳐 돌지 않는다", async () => {
   await Promise.all([a, b]);
   assert.equal(calls, 1, "두 번째 refresh가 수집을 또 시작했다");
 });
+
+test("카테고리 브리핑도 대표 지면 게이트를 지킨다", async () => {
+  // 2026-08-05 전수검사: 홈 피드·화제 랭킹·브리핑에 다 걸려 있는 두 가지가
+  // 카테고리 브리핑에만 빠져 있었다 — 저가치 제목 제외(promotable)와
+  // 메인 제외 소스(offMain). 검사 시점 라이브 27건 중 걸린 건 0건이었지만,
+  // 막는 장치가 없다는 것과 지금 깨끗한 것은 다른 이야기다.
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const src = {
+    id: "clien", kind: "community",
+    async fetch() {
+      return [
+        { id: "beg", title: "300추 가능한가요?", url: "https://x/1", source: "clien",
+          category: "humor", score: 900, commentCount: 50 },
+        { id: "ok", title: "이번 주 가장 많이 웃은 글 모음", url: "https://x/2", source: "clien",
+          category: "humor", score: 100, commentCount: 10 }
+      ];
+    }
+  };
+  const engine = new FeedEngine(null, [src]);
+  const res = await engine.categoryTop("humor", 10);   // { generatedAt, items }
+  const ids = res.items.map((i) => i.id);
+  assert.ok(!ids.includes("beg"), `추천 구걸 글이 카테고리 브리핑 대표로 올라왔다: ${ids.join(",")}`);
+  assert.ok(ids.includes("ok"), "정상 글까지 사라지면 안 된다");
+});
+
+test("대가성 고지문은 흐린 글씨로 쓰지 않는다", async () => {
+  // 실측(2026-08-05): --muted 는 흰 배경에서 #848383, 대비 3.78:1로 AA(4.5) 미달.
+  // 11.5px 작은 글씨까지 겹쳐서, 하필 법으로 반드시 보여야 하는 문장이 그
+  // 페이지에서 가장 안 보이는 글자였다.
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync("src/feed/server.js", "utf8");
+  const rule = css.slice(css.indexOf(".ad-disclosure{"), css.indexOf("}", css.indexOf(".ad-disclosure{")));
+  assert.ok(!/var\(--muted\)/.test(rule), `고지문이 흐린 색을 쓴다: ${rule}`);
+  const size = Number((rule.match(/font-size:([\d.]+)px/) || [])[1]);
+  assert.ok(size >= 13, `고지문이 너무 작다 (${size}px)`);
+});

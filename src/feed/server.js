@@ -773,8 +773,13 @@ ol.rank li a{color:var(--text);font-weight:700}
 .ad-native b{display:block;font-size:17px;line-height:1.35;margin-bottom:3px}
 .ad-native .ad-brand{display:block;font-size:13px;color:var(--muted)}
 .ad-native .ad-go{display:block;margin-top:8px;font-size:14px;font-weight:800;color:var(--text)}
+/* 대가성 고지문 — 법으로 표시해야 하는 문장이다. 여기만 --muted를 쓰지 않는다.
+   실측(2026-08-05): --muted는 흰 배경에서 #848383, 대비 3.78:1로 AA(4.5) 미달이었다.
+   11.5px 작은 글씨까지 겹쳐서, 하필 반드시 보여야 하는 문장이 이 페이지에서 가장
+   안 보이는 글자였다. David의 시인성 수정(2026-08-02)이 앱에만 들어가고 여기는
+   빠진 결과다. 본문색을 그대로 쓰고 크기를 올린다. */
 .ad-disclosure{margin:10px 0 0;padding-top:9px;border-top:1px solid var(--line);
-  font-size:11.5px;line-height:1.55;color:var(--muted)}</style>${adLoadersHtml()}</head><body><div class="wrap">
+  font-size:13px;line-height:1.6;color:var(--text)}</style>${adLoadersHtml()}</head><body><div class="wrap">
 <a class="back" href="/">← 지금핫 피드로</a>
 ${inner}
 ${coupangBanner}
