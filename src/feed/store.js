@@ -1025,7 +1025,26 @@ export class FeedStore {
       heatSeen: this.heatSeen || {},
       sessions: [...(this.sessions || new Map())].map(([token, s]) => ({ token, ...s }))
     };
-    fs.writeFileSync(this.file, JSON.stringify(data, null, 2));
+    // ── 원자적 쓰기 (2026-08-05 전수검사 P0)
+    //
+    // 예전엔 대상 파일에 곧바로 썼다. 쓰는 도중 프로세스가 죽으면 파일이
+    // 반쯤 쓰인 채 남고, 그러면 다음 시작 때 JSON 파싱이 실패한다.
+    // 그리고 아래 _load의 catch가 그 실패를 조용히 삼키고 **빈 상태로**
+    // 시작했다 — 그다음 저장이 그 빈 상태로 원본을 덮어썼다.
+    // 정전이나 나쁜 타이밍의 재시작 한 번에 가입자·댓글·취향이 통째로
+    // 사라지고, **사라진 줄도 모른다.**
+    //
+    // 임시 파일에 다 쓴 뒤 rename으로 바꿔치기한다. rename은 같은 파일
+    // 시스템에서 원자적이라 중간 상태가 존재하지 않는다 — 읽는 쪽은 항상
+    // 옛 파일 아니면 새 파일을 본다.
+    const tmp = `${this.file}.tmp`;
+    try {
+      fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+      fs.renameSync(tmp, this.file);
+    } catch (err) {
+      try { fs.unlinkSync(tmp); } catch {}
+      throw err;
+    }
   }
 
   _load() {
@@ -1062,9 +1081,28 @@ export class FeedStore {
         }
       }
     } catch (err) {
-      // corrupt persistence should not crash startup — start fresh
-      this.users = new Map();
-      this.sessions = new Map();
+      // ── 손상된 파일을 조용히 무시하지 않는다 (2026-08-05 전수검사 P0)
+      //
+      // 예전엔 여기서 빈 Map으로 시작했다. 그 주석("start fresh")은 선의였지만
+      // 결과가 나빴다 — 빈 상태로 시작한 뒤 **다음 저장이 원본을 덮어써서**
+      // 손상 한 번이 영구 소실이 됐다. 게다가 아무 로그도 남지 않아 사라진
+      // 줄도 몰랐다.
+      //
+      // 파일이 아예 없으면(첫 실행) 빈 상태가 맞다. 있는데 못 읽는 것은
+      // 다른 이야기다 — 그건 **사고**이고, 덮어쓰기 전에 사람이 봐야 한다.
+      if (err && err.code === "ENOENT") {
+        this.users = new Map();
+        this.sessions = new Map();
+        return;
+      }
+      // 손상본을 옆에 치워 둔다. 지우지 않는다 — 사람이 열어 보면 상당 부분을
+      // 건질 수 있다.
+      const backup = `${this.file}.corrupt-${Date.now()}`;
+      try { fs.renameSync(this.file, backup); } catch {}
+      throw new Error(
+        `저장 파일을 읽지 못했습니다: ${err.message}\n` +
+        `손상본을 ${backup} 로 옮겼습니다. 빈 상태로 시작하면 다음 저장이 원본을 덮어쓰므로 중단합니다.`
+      );
     }
   }
 }
