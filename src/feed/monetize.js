@@ -218,7 +218,20 @@ export function injectSlots(items, candidates, opts = {}) {
   if (!pool.length) return { items: out, slots }; // nothing clears relevance — every due slot stays empty
 
   const built = [];
-  let poolIdx = 0;
+  // 로테이션 순서는 그대로 두되, 이웃이 딜 글이면 **그 상품군 후보를 먼저**
+  // 집는다. 슬롯은 items[i] **앞**에 들어가므로 위·아래 둘 다 이웃이다.
+  // 못 찾으면 원래 순서대로 집는다 — 억지로 맞추지 않는다(David 2026-08-05
+  // "내용글과 직접 연관 있는 카테고리나 상품으로").
+  const used = new Set();
+  const take = (wantDest) => {
+    if (wantDest) {
+      for (let k = 0; k < pool.length; k++) {
+        if (!used.has(k) && pool[k].dest === wantDest) { used.add(k); return pool[k]; }
+      }
+    }
+    for (let k = 0; k < pool.length; k++) if (!used.has(k)) { used.add(k); return pool[k]; }
+    return null;
+  };
   items.forEach((item, i) => {
     const globalPos = startIndex + i; // this organic item's position in the whole session, ads excluded
     const dueForSlot =
@@ -230,8 +243,10 @@ export function injectSlots(items, candidates, opts = {}) {
     // 문제이고, 애드센스·애드핏 양쪽이 문제 삼는 지점이다. 글은 그대로 두고
     // 광고만 다음 자리로 미룬다 — 콘텐츠를 지우지 않는다.
     const neighborUnsafe = adUnsafe(item) || adUnsafe(items[i + 1]);
-    if (dueForSlot && !neighborUnsafe && poolIdx < pool.length) {
-      const candidate = pool[poolIdx++];
+    if (dueForSlot && !neighborUnsafe && used.size < pool.length) {
+      const wantDest = (items[i - 1] && items[i - 1].dealDest) || item.dealDest || null;
+      const candidate = take(wantDest);
+      if (!candidate) { built.push(item); return; }
       built.push(candidate);
       slots.push({ position: built.length - 1, globalPos, id: candidate.id, relevance: candidate.relevance });
     }
@@ -347,6 +362,9 @@ export function makeSlotItem({
   reviewCount = null,
   bestseller = false,
   sample = false,
+  // 쿠팡 도착지(fresh·dgt·fashion…). 딜 글 옆에 그 상품군 배너를 고를 때 쓴다 —
+  // 후보가 도착지를 들고 있지 않으면 맞출 방법 자체가 없다(2026-08-05).
+  dest = null,
   relevance,
   reason,
   sampleNote = null
@@ -376,6 +394,7 @@ export function makeSlotItem({
     score: 0,
     commentCount: 0,
     publishedAt: null,
+    dest: dest || null,
     matchScore: Math.round((relevance ?? 0) * 100) / 100,
     reasons: reason ? [reason] : [],
     myRating: 0,
@@ -474,6 +493,7 @@ export function bannerCandidates(preferences, opts = {}) {
     return makeSlotItem({
       id: b.id,
       category: b.category,
+      dest: b.dest || null,
       hook,
       // productName 자리에 도착지 이름을 넣는다 — 카드에 "어디로 가는지"가
       // 항상 보여야 한다(2026-08-03 문구≠도착지 사고의 재발 방지).

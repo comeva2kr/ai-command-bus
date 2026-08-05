@@ -62,3 +62,32 @@ test("딜 소스가 여러 곳 등록돼 있다", () => {
       `${s.id}: 파서 실측일이 없다`);
   }
 });
+
+test("서버가 끼우는 광고도 딜 글의 상품군을 따라간다", async () => {
+  const { injectSlots } = await import("../src/feed/monetize.js");
+  // 슬롯은 items[i] **앞**에 들어간다 — 딜 글은 광고의 위·아래 어느 쪽이든 이웃이다.
+  const items = [
+    { id: "a", title: "일반 글" },
+    { id: "b", title: "[네이버] 한돈 감자탕용 등뼈", isDeal: true, dealDest: "fresh" },
+    { id: "c", title: "일반 글 2" }
+  ];
+  const candidates = [
+    { id: "ad-dgt", dest: "dgt", relevance: 1 },
+    { id: "ad-fresh", dest: "fresh", relevance: 1 }
+  ];
+  const r = injectSlots(items, candidates, { every: 1, skipFirst: 1, maxPerPage: 1, minRelevance: 0 });
+  const ad = r.items.find((x) => x.id && x.id.startsWith("ad-"));
+  assert.equal(ad.id, "ad-fresh", "딜 옆인데 상품군이 다른 배너가 붙었다");
+});
+
+test("딜이 아니면 원래 로테이션 순서를 흐트러뜨리지 않는다", async () => {
+  const { injectSlots } = await import("../src/feed/monetize.js");
+  const items = [{ id: "a", title: "글1" }, { id: "b", title: "글2" }, { id: "c", title: "글3" }];
+  const candidates = [
+    { id: "ad-1", dest: "dgt", relevance: 1 },
+    { id: "ad-2", dest: "fresh", relevance: 1 }
+  ];
+  const r = injectSlots(items, candidates, { every: 1, skipFirst: 1, maxPerPage: 2, minRelevance: 0 });
+  const ads = r.items.filter((x) => x.id && x.id.startsWith("ad-")).map((x) => x.id);
+  assert.deepEqual(ads, ["ad-1", "ad-2"]);
+});
