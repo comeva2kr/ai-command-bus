@@ -1282,7 +1282,10 @@ test("adfit: 광고단위는 env + 승인 플래그가 모두 있을 때만 노�
   const path = await import("node:path");
   const { fileURLToPath } = await import("node:url");
   const html = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html"), "utf8");
-  const fn = html.slice(html.indexOf("function maybeInsertAdfit"), html.indexOf("// Soft, dismissible"));
+  // 애드핏 지면은 2026-08-06부터 전용 함수(ensureAdfitPlacement)가 만든다 —
+  // 심사 보류 상태의 빈 지면이 쿠팡 수익 슬롯을 먹던 것을 떼어낸 결과다.
+  // 두 함수를 함께 본다: 지면 계약은 앞쪽, 쿠팡 슬롯 계약은 뒤쪽에 있다.
+  const fn = html.slice(html.indexOf("function ensureAdfitPlacement"), html.indexOf("// Soft, dismissible"));
   assert.ok(fn.includes('getElementById("adfitSlot")'), "애드핏은 페이지당 1회 — 같은 광고단위 중복 노출 금지");
   // 계약 변경 2026-08-03: 예전엔 "4번째 카드 뒤에 딱 1개"였다. 실기기에서
   // David가 "제일 하단에만 하나 띡 들어가 있으면 누가 이걸 보지도 못하겠다"고
@@ -1293,6 +1296,10 @@ test("adfit: 광고단위는 env + 승인 플래그가 모두 있을 때만 노�
   assert.ok(fn.includes("display:none"), "애드핏 실광고 수신 전 빈 박스 금지");
   assert.ok(fn.includes("if(!unit && !cp) return;"), "지면이 채울 게 없으면 만들지 않는다");
   assert.match(html, /maybeInsertAdfit\(\);/, "loadMore에서 호출되어야");
+  assert.match(html, /ensureAdfitPlacement\(\);/, "애드핏 지면도 loadMore에서 호출되어야");
+  // David 2026-08-03: "제일 하단에만 하나 띡 들어가 있으면 누가 이걸 보지도
+  // 못하겠다." 목록 끝에 붙이면 스크롤하는 사용자 대부분에게 노출이 0이다.
+  assert.ok(!/feed\.appendChild\(slot\)/.test(html), "애드핏 지면이 목록 끝에 붙었다");
 });
 
 test("광고: 판정은 서버가 하고 화면은 그 표시를 읽는다", async () => {

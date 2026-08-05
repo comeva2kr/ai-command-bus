@@ -1886,11 +1886,30 @@ function observeAdImpression(slot, slotName){
 // 심사가 "설치 후 진행 가능"으로 또 반려된다. 두 요구가 부딪히므로 자리를
 // 나눈다 — 쿠팡은 본문 사이 슬롯, 애드핏은 목록 끝의 전용 카드.
 // 승인되면 이 함수를 지우고 다시 슬롯 경쟁에 넣으면 된다.
+// 애드핏 전용 자리(0-based). 첫 화면은 콘텐츠로만 두되, 스크롤 한두 번에
+// 반드시 지나가는 위치여야 노출이 0이 되지 않는다.
+const ADFIT_AT = 7;
 function ensureAdfitPlacement(){
   const unit = state.config && state.config.adfit && state.config.adfit.mobileUnit;
   if(!unit || document.getElementById("adfitSlot")) return;
   const feed = document.getElementById("feed");
-  if(!feed || feed.querySelectorAll(".card").length < 4) return;   // 내용 없이 광고부터 보이지 않게
+  if(!feed) return;
+  const cards = [...feed.querySelectorAll(".card")];
+  if(cards.length < ADFIT_AT + 2) return;   // 내용 없이 광고부터 보이지 않게
+
+  // **맨 아래가 아니라 중간에 둔다.** David 2026-08-03: "제일 하단에만 하나 띡
+  // 들어가 있으면 누가 이걸 보지도 못하겠다." 실제로 목록 끝 지면은 스크롤하는
+  // 사용자 대부분에게 노출이 0이다. 수익 슬롯을 뺏지 않으면서도 보이는 자리에
+  // 넣기 위해, 슬롯을 가져가는 대신 **카드 한 장을 더** 끼운다.
+  let at = cards[ADFIT_AT];
+  // 광고끼리 붙거나 민감한 글 옆에 서지 않게 한 칸씩 밀어 본다.
+  for(let k = ADFIT_AT; k < Math.min(cards.length - 1, ADFIT_AT + 4); k++){
+    const c = cards[k], n = cards[k + 1];
+    if(c.classList.contains("ad-card") || (n && n.classList.contains("ad-card"))) continue;
+    if(c.dataset.adUnsafe || (n && n.dataset.adUnsafe)) continue;
+    at = c; break;
+  }
+  if(!at) return;
 
   const slot = document.createElement("article");
   slot.className = "card ad-card ad-net";
@@ -1904,7 +1923,7 @@ function ensureAdfitPlacement(){
     <div class="ad-net-slot">
       <ins class="kakao_ad_area" style="display:none;" data-ad-unit="${unit}" data-ad-width="320" data-ad-height="100" data-ad-onfail="onAdfitNoAd"></ins>
     </div>`;
-  feed.appendChild(slot);
+  at.insertAdjacentElement("afterend", slot);
   observeAdImpression(slot, "feed-adfit");
 
   if(!document.getElementById("adfitLoader")){
