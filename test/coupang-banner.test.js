@@ -186,3 +186,20 @@ test("앱 config가 전 재고를 내려보낸다 — 크기로 거르지 않는
     }
   } finally { server.close(); }
 });
+
+test("광고 썸네일이 콘텐츠 썸네일과 같은 크기다", async () => {
+  // 브라우저 실측 2026-08-05: 광고 76px vs 콘텐츠 88px로 어긋나 있었다.
+  // .card-thumb 기본값이 76px인데 #feed .card .card-thumb 가 88px로 덮는다 —
+  // CSS 파일만 읽고 76을 따라 쓰면 광고만 작아진다. 실제로 그렇게 틀렸다.
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const num = (re) => {
+    const m = html.match(re);
+    return m ? Number(m[1]) : null;
+  };
+  const content = num(/#feed \.card \.card-thumb\{flex:0 0 (\d+)px/);
+  const ad = num(/#feed \.card \.ad-native \.ad-thumb\{flex:0 0 (\d+)px/);
+  assert.ok(content, "콘텐츠 썸네일 규칙을 못 찾았다");
+  assert.ok(ad, "광고 썸네일 규칙을 못 찾았다 — 광고만 다른 크기가 된다");
+  assert.equal(ad, content, `광고 ${ad}px vs 콘텐츠 ${content}px — 같아야 한다`);
+});

@@ -739,6 +739,11 @@
   .card .ad-native .ad-text{flex:1 1 auto;min-width:0}
   .card .ad-native .ad-thumb{flex:0 0 auto;width:76px;height:76px;border-radius:10px;
     overflow:hidden;border:1px solid var(--line)}
+  /* 콘텐츠 카드의 최종 썸네일 크기와 맞춘다. 위 .card-thumb 기본값은 76px인데
+     아래 #feed .card .card-thumb 가 88px로 덮는다 — CSS만 읽고 76을 따라 쓰면
+     광고만 12px 작아진다(브라우저 실측 2026-08-05: 광고 76 vs 콘텐츠 88).
+     "같은 모양"은 눈으로 재야 하고, 나는 파일만 읽고 틀렸다. */
+  #feed .card .ad-native .ad-thumb{flex:0 0 88px;width:88px;height:88px;margin:2px 0 0}
   .card .ad-native .ad-thumb img{width:100%;height:100%;object-fit:cover;display:block}
   .card .ad-native .ad-brand{margin:0;font-size:13px;color:var(--muted)}
   /* CTA — 잉크색 본문 굵게, 화살표만 강조색. 예전 13px 굵은 빨강은 라이트
