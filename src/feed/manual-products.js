@@ -45,7 +45,7 @@ export function loadBanners({ file = FILE } = {}) {
 // 만료되면 죽은 링크가 된다 — 눌렀는데 페이지가 없으면 수익은 0이고 불쾌감만
 // 남는다. 그래서 expires가 지난 것은 자동으로 빠지고 카테고리 배너로 폴백한다.
 // 관리 부담 없이 시의성만 취하는 구조다.
-export function pickBanner({ category = null, size = null, seen = new Set(), pick = 0, now = Date.now(), file } = {}) {
+export function pickBanner({ category = null, dest = null, size = null, seen = new Set(), pick = 0, now = Date.now(), file } = {}) {
   const all = loadBanners(file ? { file } : {})
     // size 인자는 받되 **거르지 않는다.** 크리에이티브를 우리가 그리므로 배너의
     // 픽셀 크기는 의미가 없고, 2026-08-05부터 재고가 200x200 한 종류다.
@@ -76,7 +76,11 @@ export function pickBanner({ category = null, size = null, seen = new Set(), pic
   // 범용(쇼핑·골드박스)은 어느 글 옆에 놓아도 거짓말이 아니다.
   const sq = (list) => list.filter((b) => b.size === "200x200");
   const wide = (list) => list.filter((b) => b.size !== "200x200");
+  // 도착지를 콕 집어 달라고 하면 그것부터 본다 — 딜 글이나 상품군이 읽히는
+  // 글 옆에서 쓴다(deals.js destForText). 재고에 없으면 아래 순서로 내려간다.
+  const byDest = dest ? all.filter((b) => b.dest === dest) : [];
   const tiers = [
+    sq(byDest), wide(byDest),
     sq(evCat), sq(inCat), sq(ev), sq(rest),
     wide(evCat), wide(inCat), wide(ev), wide(rest)
   ].filter((t) => t.length);

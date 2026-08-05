@@ -42,6 +42,11 @@ import { makeEnricher } from "./enrich.js";
 import { makeInterestsCache } from "./interest.js";
 import { readWiredStatus, CANDIDATE_NETWORKS, REFERENCE_ADSTXT, splitMeasured, ctr } from "./ad-networks.js";
 import { makeTrendsCache } from "./trends.js";
+import { destForText } from "./deals.js";
+
+// 상품군 사전을 걸지 않는 분류. engine.js의 AD_MATCH_OFF와 같은 원칙이다 —
+// 사건·시사 글 옆에 "문맥이 맞아 보이는" 광고가 붙으면 무관한 광고보다 나쁘다.
+const AD_MATCH_OFF_CATS = new Set(["news", "politics"]);
 import {
   enabledProviders,
   providerConfig,
@@ -604,8 +609,8 @@ export function createServer(opts = {}) {
   // (2026-08-03 검수 실측: /briefing·/trends·/ranking 전부 tech 배너).
   // size도 이미지 시대의 유물이다 — 크리에이티브를 우리가 그리므로 배너의
   // 픽셀 크기는 의미가 없고, 필터로 두면 재고만 절반으로 자른다.
-  const coupangBannerHtml = (category, size = null, pick = 0, slot = "page") => {
-    const b = pickBanner({ category, size, pick });
+  const coupangBannerHtml = (category, size = null, pick = 0, slot = "page", dest = null) => {
+    const b = pickBanner({ category, dest, size, pick });
     if (!b) return "";
     // 맥락별 문구 행렬에서 고른다. 행렬이 없으면 ad-copy.js 기본 문구로
     // 떨어진다 — 배치가 실패해도 광고가 사라지지 않는다.
@@ -952,7 +957,16 @@ ${adSlotHtml("adfit")}
         <span class="m">${escapeHtml(r.sourceLabel)}${evidenceBits(r).length ? " · " + evidenceBits(r).join(" · ") : ""}</span></li>`).join("")}</ul>
     </section>`).join("");
 
-  const briefingSectionsHtml = (b, mid = "") => { let midPlaced = false; return b.sections.map((sec) => {
+  // 브리핑 본문 사이사이에 광고를 넣는다 (David 2026-08-06 "그 안에도 연관 광고
+  // 사이사이 넣고"). 예전엔 가운데 딱 한 장이었다 — 9개 섹션짜리 글에 광고
+  // 하나면 스크롤하는 사람 대부분이 지나치지 못하고 지나간다.
+  //
+  // **그 섹션이 무엇에 관한 글인지 보고 고른다.** 대표 글 제목에서 상품군을
+  // 읽어(destForText) 그 도착지 배너를 쓴다. 뉴스·시사 섹션에는 걸지 않는다 —
+  // 사건 기사 옆에 "문맥이 맞아 보이는" 광고가 붙는 것이 무관한 광고보다
+  // 나쁘다(2026-08-06 피드에서 겪은 것과 같은 이유).
+  const BRIEF_AD_EVERY = 3;   // 세 섹션마다 한 장
+  const briefingSectionsHtml = (b, mid = "") => { let midPlaced = false; let adNo = 0; return b.sections.map((sec, secIdx) => {
     const lead = sec.items[0];
     // 실측이 0인 지표는 문장에서 아예 뺀다 — "추천 0·댓글 86을 모으며 화제의
     // 중심"은 자기모순이다(적대적 검수 2026-07-31, 태호·지영 페르소나 지적).
@@ -975,6 +989,17 @@ ${adSlotHtml("adfit")}
       <p>${escapeHtml(sec.label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(maskProfanity(lead.title))}”</b>(${escapeHtml(lead.sourceLabel)})입니다. ${leadLine}</p>
       <ul>${rows}</ul></section>`;
     if (mid && !midPlaced) { midPlaced = true; return html + mid; }
+    // 첫 광고는 위의 mid가 이미 놨다. 그 뒤로 BRIEF_AD_EVERY 섹션마다 한 장씩,
+    // 마지막 섹션 뒤에는 놓지 않는다(글 끝에 광고만 남는 모양은 피한다).
+    const isLast = secIdx === b.sections.length - 1;
+    if (mid && !isLast && (secIdx + 1) % BRIEF_AD_EVERY === 0) {
+      adNo += 1;
+      const dest = AD_MATCH_OFF_CATS.has(sec.category)
+        ? null
+        : destForText(sec.items[0] && sec.items[0].title);
+      const ad = coupangBannerHtml(sec.category, null, 3 + adNo, `brief_s${secIdx + 1}`, dest);
+      if (ad) return html + ad;
+    }
     return html;
   }).join(""); };
   // 자체 콘텐츠 상호 링크.
