@@ -1256,59 +1256,63 @@ flowchart LR
     <div class="diagram">
 <pre class="mermaid">
 flowchart TD
-  A["A · 수집 동시성<br/>완료 · 20→43곳"] --> RA{"검수"}
-  RA -->|P0 반영| B1["1 · 스크롤 유지<br/>완료"]:::done
-  B1 --> R1{"검수"}
-  R1 --> B2["2 · 깨진 것 치우기<br/>완료"]:::done
-  B2 --> R2{"검수"}
-  R2 --> B3["3 · 브리핑 재설계<br/>완료 · 중요도 순"]
-  B3 --> R3{"검수"}
-  R3 --> E(("애드핏 재심사<br/>David 신청"))
-  E -.심사 도는 동안.-> B4["4 · 딜 섹션<br/>구매 의도 트래픽"]
-  B4 --> R4{"검수"}
-  R4 --> B5["5 · 우리 클릭을 랭킹에<br/>되먹임 고리"]
-  B5 --> R5{"검수"}
-  R5 --> B6["6 · 우리 색<br/>이례성 점수 노출"]
+  A["A · 수집 동시성<br/>20 → 43곳"]:::done --> B1["1 · 스크롤 유지<br/>읽던 자리 복원"]:::done
+  B1 --> B2["2 · 깨진 것 치우기<br/>번역 링크 · 갱신 표시"]:::done
+  B2 --> B3["3 · 브리핑 재설계<br/>중요도 순"]:::done
+  B3 --> P0["P0 · 계정 잠그기<br/>+ 데이터 보호"]:::done
+  P0 --> AD["광고 클릭 보고<br/>+ 인접 안전검사"]:::done
+  AD --> TR["발행 페이지 측정<br/>+ 관리자 광고 탭"]:::done
+  TR --> E(("애드핏 재심사<br/>David 신청 · 대기")):::wait
+  E -.심사 도는 동안.-> B4["4 · 딜 섹션<br/>지금 착수"]:::now
+  B4 --> B5["5 · 우리 클릭을 랭킹에"]:::todo
+  B5 --> B6["6 · 우리 색<br/>이례성 점수"]:::todo
+  B6 --> B7["7 · GAM + 대행<br/>트래픽 성장 후"]:::todo
 
-  style A fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
-  style B3 fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
-  style E fill:#fbeae6,stroke:#c8250c,color:#c8250c
-  classDef next fill:#fbeae6,stroke:#c8250c,color:#c8250c
   classDef done fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+  classDef now fill:#fbeae6,stroke:#c8250c,color:#c8250c,stroke-width:3px
+  classDef wait fill:#f8eeda,stroke:#9c5f06,color:#9c5f06
+  classDef todo fill:#ffffff,stroke:#7d716b,color:#7d716b
 </pre>
     </div>
-    <figcaption>David의 2차 버그 리포트(8월 5일)를 기존 백로그에 끼워 넣은 순서다.
-    재심사는 자체 콘텐츠(3번)가 끝난 뒤에 넣는다 — 남은 항목을 안고 넣으면 같은 사유로 또 반려되고 이력만 쌓인다.
-    <strong>딜 섹션은 심사가 도는 동안</strong> 진행한다. 쿠팡 제휴라 애드핏 심사와 서로 걸리지 않는다.</figcaption>
+    <figcaption><b style="color:#0b6b58">초록 = 완료</b> · <b style="color:#c8250c">빨강 = 지금 하는 것</b> ·
+    <b style="color:#9c5f06">노랑 = David 행동 대기</b> · 흰색 = 아직 안 함.
+    <br>8월 5일 하루에 초록 여섯 칸이 채워졌다. 재심사는 자체 콘텐츠(3번)가 끝난 뒤에 넣는다 —
+    남은 항목을 안고 넣으면 같은 사유로 또 반려되고 이력만 쌓인다.
+    <b>딜 섹션은 심사가 도는 동안</b> 진행한다. 쿠팡 제휴라 애드핏 심사와 서로 걸리지 않는다.</figcaption>
   </figure>
 
-  <h3>왜 이 순서인가 — David 2차 리포트를 백로그에 끼워 넣다</h3>
-  <p>David가 준 4건을 따로 처리하지 않고 남아 있던 일과 한 줄로 세웠다. 기준은 두 가지다:
-  <strong>돈이 새는 곳이 먼저</strong>, 그리고 <strong>재심사를 막는 것이 그다음</strong>.</p>
+  <h3>오늘 무엇을 했고, 다음은 무엇인가</h3>
+  <p>8월 5일 하루의 기록이다. <strong>완료</strong>는 라이브에서 실측으로 확인한 것만 적는다.</p>
+  <div class="scroll">
   <table>
-    <thead><tr><th>순서</th><th>일</th><th>왜 이 자리인가</th></tr></thead>
+    <thead><tr><th>상태</th><th>일</th><th>결과 · 왜 이 자리인가</th></tr></thead>
     <tbody>
-      <tr><td><b>1</b></td><td>스크롤 유지 <span class="tag">David 4번 · 심각</span></td>
-        <td>읽는 도중에 맨 위로 튀면 그 자리에서 나간다. <strong>체류시간이 곧 광고 노출</strong>이라
-        이건 기능 결함이 아니라 매출이 새는 구멍이다. 다른 무엇을 고쳐도 여기서 사람이 빠지면 의미가 없다.</td></tr>
-      <tr><td><b>2</b></td><td>깨진 것 치우기 <span class="tag">David 1·2번</span></td>
-        <td>번역 버튼은 다크모드에서 안 보이고, 눌러도 지역 제한 오류가 뜬다. 브리핑 카드는
-        하루 3회로 바꿔 놓고 아직 "15분 갱신"이라고 써 있다 — <strong>사실이 아닌 표시</strong>다.
-        둘 다 싸고, 심사관이 먼저 보는 자리에 있다.</td></tr>
-      <tr><td><b>3</b></td><td>아침 브리핑 재설계 <span class="tag">David 3번</span></td>
-        <td>자체 콘텐츠는 <strong>재심사의 핵심 근거</strong>다. 지금은 사적이고 매니악한 글이 대표로 올라온다.
-        경제·정책·사회·정치 중요 이슈를 축으로 놓고 관련 커뮤니티 반응과 트렌드를 붙인다.</td></tr>
-      <tr><td><b>4</b></td><td>애드핏 재심사 <span class="tag">David 행동</span></td>
-        <td>1~3이 끝난 상태로 넣는다. 심사는 며칠 걸리므로 <strong>기다리는 동안 다음 일을 한다.</strong></td></tr>
-      <tr><td><b>5</b></td><td>딜 섹션</td>
-        <td>쿠팡 제휴라 애드핏 심사와 무관하다. 구매 의도를 갖고 들어오는 트래픽은
-        전환이 가장 높은 유입이다 — 심사 대기 시간을 여기에 쓴다.</td></tr>
-      <tr><td><b>6</b></td><td>우리 클릭을 랭킹에</td>
-        <td>지금 심어야 데이터가 쌓인다. 늦게 넣을수록 되먹임이 늦게 돈다.</td></tr>
-      <tr><td><b>7</b></td><td>우리 색 — 이례성 점수</td>
-        <td>차별화. 앞의 것들이 다 돌아간 뒤라야 의미가 있다.</td></tr>
+      <tr><td><span class="chip done">완료</span></td><td>A · 수집 동시성</td>
+        <td>소스 <b>20 → 43곳</b>, 풀 633 → 1,270건. "죽은 소스"는 없었고 우리가 47곳을 한꺼번에 던져 타임아웃을 낸 것이었다.</td></tr>
+      <tr><td><span class="chip done">완료</span></td><td>1 · 스크롤 유지 <span class="ptag">David 4번</span></td>
+        <td>읽다 튀면 거기서 나간다 — 체류시간이 곧 광고 노출이다. 원인은 자동 갱신이 아니라 <b>복원 조건</b>이었다.</td></tr>
+      <tr><td><span class="chip done">완료</span></td><td>2 · 깨진 것 치우기 <span class="ptag">David 1·2번</span></td>
+        <td>죽은 번역 링크 제거, 혼합 언어 정리, "15분 갱신"이라는 사실 아닌 표시 정정.</td></tr>
+      <tr><td><span class="chip done">완료</span></td><td>3 · 브리핑 재설계 <span class="ptag">David 3번</span></td>
+        <td>반응 순 → <b>중요도 순</b>. "해커뉴스 추천 907건"이 1위이던 것이 "5개 매체가 다룬 「김여정 국방력 강화」"로 바뀌었다.</td></tr>
+      <tr><td><span class="chip done">완료</span></td><td>P0 · 계정 잠그기</td>
+        <td>순번 ID + 무인증으로 <b>누구나 남이 될 수 있었다</b>(재현 확인). 무작위 ID + 계정 열쇠로 막고 라이브에서 403을 확인했다.</td></tr>
+      <tr><td><span class="chip done">완료</span></td><td>P0 · 데이터 보호</td>
+        <td>손상 한 번에 사용자 471명이 <b>조용히 사라지는</b> 경로였다. 원자적 쓰기 + 손상 시 중단.</td></tr>
+      <tr><td><span class="chip done">완료</span></td><td>광고 클릭 보고 · 인접 안전검사</td>
+        <td>화면이 꽂은 광고가 클릭을 안 보내서 <b>서버가 스스로 광고를 줄이고</b> 있었다(9칸 → 13칸).</td></tr>
+      <tr><td><span class="chip done">완료</span></td><td>발행 페이지 측정 · 관리자 광고 탭</td>
+        <td>검색 유입의 착지점을 <b>세지 않고 있었다</b>. 이제 브리핑·랭킹·커뮤니티·키워드가 집계에 잡힌다.</td></tr>
+      <tr><td><span class="chip warn">David</span></td><td>애드핏 재심사 신청</td>
+        <td>반려 사유 둘 다 처리 완료. 소유권·크롤링·코드 배치도 확인했다. <b>넣으셔도 된다.</b></td></tr>
+      <tr style="background:var(--accent-soft)"><td><span class="chip crit">지금</span></td><td><b>4 · 딜 섹션</b></td>
+        <td>제휴는 <b>노출이 아니라 구매로</b> 번다 — 트래픽이 적어도 성립하는 유일한 경로다. 재료(뽐뿌 핫딜)는 이미 수집 중이고 일반 피드에 섞여 가치가 소멸하고 있다.</td></tr>
+      <tr><td>—</td><td>5 · 우리 클릭을 랭킹에</td><td>지금 심어야 데이터가 쌓인다.</td></tr>
+      <tr><td>—</td><td>6 · 우리 색 — 이례성 점수</td><td>차별화. 앞의 것들이 돌아간 뒤라야 의미가 있다.</td></tr>
+      <tr><td>—</td><td>7 · GAM + 대행</td><td>트래픽 성장 후. 순서를 뒤집으면 거절만 당한다.</td></tr>
     </tbody>
   </table>
+  </div>
 
   <div class="evidence">
     <span class="src">1번을 진단해 보니 원인이 David가 말한 것과 달랐다</span>
