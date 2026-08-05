@@ -476,7 +476,11 @@ export function parseListPage(html, cfg = {}) {
       return ctx.match(new RegExp(regexStr));
     };
 
-    const raw = { title, url: resolveUrl(cfg.urlBase, href) };
+    // href의 엔티티를 먼저 푼다. HTML 속성 안의 "&"는 "&amp;"로 이스케이프돼
+    // 있는 것이 정상인데, 그대로 두면 쿼리 파라미터가 통째로 깨진다 —
+    // 실측(2026-08-05 SLR클럽): ".../vx2.php?id=hot_article&amp;no=1450305"
+    // 이 링크를 누르면 no 값이 전달되지 않아 글이 아니라 목록으로 간다.
+    const raw = { title, url: resolveUrl(cfg.urlBase, decodeXml(href)) };
     const dm = pick(cfg.dateRegex, cfg.dateIn);
     if (dm) {
       const iso = normalizeListDate(dm[1]);

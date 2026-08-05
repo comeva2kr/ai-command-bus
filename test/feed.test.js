@@ -3546,3 +3546,43 @@ test("모든 소스를 번역 대상으로 감싼다 — 선언을 믿지 않는
   assert.equal(built[0].constructor.name, "TranslatingSource",
     "국내 선언 소스를 안 감싸면 섞여 온 외국어를 못 잡는다");
 });
+
+test("목록 파서: 링크의 &amp;를 풀지 않으면 글이 아니라 목록으로 간다", async () => {
+  // 실측(2026-08-05 SLR클럽): ".../vx2.php?id=hot_article&amp;no=1450305"
+  // HTML 속성 안의 "&"는 "&amp;"로 이스케이프돼 있는 것이 정상인데, 그대로
+  // 두면 no 파라미터가 전달되지 않아 누른 사람이 글이 아닌 목록을 본다.
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const html = `<tr><td class="list_ctgry">자유게시판</td>
+    <td class="sbj"><a href="/bbs/vx2.php?id=hot&amp;no=123">제목입니다</a> [7]</td>
+    <td class="list_vote">12</td><td class="list_click">3,456</td></tr>`;
+  const rows = parseListPage(html, {
+    urlBase: "https://www.slrclub.com",
+    titleRegex: 'class="sbj">(?:<span[^>]*>[\\s\\S]*?</span>)?\\s*<a href="([^"]+)"[^>]*>([^<]+)</a>',
+    windowBefore: 300, windowAfter: 700,
+    commentRegex: "^\\s*\\[(\\d+)\\]",
+    scoreRegex: 'class="list_vote[^"]*"[^>]*>([\\d,]+)<',
+    viewRegex: 'class="list_click[^"]*"[^>]*>([\\d,]+)<'
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].url, "https://www.slrclub.com/bbs/vx2.php?id=hot&no=123");
+  assert.ok(!/&amp;/.test(rows[0].url), "링크에 &amp;가 남았다");
+  assert.equal(rows[0].commentCount, 7);
+  assert.equal(rows[0].score, 12);
+  assert.equal(rows[0].viewCount, 3456, "쉼표가 든 조회수를 못 읽으면 3이 된다");
+});
+
+test("목록 파서: 민감 게시판 행은 제외한다", async () => {
+  // SLR클럽 인기글은 전 게시판 통합이라 성인·정치 게시판 글이 섞여 온다.
+  // 원 게시판 이름이 제목 앞 칸에 있으므로 그걸로 거른다.
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const row = (cat, title, no) => `<tr><td class="list_ctgry">${cat}</td>
+    <td class="sbj"><a href="/bbs/vx2.php?id=hot&amp;no=${no}">${title}</a> [1]</td></tr>`;
+  const html = row("자유게시판", "평범한 글", 1) + row("성인게시판", "성인 글", 2) + row("정치게시판", "정치 글", 3);
+  const rows = parseListPage(html, {
+    urlBase: "https://www.slrclub.com",
+    titleRegex: 'class="sbj">(?:<span[^>]*>[\\s\\S]*?</span>)?\\s*<a href="([^"]+)"[^>]*>([^<]+)</a>',
+    windowBefore: 300, windowAfter: 700,
+    excludeRegex: 'class="list_ctgry"[^>]*>\\s*(성인게시판|정치게시판)'
+  });
+  assert.deepEqual(rows.map((r) => r.title), ["평범한 글"]);
+});

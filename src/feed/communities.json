@@ -443,16 +443,30 @@
       "country": "KR",
       "lang": "ko",
       "kind": "community",
-      "category": "life",
-      "size": "medium",
+      "category": "humor",
+      "size": "large",
       "adult": false,
-      "enabled": false,
+      "enabled": true,
       "frameable": false,
       "adapter": {
         "type": "list",
-        "url": "https://www.slrclub.com/bbs/zboard.php?id=free",
-        "note": "JS/AJAX 렌더링 리스트(bbs_list.js가 클라이언트에서 게시물을 채움) — 정적 HTML에 게시물 행 없음, 정규식 파싱 불가로 스킵. 2026-07-23 확인(200이지만 콘텐츠 없음, 커뮤니티 연구 문서의 Cloudflare/차단 메모와 별개로 렌더링 문제).",
-        "list": {}
+        "url": "https://www.slrclub.com/bbs/zboard.php?id=hot_article",
+        "pages": 1,
+        "note": "통합 인기글(hot_article). 2026-08-05 실측: 200/UTF-8/30건 파싱 성공 — 원 게시판명·추천·조회·댓글·시각이 모두 정적 HTML 목록에 있다. 이전 메모('JS/AJAX 렌더링이라 정적 HTML에 게시물 행 없음, 파싱 불가', 2026-07-23)는 **틀렸다** — 그때 본 것은 자유게시판(id=free)이고, 그 보드도 지금은 33건이 정적으로 파싱된다. 잘못된 판정 하나로 대형 커뮤니티 한 곳이 열흘 넘게 빠져 있었다. 공식 RSS 없음(rss.php 404 확인). robots.txt는 검색엔진 6곳만 허용하고 '*'는 전면 차단 — 회사 방침(2026-08-05 David 결정)에 따라 제목·링크·공개 반응수만, 인기글 보드 한 곳에서, 1페이지만, 15분 주기로 읽는다. 이용약관에 이 범위를 명시했다.",
+        "list": {
+          "urlBase": "https://www.slrclub.com",
+          "titleRegex": "class=\"sbj\">(?:<span[^>]*>[\\s\\S]*?</span>)?\\s*<a href=\"([^\"]+)\"[^>]*>([^<]+)</a>",
+          "windowBefore": 300,
+          "windowAfter": 700,
+          "commentRegex": "^\\s*\\[(\\d+)\\]",
+          "scoreRegex": "class=\"list_vote[^\"]*\"[^>]*>([\\d,]+)<",
+          "viewRegex": "class=\"list_click[^\"]*\"[^>]*>([\\d,]+)<",
+          "dateRegex": "class=\"list_date[^\"]*\"[^>]*>([^<]+)<",
+          "excludeRegex": "class=\"list_ctgry\"[^>]*>\\s*(성인게시판|정치게시판|직접홍보|시장정보|해외직구)",
+          "max": 30,
+          "parserCheckedAt": "2026-08-05",
+          "note": ""
+        }
       }
     },
     {
