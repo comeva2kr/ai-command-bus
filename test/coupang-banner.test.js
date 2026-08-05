@@ -72,12 +72,21 @@ test("배너: 같은 자리에 같은 배너를 반복하지 않는다 (회전)"
   assert.equal(new Set(got).size, 3, `3종이 모두 나와야 하는데: ${got.join(",")}`);
 });
 
-test("배너: 요청한 사이즈만 돌려준다", () => {
+test("배너: 크기로 거르지 않는다 — 거르면 광고가 통째로 사라진다", () => {
+  // 계약 변경 2026-08-05. 예전엔 요청한 크기만 돌려줬다("없는 사이즈에 억지로
+  // 다른 걸 주면 레이아웃이 깨진다"). 그때는 배너를 원본 크기로 그대로 깔았기
+  // 때문에 맞는 말이었다.
+  //
+  // 지금은 76px 정사각 썸네일에 object-fit:cover로 넣으므로 원본 크기가
+  // 레이아웃을 깨지 않는다. 반대로 크기 필터가 남아 있으면, 재고를 200x200으로
+  // 갈아치운 순간 옛 크기를 넘기는 호출부에서 **재고가 0이 되어 광고가 사라진다**
+  // — 실제로 그렇게 깨졌다.
   const f = tmpFile({ banners: [
-    { category: "tech", size: "320x100", href: "https://link.coupang.com/a/S", img: "https://ads-partners.coupang.com/banners/1" }
+    { category: "tech", size: "200x200", href: "https://link.coupang.com/a/S", img: "https://ads-partners.coupang.com/banners/1" }
   ] });
-  assert.ok(pickBanner({ size: "320x100", file: f }));
-  assert.equal(pickBanner({ size: "300x250", file: f }), null, "없는 사이즈에 억지로 다른 걸 주면 레이아웃이 깨진다");
+  assert.ok(pickBanner({ size: "200x200", file: f }));
+  assert.ok(pickBanner({ size: "320x100", file: f }), "옛 크기를 넘겨도 광고는 나와야 한다");
+  assert.ok(pickBanner({ file: f }), "크기를 안 넘겨도 나와야 한다");
 });
 
 test("실제 등록된 배너가 규격을 지킨다", () => {

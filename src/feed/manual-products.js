@@ -47,15 +47,13 @@ export function loadBanners({ file = FILE } = {}) {
 // 관리 부담 없이 시의성만 취하는 구조다.
 export function pickBanner({ category = null, size = null, seen = new Set(), pick = 0, now = Date.now(), file } = {}) {
   const all = loadBanners(file ? { file } : {})
-    // size=null이면 전 재고. 크리에이티브를 우리가 그리게 된 뒤로 배너의 픽셀
-    // 크기는 의미가 없어졌는데, 필터로 남겨두면 재고만 절반으로 자른다.
-    .filter((b) => !size || b.size === size)
+    // size 인자는 받되 **거르지 않는다.** 크리에이티브를 우리가 그리므로 배너의
+    // 픽셀 크기는 의미가 없고, 2026-08-05부터 재고가 200x200 한 종류다.
+    // 거르면 옛 크기를 넘기는 호출부에서 재고가 통째로 0이 되어 광고가 사라진다
+    // (실제로 그렇게 깨졌다 — 320x100을 다 걷어낸 직후).
+    // 인자를 지우지 않는 것은 호출부 시그니처를 건드리지 않기 위해서다.
     .filter((b) => !b.expires || b.expires >= now)
-    // 정사각(200x200)을 먼저 쓴다. 카드가 콘텐츠 카드와 같은 모양이 되려면
-    // 썸네일이 정사각이어야 한다 — 가로 배너(3.2:1)를 76px 정사각에 넣으면
-    // 가운데만 남고 글자가 잘린다(David 실기기 2026-08-05: "사진 너무 큰데").
-    // 정사각 재고가 없는 분야는 기존 배너로 자연히 내려간다.
-    .sort((a, b) => (b.size === "200x200") - (a.size === "200x200"));
+    ;
   if (!all.length) return null;
   // 이벤트가 있으면 먼저 쓴다 — 같은 자리라도 "여름 시즌오프"가 "로켓패션"보다
   // 눌릴 이유가 분명하다. 문맥까지 맞으면 최우선.
@@ -63,7 +61,25 @@ export function pickBanner({ category = null, size = null, seen = new Set(), pic
   const evCat = category ? ev.filter((b) => b.category === category) : [];
   const inCat = category ? all.filter((b) => !b.expires && b.category === category) : [];
   const rest = all.filter((b) => !b.expires && b.category !== category);
-  const tiers = [evCat, inCat, ev, rest].filter((t) => t.length);
+
+  // ── 정사각을 분야보다 먼저 본다 (2026-08-05)
+  //
+  // 광고 카드가 콘텐츠 카드와 같은 모양이 되려면 썸네일이 정사각이어야 한다.
+  // 가로 배너(3.2:1)가 76px 정사각 자리에 들어가면 가운데만 남고 글자가 잘린다 —
+  // 그러면 "광고만 혼자 다른 모양"이 다시 살아난다.
+  //
+  // 실측: David가 준 정사각 18종에 경제(business)에 맞는 것이 없어서, 경제 글
+  // 옆에만 가로 배너가 나갔다. 분야를 먼저 맞추면 그 한 칸이 계속 어긋난다.
+  //
+  // 그래서 **정사각 안에서 분야를 맞추고**, 정사각이 아예 없을 때만 가로로
+  // 내려간다. 분야 정확도를 조금 내주고 모양 일관성을 얻는다 — 어차피
+  // 범용(쇼핑·골드박스)은 어느 글 옆에 놓아도 거짓말이 아니다.
+  const sq = (list) => list.filter((b) => b.size === "200x200");
+  const wide = (list) => list.filter((b) => b.size !== "200x200");
+  const tiers = [
+    sq(evCat), sq(inCat), sq(ev), sq(rest),
+    wide(evCat), wide(inCat), wide(ev), wide(rest)
+  ].filter((t) => t.length);
   for (const tier of tiers) {
     for (const group of [tier.filter((b) => !seen.has(b.id)), tier.filter((b) => seen.has(b.id))]) {
       if (group.length) return group[pick % group.length];

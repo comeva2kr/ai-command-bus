@@ -18,7 +18,8 @@ const HTML = fs.readFileSync(path.join(ROOT, "src/feed/public/index.html"), "utf
 function realItems() {
   const data = JSON.parse(fs.readFileSync(path.join(ROOT, "src/feed/products.json"), "utf8"));
   return (data.banners || [])
-    .filter((b) => b.size === "320x100")
+    // 2026-08-05: 재고를 200x200 정사각으로 통째로 갈았다. 크기로 거르면
+    // 여기가 0이 되어 테스트가 통째로 죽는다 — 재고 전체를 그대로 쓴다.
     .map((b) => ({ category: b.category, dest: b.dest, href: b.href }));
 }
 
