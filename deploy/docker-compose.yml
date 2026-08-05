@@ -50,6 +50,12 @@ services:
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
       # 카카오 애드핏 모바일 배너 광고단위(공개값). 애드센스 심사 공백 대비.
       - ADFIT_UNIT_MOBILE=${ADFIT_UNIT_MOBILE:-}
+      # 애드핏 지면을 그린다. 2026-08-05 16:22 매체 심사 보류 사유에 새 줄이 붙었다:
+      #   "광고를 설치한 이후 심사 진행이 가능합니다. 광고 설치 후 재심사를 요청하여 주시기 바랍니다."
+      # 우리가 "승인 전에는 그리지 않는다"로 막아 둔 탓에 심사관이 와도 볼 광고가 없었다.
+      # 광고단위 자체는 이미 승인 상태(DAN-ay04FF…, 2026-07-31 생성)라 켜도 된다.
+      # 못 채우면 3초 뒤 쿠팡 카드로 넘어간다(index.html adfitFallback) — 빈 칸은 안 남는다.
+      - ADFIT_ENABLED=${ADFIT_ENABLED:-1}
       # 쿠팡파트너스 실연동 — 3종 모두 있어야 상품 카드 활성(coupang.js).
       - COUPANG_PARTNER_ID=${COUPANG_PARTNER_ID:-}
       - COUPANG_ACCESS_KEY=${COUPANG_ACCESS_KEY:-}
