@@ -639,3 +639,17 @@ test("브리핑 이슈: 우리 풀에 한 편뿐인 사건도 이름을 갖는�
   const heads = issues.map((i) => i.headline);
   assert.equal(new Set(heads).size, 2, `헤드라인이 겹친다: ${heads.join(" | ")}`);
 });
+
+test("브리핑 이슈: 잘라 온 구절에 부호 흔적이 남지 않는다", async () => {
+  // 실측(2026-08-05 라이브): 5개 매체가 다룬 “이 대통령 “북한과 대결, 정무적
+  // 열린 따옴표가 닫히지 않아 문장이 깨져 보였다. "Bending Spoons," 처럼
+  // 꼬리 쉼표도 남았다. 우리 문장 안에 인용부호로 넣는 말이므로 짝이 맞아야 한다.
+  const { leadPhrase, tidyPhrase } = await import("../src/feed/digest.js");
+  const p = leadPhrase("이 대통령 “북한과 대결, 정무적 판단이었다”");
+  assert.ok(!/[“”]/.test(p), `짝 안 맞는 따옴표가 남았다: ${p}`);
+  assert.ok(!/,\s*$/.test(leadPhrase("Bending Spoons, 인수 발표")), "꼬리 쉼표가 남았다");
+  // 짝이 맞으면 그대로 둔다 — 멀쩡한 인용을 지우면 뜻이 바뀐다
+  assert.equal(tidyPhrase("그는 “맞다”고 했다"), "그는 “맞다”고 했다");
+  assert.equal(tidyPhrase("코스피, 장 초반 매수 사이드카 발동"), "코스피, 장 초반 매수 사이드카 발동");
+  assert.equal(tidyPhrase("끝에 붙은 이음표 —"), "끝에 붙은 이음표");
+});

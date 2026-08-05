@@ -133,10 +133,31 @@ export function leadPhrase(title, { max = 20 } = {}) {
   if (!t) return "";
   t = t.split(/[…·\[\]|]|—|\.\.\.|\s-\s/)[0].trim();
   t = t.replace(/^["“'‘\s]+/, "").replace(/["”'’\s]+$/, "");
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max);
-  const sp = cut.lastIndexOf(" ");
-  return (sp >= 8 ? cut.slice(0, sp) : cut).trim();
+  if (t.length > max) {
+    const cut = t.slice(0, max);
+    const sp = cut.lastIndexOf(" ");
+    t = (sp >= 8 ? cut.slice(0, sp) : cut).trim();
+  }
+  return tidyPhrase(t);
+}
+
+// 잘라 온 구절을 우리 문장 안에 인용부호로 넣는다. 그래서 **짝이 안 맞는
+// 따옴표가 남으면 안 된다** — 실측에서 이렇게 나왔다:
+//   5개 매체가 다룬 “이 대통령 “북한과 대결, 정무적
+// 열린 따옴표가 닫히지 않아 문장이 깨져 보인다. 꼬리 쉼표도 마찬가지다
+// ("Bending Spoons,"). 잘라 낸 자리에 남은 부호는 말이 아니라 흔적이다.
+export function tidyPhrase(text) {
+  let t = String(text || "");
+  const OPEN = /[“‘"']/g, CLOSE = /[”’"']/g;
+  // 짝이 맞지 않으면 안쪽 따옴표를 통째로 없앤다. 어느 쪽이 짝인지 추측하는
+  // 것보다 낫다 — 추측이 틀리면 뜻이 바뀐다.
+  const opens = (t.match(/[“‘]/g) || []).length, closes = (t.match(/[”’]/g) || []).length;
+  if (opens !== closes) t = t.replace(/[“”‘’]/g, "");
+  const q = (t.match(/["']/g) || []).length;
+  if (q % 2 === 1) t = t.replace(/["']/g, "");
+  void OPEN; void CLOSE;
+  // 잘린 자리에 남은 이음 부호
+  return t.replace(/[\s,·、:;\-–—]+$/, "").trim();
 }
 
 export function issueHeadline(items, shape) {
