@@ -46,7 +46,7 @@ test("광고: 클라이언트가 끼운 카드도 노출이 기록된다", async
   const html = readFileSync("src/feed/public/index.html", "utf8");
   // 이 경로는 측정 사각지대였다 — 서버가 보낸 카드만 추적되고 있었다.
   assert.match(html, /function observeAdImpression\(/);
-  assert.match(html, /if\(!useAdfit\) observeAdImpression\(slot/, "클라이언트 쿠팡 카드 추적 누락");
+  assert.match(html, /if\(!useAdfit\)\{\s*\n\s*observeAdImpression\(slot/, "클라이언트 쿠팡 카드 추적 누락");
   assert.match(html, /observeAdImpression\(slot, "feed-passback"\)/, "폴백 카드 추적 누락");
 });
 

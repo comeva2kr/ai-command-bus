@@ -1,4 +1,5 @@
 import test from "node:test";
+import { normalizeItem } from "../src/feed/content.js";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -1292,4 +1293,52 @@ test("adfit: 광고단위는 env + 승인 플래그가 모두 있을 때만 노�
   assert.ok(fn.includes("display:none"), "애드핏 실광고 수신 전 빈 박스 금지");
   assert.ok(fn.includes("if(!unit && !cp) return;"), "지면이 채울 게 없으면 만들지 않는다");
   assert.match(html, /maybeInsertAdfit\(\);/, "loadMore에서 호출되어야");
+});
+
+test("광고: 판정은 서버가 하고 화면은 그 표시를 읽는다", async () => {
+  // 2026-08-05 전수검사: 광고를 꽂는 곳이 둘인데 서로를 몰랐다.
+  //   서버 injectSlots      — adUnsafe 검사 있음
+  //   화면 maybeInsertAdfit — 검사 없음 → 욕설·정치 글 옆에 제휴 카드가 붙었다
+  // 화면이 같은 규칙을 다시 구현하면 두 벌이 되어 또 어긋난다. 서버가 판정하고
+  // 결과만 실어 보낸다.
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const src = {
+    id: "clien", kind: "community",
+    async fetch() {
+      // 실제 경로처럼 정규화를 거친다 — 토픽 분류가 여기서 붙는다
+      return [
+        normalizeItem({ title: "오늘 점심 뭐 먹지", url: "https://x/1", source: "clien", category: "life" }),
+        normalizeItem({ title: "정청래 한동훈 발언 논란", url: "https://x/2", source: "clien", category: "news" })
+      ];
+    }
+  };
+  const items = await new FeedEngine(null, [src]).pool();
+  const safe = items.find((i) => /점심/.test(i.title));
+  const pol = items.find((i) => /정청래/.test(i.title));
+  assert.equal(safe.adUnsafe, false, "평범한 글 옆에는 광고를 붙일 수 있어야 한다");
+  assert.equal(pol.adUnsafe, true, "정치 글 옆에 광고가 붙으면 안 된다");
+
+  // 화면이 그 표시를 실제로 쓰는지 — 안 쓰면 서버가 표시해도 소용없다
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  assert.match(html, /card\.dataset\.adUnsafe = "1"/, "카드에 표시를 안 싣는다");
+  assert.match(html, /anchor\.dataset\.adUnsafe \|\| \(nextCard && nextCard\.dataset\.adUnsafe\)/,
+    "광고 자리를 고를 때 표시를 안 본다");
+});
+
+test("광고: 화면이 꽂은 카드도 클릭을 보고한다", async () => {
+  // 예전엔 노출만 보냈다. 그러면 클릭률의 분모만 커지고 분자는 안 커진다 —
+  // 서버는 그 낮은 값을 보고 adaptiveEvery로 광고를 스스로 성글게 낸다.
+  // 돈 되는 자리를 우리 손으로 줄이고 있었다.
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const block = html.slice(html.indexOf("function maybeInsertAdfit"), html.indexOf("function maybeInsertAdfit") + 4000);
+  assert.match(block, /observeAdImpression\(slot/, "노출 보고가 사라졌다");
+  assert.match(block, /API\.adSignal\(state\.userId, `feed\$\{i \+ 1\}`, "click"/, "클릭 보고가 없다");
+
+  // 낮은 클릭률이 실제로 광고를 성글게 만든다는 것도 함께 고정한다
+  const { adaptiveEvery } = await import("../src/feed/monetize.js");
+  const base = 9;
+  assert.ok(adaptiveEvery(base, 0.3) > base, "반응이 낮으면 성글어져야 한다(그래서 클릭 누락이 비쌌다)");
+  assert.ok(adaptiveEvery(base, 2.0) < base, "반응이 높으면 촘촘해져야 한다");
 });

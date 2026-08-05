@@ -1827,6 +1827,11 @@ function maybeInsertAdfit(){
     const prevEl = anchor.previousElementSibling, nextEl = anchor.nextElementSibling;
     if((prevEl && prevEl.classList.contains("ad-card")) ||
        (nextEl && nextEl.classList.contains("ad-card"))) continue;
+    // 욕설·정치·종교 글 옆에는 광고를 붙이지 않는다. 서버는 자기 슬롯에
+    // 이걸 지키고 있었는데 화면 쪽에는 판정이 없어서 그 옆에 붙었다
+    // (2026-08-05 전수검사). 판정은 서버가 하고 우리는 표시만 읽는다.
+    const nextCard = cards[i + 1];
+    if(anchor.dataset.adUnsafe || (nextCard && nextCard.dataset.adUnsafe)) continue;
     anchor.dataset.adAfter = "1";
 
     const slot = document.createElement("article");
@@ -1857,7 +1862,18 @@ function maybeInsertAdfit(){
       slot.innerHTML = coupangCardHtml(link, cp.disclosure, `feed${i + 1}`, anchor.dataset.cat || null, i);
     }
     anchor.insertAdjacentElement("afterend", slot);
-    if(!useAdfit) observeAdImpression(slot, `feed${i + 1}`);
+    if(!useAdfit){
+      observeAdImpression(slot, `feed${i + 1}`);
+      // 클릭도 보고한다. 예전엔 **노출만** 보냈다 — 그러면 클릭률의 분모만
+      // 커지고 분자는 안 커진다. 서버는 그 낮은 값을 보고 adaptiveEvery로
+      // 광고를 스스로 성글게 낸다(9칸 → 13칸). 돈 되는 자리를 우리 손으로
+      // 줄이고 있었다(2026-08-05 전수검사).
+      const link = slot.querySelector("a.ad-native");
+      if(link) link.addEventListener("click", ()=>{
+        API.adSignal(state.userId, `feed${i + 1}`, "click", null);
+        Track.ad("click", `feed${i + 1}`, null);
+      });
+    }
 
     if(useAdfit && !document.getElementById("adfitLoader")){
       const sc = document.createElement("script");
@@ -3033,6 +3049,7 @@ function setupAdImpressionObserver(){
 function appendCard(item){
   if(isAdItem(item)) return appendAdCard(item);
   const card = document.createElement("article"); card.className="card"; card.dataset.cat=item.category; card.dataset.id=item.id;
+  if(item.adUnsafe) card.dataset.adUnsafe = "1";   // 이 글 옆에는 광고를 붙이지 않는다
   // 카드 골격 = 3단 고정 그리드 (David 2026-08-01 "사진이 있다고 기존 틀이
   // 흔들리면 안 됨" — 네이버뉴스·구글뉴스·NYT 공통 패턴):
   //   ① 헤더행: 소스·카테고리·배지 — 항상 풀폭, 배지는 항상 우측 끝

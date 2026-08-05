@@ -11,6 +11,7 @@ import { loadRegistry } from "./registry.js";
 import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
 import { matchInterest, WEIGHTY } from "./interest.js";
+import { adUnsafe } from "./promotion.js";
 import { promotable, isLowValue } from "./promotion.js";
 import { isJunkImage } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
@@ -344,6 +345,13 @@ export class FeedEngine {
       // 그대로 노출된다. 2026-08-04 실측: 피드 30건 중 22건이 null이었고,
       // 커뮤니티 순위에 "dcinside"처럼 id가 찍힌 것과 같은 뿌리다.
       if (!item.sourceLabel) item.sourceLabel = this._itemLabels.get(item.source) || item.source;
+
+      // 이 글 **옆에** 광고를 붙여도 되는가. 서버는 자기가 끼우는 슬롯에만
+      // 이 판정을 쓰고 있었는데, 화면도 따로 광고를 꽂는다(maybeInsertAdfit).
+      // 화면 쪽에는 이 정보가 없어서 욕설·정치 글 옆에 제휴 카드가 붙었다
+      // (2026-08-05 전수검사). 판정은 한 곳에서 하고 결과를 실어 보낸다 —
+      // 화면이 같은 규칙을 다시 구현하면 두 벌이 되어 또 어긋난다.
+      item.adUnsafe = adUnsafe(item);
 
       // 번역된 글에 옮기지 못한 영문 발췌가 붙어 있으면 여기서도 지운다.
       // 수집 단계(translate.js)에서 이미 거르지만, 풀은 48시간을 안고 가므로
