@@ -1337,13 +1337,21 @@ export class FeedEngine {
     pool.sort((a, b) =>
       ((b.score || 0) + (b.commentCount || 0) * 2 + (b.coverage || 0) * 50) -
       ((a.score || 0) + (a.commentCount || 0) * 2 + (a.coverage || 0) * 50));
+    // 같은 사건이 여러 매체·커뮤니티에서 오면 한 번만 싣는다. 브리핑에는 이미
+    // 걸려 있는데 여기만 빠져서, 자동차 브리핑 1위와 4위가 같은 사건이었다
+    // (David 2026-08-05 실측: "어제자 진주 택시 전복사고" / "오늘자 진주 택시
+    // 전복사고 블랙박스"). 10칸짜리 목록에서 중복 한 건은 비싸다.
+    const seenEvent = new Set();
     const perSrc = new Map();
     const out = [];
     for (const i of pool) {
       if (out.length >= limit) break;
+      const ev = eventKey(i.title);
+      if (ev && seenEvent.has(ev)) continue;
       const used = perSrc.get(i.source) || 0;
       if (used >= 3) continue;
       perSrc.set(i.source, used + 1);
+      if (ev) seenEvent.add(ev);
       out.push({
         id: i.id, title: i.title, url: i.url || null,
         source: i.source, sourceLabel: this._labelFor(i),

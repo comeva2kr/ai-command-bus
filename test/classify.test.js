@@ -545,3 +545,62 @@ test("전문 커뮤니티(인벤)의 등록 카테고리는 유지 — 혼합 �
     assert.equal(keywordCategory(t), null, `사전이 억지로 분류하면 안 됨: ${t}`);
 });
 
+
+test("사건 보도는 주제 글이 아니다 — 등장하는 사물이 주제가 되면 안 된다", async () => {
+  // David 2026-08-05 실측(자동차 브리핑): 1~4위가 전부 교통사고였다.
+  //   1. 어제자 진주 택시 전복사고 ㄷㄷ gif
+  //   2. 본인은 억울하다고 한문철에 제보한 교통사고 블랙박스 영상
+  //   3. 어머니 벤츠로 음주운전… 10대 가로수 충돌 사망
+  // 진짜 자동차 글(아반떼 가격표, 자율주행 센서 비교)은 6위부터 나왔다.
+  // David: "그냥 자동차가 글에 등장만 할 뿐이지 자동차 주제의 글은 아니지.
+  //         이것뿐만 아니라 다른 주제도 마찬가지야."
+  const { keywordCategory, looksLikeIncident } = await import("../src/feed/classify.js");
+
+  // 사건 보도 — 주제 확정을 포기한다
+  for (const t of [
+    "어제자 진주 택시 전복사고 ㄷㄷ gif",
+    "본인은 억울하다고 한문철에 제보한 교통사고 블랙박스 영상",
+    "어머니 벤츠로 음주운전… 10대 가로수 충돌 사망",
+    "테슬라 차량 추돌로 2명 숨져",
+    "게임회사 대표 구속… 횡령 혐의"
+  ]) {
+    assert.ok(looksLikeIncident(t), `사건으로 안 잡힘: ${t}`);
+    assert.equal(keywordCategory(t), null, `사건인데 주제가 붙었다: ${t}`);
+  }
+
+  // 주제 자체가 중심인 글 — 그대로 살아야 한다
+  for (const [t, want] of [
+    ["이야기 아반떼 CN8 가격표", "auto"],
+    ["현대차, 디 올뉴 아반떼 계약 돌입…가격은 2398만원부터", "auto"],
+    ["테슬라, 6개월 연속 수입차 1위 질주", "auto"],
+    ["아반떼 실물 보고 왔는데 죽이더라", "auto"],
+    // 그 주제 자체의 이슈는 사건어가 겹쳐도 살려야 한다 — 가드는 좁을수록 좋다
+    ["전기차 화재 원인 분석 결과 공개", "auto"]
+  ]) {
+    assert.equal(keywordCategory(t), want, `주제 글이 떨어졌다: ${t}`);
+  }
+});
+
+test("카테고리 브리핑: 같은 사건을 두 번 싣지 않는다", async () => {
+  // David 실측: 자동차 브리핑 1위 "어제자 진주 택시 전복사고",
+  //             4위 "오늘자 진주 택시 전복사고 블랙박스" — 같은 사건이다.
+  // 브리핑에는 이미 걸려 있던 장치가 카테고리 브리핑에만 빠져 있었다.
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const src = {
+    id: "s", kind: "community",
+    async fetch() {
+      return [
+        { id: "a", title: "신형 그랜저 시승기 첫인상", url: "https://x/1", source: "bobae",
+          category: "auto", score: 100, commentCount: 10 },
+        { id: "b", title: "신형 그랜저 시승기 첫인상", url: "https://x/2", source: "clien",
+          category: "auto", score: 90, commentCount: 8 },
+        { id: "c", title: "아반떼 실물 보고 왔는데 죽이더라", url: "https://x/3", source: "bobae",
+          category: "auto", score: 80, commentCount: 5 }
+      ];
+    }
+  };
+  const res = await new FeedEngine(null, [src]).categoryTop("auto", 10);
+  const titles = res.items.map((i) => i.title);
+  assert.equal(new Set(titles).size, titles.length, `같은 사건이 두 번 실렸다: ${titles.join(" | ")}`);
+  assert.ok(titles.includes("아반떼 실물 보고 왔는데 죽이더라"), "다른 사건까지 사라지면 안 된다");
+});

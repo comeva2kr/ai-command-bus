@@ -1,3 +1,4 @@
+import { decodeEntities } from "./html-text.js";
 import { discardBody } from "./fetchers.js";
 // 썸네일 보강(enrichment) — image가 없는 피드 아이템의 원문 URL에서 og:image/
 // twitter:image "URL 문자열"만 뽑아 채워 넣는다.
@@ -39,17 +40,6 @@ const DESC_META_NAMES = ["og:description", "twitter:description", "description"]
 const EXCERPT_MAX = 200; // docs/legal.md 발췌 상한
 const EXCERPT_MIN = 15; // 이보다 짧으면 사이트명 따위일 뿐 발췌가 아니다
 
-function decodeEntities(s) {
-  return String(s || "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
-    .replace(/&amp;/g, "&");
-}
 
 // name 하나에 대해 content 값을 찾는다. 정방향(property 먼저, content 나중)과
 // 역방향(content가 property/name보다 먼저 오는 마크업 — 실제로 종종 있다) 둘

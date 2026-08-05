@@ -15,6 +15,7 @@
 // bundle so global fetch trusts the proxy (see the environment's proxy README).
 
 import { decodeCp949 } from "./cp949-table.js";
+import { decodeEntities, stripHtml } from "./html-text.js";
 
 const DEFAULT_UA = "ai-command-bus-feed/0.1 (+https://github.com/comeva2kr/ai-command-bus)";
 
@@ -73,26 +74,10 @@ function stripCdata(s) {
   return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
 }
 
-function stripHtml(s) {
-  // 태그 제거 → 잔여 엔티티 재디코드. <description>은 "HTML을 XML로 이스케이프"한
-  // 이중 인코딩이라 tag()의 1회 디코드 후에도 텍스트 노드의 &nbsp; 등이 남는다 —
-  // 실측: 구글뉴스 상세뷰에 "&nbsp;&nbsp;"가 문자 그대로 노출됐다(2026-07-31).
-  return decodeXml(String(s || "").replace(/<[^>]+>/g, " "))
-    .replace(/&nbsp;|&#160;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+// 엔티티·태그 처리는 html-text.js 한 벌만 쓴다. 예전엔 여기와 enrich.js에
+// 각각 있었고 한쪽에만 &nbsp; 처리가 있어서, enricher가 채운 발췌만 깨졌다.
+const decodeXml = decodeEntities;
 
-function decodeXml(s) {
-  return s
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
-    .replace(/&amp;/g, "&");
-}
 
 // ---- Thumbnail image extraction (image: 원본 OG/썸네일 URL 핫링크만, David
 // 2026-07-26 — see docs/legal.md) -------------------------------------------
