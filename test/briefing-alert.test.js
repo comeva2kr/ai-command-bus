@@ -25,7 +25,7 @@ test("본 편성은 기억하고, 다시 깜빡이지 않는다", () => {
   const h = html();
   assert.match(h, /const BRIEF_SEEN_KEY = "nh_brief_seen"/);
   assert.match(h, /markBriefSeen\(edition\)/, "클릭 시 읽음 기록이 없다");
-  assert.match(h, /classList\.remove\("is-new"\)/, "누른 뒤에도 표시가 남는다");
+  assert.match(h, /classList\.remove\("is-new", ?"is-new-quiet"\)/, "누른 뒤에도 표시가 남는다");
   // 읽음 여부로 클래스가 갈린다
   assert.match(h, /const isNew = edition && briefSeen\(\) !== edition/);
 });
@@ -39,6 +39,11 @@ test("깜빡임이 튀지 않는다 — 호흡, 그리고 움직임 축소 존�
   // 글자를 흔들면 읽는 데 방해가 된다.
   assert.ok(!/\.brief-card\.is-new \.bc-title\{[^}]*animation/.test(h),
     "제목에 애니메이션이 걸렸다");
+  // 스트립 전체가 한꺼번에 맥동하면 은은한 게 아니라 화면이 깜빡이는 것이다.
+  // 호흡하는 카드는 대표 한 장뿐이고, 카테고리 카드는 조용한 표시만 받는다.
+  assert.match(h, /is-new-quiet/, "카테고리 카드까지 전부 호흡한다");
+  assert.ok(!/\.brief-card\.is-new-quiet\{[^}]*animation/.test(h),
+    "조용한 표시에 애니메이션이 걸렸다");
   // 움직임 축소 설정에서는 표식만 남기고 멈춘다 — 알림을 없애지는 않는다.
   const rm = h.match(/@media \(prefers-reduced-motion: reduce\)\{[\s\S]{0,400}?\}\s*\}/g) || [];
   assert.ok(rm.some((b) => b.includes(".brief-card.is-new")), "움직임 축소 대응이 없다");

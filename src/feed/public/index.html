@@ -616,6 +616,13 @@
     border-radius:50%;background:var(--color-accent);margin-right:6px;vertical-align:middle;
     animation:briefDot 5s ease-in-out infinite}
   @keyframes briefDot{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1)}}
+  /* 카테고리 카드는 **호흡하지 않는다.** 스트립 10장이 한꺼번에 맥동하면
+     그건 은은한 게 아니라 화면 전체가 깜빡이는 것이다(실측 2026-08-06:
+     11장 중 10장이 동시에 숨쉬었다). 유도할 자리는 하나면 충분하다 —
+     대표 카드만 호흡하고, 나머지는 라벨 색만 살짝 살린다. */
+  .brief-card.is-new-quiet .bc-cat{color:var(--color-accent)}
+  .brief-card.is-new-quiet{border-color:color-mix(in srgb,var(--color-accent) 22%,var(--line))}
+
   /* 움직임을 줄이라고 설정한 사용자에게는 **정지한 표식**만 남긴다 —
      알림을 없애는 게 아니라 움직임만 없앤다. */
   @media (prefers-reduced-motion: reduce){
@@ -2798,7 +2805,7 @@ async function loadBriefStrip(){
         <div class="bc-meta">실시간 TOP ${tr.trends.length} →</div></a>` : "") +
       b.sections.map(s=>{
         const lead = s.items[0];
-        return `<a class="brief-card${newCls}" href="/briefing/${encodeURIComponent(s.category)}">
+        return `<a class="brief-card${newCls ? " is-new-quiet" : ""}" href="/briefing/${encodeURIComponent(s.category)}">
           <div class="bc-cat">${escapeHtml(s.label)}</div>
           <div class="bc-title">${escapeHtml(lead.title)}</div>
           <div class="bc-meta">화제글 ${s.items.length}건 정리 →</div></a>`;
@@ -2811,7 +2818,7 @@ async function loadBriefStrip(){
       el.addEventListener("click", (e)=>{
         if(!e.target.closest(".brief-card")) return;
         markBriefSeen(edition);
-        el.querySelectorAll(".brief-card.is-new").forEach(c=>c.classList.remove("is-new"));
+        el.querySelectorAll(".brief-card").forEach(c=>c.classList.remove("is-new","is-new-quiet"));
       }, { once: true });
     }
   } catch { el.hidden = true; }
