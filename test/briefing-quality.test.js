@@ -588,3 +588,28 @@ test("브리핑 이슈: 중요한 사건이 반응 큰 잡담보다 앞선다", 
   const chipIssue = issues.find((i) => i.refs[0].id === "chip");
   assert.match(chipIssue.headline, /검색이 몰리는/, `헤드라인이 이유를 안 밝힌다: ${chipIssue.headline}`);
 });
+
+test("브리핑 이슈: 헤드라인이 서로 구분된다", async () => {
+  // 2026-08-05 라이브: 대표 이슈 여섯 개가 전부 "5개 매체가 동시에 다룬 사안"
+  // 이었다. 중요도 순으로 바꾸자 교차보도 이슈가 상위를 채웠는데, 헤드라인이
+  // 개수만 말해서 무엇에 관한 것인지 알 수 없었다. 구분이 안 되면 헤드라인이 아니다.
+  const { buildDigest, issueSubject } = await import("../src/feed/digest.js");
+  const mk = (id, title, tags) => ({
+    id, title, sourceLabel: id, source: id, score: 0, commentCount: 0,
+    coverage: 5, category: "business", tags
+  });
+  const items = [
+    mk("a1", "정부 주택 공급 대책 발표", ["주택", "공급"]),
+    mk("a2", "주택 공급 확대안 국회 보고", ["주택", "공급"]),
+    mk("b1", "반도체 수출 최대치 경신", ["반도체", "수출"]),
+    mk("b2", "반도체 수출 증가세 이어져", ["반도체", "수출"])
+  ];
+  const { issues } = buildDigest(items, { maxIssues: 4 });
+  const heads = issues.map((i) => i.headline);
+  assert.equal(new Set(heads).size, heads.length, `헤드라인이 겹친다: ${heads.join(" | ")}`);
+  assert.ok(heads.some((h) => /주택|공급/.test(h)), `무엇에 관한 것인지 안 밝힌다: ${heads.join(" | ")}`);
+
+  // 주제어는 여러 편이 **함께** 쓴 말이어야 한다 — 한 편의 표현을 대표로 쓰면 안 된다
+  assert.equal(issueSubject([{ title: "주택 공급 대책" }, { title: "주택 공급 보고" }]), "주택 공급");
+  assert.equal(issueSubject([{ title: "혼자 쓰는 낱말" }]), "", "한 편뿐이면 공통어가 없다");
+});

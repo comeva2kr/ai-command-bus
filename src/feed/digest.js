@@ -93,6 +93,29 @@ export function issueShape(items) {
 // 이슈 제목 — 원문 제목을 그대로 쓰지 않는다. 대표 글 제목은 본문 안에서
 // 인용부호로 밝히고, 헤드라인은 우리가 관측한 것을 요약한 한 줄로 만든다.
 // (Techmeme이 아웃링크 집합을 자체 저작물로 만드는 방식과 같은 원리다.)
+// 이 이슈를 무엇이라 부를 것인가. 묶인 글들의 제목에서 **가장 여러 편이
+// 함께 쓴 낱말**을 고른다. 우리가 요약해서 지어낸 말이 아니라, 매체들이
+// 그 사건을 부를 때 실제로 쓴 말이라 사실에서 벗어날 여지가 없다.
+// 한 편에만 나오는 낱말은 그 매체의 표현일 뿐이므로 쓰지 않는다.
+export function issueSubject(items, { max = 2 } = {}) {
+  const count = new Map();
+  for (const i of items) {
+    const seen = new Set();
+    for (const w of String(i.title || "").split(/[^가-힣a-zA-Z0-9]+/)) {
+      if (w.length < 2) continue;
+      if (seen.has(w)) continue;      // 한 제목 안의 반복은 한 번만 센다
+      seen.add(w);
+      count.set(w, (count.get(w) || 0) + 1);
+    }
+  }
+  const shared = [...count.entries()]
+    .filter(([, n]) => n >= 2)        // 최소 두 편이 함께 쓴 말
+    .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
+    .slice(0, max)
+    .map(([w]) => w);
+  return shared.join(" ");
+}
+
 export function issueHeadline(items, shape) {
   const lead = items[0];
   const label = lead.sourceLabel || lead.source;
@@ -103,8 +126,15 @@ export function issueHeadline(items, shape) {
   // 헤드라인에 그 이슈를 구별하는 **측정값**을 넣는다. 넣지 않으면 같은 소스에서
   // 나온 별개 이슈가 "해커뉴스에서 크게 호응받은 글"로 똑같이 반복된다(실측).
   switch (shape) {
-    case "coverage":
-      return `${Math.max(coverage, outlets)}개 매체가 동시에 다룬 사안`;
+    case "coverage": {
+      // 개수만 쓰면 **여섯 이슈가 전부 "5개 매체가 동시에 다룬 사안"**이 된다
+      // (2026-08-05 라이브 실측). 구분이 안 되면 헤드라인이 아니다.
+      // 무엇에 관한 것인지 함께 말한다 — 우리가 지어낸 말이 아니라 매체들이
+      // 그 사건을 부를 때 실제로 함께 쓴 낱말이다.
+      const subject = issueSubject(items);
+      const n = Math.max(coverage, outlets);
+      return subject ? `${n}개 매체가 다룬 “${subject}”` : `${n}개 매체가 동시에 다룬 사안`;
+    }
     case "interest": {
       const m = items.find((i) => i.interest && i.interest.how === "term").interest;
       return m.traffic > 0 ? `지금 검색이 몰리는 “${m.term}”` : `지금 검색이 몰리는 “${m.term}”`;
