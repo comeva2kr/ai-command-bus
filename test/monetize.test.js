@@ -1332,7 +1332,11 @@ test("광고: 화면이 꽂은 카드도 클릭을 보고한다", async () => {
   // 돈 되는 자리를 우리 손으로 줄이고 있었다.
   const { readFileSync } = await import("node:fs");
   const html = readFileSync("src/feed/public/index.html", "utf8");
-  const block = html.slice(html.indexOf("function maybeInsertAdfit"), html.indexOf("function maybeInsertAdfit") + 4000);
+  // 함수 전체를 본다. 예전엔 앞 4000자만 잘라 봤는데, 주석 몇 줄이 늘자
+  // 클릭 보고 줄이 창 밖으로 밀려 멀쩡한 코드가 빨간불이 났다(2026-08-06).
+  const start = html.indexOf("function maybeInsertAdfit");
+  const end = html.indexOf("\nfunction ", start + 30);
+  const block = html.slice(start, end > start ? end : start + 12000);
   assert.match(block, /observeAdImpression\(slot/, "노출 보고가 사라졌다");
   assert.match(block, /API\.adSignal\(state\.userId, `feed\$\{i \+ 1\}`, "click"/, "클릭 보고가 없다");
 

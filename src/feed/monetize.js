@@ -255,7 +255,7 @@ export function injectSlots(items, candidates, opts = {}) {
     if (due && !neighborUnsafe && slots.length < maxPerPage && used.size < pool.length) {
       // 슬롯은 items[i] **앞**에 들어간다. 그래서 "딜 바로 아래"가 되려면
       // 바로 윗칸(items[i-1])이 딜이어야 한다.
-      const above = items[i - 1] && items[i - 1].dealDest ? items[i - 1].dealDest : null;
+      const above = items[i - 1] && (items[i - 1].dealDest || items[i - 1].adDest) || null;
       let waitForDeal = false;
       if (!above) {
         for (let k = i; k < Math.min(items.length, i + DEAL_WAIT); k++) {
@@ -263,7 +263,7 @@ export function injectSlots(items, candidates, opts = {}) {
         }
       }
       if (!waitForDeal) {
-        const candidate = take(above || item.dealDest || null);
+        const candidate = take(above || item.dealDest || item.adDest || null);
         if (candidate) {
           built.push(candidate);
           slots.push({ position: built.length - 1, globalPos, id: candidate.id, relevance: candidate.relevance });

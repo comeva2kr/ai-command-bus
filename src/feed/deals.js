@@ -56,8 +56,8 @@ export function isDeal(item) {
 // 사전은 좁게 유지한다. 애매하면 매칭하지 않고 기본 문맥 규칙으로 내려간다 —
 // 엉뚱한 도착지를 붙이면 문구와 도착지가 어긋나 허위표시가 된다(2026-08-03 사고).
 const PRODUCT_DEST = [
-  ["fresh",    /정육|한돈|한우|삼겹|등뼈|닭|계란|메추리알|김치|쌀|과일|사과|감귤|딸기|수박|채소|양파|마늘|생수|우유|요거트|밀키트|반찬|해산물|오징어|새우|연어|김\b|라면|즉석밥|간편식|아이스크림|음료|커피믹스|비빔면|짜장|짬뽕|과자|스낵|젤리|초콜릿|사탕|캔디|햄\b|참치|통조림|소스|양념|식용유|설탕|밀가루|견과|아몬드|육포|만두|피자|치킨|떡볶이|장어|낙지|문어|전복|명란|젓갈|브라우니|두유|베지밀|월드콘|죠스바|스크류바|설레임|아이스바/],
-  ["dgt",      /노트북|태블릿|모니터|키보드|마우스|ssd|hdd|usb|충전기|보조배터리|이어폰|헤드폰|스피커|공기청정기|에어컨|선풍기|청소기|건조기|세탁기|냉장고|tv\b|프로젝터|블랙박스|스마트폰|갤럭시|아이폰|애플|샤오미|음식물처리기|정수기|가전/i],
+  ["fresh",    /정육|한돈|한우|삼겹|등뼈|닭|계란|메추리알|김치|쌀|과일|사과|감귤|딸기|수박|채소|양파|마늘|생수|우유|요거트|밀키트|반찬|해산물|오징어|새우|연어|김\b|라면|즉석밥|간편식|아이스크림|음료|커피믹스|비빔면|짜장|짬뽕|과자|스낵|젤리|초콜릿|사탕|캔디|햄\b|참치|통조림|소스|양념|식용유|설탕|밀가루|견과|아몬드|육포|만두|피자|치킨|떡볶이|장어|낙지|문어|전복|전어|고등어|갈치|삼치|조기|명태|꽁치|멸치|굴비|가리비|홍합|명란|젓갈|브라우니|두유|베지밀|월드콘|죠스바|스크류바|설레임|아이스바/],
+  ["dgt",      /노트북|태블릿|모니터|키보드|마우스|ssd|hdd|usb|충전기|보조배터리|이어폰|헤드폰|스피커|공기청정기|에어컨|선풍기|청소기|건조기|세탁기|냉장고|tv\b|프로젝터|블랙박스|스마트폰|갤럭시|아이폰|애플|샤오미|음식물처리기|정수기|전자레인지|전자렌지|인덕션|밥솥|커피머신|가습기|제습기|드라이어|면도기|스마트워치|공유기|카메라|렌즈\b|프린터|가전/i],
   ["kitchen",  /후라이팬|프라이팬|냄비|압력솥|에어프라이어|전기포트|텀블러|보온병|도마|칼세트|식기|그릇|수저|주방/],
   ["home",     /침대|매트리스|이불|베개|소파|의자|책상|수납|선반|커튼|조명|러그|인테리어|가구/],
   ["fashion",  /로퍼|운동화|스니커즈|구두|샌들|슬리퍼|스케쳐스|나이키|아디다스|뉴발란스|크록스|티셔츠|맨투맨|후드|자켓|재킷|코트|패딩|바지|청바지|드로즈|트렁크|팬티|양말|속옷|잠옷|파자마|원피스|가방|백팩|지갑|벨트|선글라스|시계|모자/],
@@ -71,6 +71,24 @@ const PRODUCT_DEST = [
   ["carparts", /타이어|엔진오일|와이퍼|워셔액|차량용|카매트|틴팅|블랙박스 거치/],
   ["oversea",  /직구|amazon|아마존|알리|해외배송|관부가세/i]
 ];
+
+// 아무 글에서나 상품군을 뽑는다 (David 2026-08-06: "비단 쿠팡 광고가 아니라도
+// 말야. 다른 광고라도 연관 있는 애가 붙어야지. 이런 알고리즘은 기본적으로
+// 장착해야지").
+//
+// 딜 글에만 걸어 뒀던 사전을 제목·요약 전체에 건다. "LG 전자레인지" 기사 옆에는
+// 가전, "전어 1kg" 글 옆에는 신선식품이 붙는다. 못 고르면 null이고, 그때만
+// 기존 문맥 규칙(글 분류)으로 내려간다.
+//
+// 상품명이 아니라 사건을 다룬 글에도 걸릴 수 있다("전자레인지 화재"). 그래도
+// 붙는 것은 **카테고리 배너**라 특정 상품을 주장하지 않으므로 거짓말이 되지
+// 않는다 — 상품 단위 카드였다면 이렇게 넓게 걸면 안 된다.
+export function destForText(text) {
+  const hay = String(text || "").toLowerCase();
+  if (hay.length < 2) return null;
+  for (const [dest, re] of PRODUCT_DEST) if (re.test(hay)) return dest;
+  return null;
+}
 
 // 딜 제목에서 도착지를 고른다. 못 고르면 null — 억지로 붙이지 않는다.
 export function destForDeal(title) {
@@ -99,6 +117,58 @@ export const DEAL_SHARE_DEFAULT = 0.12;
 // 글만** 세도록 이 자리를 갈아 끼운다 — 제목의 가격 표기만 보면 "출고가
 // 159만원" 같은 기사가 딜로 세어져(실측 2026-08-05: 블로터 기사 1건) 분자가
 // 가짜로 차고, 그만큼 진짜 딜이 덜 들어온다.
+// 메인 피드에서 딜이 차지할 **상한**과 최소 간격.
+//
+// David 실기기(2026-08-06): "스크롤 한 번 내리면 2개가 연달아 나오고 두 번 더
+// 내리면 또 4개가 나오고. 나오는 빈도가 너무 잦고 많아. 메인 페이지에선 가끔
+// 한번씩 가~장 핫한 것만 나오는 게 좋을 것 같아."
+//
+// 보장(floor)만 두고 상한을 안 뒀던 것이 잘못이었다. 딜 소스를 5곳으로 늘리자
+// 각 소스가 라운드로빈에서 제 몫을 챙기며 유기적으로도 많이 올라왔고, 거기에
+// 보장분까지 얹히니 뭉쳐 보였다. 이제 **넘치면 덜어낸다** — 덜어낸 딜은
+// 사라지는 게 아니라 다음 페이지·소스 칩에 그대로 남는다(읽음 처리도 안 한다).
+export const DEAL_MAX_SHARE = 0.08;   // 12칸 한 페이지에 1건 정도
+export const DEAL_MIN_GAP = 6;        // 딜과 딜 사이 최소 칸수
+
+// 반응이 가장 큰 딜만 남긴다. 무엇이 "가장 핫한가"는 그 게시판이 이미 매긴
+// 값(댓글·추천·조회)으로만 판단한다 — 우리가 지어내는 값은 없다.
+function dealHeat(item) {
+  const c = Number(item.commentCount || item.comments || 0);
+  const s = Number(item.score || 0);
+  const v = Number(item.viewCount || item.views || 0);
+  // 조회수는 게시판마다 자릿수가 달라 그대로 더하면 한 소스가 다 이긴다.
+  // 로그로 눌러서 순위 보조로만 쓴다.
+  return c * 3 + s * 2 + Math.log10(1 + Math.max(0, v));
+}
+
+// 넘치는 딜을 덜어내고, 남긴 것끼리 최소 간격을 지키게 한다.
+export function capDeals(items, { maxShare = DEAL_MAX_SHARE, minGap = DEAL_MIN_GAP, is = isDeal } = {}) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return list;
+  const dealIdx = list.map((it, i) => (is(it) ? i : -1)).filter((i) => i >= 0);
+  if (dealIdx.length <= 1) return list;
+
+  // 몇 건까지 남길지. 한 건은 항상 남긴다 — 딜이 통째로 사라지면 David가 처음
+  // 요청한 "일정 비율로 노출"이 무너진다.
+  const keepCount = Math.max(1, Math.floor(list.length * maxShare));
+  const ranked = [...dealIdx].sort((a, b) => dealHeat(list[b]) - dealHeat(list[a]));
+
+  const keep = new Set();
+  let lastKept = -Infinity;
+  for (const i of ranked) {
+    if (keep.size >= keepCount) break;
+    // 이미 남긴 딜과 너무 붙어 있으면 이 건은 넘긴다. 뭉쳐 보이는 원인이
+    // 개수가 아니라 **간격**이었다(연달아 2~4개).
+    let tooClose = false;
+    for (const k of keep) if (Math.abs(k - i) < minGap) { tooClose = true; break; }
+    if (tooClose) continue;
+    keep.add(i);
+    lastKept = i;
+  }
+  void lastKept;
+  return list.filter((it, i) => !is(it) || keep.has(i));
+}
+
 export function ensureDealShare(items, deals, { share = DEAL_SHARE_DEFAULT, is = isDeal } = {}) {
   const list = Array.isArray(items) ? [...items] : [];
   const pool = (Array.isArray(deals) ? deals : []).filter((d) => !list.some((i) => i.id === d.id));

@@ -1909,7 +1909,16 @@ function maybeInsertAdfit(){
     slot.className = "card ad-card ad-net";
     // 애드핏은 페이지당 1회만 — 같은 광고단위의 중복 노출은 애드핏 정책상 피한다.
     // 나머지 자리는 전부 쿠팡 제휴 카드가 채운다.
-    const useAdfit = unit && !document.getElementById("adfitSlot");
+    //
+    // **첫 자리는 애드핏에 주지 않는다.** 심사 보류 상태의 애드핏은 iframe을
+    // 만들되 아무것도 안 채운다 — 크로스오리진이라 비었는지 알 수 없어
+    // 폴백(`iframe 있으면 정상`)도 안 걸린다. 실기기 실측(David 2026-08-06):
+    // 카드에 "제휴 광고 / AD"와 고지문만 남고 링크도 이미지도 없었다.
+    // 짧은 페이지에서는 그 자리가 유일한 광고라 **쿠팡이 통째로 사라졌다.**
+    // 그래서 쿠팡 카드가 최소 한 장 깔린 뒤에야 애드핏을 넣는다 —
+    // 지면은 설치된 채로 남아 심사는 계속되고, 수익 자리는 잃지 않는다.
+    const hasPaidCard = !!document.querySelector("#feed .ad-card a.ad-native");
+    const useAdfit = unit && hasPaidCard && !document.getElementById("adfitSlot");
     if(useAdfit){
       slot.id = "adfitSlot";
       slot.innerHTML = `
@@ -1930,8 +1939,8 @@ function maybeInsertAdfit(){
       // 딜 글이면 **그 상품군으로** 고른다. "감자탕용 등뼈" 아래에는 신선식품이
       // 붙어야지 유머 카테고리 광고가 붙으면 안 된다. 이미 살 마음으로 읽던
       // 사람이라 문맥이 맞을 때 값이 완전히 다르다(David 2026-08-05).
-      const dealDest = anchor.dataset.dealDest
-        || (cards[i + 1] && cards[i + 1].dataset.dealDest) || null;
+      const dealDest = anchor.dataset.dealDest || anchor.dataset.adDest
+        || (cards[i + 1] && (cards[i + 1].dataset.dealDest || cards[i + 1].dataset.adDest)) || null;
       const link = dealDest
         ? (pickCoupangByDest(dealDest) || pickCoupangLink(anchor.dataset.cat || null, null))
         : pickCoupangLink(anchor.dataset.cat || null,
@@ -3138,6 +3147,8 @@ function appendCard(item){
   if(item.adUnsafe) card.dataset.adUnsafe = "1";   // 이 글 옆에는 광고를 붙이지 않는다
   // 딜 글이면 그 상품군을 실어 둔다 — 바로 아래 광고를 그 도착지로 고른다.
   if(item.dealDest) card.dataset.dealDest = item.dealDest;
+  // 딜이 아니어도 글에서 상품군이 읽히면 실어 둔다 — 옆 광고를 그쪽으로 고른다.
+  if(item.adDest) card.dataset.adDest = item.adDest;
   // 카드 골격 = 3단 고정 그리드 (David 2026-08-01 "사진이 있다고 기존 틀이
   // 흔들리면 안 됨" — 네이버뉴스·구글뉴스·NYT 공통 패턴):
   //   ① 헤더행: 소스·카테고리·배지 — 항상 풀폭, 배지는 항상 우측 끝
@@ -3404,7 +3415,7 @@ async function renderDetail(itemId){
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">원문에서 계속 읽기 →</a>
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
     `:""}
-    ${detailAdHtml(item.category, item.dealDest)}
+    ${detailAdHtml(item.category, item.dealDest || item.adDest)}
     <div class="detail-actions">
       <button class="rate up ${item.myRating>0?'on':''}" id="dUp">${ic('like',15)} 좋아요</button>
       <button class="rate down ${item.myRating<0?'on':''}" id="dDown">${ic('dislike',15)} 별로예요</button>

@@ -110,3 +110,49 @@ test("광고 자리가 코앞의 딜 글 아래까지 기다린다 (개수는 �
   // 자리를 옮긴 것이지 늘린 것이 아니다.
   assert.equal(r.slots.length, 1);
 });
+
+// ── David 실기기 리포트 (2026-08-06) 세 건의 회귀 방지 ───────────────────────
+
+test("딜이 뭉치지 않는다 — 상한과 최소 간격", async () => {
+  const { capDeals, DEAL_MIN_GAP } = await import("../src/feed/deals.js");
+  // 실기기에서 본 모양: 연달아 2개, 조금 뒤 4개.
+  const mk = (i, deal, c = 0) => ({ id: "x" + i, title: "글" + i, isDeal: deal, commentCount: c });
+  const list = [
+    mk(0, false), mk(1, true, 17), mk(2, true, 3), mk(3, false), mk(4, false),
+    mk(5, true, 1), mk(6, true, 5), mk(7, true, 2), mk(8, true, 0), mk(9, false),
+    mk(10, false), mk(11, false)
+  ];
+  const out = capDeals(list, { is: (i) => i.isDeal === true });
+  const idx = out.map((it, i) => (it.isDeal ? i : -1)).filter((i) => i >= 0);
+  assert.ok(idx.length >= 1, "딜이 통째로 사라지면 안 된다");
+  for (let k = 1; k < idx.length; k++) {
+    assert.ok(idx[k] - idx[k - 1] >= DEAL_MIN_GAP, `딜이 ${idx[k] - idx[k - 1]}칸 간격으로 붙었다`);
+  }
+  // 남는 건 가장 반응 큰 딜이어야 한다 — David: "가~장 핫한 것만".
+  assert.ok(out.some((it) => it.id === "x1"), "댓글 17개짜리가 빠졌다");
+  // 일반 글은 하나도 사라지지 않는다.
+  for (const it of list.filter((x) => !x.isDeal)) {
+    assert.ok(out.some((o) => o.id === it.id), `${it.id}가 사라졌다`);
+  }
+});
+
+test("딜이 아닌 글에서도 상품군을 읽어 광고를 맞춘다", async () => {
+  const { destForText } = await import("../src/feed/deals.js");
+  // David: "비단 쿠팡 광고가 아니라도 말야. 다른 광고라도 연관 있는 애가 붙어야지."
+  assert.equal(destForText("LG 전자레인지 MW30BDN 신제품 공개"), "dgt");
+  assert.equal(destForText("가을 전어 제철, 구이용 손질법"), "fresh");
+  assert.equal(destForText("올해 캠핑 텐트 트렌드"), "camp");
+  // 근거가 없으면 null — 아무거나 붙이지 않는다.
+  assert.equal(destForText("국회 예산안 처리 무산"), null);
+});
+
+test("애드핏 빈 지면이 쿠팡 자리를 먹지 않는다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  // 실기기 실측(2026-08-06): 심사 보류 애드핏이 iframe만 만들고 비워 둬서
+  // 폴백이 안 걸렸고, 짧은 페이지에서는 쿠팡 광고가 통째로 사라졌다.
+  assert.match(html, /const hasPaidCard = !!document\.querySelector\("#feed \.ad-card a\.ad-native"\)/,
+    "쿠팡 카드 선행 확인이 없다");
+  assert.match(html, /const useAdfit = unit && hasPaidCard &&/,
+    "애드핏이 여전히 첫 자리를 가져갈 수 있다");
+});

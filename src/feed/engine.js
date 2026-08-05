@@ -12,7 +12,11 @@ import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRID
 import { hasProfanity } from "./profanity.js";
 import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
-import { destForDeal, ensureDealShare } from "./deals.js";
+import { destForDeal, destForText, ensureDealShare, capDeals } from "./deals.js";
+
+// 상품군 사전을 걸지 않는 분류. 사건·시사 기사에 "연관 광고"가 붙으면
+// 무관한 광고보다 더 나쁘다(2026-08-06 실측, engine의 adDest 주석 참고).
+const AD_MATCH_OFF = new Set(["news", "politics"]);
 import { promotable, isLowValue } from "./promotion.js";
 import { isJunkImage } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
@@ -367,6 +371,24 @@ export class FeedEngine {
         item.isDeal = true;
         const d = destForDeal(item.title);
         if (d) item.dealDest = d;
+      }
+      // 딜이 아니어도 글에서 상품군이 읽히면 실어 둔다 — 그 옆 광고를 그쪽으로
+      // 고른다(David 2026-08-06 "이런 알고리즘은 기본적으로 장착해야지").
+      // 딜이면 제목만 보고 고른 dealDest가 더 정확하므로 그것을 그대로 쓴다.
+      //
+      // **뉴스·시사에는 걸지 않는다.** 사전은 낱말만 보므로 사건 기사에도 걸린다 —
+      // 실측(2026-08-06): "'엄마, 신발이 벗겨져'…못 돌아온 아들, 거실 쪽으로 새
+      // 구두 놔뒀어"에 '구두'가 걸려 패션 광고가 붙었다. 아이가 숨진 기사다.
+      // 문맥이 안 맞는 광고보다 **문맥이 맞아 보이는 광고**가 더 나쁘다.
+      // 광고 인접 자체가 위험한 글(adUnsafe)도 같은 이유로 제외한다.
+      if (item.dealDest) {
+        item.adDest = item.dealDest;
+      } else if (!item.adUnsafe && !AD_MATCH_OFF.has(item.category)) {
+        // **제목만** 본다. 요약(발췌)까지 넣었더니 본문 아무 데나 있는 낱말이
+        // 걸렸다 — 실측(2026-08-06): FIFA 회장 기사가 신선식품, 연예 미담이
+        // 가전으로 갔다. 제목은 글이 무엇에 관한 것인지 스스로 밝힌 문장이다.
+        const d = destForText(item.title);
+        if (d) item.adDest = d;
       }
 
       // 번역된 글에 옮기지 못한 영문 발췌가 붙어 있으면 여기서도 지운다.
@@ -982,9 +1004,12 @@ export class FeedEngine {
         .map((r) => r.item);
       const merged = ensureDealShare(fresh.map((r) => r.item), pool,
                                      { is: (i) => i.isDeal === true });
-      if (merged.length !== fresh.length) {
+      // 넘치는 딜은 덜어낸다. 보장만 있고 상한이 없어서 뭉쳐 보였다
+      // (David 실기기 2026-08-06: 연달아 2개, 곧이어 4개).
+      const capped = capDeals(merged, { is: (i) => i.isDeal === true });
+      if (capped.length !== fresh.length || capped.some((it, i) => !fresh[i] || fresh[i].item.id !== it.id)) {
         const scoreOf = new Map(fresh.map((r) => [r.item.id, r.score]));
-        fresh = merged.slice(0, limit).map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
+        fresh = capped.slice(0, limit).map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
       }
     }
 
