@@ -1,3 +1,4 @@
+import { WEIGHTY } from "./interest.js";
 // 브리핑 본문 생성 — 항목 나열이 아니라 "오늘 무슨 일이 있었는지 읽는 글".
 //
 // ── 왜 바꿨나 (2026-08-03)
@@ -82,6 +83,8 @@ export function issueShape(items) {
   const comments = items.reduce((s, i) => s + (i.commentCount || 0), 0);
   const score = items.reduce((s, i) => s + (i.score || 0), 0);
   if (coverage >= 3 || outlets >= 3) return "coverage";   // 여러 매체가 동시에
+  // 매체가 하나뿐이어도 지금 사람들이 몰려 찾아보는 사안이면 그게 이유다.
+  if (items.some((i) => i.interest && i.interest.how === "term")) return "interest";
   if (comments >= 100 && comments > score) return "debate"; // 댓글이 추천을 앞선다
   if (score >= 100) return "applause";                     // 추천이 크다
   return "single";
@@ -102,6 +105,10 @@ export function issueHeadline(items, shape) {
   switch (shape) {
     case "coverage":
       return `${Math.max(coverage, outlets)}개 매체가 동시에 다룬 사안`;
+    case "interest": {
+      const m = items.find((i) => i.interest && i.interest.how === "term").interest;
+      return m.traffic > 0 ? `지금 검색이 몰리는 “${m.term}”` : `지금 검색이 몰리는 “${m.term}”`;
+    }
     case "debate":
       return `${label} · 댓글 ${fmt(comments)}건의 논쟁`;
     case "applause":
@@ -222,11 +229,48 @@ export function slotForHour(kstHour) {
 // 반환: { issues:[{headline, paragraph, tone, refs:[{id,title,sourceLabel,...}]}], summary }
 export function buildDigest(items, { maxIssues = 6, perIssueRefs = 4, maxPerSource = 2 } = {}) {
   const clusters = clusterIssues(items);
-  // 이슈 정렬: 반응 총량 + 교차보도 가중
+
+  // ── 이슈 정렬: 반응 총량이 아니라 **중요도** 순 (David 2026-08-05)
+  //
+  // 예전엔 `반응 총량 + 교차보도×60`이었다. 원점수를 그대로 더하니 반응 하나가
+  // 나머지를 전부 눌렀다 — 실측(2026-08-05 라이브 모닝 브리핑)에서 대표 이슈가
+  //   1. 해커뉴스 · 추천 907건   2. 해커뉴스 · 댓글 357건
+  //   3. 보배드림 · 추천 342건   4. 보배드림 · 추천 311건
+  // 이렇게 나왔다. David가 지적한 "사적·매니악함"이 바로 이 정렬의 결과다.
+  //
+  // ── 반응은 로그로 누른다
+  // 소스마다 추천의 의미가 다르다(더쿠 16만 vs 인벤 수백). 원점수를 더하면
+  // 스케일 큰 소스가 통째로 가져간다. log10으로 누르면 907과 3421의 차이가
+  // 2.96 대 3.53으로 줄어 **"많이 받았다"는 사실만 남고 스케일은 사라진다.**
+  //
+  // ── 중요도는 세 가지로 잰다 (전부 실측값 기준)
+  //   교차보도  ×80 — 여러 매체가 같은 날 동시에 다뤘다는 것은 그 사건이
+  //                   중요하다는 가장 단단한 신호다. 우리가 매긴 값이 아니다.
+  //   검색 급상승 ≤250 — 지금 사람들이 실제로 찾아보고 있는가(구글 검색량).
+  //   무게 있는 분야 105 — 경제·정책·사회·정치. David가 이름 붙인 축이다.
+  // 250과 105는 기존 점수 분포의 상위 10%·25%에서 그대로 가져왔다.
+  //
+  // 결과: 5개 매체가 다룬 사안(400)이 추천 907건짜리 글(178)보다 앞선다.
+  // 커뮤니티 글을 빼는 게 아니다 — 중요한 사건 **다음에** 놓는다.
+  const REACTION_K = 60;
+  const COVERAGE_K = 80;
+  const INTEREST_MAX = 250;
+  const WEIGHTY_BONUS = 105;
   const scored = clusters.map((members) => {
     const eng = members.reduce((s, i) => s + (i.score || 0) + (i.commentCount || 0) * 2, 0);
     const cov = Math.max(...members.map((i) => i.coverage || 0), 0);
-    return { members, weight: eng + cov * 60 };
+    const best = members.reduce((m, i) => {
+      const t = i.interest ? (i.interest.traffic || 0) * (i.interest.strength || 1) : 0;
+      return t > m ? t : m;
+    }, 0);
+    const weighty = members.some((i) => WEIGHTY.has(i.category)) ? WEIGHTY_BONUS : 0;
+    return {
+      members,
+      weight: Math.log10(1 + Math.max(0, eng)) * REACTION_K
+        + cov * COVERAGE_K
+        + INTEREST_MAX * Math.min(1, best / 1000)
+        + weighty
+    };
   }).sort((a, b) => b.weight - a.weight);
 
   // 한 소스가 브리핑을 독식하지 않게 상한을 둔다.

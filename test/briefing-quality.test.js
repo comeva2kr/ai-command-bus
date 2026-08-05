@@ -557,3 +557,34 @@ test("브리핑: 검색 급상승으로 올라온 글은 그 사실을 화면에
   // 검색량은 구글이 자릿수만 준다 — 정확한 값인 척하면 안 된다
   assert.match(block, /\+`/, "500+ 처럼 대략값 표기를 유지해야 한다");
 });
+
+test("브리핑 이슈: 중요한 사건이 반응 큰 잡담보다 앞선다", async () => {
+  // 실측(2026-08-05 라이브 모닝 브리핑)에서 대표 이슈가 이랬다:
+  //   1. 해커뉴스 · 추천 907건   2. 해커뉴스 · 댓글 357건
+  //   3. 보배드림 · 추천 342건   4. 보배드림 · 추천 311건
+  // David가 지적한 "사적·매니악함"이 바로 이 정렬의 결과였다.
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const items = [
+    // 추천이 압도적인 커뮤니티 글 — 실제로 그날 1위였던 형태
+    { id: "hn", title: "개발자가 겪은 흔한 실수 모음", sourceLabel: "해커뉴스", source: "hn",
+      score: 907, commentCount: 0, coverage: 0, category: "tech", tags: [] },
+    // 다섯 매체가 동시에 다룬 경제 사안 — 반응 신호는 없다(뉴스라서)
+    { id: "eco", title: "정부 주택 공급 대책 발표", sourceLabel: "매일경제", source: "mk",
+      score: 0, commentCount: 0, coverage: 5, category: "business", tags: [] },
+    // 검색이 몰리는 사안 — 매체는 하나뿐
+    { id: "chip", title: "SK하이닉스 반도체 증설", sourceLabel: "전자신문", source: "et",
+      score: 0, commentCount: 0, coverage: 0, category: "business", tags: [],
+      interest: { term: "반도체", traffic: 1000, strength: 1, how: "term" } }
+  ];
+  const { issues } = buildDigest(items, { maxIssues: 5 });
+  const order = issues.map((i) => i.refs[0].id);
+  assert.ok(order.indexOf("eco") < order.indexOf("hn"),
+    `5개 매체가 다룬 사안이 추천 907건짜리보다 앞서야 한다 (실제 순서: ${order.join(" > ")})`);
+  assert.ok(order.indexOf("chip") < order.indexOf("hn"),
+    `검색이 몰리는 사안이 추천 907건짜리보다 앞서야 한다 (실제 순서: ${order.join(" > ")})`);
+  // 빼는 게 아니라 순서를 바꾸는 것이다
+  assert.ok(order.includes("hn"), "반응 큰 글을 브리핑에서 지우면 안 된다");
+  // 검색이 이유인 이슈는 그렇게 말한다
+  const chipIssue = issues.find((i) => i.refs[0].id === "chip");
+  assert.match(chipIssue.headline, /검색이 몰리는/, `헤드라인이 이유를 안 밝힌다: ${chipIssue.headline}`);
+});
