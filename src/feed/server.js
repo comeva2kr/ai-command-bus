@@ -610,7 +610,9 @@ export function createServer(opts = {}) {
     // 맥락별 문구 행렬에서 고른다. 행렬이 없으면 ad-copy.js 기본 문구로
     // 떨어진다 — 배치가 실패해도 광고가 사라지지 않는다.
     const v = pickVariant(b.dest, category, { matrix: adMatrix, rotate: pick });
-    const hook = v.hook, brand = v.brand;
+    // 줄(line)은 게시글의 발췌 자리에 해당한다 — 제목만 있고 본문이 없으면
+    // 게시글로 안 읽힌다(David 2026-08-05). 옛 행렬이면 도착지 이름이 온다.
+    const hook = v.hook, brand = v.line || v.brand;
     // 배너 사진을 **다시 싣는다.**
     //
     // 2026-08-03 오전에는 실기기에서 사진이 안 떠서 이미지를 통째로 뺐다.
@@ -629,7 +631,7 @@ export function createServer(opts = {}) {
         <span class="ad-row">
           <span class="ad-text">
             <b>${escapeHtml(hook)}</b><span class="ad-brand">${escapeHtml(brand)}</span>
-            <span class="ad-go">쿠팡에서 보기 &rarr;</span>
+            <span class="ad-go">${escapeHtml(v.cta || "보러 가기")}</span>
           </span>
           <span class="ad-thumb"><img class="ad-img" src="${escapeHtml(b.img)}" width="${escapeHtml(w)}" height="${escapeHtml(h)}"
              alt="${escapeHtml(brand)}" loading="eager" fetchpriority="high" onerror="this.parentNode.remove()"></span>

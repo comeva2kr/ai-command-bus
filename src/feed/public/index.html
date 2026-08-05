@@ -556,7 +556,12 @@
   #feed .card{background:transparent;border:none;
     border-bottom:1px solid color-mix(in srgb,var(--color-text) 26%,transparent);
     box-shadow:none;margin:0;padding:16px}
-  #feed .card.ad-card{background:var(--color-surface)}
+  /* 광고 카드도 게시글과 **같은 칸**으로 (David 2026-08-05: "광고 자리만 칸이
+     다르게 생기고 컬러가 다른데 이건 통일 못해?"). 배경색·왼쪽 강조 띠를 없앤다.
+     구분은 **AD 배지 하나**로 충분하다 — 그건 법으로 붙여야 하는 표시이고,
+     나머지 장식은 "여기부터 광고입니다"라고 미리 알려 주는 역할만 했다. */
+  #feed .card.ad-card{background:var(--color-bg)}
+  #feed .card.ad-card::before{display:none}
   #feed .card:hover{border-color:var(--line)}
   .card h3{font-weight:800;font-size:19px;line-height:1.3;letter-spacing:-.015em}
   header{background:var(--color-bg);backdrop-filter:none;-webkit-backdrop-filter:none;
@@ -743,7 +748,10 @@
      아래 #feed .card .card-thumb 가 88px로 덮는다 — CSS만 읽고 76을 따라 쓰면
      광고만 12px 작아진다(브라우저 실측 2026-08-05: 광고 76 vs 콘텐츠 88).
      "같은 모양"은 눈으로 재야 하고, 나는 파일만 읽고 틀렸다. */
-  #feed .card .ad-native .ad-thumb{flex:0 0 88px;width:88px;height:88px;margin:2px 0 0}
+  /* 각진 테두리 (David 2026-08-05: "사진 테두리 반듯하게 못하나? 각지게").
+     콘텐츠 썸네일도 같이 각지게 한다 — 광고만 다르면 그게 또 광고 티다. */
+  #feed .card .ad-native .ad-thumb{flex:0 0 88px;width:88px;height:88px;margin:2px 0 0;border-radius:0}
+  #feed .card .card-thumb{border-radius:0}
   .card .ad-native .ad-thumb img{width:100%;height:100%;object-fit:cover;display:block}
   .card .ad-native .ad-brand{margin:0;font-size:13px;color:var(--muted)}
   /* CTA — 잉크색 본문 굵게, 화살표만 강조색. 예전 13px 굵은 빨강은 라이트
@@ -751,11 +759,18 @@
   .card .ad-native .ad-cta{display:flex;align-items:center;gap:6px;min-height:44px;
     margin-top:8px;font-size:15px;font-weight:800;color:var(--color-text)}
   .card .ad-native .ad-cta::after{content:"→";color:var(--color-accent);font-size:17px}
+  /* 대가성 고지문 — 법으로 표시해야 하는 문장이라 지울 수는 없다. 다만 두 줄로
+     어중간하게 끊기면 "짤린 것"으로 읽힌다(David 2026-08-05). 글자를 조금 줄이고
+     줄간격을 좁혀 한 덩어리로 앉힌다. 흐리게 하지는 않는다 — 안 보이면 표시가
+     아니다(발행 페이지에서 같은 이유로 대비를 16.6:1로 올렸다). */
+  .card .ad-disclosure{font-size:11.5px;line-height:1.45;color:var(--color-text);
+    opacity:.72;margin:10px 0 0;padding-top:8px;border-top:1px solid var(--line);
+    text-wrap:balance}
   .card .ad-disclosure{margin:8px 0 0;font-size:11.5px;line-height:1.5;
     color:var(--text);text-align:left}
   /* 상세 모달 안 제휴 카드는 #feed 스코프가 안 닿아 면이 사라져 있었다 —
      같은 크리에이티브가 피드와 상세에서 다르게 보였다. */
-  .card.ad-card{background:var(--color-surface)}
+  .card.ad-card{background:var(--color-bg)}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
     overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .card.ad-net .ad-net-slot img{max-width:100%;height:auto}
@@ -1703,8 +1718,8 @@ function coupangCardHtml(link, disclosure, slot, category, rotate){
       <div class="ad-row">
         <div class="ad-text">
           <h3>${escapeHtml(v.hook)}</h3>
-          <p class="ad-brand">${escapeHtml(link.brand)}</p>
-          <span class="ad-cta">쿠팡에서 보기<span class="sr-only"> — 새 창에서 쿠팡으로 이동합니다</span></span>
+          <p class="ad-brand">${escapeHtml(v.line || link.brand)}</p>
+          <span class="ad-cta">${escapeHtml(v.cta || "지금 보러 가기")}<span class="sr-only"> — 새 창에서 쿠팡으로 이동합니다</span></span>
         </div>
         ${link.img?`<div class="ad-thumb"><img class="ad-img" src="${escapeHtml(link.img)}" width="200" height="200" alt="${escapeHtml(link.brand)}" loading="eager" fetchpriority="high" onerror="this.parentNode.remove()"></div>`:""}
       </div>
