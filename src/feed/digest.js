@@ -113,7 +113,30 @@ export function issueSubject(items, { max = 2 } = {}) {
     .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
     .slice(0, max)
     .map(([w]) => w);
-  return shared.join(" ");
+  if (shared.length) return shared.join(" ");
+
+  // 우리 풀에 그 사건 글이 하나뿐일 때 — 흔한 경우다. 교차보도 5건은 구글이
+  // "관련 기사가 5개 있다"고 알려 준 숫자이지, 우리가 5편을 갖고 있다는 뜻이
+  // 아니다. 그래서 공통어를 뽑을 대상이 없다.
+  //
+  // 이때는 그 매체가 쓴 제목에서 앞 구절을 따온다. 요약해서 지어내는 것보다
+  // 낫다 — 우리가 만들어 낸 표현이면 사실에서 벗어날 수 있지만, 따온 말은
+  // 그 매체가 실제로 쓴 말이다. 헤드라인 전체가 아니라 우리 문장 안에
+  // 인용부호로 들어가므로 제목 나열과는 다르다.
+  return leadPhrase(items[0] && items[0].title);
+}
+
+// 제목의 앞 구절. 부제·인용이 시작되는 지점(…, —, [ ) 앞에서 자르고,
+// 너무 길면 낱말 경계에서 끊는다. 억지로 자른 티가 나면 안 된다.
+export function leadPhrase(title, { max = 20 } = {}) {
+  let t = String(title || "").trim();
+  if (!t) return "";
+  t = t.split(/[…·\[\]|]|—|\.\.\.|\s-\s/)[0].trim();
+  t = t.replace(/^["“'‘\s]+/, "").replace(/["”'’\s]+$/, "");
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const sp = cut.lastIndexOf(" ");
+  return (sp >= 8 ? cut.slice(0, sp) : cut).trim();
 }
 
 export function issueHeadline(items, shape) {

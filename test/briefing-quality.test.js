@@ -611,5 +611,31 @@ test("브리핑 이슈: 헤드라인이 서로 구분된다", async () => {
 
   // 주제어는 여러 편이 **함께** 쓴 말이어야 한다 — 한 편의 표현을 대표로 쓰면 안 된다
   assert.equal(issueSubject([{ title: "주택 공급 대책" }, { title: "주택 공급 보고" }]), "주택 공급");
-  assert.equal(issueSubject([{ title: "혼자 쓰는 낱말" }]), "", "한 편뿐이면 공통어가 없다");
+  // 한 편뿐이면 공통어를 뽑을 수 없다 — 그 매체가 쓴 제목의 앞 구절을 따온다.
+  // (첫 판은 여기서 빈 문자열을 내서 헤드라인이 전부 똑같아졌다.)
+  assert.equal(issueSubject([{ title: "혼자 쓰는 낱말" }]), "혼자 쓰는 낱말");
+});
+
+test("브리핑 이슈: 우리 풀에 한 편뿐인 사건도 이름을 갖는다", async () => {
+  // 교차보도 5건은 구글이 "관련 기사가 5개 있다"고 알려 준 숫자이지, 우리가
+  // 5편을 갖고 있다는 뜻이 아니다. 그래서 공통어를 뽑을 대상이 없고, 첫 판에서
+  // 헤드라인 여섯 개가 전부 "5개 매체가 동시에 다룬 사안"이 됐다(라이브 실측).
+  const { issueSubject, leadPhrase, buildDigest } = await import("../src/feed/digest.js");
+  assert.equal(issueSubject([{ title: "정부 주택 공급 대책 발표" }]), "정부 주택 공급 대책 발표");
+  // 부제가 붙은 제목은 앞 구절만
+  assert.equal(leadPhrase("부동산 여론 심상치 않자…이 대통령 “주택 공급 최대한 빨리”"), "부동산 여론 심상치 않자");
+  assert.equal(leadPhrase("“100억 벌어도 세금은 몇억밖에”…이 대통령, 부동산 세제 손본다"), "100억 벌어도 세금은 몇억밖에");
+  assert.equal(leadPhrase(""), "");
+  assert.equal(leadPhrase(null), "");
+  // 여러 편이 있으면 공통어가 우선이다 — 한 매체의 표현보다 낫다
+  assert.equal(issueSubject([{ title: "주택 공급 대책" }, { title: "주택 공급 보고" }]), "주택 공급");
+
+  // 단독 이슈들끼리도 헤드라인이 겹치지 않는다
+  const mk = (id, title) => ({ id, title, sourceLabel: id, source: id, score: 0,
+    commentCount: 0, coverage: 5, category: "business", tags: [id] });
+  const { issues } = buildDigest([
+    mk("a", "정부 주택 공급 대책 발표"), mk("b", "반도체 수출 최대치 경신")
+  ], { maxIssues: 2 });
+  const heads = issues.map((i) => i.headline);
+  assert.equal(new Set(heads).size, 2, `헤드라인이 겹친다: ${heads.join(" | ")}`);
 });
