@@ -40,7 +40,7 @@ import { sendDigestPushes } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
 import { makeEnricher } from "./enrich.js";
 import { makeInterestsCache } from "./interest.js";
-import { readWiredStatus, CANDIDATE_NETWORKS, splitMeasured, ctr } from "./ad-networks.js";
+import { readWiredStatus, CANDIDATE_NETWORKS, REFERENCE_ADSTXT, splitMeasured, ctr } from "./ad-networks.js";
 import { makeTrendsCache } from "./trends.js";
 import {
   enabledProviders,
@@ -2125,6 +2125,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
           return send(res, 200, {
             wired: readWiredStatus(process.env),
             candidates: CANDIDATE_NETWORKS,
+            reference: REFERENCE_ADSTXT,
             measured: {
               // 애드핏은 SDK가 자체 집계하므로 우리 쪽 숫자에 안 잡힌다.
               // 그 사실을 숨기지 않는다 — 0을 "성과 없음"으로 오독하면 안 된다.

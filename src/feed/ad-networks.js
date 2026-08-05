@@ -58,31 +58,44 @@ export const WIRED_NETWORKS = [
 // 틀린 숫자를 근거로 결정하면 그게 더 비싸다. 무엇이 필요한지만 적는다.
 export const CANDIDATE_NETWORKS = [
   {
+    id: "gam",
+    label: "구글 애드매니저 (GAM)",
+    kind: "exchange",
+    fit: "1순위",
+    why: "레퍼런스 넷이 **전부** 이걸 쓴다(2026-08-05 실측). 여러 네트워크를 한 자리에서 경쟁시켜 매 노출마다 가장 비싸게 사는 곳을 고른다. 애드센스 하나만 붙이면 그 경매가 없어 단가가 낮게 고정된다.",
+    needs: "무료. 다만 **애드센스 승인이 먼저**다 — 애드센스를 GAM 안에 넣어 다른 수요와 경쟁시키는 구조라서.",
+    revenueApi: "가능 — Ad Manager API",
+    checkedAt: "2026-08-05"
+  },
+  {
+    id: "adop",
+    label: "애드옵 (ADOP)",
+    kind: "mediation",
+    fit: "트래픽 성장 후",
+    why: "이토랜드가 쓰는 방식. 해외 수요(PubMatic·Rubicon·AppNexus 등)를 대신 물려 주고 수익을 나눈다. 혼자 200곳과 계약할 수 없으니 이게 현실적인 길이다.",
+    needs: "**입점 조건이 공개돼 있지 않다**(2026-08-05 확인). 웹 퍼블리셔 문의는 contact@adop.cc. 대행사는 보통 최소 트래픽 기준이 있어, 하루 30~130명인 지금은 거절 가능성이 크다.",
+    revenueApi: "확인 필요 — 문의 시 함께 물어볼 것",
+    checkedAt: "2026-08-05"
+  },
+  {
     id: "linkprice",
     label: "링크프라이스",
     kind: "affiliate",
-    fit: "보완재",
-    why: "쿠팡이 약한 여행·금융·교육·해외직구 광고주가 있다. 겹치지 않는다.",
-    needs: "가입 후 **광고주마다 개별 승인**. 손이 꽤 간다.",
-    revenueApi: "제휴사 리포트 제공(가입 후 확인 필요)"
-  },
-  {
-    id: "aceplanet",
-    label: "애드픽 / 에이스카운터 계열",
-    kind: "affiliate",
-    fit: "보류",
-    why: "앱 설치·이벤트형 캠페인 중심이라 우리 지면과 결이 다르다.",
-    needs: "가입·캠페인 선택",
-    revenueApi: "확인 필요"
+    fit: "딜 섹션과 함께",
+    why: "쿠팡이 약한 여행·금융·교육·해외직구 광고주가 있다. **노출이 아니라 구매로 버는 쪽**이라 트래픽이 적어도 성립한다 — 지금 조건에서 유일하게 말이 되는 경로다.",
+    needs: "**가입 조건이 공개돼 있지 않다**(2026-08-05 확인, 회사 소개 페이지에 명시 없음). 제휴마케팅 신청 페이지에서 직접 문의해야 하고, 광고주마다 개별 승인이 필요한 구조로 알려져 있다 — 이 부분도 문의로 확인할 것.",
+    revenueApi: "확인 필요",
+    checkedAt: "2026-08-05"
   },
   {
     id: "criteo",
-    label: "크리테오 등 리타게팅 네트워크",
+    label: "크리테오 등 리타게팅",
     kind: "display",
     fit: "트래픽 조건 미달",
-    why: "월 방문이 일정 규모를 넘어야 심사를 받는다. 지금 하루 30~130명으로는 이르다.",
+    why: "월 방문이 일정 규모를 넘어야 심사를 받는다.",
     needs: "트래픽 성장 후 재검토",
-    revenueApi: "가능"
+    revenueApi: "가능",
+    checkedAt: "2026-08-05"
   },
   {
     id: "naver-ad",
@@ -91,17 +104,37 @@ export const CANDIDATE_NETWORKS = [
     fit: "해당 없음",
     why: "네이버 블로그·카페 등 네이버 서비스 안에서만 쓴다. 외부 사이트는 대상이 아니다.",
     needs: "—",
-    revenueApi: "—"
+    revenueApi: "—",
+    checkedAt: "2026-08-05"
   },
   {
     id: "direct",
     label: "직접 판매(배너 직거래)",
     kind: "direct",
     fit: "트래픽 성장 후",
-    why: "중개 수수료가 없어 단가가 가장 높다. 다만 광고주를 우리가 구해야 한다.",
-    needs: "매체 소개서 + 실측 트래픽 자료. 지금 그 자료가 만들어지기 시작했다.",
-    revenueApi: "직접 정산"
+    why: "중개 수수료가 없어 단가가 가장 높다. 광고주를 우리가 구해야 한다.",
+    needs: "매체 소개서 + 실측 트래픽 자료. 발행 페이지 측정을 붙이면서 그 자료가 만들어지기 시작했다.",
+    revenueApi: "직접 정산",
+    checkedAt: "2026-08-05"
   }
+];
+
+// ── 레퍼런스 실측 (2026-08-05, 각 사이트의 공개 ads.txt)
+//
+// David: "우리 레퍼런스로 잡은 서비스 업체들은 광고 어떻게 붙여서 돈 벌지."
+// 기억으로 답하면 틀리므로 그들이 공개한 ads.txt를 직접 세었다. ads.txt는
+// "이 회사들이 우리 지면을 팔 권한이 있다"를 매체가 스스로 공표하는 파일이라,
+// 누구와 계약했는지가 그대로 적혀 있다.
+//
+// 결론: 그들은 광고를 **붙이는** 게 아니라 **경매에 부친다.** 한 자리에
+// 수십~수백 개 네트워크를 물려 놓고 매 노출마다 가장 비싼 곳을 고른다.
+// 우리는 구글 하나뿐이라 그 경매가 아예 없다.
+export const REFERENCE_ADSTXT = [
+  { site: "보배드림", partners: 963, companies: null, note: "GAM + 애널리틱스" },
+  { site: "이토랜드", partners: 913, companies: 214, note: "GAM + 애드옵 + 쿠팡 파트너스", top: "PubMatic 78 · Rubicon 51 · Google 46 · AppNexus 45" },
+  { site: "뽐뿌", partners: 210, companies: 66, note: "GAM + 애드센스", top: "Rubicon 20 · PubMatic 20 · AppNexus 13" },
+  { site: "클리앙", partners: 54, companies: 26, note: "GAM", top: "Google 8 · OpenX 5 · AppNexus 5" },
+  { site: "지금핫(우리)", partners: 1, companies: 1, note: "애드센스만", top: "Google 1" }
 ];
 
 // 환경에서 연결 상태를 읽는다. **값은 담지 않는다** — 있다/없다만.

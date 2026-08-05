@@ -362,6 +362,15 @@ async function renderAds(panel){
     <table><thead><tr><th>매체</th><th>적합도</th><th>왜</th><th>필요한 것</th><th>정산 연동</th></tr></thead>
       <tbody>${cands}</tbody></table>
 
+    <div class="panel-h">레퍼런스는 어떻게 버나 (공개 ads.txt 실측)</div>
+    <p class="empty" style="text-align:left">그들은 광고를 <b>붙이는</b> 게 아니라 <b>경매에 부칩니다</b> —
+      한 자리에 수십~수백 개 네트워크를 물려 놓고 매 노출마다 가장 비싸게 사는 곳을 고릅니다.
+      우리는 구글 하나뿐이라 그 경매가 아예 없습니다.</p>
+    <table><thead><tr><th>매체</th><th>ads.txt 파트너</th><th>계약 회사</th><th>주요 파트너</th><th>구성</th></tr></thead>
+      <tbody>${(d.reference||[]).map(r=>`<tr${/지금핫/.test(r.site)?' style="font-weight:700"':''}>
+        <td>${esc(r.site)}</td><td>${r.partners}</td><td>${r.companies??"—"}</td>
+        <td class="sub">${esc(r.top||"—")}</td><td class="sub">${esc(r.note)}</td></tr>`).join("")}</tbody></table>
+
     <div class="panel-h">수익 연동에 대해</div>
     <p class="empty" style="text-align:left">${esc((d.revenue&&d.revenue.note)||"")}<br>
       ${esc((d.revenue&&d.revenue.manualHint)||"")}</p>

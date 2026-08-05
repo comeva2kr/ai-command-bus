@@ -1,0 +1,1496 @@
+<title>지금핫 업그레이드 블루프린트</title>
+<style>
+  :root{
+    --ground:#faf8f6;
+    --panel:#ffffff;
+    --ink:#17110f;
+    --ink-2:#4a3f3a;
+    --muted:#7d716b;
+    --rule:#e4dcd6;
+    --accent:#c8250c;
+    --accent-soft:#fbeae6;
+    --good:#0b6b58;
+    --good-soft:#e2f0ec;
+    --warn:#9c5f06;
+    --warn-soft:#f8eeda;
+    --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono",monospace;
+    --sans:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,-apple-system,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#131010; --panel:#1c1817; --ink:#f3ece8; --ink-2:#c3b7b1;
+      --muted:#8d807a; --rule:#332c29; --accent:#ff6a4d; --accent-soft:#2e1712;
+      --good:#4fc0a4; --good-soft:#12261f; --warn:#e0a54b; --warn-soft:#2b2011;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#131010; --panel:#1c1817; --ink:#f3ece8; --ink-2:#c3b7b1;
+    --muted:#8d807a; --rule:#332c29; --accent:#ff6a4d; --accent-soft:#2e1712;
+    --good:#4fc0a4; --good-soft:#12261f; --warn:#e0a54b; --warn-soft:#2b2011;
+  }
+  :root[data-theme="light"]{
+    --ground:#faf8f6; --panel:#ffffff; --ink:#17110f; --ink-2:#4a3f3a;
+    --muted:#7d716b; --rule:#e4dcd6; --accent:#c8250c; --accent-soft:#fbeae6;
+    --good:#0b6b58; --good-soft:#e2f0ec; --warn:#9c5f06; --warn-soft:#f8eeda;
+  }
+
+  body{background:var(--ground);color:var(--ink);font-family:var(--sans);
+    line-height:1.72;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px;margin:0 auto;padding:clamp(28px,5vw,72px) clamp(18px,4vw,40px) 120px;
+    display:flex;flex-direction:column;gap:0;}
+
+  /* ---- 머리 ---- */
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);font-weight:600;}
+  h1{font-size:clamp(2rem,5.4vw,3.4rem);line-height:1.1;font-weight:800;letter-spacing:-.028em;
+    margin:.35em 0 .3em;text-wrap:balance;}
+  .lede{font-size:clamp(1.02rem,2.1vw,1.2rem);color:var(--ink-2);max-width:60ch;}
+  .stamp{font-family:var(--mono);font-size:.74rem;color:var(--muted);margin-top:1.4em;
+    padding-top:1em;border-top:1px solid var(--rule);}
+
+  h2{font-size:clamp(1.35rem,3vw,1.85rem);font-weight:750;letter-spacing:-.02em;line-height:1.25;
+    margin:0;text-wrap:balance;}
+  h3{font-size:1.02rem;font-weight:700;margin:0 0 .2em;letter-spacing:-.01em;}
+  p{margin:0;max-width:66ch;}
+  section{padding:clamp(34px,5vw,56px) 0;border-top:1px solid var(--rule);
+    display:flex;flex-direction:column;gap:1.15em;}
+  section:first-of-type{border-top:none;}
+
+  /* 단계 표식 — P0~P4는 실제 실행 순서라 번호가 정보다 */
+  .phase-head{display:flex;gap:1rem;align-items:baseline;flex-wrap:wrap;}
+  .pnum{font-family:var(--mono);font-size:.8rem;font-weight:700;letter-spacing:.06em;
+    color:var(--panel);background:var(--accent);padding:.28em .62em;border-radius:3px;white-space:nowrap;}
+  .pnum.later{background:var(--muted);}
+  .ptag{font-family:var(--mono);font-size:.72rem;color:var(--muted);letter-spacing:.06em;}
+
+  /* ---- 수치판 ---- */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+    background:var(--rule);border:1px solid var(--rule);border-radius:4px;overflow:hidden;}
+  .metric{background:var(--panel);padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.18em;}
+  .metric .k{font-size:.76rem;color:var(--muted);letter-spacing:.01em;}
+  .metric .v{font-family:var(--mono);font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;
+    letter-spacing:-.02em;line-height:1.15;}
+  .metric .n{font-size:.72rem;color:var(--muted);}
+  .metric.bad .v{color:var(--accent);}
+  .metric.ok .v{color:var(--good);}
+
+  /* ---- 표 ---- */
+  .scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--panel);}
+  table{border-collapse:collapse;width:100%;font-size:.88rem;min-width:520px;}
+  th,td{text-align:left;padding:.68em .9em;border-bottom:1px solid var(--rule);vertical-align:top;}
+  th{font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:650;
+    background:var(--ground);position:sticky;top:0;}
+  tbody tr:last-child td{border-bottom:none;}
+  td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+  /* ---- 상태 칩 ---- */
+  .chip{display:inline-block;font-family:var(--mono);font-size:.71rem;font-weight:650;
+    padding:.16em .5em;border-radius:3px;letter-spacing:.03em;white-space:nowrap;}
+  .chip.crit{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent);}
+  .chip.warn{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn);}
+  .chip.done{background:var(--good-soft);color:var(--good);border:1px solid var(--good);}
+
+  /* ---- 도표 ---- */
+  .diagram{background:var(--panel);border:1px solid var(--rule);border-radius:4px;
+    padding:1.4rem 1rem;overflow-x:auto;}
+  .diagram .mermaid{display:flex;justify-content:center;min-width:0;}
+  figcaption{font-size:.79rem;color:var(--muted);margin-top:.7em;padding-left:.1em;}
+  figure{margin:0;display:flex;flex-direction:column;}
+
+  /* ---- 관문 카드 ---- */
+  .gates{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:.85rem;}
+  .gate{background:var(--panel);border:1px solid var(--rule);border-left:3px solid var(--good);
+    border-radius:4px;padding:.95rem 1.05rem;display:flex;flex-direction:column;gap:.35em;}
+  .gate .g-label{font-family:var(--mono);font-size:.7rem;letter-spacing:.07em;color:var(--good);
+    text-transform:uppercase;font-weight:650;}
+  .gate p{font-size:.87rem;color:var(--ink-2);}
+
+  /* ---- 근거 인용 ---- */
+  .evidence{background:var(--panel);border:1px solid var(--rule);border-radius:4px;
+    padding:.9rem 1.1rem;font-size:.87rem;color:var(--ink-2);display:flex;flex-direction:column;gap:.4em;}
+  .evidence .src{font-family:var(--mono);font-size:.72rem;color:var(--muted);letter-spacing:.03em;}
+  code{font-family:var(--mono);font-size:.86em;background:var(--accent-soft);color:var(--accent);
+    padding:.08em .34em;border-radius:3px;}
+  @media (prefers-color-scheme:dark){code{background:#2a201d;}}
+  ul{margin:0;padding-left:1.15em;display:flex;flex-direction:column;gap:.32em;max-width:66ch;}
+  li::marker{color:var(--muted);}
+  strong{font-weight:700;}
+  a{color:var(--accent);}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">지금핫 · NowHot — 구조 업그레이드 블루프린트</div>
+  <h1>모으는 것까지는 됐다.<br>돈이 되는 구조가 아직 없다.</h1>
+  <p class="lede">매출이 실제로 나오는 네 곳(Slickdeals · 디시인사이드 · Ground News · Techmeme)을 기준으로
+  우리 코드를 대조한 결과다. 결론부터: 알고리즘보다 <strong>측정과 구매 의도</strong>가 먼저다.</p>
+  <div class="stamp">최종 갱신 2026-08-05 (광고 구조 실측) · 라이브 nowhot.kr 실측 · 추정치는 쓰지 않는다<br>
+  이 문서는 개발관리 페이지다 — 새 결정과 측정이 나올 때마다 여기에 갱신된다. 관리자 페이지 › 개발관리 탭에서 열 수 있다.</div>
+</header>
+
+<!-- ============ 0. 이 서비스는 무엇인가 ============ -->
+<section>
+  <h2>0. 이 서비스는 무엇인가 — 산으로 갈 때 돌아올 자리</h2>
+  <p class="lede">아래는 <strong>부표</strong>다. 새 기능이 이 문단들과 이어지지 않으면 그 기능이 틀린 것이다.
+  기능이 늘어날수록 원래 무엇을 만들고 있었는지 흐려지므로, 판단이 흔들릴 때마다 여기부터 다시 읽는다.</p>
+
+  <h3>한 문장</h3>
+  <div class="evidence">
+    <span class="src">정의</span>
+    <div><strong>지금핫(NowHot)은 한국의 커뮤니티와 언론이 지금 무엇으로 시끄러운지를,
+    한 화면에서 5분 안에 파악하게 해 주는 곳이다.</strong>
+    <br><br>커뮤니티 40여 곳의 인기 게시판과 국내외 뉴스를 15분마다 모아, 반응·인용도·검색량으로
+    무엇이 진짜 화제인지 판정하고, 그 판정 근거를 함께 보여 준다.
+    설치 없이 브라우저에서 열리며(PWA), 홈 화면에 추가하면 앱처럼 쓴다.</div>
+  </div>
+
+  <h3>최종 목적</h3>
+  <div class="evidence">
+    <span class="src">David의 말 그대로</span>
+    <div>"수익 최우선이라는 건 단순 순간적인 수익보다는 <strong>이 파이프라인 하나를 안정적으로
+    운영하는 게 중요한</strong> 거야."
+    <br><br>즉 목표는 대박이 아니라 <strong>오래 가는 수익 파이프라인 하나</strong>다.
+    페퍼클럽이 여러 수익원을 갖는 구조에서, 지금핫은 <em>사람이 매일 들르는 자리</em>를 맡는다.
+    한 번 크게 버는 선택지와 오래 버는 선택지가 부딪히면 <strong>오래 버는 쪽</strong>을 고른다 —
+    계정이 막히거나 신뢰를 잃으면 파이프라인 자체가 사라진다.</div>
+  </div>
+
+  <h3>어떻게 돌아가는가 — 다섯 단계</h3>
+  <p>이 다섯 단계가 이 서비스의 전부다. 새 기능은 반드시 이 중 한 칸을 더 좋게 만들어야 한다.</p>
+  <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  A["① 수집<br/>커뮤니티 인기글 · 뉴스<br/>15분마다 · 동시 6"] --> B["② 판정<br/>반응 · 인용도 · 검색량<br/>신선도 · 중복 제거"]
+  B --> C["③ 편성<br/>피드 · 하루 3회 브리핑<br/>랭킹 · 키워드"]
+  C --> D["④ 노출<br/>앱 화면 · 검색 유입<br/>공유 · 알림"]
+  D --> E["⑤ 수익<br/>광고 · 제휴<br/>체류시간 × 노출"]
+  E -.클릭·체류 되먹임.-> B
+  style E fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+</pre>
+  </div>
+  <table>
+    <thead><tr><th>단계</th><th>하는 일</th><th>이상적인 모습</th><th>망가지면 생기는 일</th></tr></thead>
+    <tbody>
+      <tr><td><b>① 수집</b></td>
+        <td>공개된 인기 게시판·공식 피드만. robots.txt 준수, 403이면 우회 없이 보고.</td>
+        <td>재료가 마르지 않는다. 한 곳이 막혀도 전체가 흔들리지 않는다.</td>
+        <td>재료의 절반이 사라진다 — 실제로 겪었다(활성 47곳 중 20곳만 수집).</td></tr>
+      <tr><td><b>② 판정</b></td>
+        <td>무엇이 진짜 화제인가. 우리가 매긴 값이 아니라 <strong>바깥에서 측정된 값</strong>으로 판정한다.</td>
+        <td>추천 수가 큰 커뮤니티가 아니라 <strong>중요한 사건</strong>이 위로 온다. 왜 위에 있는지 화면이 말한다.</td>
+        <td>"사적·매니악한" 글이 대표가 된다 — 처음 온 사람이 이상한 사이트로 읽는다.</td></tr>
+      <tr><td><b>③ 편성</b></td>
+        <td>피드(계속 보는 것)와 브리핑·랭킹(한 번에 파악하는 것)을 나눠 짠다.</td>
+        <td>바쁜 사람은 브리핑만 보고 끝내고, 시간 있는 사람은 피드를 계속 내린다.</td>
+        <td>둘 다 어정쩡해져 어느 쪽 사람도 만족하지 못한다.</td></tr>
+      <tr><td><b>④ 노출</b></td>
+        <td>검색·공유·재방문으로 사람이 들어온다.</td>
+        <td>검색으로 새 사람이 오고, 브리핑이 재방문 이유가 된다.</td>
+        <td>광고를 아무리 잘 붙여도 볼 사람이 없다.</td></tr>
+      <tr><td><b>⑤ 수익</b></td>
+        <td>광고(애드핏·애드센스)와 제휴(쿠팡). 체류시간 × 노출이 곧 매출이다.</td>
+        <td>읽는 흐름을 방해하지 않으면서 자연스럽게 눈에 든다.</td>
+        <td>과하면 사람이 떠나고, 모자라면 파이프라인이 유지되지 않는다.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>메뉴와 그 목적</h3>
+  <p>메뉴는 <strong>취향이 아니라 역할</strong>로 나뉜다. 각 메뉴는 위 다섯 단계 중 어디를 맡는지가 분명해야 하고,
+  맡은 자리가 겹치면 하나로 합쳐야 한다.</p>
+  <table>
+    <thead><tr><th>메뉴</th><th>목적</th><th>이상적인 구현</th></tr></thead>
+    <tbody>
+      <tr><td><b>홈 (피드)</b><br><code>/</code></td>
+        <td>계속 내려 보는 자리. 체류시간이 여기서 만들어지고, 그게 곧 광고 노출이다.</td>
+        <td>내릴수록 새로운 것이 나오고, 읽던 자리를 잃지 않는다.
+          각 카드에 <strong>왜 화제인지</strong>가 한 줄로 붙는다(추천 N·댓글 N·N개 매체).</td></tr>
+      <tr><td><b>오늘의 브리핑</b><br><code>/briefing</code></td>
+        <td>재방문 이유. 하루 세 번(아침·점심·저녁) 편성해 "이 시간에 오면 정리돼 있다"를 만든다.</td>
+        <td>경제·정책·사회·정치의 중요 사건이 축이고, 커뮤니티 반응과 검색 트렌드가 거기 붙는다.
+          <strong>우리가 쓴 문장</strong>이라야 자체 콘텐츠로 인정받는다 — 제목 나열은 아니다.</td></tr>
+      <tr><td><b>커뮤니티 순위</b><br><code>/communities</code></td>
+        <td>어느 커뮤니티가 지금 뜨거운가. 검색 유입을 받는 자체 페이지.</td>
+        <td>집계 기준을 숨기지 않는다(베스트 게시판만, 15분 갱신).</td></tr>
+      <tr><td><b>화제 키워드</b><br><code>/keywords</code></td>
+        <td>사건 단위로 묶어 보는 자리. 검색 유입의 또 다른 문.</td>
+        <td>키워드가 우리가 지어낸 말이 아니라 <strong>매체들이 실제로 쓴 말</strong>이어야 한다.</td></tr>
+      <tr><td><b>실시간 트렌드</b><br><code>/trends</code></td>
+        <td>지금 무엇을 검색·언급하는가. 볼거리이자 판정의 재료.</td>
+        <td>X 트렌드는 볼거리로만 쓴다 — 팬덤 해시태그가 대부분이라 <strong>선정에는 쓰지 않는다</strong>(실측).</td></tr>
+      <tr><td><b>딜 <span class="chip">예정</span></b><br><code>/deals</code></td>
+        <td>구매 의도를 갖고 들어오는 트래픽. 전환이 가장 높은 유입이다.</td>
+        <td>핫딜을 화제글과 섞지 않고 분리한다. 대가성 문구를 반드시 표시한다.</td></tr>
+      <tr><td><b>내 공간</b><br>(앱 안)</td>
+        <td>취향·댓글·기록. 로그인 이유를 만들고, 재방문과 신원 식별을 함께 얻는다.</td>
+        <td>개인화는 초대일 뿐 관문이 아니다 — 로그인 안 해도 서비스는 온전히 돌아간다.</td></tr>
+      <tr><td><b>관리자</b><br><code>/admin</code></td>
+        <td>운영과 판단의 근거. 트래픽·행동·수익·지출·소스 상태·개발관리(이 문서).</td>
+        <td>추정치를 쓰지 않는다. 측정이 안 된 칸은 <strong>비워 둔다</strong> — 채워 넣으면 판단이 틀어진다.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>지키는 선 — 어길 바에는 기능을 버린다</h3>
+  <div class="evidence">
+    <span class="src">David가 반복해 말한 것</span>
+    <div>· <strong>걸릴 위험이 있는 위법은 안 된다.</strong> 회색지대는 적극 쓰되, 위법은 선을 넘는다.
+    <br>· 403은 <strong>우회하지 않고 보고한다.</strong> 차단한 곳은 시도 자체를 하지 않는다.
+    <br>· <strong>실측 안 된 숫자를 쓰지 않는다.</strong> 지어낸 값 하나가 문서 전체를 못 믿게 만든다.
+    <br>· 성인 콘텐츠는 <strong>삭제가 아니라 태그 후 가림</strong>이다.
+    <br>· 제휴 링크에는 대가성 문구를 반드시 붙인다.
+    <br>· 경쟁사 페이지를 직접 긁지 않는다(데이터베이스권 — 잡코리아 대 사람인 4억 5천만원).</div>
+  </div>
+
+  <h3>산으로 가는지 판별하는 네 가지 물음</h3>
+  <p>새 기능을 넣기 전에 스스로 묻는다. 하나라도 "아니오"면 멈춘다.</p>
+  <table>
+    <thead><tr><th>물음</th><th>왜 이걸 묻는가</th></tr></thead>
+    <tbody>
+      <tr><td><b>다섯 단계 중 어디를 좋게 하는가?</b></td>
+        <td>어디에도 안 걸리면 그건 이 서비스의 기능이 아니다. 재미있어 보여도 뺀다.</td></tr>
+      <tr><td><b>이미 온 사람을 잃는 문제인가, 새 사람을 데려오는 일인가?</b></td>
+        <td><strong>잃는 문제가 항상 먼저다.</strong> 새는 통에 물을 부어 봐야 그대로 빠진다.</td></tr>
+      <tr><td><b>측정할 수 있는가?</b></td>
+        <td>측정 못 하는 개선은 개선이라 부를 수 없다. 좋아진 척만 남는다.</td></tr>
+      <tr><td><b>1년 뒤에도 이 방식으로 돌아가는가?</b></td>
+        <td>계정·법·상대 사이트 정책에 걸리는 방식은 지금 잘 돌아도 파이프라인을 끊는다.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>기술적으로 어떻게 만들어졌는가</h3>
+  <div class="metrics">
+    <div class="metric"><span class="k">런타임</span><span class="v">Node 22</span><span class="n">외부 패키지 의존 0</span></div>
+    <div class="metric"><span class="k">화면</span><span class="v">PWA</span><span class="n">단일 HTML · 서비스워커</span></div>
+    <div class="metric"><span class="k">배포</span><span class="v">국내 VM</span><span class="n">도커 · 커밋하면 반영</span></div>
+    <div class="metric"><span class="k">테스트</span><span class="v">688</span><span class="n">배포 전 전부 통과</span></div>
+  </div>
+  <p style="font-size:.88rem;color:var(--muted)">의존성을 두지 않는 것은 취향이 아니라 <strong>수명</strong> 때문이다 —
+  패키지가 늘수록 몇 달 뒤 남의 사정으로 안 도는 날이 온다. 외부 API는 쓰되(그건 값을 주는 것이지 코드를 심는 게 아니다),
+  라이브러리는 들이지 않는다. 같은 이유로 <strong>모든 판정 규칙은 테스트로 고정</strong>한다 —
+  규칙이 왜 그런지 잊어버린 뒤에도 테스트가 대신 기억한다.</p>
+</section>
+
+<!-- ============ 광고 구조 실측 ============ -->
+<section>
+  <h2>광고로 어떻게 버는가 — 레퍼런스 실측</h2>
+  <p class="lede">David: "우리 레퍼런스로 잡은 서비스 업체들은 광고 어떻게 붙여서 돈 벌지."
+  기억으로 답하면 틀리므로 그들이 공개한 <code>ads.txt</code>를 직접 세었다.
+  이 파일은 "이 회사들이 우리 지면을 팔 권한이 있다"를 매체가 스스로 공표하는 것이라,
+  누구와 계약했는지가 그대로 적혀 있다.</p>
+
+  <div class="evidence">
+    <span class="src">2026-08-05 실측 · 각 사이트 공개 ads.txt</span>
+    <div><strong>그들은 광고를 "붙이는" 게 아니라 "경매에 부친다."</strong>
+    한 자리에 수십~수백 개 네트워크를 물려 놓고, 매 노출마다 가장 비싸게 사는 곳을 고른다.
+    우리는 구글 하나뿐이라 <strong>그 경매가 아예 없다.</strong></div>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>매체</th><th class="num">ads.txt 파트너</th><th class="num">계약 회사</th><th>주요 파트너</th><th>구성</th></tr></thead>
+      <tbody>
+        <tr><td>보배드림</td><td class="num">963</td><td class="num">—</td><td>—</td><td>GAM</td></tr>
+        <tr><td>이토랜드</td><td class="num">913</td><td class="num">214</td><td>PubMatic 78 · Rubicon 51 · Google 46 · AppNexus 45</td><td>GAM + <b>애드옵</b> + 쿠팡</td></tr>
+        <tr><td>뽐뿌</td><td class="num">210</td><td class="num">66</td><td>Rubicon 20 · PubMatic 20 · AppNexus 13</td><td>GAM + 애드센스</td></tr>
+        <tr><td>클리앙</td><td class="num">54</td><td class="num">26</td><td>Google 8 · OpenX 5 · AppNexus 5</td><td>GAM</td></tr>
+        <tr style="font-weight:700"><td>지금핫(우리)</td><td class="num">1</td><td class="num">1</td><td>Google 1</td><td>애드센스만</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:.88rem;color:var(--muted)"><strong>넷이 전부 구글 애드매니저(GAM)를 쓴다.</strong>
+  GAM은 여러 네트워크를 한 지면에서 경쟁시키는 도구다. 이토랜드는 거기에 애드옵을 얹어
+  해외 수요 200여 곳을 대신 물렸다 — 혼자 그만큼 계약할 수는 없으니 그게 현실적인 길이다.</p>
+
+  <h3>그래서 우리 순서</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th></th><th>할 일</th><th>왜 이 자리인가</th></tr></thead>
+      <tbody>
+        <tr><td><b>1</b></td><td>애드센스 승인 대기</td>
+          <td>GAM의 전제다 — 애드센스를 GAM 안에 넣어 다른 수요와 경쟁시키는 구조라서.
+          소유권 확인은 코드 스니펫·ads.txt 두 가지로 이미 통과했고(2026-08-05 확인),
+          robots.txt도 구글을 막지 않는다. 남은 변수는 트래픽뿐이다 —
+          구글 문서가 지목한 유일한 지연 사유가 "코드를 삽입한 페이지에 정기적인 조회가 없는 경우"다.</td></tr>
+        <tr><td><b>2</b></td><td><b>딜 섹션 + 제휴 확대</b></td>
+          <td>제휴는 <strong>노출이 아니라 구매로</strong> 번다. 트래픽이 적어도 성립하는
+          <strong>지금 조건에서 유일하게 말이 되는 경로</strong>다. 링크프라이스가 여기 붙는다.</td></tr>
+        <tr><td><b>3</b></td><td>트래픽 성장</td>
+          <td>애드옵 같은 대행의 입장 조건. 하루 30~130명으로 문의하면 거절당할 가능성이 크다.</td></tr>
+        <tr><td><b>4</b></td><td>GAM + 대행 붙이기</td>
+          <td>그때 단가가 몇 배로 뛴다. 순서를 뒤집으면 시간만 쓴다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="evidence">
+    <span class="src">입점 조건 — 둘 다 공개하지 않는다 (2026-08-05 확인)</span>
+    <div><strong>애드옵</strong>: 최소 트래픽·수익 배분·정산 주기 전부 공개 페이지에 명시 없음.
+    웹 퍼블리셔 문의는 <code>contact@adop.cc</code>.
+    <br><strong>링크프라이스</strong>: 가입 자격·수수료·정산 조건 모두 회사 소개 페이지에 명시 없음.
+    제휴마케팅 신청 페이지에서 직접 문의해야 한다.
+    <br><br>둘 다 <strong>추정치를 적지 않고 "확인 필요"로 남겨 두었다.</strong>
+    요율은 수시로 바뀌고, 틀린 숫자를 근거로 결정하면 그게 더 비싸다.
+    같은 내용을 관리자 › <strong>광고</strong> 탭에서 볼 수 있다.</div>
+  </div>
+</section>
+
+<!-- ============ 1. 지금 상태 ============ -->
+<section>
+  <h2>1. 지금 상태 — 실측 기준선</h2>
+  <p>목표를 세우기 전에 출발점을 정확히 박아 둔다. 아래는 전부 오늘 라이브에서 직접 측정한 값이다.</p>
+
+  <div class="metrics">
+    <div class="metric"><span class="k">일 방문자</span><span class="v">39~135</span><span class="n">7/31~8/3 실측</span></div>
+    <div class="metric"><span class="k">일 페이지뷰</span><span class="v">211~351</span><span class="n">같은 기간</span></div>
+    <div class="metric"><span class="k">누적 사용자</span><span class="v">425</span><span class="n">store 기준</span></div>
+    <div class="metric ok"><span class="k">피드 광고 카드</span><span class="v">2 / 30</span><span class="n">0이었음 · 오늘 복구</span></div>
+    <div class="metric ok"><span class="k">광고 노출 측정</span><span class="v">작동</span><span class="n">슬롯·문구별로 갈림</span></div>
+    <div class="metric ok"><span class="k">활성 소스</span><span class="v">47</span><span class="n">등록 77</span></div>
+    <div class="metric ok"><span class="k">반응 수치 있는 글</span><span class="v">37%</span><span class="n">파서 복구 4곳 반영 중</span></div>
+    <div class="metric"><span class="k">자체 글 / 댓글</span><span class="v">0 / 3</span><span class="n">자체 콘텐츠 사실상 없음</span></div>
+    <div class="metric warn"><span class="k">수집 멈춘 소스</span><span class="v">9</span><span class="n">헬스 판정으로 가시화</span></div>
+    <div class="metric warn"><span class="k">고정비 · 매출</span><span class="v">미입력</span><span class="n">순이익 계산 불가</span></div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">오늘 배포로 바뀐 것</span>
+    <div>아침까지 <code>ads: {"impressions":0, "clicks":0}</code>였다 — 서비스 시작 이후 누적이다.
+    원인은 <strong>쿠팡 Open API 키가 서버에 없어</strong> 상품 피드가 null이고,
+    <code>pickAffiliateCandidates</code>가 그 상태를 "광고를 아예 안 낸다"로 처리한 것이었다.
+    실제 카테고리 배너로 채우는 경로를 넣어 지금은 30건 중 2건이 실린다.</div>
+  </div>
+</section>
+
+<!-- ============ 2. 진단 ============ -->
+<section>
+  <h2>2. 진단 — 가치가 어디서 새는가</h2>
+  <p>수집과 랭킹은 오늘 크게 고쳤다. 문제는 그 뒤 구간이다. 만든 트래픽이 돈으로도, 학습으로도 전환되지 않고 그대로 증발한다.</p>
+
+  <figure>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  A["47개 소스 수집"] --> B["화제성 랭킹<br/>(오늘 교정 완료)"]
+  B --> C["피드 노출<br/>일 39~135명"]
+
+  C --> D["광고 카드"]
+  D -.->|"실측 0건 노출"| X1(("수익 0"))
+
+  C --> E["사용자 클릭"]
+  E -.->|"랭킹에 미반영"| X2(("학습 0"))
+
+  C --> F["일반 열람<br/>유머·뉴스 목적"]
+  F -.->|"구매 의도 없음"| X3(("전환 낮음"))
+
+  style X1 fill:#fbeae6,stroke:#c8250c,color:#c8250c
+  style X2 fill:#fbeae6,stroke:#c8250c,color:#c8250c
+  style X3 fill:#f8eeda,stroke:#9c5f06,color:#9c5f06
+</pre>
+    </div>
+    <figcaption>점선 세 갈래가 전부 누수다. 트래픽은 있는데 매출·학습·전환 어디로도 흐르지 않는다.</figcaption>
+  </figure>
+
+  <h3>벤치마크가 알려주는 것</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>서비스</th><th class="num">매출</th><th>핵심 구조</th><th>우리에게 주는 교훈</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Slickdeals</strong></td>
+          <td class="num">$70~80M</td>
+          <td>딜 애그리게이터 · 제휴 커미션 3~10% + 스폰서 + 데이터 B2B</td>
+          <td>방문자가 <strong>이미 살 마음으로 온다</strong>. 랭킹 신호에 <strong>클릭</strong>이 들어간다. 3계층 승급 구조.</td>
+        </tr>
+        <tr>
+          <td><strong>디시인사이드</strong></td>
+          <td class="num">275억 원</td>
+          <td>자체 커뮤니티 · 광고 단일 (영업이익 110억, 이익률 40%)</td>
+          <td>전년 대비 +33%를 <strong>지면을 안 늘리고</strong> 타깃팅과 트래픽으로 올렸다.</td>
+        </tr>
+        <tr>
+          <td><strong>Ground News</strong></td>
+          <td class="num">$5.7M</td>
+          <td>뉴스 애그리게이터 · 구독 $99.99/년 · 소스 5만</td>
+          <td>모으는 것이 아니라 <strong>모아서 무엇을 보여주는가</strong>(편향 비교)가 지불 이유다.</td>
+        </tr>
+        <tr>
+          <td><strong>Techmeme</strong></td>
+          <td class="num">비공개</td>
+          <td>알고리즘 + 사람 편집 · 스폰서 포스트 · 무투자 20년</td>
+          <td>2005년 완전 자동으로 출발해 <strong>2008년 사람 편집자를 도입</strong>했다.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="evidence">
+    <span class="src">해석</span>
+    <div>넷 중 매출 1위가 딜 사이트라는 게 우연이 아니다. 같은 트래픽이라도 <strong>구매 의도가 붙은 트래픽</strong>은
+    단가가 다르다. 우리는 이미 뽐뿌 핫딜을 수집하고 있으면서 일반 피드에 섞어 흘려보내고 있다 —
+    지금 우리가 가진 것 중 매출 레버가 가장 크다.</div>
+  </div>
+</section>
+
+<!-- ============ 국내 경쟁사 ============ -->
+<section>
+  <h2>국내 경쟁사 — 벤치마킹 목록</h2>
+  <p>매출 기준 해외 사례가 "어디로 가야 하나"를 알려준다면, 국내 경쟁사는
+  <strong>"지금 무엇이 이미 점령됐나"</strong>를 알려준다. 아래는 전부 실제 페이지를 받아 확인한 것이다.</p>
+
+  <div class="evidence">
+    <span class="src">가장 중요한 발견</span>
+    <div><strong>오늘의베스트(todaybeststory.com)가 우리 기획을 거의 그대로, 더 넓게 이미 하고 있다.</strong>
+    "런치 브리핑"이라는 이름의 자동 생성 일일 요약, <code>/ai-insights/trend-explain</code>의
+    Techmeme식 클러스터 + AI 해설, 커뮤니티 21곳, 유튜브·쇼핑 제휴까지.
+    우리가 차별점으로 삼으려던 지점이 이미 선점돼 있다.</div>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>서비스</th><th>서버 HTML</th><th>자체 논평</th><th>특징</th></tr></thead>
+      <tbody>
+        <tr><td><strong>오늘의베스트</strong></td>
+          <td><span class="chip crit">빈 셸</span></td>
+          <td>AI 브리핑·트렌드 해설</td>
+          <td>커뮤니티 21곳, 월별 아카이브 78개, 쇼핑 제휴, Taboola. <strong>최대 위협</strong></td></tr>
+        <tr><td>이슈링크</td>
+          <td><span class="chip done">정상</span></td>
+          <td>없음</td>
+          <td>커뮤니티 16곳+. 기간 선택(3시간~14일), 인기/조회/댓글/최신 정렬. 개체명 기반 태그 클라우드가 유일한 부가가치</td></tr>
+        <tr><td>이슈빨 · 모아모아</td>
+          <td><span class="chip crit">빈 셸</span></td>
+          <td>없음</td>
+          <td>템플릿 기본 제목이 그대로 남아 있는 수준</td></tr>
+        <tr><td><strong>지금핫(우리)</strong></td>
+          <td><span class="chip done">서버 렌더</span></td>
+          <td>브리핑·랭킹·커뮤니티순위</td>
+          <td>오늘 홈 서버 렌더를 붙여 이 칸이 우리 쪽으로 넘어왔다</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>그들의 약점 — 우리가 파고들 지점</h3>
+  <ul>
+    <li><strong>서버 HTML이 비어 있다.</strong> 오늘의베스트·이슈빨·모아모아 세 곳 모두 크롤러에게 빈 셸을 준다.
+      오늘 우리가 홈 서버 렌더를 붙였으므로 <strong>지금은 우리만 내용이 있다.</strong> 절대 되돌리면 안 되는 우위다.</li>
+    <li><strong>검색엔진 인증이 플레이스홀더 그대로다.</strong> 오늘의베스트의 메타 태그가
+      <code>google-site-verification-code</code> — 문자 그대로다. 서치 콘솔을 한 번도 제대로 붙이지 않았다는 뜻이다.</li>
+    <li><strong>AI 해설에 사실 오류가 있다.</strong> "롯데 자이언츠의 송성문"(실제는 샌디에이고)처럼
+      검증 가능한 오류를 발행하고 있다. AI 해설을 붙이는 순간 <strong>틀린 사실도 자기 콘텐츠가 된다.</strong></li>
+    <li><s>브리핑에 영구 주소가 없다</s> — <strong>이건 틀렸다.</strong> 조사 에이전트가 "날짜별 아카이브가 없다"고
+      보고했는데, David가 직접 보니 저쪽도 <strong>아침·점심·저녁 3편에 날짜 선택까지</strong> 갖추고 있었다.
+      남의 약점을 잘못 짚고 그걸 근거로 삼으면 안 되므로 여기 남겨 둔다.
+      우리 3편 편성은 독립적으로 같은 답에 도달한 것이고, 우열이 아니라 <strong>기본기</strong>다.</li>
+  </ul>
+
+  <div class="evidence">
+    <span class="src">참고 — 포털은 이 자리를 비웠다</span>
+    <div>네이버는 통합 랭킹 뉴스를 2020년에, 실시간 검색어를 2021년에 폐지했다. 다음도 뉴스 댓글을 2023년에 없앴다.
+    <strong>"전체 통합 실시간 랭킹"이라는 수요가 포털에서 비어 있는 상태</strong>이고, 이게 이 카테고리가
+    난립하는 이유이자 우리가 존재하는 이유다.
+    <br><br>반대 사례도 있다. 나무뉴스는 2026년 6월 서비스를 종료했다 —
+    제휴 기사만 받아쓰고 댓글판을 붙인 모델이었다.</div>
+  </div>
+
+  <h3>데이터 밀도 — 오늘 따라잡은 것</h3>
+  <p>David 지적: <em>"얘들은 조회수 추천수 댓글 작성일 다 표시된다. 그리고 애들이 가져오는건 우리도 다 가져올수 있잖아.
+  지금 오늘의 베스트는 보면 핫한게 확실히 모니터 되고있구나가 직관적으로 느껴져."</em></p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>소스</th><th class="num">이전</th><th class="num">지금</th></tr></thead>
+      <tbody>
+        <tr><td>조회수 전체</td><td class="num">0 / 306</td><td class="num">53 / 246</td></tr>
+        <tr><td>뽐뿌</td><td class="num">조회 0 · 작성일 0</td><td class="num">17 / 17 둘 다</td></tr>
+        <tr><td>인스티즈</td><td class="num">조회 0 · 작성일 0</td><td class="num">12 / 12 둘 다</td></tr>
+        <tr><td>이토랜드</td><td class="num">조회 0 · 작성일 0</td><td class="num">24 / 24 둘 다</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="evidence">
+    <span class="src">전제 — 저쪽을 긁지 않는다</span>
+    <div>"알고리즘을 가져온다"를 <strong>그들의 페이지를 수집한다</strong>로 읽으면 안 된다.
+    남의 큐레이션 결과물을 가져오는 건 저작권 실사가 지적한 데이터베이스권 정면이고
+    (잡코리아 대 사람인, 손해배상 4억 5천만원 인용), 우리가 안 되려는 바로 그것이다.
+    <strong>같은 원본 사이트에서 같은 데이터를 우리가 직접 가져온다.</strong>
+    HTML에는 처음부터 다 있었고 정규식만 없었다.
+    <br><br>조회수는 <strong>표시용</strong>으로만 쓴다. 화제성 점수에 넣으면 게시판마다 자릿수가 달라
+    (수백 ~ 수십만) 순위가 통째로 뒤집힌다. 표시는 표시고 순위는 순위다.</div>
+  </div>
+
+  <h3>하지 말아야 할 것 — 남의 실패에서</h3>
+  <ul>
+    <li><strong>없는 기간의 아카이브를 프로그램으로 대량 생성하지 않는다.</strong>
+      오늘의베스트의 <code>/ranking/2020/01</code>~<code>2026/03</code> 78개가 이 패턴이다.
+      구글 스팸 정책의 "피드 스크래핑으로 가치 없는 페이지 대량 생성"에 정확히 해당한다.</li>
+    <li><strong>원문 본문을 미러링하지 않는다.</strong> 이슈링크도 제목만 걸고 원문으로 직링크한다.
+      이 선은 업계 공통이고 넘으면 저작권과 스팸 양쪽에 걸린다.</li>
+    <li><strong>AI 해설에 검증 못 하는 고유명사를 넣지 않는다.</strong> 저쪽이 이미 틀리고 있다.
+      우리 <code>llm.js</code>가 입력에 없던 숫자를 막는 것과 같은 원리를 이름에도 적용해야 한다.</li>
+  </ul>
+</section>
+
+<!-- ============ 3. 목표점 ============ -->
+<section>
+  <h2>3. 목표점 — 관문으로 정의한다</h2>
+  <p>"방문자 1만 명" 같은 숫자는 지금 근거가 없어서 쓰지 않는다. 대신 <strong>통과 여부가 명확한 관문</strong>으로
+  목표를 잡는다. 각 관문은 앞 관문 없이는 측정 자체가 불가능하도록 순서가 강제된다.</p>
+
+  <div class="gates">
+    <div class="gate">
+      <span class="g-label">관문 1 · 측정</span>
+      <h3>수익이 보인다</h3>
+      <p>광고 노출·클릭이 0이 아니고, 슬롯별·문구별로 갈려서 보인다. 어느 자리가 돈이 되는지 말할 수 있다.</p>
+    </div>
+    <div class="gate">
+      <span class="g-label">관문 2 · 의도</span>
+      <h3>딜 트래픽이 생긴다</h3>
+      <p>딜 섹션의 제휴 클릭률이 일반 피드보다 유의미하게 높다. 두 수치를 나란히 비교할 수 있다.</p>
+    </div>
+    <div class="gate">
+      <span class="g-label">관문 3 · 학습</span>
+      <h3>우리 신호로 순위가 바뀐다</h3>
+      <p>우리 사용자 클릭이 랭킹에 반영되고, 반영 전후로 클릭률이 개선됐음을 보일 수 있다.</p>
+    </div>
+    <div class="gate">
+      <span class="g-label">관문 4 · 품질</span>
+      <h3>안 나갈 글이 안 나간다</h3>
+      <p>승급 게이트를 통과한 글만 상단에 오른다. 반려 사유가 기록되어 게이트를 튜닝할 수 있다.</p>
+    </div>
+    <div class="gate">
+      <span class="g-label">관문 5 · 이유</span>
+      <h3>다시 올 이유가 생긴다</h3>
+      <p>"여기서만 볼 수 있는 것" 하나가 있고, 재방문율로 그 효과가 확인된다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ P0 ============ -->
+<section>
+  <div class="phase-head">
+    <span class="pnum">P0</span>
+    <h2>수익 파이프라인 측정 복구</h2>
+    <span class="ptag">선행 조건 · 이것 없이는 아래 전부 측정 불가</span>
+    <span class="chip done">2026-08-04 배포 완료</span>
+  </div>
+
+  <p><strong>확정된 원인.</strong> <code>_monetize</code>는 정상이었다. 한 단계 안쪽의
+  <code>pickAffiliateCandidates</code>가 범인이다:</p>
+
+  <div class="evidence">
+    <span class="src">src/feed/monetize.js — 고치기 전</span>
+    <div><code>if (partnerId &amp;&amp; opts.productFeed) …<br>else if (!preview) return [];</code>
+    <br><br>서버에 쿠팡 Open API 키(<code>COUPANG_ACCESS_KEY</code>/<code>SECRET</code>)가 없어
+    <code>opts.productFeed</code>가 null이었고, 그래서 <strong>항상 두 번째 줄로 떨어져 빈 배열</strong>을 냈다.
+    파트너 ID는 설정돼 있었는데도 광고가 한 건도 나가지 않은 이유다.</div>
+  </div>
+
+  <p><strong>고친 방식.</strong> "자격증명 없으면 광고 금지"의 취지는 <strong>가짜 상품 카드 금지</strong>다 —
+  없는 가격·재고를 지어내지 말라는 것. 카테고리 배너는 파트너스에서 직접 받아 <code>products.json</code>에
+  넣어 둔 <strong>실제 링크</strong>이고 가격도 상품명도 쓰지 않는다. 발행 페이지가 이미 같은 배너를 쓴다.
+  그래서 상품 피드가 없을 때 배너로 채우는 경로를 넣었고, 상품 단위 카드는 키가 배포되면 자동으로 켜진다.</p>
+
+  <p>익명 방문자에게는 바닥 관련성(0.35)을 준다. 우리 방문자 대부분이 익명이라 취향 벡터가 비어 있고,
+  그러면 관련성 게이트에 전부 걸려 <strong>또 0이 된다</strong>. 취향이 있는 사람에겐 맞는 배너가 먼저 가고
+  없는 사람에겐 골고루 돈다.</p>
+
+  <figure>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart TD
+  subgraph now["현재 — 끊긴 구간"]
+    A1["피드 응답"] --> A2{"광고 주입"}
+    A2 -->|"실측 0건"| A3["광고 카드 없음"]
+    A3 --> A4["노출 기록 0"]
+    A5["발행 페이지 서버 배너"] --> A6["추적 코드 없음"]
+  end
+
+  subgraph fix["복구 후"]
+    B1["피드 응답"] --> B2["광고 주입<br/>N카드마다 1"]
+    B2 --> B3["카드에 slot·variant 태그"]
+    B3 --> B4["노출: 화면 50% 진입 시 1회"]
+    B3 --> B5["클릭: subId로 쿠팡까지 전달"]
+    B4 --> B6[("슬롯별 · 문구별 집계")]
+    B5 --> B6
+    B7["발행 페이지 배너"] --> B3
+  end
+
+  now -.->|"P0"| fix
+  style A3 fill:#fbeae6,stroke:#c8250c,color:#c8250c
+  style A4 fill:#fbeae6,stroke:#c8250c,color:#c8250c
+  style A6 fill:#fbeae6,stroke:#c8250c,color:#c8250c
+  style B6 fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+</pre>
+    </div>
+    <figcaption>이미 있는 부품(<code>subId</code> 슬롯 태깅, <code>/api/ad-signal</code>, IntersectionObserver)은 전부 작동한다. 연결만 끊겨 있다.</figcaption>
+  </figure>
+
+  <h3>측정 장치 — 무엇을 재는가</h3>
+  <p>노출 수만 세는 건 측정이 아니다. "누가 어디서 들어와 무엇을 누르고 어디서 나갔나"가 나와야
+  광고를 어디에 붙일지, 어느 채널에 돈을 쓸지 정할 수 있다. 축을 이렇게 잡았다.</p>
+
+  <figure>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart TD
+  V["방문"] --> E1["진입 이벤트<br/>referrer · utm"]
+  V --> E2["콘텐츠 클릭<br/>소스 · 카테고리 · 순위대"]
+  V --> E3["광고 노출·클릭<br/>슬롯 · 문구"]
+  V --> E4["이탈<br/>화면 · 체류 · 깊이"]
+
+  E1 --> B["그날 버킷에 즉시 합산"]
+  E2 --> B
+  E3 --> B
+  E4 --> B
+
+  B --> D["일별"]
+  B --> W["주별"]
+  B --> M["월별"]
+
+  C1["LLM 호출<br/>토큰 x 공개단가"] --> CB["지출 버킷"]
+  C2["고정비 · 매출<br/>직접 입력"] --> CB
+  CB --> PL["손익"]
+  D --> PL
+
+  style B fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+  style PL fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+</pre>
+    </div>
+    <figcaption>원본 로그를 쌓지 않고 들어오는 즉시 일 버킷에 더한다 — 단일 JSON 파일이라 선형으로 커지면 어느 시점에 못 읽는다. 주·월은 일 버킷 합산이고, 유니크 방문자만 합집합으로 센다.</figcaption>
+  </figure>
+
+  <h3>정직성 규칙 — 화면에 박아 둔 것</h3>
+  <ul>
+    <li><strong>표본이 없으면 평균을 0이 아니라 “—”로 낸다.</strong> 0은 "0초 머물렀다"로 읽혀서 거짓말이 된다. 평균 옆에 표본 수를 항상 함께 띄운다.</li>
+    <li><strong>고정비·매출은 미입력이면 “미입력”으로 표시한다.</strong> 0으로 두면 순이익이 부풀어 보인다. 매출을 모르면 <strong>순이익 계산 자체를 하지 않는다</strong>.</li>
+    <li><strong>단가를 모르는 모델은 비용을 지어내지 않는다.</strong> 호출 수만 남기고 "단가 미등록 N건"으로 경고한다.</li>
+    <li><strong>원화는 참고 환산이고 원장은 달러다.</strong> 환율은 우리가 실측할 수 없다.</li>
+    <li>개인 식별 정보와 글 제목·URL은 보내지 않는다. 남는 건 유입 도메인, 화면 종류, 눌린 글의 소스·카테고리·순위대, 체류 시간뿐이다.</li>
+  </ul>
+
+  <div class="gate" style="border-left-color:var(--good);">
+    <span class="g-label">완료 판정 — 통과</span>
+    <p>피드 광고 카드 0 → <strong>30건 중 2건</strong>. 유입·캠페인·진입·이탈·체류·깊이·클릭·광고 슬롯이
+    모두 라이브에서 기록되는 것을 확인했다. 관리자에 <strong>행동 분석 · 수익·지출 · 개발관리</strong> 탭 추가.</p>
+  </div>
+</section>
+
+<!-- ============ 채널 판정 ============ -->
+<section>
+  <h2>보론 — 내 채널과 엮기, 네이버 소스 끌어오기</h2>
+  <p>둘을 같이 물었지만 판정이 정반대로 갈린다. robots.txt를 직접 받아 확인했다.</p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>대상</th><th>robots 실측</th><th>판정</th></tr></thead>
+      <tbody>
+        <tr><td><strong>네이버 카페</strong></td>
+          <td class="num">User-agent: * → Disallow: /</td>
+          <td><span class="chip crit">불가</span> 전면 금지. 하드 스톱이고, 대부분 로그인도 필요하다.</td></tr>
+        <tr><td><strong>네이버 블로그</strong></td>
+          <td class="num">내부 경로만 금지, 본문은 허용</td>
+          <td><span class="chip warn">사실상 불가</span> 크롤링은 되지만 <strong>“인기글” 랭킹 목록이 공개적으로 없다</strong>. 네이버는 그걸 로그인·개인화로만 준다.</td></tr>
+        <tr><td><strong>네이버 메인</strong></td>
+          <td class="num">User-agent: * → Disallow: /</td>
+          <td><span class="chip crit">불가</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>설령 가능하더라도 <strong>블로그 글은 넣지 않는 게 맞다.</strong> 대부분 협찬·체험단 리뷰라 "화제"가 아니고,
+  David가 정한 원칙(커뮤니티는 베스트게시판만, 뉴스는 핫·랭킹만)과 정면으로 어긋난다.
+  랭킹 신호가 없는 소스를 넣으면 오늘 고친 화제성 정렬이 다시 무너진다.</p>
+
+  <h3>반대로, 채널 연동은 지금 해야 할 일이다 — 단 방향이 중요하다</h3>
+  <p>우리 트래픽은 일 39~135명이다. <strong>우리가 David 채널로 내보내면 작은 쪽이 더 작아진다.</strong>
+  가치는 반대 방향에 있다 — David 채널 → 우리로 사람을 보내는 것, 그리고 우리 자체 콘텐츠(브리핑·화제랭킹)를
+  David 채널에 배포하는 것이다. 후자는 애드핏이 지적한 "자체 콘텐츠 부족"에도 직접 답이 된다.</p>
+
+  <div class="evidence">
+    <span class="src">그래서 순서가 이렇다</span>
+    <div>오늘 만든 <strong>utm 캠페인 추적</strong>이 정확히 이걸 재는 도구다. David 채널에 링크를 뿌릴 때
+    <code>?utm_source=naver_blog&amp;utm_medium=post&amp;utm_campaign=0804</code>를 붙이면
+    관리자 "대외 광고 캠페인" 표에서 <strong>어느 채널이 실제로 사람을 데려오는지</strong>가 갈린다.
+    감으로 여러 채널에 뿌리는 대신, 데려오는 채널에만 힘을 쓰면 된다. 측정이 먼저인 이유가 여기서도 같다.</div>
+  </div>
+</section>
+
+<!-- ============ P1 ============ -->
+<section>
+  <div class="phase-head">
+    <span class="pnum">P1</span>
+    <h2>딜 섹션 독립 — 구매 의도 트래픽 만들기</h2>
+    <span class="ptag">매출 레버 최대 · 재료는 이미 있음</span>
+    <span class="chip crit">최우선</span>
+  </div>
+
+  <p><strong>왜 여기가 1순위인가.</strong> Slickdeals가 매출 1위인 이유는 알고리즘이 아니라
+  방문 목적이다. 유머 보러 온 사람에게 쿠팡 배너를 붙이는 것과, 딜 보러 온 사람에게 딜을 보여주는 것은
+  전환율이 근본적으로 다르다. 그리고 우리는 <strong>이미 뽐뿌 핫딜을 수집하고 있다</strong> —
+  지금은 일반 피드에 흩어져 가치가 소멸한다.</p>
+
+  <figure>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  S1["뽐뿌 HOT<br/>(수집 중)"] --> D1
+  S2["이토랜드 핫딜 보드"] --> D1
+  S3["쿠팡 파트너스<br/>상품 피드"] --> D1
+
+  D1["딜 판별<br/>가격·할인·상품명 추출"] --> D2{"딜인가"}
+  D2 -->|아니오| D3["일반 피드로"]
+  D2 -->|예| D4["딜 섹션"]
+
+  D4 --> D5["가격 표기<br/>출처 그대로만"]
+  D4 --> D6["카테고리 매칭<br/>제휴 상품 병치"]
+  D5 --> D7["/deals 랜딩"]
+  D6 --> D7
+  D7 --> D8[("제휴 클릭<br/>subId=deal")]
+
+  D8 -.->|"일반 피드 CTR과 비교"| M(("관문 2 판정"))
+
+  style D4 fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+  style D8 fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+</pre>
+    </div>
+    <figcaption>새 소스를 붙이는 게 아니라, 이미 들어오는 것 중 딜만 갈라내는 구조다. 수집 비용 추가 0.</figcaption>
+  </figure>
+
+  <h3>도입할 것</h3>
+  <ul>
+    <li><strong>딜 판별기</strong> — 제목·게시판에서 가격/할인/무료배송 패턴을 뽑는다. 뽐뿌는 게시판 id가 이미 힌트다.</li>
+    <li><strong>/deals 랜딩</strong> — 딜만 모은 독립 섹션. 검색 유입도 여기가 가장 강하다("○○ 최저가", "○○ 핫딜").</li>
+    <li><strong>제휴 상품 병치</strong> — 딜 카드 옆에 같은 카테고리 쿠팡 링크. 이미 만든 <code>ad-matrix</code> 문구 체계를 그대로 쓴다.</li>
+    <li><strong>슬롯 분리</strong> — <code>subId=deal</code>로 태깅해 일반 피드와 성과를 나란히 비교한다.</li>
+  </ul>
+
+  <div class="evidence">
+    <span class="src">지켜야 할 선</span>
+    <div>가격은 <strong>출처에 적힌 것을 그대로만</strong> 옮긴다. 우리가 확인할 수 없는 할인율·재고·기간을 쓰는 순간
+    허위표시다 — <code>ad-matrix.js</code>에 이미 박아 둔 원칙과 같다. 쿠팡 대가성 문구는 딜 섹션에도 그대로 붙인다.</div>
+  </div>
+
+  <div class="gate" style="border-left-color:var(--accent);">
+    <span class="g-label" style="color:var(--accent);">완료 판정</span>
+    <p><code>subId=deal</code>의 클릭률을 일반 피드 슬롯과 같은 화면에서 비교할 수 있다.</p>
+  </div>
+</section>
+
+<!-- ============ P2 ============ -->
+<section>
+  <div class="phase-head">
+    <span class="pnum">P2</span>
+    <h2>우리 클릭을 랭킹에 넣는다</h2>
+    <span class="ptag">알고리즘 정확도를 올리는 가장 싼 수단</span>
+    <span class="chip warn">기본기</span>
+  </div>
+
+  <p><strong>문제.</strong> 남의 커뮤니티 추천수는 긁어다 쓰면서, 우리 사용자가 실제로 무엇을 눌렀는지는
+  랭킹에 안 쓴다. 코드상 클릭 기록은 <code>adStats</code>(광고)뿐이고 <strong>콘텐츠 클릭은 랭킹에 미반영</strong>이다.
+  Slickdeals의 승급 신호 셋 중 하나가 클릭이다.</p>
+
+  <p>남의 신호는 지연되고 그쪽 이용자 취향이 섞여 있다. 우리 클릭은 즉시이고 우리 이용자의 것이다.
+  게다가 오늘 실측에서 <strong>우리 피드 글의 63%가 반응 수치 0</strong>이라 남의 신호만으로는 순위를 매길 재료 자체가 모자란다.</p>
+
+  <figure>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart TD
+  subgraph ext["외부 신호 (현재 유일)"]
+    E1["추천 · 댓글 · 조회"] --> E2["소스 내 정규화<br/>robust-z / 백분위"]
+  end
+
+  subgraph own["자체 신호 (신규)"]
+    O1["카드 노출"] --> O3
+    O2["제목 클릭"] --> O3
+    O3["위치 보정 CTR<br/>상단일수록 할인"] --> O4["소량 가중 합산"]
+  end
+
+  E2 --> R["화제성 점수"]
+  O4 --> R
+  R --> S["firstSeenAt 시간 감쇠"]
+  S --> T["다양성 라운드로빈"]
+  T --> U["피드"]
+  U -.->|"다음 사이클 되먹임"| O1
+
+  style own fill:#e2f0ec,stroke:#0b6b58
+  style O4 fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+</pre>
+    </div>
+    <figcaption>되먹임 고리가 핵심이다. 다만 위치 보정 없이 넣으면 "위에 있어서 눌린 글"이 더 위로 가는 자기강화가 생긴다.</figcaption>
+  </figure>
+
+  <h3>구현 시 조심할 것</h3>
+  <ul>
+    <li><strong>위치 편향 보정</strong> — 1위 카드는 원래 많이 눌린다. 순위별 평균 CTR로 나눠 "그 자리치고 얼마나 눌렸나"를 쓴다.</li>
+    <li><strong>표본이 적을 때 침묵</strong> — 노출 수십 건짜리 CTR은 잡음이다. 이미 쓰는 베이지안 축소를 그대로 적용한다.</li>
+    <li><strong>가중치는 작게 시작</strong> — 외부 신호를 뒤집지 않을 크기로 넣고, 클릭률 변화를 보며 올린다.</li>
+    <li><strong>자기강화 감시</strong> — 소스 다양성 계약 테스트가 이미 있다. 클릭 신호 도입 후에도 통과해야 한다.</li>
+  </ul>
+
+  <div class="gate" style="border-left-color:var(--accent);">
+    <span class="g-label" style="color:var(--accent);">완료 판정</span>
+    <p>클릭 신호 도입 전후로 피드 클릭률을 비교해 개선을 보일 수 있다. 다양성 테스트는 그대로 통과한다.</p>
+  </div>
+</section>
+
+<!-- ============ P3 ============ -->
+<section>
+  <div class="phase-head">
+    <span class="pnum later">P3</span>
+    <h2>품질 게이트 — 2단 승급 구조</h2>
+    <span class="ptag">Slickdeals 3계층 · Techmeme 사람 편집 모델</span>
+    <span class="chip warn">구조</span>
+  </div>
+
+  <p><strong>문제.</strong> 우리는 수집 → 바로 노출, 1단계다. 그래서 게임 플레이 세부 얘기(인벤)나
+  의료 업계지(의사신문·덴 매거진) 같은 게 그대로 상단에 오른다. Slickdeals는 3계층이고,
+  Techmeme은 20년 전 완전 자동으로 시작했다가 <strong>2008년에 사람 편집자를 넣었다</strong> —
+  업계에서 가장 존경받는 순수 애그리게이터가 순수 자동을 포기했다는 사실 자체가 데이터다.</p>
+
+  <figure>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  I["수집 풀"] --> G1{"1차: 자동 임계값"}
+  G1 -->|"미달"| P1["후보 유지<br/>소스 보기에만 노출"]
+  G1 -->|"통과"| L2["인기"]
+
+  L2 --> G2{"2차: LLM 편집자"}
+  G2 -->|"반려 + 사유 기록"| P2["보류"]
+  G2 -->|"승격"| L3["상단 노출"]
+
+  P1 -.->|"신호 쌓이면 재도전"| G1
+  P2 -.->|"사유를 게이트 튜닝에"| G2
+
+  style L3 fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+  style G2 fill:#f8eeda,stroke:#9c5f06,color:#9c5f06
+</pre>
+    </div>
+    <figcaption>1차는 숫자(반응·클릭·교차보도), 2차는 판단(광고성·매니악함·제목 낚시·중복). 반려 사유가 남아야 게이트를 고칠 수 있다.</figcaption>
+  </figure>
+
+  <h3>사람 대신 LLM을 편집자로</h3>
+  <p>Techmeme은 사람을 썼지만 우리는 인건비를 감당할 수 없다. 대신 이미 붙여 둔 <code>llm.js</code>를 쓴다.
+  전 건이 아니라 <strong>2차 게이트에 올라온 후보만</strong> 판정하므로 호출 수가 통제된다.
+  브리핑 해설과 광고 문구 행렬에서 이미 검증한 방식이다 — 스키마 강제 출력, 저비용 모델, 검증 실패 시 폴백.</p>
+
+  <div class="gate" style="border-left-color:var(--accent);">
+    <span class="g-label" style="color:var(--accent);">완료 판정</span>
+    <p>상단 노출 글이 전부 2차 게이트를 통과한 것이고, 반려 사유가 관리자 화면에서 보인다.</p>
+  </div>
+</section>
+
+<!-- ============ P4 ============ -->
+<section>
+  <div class="phase-head">
+    <span class="pnum later">P4</span>
+    <h2>차별점 — 왜 여기여야 하는가</h2>
+    <span class="ptag">Ground News 모델 · 재방문의 이유</span>
+    <span class="chip warn">장기</span>
+  </div>
+
+  <p>Ground News는 소스 5만 개를 모으고 <strong>편향 비교</strong> 하나로 연 $100를 받아낸다.
+  "모아준다"만으로는 지불 이유가 안 된다. 우리에게 아직 그 하나가 없다.</p>
+
+  <p>후보를 늘어놓기보다 우리가 이미 가진 것에서 찾는 게 맞다. 우리는 <strong>커뮤니티와 뉴스를 동시에</strong> 긁는
+  거의 유일한 곳이고, 같은 사건에 대해 <strong>기사가 뭐라 하는지와 커뮤니티가 뭐라 하는지를 나란히</strong> 보여줄 수 있다.
+  이건 Ground News가 매체 간 편향을 비교하는 것과 같은 골격인데, 축이 다르다 — 언론 대 여론이다.
+  다른 국내 서비스가 흉내 내려면 우리가 6개월 걸려 만든 수집 파이프라인을 똑같이 만들어야 한다.</p>
+
+  <div class="evidence">
+    <span class="src">전제</span>
+    <div>이건 P0~P3가 끝나고 <strong>같은 사건 묶기</strong>가 정확해진 뒤에나 성립한다.
+    지금 교차 보도 클러스터링은 뉴스끼리만 돈다. 커뮤니티 글까지 같은 사건으로 묶는 정확도가 먼저다.
+    순서를 건너뛰면 엉뚱한 글을 나란히 놓아서 오히려 신뢰를 깎는다.</div>
+  </div>
+</section>
+
+<!-- ============ 순서 ============ -->
+<section>
+  <h2>4. 실행 순서와 의존 관계</h2>
+  <p>순서는 취향이 아니라 의존이다. P0 없이는 P1~P2의 성과를 <strong>측정할 방법이 없고</strong>,
+  P2 없이는 P3의 1차 임계값에 넣을 자체 신호가 없다.</p>
+
+  <figure>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  P0["P0 · 측정 복구<br/>완료 08-04"] --> P1["P1 · 딜 섹션<br/>구매 의도 트래픽"]
+  P0 --> P2["P2 · 클릭 신호<br/>랭킹 반영"]
+  P2 --> P3["P3 · 품질 게이트<br/>2단 승급"]
+  P1 --> P3
+  P3 --> P4["P4 · 차별점<br/>언론 대 여론"]
+
+  H["소스 헬스<br/>완료 08-04"] -.->|"파서 고장 감지"| P2
+  RK["랭킹 교정<br/>완료 08-04"] -.-> P2
+  PS["파서 복구 4곳<br/>완료 08-04"] -.->|"화제성 재료"| P2
+  P0 -.->|"utm 캠페인 추적"| CH["채널 연동<br/>어느 채널이 데려오나"]
+
+  style P0 fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+  style H fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+  style RK fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+  style PS fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+  style P1 fill:#fbeae6,stroke:#c8250c,color:#c8250c
+</pre>
+    </div>
+    <figcaption>초록은 배포 완료. 빨강이 다음 착수 대상이다. P0이 끝났으므로 이제 P1의 성과를 잴 수 있다.</figcaption>
+  </figure>
+
+  <h3>광고가 어떻게 세팅돼 있나 — 3층인데 2층이 죽어 있었다</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>층</th><th>상태</th><th>실제</th></tr></thead>
+      <tbody>
+        <tr><td><strong>카카오 애드핏</strong><br><span class="ptag">DAN-ay04FFmKGxgYuWeQ</span></td>
+          <td>심사 보류</td>
+          <td><span class="chip warn">지면 회수</span> 169px 빈 칸이었다. 승인 전까지 지면을 내주지 않는다.</td></tr>
+        <tr><td><strong>구글 애드센스</strong><br><span class="ptag">ca-pub-9799388228968567</span></td>
+          <td>ads.txt·서버 설정됨</td>
+          <td><span class="chip warn">미배치</span> 소유 확인만 하고 피드에 유닛이 안 붙어 있다.</td></tr>
+        <tr><td><strong>쿠팡 파트너스</strong><br><span class="ptag">AF5818321</span></td>
+          <td>배너 16종</td>
+          <td><span class="chip done">작동</span> 오늘 복구. 유일하게 지금 규모에서 돈이 되는 층.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="evidence">
+    <span class="src">애드핏을 폴백으로 못 살린 이유 — 브라우저 실측</span>
+    <div>업계 표준(AdMob 미디에이션 워터폴 / Ad Manager 패스백)대로 미충족 시 쿠팡으로
+    넘기는 배선을 넣었다. 애드핏은 그 신호로 <code>data-ad-onfail</code> 콜백을 제공한다.
+    <br><br>그런데 <strong>심사 보류 상태의 애드핏은 onfail을 부르지 않는다.</strong>
+    아무것도 안 보여주면서 "채웠다"로 처리한다 — <code>ins</code> 안에 safeframe iframe이 생기고
+    크로스오리진이라 우리 쪽에서는 빈 칸인지 알 방법이 없다. 그래서 확실한 방법은
+    <strong>승인 전에는 그리지 않는 것</strong> 하나뿐이다(<code>ADFIT_ENABLED=1</code>).
+    패스백 배선은 남겨 뒀으므로 승인 후 미충족이 생기면 그때는 쿠팡으로 넘어간다.</div>
+  </div>
+
+  <p><strong>방향: 디스플레이 광고에 기대면 안 된다.</strong> 애드핏·애드센스는 노출당 과금이라
+  트래픽이 커야 돈이 된다. 우리 일 PV는 211~351이다. 심사를 통과해도 지금 규모에선 수익이 아니다.
+  반면 쿠팡 제휴는 전환 1건당 거래액의 3~10%라 트래픽이 작아도 한 건이 팔리면 며칠치가 나온다.
+  <strong>쿠팡에 힘을 싣고 디스플레이는 빈 칸만 안 나게 관리한다.</strong></p>
+
+  <h3>2026-08-04에 배포한 것</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>작업</th><th>핵심</th><th class="num">실측 변화</th></tr></thead>
+      <tbody>
+        <tr><td>화제성 나이 기준 교체</td>
+          <td><code>publishedAt</code> → <code>firstSeenAt</code>. 추천을 받는 데 걸린 시간을 벌점으로 매기고 있었다</td>
+          <td class="num">신호 23.0h vs 3.0h<br>감쇠 8.7배 격차 제거</td></tr>
+        <tr><td>probit 클램프 보정</td>
+          <td>순위만 있는 소스의 1위가 4.75를 받아 추천 466건을 이겼다</td>
+          <td class="num">순위 경로 신뢰도 0.6</td></tr>
+        <tr><td>구글뉴스 그룹화</td>
+          <td>8개 섹션이 라운드로빈에서 8칸을 먹었다</td>
+          <td class="num">피드 29% → 상위 30건 중 2건</td></tr>
+        <tr><td>파서 복구 4곳</td>
+          <td>뽐뿌·보배는 창이 좁았고, 이토랜드는 JSON-LD를, 인스티즈는 숫자 없는 블록을 읽었다</td>
+          <td class="num">네 곳 모두 신호 0 → 100%</td></tr>
+        <tr><td>소스 헬스</td>
+          <td>건수와 신호를 따로 본다. "38건 들어오는데 숫자만 0"을 잡는다</td>
+          <td class="num">멈춘 소스 9곳 가시화</td></tr>
+        <tr><td>피드 광고 복구</td>
+          <td>상품 피드가 없을 때 실제 카테고리 배너로 채운다</td>
+          <td class="num">0/30 → 2/30</td></tr>
+        <tr><td>행동 분석 · 지출</td>
+          <td>유입·캠페인·진입·이탈·체류·깊이·클릭·광고를 일/주/월로</td>
+          <td class="num">관리자 탭 3개 신설</td></tr>
+        <tr><td>방문자 신원 확정</td>
+          <td>GA4 방식 — 로그인 → 기기 쿠키(2년) → 저장소 → 신규</td>
+          <td class="num">재방문 2~4명은<br>과소 집계였다</td></tr>
+        <tr><td>애드핏 지면 회수</td>
+          <td>승인 전에는 그리지 않는다. 패스백 배선은 보존</td>
+          <td class="num">빈 칸 169px → 0</td></tr>
+        <tr><td>광고 연속 배치 금지</td>
+          <td>서버·클라이언트 두 주입 경로가 서로를 모르고 붙였다</td>
+          <td class="num">연속 2건 → 0</td></tr>
+        <tr><td>배너 이미지 즉시 로딩</td>
+          <td>화면 안에 있어도 요청이 안 나가던 지연 로딩을 광고에만 해제</td>
+          <td class="num">이미지 0×0 → 320×100</td></tr>
+        <tr><td>서비스워커 v68</td>
+          <td>앱 셸이 cache-first인데 버전을 안 올려 배포가 폰에 도달하지 않았다</td>
+          <td class="num">커밋 시각 기준<br>회귀 테스트 추가</td></tr>
+        <tr><td>테스트 타임아웃</td>
+          <td>안 끝나는 테스트가 10분을 통째로 날렸다</td>
+          <td class="num">45초 상한 상시 적용</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="evidence">
+    <span class="src">배너가 안 뜨던 진짜 이유 — 브라우저 재현</span>
+    <div>David가 여러 번 지적한 "배너 그림도 없어 안 뜬다"의 원인을 오늘 잡았다.
+    <code>loading="lazy"</code>를 건 광고 배너가 <strong>뷰포트 812px 안 top 323 위치에 있는데도</strong>
+    <code>complete=false</code>였고 네트워크 요청 자체가 발생하지 않았다. 같은 요소를
+    <code>eager</code>로 바꾸자 즉시 320×100으로 로드됐다 — URL은 처음부터 정상이었다.
+    <br><br>광고 배너는 화면당 1~2장뿐이라 아끼는 대역폭이 미미한데 안 보이면 수익이 그대로 0이다.
+    본문 썸네일은 수십 장이라 지연 로딩을 유지한다 — <strong>광고만 예외</strong>로 두고,
+    본문까지 함께 바뀌지 않는지도 테스트로 지킨다.</div>
+  </div>
+  <p style="font-size:.88rem;color:var(--muted)">상위 30건의 뉴스 대 커뮤니티 비율은 21:9에서 15:15로 바뀌었고, 실측 반응이 있는 글은 5건에서 11건으로 늘었다.</p>
+
+  <div class="evidence">
+    <span class="src">신원 문제 — 오늘 가장 크게 틀렸던 수치</span>
+    <div>8/3 방문자 135명 중 133명이 그날 새로 만들어진 ID였다. 처음엔 "재방문이 0"이라고 읽었는데
+    David 제보로 사실이 아님이 확인됐다 — 매일 오는 사람이 실제로 있다.
+    <br><br>원인은 부팅 순서였다. <code>localStorage</code>가 비면 새 계정을 발급한 <strong>뒤에</strong>
+    로그인 세션을 확인하고, 그 결과를 닉네임 표시에만 쓰고 버렸다. 카카오톡·네이버 앱 내장
+    브라우저는 저장소를 자주 비우므로 모바일에서 특히 심했다. GA4가 <code>localStorage</code> 대신
+    쿠키를 쓰는 이유가 정확히 이것이다.</div>
+  </div>
+
+  <h3>적대적 검수 3인 — 전 항목 반영 완료</h3>
+  <p>광고 심사관 · 저작권 변호사 · 검색 품질 전문가에게 서로의 결론을 모른 채
+  <strong>"왜 떨어질 수밖에 없는가"</strong>를 찾게 했다. 주장은 전부 직접 재검증했고,
+  검수가 <strong>내 오보 하나를 잡아냈다</strong>.</p>
+
+  <div class="evidence">
+    <span class="src">정정 — 이토랜드 robots.txt</span>
+    <div>내가 "이토랜드는 <code>Disallow: /</code>인데 유지하시겠습니까"라고 물었는데
+    <strong>사실이 아니었다.</strong> 실측: <code>User-agent: * / Allow: / / Disallow: /private/</code>.
+    전면 차단으로 보였던 건 AI 학습 봇 전용 블록(GPTBot·ClaudeBot 등)이고 우리 UA는 거기 없다.
+    내가 <code>*</code> 규칙으로 잘못 읽었다 — 애초에 판단할 일이 아니었다.</div>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>지적</th><th>실측</th><th>조치</th></tr></thead>
+      <tbody>
+        <tr><td>배포 HTML에 "심사 대응" 주석 노출</td>
+          <td class="num">15건</td>
+          <td><code>&lt;!-- 애드핏 "자체 콘텐츠" 보강의 홈 노출부 --&gt;</code> 같은 것들. 심사관이 소스를 열면 나머지 개선이 전부 위장으로 재해석된다. 지우지 않고 <strong>설계 사유로 다시 썼다</strong>.</td></tr>
+        <tr><td>썸네일 주석 "핫링크 차단도 피해간다"</td>
+          <td class="num">1건</td>
+          <td>정책은 유지하되 사유를 프라이버시로만. 우회 인식은 민사 고의 인정에 그대로 쓰인다.</td></tr>
+        <tr><td>수집기 UA가 죽은 주소</td>
+          <td class="num">onrender.com</td>
+          <td><code>nowhot-bot/1.0 (+nowhot.kr/about.html)</code>. 사이트 운영자가 로그를 보고 연락할 수 있어야 "선의의 크롤러"가 성립한다.</td></tr>
+        <tr><td>대가성 문구가 팝오버에만</td>
+          <td class="num">11px·muted</td>
+          <td>카드 안 <strong>상시 노출</strong> + 12.5px 본문색. 공정위는 "위치의 접근성 + 인식 가능성"을 요구한다. 광고 카드도 배경·좌측 띠로 구분.</td></tr>
+        <tr><td>자체 페이지로 가는 링크 없음</td>
+          <td class="num">0개</td>
+          <td><code>/communities</code>·<code>/keywords</code>를 만들어 놓고 홈에서 갈 길이 없었다. 시맨틱 <code>&lt;nav&gt;</code> 신설 + 인라인 style을 전부 클래스로.</td></tr>
+        <tr><td>정책 페이지 경로 404</td>
+          <td class="num">3개</td>
+          <td><code>/privacy</code>·<code>/terms</code>·<code>/about</code> 전부 404였다. 확장자 없는 주소로 열고 sitemap 등재.</td></tr>
+        <tr><td>이용약관 자체가 없음</td>
+          <td class="num">—</td>
+          <td>댓글·글쓰기를 운영하면서 약관이 없어 <strong>저작권법 제102·103조 OSP 면책을 원용할 수 없는 상태</strong>였다. 게시중단 절차·침해 신고 창구·수집 정책 포함해 신설.</td></tr>
+        <tr><td>개인정보처리방침 법정 항목 누락</td>
+          <td class="num">4종</td>
+          <td>보호책임자(제31조, 재량 없는 형식 요건), 국외이전(AdSense가 미국으로 전송), 실제 수집 항목, 항목별 보유기간.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>홈이 크롤러에게 빈 화면이던 문제 — 해결</h3>
+  <figure>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  subgraph before["이전"]
+    A1["크롤러가 홈을 연다"] --> A2["HTML에 카드 0개<br/>본문 936자 · '준비 중'"]
+    A2 --> A3{"JS가 /api/feed 호출"}
+    A3 -->|"robots.txt가<br/>Disallow: /api/"| A4(("영원히 빈 화면"))
+  end
+
+  subgraph after["현재"]
+    B1["크롤러가 홈을 연다"] --> B2["서버가 20건을 HTML로<br/>제목·출처·실측 반응·발췌"]
+    B2 --> B3["자체 페이지 내비 5개"]
+    B3 --> B4(("본문 1,806자"))
+    B5["robots: 읽기 GET만 Allow<br/>쓰기·세션·관리자는 차단"] --> B2
+  end
+
+  before -.->|"9번"| after
+  style A4 fill:#fbeae6,stroke:#c8250c,color:#c8250c
+  style B4 fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+</pre>
+    </div>
+    <figcaption>우리 robots.txt가 우리 콘텐츠를 스스로 막고 있었다. 구글은 렌더링 도중에도 robots를 지킨다.</figcaption>
+  </figure>
+
+  <div class="evidence">
+    <span class="src">발췌를 넣었더니 오히려 나빠졌던 것 — 그리고 고친 것</span>
+    <div>발췌는 원문의 <code>og:description</code>에서 오는데, 상당수 사이트가 글별 설명 대신
+    <strong>사이트 소개문을 통째로</strong> 내려준다. 실측에서 한 커뮤니티의 글 전부에 같은 문단이 붙었고
+    "직접 눌러서 내용을 확인해 주세요" 같은 유도 문구도 섞였다. 같은 문단이 반복되면 정확히
+    "템플릿으로 찍어낸 페이지"가 된다 — 넣은 이유와 정반대다.
+    <br><br>목록 안에서 두 번 이상 겹치거나 유도 문구이거나 20자 미만인 발췌는 버린다.
+    배포 후 실측: <strong>중복 발췌 0건</strong>, 남은 것은 전부 그 글의 실제 내용.</div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">배포가 폰에 도달하지 않던 문제 — David 제보로 발견</span>
+    <div>"광고 하나도 안 보이고 바뀐 게 없어 보인다. 배포는 안 된 거야?"
+    <br><br><strong>배포는 정상이었다.</strong> VM 커밋이 로컬과 일치하고 API는 광고 카드 2건을
+    대가성 문구까지 붙여 반환했다. 문제는 <strong>서비스워커</strong>였다 — 앱 셸(<code>/</code> 포함)을
+    cache-first로 서빙하는데 <code>CACHE</code> 상수가 <code>v67</code>에 멈춰 있었다.
+    하루 동안 <code>index.html</code>을 여섯 번 고쳤지만 버전을 안 올려서,
+    <strong>이미 방문한 적 있는 기기에는 옛 화면이 계속</strong> 나갔다.
+    <br><br>메뉴 버튼이 두 번 재발했던 것과 같은 계열이다(그때는 <code>Cache-Control</code> 부재).
+    이번엔 기억에 기대지 않도록 테스트로 못 박았다 — <code>index.html</code>이 <code>sw.js</code>보다
+    나중에 <strong>커밋</strong>되면 실패한다. 실제로 그 테스트가 먼저 실패해서 잡혔다.</div>
+  </div>
+
+  <h3>브리핑을 하루 3편 편성으로</h3>
+  <p>David 지시: <em>"15분마다 갱신될 필요는 없지 않니? 사람들 활동시간 기준으로 아침 점심 저녁에만
+  한번씩 브리핑 해도 될 것 같은데 내용 충실하게 해서. 아침 브리핑이면 지난 밤 있던 얘기들 위주에
+  해외 핫토픽을 한글로 정리해서 올리는 게 많을 거고 점심 저녁은 국내 비중이 많을 수 있고."</em></p>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>슬롯</th><th class="num">발행</th><th class="num">보는 구간</th><th class="num">해외 가중</th><th>성격</th></tr></thead>
+      <tbody>
+        <tr><td>모닝</td><td class="num">07시</td><td class="num">12시간</td><td class="num">1.6배</td>
+          <td>자는 동안 쌓인 것 — 그 시간엔 해외가 한창이고 국내 커뮤니티는 조용하다</td></tr>
+        <tr><td>런치</td><td class="num">12시</td><td class="num">6시간</td><td class="num">—</td><td>오전에 오간 이야기</td></tr>
+        <tr><td>이브닝</td><td class="num">19시</td><td class="num">7시간</td><td class="num">—</td><td>오늘 가장 크게 번진 이야기</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:.88rem;color:var(--muted)">창을 나눠야 아침·점심·저녁이 같은 글을 싣지 않는다.
+  해외 가중은 순서만 바꾸고 무엇을 뺄지는 정하지 않는다 — 국내가 크게 터진 아침이면 국내가 그대로 앞에 온다.</p>
+
+  <div class="evidence">
+    <span class="src">이 한 번의 변경이 세 문제를 같이 풀었다</span>
+    <div><strong>① 24초 대기</strong> — 요청마다 만들면서 캐시가 빗나가면 사용자가 LLM 응답을 그대로 기다렸다.
+    지금은 미리 만들어 두므로 <strong>0.05초</strong>.
+    <br><strong>② 고정된 편이 없었다</strong> — 15분마다 내용이 바뀌어 "오늘의 브리핑"이라 부를 것이 없었다.
+    <br><strong>③ 아카이브 해설 0건</strong> — 해설이 실시간 페이지에만 있고 날짜별 아카이브에는 한 건도 없었다(검수 지적).
+    이제 생성 시점에 함께 저장돼 영구히 남는다.</div>
+  </div>
+
+  <h3>대표 자리에서 빼는 것 — 삭제가 아니다</h3>
+  <p>검수 3인이 전원 지적한 제목이 고친 뒤에도 브리핑 1위였다. 해설을 붙이려던 모델조차
+  그 이슈만 건너뛰었다(5/6) — 사람이 봐도 대표로 내세울 글이 아니라는 뜻이다.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>이전</th><th>지금</th></tr></thead>
+      <tbody>
+        <tr><td>1위 "우리나라 못생남 빨아주느라…"</td><td>공효진 놀면뭐하니 논란 (댓글 179 논쟁형)</td></tr>
+        <tr><td>1·3위 둘 다 인벤 메이플스토리</td><td>인스티즈 · 뽐뿌 · 5개 매체 교차보도</td></tr>
+        <tr><td>해설 5/6 (문제 이슈만 누락)</td><td><strong>해설 6/6</strong></td></tr>
+        <tr><td>응답 24초</td><td>0.05초</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:.88rem;color:var(--muted)">마스킹 사전과 <strong>분리</strong>했다 — 거기 넣으면 피드 화면의 제목까지 ●로 바뀐다.
+  여기 것은 대표 자리에서만 빼고 피드에는 원문 그대로 남는다. 테스트가 그것까지 확인한다.
+  <code>mainFeed:false</code>도 브리핑·랭킹까지 확장했다 — 인벤을 껐는데 대표에 계속 오르던 원인이었다.</p>
+
+  <div class="evidence">
+    <span class="src">오늘 내가 만든 결함 셋 — 전부 테스트가 잡았다</span>
+    <div>① <code>_itemGroups</code> 초기화를 <code>_itemLabels</code> 검사에 묶어 둠<br>
+    ② 짧은 제목 기준을 6자로 잡아 "尹 구속"(5자) 같은 진짜 뉴스가 걸림<br>
+    ③ <strong>"일베이스캠프 등반기"가 "일베"에 걸림</strong> — 조사를 경계로 인정하면 합성어를 못 가른다<br><br>
+    셋 다 배포 전에 잡혔다. 특히 ③은 오탐 하나가 진짜 화제를 대표에서 밀어내는 종류라,
+    오탐 케이스를 테스트에 그대로 고정해 뒀다.</div>
+  </div>
+
+  <h3>지금 하는 중</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>항목</th><th>내용</th><th>상태</th></tr></thead>
+      <tbody>
+        <tr><td>승격 제외</td>
+          <td><code>promotion.js</code> — "300추 가능한가요?"·"파티모집창" 같은 알맹이 없는 글을
+            랭킹·브리핑 <b>대표 자리에서만</b> 제외. 피드에는 그대로 둔다(삭제 금지 원칙).</td>
+          <td><span class="chip done">완료 · 배포됨</span></td></tr>
+        <tr><td>얇은 페이지 정리</td>
+          <td>키워드 43개 중 28개가 수록 글 4건 이하 → <code>noindex</code>.
+            본문 800자 미만 페이지는 광고 유닛 축소.</td>
+          <td>대기</td></tr>
+        <tr><td>아카이브 해설 저장</td>
+          <td>하루 3편 편성으로 생성 시점에 함께 저장 — 아카이브에 영구히 남는다.</td>
+          <td><span class="chip done">완료 · 배포됨</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="evidence">
+    <span class="src">못 하는 것은 하는 척하지 않는다</span>
+    <div>검수는 "청계천에서 흡연하는 중국인", "여경 불안하다고 말하는 남자들…" 같은
+    국적·성별 갈등 제목도 지적했다. 그런데 이건 <strong>정규식으로 판별할 수 없다</strong> —
+    "중국인"이 들어갔다고 막으면 정상 뉴스가 통째로 죽는다.
+    <br><br>그래서 두 층으로 나눴다. <strong>형식</strong>으로 판별되는 것(추천 구걸·모집글)만
+    대표 자리에서 빼고, 의미 판별이 필요한 영역은 <strong>그 글 옆에 광고를 붙이지 않는 것</strong>으로
+    실제 리스크(광고주 브랜드 안전)만 막는다. 어설픈 의미 판별로 피드를 망가뜨리는 것보다 낫다.</div>
+  </div>
+
+  <h3>유입 — 문을 닫아 놓고 있었다</h3>
+  <p>David: <em>"사람 유입량을 늘리는 가장 좋은 방법을 생각해보자"</em> — 감으로 답하지 않고
+  각 경로에서 우리 상태를 쟀더니, <strong>유입이 안 되는 게 아니라 유입 경로를 닫아 놓고</strong> 있었다.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>경로</th><th>이전</th><th>지금</th></tr></thead>
+      <tbody>
+        <tr><td><strong>구글 Discover</strong></td>
+          <td><code>max-image-preview</code> 없음 — <strong>자격 미달</strong></td>
+          <td>전 페이지 적용</td></tr>
+        <tr><td><strong>카카오톡 공유</strong></td><td>512 정사각 앱 아이콘</td><td>1200×630 브랜드 이미지</td></tr>
+        <tr><td>트위터·X</td><td>작은 카드</td><td>큰 카드</td></tr>
+        <tr><td><strong>IndexNow</strong>(네이버·빙)</td>
+          <td>구현은 다 돼 있는데 키가 없어 <strong>한 번도 안 보냄</strong></td>
+          <td>통보 성공 · 브리핑 갱신마다 자동</td></tr>
+        <tr><td>sitemap</td><td>25개 · <code>lastmod</code> 0개</td><td>54개 · lastmod 50개</td></tr>
+        <tr><td>검색 설명문</td><td>102자 · <strong>죽은 소스(더쿠·루리웹) 광고</strong></td><td>49자 · 살아 있는 소스만</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="evidence">
+    <span class="src">서치콘솔 실측 — 지금 어디에 서 있나</span>
+    <div><code>/</code> 색인됨(단 크롤링이 홈 수정 <b>이전</b>이라 구글은 아직 빈 화면 버전을 들고 있다) ·
+    <code>/briefing</code>·<code>/ranking</code>은 <strong>"크롤링됨 — 현재 색인이 생성되지 않음"</strong>.
+    <br><br>이건 오류가 아니라 <strong>품질 판정</strong>이고 새 사이트에서 가장 흔한 벽이다.
+    브리핑은 <strong>"참조 페이지 없음"</strong>까지 떴다 — 구글이 아는 우리 홈에는 브리핑으로 가는 링크가 없었다.
+    홈이 재크롤링되면 오늘 넣은 내비게이션이 잡히면서 함께 풀릴 가능성이 크다. 즉시 되는 마법은 없다.</div>
+  </div>
+
+  <h3>남은 일 — 순서와 검수</h3>
+  <p>하나 끝날 때마다 <strong>적대적·독립 검수</strong>를 붙이고 지적을 반영한 뒤 다음으로 넘어간다.
+  검수는 좁은 범위로 저가 모델에 맡겨 비용을 낮춘다 — 앞선 3인 검수가 각 10만 토큰을 쓴 건 범위가 넓어서였다.</p>
+  <figure>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart TD
+  A["A · 수집 동시성<br/>완료 · 20→43곳"] --> RA{"검수"}
+  RA -->|P0 반영| B1["1 · 스크롤 유지<br/>완료"]:::done
+  B1 --> R1{"검수"}
+  R1 --> B2["2 · 깨진 것 치우기<br/>완료"]:::done
+  B2 --> R2{"검수"}
+  R2 --> B3["3 · 브리핑 재설계<br/>완료 · 중요도 순"]
+  B3 --> R3{"검수"}
+  R3 --> E(("애드핏 재심사<br/>David 신청"))
+  E -.심사 도는 동안.-> B4["4 · 딜 섹션<br/>구매 의도 트래픽"]
+  B4 --> R4{"검수"}
+  R4 --> B5["5 · 우리 클릭을 랭킹에<br/>되먹임 고리"]
+  B5 --> R5{"검수"}
+  R5 --> B6["6 · 우리 색<br/>이례성 점수 노출"]
+
+  style A fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+  style B3 fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+  style E fill:#fbeae6,stroke:#c8250c,color:#c8250c
+  classDef next fill:#fbeae6,stroke:#c8250c,color:#c8250c
+  classDef done fill:#e2f0ec,stroke:#0b6b58,color:#0b6b58
+</pre>
+    </div>
+    <figcaption>David의 2차 버그 리포트(8월 5일)를 기존 백로그에 끼워 넣은 순서다.
+    재심사는 자체 콘텐츠(3번)가 끝난 뒤에 넣는다 — 남은 항목을 안고 넣으면 같은 사유로 또 반려되고 이력만 쌓인다.
+    <strong>딜 섹션은 심사가 도는 동안</strong> 진행한다. 쿠팡 제휴라 애드핏 심사와 서로 걸리지 않는다.</figcaption>
+  </figure>
+
+  <h3>왜 이 순서인가 — David 2차 리포트를 백로그에 끼워 넣다</h3>
+  <p>David가 준 4건을 따로 처리하지 않고 남아 있던 일과 한 줄로 세웠다. 기준은 두 가지다:
+  <strong>돈이 새는 곳이 먼저</strong>, 그리고 <strong>재심사를 막는 것이 그다음</strong>.</p>
+  <table>
+    <thead><tr><th>순서</th><th>일</th><th>왜 이 자리인가</th></tr></thead>
+    <tbody>
+      <tr><td><b>1</b></td><td>스크롤 유지 <span class="tag">David 4번 · 심각</span></td>
+        <td>읽는 도중에 맨 위로 튀면 그 자리에서 나간다. <strong>체류시간이 곧 광고 노출</strong>이라
+        이건 기능 결함이 아니라 매출이 새는 구멍이다. 다른 무엇을 고쳐도 여기서 사람이 빠지면 의미가 없다.</td></tr>
+      <tr><td><b>2</b></td><td>깨진 것 치우기 <span class="tag">David 1·2번</span></td>
+        <td>번역 버튼은 다크모드에서 안 보이고, 눌러도 지역 제한 오류가 뜬다. 브리핑 카드는
+        하루 3회로 바꿔 놓고 아직 "15분 갱신"이라고 써 있다 — <strong>사실이 아닌 표시</strong>다.
+        둘 다 싸고, 심사관이 먼저 보는 자리에 있다.</td></tr>
+      <tr><td><b>3</b></td><td>아침 브리핑 재설계 <span class="tag">David 3번</span></td>
+        <td>자체 콘텐츠는 <strong>재심사의 핵심 근거</strong>다. 지금은 사적이고 매니악한 글이 대표로 올라온다.
+        경제·정책·사회·정치 중요 이슈를 축으로 놓고 관련 커뮤니티 반응과 트렌드를 붙인다.</td></tr>
+      <tr><td><b>4</b></td><td>애드핏 재심사 <span class="tag">David 행동</span></td>
+        <td>1~3이 끝난 상태로 넣는다. 심사는 며칠 걸리므로 <strong>기다리는 동안 다음 일을 한다.</strong></td></tr>
+      <tr><td><b>5</b></td><td>딜 섹션</td>
+        <td>쿠팡 제휴라 애드핏 심사와 무관하다. 구매 의도를 갖고 들어오는 트래픽은
+        전환이 가장 높은 유입이다 — 심사 대기 시간을 여기에 쓴다.</td></tr>
+      <tr><td><b>6</b></td><td>우리 클릭을 랭킹에</td>
+        <td>지금 심어야 데이터가 쌓인다. 늦게 넣을수록 되먹임이 늦게 돈다.</td></tr>
+      <tr><td><b>7</b></td><td>우리 색 — 이례성 점수</td>
+        <td>차별화. 앞의 것들이 다 돌아간 뒤라야 의미가 있다.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="evidence">
+    <span class="src">1번을 진단해 보니 원인이 David가 말한 것과 달랐다</span>
+    <div>"자동 갱신"이라고 하셨는데 <strong>클라이언트에 자동 갱신 타이머가 없다.</strong>
+    <code>reloadFeed</code>는 사용자가 누를 때만 돈다.
+    <br><br>진짜 원인은 <strong>스크롤 복원의 구멍</strong>이다. 위치를 저장은 하는데
+    (<code>pagehide</code>), 복원은 <em>뒤로가기일 때만</em> 한다(<code>pageshow</code>의
+    <code>isBack</code> 검사). 그래서 <strong>어떤 이유로든 페이지가 다시 로드되면 무조건 맨 위</strong>다 —
+    휴대폰에서 앱을 전환했다 돌아오면 브라우저가 탭을 버리고 다시 읽는데, 그게 정확히 이 경우다.
+    <br><br>고칠 것은 타이머가 아니라 복원 조건이다.</div>
+  </div>
+
+  <h3>3 — 완료 · 브리핑을 반응 순에서 중요도 순으로</h3>
+  <div class="evidence">
+    <span class="src">고치기 전 (라이브 모닝 브리핑 실측)</span>
+    <div>1. 해커뉴스 · 추천 907건 &nbsp; 2. 해커뉴스 · 댓글 357건 &nbsp; 3. 보배드림 · 추천 342건 &nbsp; 4. 보배드림 · 추천 311건
+    <br><br>David가 말한 "사적·매니악함"은 취향 문제가 아니라 <strong>정렬의 결과</strong>였다.
+    반응 원점수를 그대로 더하니 추천 907이 나머지를 전부 눌렀다.</div>
+  </div>
+  <div class="evidence">
+    <span class="src">고친 뒤 (같은 화면)</span>
+    <div>1. 5개 매체가 다룬 “김여정 일, 국방력 강화” &nbsp; 2. “남친이 감금해 18층서 뛰어내린”
+    <br>3. “Bending Spoons” &nbsp; 4. “돌려차기 한 판 실언 의원에 먼저”
+    <br>5. “경찰, ‘탱크데이’ 논란 스타벅스” &nbsp; 6. “반도체주 날자 코스피 4%대 급등”</div>
+  </div>
+  <table>
+    <thead><tr><th>바꾼 것</th><th>어떻게</th><th>근거</th></tr></thead>
+    <tbody>
+      <tr><td>반응을 누른다</td><td>원점수 → <code>log10</code></td>
+        <td>소스마다 추천의 의미가 다르다(더쿠 16만 vs 인벤 수백). 원점수는 스케일 큰 소스가 독식한다.</td></tr>
+      <tr><td>중요도를 잰다</td><td>교차보도 ×80 · 검색 급상승 ≤250 · 무게 있는 분야 105</td>
+        <td>250·105는 기존 점수 분포의 상위 10%·25%에서 그대로 가져왔다. 지어낸 값이 아니다.</td></tr>
+      <tr><td>관심사 축 신설</td><td>구글 트렌드 KR 검색량</td>
+        <td>기존 두 축은 <strong>우리 풀 안에서만</strong> 재는 값이라 바깥세상을 몰랐다.
+        실측: 30건 중 19건이 0점 — 뉴스끼리는 구분이 안 됐다.</td></tr>
+      <tr><td>이름을 붙인다</td><td>매체들이 함께 쓴 낱말, 없으면 제목 앞 구절</td>
+        <td>첫 판에서 헤드라인 6개가 전부 "5개 매체가 동시에 다룬 사안"이었다. 구분이 안 되면 헤드라인이 아니다.</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:.88rem;color:var(--muted)"><strong>X 트렌드는 선정에 쓰지 않는다.</strong>
+  실측한 그날 TOP 12가 #해피하민데이 · #포카마켓 · #PuppyRyoDay … 전부 팬덤 해시태그였다.
+  이걸 선정에 쓰면 매니악함이 오히려 심해진다. 볼거리로만 남긴다.</p>
+
+  <h3>A — 완료 · "죽은 소스"는 없었다</h3>
+  <div class="evidence">
+    <span class="src">진짜 원인 — 우리가 몰아쳤다</span>
+    <div>개별로 부르면 전부 정상이다: 한겨레 랭킹 70건, 44BITS 30건, dev.to 30건, 슬로우뉴스 20건.
+    그런데 <strong>47곳을 한꺼번에 던지면 15곳이 8초 타임아웃에 걸린다.</strong>
+    소스가 고장난 게 아니라 동시 요청이 몰려 우리 쪽 소켓·DNS가 밀린 것이었다.
+    <br><br>화면에서는 이게 "소스가 죽었다"로 보였다. 뉴스 편중을 고쳐 놓고도
+    <strong>재료의 절반이 없었던 셈</strong>이다.</div>
+  </div>
+  <div class="metrics">
+    <div class="metric ok"><span class="k">수집되는 소스</span><span class="v">20 → 43</span><span class="n">활성 47곳</span></div>
+    <div class="metric ok"><span class="k">수집 풀</span><span class="v">633 → 1,270</span><span class="n">두 배</span></div>
+    <div class="metric ok"><span class="k">동시 요청</span><span class="v">47 → 6</span><span class="n">상대 사이트에도 예의</span></div>
+    <div class="metric ok"><span class="k">타임아웃</span><span class="v">8 → 12초</span><span class="n">한 사이클 ≈ 95초</span></div>
+  </div>
+  <p style="font-size:.88rem;color:var(--muted)">동시성을 제한하면서도 <code>Promise.allSettled</code>와 같은 계약을 지킨다 —
+  입력 순서 보존(<code>sourceRank</code>가 순서에 의존한다), 한 소스 실패가 나머지를 막지 않음.</p>
+
+  <h3>A 진단 과정에서 내가 두 번 틀렸다</h3>
+  <div class="evidence">
+    <span class="src">기록으로 남긴다</span>
+    <div>① <code>makeFetcher</code>가 객체를 돌려준다고 가정하고 <code>f.fetch()</code>를 불러
+    "전부 ERR"이라는 잘못된 진단을 냈다. 실제로는 함수를 직접 돌려준다.
+    <br>② <code>buildSources(R)</code>를 <strong>fetcher 없이</strong> 불러 "47곳 중 14곳만 빌드된다"는
+    잘못된 결론을 냈다. fetcher를 넘기면 47곳 전부 정상이다.
+    <br><br>둘 다 "측정했다"고 믿고 넘어갈 뻔했다. 실측이라도 <strong>호출 방식이 프로덕션과 다르면
+    측정이 아니다.</strong></div>
+  </div>
+
+  <h3>A 진단 상세 — 남은 개별 고장</h3>
+  <p>동시성 문제와 별개로 실제 고장인 것들. 다음 순번에서 처리한다.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>종류</th><th>소스</th><th class="num">실측</th><th>처방</th></tr></thead>
+      <tbody>
+        <tr><td><strong>잘 가져오는데 안 실림</strong></td>
+          <td>한겨레 랭킹 · 아웃스탠딩</td>
+          <td class="num">70건 / 48h내 70건<br>10건 / 48h내 10건</td>
+          <td>수집은 정상. 왜 화면에 0인지 <strong>원인 미확정</strong> — 다음 작업</td></tr>
+        <tr><td>부분적으로 보여야 정상</td>
+          <td>슬로우뉴스 · dev.to</td>
+          <td class="num">48h내 8건씩</td>
+          <td>신선도 컷에 대부분 걸린다 — 정상 동작일 수 있다</td></tr>
+        <tr><td><strong>사실상 발행 중단</strong></td>
+          <td>44BITS · 뉴스페퍼민트</td>
+          <td class="num">최신 글이<br>7개월 / 1년 2개월 전</td>
+          <td>소스를 끄는 게 맞다. 살아 있는 척하는 게 더 나쁘다</td></tr>
+        <tr><td><strong>진짜 고장</strong></td>
+          <td>루리웹(타임아웃) · 더쿠(파서 0)<br>다모앙(0) · 요즘IT(HTTP 405)</td>
+          <td class="num">—</td>
+          <td>개별 수리. 다모앙은 403 이력이 있어 우회 금지 원칙 적용</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>다음 — 무엇을 할지</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>순서</th><th>할 일</th><th>왜 지금</th><th>누가</th></tr></thead>
+      <tbody>
+        <tr><td><span class="chip warn">보류</span></td>
+          <td>애드핏 재심사 요청</td>
+          <td><strong>아직 넣지 말 것.</strong> 오늘 고친 것 위에 남은 항목(금칙어 승격 제외, 얇은 페이지 정리, 아카이브 해설 저장)이 끝나야 한다. 재반려는 이력에 남는다</td>
+          <td>대기</td></tr>
+        <tr><td><span class="chip crit">즉시</span></td>
+          <td>이용약관·개인정보처리방침 내용 확인</td>
+          <td>보호책임자에 <b>황현동(페퍼클럽 대표)</b>으로 적었다. 사실과 다르면 알려달라</td>
+          <td>David</td></tr>
+        <tr><td><span class="chip crit">즉시</span></td>
+          <td>고정비(VM·도메인)와 쿠팡 정산액 입력</td>
+          <td>넣어야 순이익이 계산된다. 지금은 "계산 불가"</td>
+          <td>David</td></tr>
+        <tr><td><span class="chip crit">즉시</span></td>
+          <td>쿠팡 Open API 키(<code>ACCESS_KEY</code>/<code>SECRET</code>)</td>
+          <td>카테고리 배너가 상품명·가격이 붙은 카드로 올라간다</td>
+          <td>David</td></tr>
+        <tr><td><span class="chip warn">내일</span></td>
+          <td>재방문 실측 확인 — 관리자 › 행동 분석 › "복구된 세션"</td>
+          <td>쿠키가 실제로 남는지 하루치가 쌓여야 보인다</td>
+          <td>확인만</td></tr>
+        <tr><td><span class="pnum">P1</span></td>
+          <td>딜 섹션 독립 (<code>/deals</code>)</td>
+          <td>측정이 갖춰졌으니 이제 성과를 잴 수 있다</td>
+          <td>다음 작업</td></tr>
+        <tr><td><span class="pnum later">P2</span></td>
+          <td>우리 클릭을 랭킹에 반영</td>
+          <td>클릭 수집은 오늘 붙었다 — 쌓이면 바로 쓸 수 있다</td>
+          <td>대기</td></tr>
+        <tr><td><span class="pnum later">—</span></td>
+          <td>애드센스 유닛 배치</td>
+          <td>승인 여부 확인 후. 승인 전 배치는 빈 칸만 늘린다</td>
+          <td>확인 대기</td></tr>
+        <tr><td><span class="pnum later">—</span></td>
+          <td>죽은 소스 9곳 복구 · 발행 페이지 배너 추적</td>
+          <td>헬스가 24시간 쌓이면 어느 게 진짜 죽었는지 확정된다</td>
+          <td>대기</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="scroll">
+    <table>
+      <thead><tr><th>단계</th><th>핵심 작업</th><th>새로 만드는 것</th><th>이미 있는 것을 쓰는 부분</th></tr></thead>
+      <tbody>
+        <tr><td><span class="chip crit">P0</span></td>
+          <td>광고 주입 복구 · 서버 배너 추적 · 슬롯별 대시보드</td>
+          <td>추적 픽셀 경로, 대시보드 표</td>
+          <td><code>subId</code> 태깅, <code>/api/ad-signal</code>, IntersectionObserver</td></tr>
+        <tr><td><span class="chip crit">P1</span></td>
+          <td>딜 판별 · <code>/deals</code> 랜딩 · 제휴 병치</td>
+          <td>딜 판별기, 랜딩 라우트</td>
+          <td>뽐뿌 수집, <code>ad-matrix</code> 문구, 쿠팡 상품 피드</td></tr>
+        <tr><td><span class="chip warn">P2</span></td>
+          <td>콘텐츠 클릭 기록 · 위치 보정 CTR · 랭킹 합산</td>
+          <td>클릭 수집 경로, 위치 보정</td>
+          <td>베이지안 축소, <code>sourceHotScores</code>, 다양성 테스트</td></tr>
+        <tr><td><span class="chip warn">P3</span></td>
+          <td>2단 승급 게이트 · LLM 편집자 · 반려 사유 기록</td>
+          <td>승급 상태 필드, 게이트 판정</td>
+          <td><code>llm.js</code> 스키마 출력, 헬스 대시보드 틀</td></tr>
+        <tr><td><span class="chip warn">P4</span></td>
+          <td>커뮤니티·뉴스 교차 묶기 · 언론 대 여론 뷰</td>
+          <td>교차 클러스터링 확장</td>
+          <td>기존 뉴스 교차보도 클러스터링, 태그 추출</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 원칙 ============ -->
+<section>
+  <h2>5. 전 단계에 걸리는 원칙</h2>
+  <ul>
+    <li><strong>실측 안 된 숫자는 안 쓴다.</strong> 가격·할인율·재고·기간 전부. 확인 못 하는 걸 쓰는 순간 허위표시다.</li>
+    <li><strong>대가성 문구는 무조건 붙인다.</strong> 딜 섹션에도, 발행 페이지에도 예외 없다.</li>
+    <li><strong>차단은 우회하지 않는다.</strong> 403이면 보고하고 뺀다. 이토랜드는 David 판단으로 유지하되 차단 시 즉시 제외.</li>
+    <li><strong>기능을 지우지 않고 순서로 푼다.</strong> 오늘 구글뉴스도 삭제가 아니라 지분 조정으로 처리했다.</li>
+    <li><strong>고친 것은 테스트로 못 박는다.</strong> 메뉴 버그가 두 번 재발한 이유가 이것이었다.</li>
+  </ul>
+</section>
+
+</div>
