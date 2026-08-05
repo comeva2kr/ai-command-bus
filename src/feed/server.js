@@ -1595,8 +1595,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
       }
 
       // 콘텐츠 필터 토글: 정치/종교(기본 숨김, FILTERABLE_TOPICS) + 성인(adult).
-      // adult는 별도 상태를 새로 만들지 않고 기존 verify-age/adult 게이트를 그대로
-      // 호출한다 — /api/adult와 동작이 항상 일치하도록(중복 게이트 금지).
+      // adult는 켤 수 없는 토픽이다 — 노출 경로 자체를 없앴다(아래 주석 참고).
       // 뉴스 성향 슬라이더 저장 (David 2026-07-31 "슬라이드로")
       if (p === "/api/lean" && req.method === "POST") {
         const body = await readBody(req);
@@ -1628,13 +1627,9 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         const topic = body.topic;
         const on = body.on === true;
 
-        if (topic === "adult") {
-          if (on && user.ageVerified !== true) {
-            return send(res, 403, { error: "age verification required", ageVerified: false });
-          }
-          const showAdult = store.setShowAdult(body.userId, on);
-          return send(res, 200, { ok: true, topic, on: showAdult, showAdult, showTopics: user.showTopics || [] });
-        }
+        // adult는 켤 수 있는 토픽이 아니다 (위 주석 참고). 다른 토픽 이름과
+        // 똑같이 "모르는 토픽"으로 답한다 — 여기만 특별한 오류를 주면
+        // 켜는 방법이 어딘가 있다는 뜻이 된다.
         if (!FILTERABLE_TOPICS.includes(topic)) {
           return send(res, 400, { error: "unknown topic", topics: FILTERABLE_TOPICS });
         }
@@ -1776,26 +1771,21 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         return;
       }
 
-      if (p === "/api/verify-age" && req.method === "POST") {
-        // Mock 성인인증. A real deployment integrates PASS/휴대폰 본인확인 here and
-        // only calls verifyAge on a confirmed adult result.
-        const body = await readBody(req);
-        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
-        if (body.confirmAdult !== true) return send(res, 400, { error: "adult confirmation required" });
-        store.verifyAge(body.userId);
-        return send(res, 200, { ok: true, ageVerified: true });
-      }
-
-      if (p === "/api/adult" && req.method === "POST") {
-        const body = await readBody(req);
-        const user = store.getUser(body.userId);
-        if (!user) return send(res, 400, { error: "unknown user" });
-        if (body.on === true && user.ageVerified !== true) {
-          return send(res, 403, { error: "age verification required", ageVerified: false });
-        }
-        const on = store.setShowAdult(body.userId, body.on === true);
-        return send(res, 200, { ok: true, showAdult: on });
-      }
+      // 성인인증·19금 노출 경로는 **없앴다** (David 2026-08-05, 애드핏 2차 보류).
+      //
+      // 애드핏 보류 사유의 두 번째가 성인 콘텐츠였고, 참고 이미지의 빨간 네모는
+      // 게시물이 아니라 메뉴의 "🔞 성인 콘텐츠(19금) 보기" 토글 자체였다.
+      // 화면 토글은 이미 걷어냈지만 **경로가 살아 있었다** — 라이브에서 확인했다:
+      //   POST /api/verify-age {confirmAdult:true} → {"ok":true,"ageVerified":true}
+      //   POST /api/adult      {on:true}           → {"ok":true,"showAdult":true}
+      // 체크박스 하나로 통과하는 모의 인증이었다. 실제 본인확인(PASS 등)이
+      // 아니므로 청소년보호 요건을 만족한다고 말할 수 없고, 지금 풀에 성인 글이
+      // 없을 뿐 하나라도 들어오면 그대로 노출된다.
+      //
+      // 글을 지우지는 않는다 — David의 원칙은 "삭제가 아니라 태그 후 가림"이다.
+      // adult 태그는 그대로 붙고, 걸러 내는 필터도 그대로다. 없앤 것은
+      // **가림을 풀 수 있는 방법**뿐이다. 제대로 된 본인확인을 붙일 수 있게 되면
+      // 그때 다시 연다.
 
       if (p === "/api/survey" && req.method === "POST") {
         const body = await readBody(req);

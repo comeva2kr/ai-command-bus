@@ -2362,32 +2362,50 @@ test("POST /api/topics toggles politics/religion and is reflected in GET /api/fe
   }
 });
 
-test("POST /api/topics for adult requires age verification, exactly like /api/adult (no duplicate gate)", async () => {
+test("성인 콘텐츠를 켜는 방법이 아예 없다 (애드핏 2차 보류 사유)", async () => {
+  // 애드핏 보류 사유의 두 번째가 성인 콘텐츠였다. 참고 이미지의 빨간 네모는
+  // 게시물이 아니라 메뉴의 "성인 콘텐츠(19금) 보기" 토글 자체였다.
+  // 화면 토글은 걷어냈지만 경로가 살아 있었다 — 라이브에서 확인했다:
+  //   POST /api/verify-age {confirmAdult:true} → {"ok":true,"ageVerified":true}
+  //   POST /api/adult      {on:true}           → {"ok":true,"showAdult":true}
+  // 체크박스 하나로 통과하는 모의 인증이라 청소년보호 요건을 만족한다고
+  // 말할 수 없었다. 글은 그대로 두고(태그 후 가림) 가림을 푸는 방법만 없앴다.
   const { createServer } = await import("../src/feed/server.js");
-  const server = createServer({ sources: [] });
+  const source = { id: "clien", kind: "community", async fetch() { return []; } };
+  const server = createServer({ sources: [source] });
   await new Promise((resolve) => server.listen(0, resolve));
   try {
     const base = `http://localhost:${server.address().port}`;
-    const session = await (await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
-
-    const denied = await fetch(`${base}/api/topics`, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ userId: session.userId, topic: "adult", on: true })
-    });
-    assert.equal(denied.status, 403, "adult topic still requires age verification");
-
-    await fetch(`${base}/api/verify-age`, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ userId: session.userId, confirmAdult: true })
-    });
-    const allowed = await (await fetch(`${base}/api/topics`, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ userId: session.userId, topic: "adult", on: true })
+    const s = await (await fetch(`${base}/api/session`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}"
     })).json();
-    assert.equal(allowed.showAdult, true, "adult topic toggle flips the same showAdult flag /api/adult uses");
-  } finally {
-    server.close();
-  }
+
+    // 두 경로 모두 사라졌다
+    for (const path of ["/api/verify-age", "/api/adult"]) {
+      const res = await fetch(`${base}${path}`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userId: s.userId, confirmAdult: true, on: true })
+      });
+      assert.equal(res.status, 404, `${path} 가 아직 응답한다`);
+    }
+
+    // 토픽 경로로도 못 켠다. 다른 모르는 토픽과 **같은** 응답이어야 한다 —
+    // 여기만 특별한 오류를 주면 켜는 방법이 어딘가 있다는 뜻이 된다.
+    const viaTopic = await fetch(`${base}/api/topics`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: s.userId, topic: "adult", on: true })
+    });
+    assert.equal(viaTopic.status, 400);
+    const unknown = await fetch(`${base}/api/topics`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: s.userId, topic: "무엇이든", on: true })
+    });
+    assert.equal((await viaTopic.json()).error, (await unknown.json()).error);
+
+    // 상태가 실제로 안 바뀌었다
+    const me = await (await fetch(`${base}/api/me?userId=${s.userId}`)).json();
+    assert.notEqual(me.showAdult, true);
+  } finally { server.close(); }
 });
 
 test("GET /api/config exposes the topic catalog for the UI toggles", async () => {
