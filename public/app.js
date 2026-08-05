@@ -5,6 +5,13 @@
 const state = { coords: null, cat: "", ready: false, nopoOnly: false, lastPlaces: [], lastWhere: "" };
 const $ = (id) => document.getElementById(id);
 const isNopo = (p) => Boolean(p.nopo && p.nopo.tier);
+// "가게 나이" 배지 — 공식 개업일이 있으면 정확한 N년, 없으면 추정 라벨.
+function ageBadge(nopo) {
+  if (!nopo || !nopo.tier) return "";
+  if (nopo.ageYears != null) return `<span class="badge b-nopo">🪵 가게나이 ${nopo.ageYears}년</span>`;
+  const t = nopo.tier === "strong" ? "오래된 곳" : "제법 오래됨";
+  return `<span class="badge ${nopo.tier === "strong" ? "b-nopo" : "b-old"}">🪵 ${t}</span>`;
+}
 
 // category label -> Kakao keyword (or __cafe flag)
 const CATS = [
@@ -86,14 +93,14 @@ function renderList() {
   const nopoCount = all.filter(isNopo).length;
   if (!all.length) { $("count").textContent = "결과 없음"; $("list").innerHTML = `<div class="empty">결과가 없어요. 다른 지역·키워드로 검색해 보세요.</div>`; return; }
   $("count").textContent = state.nopoOnly
-    ? `${state.lastWhere} · 오래된 집(노포) ${places.length}곳`
-    : `${state.lastWhere} · 실제 식당 ${all.length}곳 (카카오)${nopoCount ? ` · 🏛️ 노포 ${nopoCount}` : ""}`;
+    ? `${state.lastWhere} · 오래된 집 ${places.length}곳`
+    : `${state.lastWhere} · 실제 식당 ${all.length}곳 (카카오)${nopoCount ? ` · 🪵 오래된 집 ${nopoCount}` : ""}`;
   if (!places.length) {
     $("list").innerHTML = `<div class="empty">이 근처엔 전화번호로 판별되는 오래된 집이 없어요.<br>범위를 넓히거나 필터를 꺼보세요.</div>`;
     return;
   }
   const note = state.nopoOnly
-    ? `<div class="notice">🏛️ <b>여러 신호를 합쳐</b> 오래된 집을 추정해요 — 전화번호 자릿수(6자리=아주 오래됨), 상호(원조·전통·N대), 전통시장 소재, 노포 다발 업종. 전국 공통이에요. (공식 개업일 연동 시 정확한 연도로 판정)</div>`
+    ? `<div class="notice">🪵 <b>가게 나이</b>를 여러 신호로 추정해요 — 전화번호 자릿수(6자리=아주 오래됨), 상호(원조·전통·N대), 전통시장 소재, 오래된 업종. 전국 공통. (공식 개업일 연동 시 <b>‘가게나이 41년’</b>처럼 정확한 나이로 표시)</div>`
     : `<div class="notice">ℹ️ <b>카카오 실데이터</b>로 실제 식당·위치·네이버 링크를 보여줍니다. ‘검증’ 배지는 실리뷰 데이터 연동 후 제공돼요.</div>`;
   $("list").innerHTML = note + places.map(card).join("");
 }
@@ -103,11 +110,9 @@ function card(p) {
   const emo = CAT_EMO[cat] || "🍽️";
   const dist = p.distanceM != null ? (p.distanceM < 1000 ? `${p.distanceM}m` : `${(p.distanceM / 1000).toFixed(1)}km`) : "";
   const sub = [cat, dist, p.phone].filter(Boolean).join(" · ");
-  const nopo = p.nopo?.label
-    ? `<span class="badge ${p.nopo.tier === "strong" ? "b-nopo" : "b-old"}">${p.nopo.tier === "strong" ? "🏛️" : "🕰️"} ${p.nopo.label}</span>`
-    : "";
-  const nopoWhy = p.nopo?.label && p.nopo.reasons?.length
-    ? `<div class="creason">🏛️ ${p.nopo.reasons.slice(0, 2).join(" · ")}</div>` : "";
+  const nopo = ageBadge(p.nopo);
+  const nopoWhy = p.nopo?.tier && p.nopo.reasons?.length
+    ? `<div class="creason">🪵 ${p.nopo.reasons.slice(0, 2).join(" · ")}</div>` : "";
   return `<a class="card" href="${p.naverUrl}" target="_blank" rel="noopener">
     <div class="thumb" style="background:#f2f4f6">${emo}</div>
     <div class="cbody">
