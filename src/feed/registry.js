@@ -143,8 +143,19 @@ export function buildSources(registry, opts = {}) {
       continue; // registered but no way to fetch offline — skip cleanly
     }
 
-    // translate overseas sources into the target language when a translator is wired
-    if (targetLang && entry.lang && entry.lang !== targetLang) {
+    // ── 모든 소스를 감싼다 (2026-08-05, David 실기기)
+    //
+    // 예전엔 "레지스트리에 해외로 **선언된** 소스"만 감쌌다. 그런데 조선비즈처럼
+    // 한국 매체가 일본어판 기사를 같은 피드에 섞어 보낸다 — 실측: 조선비즈 RSS
+    // 100건 중 19건이 일본어였고, 그게 그대로 피드에 떴다
+    // ("トランプがイランを強攻撃警告 ホルムズ開放迫る").
+    // David: "굳이 한국 신문에서 일본 서비스하는 기사를 일어로 가져오는 이유는?
+    //         이거 대상이 한국인인데."
+    //
+    // 선언은 그 소스의 **평균**일 뿐이다. 개별 글의 언어는 글자를 봐야 안다.
+    // 그래서 전부 감싸고, 판정은 안쪽(translate.js)에서 글자로 한다 —
+    // 이미 한글인 글은 번역기를 부르지 않으므로 비용이 늘지 않는다.
+    if (targetLang) {
       source = new TranslatingSource(source, translateFn, targetLang);
     }
     sources.push(source);

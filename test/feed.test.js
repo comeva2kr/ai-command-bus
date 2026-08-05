@@ -3497,3 +3497,52 @@ test("해외 글: 뒤늦게 채운 발췌도 우리가 한글로 옮긴다", asy
   await off._translateFilledSummaries(untouched);
   assert.equal(untouched[0].summary, "English text");
 });
+
+test("한국 매체가 일본어 기사를 섞어 보내도 한글로 옮긴다", async () => {
+  // David 2026-08-05 실기기: 조선비즈 카드가 일본어 제목으로 떴다
+  //   "トランプがイランを強攻撃警告 ホルムズ開放迫る"
+  // 실측: 조선비즈 RSS 100건 중 19건이 일본어였다. 한국 매체가 일본어판을
+  // 같은 피드에 섞어 보내는데, 우리는 그 소스를 "ko"로 선언해 놔서 번역을
+  // 통째로 건너뛰었다. David: "이거 대상이 한국인인데."
+  const { TranslatingSource } = await import("../src/feed/translate.js");
+  const calls = [];
+  const translate = async (text, opts) => {
+    calls.push(text);
+    return text.startsWith("トランプ") ? "트럼프, 이란에 강공격 경고" : text;
+  };
+  const source = {
+    id: "chosunbiz", kind: "news",
+    async fetch() {
+      return [
+        // 선언은 ko인데 실제로는 일본어 — 옮겨야 한다
+        { id: "jp", title: "トランプがイランを強攻撃警告 ホルムズ開放迫る", lang: "ko",
+          url: "https://biz.chosun.com/1", source: "chosunbiz" },
+        // 진짜 한국어 — 번역기를 부르면 안 된다
+        { id: "ko", title: "코스피 4%대 급등, 반도체가 이끌었다", lang: "ko",
+          url: "https://biz.chosun.com/2", source: "chosunbiz" }
+      ];
+    }
+  };
+  const out = await new TranslatingSource(source, translate, "ko").fetch();
+  assert.equal(out[0].title, "트럼프, 이란에 강공격 경고");
+  assert.equal(out[0].translated, true);
+  assert.equal(out[1].title, "코스피 4%대 급등, 반도체가 이끌었다", "한국어 글을 건드리면 안 된다");
+  // 국내 글이 대부분이라, 한글 글까지 번역기에 보내면 비용이 폭증한다
+  assert.ok(!calls.some((t) => t.startsWith("코스피")), `한국어 글을 번역기에 보냈다: ${calls.join(" | ")}`);
+});
+
+test("모든 소스를 번역 대상으로 감싼다 — 선언을 믿지 않는다", async () => {
+  const { buildSources } = await import("../src/feed/registry.js");
+  const registry = [
+    { id: "kr", label: "국내", lang: "ko", kind: "news", enabled: true,
+      adapter: { type: "rss", url: "https://example.com/rss" } }
+  ];
+  const built = buildSources(registry, {
+    translate: { targetLang: "ko", translateFn: async (t) => t },
+    fetcher: () => async () => []
+  });
+  assert.equal(built.length, 1);
+  // 감싸졌는지 — 감싸지 않으면 일본어가 섞여 와도 그대로 나간다
+  assert.equal(built[0].constructor.name, "TranslatingSource",
+    "국내 선언 소스를 안 감싸면 섞여 온 외국어를 못 잡는다");
+});

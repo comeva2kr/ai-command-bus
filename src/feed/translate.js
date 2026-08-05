@@ -11,6 +11,12 @@
 // `needsTranslation`, so the UI can label them instead of silently showing a
 // foreign-language post as if it were native.
 
+// 한글이 한 자라도 있으면 우리 독자가 읽을 수 있는 글로 본다.
+// 숫자·기호만 있는 짧은 제목은 옮길 것이 없으므로 한글로 치지 않는다.
+function hasKorean(text) {
+  return /[가-힣]/.test(String(text || ""));
+}
+
 export class TranslatingSource {
   // inner: a Source ({ id, kind, fetch() })
   // translateFn: async (text, { from, to }) => translatedText   (optional)
@@ -34,7 +40,17 @@ export class TranslatingSource {
 
   async _localize(item) {
     const lang = item.lang || "ko";
-    if (lang === this._target) return item;
+    // ── 판정은 선언이 아니라 **글자**로 한다 (2026-08-05)
+    //
+    // 예전엔 `lang === target`이면 바로 통과였다. 그런데 조선비즈는 레지스트리에
+    // "ko"로 선언돼 있으면서 일본어판 기사를 같은 피드에 섞어 보낸다(실측 100건
+    // 중 19건). 선언을 믿으면 그 19건이 일본어 그대로 한국 사용자에게 간다.
+    //
+    // 그래서 제목에 한글이 있는지를 본다. 있으면 우리 글이므로 번역기를 부르지
+    // 않고 그대로 통과한다 — 국내 글이 대부분이라 비용이 늘지 않는다.
+    // 없으면 소스가 뭐라고 선언했든 옮긴다. 우리 독자는 한국 사람이다.
+    if (hasKorean(item.title)) return item;
+    if (lang === this._target && hasKorean(item.summary)) return item;
 
     if (!this._translate) {
       // no translator wired — keep original, flag for the UI
