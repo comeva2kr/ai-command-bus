@@ -82,3 +82,38 @@ test("생성 결과에서 불량 문구만 걸러낸다", async () => {
   assert.equal(m.variants["없는도착지"], undefined, "모르는 도착지가 들어왔다");
   assert.equal(m.variants.dgt["없는맥락"], undefined, "모르는 맥락이 들어왔다");
 });
+
+test("광고 문구가 게시글처럼 제목·줄·CTA 셋을 갖는다", async () => {
+  // David 2026-08-05: "제목이랑 하단에 내용글 좀 혹하게 LLM으로 만들 수 없어?"
+  // 카드가 게시글 모양이 된 이상 제목만 있고 본문이 없으면 게시글로 안 읽힌다.
+  const { pickVariant, loadMatrix } = await import("../src/feed/ad-matrix.js");
+  const m = loadMatrix();
+  const dests = Object.keys(m.variants || {});
+  assert.ok(dests.length >= 15, `도착지가 모자란다: ${dests.length}`);
+  let withLine = 0;
+  for (const d of dests) {
+    const v = pickVariant(d, "life");
+    assert.ok(v.hook && v.cta, `${d}: 제목이나 CTA가 없다`);
+    if (v.line && v.line !== v.brand) withLine++;
+  }
+  assert.ok(withLine >= dests.length * 0.9, `줄이 있는 도착지가 ${withLine}/${dests.length}뿐이다`);
+});
+
+test("광고 문구가 없는 상품을 아는 척하지 않는다", async () => {
+  // 우리는 그 도착지에 지금 무엇이 있는지 **모른다** — 상품 API가 없다.
+  // "이거 진짜 괜찮더라"는 없는 상품에 대한 후기가 되어 그 자체로 허위표시다.
+  // David도 "당연히 서치베이스여야지"라고 했다 — 근거 없는 주장은 그 반대다.
+  const { loadMatrix, validHook } = await import("../src/feed/ad-matrix.js");
+  const m = loadMatrix();
+  for (const [dest, ctxs] of Object.entries(m.variants || {})) {
+    for (const [ctx, list] of Object.entries(ctxs)) {
+      for (const v of list) {
+        assert.ok(validHook(v), `${dest}/${ctx}: 검증을 통과 못 하는 문구가 저장돼 있다 — ${JSON.stringify(v)}`);
+        const all = [v.hook, v.line, v.cta].filter(Boolean).join(" ");
+        assert.ok(!/[0-9%％]/.test(all), `${dest}/${ctx}: 숫자가 들어 있다 — ${all}`);
+        assert.ok(!/써\s*보니|먹어\s*보니|내돈내산|재구매|후기/.test(all),
+          `${dest}/${ctx}: 써 봤다는 주장이 들어 있다 — ${all}`);
+      }
+    }
+  }
+});

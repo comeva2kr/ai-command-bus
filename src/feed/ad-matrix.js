@@ -206,7 +206,11 @@ export async function generateMatrix({
 }) {
   if (!apiKey) return null;
   const body = {
-    model, max_tokens: 8000, system: SYSTEM,
+    // 칸마다 {hook, line, cta} 셋을 쓰면서 출력이 3배가 됐다 — 8000에서
+    // 잘렸다(2026-08-05 실측: stop_reason=max_tokens). 도착지를 나눠 부르므로
+    // 한 번에 필요한 양은 줄었지만, 여유를 크게 둔다. 잘리면 그 배치가 통째로
+    // 버려지고 지난주 문구가 남는다 — 조용히 옛것을 쓰는 것이 제일 나쁘다.
+    model, max_tokens: 16000, system: SYSTEM,
     output_config: /-4-5$|haiku/.test(model)
       ? { format: { type: "json_schema", schema: SCHEMA } }
       : { effort: "low", format: { type: "json_schema", schema: SCHEMA } },

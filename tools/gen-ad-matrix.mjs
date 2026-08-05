@@ -6,7 +6,7 @@
 //
 // 생성이 실패하면 기존 파일을 건드리지 않는다 — 광고가 사라지는 것보다
 // 지난주 문구를 계속 쓰는 편이 낫다.
-import { generateMatrix, saveMatrix } from "../src/feed/ad-matrix.js";
+import { generateMatrix, saveMatrix, loadMatrix } from "../src/feed/ad-matrix.js";
 import { loadBanners } from "../src/feed/manual-products.js";
 import { fetchInterests } from "../src/feed/interest.js";
 
@@ -23,11 +23,28 @@ try { trends = (await fetchInterests()).map((t) => t.term); }
 catch { console.log("[admatrix] 트렌드 없이 진행"); }
 if (trends.length) console.log("[admatrix] 트렌드", trends.length, "개 반영");
 
-const m = await generateMatrix({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  dests,
-  trends,
-  log: (s) => console.log(s)
-});
-if (!m) { console.error("생성 실패 — 기존 행렬을 그대로 둔다"); process.exit(1); }
-console.log("저장:", saveMatrix(m));
+// 도착지를 나눠 부른다. 한 번에 18곳 × 맥락 5개 × 변형 3개 × 필드 3개를
+// 요구하면 출력이 잘린다(2026-08-05 실측). 나누면 한 배치가 실패해도 나머지는
+// 살아남는다 — 전부 아니면 전무보다 낫다.
+const CHUNK = 6;
+// **기존 행렬 위에 덮어쓴다.** 처음엔 새 것만 저장했는데, 실패한 배치의
+// 도착지가 파일에서 통째로 사라졌다(2026-08-05 실측: 12/18 성공 → 6곳 유실).
+// 한 배치가 실패했다고 멀쩡하던 문구까지 잃을 이유가 없다.
+const merged = { variants: { ...(loadMatrix().variants || {}) } };
+let okCount = 0;
+for (let i = 0; i < dests.length; i += CHUNK) {
+  const part = dests.slice(i, i + CHUNK);
+  console.log(`[admatrix] ${i / CHUNK + 1}차 — ${part.join(", ")}`);
+  const m = await generateMatrix({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    dests: part,
+    trends,
+    log: (s) => console.log(s)
+  });
+  if (!m || !m.variants) { console.error(`  실패 — 이 배치는 건너뛴다`); continue; }
+  Object.assign(merged.variants, m.variants);
+  okCount += Object.keys(m.variants).length;
+}
+if (!okCount) { console.error("전부 실패 — 기존 행렬을 그대로 둔다"); process.exit(1); }
+console.log(`[admatrix] 도착지 ${okCount}/${dests.length}곳 생성`);
+console.log("저장:", saveMatrix(merged));
