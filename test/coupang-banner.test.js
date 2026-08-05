@@ -165,3 +165,24 @@ test("정사각 배너를 먼저 쓴다", async () => {
     assert.equal(picked.size, "200x200", `${cat}: 가로 배너가 먼저 나온다 (${picked.size})`);
   }
 });
+
+test("앱 config가 전 재고를 내려보낸다 — 크기로 거르지 않는다", async () => {
+  // 2026-08-05 실사고: 재고를 200x200으로 갈아치웠는데 /api/config 쪽에
+  // size === "320x100" 필터가 남아 있어서 **앱에서만 광고가 0이 됐다.**
+  // 발행 페이지는 pickBanner를 쓰니 멀쩡했고, 그래서 배포 확인에서야 잡혔다.
+  // 같은 필터가 두 곳에 있었고 하나만 고친 것이 원인이다.
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({ sources: [{ id: "s", kind: "news", async fetch() { return []; } }] });
+  await new Promise((r) => server.listen(0, r));
+  try {
+    const cfg = await (await fetch(`http://localhost:${server.address().port}/api/config`)).json();
+    const items = (cfg.coupang && cfg.coupang.items) || [];
+    const { loadBanners } = await import("../src/feed/manual-products.js");
+    assert.equal(items.length, loadBanners().length, "앱이 받는 재고가 서버 재고와 다르다");
+    assert.ok(items.length >= 10, `재고가 너무 적다: ${items.length}`);
+    for (const it of items) {
+      assert.ok(it.href && it.img, "링크나 이미지가 빠졌다");
+      assert.ok(it.hook && it.brand, "문구가 빠졌다 — 클라이언트가 표를 복사하면 안 된다");
+    }
+  } finally { server.close(); }
+});

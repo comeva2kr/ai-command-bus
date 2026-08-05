@@ -1588,8 +1588,11 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
           // 담아서 32장 중 24장이 앱에서 영원히 도달 불가였다(검수 실측).
           // 카피도 여기서 붙인다 — 클라이언트가 같은 표를 복사해 두면 한쪽만
           // 고쳐질 때 피드와 발행 페이지가 다른 말을 한다.
+          // 크기로 거르지 않는다. 2026-08-05에 재고를 200x200 정사각으로 통째로
+          // 갈았는데 여기 필터가 남아 있어서 **앱에서만 광고가 사라졌다** —
+          // 발행 페이지는 pickBanner를 쓰니 멀쩡했고, 그래서 눈치채기 어려웠다.
+          // 크기는 이제 의미가 없다: 76px 정사각 썸네일에 object-fit:cover로 넣는다.
           const items = loadBanners()
-            .filter((b) => b.size === "320x100")
             .map((b) => {
               const [hook, brand] = adCopy(b.dest);
               // dest도 함께 — 클라이언트가 "방금 이 도착지를 썼는지"로
