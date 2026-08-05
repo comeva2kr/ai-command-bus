@@ -194,3 +194,69 @@ test("admin.html: 대시보드에 트래픽·수익·소스 헬스 패널이 있
     assert.ok(html.includes(kept), `existing admin capability preserved: ${kept}`);
   }
 });
+
+test("광고 탭: 지어내지 않는다 — 없는 것은 없다고 말한다", async () => {
+  // David 2026-08-05: "관리자에 광고 메뉴 신설해서 연결된 광고와 붙일 수 있는
+  // 광고를 리스트로." 광고 화면은 돈을 판단하는 자리라 거짓 숫자 하나가 제일 비싸다.
+  const { readWiredStatus, splitMeasured, ctr, CANDIDATE_NETWORKS } = await import("../src/feed/ad-networks.js");
+
+  // 연결 여부는 환경변수가 실제로 있는지로만 판정한다
+  const off = readWiredStatus({});
+  assert.ok(off.every((n) => n.connected === false), "키가 없는데 연결됐다고 한다");
+  assert.ok(off.every((n) => n.missingKeys.length > 0));
+
+  const on = readWiredStatus({ ADSENSE_CLIENT: "ca-pub-1", ADFIT_UNIT_MOBILE: "DAN-x" });
+  const adsense = on.find((n) => n.id === "adsense");
+  const adfit = on.find((n) => n.id === "adfit");
+  assert.equal(adsense.connected, true);
+  // 애드핏은 승인 플래그가 따로 있다 — 키가 있어도 노출은 아니다
+  assert.equal(adfit.connected, true);
+  assert.equal(adfit.serving, false, "승인 플래그 없이 노출 중이라고 하면 안 된다");
+  assert.equal(readWiredStatus({ ADFIT_UNIT_MOBILE: "DAN-x", ADFIT_ENABLED: "1" })
+    .find((n) => n.id === "adfit").serving, true);
+
+  // **시크릿 값은 응답에 담지 않는다** — 이름만
+  const withSecrets = readWiredStatus({ COUPANG_ACCESS_KEY: "AK-비밀", COUPANG_SECRET_KEY: "SK-비밀" });
+  assert.ok(!JSON.stringify(withSecrets).includes("AK-비밀"), "액세스 키가 화면으로 새어 나간다");
+  assert.ok(!JSON.stringify(withSecrets).includes("SK-비밀"), "시크릿이 화면으로 새어 나간다");
+
+  // 노출 0이면 클릭률은 0%가 아니라 "모름"이다
+  assert.equal(ctr(0, 0), null, "노출 0을 0%로 쓰면 '성과 없음'으로 오독된다");
+  assert.equal(ctr(100, 3), 3);
+
+  const now = Date.now();
+  const events = [
+    { type: "impression", at: new Date(now - 1000).toISOString() },
+    { type: "click", at: new Date(now - 2000).toISOString() },
+    { type: "impression", at: new Date(now - 40 * 24 * 3600e3).toISOString() }  // 창 밖
+  ];
+  const day = splitMeasured(events, now - 24 * 3600e3);
+  assert.equal(day.coupang.impressions, 1);
+  assert.equal(day.coupang.clicks, 1);
+
+  // 후보 목록은 요율을 적지 않는다 — 수시로 바뀌고 틀린 숫자가 더 비싸다
+  const text = JSON.stringify(CANDIDATE_NETWORKS);
+  assert.ok(!/\d+\s*%|\d+원/.test(text), `후보 목록에 요율·금액이 들어 있다: ${text.slice(0, 200)}`);
+  assert.ok(CANDIDATE_NETWORKS.some((c) => c.id === "linkprice"), "링크프라이스가 목록에 없다");
+});
+
+test("광고 탭: 관리자 API가 실제로 응답한다", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const prev = process.env.ADMIN_TOKEN;
+  process.env.ADMIN_TOKEN = "t-ads";
+  const server = createServer({ sources: [{ id: "s", kind: "news", async fetch() { return []; } }] });
+  await new Promise((r) => server.listen(0, r));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const res = await fetch(`${base}/api/admin/ads`, { headers: { "x-admin-token": "t-ads" } });
+    assert.equal(res.status, 200);
+    const j = await res.json();
+    assert.ok(Array.isArray(j.wired) && j.wired.length >= 3);
+    assert.ok(Array.isArray(j.candidates) && j.candidates.length >= 1);
+    // 정산이 연동되지 않았다는 사실을 명시한다 — 0원으로 채우지 않는다
+    assert.equal(j.revenue.connected, false);
+    assert.ok(j.measured.scope.includes("콘솔"), "무엇까지 센 것인지 밝히지 않는다");
+    // 토큰 없이는 못 본다
+    assert.equal((await fetch(`${base}/api/admin/ads`)).status, 401);
+  } finally { server.close(); process.env.ADMIN_TOKEN = prev; }
+});

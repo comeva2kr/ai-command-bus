@@ -102,6 +102,7 @@
 const TABS = [
   ["dashboard","대시보드"], ["analytics","행동 분석"], ["finance","수익·지출"],
   ["communities","커뮤니티"], ["posts","게시글"],
+  ["ads","광고"],
   ["comments","댓글"], ["words","금지어"], ["users","사용자"], ["blueprint","개발관리"]
 ];
 // 개발관리 페이지 — David 고정법칙(2026-08-04): 블루프린트를 일회성 문서가
@@ -143,6 +144,7 @@ async function render(){
     if (active==="dashboard") return renderDashboard(panel);
     if (active==="analytics") return renderAnalytics(panel);
     if (active==="finance") return renderFinance(panel);
+    if (active==="ads") return renderAds(panel);
     if (active==="blueprint") return renderBlueprint(panel);
     if (active==="communities") return renderCommunities(panel);
     if (active==="posts") return renderPosts(panel);
@@ -303,6 +305,68 @@ async function saveFinance(){
     document.getElementById("finMsg").textContent="저장했어요";
     finMonth=month; render();
   }catch(e){ document.getElementById("finMsg").textContent="저장 실패: "+e.message; }
+}
+
+// ── 광고 ────────────────────────────────────────────────────────────────────
+// David 2026-08-05: "나랑 연결되어 있는 광고와 붙일 수 있는 광고들 리스트로
+// 만들어서 관리할 수 있으면 좋겠네. 연동해서 수입까지 나오면 더 좋고."
+//
+// 이 화면의 규칙은 하나다: **지어내지 않는다.** 정산 연동이 없으므로 금액 칸은
+// 비워 두고, 왜 비었는지를 그 자리에 적는다. 0원으로 채우면 "안 벌린다"로
+// 읽히는데 그건 사실이 아니라 미측정이다.
+async function renderAds(panel){
+  const d = await api("/api/admin/ads");
+  const badge = (ok, yes, no) => `<span class="pill ${ok?"ok":"warn"}">${ok?yes:no}</span>`;
+  const m = d.measured || {};
+
+  const wired = (d.wired||[]).map(n=>`
+    <tr>
+      <td><b>${esc(n.label)}</b><div class="sub">${esc(n.kind==="affiliate"?"제휴":n.kind==="display"?"디스플레이":n.kind)}</div></td>
+      <td>${badge(n.connected,"키 설정됨","키 없음")}
+          ${n.gateKey ? " " + badge(n.serving,"노출 중","노출 꺼짐") : ""}
+          ${n.missingKeys.length?`<div class="sub">빠진 값: ${n.missingKeys.map(esc).join(", ")}</div>`:""}</td>
+      <td>${n.placements.map(esc).join("<br>")}</td>
+      <td>${esc(n.revenueApi)}</td>
+      <td><a href="${esc(n.console)}" target="_blank" rel="noopener">콘솔 열기 →</a>
+          <div class="sub">${esc(n.note)}</div></td>
+    </tr>`).join("");
+
+  const cands = (d.candidates||[]).map(c=>`
+    <tr>
+      <td><b>${esc(c.label)}</b><div class="sub">${esc(c.kind==="affiliate"?"제휴":c.kind==="display"?"디스플레이":c.kind==="direct"?"직거래":c.kind)}</div></td>
+      <td>${esc(c.fit)}</td>
+      <td>${esc(c.why)}</td>
+      <td>${esc(c.needs)}</td>
+      <td>${esc(c.revenueApi)}</td>
+    </tr>`).join("");
+
+  const num = (v)=> v==null ? "—" : String(v);
+  panel.innerHTML = `
+    <div class="panel-h">📣 광고 — 연결 현황과 후보</div>
+
+    <div class="cards">
+      <div class="card"><div class="k">오늘 노출</div><div class="v">${num(m.today&&m.today.impressions)}</div><div class="sub">우리가 센 것만</div></div>
+      <div class="card"><div class="k">오늘 클릭</div><div class="v">${num(m.today&&m.today.clicks)}</div></div>
+      <div class="card"><div class="k">오늘 클릭률</div><div class="v">${m.today&&m.today.ctr!=null?m.today.ctr+"%":"—"}</div><div class="sub">노출 0이면 0%가 아니라 모름</div></div>
+      <div class="card"><div class="k">7일 노출</div><div class="v">${num(m.week&&m.week.impressions)}</div></div>
+      <div class="card"><div class="k">7일 클릭</div><div class="v">${num(m.week&&m.week.clicks)}</div></div>
+      <div class="card"><div class="k">정산 수익</div><div class="v">미연동</div><div class="sub">추정치를 넣지 않는다</div></div>
+    </div>
+    <p class="empty" style="text-align:left">${esc(m.scope||"")}</p>
+
+    <div class="panel-h">연결된 광고</div>
+    <table><thead><tr><th>매체</th><th>상태</th><th>지면</th><th>정산 연동</th><th>바로가기</th></tr></thead>
+      <tbody>${wired || '<tr><td colspan="5" class="empty">연결된 광고가 없습니다.</td></tr>'}</tbody></table>
+
+    <div class="panel-h">붙일 수 있는 광고</div>
+    <table><thead><tr><th>매체</th><th>적합도</th><th>왜</th><th>필요한 것</th><th>정산 연동</th></tr></thead>
+      <tbody>${cands}</tbody></table>
+
+    <div class="panel-h">수익 연동에 대해</div>
+    <p class="empty" style="text-align:left">${esc((d.revenue&&d.revenue.note)||"")}<br>
+      ${esc((d.revenue&&d.revenue.manualHint)||"")}</p>
+    <p class="empty" style="text-align:left">키(액세스 키·시크릿)는 이 화면에 표시하지 않습니다 —
+      서버 환경변수에만 두고, 여기서는 <b>설정됐는지 여부만</b> 봅니다.</p>`;
 }
 
 // ── 개발관리 ────────────────────────────────────────────────────────────────

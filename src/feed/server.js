@@ -40,6 +40,7 @@ import { sendDigestPushes } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
 import { makeEnricher } from "./enrich.js";
 import { makeInterestsCache } from "./interest.js";
+import { readWiredStatus, CANDIDATE_NETWORKS, splitMeasured, ctr } from "./ad-networks.js";
 import { makeTrendsCache } from "./trends.js";
 import {
   enabledProviders,
@@ -2109,6 +2110,37 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         }
 
         // 지출·손익. 실비는 실측(토큰×공개단가), 고정비와 매출은 David 입력값.
+        // ── 광고 연결 현황 (David 2026-08-05: 관리자에 광고 메뉴)
+        //
+        // 지어내지 않는 것이 이 화면의 전부다. 연결 여부는 환경변수가 실제로
+        // 있는지로만 말하고, 노출·클릭은 우리가 센 값만 쓰며, **정산 금액은
+        // 연동된 곳이 하나도 없으므로 비워 둔다.** 시크릿 값은 응답에 담지 않는다 —
+        // 있다/없다만 판정한다(David 원칙: 자격증명을 화면으로 옮기지 않는다).
+        if (p === "/api/admin/ads" && req.method === "GET") {
+          const dayMs = 24 * 3600 * 1000;
+          const now = Date.now();
+          const events = store.adEvents || [];
+          const today = splitMeasured(events, now - dayMs);
+          const week = splitMeasured(events, now - 7 * dayMs);
+          return send(res, 200, {
+            wired: readWiredStatus(process.env),
+            candidates: CANDIDATE_NETWORKS,
+            measured: {
+              // 애드핏은 SDK가 자체 집계하므로 우리 쪽 숫자에 안 잡힌다.
+              // 그 사실을 숨기지 않는다 — 0을 "성과 없음"으로 오독하면 안 된다.
+              scope: "우리가 직접 센 것만 (쿠팡 제휴 카드). 애드핏·애드센스는 각 콘솔에서 본다.",
+              today: { ...today.coupang, ctr: ctr(today.coupang.impressions, today.coupang.clicks) },
+              week: { ...week.coupang, ctr: ctr(week.coupang.impressions, week.coupang.clicks) }
+            },
+            revenue: {
+              // 정산 API가 연결된 곳이 없다. 추정치를 넣지 않는다.
+              connected: false,
+              note: "정산 연동은 아직 없다. 애드센스·쿠팡은 API가 있어 붙일 수 있고, 애드핏은 API가 없어 손으로 넣어야 한다.",
+              manualHint: "수익·지출 탭에 실제 정산액을 입력하면 손익이 계산된다."
+            }
+          });
+        }
+
         if (p === "/api/admin/finance" && req.method === "GET") {
           const month = url.searchParams.get("month") || new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 7);
           const costBuckets = store.costBuckets();
