@@ -74,7 +74,7 @@ export function buildSources(registry, opts = {}) {
       // (see content.js/ingest.js — the home feed's board-hot ranking signal)
       const items = seedItems
         .filter((it) => it.source === entry.id)
-        .map((it, idx) => ({ lang: entry.lang, sourceRank: idx, ...it, adult: it.adult || entry.adult === true }));
+        .map((it, idx) => ({ lang: entry.lang, sourceRank: idx, ...it }));
       source = new JsonSource(entry.id, async () => items, entry.kind);
     } else if (!entry.enabled) {
       continue; // disabled, non-seed — skip cleanly

@@ -46,8 +46,6 @@ export class FeedStore {
       preferences: emptyPreferenceVector(),
       surveyed: false,
       feedbackCount: 0,
-      ageVerified: false, // 성인인증 여부 — 19금 콘텐츠 노출의 필수 조건
-      showAdult: false, // 19금 토글 상태 (인증된 경우에만 유효)
       saved: [], // 스크랩한 itemId 목록
       mutedSources: [], // 사용자가 피드에서 숨긴 소스
       // sourceId -> 지금까지 홈 피드에서 이 소스가 노출된 횟수 (David 2026-07-24
@@ -57,7 +55,7 @@ export class FeedStore {
       // 독식이 여러 페이지에 걸쳐서도 재발하지 않는다.
       sourceExposure: {},
       // 정치/종교처럼 기본값이 '숨김'인 토픽 중 사용자가 직접 켠 것들
-      // (FILTERABLE_TOPICS만 유효 — adult는 기존 ageVerified/showAdult 게이트 전용).
+      // (FILTERABLE_TOPICS만 유효).
       showTopics: [],
       ratings: {}, // itemId -> { signal, at }
       seen: [], // itemIds shown, most-recent last
@@ -205,12 +203,6 @@ export class FeedStore {
 
   // Mark a user as age-verified (real deployments wire this to an actual
   // 성인인증/PASS flow; here it records the verified result).
-  verifyAge(userId) {
-    const user = this.requireUser(userId);
-    user.ageVerified = true;
-    this._persist();
-    return user;
-  }
 
   // Toggle the 19금 view. Only takes effect when the user is age-verified;
   // an unverified user can never turn it on.
@@ -501,12 +493,6 @@ export class FeedStore {
     return user.mixBalance;
   }
 
-  setShowAdult(userId, on) {
-    const user = this.requireUser(userId);
-    user.showAdult = Boolean(on) && user.ageVerified === true;
-    this._persist();
-    return user.showAdult;
-  }
 
   // Record that an implicit signal was applied (for observability/metrics). The
   // preference-vector mutation itself happens in the engine via applyImplicit.
@@ -879,8 +865,7 @@ export class FeedStore {
       surveyed: u.surveyed,
       feedbackCount: u.feedbackCount || 0,
       posts: (u.posts || []).length,
-      comments: (u.comments || []).length,
-      ageVerified: u.ageVerified === true
+      comments: (u.comments || []).length
     }));
   }
 
@@ -917,9 +902,8 @@ export class FeedStore {
     return new Set(user && user.mutedSources ? user.mutedSources : []);
   }
 
-  // Toggle a default-hidden topic filter (politics/religion). "adult" is
-  // deliberately rejected here — it stays on the existing verify-age +
-  // setShowAdult path so there's exactly one adult gate, not two.
+  // 기본 숨김 토픽(정치/종교) 켜고 끄기. adult는 여기 없다 — 성인 콘텐츠를
+  // 켜는 기능 자체가 없어졌다(David 2026-08-05, 애드핏 2차 보류).
   setTopicFilter(userId, topic, on) {
     const user = this.requireUser(userId);
     if (!FILTERABLE_TOPICS.includes(topic)) {

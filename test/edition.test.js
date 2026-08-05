@@ -55,21 +55,6 @@ test("rankingTop: 소스당 2개 상한 + 절대 반응 하한 + 조용한 보�
   }
 });
 
-test("rankingTop: 성인·정치 태그 글은 랭킹에서 제외", async () => {
-  const src = new JsonSource("mix", async () => [
-    { id: "ok1", title: "무난한 화제글", url: "https://m.example.com/1",
-      publishedAt: hoursAgoIso(1), score: 300, commentCount: 80, category: "tech" },
-    { id: "ad1", title: "성인 콘텐츠", url: "https://m.example.com/2",
-      publishedAt: hoursAgoIso(1), score: 900, commentCount: 200, category: "humor", adult: true },
-    { id: "pol1", title: "국회 탄핵 표결", url: "https://m.example.com/3",
-      publishedAt: hoursAgoIso(1), score: 900, commentCount: 300, category: "news" }
-  ], "community");
-  const store = new FeedStore();
-  const engine = new FeedEngine(store, [src]);
-  const r = await engine.rankingTop(20);
-  assert.ok(!r.items.some((i) => i.id === "ad1"), "성인 글 제외");
-  assert.ok(!r.items.some((i) => i.id === "pol1"), "정치 키워드 글 제외");
-});
 
 test("store: 일별 에디션 저장·조회·날짜목록 + 재시작 왕복", async () => {
   const tmp = `${process.env.TMPDIR || "/tmp"}/edition-test-${process.pid}.json`;

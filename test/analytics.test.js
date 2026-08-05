@@ -390,12 +390,10 @@ test("승격 제외: 알맹이 없는 글은 대표 자리에 올리지 않되 �
   // 이미 붙어 있는 태그만 쓴다 — 새로 의미를 판별하려 들지 않는다.
   assert.equal(adUnsafe({ title: "평범한 글", topics: [] }), false);
   assert.equal(adUnsafe({ title: "평범한 글", topics: ["politics"] }), true);
-  assert.equal(adUnsafe({ title: "평범한 글", adult: true, topics: [] }), true);
 
   // 종합 판정
   assert.equal(promotable({ title: "애플이 잘못하고 있다", topics: [] }), true);
   assert.equal(promotable({ title: "300추 가능한가요?", topics: [] }), false);
-  assert.equal(promotable({ title: "성인 글", adult: true, topics: [] }), false);
   // 정치는 대표 자리에서 빼지 않는다 — 광고만 안 붙인다(뉴스가 통째로 죽는다)
   assert.equal(promotable({ title: "예산안 처리 무산", topics: ["politics"] }), true);
 });

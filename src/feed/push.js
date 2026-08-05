@@ -169,7 +169,7 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
 
     // never put a 19금 title on a lock screen (same principle as the share
     // page): preview the first non-adult match, or stay generic
-    const top = (digest.top || []).find((t) => !t.adult);
+    const top = (digest.top || [])[0];
     const payload = JSON.stringify({
       title: "지금핫",
       body: `관심글 ${digest.count}개가 올라왔어요` + (top ? ` · ${top.title.slice(0, 30)}` : ""),

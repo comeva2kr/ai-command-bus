@@ -178,7 +178,6 @@ export async function normalizeSubmission(input, opts = {}) {
     summary: og.summary.slice(0, EXCERPT_MAX),
     url, // REQUIRED — clicking always leaves to the original
     image: og.image,
-    adult: input.adult === true
   };
 }
 

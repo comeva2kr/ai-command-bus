@@ -369,7 +369,6 @@ export function makeSlotItem({
     summary,
     url,
     image,
-    adult: false,
     topics: [],
     lang: "ko",
     translated: false,

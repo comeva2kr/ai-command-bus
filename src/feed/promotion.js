@@ -103,7 +103,6 @@ export const isLowValue = (title) => lowValueReason(title) !== null;
 // 이미 붙어 있는 태그만 쓴다 — 새로 의미를 판별하려 들지 않는다.
 export function adUnsafe(item) {
   if (!item) return false;
-  if (item.adult) return true;
   const topics = Array.isArray(item.topics) ? item.topics : [];
   if (topics.includes("politics") || topics.includes("religion")) return true;
   if (hasProfanity(item.title)) return true;
@@ -113,7 +112,6 @@ export function adUnsafe(item) {
 // 우리 이름으로 발행하는 자리(브리핑·랭킹 대표)에 올려도 되는가.
 export function promotable(item) {
   if (!item) return false;
-  if (item.adult) return false;
   if (hasProfanity(item.title)) return false;
   if (hasUnpromotableExpression(item.title)) return false;
   if (isLowValue(item.title)) return false;

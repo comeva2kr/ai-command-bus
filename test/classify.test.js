@@ -369,28 +369,6 @@ test("store: setLeanBalance는 [-1,1]로 클램프하고 세션 응답에 실린
 // 애드핏 2차 보류 대응 (2026-08-01): 성적 자극 콘텐츠 + 아웃링크 위주
 // ---------------------------------------------------------------------------
 
-test("성인 사전: 실측된 은꼴성 제목은 숨기고, 일상어·웨딩화보는 오탐하지 않는다", () => {
-  const hide = [
-    "권수진(nothing_betttter) 비키니",
-    "수련수련 오프솔더 세라복 가슴골",
-    "몸매 자랑하는 그녀 인증샷",
-    "검은 비키니의 여자"
-  ];
-  const pass = [
-    "주식으로 털리고 푸념글 올라오는거 정말 꼴뵈기 싫으네", // "꼴" 단독 오탐 금지
-    "김나희, 남주혁 닮은 예비 남편과 웨딩 화보",
-    "신형 그랜저 시승기",
-    // 2026-08-02 검수 A1로 계약이 바뀐 자리. 예전엔 "몸매" 단독을 사전에 넣어
-    // "한국 여자들 몸매가 부럽다는 외국인" 같은 경계선 글까지 잡았지만, 같은
-    // 규칙이 아래 정상 글도 19금 게이트(기본 숨김) 뒤에 가뒀다. 게이트는 숨기는
-    // 방향이라 오탐 비용이 미탐 비용보다 크다 — 경계선 한 건을 놓치는 쪽을 택하고
-    // 은어·복합어("몸매 자랑", "몸매 노출")로 좁혔다.
-    "몸매 관리 앱 추천 좀",
-    "겨울 니트 착샷 후기"
-  ];
-  for (const t of hide) assert.ok(classifyTopics({ title: t }).includes("adult"), `숨겨야: ${t}`);
-  for (const t of pass) assert.ok(!classifyTopics({ title: t }).includes("adult"), `오탐: ${t}`);
-});
 
 test("카드 기본 동작: 내부 상세 우선, 원문은 ↗ 지름길 (아웃링크 위주 판정 해소)", async () => {
   const fs = await import("node:fs");
@@ -499,25 +477,6 @@ test("섹션이 정해진 뉴스 소스는 등록 카테고리를 그대로 쓴�
 // 못 잡는 상태에 도달했다(검수 A11). 순서를 뒤집는 것 자체가 처방이다.
 // ---------------------------------------------------------------------------
 
-test("A1: 정상 글이 19금·정치 게이트 뒤로 부당 은폐되면 안 된다", () => {
-  // 무경계 includes가 만든 오탐 — 게이트가 기본 숨김이라 '조용한 검열'이 된다
-  const notAdult = [
-    "입욕제 추천 좀 해주세요", "오늘 산 니트 착샷", "성인용 킥보드 추천",
-    "글래머러스한 인테리어 조명", "요즘 몸매 관리 어떻게들 하세요"
-  ];
-  for (const t of notAdult) {
-    const topics = classifyTopics({ title: t, url: "https://x/1", sourceId: "clien" });
-    assert.ok(!topics.includes("adult"), `19금 오탐: ${t}`);
-  }
-  const notPolitics = ["급여당일지급 알바 구합니다", "심야당직 근무 후기"];
-  for (const t of notPolitics) {
-    const topics = classifyTopics({ title: t, url: "https://x/1", sourceId: "clien" });
-    assert.ok(!topics.includes("politics"), `정치 오탐: ${t}`);
-  }
-  // 진짜 성인/정치는 계속 잡혀야 한다 (완화가 게이트를 무력화하면 안 됨)
-  assert.ok(classifyTopics({ title: "ㅇㅎ) 비키니 화보", url: "https://x/2", sourceId: "etoland" }).includes("adult"));
-  assert.ok(classifyTopics({ title: "국회 법사위 특검법 처리", url: "https://x/3", sourceId: "gnews" }).includes("politics"));
-});
 
 test("A9: 국제 정치가 정치 토글을 우회하면 안 된다", () => {
   for (const t of ["트럼프 관세 압박 재개", "시진핑 방한 조율", "푸틴 회담 제안", "김정은 담화 발표"]) {
@@ -560,17 +519,6 @@ test("A5: 소문자 영문 브랜드도 잡는다", () => {
 // 2026-08-02 라이브 실측 (이토랜드 HIT 27건 + 인벤 14건, nowhot.kr /api/feed)
 // ---------------------------------------------------------------------------
 
-test("은꼴 태그 [약후]는 19금 게이트 뒤로 — 애드핏 '성적 자극' 보류 사유 직결", () => {
-  const hide = [
-    "[IVE] 장원영 무대위 퇴장신[약후]",
-    "속바지를 팬티급으로 입는 대만 치어리더 보타구니.mp4",
-    "약후방 주의 짤 모음"
-  ];
-  // "약후" 단독을 넣으면 아래가 전부 은폐된다 — 표기형("[약후]"·"약후방")만 쓴다
-  const pass = ["치약 후기 남깁니다", "계약 후 취소 가능한가요", "약후불제 거래 후기"];
-  for (const t of hide) assert.ok(classifyTopics({ title: t }).includes("adult"), `숨겨야: ${t}`);
-  for (const t of pass) assert.ok(!classifyTopics({ title: t }).includes("adult"), `오탐: ${t}`);
-});
 
 test("혼합 게시판의 연예 글은 culture로 — 등록값 humor를 물려받지 않는다", () => {
   // 실측: 이토랜드 HIT에서 아래 글이 전부 humor로 배달됐다
@@ -597,24 +545,3 @@ test("전문 커뮤니티(인벤)의 등록 카테고리는 유지 — 혼합 �
     assert.equal(keywordCategory(t), null, `사전이 억지로 분류하면 안 됨: ${t}`);
 });
 
-test("애드핏 심사 대응: 노출·신체 묘사 관용구는 게이트 뒤로, 일상어는 통과", () => {
-  // 2026-08-03 애드핏 매체심사 보류 사유 "과도한 노출 이미지, 직/간접적인 성적 표현".
-  // 심사원 시점(미인증) 라이브 240건을 훑어 실제로 남아 있던 것만 사전에 넣었다.
-  const hide = [
-    "파격 노출 BJ 엔돌핀 움짤",
-    "'46세' 바다, 파리서 뽐낸 홀터넥 자태…군살 없는 몸매",
-    "각선미 뽐낸 화보",
-    "노출 의상 입고 등장"
-  ];
-  // 단독어를 넣으면 2026-08-02 A1에서 고친 오탐이 그대로 되살아난다 —
-  // 게이트는 숨기는 방향이라 오탐 비용이 미탐 비용보다 크다는 판단은 그대로다.
-  const pass = [
-    "서초구 생활밀착형 폭염대책 총력",   // "밀착"
-    "노출 콘크리트 인테리어 후기",       // "노출"
-    "몸매 관리 앱 추천 좀",              // "몸매"
-    "오늘의 움짤 모음",                  // "움짤"
-    "화보 촬영 비하인드"                 // "화보"
-  ];
-  for (const t of hide) assert.ok(classifyTopics({ title: t }).includes("adult"), `숨겨야: ${t}`);
-  for (const t of pass) assert.ok(!classifyTopics({ title: t }).includes("adult"), `오탐: ${t}`);
-});

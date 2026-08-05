@@ -83,8 +83,4 @@ export const SEED_ITEMS = [
   { kind: "community", source: "instiz", category: "sports", tags: ["football"], title: "홀란드 팬서비스 레전드.gif", score: 340, commentCount: 54, author: "anon", length: 20, publishedAt: "2026-07-06T00:00:00Z" },
 
   // --- 19금(성인 인증 필요) ---
-  { kind: "community", source: "dcinside", category: "humor", tags: ["meme", "story"], adult: true, title: "[19] 성인들만 아는 밈 모음 (수위주의)", score: 430, commentCount: 160, author: "anon", length: 40, publishedAt: "2026-07-06T09:40:00Z" },
-  { kind: "community", source: "theqoo", category: "life", tags: ["advice", "story"], adult: true, title: "[19] 부부만 아는 현실 연애 상담 모음", score: 380, commentCount: 210, author: "anon", length: 260, publishedAt: "2026-07-06T06:00:00Z" },
-  { kind: "news", source: "entnews", category: "culture", tags: ["movies"], adult: true, title: "[19] 청소년 관람불가 화제작 개봉 첫날 반응", score: 250, commentCount: 74, author: "editor", length: 420, publishedAt: "2026-07-05T21:10:00Z" },
-  { kind: "community", source: "82cook", category: "life", tags: ["advice"], adult: true, title: "[19] 남편에게 말 못한 고민 (성인 게시판)", score: 300, commentCount: 188, author: "anon", length: 300, publishedAt: "2026-07-06T03:50:00Z" }
 ];

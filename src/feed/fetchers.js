@@ -327,7 +327,6 @@ export function redditFetcher(subreddit, fetchImpl = fetch, limit = 30) {
       commentCount: d.num_comments || 0,
       author: d.author || null,
       publishedAt: d.created_utc ? new Date(d.created_utc * 1000).toISOString() : null,
-      adult: d.over_18 === true,
       lang: "en"
     }));
   };

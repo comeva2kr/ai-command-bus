@@ -1660,8 +1660,6 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
           nickname: user.nickname,
           surveyed: user.surveyed,
           feedbackCount: user.feedbackCount,
-          ageVerified: user.ageVerified === true,
-          showAdult: user.showAdult === true,
           showTopics: user.showTopics || [],
           leanBalance: Number.isFinite(user.leanBalance) ? user.leanBalance : 0,
           mixBalance: Number.isFinite(user.mixBalance) ? user.mixBalance : 0

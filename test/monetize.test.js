@@ -610,24 +610,6 @@ test("engine: AD_PREVIEW=1 shows [샘플] affiliate slots for a user with learne
   });
 });
 
-test("engine: 19금 뷰(showAdult on)에는 제휴 슬롯이 노출되지 않는다", async () => {
-  await withEnvAsync({ COUPANG_PARTNER_ID: null, AD_PREVIEW: "1" }, async () => {
-    const store = new FeedStore({ clock: fixedClock });
-    const engine = new FeedEngine(store, [new SeedSource()]);
-    const user = store.createUser("mon-adult-1");
-    learnTech(user.preferences);
-    store.verifyAge(user.id);
-    store.setShowAdult(user.id, true);
-
-    let sawAd = false;
-    for (let c = 0; c < 6; c++) {
-      const feed = await engine.getFeed(user.id, { cursor: c * 20, limit: 20 });
-      if (feed.items.some((i) => i.kind === "affiliate")) sawAd = true;
-      if (feed.exhausted) break;
-    }
-    assert.equal(sawAd, false);
-  });
-});
 
 test("engine: 정치 필터가 켜진 뷰에는 제휴 슬롯이 노출되지 않는다", async () => {
   await withEnvAsync({ COUPANG_PARTNER_ID: null, AD_PREVIEW: "1" }, async () => {

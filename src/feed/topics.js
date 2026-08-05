@@ -28,7 +28,6 @@
 // 한 줄이었다. 같은 캡처의 피드는 미용실·닭다리살·메이플이었고, 실측으로도
 // 그 시점 라이브 160건 중 성인 태그는 0건이었다.
 // 목록에서 빼면 API 응답과 UI 어디에도 "성인"이라는 항목이 나타나지 않는다.
-// 태깅(item.adult) 자체는 남는다 — 켤 방법이 없으니 태그된 글은 그냥 안 나온다.
 export const TOPIC_CATALOG = [
   { id: "politics", label: "정치", defaultVisible: false },
   { id: "religion", label: "종교", defaultVisible: false }
@@ -46,7 +45,6 @@ export const BOARD_TOPIC_RULES = [
   // 이토랜드 HIT 랭킹(/hit/list)은 전체 게시판이 섞인 사이트 통합 인기글이라,
   // 아이템 개별 url의 보드 세그먼트로만 원 게시판을 구분할 수 있다.
   { source: "etoland", pattern: /\/hit\/sisabbs\d*\//i, topic: "politics" }, // 시사 게시판
-  { source: "etoland", pattern: /\/hit\/anony\d*\//i, topic: "adult" }, // 익명 게시판(성인 소지 콘텐츠 다수)
   // 뽐뿌 HOT게시글(hot.php)도 전 게시판 통합 랭킹 — zboard.php?id={board}로 원 게시판 확인.
   { source: "ppomppu", pattern: /[?&]id=issue\b/i, topic: "politics" }, // 정치자유게시판
   { source: "ppomppu", pattern: /[?&]id=pol_left\b/i, topic: "politics" }, // 진보공감게시판
@@ -87,44 +85,23 @@ export const RELIGION_KEYWORDS = [
   "성경", "전도사", "목회자", "승려", "불자"
 ];
 
-// Markers of adult-flagged content in a title (not the content itself). Used
-// only to *upgrade* item.adult for items whose source registry entry doesn't
-// already flag them adult (e.g. an adult-board post surfaced through a
-// mixed-board aggregator listing). "ㅇㅎ)" is the de-facto convention Korean
-// community boards use to prefix titillating post titles — confirmed present
-// in a 2026-07-24 live fetch of etoland's HIT ranking (FEED_LIVE=1 check).
-// 2026-08-01 확장: 애드핏 매체심사가 "성적 자극 콘텐츠"로 보류됐다. 라이브 풀
-// 실측에서 이토랜드 유머글("○○ 비키니", "가슴골", "은꼴")이 adult 미태그로 기본
-// 피드에 노출 중이었다 — 커뮤니티 은꼴성 제목 어휘를 사전에 편입해 기존 19금
-// 게이트(기본 숨김) 뒤로 보낸다. 오탐 주의: "꼴" 단독은 넣지 않는다("꼴뵈기
-// 싫다" 같은 일상어에 걸린다 — 실측 확인). 웨딩/광고 "화보"도 단독으론 안 넣는다.
-export const ADULT_KEYWORDS = [
-  "19금", "19禁", "19세이상", "성인인증", "성인방송", "성인용품", "노출주의", "후방주의",
-  // 2026-08-02 라이브 실측(이토랜드 HIT 27건): "[약후]"(약한 후방주의)는 커뮤니티
-  // 표준 은꼴 태그인데 사전에 없어 그대로 기본 피드에 떴다 — 애드핏 "성적 자극
-  // 콘텐츠" 보류 사유에 직결된다. "약후" 단독은 "약후불제"에 걸리므로 표기형만.
-  "[약후]", "(약후)", "약후방", "약후 ", "보타구니",
-  "야동", "AV배우", "선정적", "음란물", "ㅇㅎ)", "ㅇㅎ]",
-  // 커뮤니티 은꼴성 제목 (실측 기반)
-  // 2026-08-02 적대적 검수 A1: 아래 단어들이 무경계 매칭으로 정상 글을 19금
-  // 게이트(기본 숨김) 뒤에 가뒀다 — "입욕제", "니트 착샷", "성인용 킥보드",
-  // "글래머러스한 조명", "몸매 관리". 게이트는 숨기는 쪽이라 오탐 비용이
-  // 미탐 비용보다 크다. 단독 일반어를 빼고 은어·복합어만 남긴다.
-  "비키니", "가슴골", "은꼴", "꼴릿", "란제리", "야짤",
-  "세라복", "오프솔더", "속옷 화보", "섹시 화보", "노출 연기",
-  "몸매 노출", "몸매 자랑", "몸매 甲", "글래머 화보", "입욕 인증", "착용샷 후방",
-  // 2026-08-03 애드핏 매체심사 보류 사유 "직/간접적인 성적 표현" 대응.
-  // 심사원 시점(미인증) 라이브 240건을 넓은 그물로 훑어 실제로 남아 있던 것만
-  // 넣는다 — "파격 노출 BJ ... 움짤", 그리고 연예 매체가 관용적으로 쓰는
-  // 신체 묘사구. "노출"·"몸매"·"움짤" 단독은 넣지 않는다(각각 "노출 콘크리트",
-  // "몸매 관리", 일반 움짤에 걸린다 — 2026-08-02 A1에서 고친 오탐을 되돌리는 셈).
-  "파격 노출", "노출 의상", "노출 화보", "노출 드레스", "아찔한 노출",
-  "각선미", "볼륨 몸매", "군살 없는 몸매", "몸매 자태",
-  // 2026-07-31 적대적 검수(QA 페르소나) 실측: "국산 왕가슴" 제목이 기본
-  // 피드에 노출 — 신체 부위 은어 계열 보강. "가슴" 단독은 일상어("가슴이
-  // 아프다")에 걸리므로 넣지 않는다.
-  "왕가슴", "슴가", "육덕", "뒷태", "노빠꾸 노출"
-];
+// ── 성인 분류는 없앴다 (David 2026-08-05: "성인 필터로 글 걸러내지마")
+//
+// 여기에는 은어 사전이 있었다. 애드핏 보류 사유가 "성적 자극 콘텐츠"라
+// 몇 차례에 걸쳐 어휘를 늘려 왔는데, 그때마다 오탐도 같이 늘었다 —
+// "입욕제", "니트 착샷", "성인용 킥보드", "노출 콘크리트", "몸매 관리"가
+// 게이트 뒤에 갇혔던 것이 실측으로 확인됐다.
+//
+// 그리고 애드핏이 실제로 지목한 것은 게시글이 아니라 **메뉴의 "성인
+// 콘텐츠(19금) 보기" 토글 한 줄**이었다(참고 이미지). 같은 캡처의 피드는
+// 미용실·닭다리살·메이플이었고, 그 시점 라이브 160건 중 성인 태그는 0건이었다.
+// 즉 사전을 아무리 키워도 지적된 문제는 해결되지 않는 구조였다.
+//
+// 그래서 사전과 분류, 그리고 그것에 딸린 게이트를 통째로 걷어냈다.
+// 우리 소스는 커뮤니티 **베스트 게시판**이라 애초에 성인물이 올라오는 자리가
+// 아니고, 성인 소스 3곳(dc_adult·adult_life·reddit_nsfw)은 레지스트리에서
+// enabled:false라 수집 자체를 하지 않는다 — 그건 필터가 아니라 소스 선택이다.
+
 
 function titleHasAny(title, keywords) {
   if (!title) return false;
@@ -145,7 +122,6 @@ export function classifyTopics({ title, url, sourceId } = {}) {
   for (const t of boardTopicsFor(sourceId, url)) topics.add(t);
   if (titleHasAny(title, POLITICS_KEYWORDS)) topics.add("politics");
   if (titleHasAny(title, RELIGION_KEYWORDS)) topics.add("religion");
-  if (titleHasAny(title, ADULT_KEYWORDS)) topics.add("adult");
 
   return [...topics];
 }

@@ -195,7 +195,6 @@ function tooOld(item, nowMs) {
 
 // 정치/종교처럼 기본 숨김인 토픽을 아이템이 갖고 있는데 유저가 아직 켜지 않았다면
 // true. "adult"는 FILTERABLE_TOPICS에 없으므로 여기서 절대 걸리지 않는다 — 그 쪽은
-// allowAdult가 이미 기존 19금 게이트로 전담한다(중복 게이트 방지).
 function topicsBlocked(item, showTopicsSet) {
   const topics = item.topics || [];
   return topics.some((t) => FILTERABLE_TOPICS.includes(t) && !showTopicsSet.has(t));
@@ -357,19 +356,15 @@ export class FeedEngine {
   }
 
   // 수집 풀 공개 접근자 — 자체 콘텐츠 페이지(커뮤니티 순위/키워드/그룹별
-  // 베스트)가 같은 데이터를 본다. 성인 태그 글은 뺀다: 연령 게이트 UI를
-  // 걷어낸 뒤로 켤 방법이 없으므로 피드에도 안 나오고, 발행 페이지에만
-  // 나오면 앞뒤가 안 맞는다.
+  // 베스트)가 같은 데이터를 본다.
   async pool() {
     // 발행 페이지(커뮤니티 순위/키워드/그룹별 베스트)용 풀.
-    // 성인 태그 글은 뺀다: 연령 게이트 UI를 걷어낸 뒤로 켤 방법이 없어
-    // 피드에도 안 나오는데 발행 페이지에만 나오면 앞뒤가 안 맞는다.
-    // 수집 금지 소스(enabled:false — 디시 등)도 뺀다: 커뮤니티 순위는 소스
+    // 수집 금지 소스(enabled:false — 디시 등)는 뺀다: 커뮤니티 순위는 소스
     // 이름을 대놓고 싣는 페이지라 여기서 한 번 더 막는다.
     if (this._poolDisabled === undefined) {
       this._poolDisabled = new Set(loadRegistry().filter((c) => c.enabled === false).map((c) => c.id));
     }
-    return (await this._items()).filter((i) => !i.adult && !this._poolDisabled.has(i.source));
+    return (await this._items()).filter((i) => !this._poolDisabled.has(i.source));
   }
 
   // Per-source item counts in the current collected pool (David 2026-07-24
@@ -730,7 +725,6 @@ export class FeedEngine {
 
     // 19금 게이트: 성인인증 + 토글이 모두 켜져 있을 때만 성인 콘텐츠를 후보에 포함.
     // 서버에서 강제하므로 인증되지 않은 사용자에게는 어떤 경우에도 노출되지 않는다.
-    const allowAdult = user.ageVerified === true && user.showAdult === true;
     const muted = new Set(user.mutedSources || []);
     const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
       // 통합 피드에서만 제외하는 소스(registry mainFeed:false).
@@ -755,7 +749,6 @@ export class FeedEngine {
       const pool = items.filter(
         (i) =>
           matchesSource(i) &&
-          (allowAdult || !i.adult) &&
           !disabled.has(i.source) &&
           !topicsBlocked(i, showTopics)
       );
@@ -783,7 +776,6 @@ export class FeedEngine {
       // just a fresh user's first load.
       const base = items.filter(
         (i) =>
-          (allowAdult || !i.adult) &&
           !muted.has(i.source) &&
           !disabled.has(i.source) &&
           // mainFeed:false — 수집은 하되 통합 피드에서만 뺀다. 소스 칩으로
@@ -853,7 +845,7 @@ export class FeedEngine {
             this.store.recordSourceExposure(userId, latestFresh.map((r) => diversityKey(r.item)));
           }
         }
-        const latestMonetizeAllowed = !allowAdult && !showTopics.has("politics") && !showTopics.has("religion");
+        const latestMonetizeAllowed = !showTopics.has("politics") && !showTopics.has("religion");
         const latestDisplay = latestMonetizeAllowed
           ? this._monetize(userId, user, latestBatch, cursor, false).items
           : latestBatch;
@@ -975,9 +967,9 @@ export class FeedEngine {
     // `nextCursor` below stays based on `batch.length` (organic count only)
     // so pagination is unaffected by however many slots got inserted.
     //
-    // 19금/정치/종교 필터가 켜진 뷰에는 절대 노출하지 않는다 — 신뢰 훼손 방지
+    // 정치/종교 필터가 켜진 뷰에는 절대 노출하지 않는다 — 신뢰 훼손 방지
     // + 광고 네트워크 계정정지 리스크 (docs/monetization.md Non-Goals).
-    const monetizeAllowed = !allowAdult && !showTopics.has("politics") && !showTopics.has("religion");
+    const monetizeAllowed = !showTopics.has("politics") && !showTopics.has("religion");
     const displayItems = monetizeAllowed
       ? this._monetize(userId, user, batch, cursor, Boolean(source)).items
       : batch;
@@ -1085,7 +1077,6 @@ export class FeedEngine {
     }
     return {
       ...item,
-      adult: item.adult === true,
       heat,
       heatPending,
       categoryLabel: categoryLabel(item.category),
@@ -1133,7 +1124,7 @@ export class FeedEngine {
   async shareData(itemId) {
     const items = await this._items();
     const item = items.find((i) => i.id === itemId);
-    if (!item || item.adult) return null;
+    if (!item) return null;
     return {
       id: item.id,
       title: item.title,
@@ -1168,13 +1159,12 @@ export class FeedEngine {
     const user = this.store.requireUser(userId);
     const items = await this._items();
     const seen = new Set(user.seen);
-    const allowAdult = user.ageVerified === true && user.showAdult === true;
+
     const muted = new Set(user.mutedSources || []);
     const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
     const showTopics = new Set(user.showTopics || []);
     const pool = items.filter(
       (i) =>
-        (allowAdult || !i.adult) &&
         !muted.has(i.source) &&
         !disabled.has(i.source) &&
         !topicsBlocked(i, showTopics) &&
@@ -1240,7 +1230,6 @@ export class FeedEngine {
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     const pool = items.filter(
       (i) =>
-        !i.adult &&
         !(i.topics || []).includes("politics") &&
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
@@ -1317,7 +1306,6 @@ export class FeedEngine {
     const pool = items.filter(
       (i) =>
         (i.category || "news") === cat &&
-        !i.adult &&
         !(i.topics || []).includes("politics") &&
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
@@ -1368,7 +1356,6 @@ export class FeedEngine {
     };
     const pool = items.filter(
       (i) =>
-        !i.adult &&
         !(i.topics || []).includes("politics") &&
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
@@ -1552,7 +1539,6 @@ export class FeedEngine {
     if (!item) return null;
     const user = this.store.getUser(userId);
     // never surface a 19금 item to a user who isn't verified + opted in
-    if (item.adult && !(user && user.ageVerified === true && user.showAdult === true)) return null;
     const decorated = this._decorate(item, 0, user || { ratings: {} });
     return { ...decorated, thread: this.store.commentsFor(itemId) };
   }

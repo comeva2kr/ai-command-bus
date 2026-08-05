@@ -83,7 +83,6 @@ export function normalizeItem(raw, source) {
     source: sourceId,
     // 19금(성인) 여부. 인증되지 않은 사용자에게는 엔진 단에서 절대 노출되지 않는다.
     // 게시판/키워드 분류가 adult로 판정한 경우도 같은 필드로 합류(중복 게이트 금지).
-    adult: raw.adult === true || topics.includes("adult"),
     topics,
     // language + translation metadata (overseas sources flow through translate.js)
     lang: raw.lang || "ko",

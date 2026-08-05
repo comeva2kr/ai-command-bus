@@ -194,38 +194,6 @@ test("rating through the engine updates confidence and item state", async () => 
   assert.equal(detail.myRating, 1, "rating reflected on the item");
 });
 
-test("19금 items are hidden until age-verified AND toggled on", async () => {
-  const store = new FeedStore({ clock: fixedClock });
-  const engine = new FeedEngine(store, [new SeedSource()]);
-  const user = store.createUser("adult1");
-  store.saveSurvey(user.id, { categories: ["humor", "life", "culture"] });
-
-  // default: no adult items served
-  let all = [];
-  for (let c = 0; c < 6; c++) {
-    const f = await engine.getFeed(user.id, { cursor: c * 20, limit: 20 });
-    all.push(...f.items);
-    if (f.exhausted) break;
-  }
-  assert.equal(all.some((i) => i.adult), false, "no adult items before verification");
-
-  // toggling on without verification does nothing
-  assert.equal(store.setShowAdult(user.id, true), false, "cannot enable adult unverified");
-
-  // verify + enable, fresh user to avoid seen-set masking
-  const u2 = store.createUser("adult2");
-  store.saveSurvey(u2.id, { categories: ["humor", "life", "culture"] });
-  store.verifyAge(u2.id);
-  assert.equal(store.setShowAdult(u2.id, true), true, "enabled after verification");
-
-  let withAdult = [];
-  for (let c = 0; c < 6; c++) {
-    const f = await engine.getFeed(u2.id, { cursor: c * 20, limit: 20 });
-    withAdult.push(...f.items);
-    if (f.exhausted) break;
-  }
-  assert.ok(withAdult.some((i) => i.adult), "adult items appear once verified + toggled");
-});
 
 test("stable ids survive re-collection so ratings/comments don't orphan", async () => {
   const a = (await collect([new SeedSource()])).items;
@@ -233,22 +201,6 @@ test("stable ids survive re-collection so ratings/comments don't orphan", async 
   assert.deepEqual(a.map((i) => i.id), b.map((i) => i.id), "ids are stable across collects");
 });
 
-test("getItem refuses a 19금 item for an unverified user", async () => {
-  const store = new FeedStore({ clock: fixedClock });
-  const engine = new FeedEngine(store, [new SeedSource()]);
-  const items = (await collect([new SeedSource()])).items;
-  const adultItem = items.find((i) => i.adult);
-  assert.ok(adultItem, "seed has an adult item");
-
-  const user = store.createUser("peeker");
-  const blocked = await engine.getItem(user.id, adultItem.id);
-  assert.equal(blocked, null, "adult detail blocked for unverified user");
-
-  store.verifyAge(user.id);
-  store.setShowAdult(user.id, true);
-  const allowed = await engine.getItem(user.id, adultItem.id);
-  assert.ok(allowed && allowed.adult, "adult detail served after verification");
-});
 
 test("comments attach to items and surface in the detail view", async () => {
   const store = new FeedStore({ clock: fixedClock });
@@ -812,7 +764,6 @@ test("sendDigestPushes pushes only subscribers with a non-empty digest, payload 
         return {
           count: 2,
           top: [
-            { id: "item_19", title: "성인 콘텐츠 제목", adult: true }, // must never reach a lock screen
             { id: "item_42", title: "전기차 시승기 첫인상" }
           ]
         };
@@ -832,9 +783,9 @@ test("sendDigestPushes pushes only subscribers with a non-empty digest, payload 
   const payload = JSON.parse(sentTo[0].payload);
   assert.equal(payload.title, "지금핫");
   assert.match(payload.body, /관심글 2개가 올라왔어요/);
-  assert.match(payload.body, /전기차 시승기 첫인상/, "previews the first non-adult title");
+  assert.match(payload.body, /전기차 시승기 첫인상/, "previews the first title");
   assert.doesNotMatch(payload.body, /성인 콘텐츠/, "19금 title never appears in a notification");
-  assert.equal(payload.url, "/#post-item_42", "url deep-links to the previewed (non-adult) item");
+  assert.equal(payload.url, "/#post-item_42", "url deep-links to the previewed item");
 });
 
 test("sendDigestPushes is a no-op without VAPID keys (never even checks digests)", async () => {
@@ -2204,25 +2155,6 @@ test("parseListPage: 인벤 핫벤 (hot.inven.co.kr) — cross-game ranked list 
 
 // --- 콘텐츠 필터 스위치 (정치/종교/성인) — 키워드+게시판 기반 분류, AI 아님 ------
 
-test("classifyTopics: keyword rules tag politics/religion/adult from the title alone", async () => {
-  const { classifyTopics } = await import("../src/feed/topics.js");
-  assert.deepEqual(
-    classifyTopics({ title: "이재명 국민의힘 총선 전망 분석", url: "https://x/1", sourceId: "clien" }),
-    ["politics"]
-  );
-  assert.deepEqual(
-    classifyTopics({ title: "신천지 목사 논란, 교회 측 입장 발표", url: "https://x/2", sourceId: "clien" }),
-    ["religion"]
-  );
-  assert.deepEqual(
-    classifyTopics({ title: "[19금] 성인인증 후 열람 가능한 후방주의 글", url: "https://x/3", sourceId: "clien" }),
-    ["adult"]
-  );
-  assert.deepEqual(
-    classifyTopics({ title: "오늘 점심 뭐 먹지 다들 추천좀", url: "https://x/4", sourceId: "clien" }),
-    []
-  );
-});
 
 test("classifyTopics: board-slug rules tag etoland 시사(sisabbs)/익명(anony) HIT-ranking items by their own url", async () => {
   const { classifyTopics } = await import("../src/feed/topics.js");
@@ -2232,7 +2164,7 @@ test("classifyTopics: board-slug rules tag etoland 시사(sisabbs)/익명(anony)
   );
   assert.deepEqual(
     classifyTopics({ title: "그냥 일상 잡담", url: "https://etoland.co.kr/hit/anony3/view/12345", sourceId: "etoland" }),
-    ["adult"]
+    []
   );
   // a non-political etoland board stays untagged
   assert.deepEqual(
@@ -2262,24 +2194,6 @@ test("classifyTopics: board-slug rules tag ppomppu 정치자유게시판/진보�
   );
 });
 
-test("normalizeItem folds an adult topic tag into the existing `adult` field — no separate gate", async () => {
-  const item = normalizeItem({
-    title: "익명 게시판 글",
-    url: "https://etoland.co.kr/hit/anony2/view/1",
-    source: "etoland"
-  });
-  assert.equal(item.adult, true, "board-detected adult topic upgrades item.adult");
-  assert.deepEqual(item.topics, ["adult"]);
-
-  // keyword-detected adult also upgrades the field, on a source that isn't registry-flagged adult
-  const item2 = normalizeItem({ title: "19금 후방주의 글", url: "https://x/z", source: "clien" });
-  assert.equal(item2.adult, true);
-
-  // a plain item stays untouched
-  const item3 = normalizeItem({ title: "오늘 날씨 좋네요", url: "https://x/y", source: "clien" });
-  assert.equal(item3.adult, false);
-  assert.deepEqual(item3.topics, []);
-});
 
 test("engine hides politics/religion items by default; per-user toggle (showTopics) reveals them", async () => {
   const store = new FeedStore({ clock: fixedClock });
@@ -3508,4 +3422,32 @@ test("번역: 규칙 이전에 들어온 글도 내보낼 때 걸러진다", asy
   assert.ok(it, "글이 사라지면 안 된다 — 발췌만 지운다");
   assert.equal(it.summary, "");
   assert.equal(it.title, "한글 제목");
+});
+
+test("성인 필터가 통째로 없다 — 글을 걸러내지 않는다", async () => {
+  // David 2026-08-05: "성인글을 차단하는 기능을 따로 넣을 필요는 없어.
+  //                    필터 기능 자체를 없애기만 하면 돼." / "성인 필터로 글 걸러내지마"
+  //
+  // 애드핏이 지목한 것은 게시글이 아니라 메뉴의 "성인 콘텐츠(19금) 보기" 토글
+  // 한 줄이었다(참고 이미지). 은어 사전을 아무리 키워도 지적된 문제는 해결되지
+  // 않는 구조였고, 늘릴 때마다 오탐만 늘었다 — "입욕제", "니트 착샷",
+  // "성인용 킥보드", "노출 콘크리트"가 게이트 뒤에 갇혔던 것이 실측으로 확인됐다.
+  const topics = await import("../src/feed/topics.js");
+  const { normalizeItem } = await import("../src/feed/content.js");
+  const { promotable, adUnsafe } = await import("../src/feed/promotion.js");
+
+  // 분류에 adult가 없다
+  assert.ok(!("ADULT_KEYWORDS" in topics), "성인 사전이 아직 남아 있다");
+  assert.deepEqual(topics.classifyTopics({ title: "19금 야동 후방주의", url: "https://x/1", sourceId: "clien" }), []);
+  assert.ok(!topics.FILTERABLE_TOPICS.includes("adult"));
+
+  // 항목에 adult 필드를 붙이지 않는다
+  const item = normalizeItem({ title: "노출 화보 공개", url: "https://x/2", source: "clien", adult: true });
+  assert.equal(item.adult, undefined, "수집 단계에서 성인 태그를 붙이면 안 된다");
+
+  // 걸러내지 않는다 — 대표 자리에도, 광고 옆에도 adult를 이유로 막지 않는다
+  assert.equal(promotable({ title: "평범한 글", adult: true, topics: [] }), true);
+  assert.equal(adUnsafe({ title: "평범한 글", adult: true, topics: [] }), false);
+  // 정치·종교 인접 광고 가드는 그대로다 — 그건 성인 필터가 아니라 광고주 보호다
+  assert.equal(adUnsafe({ title: "평범한 글", topics: ["politics"] }), true);
 });
