@@ -1879,6 +1879,44 @@ function observeAdImpression(slot, slotName){
   if(adImpressionObserver) adImpressionObserver.observe(slot);
 }
 
+// 애드핏 지면을 피드 끝에 딱 한 장 둔다.
+//
+// 왜 따로 두나: 애드핏은 심사 전까지 아무것도 못 채우는데, 수익 슬롯을 하나
+// 가져가면 그 자리는 0원이 된다(2026-08-06 실측). 그렇다고 지면을 없애면
+// 심사가 "설치 후 진행 가능"으로 또 반려된다. 두 요구가 부딪히므로 자리를
+// 나눈다 — 쿠팡은 본문 사이 슬롯, 애드핏은 목록 끝의 전용 카드.
+// 승인되면 이 함수를 지우고 다시 슬롯 경쟁에 넣으면 된다.
+function ensureAdfitPlacement(){
+  const unit = state.config && state.config.adfit && state.config.adfit.mobileUnit;
+  if(!unit || document.getElementById("adfitSlot")) return;
+  const feed = document.getElementById("feed");
+  if(!feed || feed.querySelectorAll(".card").length < 4) return;   // 내용 없이 광고부터 보이지 않게
+
+  const slot = document.createElement("article");
+  slot.className = "card ad-card ad-net";
+  slot.id = "adfitSlot";
+  slot.innerHTML = `
+    <div class="card-top">
+      <span class="dot" style="background:var(--color-accent)"></span>
+      <span class="src">제휴 광고</span>
+      <span class="badge ad-badge-static">AD</span>
+    </div>
+    <div class="ad-net-slot">
+      <ins class="kakao_ad_area" style="display:none;" data-ad-unit="${unit}" data-ad-width="320" data-ad-height="100" data-ad-onfail="onAdfitNoAd"></ins>
+    </div>`;
+  feed.appendChild(slot);
+  observeAdImpression(slot, "feed-adfit");
+
+  if(!document.getElementById("adfitLoader")){
+    const sc = document.createElement("script");
+    sc.id = "adfitLoader";
+    sc.async = true;
+    sc.src = "//t1.daumcdn.net/kas/static/ba.min.js";
+    sc.onerror = () => adfitFallback(slot);
+    document.head.appendChild(sc);
+  }
+}
+
 function maybeInsertAdfit(){
   const cp = state.config && state.config.coupang;
   const unit = state.config && state.config.adfit && state.config.adfit.mobileUnit;
@@ -1910,15 +1948,17 @@ function maybeInsertAdfit(){
     // 애드핏은 페이지당 1회만 — 같은 광고단위의 중복 노출은 애드핏 정책상 피한다.
     // 나머지 자리는 전부 쿠팡 제휴 카드가 채운다.
     //
-    // **첫 자리는 애드핏에 주지 않는다.** 심사 보류 상태의 애드핏은 iframe을
+    // **애드핏은 이 경쟁에 넣지 않는다.** 심사 보류 상태의 애드핏은 iframe을
     // 만들되 아무것도 안 채운다 — 크로스오리진이라 비었는지 알 수 없어
     // 폴백(`iframe 있으면 정상`)도 안 걸린다. 실기기 실측(David 2026-08-06):
     // 카드에 "제휴 광고 / AD"와 고지문만 남고 링크도 이미지도 없었다.
     // 짧은 페이지에서는 그 자리가 유일한 광고라 **쿠팡이 통째로 사라졌다.**
-    // 그래서 쿠팡 카드가 최소 한 장 깔린 뒤에야 애드핏을 넣는다 —
-    // 지면은 설치된 채로 남아 심사는 계속되고, 수익 자리는 잃지 않는다.
-    const hasPaidCard = !!document.querySelector("#feed .ad-card a.ad-native");
-    const useAdfit = unit && hasPaidCard && !document.getElementById("adfitSlot");
+    //
+    // 그렇다고 애드핏을 아예 안 그리면 "광고를 설치한 이후 심사 진행이
+    // 가능합니다"(3차 반려 사유)에 다시 걸린다. 그래서 지면은 유지하되
+    // 수익 슬롯과 **자리를 나눈다** — ensureAdfitPlacement()가 피드 끝에
+    // 전용 카드로 딱 한 장 붙인다.
+    const useAdfit = false;
     if(useAdfit){
       slot.id = "adfitSlot";
       slot.innerHTML = `
@@ -2867,7 +2907,8 @@ function renderBatch(res){
   state.pagesLoaded++;
   updateMeter(res);
   for(const item of res.items) appendCard(item);
-  maybeInsertAdfit(); // 첫 페이지 4번째 카드 뒤 1회 (config에 광고단위 있을 때만)
+  maybeInsertAdfit(); // 쿠팡 제휴 카드를 본문 사이에 (config에 광고단위 있을 때만)
+  ensureAdfitPlacement(); // 애드핏 지면 1장 — 목록 끝, 수익 슬롯과 자리를 나눈다
   if(res.exhausted){ state.exhausted=true; setSentinel(false, "새 화제글을 모으는 중… 평가할수록 더 정확해져요"); }
   else setSentinel(false);
   applyFilter();

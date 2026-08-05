@@ -151,8 +151,9 @@ test("애드핏 빈 지면이 쿠팡 자리를 먹지 않는다", async () => {
   const html = readFileSync("src/feed/public/index.html", "utf8");
   // 실기기 실측(2026-08-06): 심사 보류 애드핏이 iframe만 만들고 비워 둬서
   // 폴백이 안 걸렸고, 짧은 페이지에서는 쿠팡 광고가 통째로 사라졌다.
-  assert.match(html, /const hasPaidCard = !!document\.querySelector\("#feed \.ad-card a\.ad-native"\)/,
-    "쿠팡 카드 선행 확인이 없다");
-  assert.match(html, /const useAdfit = unit && hasPaidCard &&/,
-    "애드핏이 여전히 첫 자리를 가져갈 수 있다");
+  // 애드핏은 수익 슬롯 경쟁에서 빠지고 전용 자리를 받는다.
+  assert.match(html, /const useAdfit = false;/, "애드핏이 여전히 수익 슬롯을 가져간다");
+  // 그렇다고 지면을 없애면 "설치 후 심사 진행" 반려 사유로 되돌아간다.
+  assert.match(html, /function ensureAdfitPlacement\(\)/, "애드핏 지면이 통째로 사라졌다");
+  assert.match(html, /ensureAdfitPlacement\(\);/, "애드핏 지면 함수를 부르지 않는다");
 });
