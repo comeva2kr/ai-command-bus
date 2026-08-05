@@ -1780,14 +1780,37 @@ function adfitFallback(slot){
   const catBefore = (slot.previousElementSibling && slot.previousElementSibling.dataset.cat) || null;
   const catAfter = (slot.nextElementSibling && slot.nextElementSibling.dataset.cat) || null;
   const link = cp ? pickCoupangLink(catBefore, catAfter) : null;
-  // 넘길 곳이 없으면 빈 칸을 남기지 않고 지운다 — 빈 광고 박스보다 아예 없는
-  // 편이 낫다.
-  if(!link){ slot.remove(); return; }
-  slot.classList.remove("ad-net");
-  slot.removeAttribute("id");   // adfitSlot 해제 — 다음 페이지에서 애드핏 재시도
-  slot.dataset.cat = catBefore || "";
-  slot.innerHTML = coupangCardHtml(link, cp.disclosure, "feed-passback", catBefore, 0);
-  observeAdImpression(slot, "feed-passback");
+
+  // ── 애드핏 지면을 **지우지 않는다** (2026-08-05, David 실기기 + 심사 보류)
+  //
+  // 예전엔 slot.innerHTML을 쿠팡 카드로 통째로 갈아치웠다. 그러면 3초 뒤
+  // **애드핏 지면이 DOM에서 사라진다.** 그런데 애드핏 매체 심사 보류 사유가
+  // 정확히 이거였다: "광고를 설치한 이후 심사 진행이 가능합니다."
+  // 심사관이 3초만 지나 봐도 볼 광고가 없는 셈이었다.
+  //
+  // 그래서 지면은 남기고 **눈에만 안 보이게 접는다.** 화면에는 빈 칸이
+  // 생기지 않고, 애드핏이 나중에 채우면 그때 펼쳐진다.
+  const ins = slot.querySelector("ins.kakao_ad_area");
+  if(ins){
+    slot.style.display = "none";       // 빈 칸을 보이지 않게. DOM에는 남는다
+    slot.dataset.adCollapsed = "1";
+  } else {
+    slot.remove();                     // 애드핏 지면이 아니면 남길 이유가 없다
+  }
+  if(!link) return;                    // 넘길 곳이 없으면 접기만 하고 끝낸다
+
+  // 쿠팡 카드는 **새 카드로** 그 자리에 덧붙인다 — 애드핏 자리를 뺏지 않는다.
+  const alt = document.createElement("article");
+  alt.className = "card ad-card";
+  alt.dataset.cat = catBefore || "";
+  alt.innerHTML = coupangCardHtml(link, cp.disclosure, "feed-passback", catBefore, 0);
+  slot.insertAdjacentElement("afterend", alt);
+  observeAdImpression(alt, "feed-passback");
+  const a = alt.querySelector("a.ad-native");
+  if(a) a.addEventListener("click", ()=>{
+    API.adSignal(state.userId, "feed-passback", "click", null);
+    Track.ad("click", "feed-passback", null);
+  });
 }
 // SDK가 이름으로 찾아 부르므로 전역이어야 한다 — 이 스크립트는 type="module"이라
 // 선언만으로는 전역이 되지 않는다. (typeof 가드는 이 파일 일부를 브라우저 전역

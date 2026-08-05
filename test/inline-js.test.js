@@ -47,7 +47,9 @@ test("광고: 클라이언트가 끼운 카드도 노출이 기록된다", async
   // 이 경로는 측정 사각지대였다 — 서버가 보낸 카드만 추적되고 있었다.
   assert.match(html, /function observeAdImpression\(/);
   assert.match(html, /if\(!useAdfit\)\{\s*\n\s*observeAdImpression\(slot/, "클라이언트 쿠팡 카드 추적 누락");
-  assert.match(html, /observeAdImpression\(slot, "feed-passback"\)/, "폴백 카드 추적 누락");
+  // 폴백 카드는 이제 애드핏 지면을 갈아치우지 않고 **새 카드(alt)**로 붙는다 —
+  // 애드핏 심사는 지면이 설치돼 있어야 진행된다(2026-08-05 보류 사유).
+  assert.match(html, /observeAdImpression\(alt, "feed-passback"\)/, "폴백 카드 추적 누락");
 });
 
 test("광고: 애드핏은 승인 플래그가 켜져야만 지면을 차지한다", async () => {

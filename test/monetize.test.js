@@ -1342,3 +1342,24 @@ test("광고: 화면이 꽂은 카드도 클릭을 보고한다", async () => {
   assert.ok(adaptiveEvery(base, 0.3) > base, "반응이 낮으면 성글어져야 한다(그래서 클릭 누락이 비쌌다)");
   assert.ok(adaptiveEvery(base, 2.0) < base, "반응이 높으면 촘촘해져야 한다");
 });
+
+test("애드핏 폴백: 지면을 지우지 않고 접는다", async () => {
+  // 2026-08-05 애드핏 매체 심사 보류 사유:
+  //   "광고를 설치한 이후 심사 진행이 가능합니다."
+  // 그런데 우리 폴백은 3초 뒤 slot.innerHTML을 쿠팡 카드로 통째로 갈아치웠다 —
+  // **애드핏 지면이 DOM에서 사라진다.** 심사관이 3초만 지나 봐도 볼 광고가 없었다.
+  // David 실기기 확인: "애드핏은 안 보이고 쿠팡 파트너스만 보여."
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const from = html.indexOf("function adfitFallback(slot){");
+  const block = html.slice(from, html.indexOf("\n}\n", from));
+
+  // 애드핏 ins를 갈아치우지 않는다
+  assert.doesNotMatch(block, /slot\.innerHTML\s*=/, "애드핏 지면을 통째로 갈아치운다");
+  assert.match(block, /slot\.style\.display = "none"/, "빈 칸을 접지 않는다");
+  assert.match(block, /dataset\.adCollapsed/, "접힌 상태 표시가 없다");
+  // 쿠팡은 **새 카드**로 덧붙인다
+  assert.match(block, /insertAdjacentElement\("afterend", alt\)/, "쿠팡을 새 카드로 붙이지 않는다");
+  // 폴백 카드도 클릭을 보고한다 — 안 그러면 또 클릭률 분모만 커진다
+  assert.match(block, /API\.adSignal\(state\.userId, "feed-passback", "click"/, "폴백 카드 클릭 보고 누락");
+});
