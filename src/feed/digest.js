@@ -131,7 +131,17 @@ export function issueSubject(items, { max = 2 } = {}) {
 export function leadPhrase(title, { max = 20 } = {}) {
   let t = String(title || "").trim();
   if (!t) return "";
-  t = t.split(/[…·\[\]|]|—|\.\.\.|\s-\s/)[0].trim();
+  // 말머리를 먼저 떼어 낸다 — "[속보]", "【단독】", "(종합)". 사건 이름이 아니라
+  // 편집 표시다. 안 떼면 이름이 통째로 "속보"가 된다.
+  // 실측: 라이브 이슈 6개 중 2개가 이 때문에 이름을 못 얻고
+  // "5개 매체가 동시에 다룬 사안"으로 남았다.
+  for (let n = 0; n < 3; n++) {
+    const stripped = t.replace(/^\s*[[【(<][^\]】)>]{0,12}[\]】)>]\s*/, "");
+    if (stripped === t) break;
+    t = stripped;
+  }
+  // 그다음 부제가 시작되는 지점에서 자른다.
+  t = t.split(/[…·|]|—|\.\.\.|\s-\s/).map((x) => x.trim()).find(Boolean) || "";
   t = t.replace(/^["“'‘\s]+/, "").replace(/["”'’\s]+$/, "");
   if (t.length > max) {
     const cut = t.slice(0, max);

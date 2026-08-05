@@ -653,3 +653,12 @@ test("브리핑 이슈: 잘라 온 구절에 부호 흔적이 남지 않는다",
   assert.equal(tidyPhrase("코스피, 장 초반 매수 사이드카 발동"), "코스피, 장 초반 매수 사이드카 발동");
   assert.equal(tidyPhrase("끝에 붙은 이음표 —"), "끝에 붙은 이음표");
 });
+
+test("브리핑 이슈: 말머리로 시작하는 제목도 이름을 얻는다", async () => {
+  // 실측: 라이브 이슈 6개 중 2개가 "[속보]"처럼 괄호로 시작해 첫 조각이 비었고,
+  // 그래서 이름을 못 얻고 "5개 매체가 동시에 다룬 사안"으로 남았다.
+  const { leadPhrase } = await import("../src/feed/digest.js");
+  assert.equal(leadPhrase("[속보] 코스피 장중 사이드카 발동"), "코스피 장중 사이드카 발동");
+  assert.equal(leadPhrase("…시작하는 제목"), "시작하는 제목");
+  assert.equal(leadPhrase("[포토] "), "", "말머리뿐이면 이름이 없다 — 지어내지 않는다");
+});
