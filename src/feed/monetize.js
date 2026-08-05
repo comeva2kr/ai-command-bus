@@ -509,7 +509,12 @@ export function bannerCandidates(preferences, opts = {}) {
     return ((a.i + seed) % scored.length) - ((b.i + seed) % scored.length);
   });
 
-  return scored.slice(0, 6).map(({ b, relevance }) => {
+  // 후보를 6개만 넘기면 **문맥 매칭이 사실상 안 된다.** 재고 18개 중 6개만
+  // 손에 들고 있으니, 옆 글이 "신선식품"을 원해도 그 배너가 후보에 없다 —
+  // 실측(2026-08-06 라이브): 광고 18건 중 문맥 이웃이 6건이었는데 도착지
+  // 일치는 0건이었다. 슬롯은 페이지당 1~2개뿐이라 후보를 넉넉히 들고 있어도
+  // 비용은 없고, 못 고르면 어차피 순서대로 집는다.
+  return scored.slice(0, 14).map(({ b, relevance }) => {
     const [hook, brand] = adCopy(b.dest || "_");
     return makeSlotItem({
       id: b.id,

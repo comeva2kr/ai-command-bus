@@ -157,3 +157,20 @@ test("애드핏 빈 지면이 쿠팡 자리를 먹지 않는다", async () => {
   assert.match(html, /function ensureAdfitPlacement\(\)/, "애드핏 지면이 통째로 사라졌다");
   assert.match(html, /ensureAdfitPlacement\(\);/, "애드핏 지면 함수를 부르지 않는다");
 });
+
+test("서버 광고 후보가 문맥 매칭에 쓸 만큼 넉넉하다", async () => {
+  // 실측(2026-08-06 라이브): 후보를 6개만 넘겨서 도착지 일치가 0/6이었다.
+  // 재고 대부분을 손에 들고 있어야 옆 글이 원하는 상품군을 고를 수 있다.
+  const { pickAffiliateCandidates } = await import("../src/feed/monetize.js");
+  const prev = process.env.COUPANG_PARTNER_ID;
+  process.env.COUPANG_PARTNER_ID = "AF-test";
+  try {
+    const c = pickAffiliateCandidates({}, { seed: 1 });
+    const dests = new Set(c.map((x) => x.dest).filter(Boolean));
+    assert.ok(c.length >= 10, `후보가 ${c.length}개뿐 — 문맥 매칭이 거의 실패한다`);
+    assert.ok(dests.size >= 8, `도착지가 ${dests.size}종뿐 — 상품군을 맞출 수 없다`);
+  } finally {
+    if (prev === undefined) delete process.env.COUPANG_PARTNER_ID;
+    else process.env.COUPANG_PARTNER_ID = prev;
+  }
+});
