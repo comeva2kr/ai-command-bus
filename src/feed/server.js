@@ -38,6 +38,7 @@ import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { sendDigestPushes } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
 import { makeEnricher } from "./enrich.js";
+import { makeInterestsCache } from "./interest.js";
 import { makeTrendsCache } from "./trends.js";
 import {
   enabledProviders,
@@ -355,6 +356,11 @@ export function createServer(opts = {}) {
 
   // 쿠팡파트너스 실연동 — 키 3종(COUPANG_PARTNER_ID/ACCESS_KEY/SECRET_KEY)이
   // 모두 있을 때만. 베스트 상품 캐시를 시작 시 1회 + 1시간마다 갱신하고,
+  // 관심사(구글 급상승 검색어)를 엔진에 주입한다. 브리핑이 "지금 사람들이
+  // 실제로 검색하는 것"을 한 축으로 쓰게 만든다(David 2026-08-05).
+  // 20분 캐시라 남의 서버를 자주 두드리지 않는다.
+  engine._interestsFn = makeInterestsCache();
+
   // 엔진에 동기 productFeed를 주입한다. 키가 없으면 아무것도 안 한다(무광고).
   if (coupangCreds()) {
     engine._productFeed = makeCoupangProductFeed();
@@ -794,6 +800,15 @@ ${adSlotHtml("adfit")}
     if (i.score > 0) bits.push(`추천 ${fmtNum(i.score)}`);
     if (i.commentCount > 0) bits.push(`댓글 ${fmtNum(i.commentCount)}`);
     if (i.coverage >= 3) bits.push(`${i.coverage}개 매체 교차보도`);
+    // 검색 급상승과 이어진 글이면 그 사실을 밝힌다 (David 2026-08-05).
+    // 이게 브리핑에서 순위를 바꾸는 새 축이므로, 바꿔 놓고 말하지 않으면
+    // 우리도 왜 그 글이 위에 있는지 설명하지 못한다. 검색량은 구글이
+    // 자릿수만 대략 주므로 "500+"처럼 그대로 옮긴다 — 정확한 값인 척하지 않는다.
+    if (i.interest && i.interest.term) {
+      bits.push(i.interest.traffic > 0
+        ? `검색 급상승 ${i.interest.term} ${fmtNum(i.interest.traffic)}+`
+        : `검색 급상승 ${i.interest.term}`);
+    }
     return bits;
   };
   // 열기 눈금 — 실측 시계열이 있을 때만 (없으면 아무것도 안 그린다)

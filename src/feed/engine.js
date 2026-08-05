@@ -10,6 +10,7 @@ import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
 import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
+import { matchInterest, WEIGHTY } from "./interest.js";
 import { promotable, isLowValue } from "./promotion.js";
 import { isJunkImage } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
@@ -301,6 +302,9 @@ export class FeedEngine {
     // 정확해진다. 재시작 시 코퍼스가 초기화되지만 첫 refresh에서 곧바로
     // 수백 건을 다시 배우므로 공백은 15분 안에 메워진다.
     this._classifier = new TitleClassifier();
+    // 관심사(구글 급상승 검색어) 공급자 — server.js가 주입한다. 없으면 빈 목록이라
+    // 관심사 축만 빠지고 브리핑은 그대로 나온다(테스트도 네트워크 없이 돈다).
+    this._interestsFn = null;
     // 쿠팡 실연동 productFeed (server.js가 주입, 없으면 null -> 기존 동작 그대로)
     this._productFeed = null;
     // 썸네일 보강기 (enrich.js, server.js가 주입 — David 2026-07-31 "사진
@@ -1342,6 +1346,12 @@ export class FeedEngine {
 
   // slotId를 주면 그 시간대의 성격으로 편성한다 (David 2026-08-04).
   // 안 주면 지금 시각의 슬롯 — 기존 호출부와 호환된다.
+  // 관심사 목록. 실패해도 브리핑을 막지 않는다 — 축 하나가 빠질 뿐이다.
+  async _interests() {
+    if (!this._interestsFn) return [];
+    try { return (await this._interestsFn()) || []; } catch { return []; }
+  }
+
   async briefing({ slotId = null } = {}) {
     const items = await this._items();
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
@@ -1369,6 +1379,33 @@ export class FeedEngine {
     );
     const engagement = (i) => (i.score || 0) + (i.commentCount || 0) * 2;
 
+    // ── 관심사 축 (David 2026-08-05)
+    // "트렌드 지수가 높은 관심사와 연관된 소식 중 가장 인용도 높고 반응 높은
+    //  중요한 소식들 위주로."
+    //
+    // 실측(2026-08-05 라이브 30건)이 이 축의 필요를 그대로 보여 준다:
+    //   기존 점수(반응+인용도) 중앙값 0 · 상위25% 105 · 상위10% 250 · 최대 1001
+    //   **30건 중 19건이 0점** — 뉴스는 추천·댓글이 없어 서로 구분이 안 된다.
+    // 그래서 뉴스끼리는 사실상 무작위였고, 반응이 큰 커뮤니티 글만 대표로 올랐다.
+    // 그게 David가 말한 "사적·매니악함"의 뿌리다.
+    //
+    // 상수는 위 실측에서 그대로 가져왔다 — 지어낸 값이 아니다:
+    //   검색량 1000+ 짜리 검색어에 제목이 걸리면 상위10%(250점)만큼 얹는다.
+    //   무게 있는 분야(경제·정책·사회·정치)는 상위25%(105점)만큼 얹는다.
+    // 순위를 뒤집는 게 아니라 축 하나를 더하는 것이다 — 반응 1001점짜리는
+    // 그대로 위에 남는다.
+    const INTEREST_MAX = 250;   // 실측 상위 10%
+    const WEIGHTY_BONUS = 105;  // 실측 상위 25%
+    const interests = await this._interests();
+    const interestOf = (i) => matchInterest(i, interests);
+    const interestPoints = (m) => (m ? INTEREST_MAX * Math.min(1, (m.traffic || 0) / 1000) * m.strength : 0);
+    const weight = (i) => {
+      const m = interestOf(i);
+      return engagement(i) + (i.coverage || 0) * 50
+        + interestPoints(m)
+        + (WEIGHTY.has(i.category) ? WEIGHTY_BONUS : 0);
+    };
+
     const byCat = new Map();
     for (const i of pool) {
       const c = i.category || "news";
@@ -1378,7 +1415,7 @@ export class FeedEngine {
     const sections = [];
     for (const [cat, list] of byCat) {
       // 화제성 순: 반응 실측 우선, 무신호 뉴스는 다중보도(coverage) 우선
-      list.sort((a, b) => (engagement(b) + (b.coverage || 0) * 50) - (engagement(a) + (a.coverage || 0) * 50));
+      list.sort((a, b) => weight(b) - weight(a));
       // 같은 사건 중복 + 한 매체 독식 제거 (2026-08-02 검수 실측: 뉴스 브리핑
       // 10칸 중 동일 사건 2칸, 한 계열 매체 4칸, 제목에 '폭염' 6칸).
       // 브리핑은 10칸짜리 요약본이라 피드보다 중복 비용이 훨씬 크다.
@@ -1418,14 +1455,19 @@ export class FeedEngine {
           url: i.url || "",
           sourceLabel: this._labelFor(i),
           score: i.score || 0, commentCount: i.commentCount || 0,
-          coverage: i.coverage || 0, publishedAt: i.publishedAt || null
+          coverage: i.coverage || 0, publishedAt: i.publishedAt || null,
+          weight: weight(i),
+          // 왜 이 글이 여기 있는지 화면이 말할 수 있어야 한다. 근거 없이
+          // 순위만 바꾸면 우리도 설명하지 못한다.
+          interest: interestOf(i)
         }))
       });
     }
     // 섹션 정렬: 항목 화제성 합 순
+    // 섹션 정렬도 같은 잣대로. 예전엔 반응 합만 봐서, 추천 수가 원래 큰
+    // 커뮤니티 계열 섹션이 늘 맨 앞이었다.
     sections.sort((a, b) =>
-      b.items.reduce((s, i) => s + i.score + i.commentCount * 2, 0) -
-      a.items.reduce((s, i) => s + i.score + i.commentCount * 2, 0)
+      b.items.reduce((s, i) => s + i.weight, 0) - a.items.reduce((s, i) => s + i.weight, 0)
     );
     // 오늘 가장 뜨거운 논쟁(댓글 폭발) 한 건
     // '오늘의 논쟁'은 우리가 문장을 붙여 소개하는 자리다 — 비속어 제목은 고르지
@@ -1440,10 +1482,11 @@ export class FeedEngine {
       .map((i) => ({
         id: i.id, title: i.title, source: i.source, sourceLabel: this._labelFor(i),
         score: i.score || 0, commentCount: i.commentCount || 0,
-        coverage: i.coverage || 0, tags: i.tags || []
+        coverage: i.coverage || 0, tags: i.tags || [],
+        category: i.category || "news", interest: interestOf(i)
       }))
       .filter((i) => promotable(i))
-      .sort((a, b) => engagement(b) + (b.coverage || 0) * 50 - (engagement(a) + (a.coverage || 0) * 50));
+      .sort((a, b) => weight(b) - weight(a));
 
     // 후보 단계에서 소스 균형을 잡는다.
     //

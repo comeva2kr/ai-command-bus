@@ -502,3 +502,58 @@ test("편성 화면: 슬롯이 무엇인지 알 수 있고 발행된 편은 눌�
   assert.ok(!/브리핑[^<]*15분마다 갱신됩니다/.test(src), "옛 갱신 주기 문구가 남아 있다");
   assert.match(src, /하루 세 번 — 아침 7시·점심 12시·저녁 7시/, "실제 편성 주기를 밝힌다");
 });
+
+test("브리핑: 검색 급상승과 이어지는 중요 소식이 대표로 올라온다", async () => {
+  // David 2026-08-05: "트렌드 지수가 높은 관심사와 연관된 소식 중 가장 인용도
+  // 높고 사람들 반응 높은 중요한 소식들 위주로."
+  //
+  // 실측(라이브 30건)이 왜 이 축이 필요한지 보여 준다: 기존 점수(반응+인용도)의
+  // 중앙값이 0이고 30건 중 19건이 0점이었다 — 뉴스끼리는 서로 구분이 안 돼서
+  // 반응이 큰 커뮤니티 글만 대표로 올랐다. 그게 "사적·매니악함"의 뿌리다.
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const src = {
+    id: "s", kind: "news",
+    async fetch() {
+      return [
+        // 검색 급상승과 무관하지만 커뮤니티 반응이 제법 있는 글
+        { id: "chat", title: "오늘 점심 뭐 먹을지 골라주세요", url: "https://x/1",
+          source: "clien", category: "humor", score: 180, commentCount: 20 },
+        // 검색 급상승 1000+ 과 직접 이어지는 경제 소식 — 반응은 없다(뉴스라서)
+        { id: "chip", title: "SK하이닉스 반도체 증설 발표", url: "https://x/2",
+          source: "mk", category: "business", score: 0, commentCount: 0 }
+      ];
+    }
+  };
+  const engine = new FeedEngine(null, [src]);
+  engine._interestsFn = async () => ([{ term: "반도체", traffic: 1000, news: [] }]);
+
+  const b = await engine.briefing();
+  const all = b.sections.flatMap((s) => s.items);
+  const chip = all.find((i) => i.id === "chip");
+  const chat = all.find((i) => i.id === "chat");
+  assert.ok(chip && chat, "두 글 다 실려야 한다 — 지우는 게 아니라 순위만 바꾼다");
+  assert.ok(chip.weight > chat.weight,
+    `검색 급상승과 이어진 경제 소식이 잡담보다 위여야 한다 (반도체 ${chip.weight} vs 잡담 ${chat.weight})`);
+  // 왜 올라왔는지 화면이 말할 수 있어야 한다
+  assert.equal(chip.interest.term, "반도체");
+  assert.equal(chip.interest.how, "term");
+  assert.equal(chat.interest, null);
+
+  // 관심사를 못 가져와도 브리핑은 그대로 나온다 — 축 하나가 빠질 뿐
+  const engine2 = new FeedEngine(null, [src]);
+  engine2._interestsFn = async () => { throw new Error("trends down"); };
+  const b2 = await engine2.briefing();
+  assert.ok(b2.sections.length > 0, "관심사 없이도 브리핑은 나와야 한다");
+});
+
+test("브리핑: 검색 급상승으로 올라온 글은 그 사실을 화면에 밝힌다", async () => {
+  // 순위를 바꿔 놓고 말하지 않으면 우리도 왜 그 글이 위에 있는지 설명 못 한다.
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync("src/feed/server.js", "utf8");
+  const from = src.indexOf("const evidenceBits = (i) => {");
+  const block = src.slice(from, src.indexOf("};", from));
+  assert.match(block, /interest/, "근거 배지에 관심사 축이 빠져 있다");
+  assert.match(block, /검색 급상승/);
+  // 검색량은 구글이 자릿수만 준다 — 정확한 값인 척하면 안 된다
+  assert.match(block, /\+`/, "500+ 처럼 대략값 표기를 유지해야 한다");
+});
