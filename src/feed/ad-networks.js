@@ -184,3 +184,59 @@ export function ctr(impressions, clicks) {
   if (!impressions) return null;            // 0으로 나누지 않는다. 0%가 아니라 "모름"이다
   return Math.round((clicks / impressions) * 10000) / 100;
 }
+
+// ── 문구별 성과 (2026-08-05)
+//
+// David: "일주일에 한 번씩 업데이트 하면서 카테고리당 몇 개 만들어서
+//         돌려쓸 수 있게 하는 거 어때? 더 좋은 의견 있어?"
+//
+// 좋다. 다만 **어떤 훅이 실제로 눌렸는지 모르면** 매주 새로 만들어도 나아지는지
+// 알 수 없다 — 감으로 다시 만드는 것과 같다. 그래서 문구 id(dest_ctx_n)별로
+// 노출·클릭을 세고, 다음 생성 때 잘 된 것을 본보기로 넘긴다.
+//
+// ── 클릭률만으로 1등을 뽑지 않는 이유
+// 어그로가 세면 클릭은 늘지만 쿠팡은 **구매**로 정산된다. 헛클릭은 수익이 0인데
+// 신뢰만 깎는다. 표본이 적을 때 클릭률 1등은 대개 우연이기도 하다.
+// 그래서 **베이지안 축소**를 쓴다: 노출이 적으면 전체 평균 쪽으로 끌어당기고,
+// 표본이 쌓일수록 자기 값에 가까워진다. 랭킹에서 쓰는 것과 같은 원리다.
+const SHRINK_PRIOR = 30;   // 노출 30건까지는 전체 평균 쪽으로 끌어당긴다
+
+export function variantPerformance(adEvents = [], { sinceMs = 0, prior = SHRINK_PRIOR } = {}) {
+  const by = new Map();
+  let totI = 0, totC = 0;
+  for (const e of adEvents) {
+    if (!e || !e.variant) continue;                 // 문구 id가 없는 옛 이벤트는 건너뛴다
+    if (!/^[a-z]+_[a-z]+_\d+$/.test(e.variant)) continue;  // A/B 딱지("A")는 문구가 아니다
+    const at = e.at ? Date.parse(e.at) : 0;
+    if (sinceMs && !(at >= sinceMs)) continue;
+    const r = by.get(e.variant) || { variant: e.variant, impressions: 0, clicks: 0 };
+    if (e.type === "impression") { r.impressions += 1; totI += 1; }
+    else if (e.type === "click") { r.clicks += 1; totC += 1; }
+    by.set(e.variant, r);
+  }
+  const base = totI ? totC / totI : 0;
+  return [...by.values()]
+    .map((r) => ({
+      ...r,
+      raw: r.impressions ? r.clicks / r.impressions : null,
+      // 축소된 값 — 이 값으로 순위를 매긴다
+      score: (r.clicks + base * prior) / (r.impressions + prior)
+    }))
+    .sort((a, b) => b.score - a.score);
+}
+
+// 다음 생성에 넘길 본보기. 노출이 최소한 쌓인 것만 고른다 —
+// 노출 3건짜리 100% 클릭률을 "잘 된 문구"라고 넘기면 다음 주가 더 나빠진다.
+export function winningVariants(adEvents = [], matrix = null, { minImpressions = 20, top = 8 } = {}) {
+  const perf = variantPerformance(adEvents).filter((v) => v.impressions >= minImpressions);
+  if (!perf.length || !matrix || !matrix.variants) return [];
+  const out = [];
+  for (const v of perf.slice(0, top)) {
+    const [dest, ctx, idx] = v.variant.split("_");
+    const cell = matrix.variants[dest] && matrix.variants[dest][ctx];
+    const item = Array.isArray(cell) ? cell[Number(idx)] : null;
+    if (!item || !item.hook) continue;
+    out.push({ dest, hook: item.hook, line: item.line || "", ctr: Math.round(v.score * 10000) / 100 });
+  }
+  return out;
+}

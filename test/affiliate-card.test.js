@@ -54,7 +54,7 @@ test("피드 광고는 첫 화면을 비우고 이후 주기적으로 들어간�
 });
 
 test("상세 화면에도 제휴 지면이 있다", () => {
-  assert.match(HTML, /\$\{detailAdHtml\(item\.category\)\}/);
+  assert.match(HTML, /\$\{detailAdHtml\(item\.category, item\.dealDest\)\}/);
 });
 
 test("자체 콘텐츠 링크는 한 자리에만 있다", () => {

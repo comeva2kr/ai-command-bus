@@ -9,6 +9,8 @@
 import { generateMatrix, saveMatrix, loadMatrix } from "../src/feed/ad-matrix.js";
 import { loadBanners } from "../src/feed/manual-products.js";
 import { fetchInterests } from "../src/feed/interest.js";
+import { winningVariants } from "../src/feed/ad-networks.js";
+import fs from "node:fs";
 
 const dests = [...new Set(loadBanners().map((b) => b.dest).filter(Boolean))];
 if (!dests.length) { console.error("도착지가 없다 — products.json 확인"); process.exit(1); }
@@ -22,6 +24,22 @@ let trends = [];
 try { trends = (await fetchInterests()).map((t) => t.term); }
 catch { console.log("[admatrix] 트렌드 없이 진행"); }
 if (trends.length) console.log("[admatrix] 트렌드", trends.length, "개 반영");
+
+// 지난주에 실제로 눌린 문구를 본보기로 넘긴다. 이게 없으면 매주 감으로 새로
+// 만드는 것과 같다 — 나아지는지 알 수 없다(David 2026-08-05 제안에 더한 것).
+// 노출이 최소한 쌓인 것만 고른다. 노출 3건짜리 100%를 "잘 된 문구"라고 넘기면
+// 다음 주가 더 나빠진다 — 베이지안 축소로 그걸 막는다(ad-networks.js).
+let winners = [];
+try {
+  const db = JSON.parse(fs.readFileSync(process.env.FEED_DB, "utf8"));
+  winners = winningVariants(db.adEvents || [], loadMatrix());
+} catch { /* 성적이 없으면 없는 대로 만든다 */ }
+if (winners.length) {
+  console.log("[admatrix] 지난주 잘 된 문구", winners.length, "개 반영");
+  winners.forEach((w) => console.log(`   ${w.ctr}%  [${w.dest}] ${w.hook}`));
+} else {
+  console.log("[admatrix] 아직 성적이 없다 — 트렌드만으로 만든다");
+}
 
 // 도착지를 나눠 부른다. 한 번에 18곳 × 맥락 5개 × 변형 3개 × 필드 3개를
 // 요구하면 출력이 잘린다(2026-08-05 실측). 나누면 한 배치가 실패해도 나머지는
@@ -39,6 +57,7 @@ for (let i = 0; i < dests.length; i += CHUNK) {
     apiKey: process.env.ANTHROPIC_API_KEY,
     dests: part,
     trends,
+    winners,
     log: (s) => console.log(s)
   });
   if (!m || !m.variants) { console.error(`  실패 — 이 배치는 건너뛴다`); continue; }

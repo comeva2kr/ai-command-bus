@@ -1541,6 +1541,145 @@
         "url": "https://cdn.bloter.net/rss/gns_allArticle.xml",
         "note": "2026-08-01 실측: UTF-8/200/50건. robots는 /admin/만 차단. pubDate 표준. description이 매우 풍부(본문 수준)하고 img 임베드로 썸네일 확보. 실측 콘텐츠가 IT/스타트업 중심이라 business가 아닌 tech로 분류."
       }
+    },
+    {
+      "id": "ppomppu-deal",
+      "label": "뽐뿌 핫딜",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "life",
+      "size": "large",
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "isDeal": true,
+      "adapter": {
+        "type": "list",
+        "url": "https://www.ppomppu.co.kr/zboard/zboard.php?id=ppomppu",
+        "pages": 1,
+        "note": "뽐뿌 **핫딜 게시판**. 2026-08-05 실측: 우리가 쓰던 hot.php는 전 게시판 통합 인기글이라 핫딜이 거의 없었다(피드 120건 중 뽐뿌 6건이 전부 여행·정치·잡담). 진짜 딜은 여기 있다. 제목이 [쇼핑몰]상품명 (가격/배송) 형식이라 상품군을 뽑아 광고 도착지와 이을 수 있다(deals.js). EUC-KR이라 cp949 디코더를 탄다. 21건 파싱 확인.",
+        "list": {
+          "urlBase": "https://www.ppomppu.co.kr/zboard/",
+          "titleRegex": "<a class=['\"]baseList-title[^'\"]*['\"]\\s+href=\"(view\\.php[^\"]+)\"[^>]*>(?:<span>)?(?:<em[^>]*>[^<]*</em>)?([^<]+)",
+          "windowAfter": 400,
+          "commentRegex": "class=\"baseList-c\"[^>]*>(\\d+)<",
+          "max": 25,
+          "parserCheckedAt": "2026-08-05",
+          "charset": "euc-kr",
+          "excludeRegex": "id=regulation"
+        }
+      }
+    },
+    {
+      "id": "ppomppu-deal-os",
+      "label": "해외뽐뿌",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "life",
+      "size": "large",
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "isDeal": true,
+      "adapter": {
+        "type": "list",
+        "url": "https://www.ppomppu.co.kr/zboard/zboard.php?id=ppomppu4",
+        "pages": 1,
+        "note": "뽐뿌 **핫딜 게시판**. 2026-08-05 실측: 우리가 쓰던 hot.php는 전 게시판 통합 인기글이라 핫딜이 거의 없었다(피드 120건 중 뽐뿌 6건이 전부 여행·정치·잡담). 진짜 딜은 여기 있다. 제목이 [쇼핑몰]상품명 (가격/배송) 형식이라 상품군을 뽑아 광고 도착지와 이을 수 있다(deals.js). EUC-KR이라 cp949 디코더를 탄다. 21건 파싱 확인.",
+        "list": {
+          "urlBase": "https://www.ppomppu.co.kr/zboard/",
+          "titleRegex": "<a class=['\"]baseList-title[^'\"]*['\"]\\s+href=\"(view\\.php[^\"]+)\"[^>]*>(?:<span>)?(?:<em[^>]*>[^<]*</em>)?([^<]+)",
+          "windowAfter": 400,
+          "commentRegex": "class=\"baseList-c\"[^>]*>(\\d+)<",
+          "max": 25,
+          "parserCheckedAt": "2026-08-05",
+          "charset": "euc-kr",
+          "excludeRegex": "id=regulation"
+        }
+      }
+    },
+    {
+      "id": "ruliweb-deal",
+      "label": "루리웹 핫딜",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "life",
+      "size": "large",
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "isDeal": true,
+      "adapter": {
+        "type": "list",
+        "url": "https://bbs.ruliweb.com/market/board/1020",
+        "pages": 1,
+        "note": "루리웹 예판/핫딜 게시판. 2026-08-05 실측 200 OK, robots.txt는 /market/board 를 막지 않는다. 제목이 [쇼핑몰]상품명 / 가격 형식이라 뽐뿌와 같은 방식으로 상품군을 뽑을 수 있다. 게임·IT 상품 비중이 높아 뽐뿌(생필품 위주)와 겹치지 않는다 — 딜 소스를 하나만 두면 그 게시판 취향이 곧 우리 취향이 된다.",
+        "list": {
+          "urlBase": "https://bbs.ruliweb.com",
+          "titleRegex": "<a class=\"subject text_over\" href=\"(https://bbs\\.ruliweb\\.com/market/board/1020/read/\\d+)\"[^>]*>([^<]+)</a>",
+          "windowAfter": 300,
+          "commentRegex": "<span class=\"num_reply\">\\[(\\d+)\\]</span>",
+          "max": 25,
+          "parserCheckedAt": "2026-08-05"
+        }
+      }
+    },
+    {
+      "id": "clien-jirum",
+      "label": "클리앙 알뜰구매",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "life",
+      "size": "large",
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "isDeal": true,
+      "adapter": {
+        "type": "list",
+        "url": "https://www.clien.net/service/board/jirum",
+        "pages": 1,
+        "note": "클리앙 알뜰구매. 2026-08-05 실측 200 OK, robots.txt 부분 허용. 반응 지표는 댓글이 아니라 하트(list_votes)라 그것을 score로 받는다 — 없는 값을 댓글인 척 넣지 않는다. IT·가전 쪽 딜이 강하다.",
+        "list": {
+          "urlBase": "https://www.clien.net",
+          "titleRegex": "<a href=\"(/service/board/jirum/\\d+[^\"]*)\" data-role=\"list-title-text\">\\s*([^<]+?)\\s*</a>",
+          "windowAfter": 300,
+          "scoreRegex": "<span class=\"list_votes\"><i[^>]*></i>\\s*(\\d+)</span>",
+          "max": 25,
+          "parserCheckedAt": "2026-08-05"
+        }
+      }
+    },
+    {
+      "id": "dealbada",
+      "label": "딜바다",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "life",
+      "size": "medium",
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "isDeal": true,
+      "adapter": {
+        "type": "list",
+        "url": "https://www.dealbada.com/bbs/board.php?bo_table=deal_domestic",
+        "pages": 1,
+        "note": "딜바다 국내딜. 2026-08-05 실측 200 OK, robots.txt 부분 허용. 목록에 추천·댓글이 사실상 0이라 반응 지표를 쓰지 않는다 — 딜은 화제성 순위가 아니라 보장 비율(deals.js)로 올라온다. 제목 형식이 뽐뿌와 같아 상품군 매칭이 그대로 된다.",
+        "list": {
+          "urlBase": "https://www.dealbada.com",
+          "titleRegex": "<a href=\"(//www\\.dealbada\\.com/bbs/board\\.php\\?bo_table=deal_domestic&amp;wr_id=\\d+[^\"]*)\"\\s*>\\s*([^<\\[][^<]*)</a>",
+          "windowAfter": 200,
+          "viewRegex": "<td class=\"td_num\">(\\d+)</td>",
+          "max": 25,
+          "parserCheckedAt": "2026-08-05"
+        }
+      }
     }
   ]
 }

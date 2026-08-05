@@ -46,7 +46,11 @@ test("광고: 클라이언트가 끼운 카드도 노출이 기록된다", async
   const html = readFileSync("src/feed/public/index.html", "utf8");
   // 이 경로는 측정 사각지대였다 — 서버가 보낸 카드만 추적되고 있었다.
   assert.match(html, /function observeAdImpression\(/);
-  assert.match(html, /if\(!useAdfit\)\{\s*\n\s*observeAdImpression\(slot/, "클라이언트 쿠팡 카드 추적 누락");
+  // 인접성이 아니라 **조건**을 본다. 예전엔 두 줄이 붙어 있는지를 검사해서,
+  // 사이에 variant 기록 한 줄이 들어간 것만으로 빨간불이 났다(2026-08-05).
+  // 지켜야 할 것은 "애드핏이 아닐 때 이 슬롯의 노출이 기록된다"는 사실이다.
+  const clientBlock = (html.match(/if\(!useAdfit\)\{[\s\S]{0,900}?\n    \}/) || [])[0] || "";
+  assert.match(clientBlock, /observeAdImpression\(slot/, "클라이언트 쿠팡 카드 추적 누락");
   // 폴백 카드는 이제 애드핏 지면을 갈아치우지 않고 **새 카드(alt)**로 붙는다 —
   // 애드핏 심사는 지면이 설치돼 있어야 진행된다(2026-08-05 보류 사유).
   assert.match(html, /observeAdImpression\(alt, "feed-passback"\)/, "폴백 카드 추적 누락");

@@ -179,7 +179,7 @@ export function validHook(h) {
     && validText(h.cta, { min: 3, max: 12 });
 }
 
-export function buildMatrixPrompt(dests, { trends = [] } = {}) {
+export function buildMatrixPrompt(dests, { trends = [], winners = [] } = {}) {
   const rows = dests.map((d) => {
     const [, brand] = AD_COPY[d] || AD_COPY._;
     return `- dest="${d}" → 도착지: ${brand}`;
@@ -195,6 +195,13 @@ export function buildMatrixPrompt(dests, { trends = [] } = {}) {
       ? `\n\n지금 한국에서 검색이 몰리는 말(어조·계절감 참고용, 문구에 그대로 넣지 말 것):\n${
           trends.slice(0, 12).map((t) => `- ${t}`).join("\n")}`
       : ""
+  }${
+    // 지난주에 실제로 눌린 문구 — 감이 아니라 성적으로 배운다.
+    // 베껴 쓰라는 게 아니라 **왜 눌렸는지**를 보고 그 결을 이어 가라는 것이다.
+    winners.length
+      ? `\n\n지난주에 실제로 잘 눌린 문구(결을 참고하되 그대로 베끼지 말 것):\n${
+          winners.map((w) => `- [${w.dest}] "${w.hook}" / "${w.line}"`).join("\n")}`
+      : ""
   }\n\n모든 (도착지 × 맥락) 조합에 대해 hooks 3개씩 만들어 주십시오.`;
 }
 
@@ -202,7 +209,7 @@ export function buildMatrixPrompt(dests, { trends = [] } = {}) {
 // 광고가 사라지는 것보다 지난주 문구를 계속 쓰는 편이 낫다.
 export async function generateMatrix({
   apiKey, model = process.env.LLM_MODEL || "claude-sonnet-5",
-  dests, trends = [], fetchImpl = fetch, log = () => {}
+  dests, trends = [], winners = [], fetchImpl = fetch, log = () => {}
 }) {
   if (!apiKey) return null;
   const body = {
@@ -214,7 +221,7 @@ export async function generateMatrix({
     output_config: /-4-5$|haiku/.test(model)
       ? { format: { type: "json_schema", schema: SCHEMA } }
       : { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-    messages: [{ role: "user", content: buildMatrixPrompt(dests, { trends }) }]
+    messages: [{ role: "user", content: buildMatrixPrompt(dests, { trends, winners }) }]
   };
   let j;
   try {

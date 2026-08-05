@@ -12,6 +12,7 @@ import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRID
 import { hasProfanity } from "./profanity.js";
 import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
+import { destForDeal, ensureDealShare } from "./deals.js";
 import { promotable, isLowValue } from "./promotion.js";
 import { isJunkImage } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
@@ -337,6 +338,11 @@ export class FeedEngine {
       this._itemGroups = new Map(
         loadRegistry().filter((c) => c.feedGroup).map((c) => [c.id, c.feedGroup]));
     }
+    if (this._dealSources === undefined) {
+      // 어느 게시판이 핫딜 게시판인지는 **등록 정보**가 안다. 제목 모양으로
+      // 짐작하면 뉴스의 "[단독]"까지 딜이 된다 — 등록부가 유일한 정답이다.
+      this._dealSources = new Set(loadRegistry().filter((c) => c.isDeal).map((c) => c.id));
+    }
     for (const item of this._cache) {
       if (item.image) item.image = safeImage(item.image);
       const g = this._itemGroups.get(item.source);
@@ -352,6 +358,16 @@ export class FeedEngine {
       // (2026-08-05 전수검사). 판정은 한 곳에서 하고 결과를 실어 보낸다 —
       // 화면이 같은 규칙을 다시 구현하면 두 벌이 되어 또 어긋난다.
       item.adUnsafe = adUnsafe(item);
+
+      // 딜 글인가, 그렇다면 어떤 상품군인가 (David 2026-08-05 "이거 중요한 거 같은데").
+      // 화면이 이 표시를 보고 **그 글 바로 아래에 그 상품군 광고**를 붙인다.
+      // 판정을 여기서 한 번만 하는 이유: 화면이 같은 규칙을 다시 구현하면 두 벌이
+      // 되어 언젠가 어긋난다 — adUnsafe에서 이미 겪은 일이다.
+      if (this._dealSources.has(item.source)) {
+        item.isDeal = true;
+        const d = destForDeal(item.title);
+        if (d) item.dealDest = d;
+      }
 
       // 번역된 글에 옮기지 못한 영문 발췌가 붙어 있으면 여기서도 지운다.
       // 수집 단계(translate.js)에서 이미 거르지만, 풀은 48시간을 안고 가므로
@@ -945,9 +961,32 @@ export class FeedEngine {
     // pass here would only undo that structure for no benefit.
     // 소스 보기: seen 필터가 없으므로 cursor를 진짜 오프셋으로 쓴다.
     // 홈: seen 기반 페이지네이션 그대로(항상 앞에서 limit개).
-    const fresh = source
+    let fresh = source
       ? diversify(unseen).slice(cursor, cursor + limit)
       : unseen.slice(0, limit);
+
+    // 딜 글에 최소 비율을 보장한다 (David 2026-08-05).
+    //
+    // 왜 순위에 맡기지 않나: 딜 글은 반응 수치가 낮다 — 뽐뿌·딜바다는 목록에
+    // 추천·댓글이 사실상 0이라 화제성으로는 유머·뉴스를 절대 못 이긴다.
+    // 실측 결과 피드 120건 중 딜이 0건이었다. 그런데 딜은 **광고가 붙을 자리를
+    // 만드는 글**이라 우리에겐 값이 다르다: 이미 살 마음으로 읽던 사람 옆에
+    // 그 상품군 광고를 붙일 수 있다.
+    //
+    // 통합 피드에만 넣는다. 소스 칩으로 한 게시판을 골라 본 사람에게 다른
+    // 게시판 딜을 끼워 넣으면 그건 고른 것을 안 보여 주는 것이다.
+    if (!source && fresh.length) {
+      const inFeed = new Set(fresh.map((r) => r.item.id));
+      const pool = unseen
+        .filter((r) => !inFeed.has(r.item.id) && r.item.isDeal === true)
+        .map((r) => r.item);
+      const merged = ensureDealShare(fresh.map((r) => r.item), pool,
+                                     { is: (i) => i.isDeal === true });
+      if (merged.length !== fresh.length) {
+        const scoreOf = new Map(fresh.map((r) => [r.item.id, r.score]));
+        fresh = merged.slice(0, limit).map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
+      }
+    }
 
     const level = specializationLevel(user.preferences, user.feedbackCount);
     const phase = feedPhase(level);
