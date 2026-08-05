@@ -641,6 +641,16 @@ export class FeedEngine {
     if (this._enricher) {
       const byFreshness = [...capped].sort((a, b) => itemAgeHours(a, now) - itemAgeHours(b, now));
       try { await this._enricher.enrich(byFreshness); } catch {}
+      // enricher가 원문 페이지에서 새로 채운 발췌는 **원문 언어 그대로**다.
+      // 번역은 수집 단계(TranslatingSource)에서 이미 끝난 뒤라 여기까지 오지
+      // 않았다. 그래서 해외 글은 "제목만 한글, 발췌는 영어" 또는 (오늘 규칙으로
+      // 영문 발췌를 버린 뒤로는) 빈 칸이 됐다.
+      //
+      // 구글 웹번역 프록시는 한국에서 막혀 있다(2026-08-05 David 실기기 확인:
+      // "This translation service isn't available in your region"). 하지만
+      // **글자를 옮기는 엔드포인트는 우리 서버에서 멀쩡히 돈다** — 제목이 이미
+      // 그걸로 번역되고 있다. 남의 프록시로 보내는 대신 우리가 옮긴다.
+      await this._translateFilledSummaries(capped);
     }
 
     this._cache = capped;
@@ -1347,6 +1357,38 @@ export class FeedEngine {
 
   // slotId를 주면 그 시간대의 성격으로 편성한다 (David 2026-08-04).
   // 안 주면 지금 시각의 슬롯 — 기존 호출부와 호환된다.
+  // enrich가 새로 채운 발췌 중 아직 한글이 아닌 것을 옮긴다.
+  //
+  // 한 사이클에 몇 건까지만 부른다 — 무료 엔드포인트라 몰아치면 막힌다.
+  // 못 옮긴 것은 다음 사이클에 다시 후보가 된다(발췌가 그대로 남아 있으므로).
+  async _translateFilledSummaries(items, limit = 20) {
+    if (!this._translateText) return;
+    const needs = [];
+    for (const i of items) {
+      if (!i || !i.summary || i.summaryTranslated === true) continue;
+      // 원문이 한국어면 옮길 것이 없다. 한글이 한 자라도 있으면 우리 글로 본다.
+      if (/[가-힣]/.test(i.summary)) continue;
+      // 해외 소스로 표시된 것만 — 한글 없는 짧은 제목(숫자·영문 상품명 등)까지
+      // 번역기에 보내면 헛돈다.
+      if (!(i.translated === true || i.needsTranslation === true || (i.originalLang && i.originalLang !== "ko"))) continue;
+      needs.push(i);
+      if (needs.length >= limit) break;
+    }
+    for (const i of needs) {
+      try {
+        const out = await this._translateText(i.summary, { from: i.originalLang || "auto", to: "ko" });
+        // 원문과 똑같이 돌아왔다면 번역이 안 된 것이다 — 영어를 그대로 남기지
+        // 않는다(David 2026-08-05: "진짜 한 것만 띄우자").
+        if (out && out !== i.summary && /[가-힣]/.test(out)) {
+          i.summary = out;
+          i.summaryTranslated = true;
+        } else {
+          i.summary = "";
+        }
+      } catch { /* 한 건 실패가 나머지를 막지 않는다 */ }
+    }
+  }
+
   // 관심사 목록. 실패해도 브리핑을 막지 않는다 — 축 하나가 빠질 뿐이다.
   async _interests() {
     if (!this._interestsFn) return [];

@@ -3451,3 +3451,49 @@ test("성인 필터가 통째로 없다 — 글을 걸러내지 않는다", asyn
   // 정치·종교 인접 광고 가드는 그대로다 — 그건 성인 필터가 아니라 광고주 보호다
   assert.equal(adUnsafe({ title: "평범한 글", topics: ["politics"] }), true);
 });
+
+test("해외 글: 뒤늦게 채운 발췌도 우리가 한글로 옮긴다", async () => {
+  // David 2026-08-05: 구글 웹번역 프록시는 한국에서 막혀 있다(실기기 확인:
+  // "This translation service isn't available in your region"). 하지만 글자를
+  // 옮기는 엔드포인트는 우리 서버에서 멀쩡히 돈다 — 제목이 이미 그걸로 번역된다.
+  //
+  // 문제는 순서였다. enricher가 원문 페이지에서 발췌를 채우는 시점이 번역이
+  // 끝난 **다음**이라, 해외 글은 "제목만 한글, 발췌는 영어"가 됐고 영문 발췌를
+  // 버리는 규칙이 생긴 뒤로는 빈 칸이 됐다.
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const engine = new FeedEngine(null, [{ id: "x", kind: "news", async fetch() { return []; } }]);
+  const calls = [];
+  engine._translateText = async (text, opts) => {
+    calls.push({ text, ...opts });
+    return text === "Nvidia announced a new chip today" ? "엔비디아가 오늘 새 칩을 발표했다" : text;
+  };
+
+  const items = [
+    // enricher가 새로 채운 영문 발췌 — 옮겨야 한다
+    { id: "en", title: "엔비디아 새 칩", summary: "Nvidia announced a new chip today",
+      translated: true, originalLang: "en" },
+    // 이미 옮긴 것은 다시 부르지 않는다
+    { id: "done", title: "이미 번역", summary: "이미 한글입니다", translated: true, summaryTranslated: true },
+    // 한국어 원문은 대상이 아니다
+    { id: "ko", title: "국내 글", summary: "국내 커뮤니티 발췌입니다", source: "clien" },
+    // 옮기지 못하면 영문을 남기지 않는다
+    { id: "fail", title: "안 옮겨짐", summary: "Boilerplate comments on this post",
+      translated: true, originalLang: "en" }
+  ];
+  await engine._translateFilledSummaries(items);
+
+  assert.equal(items[0].summary, "엔비디아가 오늘 새 칩을 발표했다");
+  assert.equal(items[0].summaryTranslated, true);
+  assert.equal(items[1].summary, "이미 한글입니다", "이미 옮긴 것을 또 부르면 안 된다");
+  assert.equal(items[2].summary, "국내 커뮤니티 발췌입니다", "한국어 원문은 건드리지 않는다");
+  assert.equal(items[3].summary, "", "못 옮긴 영문을 그대로 남기면 안 된다");
+  // 번역기를 부른 것은 해외 글 둘뿐이다 — 국내 글까지 보내면 헛돈다
+  assert.equal(calls.length, 2, `번역기 호출 ${calls.length}회: ${calls.map(c=>c.text.slice(0,20)).join(" | ")}`);
+  assert.equal(calls[0].to, "ko");
+
+  // 번역기가 없으면(FEED_TRANSLATE 꺼짐) 아무 일도 하지 않는다
+  const off = new FeedEngine(null, [{ id: "x", kind: "news", async fetch() { return []; } }]);
+  const untouched = [{ id: "a", summary: "English text", translated: true }];
+  await off._translateFilledSummaries(untouched);
+  assert.equal(untouched[0].summary, "English text");
+});

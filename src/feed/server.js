@@ -316,6 +316,11 @@ export function createServer(opts = {}) {
     opts.translate !== undefined
       ? opts.translate
       : { targetLang: "ko", translateFn: process.env.FEED_TRANSLATE ? memoizedTranslator(googleFreeTranslator()) : null };
+  // 같은 번역기를 엔진에도 넘긴다. 수집 뒤에 enricher가 원문 페이지에서 발췌를
+  // 새로 채우는데, 그건 번역이 끝난 **다음**이라 영어 그대로 들어왔다
+  // (David 2026-08-05: "지금도 한글요약 만들어서 상세화면에 나오고 있지 않니?"
+  //  — 나오긴 하는데 소스가 발췌를 준 경우에만 나왔다).
+  const translateText = translate && translate.translateFn ? translate.translateFn : null;
   try {
     registry = loadRegistry();
     sources = buildSources(registry, { translate, seed: dev, fetcher: live ? (e) => live(e)() : undefined });
@@ -360,6 +365,7 @@ export function createServer(opts = {}) {
   // 실제로 검색하는 것"을 한 축으로 쓰게 만든다(David 2026-08-05).
   // 20분 캐시라 남의 서버를 자주 두드리지 않는다.
   engine._interestsFn = makeInterestsCache();
+  engine._translateText = translateText;
 
   // 엔진에 동기 productFeed를 주입한다. 키가 없으면 아무것도 안 한다(무광고).
   if (coupangCreds()) {
