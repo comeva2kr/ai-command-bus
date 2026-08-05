@@ -798,7 +798,40 @@ ${ownLinks}
 ${adSlotHtml("adsense")}
 ${adSlotHtml("adfit")}
 <p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
-</div></body></html>`;
+</div>${pageTracker()}</body></html>`;
+  // ── 발행 페이지 방문 측정 (2026-08-05 전수검사)
+  //
+  // 브리핑·화제랭킹·커뮤니티별·키워드는 사이트맵에 올리고 IndexNow로 통보하고
+  // RSS까지 내보내는 **검색 유입의 착지점**인데, 방문자를 세는 코드가 한 줄도
+  // 없었다. 분석 계층(analytics.js)에는 이미 그 라벨들이 준비돼 있었는데
+  // 이벤트가 도착한 적이 없어 **영원히 0**이었다.
+  //
+  // 그래서 "광고를 고쳐도 좋아졌는지 확인할 방법이 없다"가 성립했다.
+  // 애드센스 심사 문서가 지목한 유일한 지연 사유도 "코드를 삽입한 페이지에서
+  // 정기적인 조회가 발생하지 않는 경우"다 — 그 조회를 우리가 못 세고 있었다.
+  //
+  // 앱과 같은 /api/track 을 쓴다. 보내는 것은 앱과 동일하게 **유입 도메인,
+  // 화면 종류, 체류 시간**뿐이다 — 제목이나 URL 자체는 보내지 않는다.
+  const pageTracker = () => `<script>
+(function(){
+  var t0=Date.now(), sent=false;
+  function send(evs, beacon){
+    var body=JSON.stringify({userId:null, events:evs});
+    if(beacon && navigator.sendBeacon){
+      try{ navigator.sendBeacon("/api/track", new Blob([body],{type:"application/json"})); return; }catch(e){}
+    }
+    fetch("/api/track",{method:"POST",headers:{"content-type":"application/json"},body:body,keepalive:true}).catch(function(){});
+  }
+  send([{type:"view", entry:true, path:location.pathname, referrer:document.referrer||"", params:location.search||""}], false);
+  function bye(){
+    if(sent) return; sent=true;
+    send([{type:"exit", path:location.pathname, dwellMs:Date.now()-t0}], true);
+  }
+  addEventListener("pagehide", bye);
+  addEventListener("visibilitychange", function(){ if(document.visibilityState==="hidden") bye(); });
+})();
+</script>`;
+
   const fmtNum = (n) => n >= 10000 ? `${Math.round(n / 1000) / 10}만` : String(n);
   // 받침 유무 조사 선택 — "(한겨레)이 있습니다" 같은 오류(2차 검수) 방지용.
   const josa = (w, withBatchim, without) => {

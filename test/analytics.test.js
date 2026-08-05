@@ -596,3 +596,49 @@ test("대가성 고지문은 흐린 글씨로 쓰지 않는다", async () => {
   const size = Number((rule.match(/font-size:([\d.]+)px/) || [])[1]);
   assert.ok(size >= 13, `고지문이 너무 작다 (${size}px)`);
 });
+
+test("발행 페이지도 방문을 센다 — 검색 유입의 착지점이다", async () => {
+  // 2026-08-05 전수검사: 브리핑·화제랭킹·커뮤니티별·키워드는 사이트맵에 올리고
+  // IndexNow로 통보하고 RSS까지 내보내는 검색 유입의 착지점인데, 방문자를 세는
+  // 코드가 한 줄도 없었다. analytics.js에는 그 라벨이 이미 준비돼 있었는데
+  // 이벤트가 도착한 적이 없어 영원히 0이었다.
+  const { createServer } = await import("../src/feed/server.js");
+  const source = {
+    id: "clien", kind: "community",
+    async fetch() {
+      return [{ id: "a", title: "화제글 하나", url: "https://x/1", source: "clien",
+                category: "news", score: 50, commentCount: 9 }];
+    }
+  };
+  const server = createServer({ sources: [source] });
+  await new Promise((r) => server.listen(0, r));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    for (const path of ["/briefing", "/ranking/daily", "/communities"]) {
+      const html = await (await fetch(`${base}${path}`)).text();
+      assert.match(html, /\/api\/track/, `${path} 에 측정이 없다`);
+      assert.match(html, /type:"view", entry:true/, `${path} 에 유입 기록이 없다`);
+      assert.match(html, /type:"exit"/, `${path} 에 체류 기록이 없다`);
+      // 개인 식별 정보를 보내지 않는다 — 앱과 같은 원칙
+      const script = html.slice(html.indexOf("/api/track") - 600, html.indexOf("/api/track") + 900);
+      assert.ok(!/document\.title|location\.href/.test(script), `${path} 가 제목·전체 주소를 보낸다`);
+    }
+  } finally { server.close(); }
+});
+
+test("발행 페이지 방문이 화면 종류별로 집계된다", async () => {
+  // 라벨은 이미 있었다. 이벤트가 도착하기만 하면 집계된다는 것을 고정한다.
+  const { emptyBucket, applyEvent, viewLabel } = await import("../src/feed/analytics.js");
+  const b = emptyBucket();
+  for (const path of ["/briefing", "/briefing/business", "/ranking/daily", "/community/bobae", "/keyword/반도체"]) {
+    applyEvent(b, { type: "view", entry: true, path, referrer: "https://www.google.com/" }, { selfHost: "nowhot.kr" });
+  }
+  assert.equal(b.pv, 5);
+  assert.equal(b.entry["브리핑"], 2);
+  assert.equal(b.entry["화제랭킹"], 1);
+  assert.equal(b.entry["커뮤니티별"], 1);
+  assert.equal(b.entry["키워드"], 1);
+  // 어디서 왔는지도 함께 남는다 — 검색 유입인지 아닌지가 이 한 칸에 달렸다
+  assert.ok(Object.keys(b.ref).some((k) => /구글|google/i.test(k)), `유입 경로: ${JSON.stringify(b.ref)}`);
+  assert.equal(viewLabel("/deals"), "딜");
+});
