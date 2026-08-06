@@ -179,18 +179,32 @@ test("injectSlots: maxPerPage=0 or every<=0 disables insertion entirely", () => 
 
 // ---- relevance gating -------------------------------------------------------
 
-test("injectSlots: a due slot with no candidate clearing minRelevance is left empty, not force-filled", () => {
+test("injectSlots: 가격·평점을 주장하는 상품 카드는 관련성 미달이면 자리를 비운다", () => {
+  // 원래 규칙은 그대로 산다 — 특정 상품을 가격과 함께 들이미는데 문맥이 안 맞으면
+  // 그건 스팸이다.
   const items = organicItems(10);
-  const lowRelevance = [candidate("ad1", 0.1), candidate("ad2", 0.15)];
+  const lowRelevance = [
+    { ...candidate("ad1", 0.1), priceSale: 19900, rating: 4.5 },
+    { ...candidate("ad2", 0.15), priceSale: 29900, rating: 4.2 }
+  ];
   const { items: out, slots } = injectSlots(items, lowRelevance, {
-    every: 9,
-    skipFirst: 4,
-    maxPerPage: 2,
-    minRelevance: 0.3,
-    startIndex: 0
+    every: 9, skipFirst: 4, maxPerPage: 2, minRelevance: 0.3, startIndex: 0
   });
   assert.equal(slots.length, 0);
   assert.equal(out.length, items.length); // no filler inserted
+});
+
+test("injectSlots: 카테고리 배너는 관련성이 낮아도 자리를 비우지 않는다", () => {
+  // 계약 정정 2026-08-06 (David "어떤 상황에서도 광고는 떠야지").
+  // "쿠팡 도서"는 어느 글 옆에 놓아도 가격도 재고도 지어내지 않는다 — 스팸이
+  // 아니다. 그런데 상품 카드와 같은 게이트에 묶여 있어서, 문맥이 안 맞는
+  // 페이지는 광고가 통째로 0이 됐다.
+  const items = organicItems(10);
+  const banners = [candidate("banner1", 0.1), candidate("banner2", 0.15)];
+  const { slots } = injectSlots(items, banners, {
+    every: 9, skipFirst: 4, maxPerPage: 2, minRelevance: 0.3, startIndex: 0
+  });
+  assert.ok(slots.length > 0, "관련성이 낮다고 배너 자리까지 비웠다 — 그 페이지 수익이 0이다");
 });
 
 test("injectSlots: only candidates clearing the threshold are consumed", () => {
@@ -612,7 +626,15 @@ test("engine: AD_PREVIEW=1 shows [샘플] affiliate slots for a user with learne
 });
 
 
-test("engine: 정치 필터가 켜진 뷰에는 제휴 슬롯이 노출되지 않는다", async () => {
+test("engine: 정치 글 **옆에는** 광고가 붙지 않는다 (사용자 단위 차단이 아니라 글 단위)", async () => {
+  // 계약 정정 2026-08-06. 예전 계약은 "정치 보기를 켠 사용자에게는 광고 0"이었다.
+  // 취지는 옳았지만 도구가 틀렸다 — 그 토글을 한 번 켠 사람은 그 뒤로 영원히
+  // 광고가 0이 된다. David가 정치글 보기를 켠 뒤 "쿠팡 광고 안 뜬다"고 반복해서
+  // 말한 원인이 이것이었다.
+  //
+  // 정작 필요한 보호는 **글 단위**다: injectSlots가 광고를 꽂기 전에 위아래
+  // 이웃을 adUnsafe()로 검사해 정치·종교·비속어 글 옆이면 그 자리를 건너뛴다.
+  // 이 테스트는 그 보호가 실제로 도는지를 고정한다.
   await withEnvAsync({ COUPANG_PARTNER_ID: null, AD_PREVIEW: "1" }, async () => {
     const store = new FeedStore({ clock: fixedClock });
     const engine = new FeedEngine(store, [new SeedSource()]);
@@ -620,14 +642,37 @@ test("engine: 정치 필터가 켜진 뷰에는 제휴 슬롯이 노출되지 �
     learnTech(user.preferences);
     store.setTopicFilter(user.id, "politics", true);
 
-    let sawAd = false;
+    let checked = 0;
     for (let c = 0; c < 6; c++) {
       const feed = await engine.getFeed(user.id, { cursor: c * 20, limit: 20 });
-      if (feed.items.some((i) => i.kind === "affiliate")) sawAd = true;
+      const items = feed.items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind !== "affiliate") continue;
+        checked++;
+        for (const nb of [items[i - 1], items[i + 1]]) {
+          if (!nb || nb.kind === "affiliate") continue;
+          const t = Array.isArray(nb.topics) ? nb.topics : [];
+          assert.ok(!t.includes("politics") && !t.includes("religion"),
+            `정치·종교 글 옆에 광고가 붙었다: ${nb.title}`);
+          assert.ok(nb.category !== "politics" && nb.category !== "religion",
+            `정치·종교 분류 글 옆에 광고가 붙었다: ${nb.title}`);
+        }
+      }
       if (feed.exhausted) break;
     }
-    assert.equal(sawAd, false);
+    // 사용자 단위로 막지 않으므로 광고는 나와야 한다 — 안 나오면 수익이 0이다.
+    assert.ok(checked > 0, "정치 보기를 켠 사용자에게 광고가 한 건도 안 나갔다");
   });
+});
+
+test("광고 세션 상한은 폭주 방지지 수익 상한이 아니다", async () => {
+  const { adParams } = await import("../src/feed/monetize.js");
+  // 실측(2026-08-06 라이브): 12페이지를 넘겨도 광고가 6건에서 멈췄다.
+  // 밀도(9칸마다·페이지당 2개·앞 6칸 보호)가 이미 촘촘함을 막는데 그 위에
+  // 하루 6건을 걸어 두니, 조금만 스크롤하면 그 뒤로 광고가 영영 안 나왔다.
+  const p = adParams();
+  assert.ok(p.maxPerSession >= 30,
+    `세션 상한 ${p.maxPerSession} — 밀도가 아니라 이 값이 수익을 묶고 있다`);
 });
 
 // ---- round-2 review #2 (치명, "정치 게이트 갭") -------------------------------
@@ -1397,4 +1442,36 @@ test("광고: 승인 전 애드핏은 지면 자체를 내주지 않는다 (빈 
   assert.match(html, /function ensureAdfitPlacement\(\)/, "애드핏 배선이 통째로 사라졌다");
   assert.match(html, /if\(!unit \|\| document\.getElementById\("adfitSlot"\)\) return;/,
     "광고단위가 없을 때 지면을 안 그리는 가드가 없다");
+});
+
+test("광고가 0이 되는 길이 남아 있지 않다 (David 2026-08-06 '어떤 상황에서도 광고는 떠야지')", async () => {
+  // 사흘 동안 광고가 됐다 안 됐다 한 원인을 한자리에 고정한다. 아래 넷이
+  // **동시에** 걸려 있었고, 하나씩 고치면 다른 하나가 남아 또 0이 됐다.
+  const { readFileSync } = await import("node:fs");
+  const engine = readFileSync("src/feed/engine.js", "utf8");
+  const mon = readFileSync("src/feed/monetize.js", "utf8");
+
+  // ① 사용자 단위 차단 — 정치·종교 보기를 켜면 그 사람은 영원히 광고 0이었다.
+  assert.ok(!/const monetizeAllowed = !showTopics/.test(engine),
+    "사용자 단위 광고 차단이 되살아났다 — 토글 한 번이면 그 사람 수익이 영구히 0이다");
+  assert.ok(!/latestMonetizeAllowed/.test(engine), "최신 탭에 사용자 단위 차단이 남아 있다");
+
+  // ② 세션 상한 — 밀도가 아니라 이 값이 수익을 묶고 있었다(하루 6건).
+  const { adParams } = await import("../src/feed/monetize.js");
+  assert.ok(adParams().maxPerSession >= 30, "세션 상한이 다시 수익 상한이 됐다");
+
+  // ③ 관련성 게이트 — 배너까지 묶어 문맥 안 맞는 페이지를 0으로 만들었다.
+  assert.match(mon, /const pool = relevant\.length \? relevant : claimless;/,
+    "관련성 미달일 때 배너 폴백이 사라졌다");
+
+  // ④ 반응 적응 — 안 보여서 안 눌리는데 더 성글게 내는 자기 강화 고리.
+  assert.match(mon, /clamp\(1 \/ \(1 \+ sensitivity \* \(r - 1\)\), 0\.5, 1\.15\)/,
+    "낮은 클릭률이 광고를 무한정 성글게 만들 수 있다");
+
+  // 브랜드 안전은 글 단위로 계속 지킨다 — 이건 약해지면 안 된다.
+  const promo = readFileSync("src/feed/promotion.js", "utf8");
+  assert.match(promo, /item\.category === "politics" \|\| item\.category === "religion"/,
+    "글 단위 보호가 topics만 보고 분류를 안 본다");
+  assert.match(mon, /const neighborUnsafe = adUnsafe\(items\[i - 1\]\) \|\| adUnsafe\(item\);/,
+    "광고 인접 안전검사가 사라졌다");
 });

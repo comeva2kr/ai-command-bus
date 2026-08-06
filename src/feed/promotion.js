@@ -105,6 +105,11 @@ export function adUnsafe(item) {
   if (!item) return false;
   const topics = Array.isArray(item.topics) ? item.topics : [];
   if (topics.includes("politics") || topics.includes("religion")) return true;
+  // **분류(category)도 본다.** topics는 토픽 사전이 붙여 주는 값이라 못 붙는
+  // 글이 있는데, 분류기가 politics로 넣은 글은 그 자체로 정치 글이다.
+  // 사용자 단위 광고 차단을 걷어내면서(engine.getFeed) 이 검사가 유일한
+  // 방어선이 되었으므로, 틈을 남기면 안 된다(2026-08-06).
+  if (item.category === "politics" || item.category === "religion") return true;
   if (hasProfanity(item.title)) return true;
   return false;
 }

@@ -991,10 +991,9 @@ export class FeedEngine {
             this.store.recordSourceExposure(userId, latestFresh.map((r) => diversityKey(r.item)));
           }
         }
-        const latestMonetizeAllowed = !showTopics.has("politics") && !showTopics.has("religion");
-        const latestDisplay = latestMonetizeAllowed
-          ? this._monetize(userId, user, latestBatch, cursor, false).items
-          : latestBatch;
+        // 위 홈 피드와 같은 이유로 사용자 단위 차단을 걷어냈다 — 브랜드 안전은
+        // injectSlots의 adUnsafe(글 단위)가 지킨다.
+        const latestDisplay = this._monetize(userId, user, latestBatch, cursor, false).items;
         return {
           items: latestDisplay,
           nextCursor: cursor + latestBatch.length,
@@ -1135,12 +1134,18 @@ export class FeedEngine {
     // `nextCursor` below stays based on `batch.length` (organic count only)
     // so pagination is unaffected by however many slots got inserted.
     //
-    // 정치/종교 필터가 켜진 뷰에는 절대 노출하지 않는다 — 신뢰 훼손 방지
-    // + 광고 네트워크 계정정지 리스크 (docs/monetization.md Non-Goals).
-    const monetizeAllowed = !showTopics.has("politics") && !showTopics.has("religion");
-    const displayItems = monetizeAllowed
-      ? this._monetize(userId, user, batch, cursor, Boolean(source)).items
-      : batch;
+    // 브랜드 안전은 **글 단위**로 지킨다 — 사용자 단위로 끄지 않는다.
+    //
+    // 예전에는 정치·종교 보기를 켠 사용자에게 광고를 **아예 안 줬다**. 취지는
+    // 옳았지만(민감한 글 옆 광고 금지) 도구가 틀렸다: 그 토글을 한 번 켠 사람은
+    // 그 뒤로 영원히 광고가 0이 된다. 실측(2026-08-06) — David가 정치글 보기를
+    // 켠 뒤 "쿠팡 광고 안 뜬다"고 반복해서 말한 원인이 이것이다.
+    //
+    // 정작 필요한 보호는 이미 **글 단위**로 있다: monetize.js의 injectSlots가
+    // 광고를 꽂기 전에 위아래 이웃을 adUnsafe()로 검사해, 정치·종교·성인·비속어
+    // 글 옆이면 그 자리를 건너뛴다. 사용자 단위 차단은 그 위에 얹힌 중복이었고,
+    // 얻는 것 없이 그 사용자의 수익만 통째로 0으로 만들었다.
+    const displayItems = this._monetize(userId, user, batch, cursor, Boolean(source)).items;
 
     const selMeta = this._lastSelectMeta || null;
     return {
@@ -1190,7 +1195,16 @@ export class FeedEngine {
     // 등 다른 튜너블에서 0/이하는 "완전 비활성"인 것과 비대칭이었다. 이제
     // 0은 명시적으로 "광고 0개"(즉시 차단)로, 음수는 명시적으로 "무제한"
     // (캡 미적용)으로 처리한다 — docs/monetization.md에도 반영.
-    if (params.maxPerSession === 0) return { items: batch, slots: [] };
+    // 0은 "광고 완전 차단"이라는 명시적 설정값이다(음수는 무제한). 운영 중에
+    // 실수로 0이 들어가면 수익이 조용히 0이 되므로 로그로 알린다 — 조용히
+    // 사라지는 것이 가장 나쁘다(David 2026-08-06 "어떤 상황에서도 광고는 떠야지").
+    if (params.maxPerSession === 0) {
+      if (!this._warnedAdOff) {
+        this._warnedAdOff = true;
+        console.warn("[ad] AD_MAX_PER_SESSION=0 — 광고를 내보내지 않는 설정입니다");
+      }
+      return { items: batch, slots: [] };
+    }
     if (params.maxPerSession > 0) {
       const already = this.store.adSlotsServedCount ? this.store.adSlotsServedCount(userId) : 0;
       if (already >= params.maxPerSession) return { items: batch, slots: [] };

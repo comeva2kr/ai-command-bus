@@ -25,10 +25,15 @@
 //   - No dark patterns: no countdown timers, no fabricated "N명이 구매중"
 //     counters, no auto-navigate-on-load. A slot is inert until tapped, same
 //     as every organic card.
-//   - Relevance gating over forced fill: a slot with no candidate clearing
-//     `minRelevance` is left EMPTY, not backfilled with an irrelevant pick —
-//     an irrelevant ad reads as spam and erodes trust faster than a missed
-//     impression costs revenue.
+//   - Relevance gating over forced fill, **for product-unit cards**: a slot with
+//     no candidate clearing `minRelevance` is not backfilled with an irrelevant
+//     product pick — an irrelevant product card reads as spam and erodes trust
+//     faster than a missed impression costs revenue.
+//     2026-08-06 정정: 이 규칙을 **카테고리 배너**에까지 적용하고 있었다.
+//     "쿠팡 도서"는 어느 글 옆에 놓아도 가격도 재고도 지어내지 않으므로 스팸이
+//     아니다. 그런데 같은 게이트에 묶여 있어 문맥이 안 맞는 페이지는 광고가
+//     통째로 0이 됐다. 이제 폴백은 주장하지 않는 후보(가격·평점 없는 배너)로만
+//     한다 — 상품 단위 카드에는 원래 규칙이 그대로 산다.
 
 import { adCopy } from "./ad-copy.js";
 import { adUnsafe } from "./promotion.js";
@@ -52,7 +57,14 @@ const AD_SKIP_FIRST_DEFAULT = 6; // 첫 화면 보호: 앞 K개엔 슬롯 없음
 const AD_MAX_PER_PAGE_DEFAULT = 2; // 페이지(요청 1건)당 슬롯 상한 — 세션 총량 상한은 AD_MAX_PER_SESSION
 // 2026-07-25 라운드1 검수 #7: AD_MAX_PER_PAGE는 "요청 1건"의 상한일 뿐이라 스크롤을
 // 계속하면 세션 전체 노출이 무제한으로 누적된다. 유저(세션/24h)당 총 노출 상한.
-const AD_MAX_PER_SESSION_DEFAULT = 6;
+//
+// 2026-08-06: 6 → 40. **6은 폭주 방지가 아니라 수익 상한이었다.**
+// 밀도 규칙(9칸마다 1개, 페이지당 최대 2개, 앞 6칸 보호)이 이미 촘촘함을 막는데,
+// 그 위에 하루 6건을 걸어 두니 조금만 스크롤해도 그 뒤로는 광고가 영영 안 나왔다 —
+// 실측: 12페이지를 넘겨도 6건에서 멈췄고, David가 "쿠팡 광고 안 뜬다"고 한 원인이다.
+// 40이면 유기 카드 360개쯤을 봐야 닿는다. 사람이 실제로 그만큼 스크롤하는 일은
+// 드물어 밀도가 계속 실질 제어권을 갖고, 폭주 루프만 여기서 멈춘다.
+const AD_MAX_PER_SESSION_DEFAULT = 40;
 const AD_MIN_RELEVANCE_DEFAULT = 0.3; // 관련성 게이팅 임계치
 const AD_EVERY_MIN = 4; // adaptiveEvery 하한 — 고반응 유저라도 이보다 촘촘히는 안 감
 const AD_EVERY_MAX = 24; // adaptiveEvery 상한 — 저반응 유저라도 이보다 성글게는 안 감
@@ -214,8 +226,27 @@ export function injectSlots(items, candidates, opts = {}) {
 
   if (every <= 0 || maxPerPage <= 0) return { items: out, slots };
 
-  const pool = (candidates || []).filter((c) => (c.relevance ?? 0) >= minRelevance);
-  if (!pool.length) return { items: out, slots }; // nothing clears relevance — every due slot stays empty
+  // 관련성 게이트를 통과한 후보를 먼저 쓴다. **다 걸려도 광고를 버리지는 않는다** —
+  // 예전에는 여기서 빈손으로 돌아가 그 페이지의 광고가 통째로 0이 됐다.
+  // 카테고리 배너는 어느 글 옆에 놓아도 거짓말이 아니므로(가격·재고를 주장하지
+  // 않는다) 관련성이 낮다고 자리를 비울 이유가 없다. 문맥이 맞으면 더 잘 눌릴
+  // 뿐이지, 안 맞는다고 0원이 되어야 하는 건 아니다(David 2026-08-06
+  // "어떤 상황에서도 광고는 떠야지").
+  const relevant = (candidates || []).filter((c) => (c.relevance ?? 0) >= minRelevance);
+  // 관련성 게이트를 통과한 후보를 먼저 쓴다. 다 걸리면 **범용 배너로 채운다.**
+  //
+  // 원래 규칙("관련 없으면 자리를 비운다")은 **상품 카드**를 전제로 쓰였다.
+  // 특정 상품을 가격·평점과 함께 들이미는데 문맥이 안 맞으면 그건 스팸이 맞다.
+  // 그런데 지금 나가는 것은 카테고리 배너다 — "쿠팡 도서"는 어느 글 옆에 놓아도
+  // 지어내는 것이 없다. 그 둘을 같은 규칙으로 묶어 두는 바람에, 문맥이 안 맞는
+  // 페이지는 광고가 통째로 0이 됐다(David 2026-08-06 "어떤 상황에서도 광고는 떠야지").
+  //
+  // 그래서 폴백은 **주장하지 않는 후보**(가격·평점이 없는 배너)로만 한다.
+  // 상품 단위 카드가 붙는 날에는 예전 규칙이 그대로 살아 있어야 한다.
+  const claimless = (candidates || []).filter(
+    (c) => c.priceSale == null && c.priceOriginal == null && c.rating == null);
+  const pool = relevant.length ? relevant : claimless;
+  if (!pool.length) return { items: out, slots }; // 채울 수 있는 후보가 없다
 
   const built = [];
   // 로테이션 순서는 그대로 두되, 이웃이 딜 글이면 **그 상품군 후보를 먼저**
@@ -299,7 +330,14 @@ export function adaptiveEvery(baseEvery, ratio, opts = {}) {
   if (ratio == null || !Number.isFinite(baseEvery) || baseEvery <= 0) return baseEvery;
   const sensitivity = opts.sensitivity ?? AD_RESPONSIVENESS_SENSITIVITY_DEFAULT;
   const r = clamp(ratio, 0.2, 3);
-  const factor = clamp(1 / (1 + sensitivity * (r - 1)), 0.5, 1.8);
+  // 상한을 1.8 → 1.15로 좁힌다.
+  //
+  // 이 함수는 클릭률이 낮으면 광고를 성글게 낸다. 그런데 클릭률이 낮은 이유가
+  // **광고가 안 보여서**인 초기에는, 성글게 낼수록 더 안 보이고 클릭률이 더
+  // 떨어지는 자기 강화 고리가 된다(9칸 → 13칸 → 더 뒤로). 실제로 그 고리를
+  // 한 번 겪었다(2026-08-05 클릭 보고 누락 사고).
+  // 촘촘해지는 쪽(0.5)은 그대로 둔다 — 잘 눌리면 더 내보내는 건 이득이다.
+  const factor = clamp(1 / (1 + sensitivity * (r - 1)), 0.5, 1.15);
   const every = Math.round(baseEvery * factor);
   return clamp(every, opts.min ?? AD_EVERY_MIN, opts.max ?? AD_EVERY_MAX);
 }
