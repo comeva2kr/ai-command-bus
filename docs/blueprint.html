@@ -565,6 +565,182 @@ flowchart LR
   </div>
 </section>
 
+
+<!-- ============ 적대적 전수검사 2026-08-06 ============ -->
+<section>
+  <div class="phase-head">
+    <span class="pnum">검수</span>
+    <h2>적대적 전수검사 — 2026-08-06</h2>
+    <span class="ptag">구글·네이버·카카오·엔트로픽 12인 · 블루프린트 기준</span>
+  </div>
+
+  <p><strong>어떻게 했나.</strong> 시니어 엔지니어·프로그래머·디자이너·GUI·UX를 회사별로 나눠 12명이
+  <b>서로 모르는 채</b> 담당 차원만 검사했다. 기준은 이 블루프린트 — "약속한 것과 실제가 어긋나는가"를 본다.
+  나온 발견마다 <b>반박이 임무인 검증자</b>를 따로 붙여 재현되는 것만 남겼다.</p>
+
+  <p><strong>결과.</strong> 원 발견 37건 → 상위 20건 검증 → <b>20건 확정</b>.
+  검증자가 하나도 반박하지 않은 것은 <b>무른 신호</b>라, 확정 건도 코드를 직접 열어 재확인했고 실제로
+  한 건은 심각도가 과장돼 있었다(발행 페이지 광고 계측: P0 → P1).</p>
+
+  <p><strong>가장 아픈 사실.</strong> 확정 20건 중 <b>4건이 그날 내가 쓴 코드</b>에서 나왔다.
+  딜 상한이 무한스크롤을 죽였고, 웜 캐시가 소스별 상한을 건너뛰었고, 애드핏 지면이 쿠팡 카드와 붙었고,
+  딜 정렬이 재고 절반을 건너뛴다. David가 "고치면 다른 게 꼬인다"고 한 것이 숫자로 확인됐다.
+  <b>원인은 바꾼 것만 재고 그 옆을 안 잰 것이다</b> — 딜 간격은 세 번 실측하면서 "그래서 스크롤이 되나"는
+  한 번도 보지 않았다.</p>
+
+  <h3>확정 20건</h3>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>상태</th><th>내용</th><th>위치</th></tr></thead>
+    <tbody>
+      <tr><td><span class="chip done">고침</span></td><td><b>P0</b> · 계정 결속(bindDevice)이 '먼저 주장하는 쪽이 임자'라 공격자가 남의 알고 있는 userId를 선점해 계정을 뺏고 진짜 주인을 영구 잠글 수 있다 — 라</td><td><code>src/feed/store.js:98-111 (bindDevice) · src/feed/server.js:1066-1088 (ownerOf/denied)</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · 블루프린트가 "완료"라고 선언한 발행 페이지(브리핑·랭킹·트렌드·키워드·커뮤니티) 쿠팡 광고 계측이 실제로는 전혀 구현되어 있지 않다</td><td><code>src/feed/server.js:681 (editionShell 인라인 트래킹 스크립트) vs docs/blueprint.html:605-626, 672-675, 1417 / 라이브 https:/</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · collect()의 제목(이벤트키) 중복 제거가 등록 순서로만 승자를 정해, 구글뉴스 사본이 원문 매체 기사를 상시 이긴다</td><td><code>src/feed/content.js:287-298 (collect 함수 dedup 루프); 소스 순서 근거: src/feed/communities.json (gnews 인덱스 40, yna/khan</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · rankingTop()이 소스별 그룹화 없이 sourceHotScores를 전체 혼합 풀에 직접 호출해, 무신호 뉴스(구글뉴스 등)의 백분위·교차보도 점수 체계가</td><td><code>src/feed/engine.js:1416 (rankingTop 내부 `const scored = sourceHotScores(pool, now)`)</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · roundRobinInterleave의 연속 배치 금지(minGap)가 diversityKey가 아니라 원본 item.source로 비교돼, feedGroup으로</td><td><code>src/feed/ingest.js:804 (`const recentSrcs = out.slice(-minGap).map((it) =&gt; it.source);`), 비교 지점: ingest.js:</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · 브리핑 이슈 클러스터링(clusterIssues)이 카테고리 사전 태그 2개 겹침만으로 서로 다른 사건을 하나로 묶어, 자동 생성 문장이 사실과 다른 '교차보도'</td><td><code>src/feed/digest.js:48-67 (clusterIssues, 기본 minShared=2), 피해 발생 지점: digest.js:215-222 (issueParagraph의 coverag</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · 재시작 직후 웜 캐시(_loadPool)가 소스별 캡·URL 중복제거를 건너뛰어, 한 소스가 피드를 독점하거나 중복 기사가 재등장한다</td><td><code>src/feed/engine.js:509-524 (_loadPool), 대조: 583-648 (_refresh의 캡·dedup 단계)</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · _loadPool이 손상된/스키마 불일치 행을 걸러내는 검증을 _pool에만 적용하고 _cache 생성에는 빠뜨려, 재시작 직후 모든 요청이 예외로 죽을 수 있다</td><td><code>src/feed/engine.js:517 vs 521</code></td></tr>
+      <tr><td><span class="chip done">고침</span></td><td><b>P1</b> · POST /api/submit는 P0에서 다른 라우트엔 다 걸린 소유권 검사(denied/ownerOf)가 빠져 있어, 아무나 로그인·기기쿠키 없이 body.us</td><td><code>src/feed/server.js:1670-1686 (대조: 바로 위 /api/post는 server.js:1656-1668에서 denied(body.userId)를 호출)</code></td></tr>
+      <tr><td><span class="chip done">고침</span></td><td><b>P1</b> · POST /api/push/subscribe도 소유권 검사가 빠져 있어, userId만 알면 남의 푸시 구독을 공격자 자신의 엔드포인트로 조용히 덮어써 알림을 가</td><td><code>src/feed/server.js:1984-1989</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · 같은 발행 페이지들의 쿠팡 배너·문구가 방문자·요청과 무관하게 영구 고정되어 있어 ad-matrix.js의 회전/학습 설계가 그 표면에서 작동하지 않는다</td><td><code>src/feed/server.js:612-645 (coupangBannerHtml — pick이 호출부 리터럴 상수), 호출부 예: server.js:1000, 1322, 1326, 1350, 13</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · 클라이언트의 독립 광고 삽입 경로(maybeInsertAdfit)가 서버의 세션 총량 캡(AD_MAX_PER_SESSION)을 전혀 인지하지 못해 세션 광고 노출</td><td><code>src/feed/public/index.html:1994-2086 (maybeInsertAdfit, AD_FIRST=6/AD_EVERY=10) vs src/feed/engine.js:1183-119</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · ensureAdfitPlacement(오늘 추가)와 maybeInsertAdfit이 서로의 삽입 결과를 모르고 계산해, 첫 페이지에서 광고 카드 두 장이 콘텐츠 </td><td><code>src/feed/public/index.html:1946-1992 (ensureAdfitPlacement), :1994-2075 (maybeInsertAdfit), 호출부 :3019-3021 (re</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · sort=deals 페이지네이션이 seen 필터와 cursor 오프셋을 동시에 적용해 딜 재고의 절반을 영구히 건너뛰고 조기에 '더 없음(exhausted)'을 </td><td><code>src/feed/engine.js:887-897 (base — seen 제외), engine.js:930-963 (sort==="deals"), 특히 engine.js:939-944</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · 토스트 알림(.toast)이 라이트 모드에서 텍스트가 배경과 거의 같은 색이 되어 사실상 안 보임</td><td><code>src/feed/public/index.html:469-471 (정의), :529 (--text 재배선), :523 (--color-text 라이트값), 사용처 다수(예: :1510 toast() </code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · 게임(gaming) 카테고리 브리핑 페이지가 전역 내비게이션·sitemap에 노출되지만 실제로는 404 JSON 에러를 반환한다</td><td><code>https://nowhot.kr/briefing/gaming · sitemap.xml &lt;loc&gt;https://nowhot.kr/briefing/gaming&lt;/loc&gt; · src</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · 이용자가 올린 미검수 글이 검수 없이 즉시 공개 '핫' 피드에 반영돼, 테스트/공격성 문구가 실제 방문자에게 그대로 노출된 사례를 라이브에서 확인함</td><td><code>https://nowhot.kr/ (홈 '핫' 탭, '새로운 탐색' 사유 노출) · POST /api/post (src/feed/server.js:1656-1668) · store.createPos</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · 수익·지출 탭 저장 시 손대지 않은 기본 고정비 행(VM·도메인)이 0원으로 확정 저장되어 '미입력'이 '고정비 0원'으로 둔갑한다</td><td><code>src/feed/public/admin.html:282-283 (기본 fixedRows), :300-304 (saveFinance), src/feed/store.js:445-453 (setFixed</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P1</b> · 무한스크롤이 500건(약 42페이지) 넘게 내리면 exhausted 신호 없이 이미 본 글을 새 글인 척 무한 재노출한다</td><td><code>src/feed/store.js:565 (markSeen — user.seen = [...set].slice(-500)); src/feed/engine.js:895 (!seen.has(i.id) 필</code></td></tr>
+      <tr><td><span class="chip warn">대기</span></td><td><b>P2</b> · 광고 카드의 '왜 이 광고인지' 사유 칩(.ad-why)이 라이트 모드에서 거의 안 보임 — 형제 클래스 .why만 재배선되고 누락됨</td><td><code>src/feed/public/index.html:220-226 (정의, 주석이 옛 다크 배경 #171922 기준임을 자백), :3243 (사용), 대조: :939-940 (.why는 테마 대응 재배</code></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>검증까지 못 간 나머지 17건</h3>
+  <p>심각도 순으로 상위 20건만 검증에 넣었다. 아래는 발견됐으나 아직 재현 확인을 안 한 것들이다 —
+  <b>사실로 확정된 것이 아니므로</b> 고치기 전에 각각 재현부터 한다.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>주장 심각도</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td>P1</td><td>상세 화면(전문 읽기) 광고에는 adUnsafe 안전검사가 없어 정치·욕설·참사 관련 글 바로 아래에도 쿠팡 광고가 그대로 붙는다</td></tr>
+      <tr><td>P1</td><td>"지금 브리핑" 알림 호흡이 무관한 "실시간 트렌드" 카드를 눌러도 함께 꺼진다</td></tr>
+      <tr><td>P2</td><td>광고 노출/클릭·행동분석 이벤트마다 전체 store를 동기적으로 재직렬화·디스크에 쓴다 — 이벤트 볼륨이 늘수록 이벤트 루프 정체 위험이 커진다</td></tr>
+      <tr><td>P2</td><td>회원 글쓰기(via:"me")의 내부 userId가 author 필드로 공개 /api/feed·/api/item 응답에 그대로 노출돼, 위 두 취약점의 공격 대상(userId)을 누구나 수집할 수 </td></tr>
+      <tr><td>P2</td><td>관리자 인증이 URL 쿼리스트링 토큰(?token=)도 그대로 받아줘, 토큰이 프록시 로그·브라우저 히스토리·리퍼러로 새어나갈 여지를 남긴다</td></tr>
+      <tr><td>P2</td><td>POST 라우트 대다수가 잘못된 JSON 본문이나 존재하지 않는 itemId 같은 클라이언트 입력 오류를 500(서버 오류)으로 응답한다 — 같은 종류의 오류를 200/400/404로 정상 처리하는</td></tr>
+      <tr><td>P2</td><td>광고 카드 썸네일과 콘텐츠 카드 썸네일의 테두리 불투명도가 서로 달라 '같은 문법'이 깨짐</td></tr>
+      <tr><td>P2</td><td>news 맥락 훅이 사고·산불 등 실제 참사·재난 뉴스를 가볍게 소재로 삼아, 블루프린트가 직접 경계한 '문맥이 맞아 보이는 광고' 위험을 카피 자체에 심어 놓음</td></tr>
+      <tr><td>P2</td><td>oversea 목적지의 훅 '오늘도 외화유출했다'가 David의 SYSTEM 프롬프트 예시를 그대로 베껴 5개 맥락 전부에 무수정 재사용됨 — 맥락별 어조 차별화가 실패</td></tr>
+      <tr><td>P2</td><td>관리자 API 인증이 URL 쿼리스트링(?token=)도 허용해 토큰이 브라우저 히스토리·Referer로 새 나갈 수 있다</td></tr>
+      <tr><td>P2</td><td>서버가 반환하는 월별 이력 목록(months)이 화면에서 전혀 쓰이지 않아 과거 달 조회가 사실상 불가능하다</td></tr>
+      <tr><td>P2</td><td>브리핑 첫 배너(brief_mid·archive_mid)만 섹션 문맥 매칭 없이 무작위로 나가 나머지 배너와 설계가 어긋난다</td></tr>
+      <tr><td>P3</td><td>maybeInsertAdfit 안에 항상 false인 useAdfit 분기로 도달 불가능한 죽은 코드가 남아 있다</td></tr>
+      <tr><td>P3</td><td>모든 /api/* JSON 응답에 Cache-Control 헤더가 전혀 없다 — 정적 자원에는 세심하게 적용한 캐시 규율이 API 응답(개인화된 /api/me, 관리자 응답 포함)에는 적용되지 않는</td></tr>
+      <tr><td>P3</td><td>글쓰기 폼의 norm-hint 텍스트가 라이트 모드에서 저대비 (사용 빈도는 낮음)</td></tr>
+      <tr><td>P3</td><td>주방/유아동/반려동물 CTA가 ad-copy.js의 실제 도착지 명칭에 없는 조어 '~관'을 붙여 만들어져, 배지에 뜨는 도착지명과 버튼 문구가 서로 다른 이름을 씀</td></tr>
+      <tr><td>P3</td><td>한 번 입력한 매출액을 다시 '미입력' 상태로 되돌릴 방법이 없다</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>다시 안 밟기 위한 고정 점검</h3>
+  <p>배포 전에 매번 도는 항목으로 넣는다. 셋 다 오늘 실제로 깨진 것들이라 짐작이 아니다.</p>
+  <ul>
+    <li><b>피드 10페이지 연속 로드</b> — 각 페이지가 꽉 차는가, exhausted가 거짓으로 뜨지 않는가</li>
+    <li><b>광고 카드가 실제로 그려지는가</b> — 링크·이미지·문구 3단이 다 있는가</li>
+    <li><b>애드핏 지면이 DOM에 있는가</b> — 심사 조건이라 사라지면 안 된다</li>
+  </ul>
+</section>
+
+<!-- ============ P0-A · 애드핏 4차 반려 (2026-08-06) ============ -->
+<section>
+  <div class="phase-head">
+    <span class="pnum">P0-A</span>
+    <h2>자체 콘텐츠 비중 — 광고 승인의 전제</h2>
+    <span class="ptag">이걸 못 넘기면 아래 전부가 0원</span>
+    <span class="chip crit">최우선</span>
+  </div>
+
+  <p><strong>4차 반려 사유(2026-08-06).</strong> "자체 콘텐츠가 아닌 외부 콘텐츠, 외부 링크가 많은 비중을
+  차지하고 있는 매체는 광고게재가 허용되지 않습니다. 자체적인 콘텐츠를 충분히 보충 후 재심사를 요청해
+  주시기 바랍니다."</p>
+
+  <p><strong>이번엔 배치 문제가 아니다.</strong> 1~3차 반려는 지면·설치처럼 우리가 하루면 고치는 것이었다.
+  이번 사유는 <b>서비스의 형태 자체</b>를 지적한다. 지금까지처럼 "고치고 재신청"을 반복하면 계속 같은 자리에서
+  막힌다. 구조를 바꿔야 한다.</p>
+
+  <div class="evidence">
+    <span class="src">애드핏 운영정책 원문 (adfit.kakao.com/web/html/use_kakao.html, 2026-08-06 확인)</span>
+    <div>
+      · "언론이나 타 사이트의 게시글로 전체 또는 일부 구성되어 <b>자체 콘텐츠가 없는 경우</b>"<br>
+      · "<b>아웃링크만으로 구성되었거나 그 비중이 높은</b> 콘텐츠만 게재되어 있는 경우"<br>
+      · "콘텐츠를 타 사이트에서 정당하지 않은 방법 또는 권리자의 허락없이 <b>복제해 온 경우</b>"<br>
+      · "콘텐츠에 대한 정식 퍼블리싱 계약을 맺지 않고 <b>API를 통해 가져온 정보들로만</b> 구성한 경우"
+    </div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">우리 실측 (2026-08-06)</span>
+    <div>
+      sitemap 81쪽 중 <b>자체 콘텐츠 77쪽</b>(커뮤니티 47 · 브리핑 17 · 키워드 8 · 랭킹 3 · 트렌드 1 · 커뮤니티순위 1).
+      즉 <b>자체 콘텐츠가 없는 게 아니다 — 안 보이는 것이다.</b><br><br>
+      심사자가 처음 보는 홈은 브리핑 스트립 한 줄(140px 카드) 뒤로 <b>전부 아웃링크 카드</b>다.
+      자체 콘텐츠 77쪽은 서랍 메뉴와 하단 링크에만 있다. 정책 문구 그대로 "아웃링크 비중이 높은" 화면이다.
+    </div>
+  </div>
+
+  <h3>검토한 방안과 판정</h3>
+
+  <div class="evidence">
+    <span class="src">David 제안 ① 딜 전용 게시판에 우리 딜도 직접 올린다 — <b>채택</b></span>
+    <div>정책의 모든 조항을 통과한다. 우리가 고르고 우리가 쓴 상품 소개는 <b>자체 콘텐츠</b>이고, 링크는 아웃링크가
+    아니라 <b>제휴 링크</b>이며, 복제가 아니다. 게다가 수익과 직결된다 — 딜 글은 이미 "광고가 붙을 자리를 만드는 글"이다.
+    커뮤니티 딜과 우리 딜이 한 판에서 경쟁하면 사용자에게도 손해가 없다.</div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">David 제안 ② 사람 페르소나 봇이 미연결 게시판 핫글을 퍼온다 — <b>보류(고위험)</b></span>
+    <div>수익 우선 원칙으로도 이건 못 넘긴다. 세 가지가 동시에 걸린다.<br><br>
+    <b>(1) 정책 정면 위반.</b> 퍼오는 것은 정책이 명시한 "권리자의 허락없이 복제"다. 그리고 퍼온 글에는 원문 링크가
+    따라붙으므로 <b>아웃링크 비중을 오히려 높인다</b> — 이번 반려 사유를 악화시킨다.<br>
+    <b>(2) 계정 위험.</b> 사람인 척하는 계정으로 활동을 꾸미는 것은 심사자를 속이는 행위다. David가 정한
+    "계정이 막히거나 신뢰를 잃으면 파이프라인 자체가 사라진다"는 선에 정면으로 걸린다. 회색지대가 아니라 하드 스톱이다.<br>
+    <b>(3) 저작권.</b> 우리가 지켜 온 "제목·링크·공개 반응수만, 본문 미수집" 원칙을 스스로 깨는 것이다.<br><br>
+    <b>살릴 수 있는 형태는 있다.</b> 페르소나를 지우고 <b>"지금핫 편집"이라는 우리 이름의 공개 계정</b>으로,
+    퍼오는 대신 <b>우리가 쓴 글</b>을 올리면 위 셋이 전부 사라진다. 아래 ③~⑤가 그 형태다.</div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">③ 홈의 앞자리를 자체 콘텐츠에 준다 — <b>채택 (가장 싸고 빠름)</b></span>
+    <div>이미 만들어 둔 77쪽이 서랍에만 있다. 브리핑 본문 요약·오늘의 딜·화제 랭킹을 홈 첫 화면에 <b>펼친 형태</b>로
+    올리면, 코드를 새로 쓰지 않고도 심사자가 처음 보는 화면의 아웃링크 비중이 내려간다. 사용자에게도 이득이다 —
+    우리가 만든 것이 가장 안 보이는 자리에 있는 게 원래 이상했다.</div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">④ 우리만 가진 데이터로 쓰는 글 — <b>채택 (차별점과 같은 방향)</b></span>
+    <div>우리는 <b>남이 못 가진 원본 자료</b>를 매일 만들고 있다. 커뮤니티별 반응 분포, 시간대별 화제 이동,
+    키워드 추이, 소스 헬스. 이걸로 쓰는 "이번 주 커뮤니티 지형", "어제 가장 빨리 식은 이슈" 같은 글은
+    <b>복제가 아니라 우리가 생산한 것</b>이고, 아웃링크가 없어도 성립한다. 블루프린트가 말한 "여기서만 볼 수 있는 것"(관문 5)과
+    같은 물건이다 — 심사 대응과 차별점이 한 방향이다.</div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">⑤ 상세 화면을 "읽을 것이 있는 쪽"으로 — <b>채택</b></span>
+    <div>지금 상세는 발췌 몇 줄 + 원문 버튼이라 사실상 아웃링크 통로다. 여기에 우리 편집 코멘트(editorial.js가
+    이미 만든다)와 반응 추이, 같은 사건을 다룬 다른 소스 묶음을 붙이면 <b>그 페이지 자체가 읽을 값어치</b>를 갖는다.
+    본문을 퍼오지 않고도 가능하다.</div>
+  </div>
+
+  <h3>순서</h3>
+  <p>③ → ① → ⑤ → ④ 순으로 간다. ③은 하루면 되고 심사자가 보는 첫 화면을 바로 바꾼다.
+  ①은 수익과 직결되고 이미 딜 배관이 깔려 있다. ⑤는 기존 조각을 모으는 일이다.
+  ④는 가장 큰 차별점이지만 글을 만드는 파이프라인이 필요해 마지막이다.
+  <b>③+①이 끝난 시점에 재심사를 넣는다</b> — 그때 홈 첫 화면의 자체 콘텐츠 비중을 실측해서 숫자로 확인하고 넣는다.</p>
+</section>
+
 <!-- ============ P0 ============ -->
 <section>
   <div class="phase-head">
@@ -1408,14 +1584,21 @@ flowchart TD
         <td>죽은 번역 링크 제거, 혼합 언어 정리, "15분 갱신"이라는 사실 아닌 표시 정정.</td></tr>
       <tr><td><span class="chip done">완료</span></td><td>3 · 브리핑 재설계 <span class="ptag">David 3번</span></td>
         <td>반응 순 → <b>중요도 순</b>. "해커뉴스 추천 907건"이 1위이던 것이 "5개 매체가 다룬 「김여정 국방력 강화」"로 바뀌었다.</td></tr>
-      <tr><td><span class="chip done">완료</span></td><td>P0 · 계정 잠그기</td>
-        <td>순번 ID + 무인증으로 <b>누구나 남이 될 수 있었다</b>(재현 확인). 무작위 ID + 계정 열쇠로 막고 라이브에서 403을 확인했다.</td></tr>
+      <tr><td><span class="chip done">완료</span></td><td>P0 · 계정 잠그기 <span class="ptag">2026-08-06 재수정</span></td>
+        <td>순번 ID + 무인증으로 <b>누구나 남이 될 수 있었다</b>(재현 확인). 무작위 ID + 계정 열쇠로 막고 라이브에서 403을 확인했다.
+        <br><b>그런데 이 "완료"가 남은 구멍을 가리고 있었다.</b> 열쇠가 아직 없는 계정은 <b>아무 열쇠나 첫 주장을 이겼고</b>,
+        내부 userId가 공개 응답(글쓴이 필드)으로 새고 있어서 <b>피드만 읽고 남의 계정을 뺏을 수 있었다</b>(2026-08-06 적대적 검수, 라이브 재현).
+        코드 주석 스스로가 "먼저 주장하면 뺏긴다"고 인정하고 있었는데도 완료로 적혀 있었다.
+        지금은 <b>첫 결속에 그 계정의 기기 쿠키를 요구</b>하고, userId를 응답에서 지웠다. 쿠키를 못 쓰는 기기는 예전처럼 통과한다.</td></tr>
       <tr><td><span class="chip done">완료</span></td><td>P0 · 데이터 보호</td>
         <td>손상 한 번에 사용자 471명이 <b>조용히 사라지는</b> 경로였다. 원자적 쓰기 + 손상 시 중단.</td></tr>
       <tr><td><span class="chip done">완료</span></td><td>광고 클릭 보고 · 인접 안전검사</td>
         <td>화면이 꽂은 광고가 클릭을 안 보내서 <b>서버가 스스로 광고를 줄이고</b> 있었다(9칸 → 13칸).</td></tr>
-      <tr><td><span class="chip done">완료</span></td><td>발행 페이지 측정 · 관리자 광고 탭</td>
-        <td>검색 유입의 착지점을 <b>세지 않고 있었다</b>. 이제 브리핑·랭킹·커뮤니티·키워드가 집계에 잡힌다.</td></tr>
+      <tr><td><span class="chip done">완료</span></td><td>발행 페이지 측정 · 관리자 광고 탭 <span class="ptag">범위 정정</span></td>
+        <td>검색 유입의 착지점을 <b>세지 않고 있었다</b>. 이제 브리핑·랭킹·커뮤니티·키워드가 <b>방문 집계</b>에 잡힌다.
+        <br><b>다만 광고 계측은 아니다.</b> 발행 페이지 5곳에 배너는 10장씩 나가는데 노출·클릭 이벤트 코드가 한 줄도 없다
+        (2026-08-06 검수, 라이브 확인). 쿠팡 대시보드에는 subId로 잡히지만 <b>우리 관리자 화면의 슬롯별 성과에는 안 잡힌다</b>.
+        아래 P0-A에서 처리한다.</td></tr>
       <tr><td><span class="chip warn">David</span></td><td>애드핏 재심사 신청</td>
         <td>반려 사유 둘 다 처리 완료. 소유권·크롤링·코드 배치도 확인했다. <b>넣으셔도 된다.</b></td></tr>
       <tr style="background:var(--accent-soft)"><td><span class="chip crit">지금</span></td><td><b>4 · 딜 섹션</b></td>
