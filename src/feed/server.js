@@ -2331,7 +2331,12 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
           const body = await readBody(req);
           try {
             const deal = store.createOurDeal(body || {});
-            engine.invalidate();   // 다음 요청부터 피드에 보인다
+            // **캐시를 비우지 않는다.** invalidate()는 노출 후보(_cache)를 지우는데,
+            // 그러면 다음 요청이 84개 소스를 전부 다시 수집할 때까지 막힌다 —
+            // 딜 하나 등록하고 홈이 40초 넘게 멈췄다(2026-08-06 실측).
+            // 대신 재수집을 **뒤에서** 돌린다. 그동안 응답은 기존 캐시로 나가고,
+            // 수집이 끝나면 새 딜이 자연히 들어온다.
+            engine.refresh().catch(() => {});
             return send(res, 200, { ok: true, deal });
           } catch (e) {
             // 입력 문제는 400이다 — 500으로 던지면 화면이 "서버 고장"으로 읽는다.
@@ -2341,7 +2346,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         if (p === "/api/admin/our-deal-delete" && req.method === "POST") {
           const body = await readBody(req);
           const gone = store.deleteOurDeal(String(body.id || ""));
-          if (gone) engine.invalidate();
+          if (gone) engine.refresh().catch(() => {});   // 위와 같은 이유로 캐시를 비우지 않는다
           return send(res, 200, { ok: gone });
         }
 
