@@ -3455,17 +3455,37 @@ test("해외 글: 뒤늦게 채운 발췌도 우리가 한글로 옮긴다", asy
     { id: "ko", title: "국내 글", summary: "국내 커뮤니티 발췌입니다", source: "clien" },
     // 옮기지 못하면 영문을 남기지 않는다
     { id: "fail", title: "안 옮겨짐", summary: "Boilerplate comments on this post",
-      translated: true, originalLang: "en" }
+      translated: true, originalLang: "en" },
+    // translate.js가 이미 진짜 원문을 넣어 둔 경우 — 여기서 밀어내면 안 된다
+    { id: "keep", title: "원문 있음", summary: "Nvidia announced a new chip today",
+      originalSummary: "먼저 저장된 진짜 원문", translated: true, originalLang: "en" }
   ];
   await engine._translateFilledSummaries(items);
 
   assert.equal(items[0].summary, "엔비디아가 오늘 새 칩을 발표했다");
   assert.equal(items[0].summaryTranslated, true);
+
+  // ── 번역 **전** 원문을 남긴다 (David 2026-08-06)
+  //
+  // "해외 매체 상세페이지에서 한글로 보기 / 원문 보기 버튼에 기능도 제대로 구현."
+  //
+  // 실측(라이브 풀 8,287건): 번역글 401건 중 originalTitle은 있는데
+  // originalSummary는 **0건**이었다. translate.js는 둘 다 저장하는데, 발췌를
+  // 나중에 채우는 enricher가 번역 **뒤에** 돌아 이 함수가 원문을 덮어썼기
+  // 때문이다. 그래서 상세의 "원문 보기"가 제목만 바꾸고 발췌는 번역문 그대로였다.
+  assert.equal(items[0].originalSummary, "Nvidia announced a new chip today",
+    "번역 전 원문을 남겨야 '원문 보기'가 발췌까지 바꿀 수 있다");
+  assert.equal(items[4].originalSummary, "먼저 저장된 진짜 원문",
+    "translate.js가 먼저 넣은 원문을 밀어내면 안 된다");
   assert.equal(items[1].summary, "이미 한글입니다", "이미 옮긴 것을 또 부르면 안 된다");
   assert.equal(items[2].summary, "국내 커뮤니티 발췌입니다", "한국어 원문은 건드리지 않는다");
   assert.equal(items[3].summary, "", "못 옮긴 영문을 그대로 남기면 안 된다");
-  // 번역기를 부른 것은 해외 글 둘뿐이다 — 국내 글까지 보내면 헛돈다
-  assert.equal(calls.length, 2, `번역기 호출 ${calls.length}회: ${calls.map(c=>c.text.slice(0,20)).join(" | ")}`);
+  // 발췌를 버렸으면 원문도 함께 버린다 — 화면에 한글 발췌가 없는데 원문 발췌만
+  // 남으면 "한국어로 보기"를 눌러도 돌아올 곳이 없다.
+  assert.ok(!items[3].originalSummary,
+    `발췌를 버렸으면 원문도 남기지 않는다: ${JSON.stringify(items[3].originalSummary)}`);
+  // 번역기를 부른 것은 해외 글 셋뿐이다 — 국내 글까지 보내면 헛돈다
+  assert.equal(calls.length, 3, `번역기 호출 ${calls.length}회: ${calls.map(c=>c.text.slice(0,20)).join(" | ")}`);
   assert.equal(calls[0].to, "ko");
 
   // 번역기가 없으면(FEED_TRANSLATE 꺼짐) 아무 일도 하지 않는다

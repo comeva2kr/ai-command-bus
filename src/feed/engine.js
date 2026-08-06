@@ -1739,14 +1739,30 @@ export class FeedEngine {
     }
     for (const i of needs) {
       try {
-        const out = await this._translateText(i.summary, { from: i.originalLang || "auto", to: "ko" });
+        // 번역 **전** 원문을 붙잡아 둔다. 예전엔 i.summary를 바로 덮어써서
+        // 원문이 사라졌다 — 상세 화면의 "원문 보기"가 제목만 바꾸고 발췌는
+        // 번역문 그대로였던 원인이다(David 2026-08-06: "한글 번역본 볼 수 있는
+        // 버튼은 없어. 기형적 구조임").
+        //
+        // 실측(라이브 풀 8,287건): 번역글 401건 중 originalTitle은 있는데
+        // originalSummary는 **0건**이었다. translate.js는 둘 다 저장하는데
+        // 여기서 채워진 발췌만 원문을 잃었기 때문이다 — 발췌를 나중에 채우는
+        // enricher가 번역 **뒤에** 돌아서, translate.js를 이미 지난 상태다.
+        const before = i.summary;
+        const out = await this._translateText(before, { from: i.originalLang || "auto", to: "ko" });
         // 원문과 똑같이 돌아왔다면 번역이 안 된 것이다 — 영어를 그대로 남기지
         // 않는다(David 2026-08-05: "진짜 한 것만 띄우자").
-        if (out && out !== i.summary && /[가-힣]/.test(out)) {
+        if (out && out !== before && /[가-힣]/.test(out)) {
+          // 이미 원문이 있으면 덮지 않는다 — translate.js가 먼저 넣어 둔
+          // 진짜 원문이 여기서 밀려나면 안 된다.
+          if (!i.originalSummary) i.originalSummary = before;
           i.summary = out;
           i.summaryTranslated = true;
         } else {
+          // 발췌를 버릴 때 원문도 함께 버린다. 화면에 한글 발췌가 없는데
+          // 원문 발췌만 남으면 "한국어로 보기"를 눌러도 돌아올 곳이 없다.
           i.summary = "";
+          if (i.originalSummary === before) i.originalSummary = null;
         }
       } catch { /* 한 건 실패가 나머지를 막지 않는다 */ }
     }
