@@ -1558,7 +1558,52 @@ flowchart LR
   </div>
 
   <div class="evidence">
-    <span class="src">David 결정이 필요한 것 — 클리앙 robots.txt</span>
+    <span class="src">클리앙 — 빼는 게 아니라 제대로 받는 것이었다 (2026-08-06, 해결)</span>
+    <div>
+    <p>앞 절에서 "클리앙을 빼야 하나"를 David 결정으로 올렸다. David의 대답은
+    <em>"오늘의 베스트랑 자게는 클리앙 글이 있잖아"</em>였고, <b>그게 답이었다.</b>
+    문제는 클리앙이 아니라 <b>받는 방법</b>이었다.</p>
+
+    <p><b>미러가 왜 문제였나</b> — 우리가 쓰던 feedburner 피드는
+    <code>&lt;generator&gt;PyRSS2Gen-1.1.0&lt;/generator&gt;</code>, <b>클리앙 공식이 아니라
+    제3자가 파이썬으로 긁어 올린 미러</b>였다. 클리앙은 RSS를 아예 제공하지 않는다
+    (<code>/service/rss</code>·<code>/rss</code> 등 4경로 404/400 실측). 즉 "발행자가 배포한
+    피드를 받는다"는 근거가 성립하지 않았다. 게다가 <code>&lt;description&gt;</code>에
+    게시글 <b>본문 HTML 전체</b>가 실려 왔다.</p>
+
+    <p><b>그리고 목적을 배반하고 있었다.</b> <code>parseRss</code>는 score/commentCount를
+    애초에 만들지 않는다 — <b>숫자를 얻으려고 고른 수단이 숫자를 하나도 못 가져왔다.</b>
+    라이브 58건 전부 추천·댓글 0이었다.</p>
+
+    <p><b>2026-08-04 판단을 뒤집었다.</b> 그때 기록은
+    <em>"인기순 목록 경로가 전부 막혀 있다. 조회·공감 숫자가 HTML에는 있지만
+    가져올 길이 없으므로 feedburner RSS를 유지한다"</em>였다. robots 사실관계는 지금도 맞다.
+    <b>틀린 것은 그 다음 한 걸음이었다 — 정렬을 클리앙에게 시킬 필요가 없다.</b>
+    열려 있는 게시판 목록을 받아 거기 실린 숫자를 읽고, 무엇이 뜨거운지는 우리 엔진이
+    고른다. 그게 이 서비스가 하는 일이다.
+    (덧: 클리앙은 지금 "추천글 기능 일시 중단" 공지 중이라 받을 베스트도 없다.)</p>
+
+    <p><b>지금 방식</b> — robots.txt가 <code>User-agent: *</code>에게 연
+    <code>/service/board/park</code>(모두의공원 = 자유게시판)를 정직한 UA로 직접 받는다.
+    <b>수집 URL에 쿼리를 붙이지 않는다</b>(같은 robots의 <code>Disallow: /*?*</code> —
+    그래서 추천순 정렬 파라미터를 쓸 수 없고 쓰지 않는다).
+    <code>/service/group/</code>·<code>/service/recommend</code>는 Disallow라 쓰지 않는다.
+    목록 href에 붙어 오는 쿼리는 파서가 잘라내 정규 URL만 남긴다 —
+    <b>사용자 링크도 enricher 요청도 Disallow 경로를 타지 않는다.</b></p>
+
+    <p><b>라이브 결과: 29건 · 추천&gt;0 15건 · 댓글&gt;0 21건 · URL 쿼리 없음.</b>
+    분쟁 소지를 없애면서 <b>동시에</b> 그동안 0이던 반응 수를 얻었다.
+    기존 테스트를 지우지 않고 새 전제로 갱신했다 — robots가 막은 것을 건드리지 않을 것,
+    그리고 숫자가 실제로 들어올 것. fixture 스냅숏으로 마크업 변경도 잡는다.</p>
+
+    <p><b>남는 교훈</b> — 그 테스트는 스스로 "미래의 되돌림을 막는 기록"이라고 적혀 있었다.
+    <b>기록이 지킨 것은 사실관계(robots)였고, 틀린 것은 거기서 내린 결론이었다.</b>
+    잠긴 판단을 뒤집을 때는 사실과 결론을 나눠 봐야 한다.</p>
+    </div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">(해결됨) 클리앙 robots.txt — 판단 근거 보존</span>
     <div>
     <p>확정 규칙: <b>robots.txt가 ClaudeBot/anthropic-ai를 이름으로 차단한 사이트는 수집하지 않는다</b>
     (블라인드·씽크풀·Dazed·Vogue·Colossal이 이 규칙으로 빠졌다).</p>
