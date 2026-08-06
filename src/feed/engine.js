@@ -654,6 +654,9 @@ export class FeedEngine {
     {
       const bySource = new Map();   // eventKey -> Set(source)
       for (const it of capped) {
+        // 커뮤니티는 매체가 아니다 — 기사 제목을 그대로 따 온 글을 "매체가 다뤘다"로
+        // 세면 문장이 거짓이 된다(검수 2026-08-06 P1). 커뮤니티 반향은 별개 신호다.
+        if (it.kind === "community") continue;
         const k = eventKey(it.title);
         if (!k) continue;
         let set = bySource.get(k);
@@ -661,6 +664,7 @@ export class FeedEngine {
         set.add(it.source);
       }
       for (const it of capped) {
+        if (it.kind === "community") continue;
         const k = eventKey(it.title);
         if (!k) continue;
         const n = bySource.get(k).size;
@@ -1173,7 +1177,19 @@ export class FeedEngine {
       // **재료가 없으면 있는 만큼만.** 스포츠 글이 풀에 2%면 그만큼만 채워진다 —
       // 없는 것을 만들지 않는다.
       let arranged = balanced;
-      const cats = chosenCategories(user);
+      // 설문에서 고른 것 — 단, **학습이 싫다고 판정한 것은 뺀다**.
+      //
+      // 검수(2026-08-06 P0)가 재현했다: 설문에서 스포츠를 고른 뒤 스포츠 글에
+      // 싫어요를 25번 눌러 rank.js가 hated로 판정했는데도, 첫 페이지의 60%가
+      // 스포츠였다. chosenCategories는 설문 스냅샷(surveyAnswers)만 보고
+      // 학습 가중치(preferences)는 안 보기 때문이다.
+      //
+      // 이건 내가 세운 원칙 "관문을 두 벌로 두지 않는다"를 그대로 어긴 것이다 —
+      // rank.js의 hated 게이트와 여기 지분 보장이 서로 다른 값을 보고,
+      // 뒤엣것이 앞엣것을 무력화했다. **아무리 싫어요를 눌러도 안 통하는 피드**는
+      // 애매하게 섞이는 것보다 나쁘다. rank.js가 이미 계산한 hated를 그대로 쓴다.
+      const { hated: hatedCats } = categorySets(user.preferences, rankParams());
+      const cats = new Set([...chosenCategories(user)].filter((c) => !hatedCats.has(c)));
       if (cats.size) {
         const inNow = new Set(arranged.map((i) => i.id));
         const tastePool = (tasteBase || []).filter(

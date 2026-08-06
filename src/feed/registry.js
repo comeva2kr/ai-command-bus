@@ -75,7 +75,7 @@ export function buildSources(registry, opts = {}) {
       const items = seedItems
         .filter((it) => it.source === entry.id)
         .map((it, idx) => ({ lang: entry.lang, sourceRank: idx, ...it }));
-      source = new JsonSource(entry.id, async () => items, entry.kind);
+      source = new JsonSource(entry.id, async () => items, entry.kind, entry.defaultTags || null);
     } else if (!entry.enabled) {
       continue; // disabled, non-seed — skip cleanly
     } else if (opts.fetcher) {
@@ -137,7 +137,9 @@ export function buildSources(registry, opts = {}) {
             source: entry.id
           }));
         },
-        entry.kind
+        entry.kind,
+        // 소스가 선언한 고정 태그 — 설문의 "세부 관심사"와 이어 주는 유일한 길이다.
+        entry.defaultTags || null
       );
     } else {
       continue; // registered but no way to fetch offline — skip cleanly

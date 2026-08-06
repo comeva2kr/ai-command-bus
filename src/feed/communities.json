@@ -900,7 +900,8 @@
         "note": "David 2026-07-29 뉴스 소스 다변화. 경제 분야 보강. 서울 서버 실측: robots 전면차단 없음, 200/50건, 상위가 헤드라인급 경제기사(SK하이닉스 실적·애플 시총)."
       },
       "lean": 1,
-      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: Blue Roof Politics '보수'(경제지·시장친화, blueroofpolitics.com/post/starter-kit-south-koreas-media-landscape/)"
+      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: Blue Roof Politics '보수'(경제지·시장친화, blueroofpolitics.com/post/starter-kit-south-koreas-media-landscape/)",
+      "feedGroup": "mk"
     },
     {
       "id": "etnews",
@@ -999,7 +1000,8 @@
         "type": "rss",
         "url": "https://www.hankyung.com/feed/all-news",
         "note": "David 2026-07-31 성향 균형('좌/중/우 같은 비율') 지시로 추가. 서울 서버 실측: 200/50건, robots 전면차단 없음. 전체기사 피드라 랭킹성은 약함 — hotScore 정렬로 보완. 조선일보 RSS는 4건뿐이라 보류, 중앙일보 RSS는 사망 확인."
-      }
+      },
+      "feedGroup": "hankyung"
     },
     {
       "id": "gnews-world",
@@ -1468,7 +1470,8 @@
         "type": "rss",
         "url": "https://biz.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
         "note": "2026-08-01 실측: UTF-8/200/100건/오늘자. robots 일반(*)는 일부 경로만 차단. pubDate 표준 RFC822. media:content(type=image/jpeg) 썸네일 명시 — 이미지 추출 안정적."
-      }
+      },
+      "feedGroup": "chosunbiz"
     },
     {
       "id": "mt",
@@ -1724,7 +1727,8 @@
         "type": "rss",
         "url": "https://www.mk.co.kr/rss/50300009/",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
-      }
+      },
+      "feedGroup": "mk"
     },
     {
       "id": "mk-stock",
@@ -1746,7 +1750,8 @@
         "type": "rss",
         "url": "https://www.mk.co.kr/rss/50200011/",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
-      }
+      },
+      "feedGroup": "mk"
     },
     {
       "id": "hankyung-realestate",
@@ -1768,7 +1773,8 @@
         "type": "rss",
         "url": "https://www.hankyung.com/feed/realestate",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
-      }
+      },
+      "feedGroup": "hankyung"
     },
     {
       "id": "hankyung-stock",
@@ -1790,7 +1796,8 @@
         "type": "rss",
         "url": "https://www.hankyung.com/feed/finance",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
-      }
+      },
+      "feedGroup": "hankyung"
     },
     {
       "id": "chosunbiz-realestate",
@@ -1812,7 +1819,8 @@
         "type": "rss",
         "url": "https://biz.chosun.com/arc/outboundfeeds/rss/category/real_estate/?outputType=xml",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
-      }
+      },
+      "feedGroup": "chosunbiz"
     },
     {
       "id": "chosunbiz-stock",
@@ -1834,7 +1842,8 @@
         "type": "rss",
         "url": "https://biz.chosun.com/arc/outboundfeeds/rss/category/stock/?outputType=xml",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
-      }
+      },
+      "feedGroup": "chosunbiz"
     }
   ]
 }

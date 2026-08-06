@@ -95,9 +95,17 @@ export function normalizeItem(raw, source) {
     // 주는 소스가 하나도 없다. 내용 수준 특징이 0이면 좋아요/싫어요가 갈 곳이
     // 카테고리·소스밖에 없고, 그래서 글 하나에 누른 좋아요가 카테고리 선언이
     // 돼 버린다(David 지적 "내용에 대한 의견으로 투영될 수 있게").
-    tags: Array.isArray(raw.tags) && raw.tags.length
-      ? raw.tags.slice(0, 12)
-      : extractTags(raw.title),
+    // 소스가 선언한 고정 태그(defaultTags)를 함께 붙인다.
+    //
+    // 검수(2026-08-06 P1)가 잡았다: 부동산·증권 소스 6곳에 defaultTags로
+    // realestate·markets를 달고 커밋 메시지에 "설문의 세부 관심사와 이어진다"고
+    // 적었는데, **그 필드를 읽는 코드가 저장소에 하나도 없었다**(grep 0건).
+    // 하루 최대 325건이 들어오는데 사용자가 고른 세부 관심사에 아무 기여도
+    // 못 하고 있었다 — 커밋이 주장한 연결이 존재하지 않았다.
+    //
+    // extractTags는 제목에서 한글 키워드를 뽑으므로 "realestate" 같은 태그 id를
+    // 만들지 못한다. 소스가 자기 분야를 아는 경우엔 그 선언을 그대로 쓴다.
+    tags: mergeTags(raw.tags, source && source.defaultTags, raw.title),
     title: String(raw.title || "").slice(0, 300),
     // excerpt only for aggregated/out-link items (법적 안전: 발췌 ≤200자);
     // the user's own posts ("me") and the dev seed keep their full body
@@ -193,9 +201,13 @@ export class StorePostsSource {
 // wiring an internal community database or a proxied API. `loader` is an async
 // function returning an array of raw items.
 export class JsonSource {
-  constructor(id, loader, kind = "mixed") {
+  // defaultTags — 그 소스가 자기 분야를 아는 경우의 고정 태그(예: 부동산 섹션
+  // 피드는 realestate). normalizeItem이 아이템 태그에 얹는다. 이게 없으면
+  // 설문의 "세부 관심사"가 그 소스의 글과 이어지지 않는다(검수 2026-08-06 P1).
+  constructor(id, loader, kind = "mixed", defaultTags = null) {
     this.id = id;
     this.kind = kind;
+    this.defaultTags = Array.isArray(defaultTags) ? defaultTags : null;
     this._loader = loader;
   }
 
@@ -214,6 +226,19 @@ export class JsonSource {
 // have its own env var set, for backward compatibility with earlier configs.
 const DEFAULT_COMMUNITY_CAP = 100;
 const DEFAULT_NEWS_CAP = 20;
+
+// 아이템 태그 = 어댑터가 준 것 → 없으면 제목에서 뽑은 것. 여기에 소스가 선언한
+// 고정 태그를 항상 얹는다(중복 없이, 상한 12).
+function mergeTags(rawTags, defaults, title) {
+  const base = Array.isArray(rawTags) && rawTags.length ? rawTags : extractTags(title);
+  const out = [];
+  for (const t of [...(Array.isArray(defaults) ? defaults : []), ...(base || [])]) {
+    const v = String(t || "").trim();
+    if (v && !out.includes(v)) out.push(v);
+    if (out.length >= 12) break;
+  }
+  return out;
+}
 
 export function resolveCap(kind, opts) {
   if (opts.perSourceCap != null) return opts.perSourceCap; // universal override wins outright
@@ -332,9 +357,23 @@ export async function collect(sources, opts = {}) {
         // 구글 값과 우리 값 중 **큰 쪽**을 쓴다. 둘 다 "몇 곳이 다뤘나"의 추정이고,
         // 구글은 자기 색인 범위에서, 우리는 우리 풀 범위에서 세므로 서로를 보완한다.
         // 더하지 않는 이유는 같은 매체를 두 번 셀 수 있어서다.
-        const mine = (kept.related ? kept.related.length : 0) + 2;   // 접힌 것 + 나 + 이번 것
-        if (mine > (kept.coverage || 0)) kept.coverage = mine;
         const rel = (kept.related = kept.related || []);
+        // **같은 매체를 두 번 세지 않는다.** 한 매체가 같은 제목으로 후속 기사를
+        // 또 내면 그때마다 값이 올랐다(검수 2026-08-06 P1 재현: 실제 2곳인데 3).
+        // 커밋 메시지에 "같은 매체를 두 번 셀 수 있어서 더하지 않는다"고 써 놓고
+        // 정작 이 계산 안에서 그 실수를 했다.
+        //
+        // **커뮤니티는 매체가 아니다.** 커뮤니티 글이 기사 제목을 그대로 따 오는 건
+        // 흔한 일인데, 그걸 "매체가 다뤘다"로 세면 문장이 거짓이 된다.
+        // 커뮤니티 반향은 별개 신호이지 교차보도가 아니다.
+        // kind가 없으면 뉴스로 본다 — normalizeItem이 쓰는 규칙과 같다
+        // ("community"가 아니면 news). 여기서 규칙을 다르게 두면 어긋난다.
+        const fresh = item.kind !== "community" && kept.kind !== "community" &&
+          !rel.some((r) => r.source === item.source);
+        if (fresh) {
+          const mine = rel.length + 2;   // 이미 접힌 매체 + kept + 이번 것
+          if (mine > (kept.coverage || 0)) kept.coverage = mine;
+        }
         // 한 매체가 목록을 독식하지 않게 소스당 한 줄만 남긴다.
         if (rel.length < RELATED_MAX && !rel.some((r) => r.source === item.source)) {
           rel.push({

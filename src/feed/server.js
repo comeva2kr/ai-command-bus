@@ -802,6 +802,14 @@ export function createServer(opts = {}) {
     return cached;
   };
 
+  // ⚠️ 아직 **아무 데서도 부르지 않는다**(검수 2026-08-06 P1이 잡았다).
+  // 살리려면 세 곳을 함께 고쳐야 한다 — 여기서 한 곳만 이으면 기능이 안 산다:
+  //   (1) 발행 페이지·홈 핸들러에서 ensureVisitor(req, res) 호출
+  //   (2) auth.js resolveIdentity의 우선순위 사슬에 VISITOR_COOKIE 폴백 추가
+  //       (지금은 세션→nh_cid→bodyUserId만 본다. nh_vid를 심어도 안 읽는다)
+  //   (3) public/privacy.html에 nh_vid 항목 추가 — 2년 쿠키를 무고지로 심지 않는다
+  // 블루프린트 P0-B 3번 항목.
+  //
   // 방문자 쿠키를 아무 페이지에서나 심는다.
   //
   // 이게 없으면 검색으로 발행 페이지에 도착한 사람이 다음에 또 와도
