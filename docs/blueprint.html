@@ -905,6 +905,22 @@ flowchart LR
     · Reuters·FT·Bloomberg·CNBC·ARTnews·Billboard — 봇 차단 또는 유료벽.<br>
     · 커리어리 — 로그인 게이트.</p>
 
+    <p><b>Reddit — 결론이 났다(2026-08-06 조사).</b> 공식 문서 직접 확인:
+    셀프서비스 앱 등록으로는 안 되고 <b>Responsible Builder Policy 승인</b>이 먼저다.
+    그리고 우리는 <b>100% "상업적 이용"</b>으로 분류된다 — 공식 정의에
+    <em>"Publishing content from Reddit on monetized websites or apps with ads"</em>가 명시돼 있고,
+    <b>본문을 안 쓴다는 사실은 판정에 영향이 없다</b>("use of our services" 기준이다).
+    상업 이용은 <em>"we'll require a contract"</em>이며 가격은 비공개다.
+    무료 100 QPM 티어는 <b>승인받은</b> 용도용이라, 승인 없이 붙이면 토큰 회수·계정 정지 대상 —
+    <b>금지선이다.</b> RSS(<code>/r/&lt;sub&gt;/.rss</code>) 스크래핑도 답이 아니다:
+    robots.txt가 <code>Disallow: /</code>로 홈 한 줄만 빼고 전부 막는다.
+    <br><b>판단:</b> 신청은 무료이니 David가 넣어 옵션만 확보하고, 계약 조건을 받아본 뒤
+    우리 규모에 안 맞으면 접는다. 그동안 스니커즈·투자는 <b>대체 소스로 채운다</b>
+    (Hypebeast·Highsnobiety·Sneaker News·Lobsters·Product Hunt — 전부 공개 RSS, robots 우호적).
+    <br>신청 경로: <code>support.reddithelp.com</code> Data Access Request 티켓 폼, 역할은 상업(Enterprise).
+    로그인이 필요해 David 본인이 진행해야 한다. 공식 SLA 없음(수 주 이상 또는 무응답 사례 보고).
+    <br><span class="ptag">도는 가격설($12,000/월 등)은 전부 2차 소스이고 서로 안 맞아 사실로 취급하지 않았다.</span></p>
+
     <p><b>조사에서 나온 중요한 발견.</b> 다수 매체가 Cloudflare 표준 <code>Content-Signal</code>로
     <b>"ai-train=no, use=reference"</b>를 명시한다 — <b>학습은 거부하되 참조·인용은 허용</b>한다는 뜻이다.
     우리 방식(본문 미복제, 제목·링크·공개 반응 수치만, 요약은 우리가 씀)은 정확히 그 "reference"에 해당한다.
