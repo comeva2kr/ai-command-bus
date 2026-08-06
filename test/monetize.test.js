@@ -1463,3 +1463,26 @@ test("광고 카드는 어느 자리에 있든 같은 모양이다 — 스코프
   assert.match(css, /\.card \.ad-native \.ad-thumb\{[^}]*width:88px/,
     "광고 썸네일이 콘텐츠(88px)와 다른 크기다");
 });
+
+test("낡은 화면은 스스로 갱신한다 — 두 번 새로고침을 요구하지 않는다", async () => {
+  // David 2026-08-06: "얼마나 기다려야 되는데 새로고침 해도 이지랄인데"
+  //
+  // 서비스워커가 이미 설치돼 있으면 새 배포가 나가도 열려 있던 화면은 옛 앱
+  // 셸로 계속 돈다. 새 워커는 설치·활성화되지만 제어권은 다음 네비게이션부터라
+  // 사용자가 새로고침을 두 번 해야 했다. 그리고 자기가 어느 빌드를 보고 있는지
+  // 알 방법이 없었다 — 나는 매번 워커를 지우고 확인해서 늘 최신을 봤고,
+  // David 폰은 옛 마크업을 그리고 있었다.
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const server = readFileSync("src/feed/server.js", "utf8");
+
+  assert.match(server, /function buildId\(\)/, "빌드 식별자가 없다");
+  assert.match(server, /name="nh-build"/, "화면에 빌드 식별자를 안 심는다");
+  assert.match(server, /const build = buildId\(\);/, "config가 서버 빌드를 안 준다");
+
+  assert.match(html, /function ensureFreshBuild\(serverBuild\)/, "빌드 대조가 없다");
+  assert.match(html, /if\(ensureFreshBuild\(config && config\.build\)\) return;/,
+    "config를 받은 뒤 빌드를 대조하지 않는다");
+  // 무한 새로고침 방지 — 같은 빌드로는 한 번만.
+  assert.match(html, /sessionStorage\.getItem\("nh_build_reload"\)/, "재시도 가드가 없다");
+});

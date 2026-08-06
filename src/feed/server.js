@@ -207,6 +207,26 @@ location.replace(${JSON.stringify(appUrl)});
 // no-store가 아니라 no-cache인 이유: 재검증만 강제하고, 안 바뀌었으면 304로
 // 본문을 안 보낸다 — 오프라인 폴백(서비스워커)도 그대로 산다.
 const REVALIDATE = new Set([".html", ".js", ".webmanifest", ".json", ".xml", ".txt"]);
+// 이 배포가 어느 빌드인지 한 줄로 식별한다.
+//
+// ── 왜 (David 2026-08-06 "얼마나 기다려야 되는데 새로고침 해도 이지랄인데")
+// 광고 카드가 고쳐졌는지 아닌지를 두고 서로 다른 것을 보고 있었다. 내 브라우저는
+// 매번 서비스워커를 지우고 봐서 항상 최신이었고, David 폰은 어느 빌드를 돌고
+// 있는지 **알 방법이 없었다.** 코드가 맞는지 아무리 확인해도 그 폰에 닿았는지는
+// 별개 문제다.
+//
+// 그래서 화면이 자기 빌드를 스스로 말하게 한다. index.html의 내용에서 뽑으므로
+// 파일이 바뀌면 반드시 바뀌고, 배포와 어긋날 수 없다.
+let _buildId = null;
+function buildId() {
+  if (_buildId) return _buildId;
+  try {
+    const buf = fs.readFileSync(path.join(PUBLIC_DIR, "index.html"));
+    _buildId = createHash("sha1").update(buf).digest("base64url").slice(0, 8);
+  } catch { _buildId = "unknown"; }
+  return _buildId;
+}
+
 function cacheHeadersFor(ext) {
   return REVALIDATE.has(ext)
     ? "no-cache"
@@ -235,6 +255,16 @@ function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "") {
     // 유일한 통로가 그 안에 있는데 색인에서는 안 보이는 상태였다. 여기에 정적
     // <a>를 넣어두면 크롤러가 읽고, JS가 뜨면 실제 브리핑 카드가 같은 자리를
     // 대체한다(seed-list와 같은 방식). 별도 칩줄을 두는 것보다 화면이 깔끔하다.
+    if (ext === ".html" && rel === "index.html") {
+      // 화면이 자기 빌드를 알 수 있게 심는다. /api/config가 주는 값과 다르면
+      // 낡은 화면이라는 뜻이고, 클라이언트가 스스로 한 번 새로고침한다.
+      const bid = buildId();
+      const b0 = buf.toString("utf8");
+      if (!b0.includes('name="nh-build"')) {
+        buf = Buffer.from(b0.replace("<head>",
+          `<head>\n<meta name="nh-build" content="${escapeHtml(bid)}">`));
+      }
+    }
     if (ownSeedHtml && ext === ".html" && rel === "index.html") {
       const h0 = buf.toString("utf8");
       const mk0 = '<section class="own-block" id="ownBlock" hidden aria-label="지금핫이 직접 쓴 오늘의 브리핑"></section>';
@@ -1619,6 +1649,8 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         // 승인되면 ADFIT_ENABLED=1로 켠다. 패스백 배선(data-ad-onfail →
         // 쿠팡)은 그대로 두므로, 켠 뒤 미충족이 생기면 그때는 넘어간다.
         const adfitOn = process.env.ADFIT_ENABLED === "1" && process.env.ADFIT_UNIT_MOBILE;
+        // 화면이 자기 빌드와 서버 빌드를 대조할 수 있게 함께 준다.
+        const build = buildId();
         const adfit = { mobileUnit: adfitOn ? process.env.ADFIT_UNIT_MOBILE : null };
         const auth = {
           providers: enabledProviders(authEnv),
@@ -1666,7 +1698,8 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
             : null;
         })();
 
-        return send(res, 200, { survey: SURVEY, categories: CATEGORIES, sources: liveCatalog, topics: TOPIC_CATALOG, monetization, adfit, coupang, auth });
+        return send(res, 200, {
+          build, survey: SURVEY, categories: CATEGORIES, sources: liveCatalog, topics: TOPIC_CATALOG, monetization, adfit, coupang, auth });
       }
 
       if (p === "/api/communities" && req.method === "GET") {
