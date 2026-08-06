@@ -1017,18 +1017,6 @@ test("public/index.html: ad card carries source (쿠팡파트너스) top-left an
 // 금지", 기사형광고 규제선)은 그대로 지켜야 하므로, 배지가 "AD"/"광고"라는
 // 뜻이 명확한 단어만 쓰고 카테고리명·추천 문구로 대체되지 않았는지도 함께
 // 검증한다.
-test("public/index.html: ad badge label is the short, unmistakable 'AD' — never disguised as a category/recommendation label", () => {
-  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
-  const html = fs.readFileSync(htmlPath, "utf8");
-  assert.match(html, /badgeLabel\|\|"AD"/);
-  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "expected to find appendAdCard's function body");
-  const badgeLineMatch = fnMatch[0].match(/<button[^>]*class="badge ad-badge"[^>]*>\$\{escapeHtml\(item\.badgeLabel\|\|"AD"\)\}<\/button>/);
-  assert.ok(badgeLineMatch, "expected the badge markup to render item.badgeLabel with an 'AD' fallback, unmodified by any category/recommendation text");
-});
-
-// makeSlotItem's badgeLabel itself (monetize.js side) must also stay a plain
-// "AD"/"AD · 샘플" — never swapped for a category label like "기술/IT".
 test("monetize.js: makeSlotItem's badgeLabel is always exactly 'AD' or 'AD · 샘플', regardless of category", () => {
   for (const sample of [true, false]) {
     const item = makeSlotItem({ id: "badge-check", category: "tech", title: "t", summary: "s", url: "https://www.coupang.com/", relevance: 1, sample });
@@ -1036,18 +1024,6 @@ test("monetize.js: makeSlotItem's badgeLabel is always exactly 'AD' or 'AD · �
   }
 });
 
-test("public/index.html: ad reason chips use a distinct class/color from organic .why", () => {
-  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
-  const html = fs.readFileSync(htmlPath, "utf8");
-  assert.match(html, /class="ad-why"/); // appendAdCard's reason chip markup
-  assert.match(html, /\.ad-why\s*\{/); // dedicated style, separate from .why
-});
-
-// 2026-07-26 리디자인 — David 최종지시: 상단 축약고지·하단 법정고지 전문의
-// "상시 노출"을 없애고, 배지를 탭하면 뜨는 progressive-disclosure 팝오버로
-// 옮겼다. 법적 요건("존재+인지가능+접근가능")은 상시 렌더가 아니어도
-// 충족되지만, (a) 팝오버가 기본으로 닫혀 있어야(hidden) 하고, (b) 배지 자체는
-// 여전히 항상 렌더돼야(Warner Bros 판례 — 안 보이는 고지는 위법) 한다.
 test("public/index.html: the disclosure line is NO LONGER persistently rendered — old .ad-disclosure-short/item.disclosureShort render calls are gone", () => {
   const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
@@ -1057,48 +1033,6 @@ test("public/index.html: the disclosure line is NO LONGER persistently rendered 
   assert.doesNotMatch(fnMatch[0], /item\.disclosureShort/, "the top-of-card short disclosure line must no longer be rendered");
 });
 
-test("public/index.html: the full disclosure text renders inside a popover that is HIDDEN by default (progressive disclosure, not always-on)", () => {
-  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
-  const html = fs.readFileSync(htmlPath, "utf8");
-  assert.match(html, /ad-disclosure-pop/);
-  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "expected to find appendAdCard's function body");
-  const body = fnMatch[0];
-  // the popover element itself carries item.disclosure and starts `hidden`
-  const popMatch = body.match(/<div id="\$\{popId\}" class="ad-disclosure-pop"[^>]*hidden>\$\{escapeHtml\(item\.disclosure\|\|""\)\}<\/div>/);
-  assert.ok(popMatch, "expected a hidden-by-default popover element carrying item.disclosure");
-});
-
-test("public/index.html: the AD badge is a real button (tappable) that toggles the disclosure popover without triggering the card's outlink navigation", () => {
-  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
-  const html = fs.readFileSync(htmlPath, "utf8");
-  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "expected to find appendAdCard's function body");
-  const body = fnMatch[0];
-  assert.match(body, /<button type="button" class="badge ad-badge"/, "badge must be a real <button>, tappable/keyboard-accessible");
-  assert.match(body, /aria-haspopup="true"/);
-  assert.match(body, /aria-expanded="false"/);
-  assert.match(body, /badgeBtn\.addEventListener\("click",\s*\(e\)=>\{\s*e\.stopPropagation\(\)/, "badge click must stopPropagation so it never bubbles into the card's own outlink click handler");
-  assert.match(body, /pop\.removeAttribute\("hidden"\)/, "badge click must be able to reveal the popover");
-});
-
-test("public/index.html: the badge itself (not just the popover) is unconditionally rendered inside appendAdCard — the legal badge is never hidden behind a toggle", () => {
-  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
-  const html = fs.readFileSync(htmlPath, "utf8");
-  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "expected to find appendAdCard's function body");
-  const body = fnMatch[0];
-  const templateMatch = body.match(/card\.innerHTML = `([\s\S]*?)`;/);
-  assert.ok(templateMatch, "expected appendAdCard's innerHTML template");
-  // the <button class="ad-badge"> markup must be part of the unconditional
-  // template string itself (not behind a ternary/`?:` that could omit it)
-  const badgeChunk = templateMatch[1].match(/<button[^>]*class="badge ad-badge"[\s\S]*?<\/button>/);
-  assert.ok(badgeChunk, "expected the AD badge markup inside the unconditional template");
-});
-
-// 2026-07-26 리디자인 — David 최종지시 #3: 가격/할인율의 "상시 노출"을
-// 완전히 제거해 카드가 커뮤 게시글처럼 자연스럽게 보이게 한다.
-// adPriceHtml/.ad-price는 이제 존재하지 않는다.
 test("public/index.html: the price/discount block is fully removed — no .ad-price render, no adPriceHtml function", () => {
   const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
@@ -1194,24 +1128,6 @@ test("public/index.html: item.sampleNote / .ad-sample-note are no longer rendere
 // the headline itself is a community-review-toned hook sentence. Badge and
 // disclosure markup must be completely unchanged (regression guard).
 
-test("public/index.html: appendAdCard renders item.title as the h3 headline and a dedicated productName subtitle line right below it", () => {
-  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
-  const html = fs.readFileSync(htmlPath, "utf8");
-  assert.match(html, /function adProductNameHtml\(item\)\{/);
-  assert.match(html, /class="ad-product-name"/);
-  assert.match(html, /item\.productName/);
-  // the subtitle call must sit between the h3 headline and the summary <p>,
-  // inside appendAdCard's template literal
-  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "expected to find appendAdCard's function body");
-  const body = fnMatch[0];
-  const h3Idx = body.indexOf("<h3>");
-  const productNameIdx = body.indexOf("adProductNameHtml(item)");
-  const summaryIdx = body.indexOf("<p>${escapeHtml(item.summary)}</p>");
-  assert.ok(h3Idx >= 0 && productNameIdx > h3Idx, "expected the productName line to render after the h3 headline");
-  assert.ok(summaryIdx > productNameIdx, "expected the productName line to render before the summary paragraph");
-});
-
 test("public/index.html: the [샘플] tag is appended on the productName subtitle line, not stripped from it, when item.sample is true", () => {
   const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
   const html = fs.readFileSync(htmlPath, "utf8");
@@ -1225,23 +1141,6 @@ test("public/index.html: the [샘플] tag is appended on the productName subtitl
 // 고지문은 이제 상시 렌더 두 줄(disclosureShort/하단 전문) 대신 배지 탭
 // 팝오버(item.disclosure) 하나로 통합됐다 — hook/productName 라인은 회귀 없이
 // 그대로다.
-test("public/index.html: appendAdCard still renders the ad badge + hook/productName lines unchanged, with disclosure now via the tap popover only (no persistent disclosureShort/bottom-legal-text lines)", () => {
-  const htmlPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html");
-  const html = fs.readFileSync(htmlPath, "utf8");
-  const fnMatch = html.match(/function appendAdCard\(item\)\{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "expected to find appendAdCard's function body");
-  const body = fnMatch[0];
-  assert.match(body, /badgeLabel/);
-  assert.doesNotMatch(body, /disclosureShort/, "the top-of-card short disclosure line must be gone");
-  assert.doesNotMatch(body, /class="ad-disclosure">/, "the persistent bottom legal-text block must be gone");
-  assert.match(body, /class="ad-disclosure-pop"[^>]*hidden>\$\{escapeHtml\(item\.disclosure/, "disclosure text must still be present, but only inside the hidden popover");
-  assert.match(body, /adProductNameHtml\(item\)/);
-});
-
-// --- 애드센스 온보딩 배선 (David 2026-07-31 "오늘부터 광고 달 건데") -----------
-// ADSENSE_CLIENT env 하나로 사이트 확인 스크립트와 ads.txt가 함께 켜지고,
-// 미설정 배포는 완전 무광고(스크립트 0, ads.txt 404)여야 한다.
-
 test("ads.txt: ADSENSE_CLIENT 설정 시 판매자 라인, 미설정 시 404", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const prev = process.env.ADSENSE_CLIENT;
@@ -1480,4 +1379,66 @@ test("광고가 0이 되는 길이 남아 있지 않다 (David 2026-08-06 '어�
     "글 단위 보호가 topics만 보고 분류를 안 본다");
   assert.match(mon, /const neighborUnsafe = adUnsafe\(items\[i - 1\]\) \|\| adUnsafe\(item\);/,
     "광고 인접 안전검사가 사라졌다");
+});
+
+// ── 광고 카드 통합 계약 (2026-08-06) ─────────────────────────────────────────
+//
+// 예전에는 광고를 그리는 곳이 둘이었다. 서버가 꽂은 광고는 appendAdCard가
+// 유기 카드 비슷한 마크업으로, 화면이 꽂은 광고는 coupangCardHtml이 3단 카드로
+// 그렸다. **같은 광고인데 어느 경로로 왔느냐에 따라 다르게 생겼다.**
+// 한쪽을 고치면 다른 쪽이 그대로 남아, David가 "하나 고치면 하나 틀어진다"고
+// 한 상태가 반복됐다. 아래 테스트들은 그 둘이 다시 갈라지는 것을 막는다.
+
+test("광고 카드는 한 곳에서만 그린다 — 서버 경로도 같은 함수를 쓴다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const fn = html.slice(html.indexOf("function appendAdCard(item){"),
+                        html.indexOf("// 슬롯 노출 로깅"));
+  assert.match(fn, /coupangCardHtml\(link,/, "서버 광고가 다시 자기만의 마크업을 그린다");
+  assert.ok(!/card-row|adProductNameHtml|ad-disclosure-pop/.test(fn),
+    "옛 두 번째 렌더러가 되살아났다");
+  // 화면 삽입 경로도 같은 함수를 쓴다.
+  const ins = html.slice(html.indexOf("function maybeInsertAdfit(){"),
+                         html.indexOf("function maybeInsertAdfit(){") + 6000);
+  assert.match(ins, /coupangCardHtml\(link,/, "화면 삽입 경로가 다른 마크업을 쓴다");
+});
+
+test("광고 카드에 법적 요건이 항상 들어간다 — AD 배지와 대가성 고지문", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const fn = html.slice(html.indexOf("function coupangCardHtml("),
+                        html.indexOf("// 문맥에 맞는 제휴 링크를 고른다"));
+  // 배지는 조건 없이 항상 그린다 — 토글 뒤에 숨기지 않는다.
+  assert.match(fn, /class="badge ad-badge-static">AD/, "AD 배지가 사라졌다");
+  assert.match(fn, /sr-only"> 광고<\/span>/, "스크린리더용 표시가 사라졌다");
+  // 고지문은 **상시 노출**이다. 예전엔 배지를 눌러야 보이는 팝오버였는데,
+  // 지금은 카드 안에 그대로 있다 — 요건 면에서 더 강하다.
+  assert.match(fn, /<p class="ad-disclosure">\$\{escapeHtml\(disclosure\)\}<\/p>/,
+    "대가성 고지문이 카드에서 사라졌다");
+});
+
+test("광고 카드가 3단(문구·본문·CTA)과 도착지를 모두 갖춘다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const fn = html.slice(html.indexOf("function coupangCardHtml("),
+                        html.indexOf("// 문맥에 맞는 제휴 링크를 고른다"));
+  assert.match(fn, /<h3>\$\{escapeHtml\(v\.hook\)\}<\/h3>/, "제목(hook)이 없다");
+  assert.match(fn, /class="ad-brand">\$\{escapeHtml\(v\.line \|\| link\.brand\)\}/, "본문(line)이 없다");
+  assert.match(fn, /class="ad-cta">\$\{escapeHtml\(v\.cta \|\| /, "CTA가 없다");
+  assert.match(fn, /class="ad-dest">\$\{escapeHtml\(link\.brand\)\}/, "도착지 표시가 없다");
+  // 썸네일은 있을 때만 — 없으면 글자 카드로 완결된다.
+  assert.match(fn, /link\.img\?`<div class="ad-thumb">/, "썸네일 조건부 렌더가 깨졌다");
+  assert.match(fn, /onerror="this\.parentNode\.remove\(\)"/, "이미지 차단 시 폴백이 없다");
+});
+
+test("대가성 고지문 스타일이 한 곳에만 정의된다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  // 세 곳에 흩어져 크기가 서로 달랐다(11.5 / 11.5 / .ad-net은 12.5px).
+  // 같은 문구가 카드마다 다른 크기로 나왔고 줄바꿈도 어색했다
+  // (David 2026-08-06: "폰트 커지고 줄바꿈도 이상하네").
+  const defs = html.match(/\.ad-disclosure\{/g) || [];
+  assert.equal(defs.length, 1, `고지문 스타일이 ${defs.length}곳에 정의돼 있다`);
+  assert.ok(!/\.ad-disclosure\{[^}]*text-wrap:balance/.test(html),
+    "고지문에 text-wrap:balance가 남아 줄바꿈이 어색해진다");
 });

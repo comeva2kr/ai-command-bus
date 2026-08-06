@@ -831,18 +831,19 @@
      어중간하게 끊기면 "짤린 것"으로 읽힌다(David 2026-08-05). 글자를 조금 줄이고
      줄간격을 좁혀 한 덩어리로 앉힌다. 흐리게 하지는 않는다 — 안 보이면 표시가
      아니다(발행 페이지에서 같은 이유로 대비를 16.6:1로 올렸다). */
-  .card .ad-disclosure{font-size:11.5px;line-height:1.45;color:var(--color-text);
-    opacity:.72;margin:10px 0 0;padding-top:8px;border-top:1px solid var(--line);
-    text-wrap:balance}
-  .card .ad-disclosure{margin:8px 0 0;font-size:11.5px;line-height:1.5;
-    color:var(--text);text-align:left}
+  /* 대가성 고지문 — **정의는 여기 한 곳뿐이다.**
+     세 곳에 흩어져 있었고 크기가 서로 달랐다(11.5px / 11.5px / .ad-net은 12.5px).
+     그래서 같은 문구가 카드마다 다른 크기로 나왔고, text-wrap:balance 때문에
+     줄바꿈까지 어색했다(David 2026-08-06: "폰트 커지고 줄바꿈도 이상하네").
+     고지문은 균형을 맞출 문장이 아니라 그냥 읽히면 되는 문장이다. */
+  .card .ad-disclosure{margin:8px 0 0;padding-top:8px;border-top:1px solid var(--line);
+    font-size:11.5px;line-height:1.5;color:var(--color-text);opacity:.72;text-align:left}
   /* 상세 모달 안 제휴 카드는 #feed 스코프가 안 닿아 면이 사라져 있었다 —
      같은 크리에이티브가 피드와 상세에서 다르게 보였다. */
   .card.ad-card{background:var(--color-bg)}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
     overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .card.ad-net .ad-net-slot img{max-width:100%;height:auto}
-  .card.ad-net .ad-disclosure{margin:8px 0 0;font-size:12.5px;line-height:1.5;color:var(--text);text-align:left}
   .card.ad-net .ad-net-slot{display:flex;justify-content:center;align-items:center;
     min-height:0;padding:10px 0 2px}
   .card.ad-net .badge.ad-badge-static{margin-left:auto}
@@ -3295,47 +3296,52 @@ function ensureAdPopoverOutsideClick(){
   document.addEventListener("click", closeAllAdDisclosurePopovers);
 }
 function appendAdCard(item){
-  const card = document.createElement("article"); card.className="card ad-card"; card.dataset.cat=item.category; card.dataset.id=item.id;
+  // **광고 카드를 그리는 곳은 여기 하나뿐이다.**
+  //
+  // 예전에는 둘이었다. 서버가 꽂은 광고는 이 함수가 유기 카드 비슷한 마크업으로
+  // 그리고, 화면이 꽂은 광고는 coupangCardHtml이 3단(문구·본문·CTA) 카드로
+  // 그렸다. **같은 광고인데 어느 경로로 왔느냐에 따라 다르게 생겼다.**
+  //
+  // 그래서 한쪽을 고치면 다른 쪽이 그대로 남았다 — David가 반복해서 겪은
+  // "하나 고치면 하나 틀어진다"의 정체다(2026-08-06). 실측: 서버 경로 카드에는
+  // .ad-brand(본문)·.ad-cta·.ad-dest·.ad-disclosure·.ad-thumb가 통째로 없었고,
+  // LLM 문구(line·cta)도 적용되지 않았다. 세션 상한을 없애 서버 광고가 많이
+  // 나오게 되자 그 깨진 카드가 화면을 채웠다.
+  //
+  // 이제 두 경로가 **같은 함수**를 부른다. 여기서 하는 일은 서버 아이템을
+  // coupangCardHtml이 기대하는 모양으로 옮기는 것뿐이다.
+  const card = document.createElement("article");
+  card.className = "card ad-card";
+  card.dataset.cat = item.category || "";
+  card.dataset.id = item.id;
   card.dataset.variant = item.variant || "";
-  const popId = "adDisc"+(++adPopSeq);
-  card.innerHTML = `
-    <div class="card-top">
-      <span class="dot" style="background:${srcColor(item.source)}"></span>
-      <span class="src">${escapeHtml(item.sourceLabel||"제휴")}</span>
-      <button type="button" class="badge ad-badge" aria-haspopup="true" aria-expanded="false" aria-controls="${popId}" aria-label="광고 표시. 탭하면 고지 사항을 볼 수 있어요">${escapeHtml(item.badgeLabel||"AD")}</button>
-      <div id="${popId}" class="ad-disclosure-pop" role="tooltip" hidden>${escapeHtml(item.disclosure||"")}</div>
-    </div>
-    </div>
-    <div class="card-row">
-    <div class="card-main">
-    <h3>${escapeHtml(item.title)} <span class="newtab-hint" title="새 탭에서 이동해요" aria-hidden="true">↗</span></h3>
-    ${adProductNameHtml(item)}
-    <p>${escapeHtml(item.summary)}</p>
-    ${item.reasons&&item.reasons.length?`<div class="reasons">${item.reasons.map(r=>`<span class="ad-why">${escapeHtml(r)}</span>`).join("")}</div>`:''}
-    </div>
-    ${cardThumbHtml(item)}
-    </div>
-    ${adMetaHtml(item)}
-    ${item.disclosure?`<p class="ad-disclosure-inline">${escapeHtml(item.disclosure)}</p>`:""}`;
-  const badgeBtn = card.querySelector(".ad-badge");
-  const pop = card.querySelector(".ad-disclosure-pop");
-  badgeBtn.addEventListener("click", (e)=>{
-    e.stopPropagation(); // tapping the badge must never trigger the card's own outlink click
-    const willOpen = pop.hasAttribute("hidden");
-    closeAllAdDisclosurePopovers();
-    if(willOpen){ pop.removeAttribute("hidden"); badgeBtn.setAttribute("aria-expanded","true"); }
+
+  const cp = state.config && state.config.coupang;
+  const link = {
+    href: item.url,
+    img: item.image || null,
+    dest: item.dest || null,
+    hook: item.hook || item.title || "",
+    brand: item.productName || item.summary || ""
+  };
+  const slotName = item.slot || `feed-${item.id}`;
+  const v = adVariant(link, item.category || null, adRotate++);
+  card.dataset.adVariant = v.variant;
+  card.innerHTML = coupangCardHtml(link, item.disclosure || (cp && cp.disclosure) || "",
+                                   slotName, item.category || null, adRotate);
+
+  // 클릭 보고 — 카드 전체가 아니라 링크에 건다. 카드에 걸면 고지문을 읽으려고
+  // 눌러도 쿠팡으로 넘어간다.
+  const a = card.querySelector("a.ad-native");
+  if(a) a.addEventListener("click", ()=>{
+    API.adSignal(state.userId, item.id, "click", v.variant);
+    Track.ad("click", slotName, v.variant);
   });
-  pop.addEventListener("click", (e)=> e.stopPropagation()); // selecting/reading the notice text must not navigate away
-  ensureAdPopoverOutsideClick();
-  card.addEventListener("click", ()=>{
-    API.adSignal(state.userId, item.id, "click", item.variant);
-    Track.ad("click", item.slot || item.id, item.variant);
-    window.open(item.url, "_blank", "noopener,noreferrer");
-  });
+
   document.getElementById("feed").appendChild(card);
   state.cardsById.set(item.id, card);
   Track.depth(state.cardsById.size); // 얼마나 내려갔나 = 그려진 카드 수
-  if(adImpressionObserver) adImpressionObserver.observe(card);
+  observeAdImpression(card, slotName);
 }
 // 슬롯 노출 로깅 — 실제로 화면에 보였을 때만 1회 기록(전송됐다고 곧 "봤다"는
 // 아니므로 IntersectionObserver로 실측; skipObserver와 동일한 패턴).
