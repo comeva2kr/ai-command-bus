@@ -295,3 +295,31 @@ test("핫딜 모아보기가 서버 라우트에서 막히지 않는다", async 
   const html = readFileSync("src/feed/public/index.html", "utf8");
   assert.match(html, /data-sort="deals"/, "핫딜 탭 버튼이 없다");
 });
+
+test("설정 메뉴에 핫딜 모아보기 버튼이 있다", async () => {
+  // David가 처음 요청한 자리는 **설정**이었다("설정에 핫딜 모아보기 버튼 하나
+  // 만들자"). 정렬바에만 붙였다가 "딜 메뉴 따로 만든다는건 어디갔음? 세팅에"로
+  // 지적받았다. 두 자리 모두 같은 상태(state.sortMode)를 가리키므로 화면은 하나다.
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  assert.match(html, /id="drawerDealsBtn"/, "설정 메뉴에 핫딜 버튼이 없다");
+  assert.match(html, /dealsBtn\.onclick[\s\S]{0,300}state\.sortMode = "deals"/,
+    "버튼이 핫딜 정렬로 안 바꾼다");
+  assert.match(html, /dealsBtn\.onclick[\s\S]{0,400}reloadFeedSilently\(\)/,
+    "정렬바와 다른 경로로 피드를 다시 그린다");
+  assert.match(html, /data-sort="deals"/, "정렬바 탭도 유지되어야 한다");
+});
+
+test("화면 테마는 내 공간 안에 있다", async () => {
+  // David 2026-08-06: "메뉴에서 화면 테마는 내공간 안으로 넣자."
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const drawer = html.slice(html.indexOf('<aside id="drawer"') >= 0 ? html.indexOf('<aside id="drawer"') : 0,
+                            html.indexOf('id="drawerSpaceBtn"'));
+  assert.ok(!drawer.includes('id="themeChips"'), "드로어에 화면 테마가 남아 있다");
+  // 내 공간 렌더 안에 있어야 하고, 그린 뒤 배선도 되어야 한다.
+  const space = html.slice(html.indexOf("async function openSpace()"),
+                           html.indexOf("async function openSpace()") + 6000);
+  assert.match(space, /id="themeChips"/, "내 공간에 화면 테마가 없다");
+  assert.match(space, /setupThemeChips\(\)/, "옮겨 놓고 배선을 안 했다 — 칩이 안 눌린다");
+});

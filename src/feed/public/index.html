@@ -396,6 +396,7 @@
   .drawer-nav a + a, .drawer-meta a + a { margin-top: 6px; }
   .drawer-meta { border-top: 1px solid var(--line); padding-top: 12px; }
   .drawer-link.sub { color: var(--muted); font-size: 13px; }
+  .drawer-hint { margin: 6px 2px 0; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
   .drawer-copy { color: var(--muted); font-size: 12px; margin: 10px 0 0; padding-left: 14px; }
 
   .sentinel { height: 40px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
@@ -1047,12 +1048,8 @@
       </div>
 
       <div class="drawer-sec">
-        <h4>화면 테마</h4>
-        <div class="chips" id="themeChips">
-          <button class="chip" data-theme="light">라이트</button>
-          <button class="chip" data-theme="dark">다크</button>
-          <button class="chip" data-theme="system">시스템 설정</button>
-        </div>
+        <button class="drawer-link" id="drawerDealsBtn">🔥 핫딜 모아보기</button>
+        <p class="drawer-hint">제품 판매 딜만 모아서, 관심도와 최신순으로 보여드려요.</p>
       </div>
 
       <div class="drawer-sec">
@@ -2333,6 +2330,18 @@ function setupDrawer(){
   document.getElementById("drawerClose").onclick = closeDrawer;
   document.getElementById("drawerBack").onclick = closeDrawer;
   document.getElementById("drawerSpaceBtn").onclick = ()=>{ closeDrawer(); openSpace(); };
+  // 핫딜 모아보기 — David가 "설정에 버튼 하나"로 요청한 것이다(2026-08-06).
+  // 정렬바에만 붙였다가 지적받고 여기에도 넣었다. 같은 상태를 가리키므로
+  // 어느 쪽으로 들어와도 화면은 하나다.
+  const dealsBtn = document.getElementById("drawerDealsBtn");
+  if(dealsBtn) dealsBtn.onclick = ()=>{
+    closeDrawer();
+    state.sortMode = "deals";
+    localStorage.setItem("feed_sort", state.sortMode);   // 정렬바와 같은 저장소를 쓴다
+    const bar = document.getElementById("sortBar");
+    if(bar) [...bar.children].forEach(b=>b.classList.toggle("active", b.dataset.sort === "deals"));
+    reloadFeedSilently();
+  };
   document.addEventListener("keydown", (e)=>{
     if(e.key==="Escape" && document.getElementById("drawer").classList.contains("open")) closeDrawer();
   });
@@ -2595,6 +2604,14 @@ async function openSpace(){
         <button class="space-btn" id="retakeSurvey">취향 다시 설정하기</button>
         <p class="space-hint">처음 고른 관심사를 다시 고를 수 있어요. 좋아요·별로예요로 배운 결과는 그대로 남습니다.</p>
       </div>
+      <div class="space-sec"><h4>🎨 화면 테마</h4>
+        <div class="chips" id="themeChips">
+          <button class="chip" data-theme="light">라이트</button>
+          <button class="chip" data-theme="dark">다크</button>
+          <button class="chip" data-theme="system">시스템 설정</button>
+        </div>
+        <p class="space-hint">시스템 설정을 고르면 폰 설정을 그대로 따라가요.</p>
+      </div>
       <div class="space-sec"><h4>콘텐츠 필터</h4><div class="content-filter-block">${contentFilterHtml()}</div></div>
       <div class="space-sec"><h4>스크랩</h4>${
         (s.saved&&s.saved.length) ? s.saved.map(p=>`<article class="card" data-id="${p.id}"><div class="card-top"><span class="dot" style="background:${srcColor(p.source)}"></span><span class="src">${srcLabel(p.source)}</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3></article>`).join("")
@@ -2612,6 +2629,9 @@ async function openSpace(){
         s.comments.length ? s.comments.slice().reverse().map(c=>`<div class="comment"><div class="who">${timeAgo(c.at)}</div><div class="txt">${escapeHtml(c.body)}</div></div>`).join("")
           : '<p style="color:var(--muted);font-size:13px">아직 댓글이 없어요.</p>'}
       </div>`;
+    // 화면 테마는 드로어에서 내 공간으로 옮겼다(David 2026-08-06). 그리는 곳이
+    // 바뀌었으니 배선도 여기서 다시 한다 — 안 하면 칩이 눌리지 않는다.
+    setupThemeChips();
     const retake = document.getElementById("retakeSurvey");
     if(retake) retake.onclick = ()=>{
       closeSpace();
