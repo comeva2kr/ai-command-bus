@@ -126,6 +126,19 @@ export function heatShape(rows, { minSteps = 5, minTotal = 30, minPerCat = 5 } =
     const item = (row && row.item) || null;
     if (!item || !Array.isArray(h) || h.length < minSteps) continue;
     if (OFF.has(item.category)) continue;
+    // 중간에 떨어지는 시계열은 **버린다.**
+    //
+    // 열기 눈금은 그 글의 공개 반응 수치에서 나온다. 상대 서버가 잠깐 응답을
+    // 못 주면 그 회차만 0으로 찍히는데(실측 2026-08-06: 1,609건 중 26건이
+    // 0으로 떨어졌고 예시가 [250,250,250,250,250,0,0,…]), 그 뒤 값이 돌아오면
+    // **0→250이 새 상승분으로 잡힌다.** 실제로는 아무 일도 없었는데 큰 상승이
+    // 생기고, 그게 하필 "가장 빨리 뜬 글" 1위로 올라온다(실제로 그랬다).
+    //
+    // 고쳐 쓰는 대신 버린다. 98%가 단조 증가라 2%를 빼도 표본이 충분하고,
+    // 결측을 메우면 그 순간부터 "우리가 만든 값"이 섞인다.
+    let sane = true;
+    for (let k = 1; k < h.length; k++) if ((h[k] || 0) < (h[k - 1] || 0)) { sane = false; break; }
+    if (!sane) continue;
     const steps = [];
     for (let k = 1; k < h.length; k++) steps.push(Math.max(0, (h[k] || 0) - (h[k - 1] || 0)));
     const sum = steps.reduce((a, b) => a + b, 0);
@@ -217,14 +230,14 @@ export function landscapeParagraphs(L) {
     // **숫자와 모순되는 문장을 쓰지 않는다.** 상위 세 곳이 75%인데
     // "넓게 흩어져 있다"고 쓰면 그 한 줄이 글 전체를 못 믿게 만든다.
     const tail = share3 >= 0.5
-      ? `절반이 넘는다 — 화제가 이 몇 곳에서 나온 주다.`
+      ? `${pct(share3)}로 절반이 넘는다 — 화제가 이 몇 곳에서 나온 주다.`
       : share3 >= 0.3
-        ? `3분의 1은 넘지만 절반에는 못 미친다.`
-        : `나머지는 넓게 흩어져 있다.`;
+        ? `${pct(share3)}로, 3분의 1은 넘지만 절반에는 못 미친다.`
+        : `${pct(share3)}에 그친다. 나머지는 넓게 흩어져 있다.`;
     out.push(
       `가장 많이 오른 곳은 ${top.label}(${num(top.count)}건, ${L.dayCount}일 중 ${top.days}일)이다. ` +
       `그다음은 ${top3.slice(1).map((s) => `${s.label} ${num(s.count)}건`).join(", ")}. ` +
-      `상위 세 곳을 합치면 전체의 ${pct(share3)}로 ${tail}`
+      `상위 세 곳을 합치면 전체의 ${tail}`
     );
   }
 

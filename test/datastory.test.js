@@ -148,3 +148,18 @@ test("리포트는 요청 안에서 매번 다시 계산하지 않는다", async
   // 빈 결과를 성공으로 치면 "아직 안 모였습니다"가 굳는다.
   assert.match(src, /cached\.publishable \? REPORT_TTL_MS : REPORT_RETRY_MS/);
 });
+
+test("결측으로 0이 찍힌 시계열은 버린다 — 복구분이 가짜 상승이 된다", async () => {
+  // 실측 2026-08-06: 1,609건 중 26건이 중간에 0으로 떨어졌다.
+  // [250,250,250,250,250,0,0,250] 같은 모양에서 0→250이 새 상승분으로 잡혀
+  // 하필 "가장 빨리 뜬 글" 1위로 올라왔다. 실제로는 아무 일도 없었다.
+  const bad = { item: { id: "bad", title: "t", source: "s", sourceLabel: "출처", category: "tech" },
+                heatHist: [250, 250, 250, 250, 250, 0, 0, 250] };
+  const good = Array.from({ length: 6 }, (_, i) => ({
+    item: { id: `g${i}`, title: "t", source: "s", sourceLabel: "출처", category: "tech" },
+    heatHist: [0, 50, 80, 90, 95, 100]
+  }));
+  const H = heatShape([bad, ...good]);
+  assert.equal(H.n, 6, "결측 시계열이 집계에 들어갔다");
+  assert.ok(!H.fastest.some((f) => f.id === "bad"), "결측 시계열이 1위로 올라왔다");
+});
