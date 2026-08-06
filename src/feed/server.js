@@ -229,12 +229,6 @@ function buildId() {
 
 // 제때 안 오면 포기한다. 홈처럼 "있으면 좋은" 데이터를 기다리다 페이지 자체가
 // 안 뜨는 것을 막는다 — 거부하지 않고 null을 돌려주므로 호출부는 seed 없이 간다.
-function withDeadline(promise, ms) {
-  return Promise.race([
-    Promise.resolve(promise).catch(() => null),
-    new Promise((r) => setTimeout(() => r(null), ms))
-  ]);
-}
 
 function cacheHeadersFor(ext) {
   return REVALIDATE.has(ext)
@@ -354,6 +348,7 @@ export function createServer(opts = {}) {
   // 여기서 도는 briefing()·rankingTop()은 수만 건 풀을 훑는 동기 계산이라,
   // 요청 안에서 부르면 그 시간만큼 서버가 통째로 멈춘다(실측 4.0초).
   const HOME_SEED_TTL_MS = 3 * 60 * 1000;
+  const HOME_SEED_RETRY_MS = 20 * 1000;   // 빈 결과였을 때의 재시도 간격
   const homeSeed = { html: null, at: 0, building: false };
   async function buildHomeSeed() {
     let seed = "";
@@ -2508,7 +2503,14 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
           const cached = homeSeed.html;
           if (cached) { seed = cached.seed; ownSeed = cached.ownSeed; }
           const age = cached ? Date.now() - homeSeed.at : Infinity;
-          if (age > HOME_SEED_TTL_MS && !homeSeed.building) {
+          // 빈 결과는 **성공이 아니다.** buildHomeSeed는 내부에서 다 삼키고
+          // 항상 객체를 돌려주므로, 그대로 캐시에 넣으면 "빈 화면을 3분 동안
+          // 확정"하는 꼴이 된다. 이 기능 자체가 빈 화면을 없애려고 만든 것이라
+          // 정확히 반대로 동작한다(적대적 검수 2026-08-06 P1).
+          // 빈 것이면 짧게 다시 시도한다.
+          const ttl = cached && (cached.seed || cached.ownSeed)
+            ? HOME_SEED_TTL_MS : HOME_SEED_RETRY_MS;
+          if (age > ttl && !homeSeed.building) {
             homeSeed.building = true;
             buildHomeSeed().then((next) => {
               if (next) { homeSeed.html = next; homeSeed.at = Date.now(); }

@@ -1816,7 +1816,15 @@ export class FeedEngine {
   //
   // eventKey는 브리핑에서 같은 사건 중복을 걸러낼 때 쓰는 것과 **같은 함수**다.
   // 두 벌로 두면 언젠가 판정이 어긋난다.
-  _relatedItems(item, pool) {
+  //
+  // 피드·랭킹·브리핑이 거는 것과 **같은 관문**을 여기서도 건다. 상세의 관련글은
+  // 이 글들로 가는 새 진입점이라, 여기만 안 걸면 앞에서 막은 것이 뒤로 샌다
+  // (적대적 검수 2026-08-06 P1). 정치·종교는 사용자가 켜야 보이고, 관리자가
+  // 끈 소스는 어디에도 나오지 않는다.
+  _relatedItems(item, pool, { showTopics = new Set(), disabled = null } = {}) {
+    const blocked = (r) =>
+      topicsBlocked({ topics: r.topics || [] }, showTopics) ||
+      (disabled && disabled.has(r.source));
     const seenSource = new Set([item.source]);
     const out = [];
     // 1) 수집 때 접힌 것들. 실제로는 대부분이 여기서 나온다 — 같은 사건은
@@ -1824,6 +1832,7 @@ export class FeedEngine {
     //    id가 없으므로 우리 상세로 못 보낸다. 링크 없이 글자로만 보여 준다.
     for (const r of Array.isArray(item.related) ? item.related : []) {
       if (!r || !r.source || seenSource.has(r.source)) continue;
+      if (blocked(r)) continue;
       seenSource.add(r.source);
       out.push({
         id: null, title: r.title,
@@ -1840,6 +1849,7 @@ export class FeedEngine {
     for (const other of pool) {
       if (other.id === item.id) continue;
       if (seenSource.has(other.source)) continue;      // 한 소스당 하나 — 목록이 한 곳으로 쏠리지 않게
+      if (blocked(other)) continue;
       if (eventKey(other.title) !== key) continue;
       seenSource.add(other.source);
       out.push({
@@ -1866,7 +1876,10 @@ export class FeedEngine {
     return {
       ...decorated,
       thread: this.store.commentsFor(itemId),
-      related: this._relatedItems(item, items)
+      related: this._relatedItems(item, items, {
+        showTopics: new Set((user && user.showTopics) || []),
+        disabled: this.store.disabledSources ? this.store.disabledSources() : null
+      })
     };
   }
 }

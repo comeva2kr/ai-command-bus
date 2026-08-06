@@ -321,6 +321,9 @@ export async function collect(sources, opts = {}) {
             source: item.source,
             sourceLabel: item.sourceLabel || item.source,
             title: item.title,
+            // 토픽을 함께 남긴다. 접힌 뒤에는 이 글이 풀에 없어서 나중에
+            // 다시 판정할 방법이 없다 — 정치·종교 필터가 여기서 막힌다.
+            topics: Array.isArray(item.topics) ? item.topics : [],
             score: item.score || 0,
             commentCount: item.commentCount || 0,
             publishedAt: item.publishedAt || null

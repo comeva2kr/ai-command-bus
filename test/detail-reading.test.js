@@ -58,7 +58,7 @@ test("브리핑과 같은 사건 판정을 쓴다 — 두 벌로 두지 않는�
   const { readFileSync } = await import("node:fs");
   const src = readFileSync("src/feed/engine.js", "utf8");
   assert.match(src, /import \{ eventKey \} from "\.\/dedupe\.js"/, "eventKey를 재사용하지 않는다");
-  assert.match(src, /_relatedItems\(item, pool\)[\s\S]{0,2000}eventKey\(item\.title\)/);
+  assert.match(src, /_relatedItems\(item, pool,[\s\S]{0,2500}eventKey\(item\.title\)/);
 });
 
 test("상세 화면이 우리가 만든 것을 그린다 — 재료가 없으면 줄을 뺀다", async () => {
@@ -88,4 +88,48 @@ test("접힌 중복은 버리지 않고 기록으로 남는다", async () => {
   const { items } = await collect([src("s1", "hani"), src("s2", "donga")]);
   assert.equal(items.length, 1, "같은 사건이 접히지 않았다");
   assert.ok((items[0].related || []).some((r) => r.source === "donga"), "접힌 기록이 사라졌다");
+});
+
+test("관련글도 정치·종교 관문을 지난다 — 앞에서 막은 것이 뒤로 새지 않게", async () => {
+  // 상세의 관련글은 그 글들로 가는 **새 진입점**이다. 피드·랭킹·브리핑이
+  // 거는 관문을 여기만 안 걸면 앞에서 막은 것이 뒤로 샌다(검수 2026-08-06 P1).
+  const same = "국회 예산안 처리 무산, 여야 대치 계속";
+  const { engine, userId } = await engineWith([
+    mk("a", same, "hani"),
+    mk("b", same, "donga", { topics: ["politics"] })
+  ]);
+  const one = await engine.getItem(userId, "a");
+  assert.equal(one.related.length, 0, "정치 토픽이 관련글로 샜다");
+});
+
+test("관리자가 끈 소스는 관련글에도 안 나온다", async () => {
+  const same = "국회 예산안 처리 무산, 여야 대치 계속";
+  const store = new FeedStore();
+  const items = [mk("a", same, "hani"), mk("b", same, "donga")];
+  const engine = new FeedEngine(store, [{ id: "s", kind: "community", async fetch() { return items; } }]);
+  const user = store.createUser();
+  store.disabledSources = () => new Set(["donga"]);
+  const one = await engine.getItem(user.id, "a");
+  assert.equal(one.related.length, 0, "차단한 소스가 관련글로 샜다");
+});
+
+test("홈 seed가 비면 3분이 아니라 곧 다시 시도한다", async () => {
+  // buildHomeSeed는 안에서 다 삼키고 항상 객체를 돌려준다. 빈 것을 성공으로
+  // 보면 "빈 화면을 3분 확정"하는 꼴이 된다 — 빈 화면을 없애려고 만든 기능이
+  // 정확히 반대로 동작한다(검수 2026-08-06 P1).
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync("src/feed/server.js", "utf8");
+  assert.match(src, /HOME_SEED_RETRY_MS/, "빈 결과용 재시도 간격이 없다");
+  assert.match(src, /cached && \(cached\.seed \|\| cached\.ownSeed\)[\s\S]{0,120}HOME_SEED_RETRY_MS/,
+    "빈 결과와 실제 콘텐츠를 구분하지 않는다");
+});
+
+test("온보딩 취향 워밍업은 즉시 저장한다", async () => {
+  // 잦은 기록이 아니라 1회성이고, 서버가 이미 성공 응답을 보낸 뒤라
+  // 유실되면 사용자는 알 방법도 다시 시도할 방법도 없다(검수 2026-08-06 P2).
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync("src/feed/store.js", "utf8");
+  const fn = src.slice(src.indexOf("  applyHistory("), src.indexOf("  savePushSubscription("));
+  assert.ok(fn.includes("this._persist();"), "applyHistory가 지연 저장으로 돌아갔다");
+  assert.ok(!fn.includes("_persistSoon"), "applyHistory가 지연 저장이다");
 });

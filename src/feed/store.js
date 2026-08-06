@@ -244,7 +244,7 @@ export class FeedStore {
     // a strong footprint gives a small confidence head start
     const signalCount = hits.sources + hits.keywords;
     if (signalCount >= 3) user.feedbackCount = Math.max(user.feedbackCount, Math.min(6, Math.floor(signalCount / 3)));
-    this._persistSoon();
+    this._persist();   // 온보딩 1회성 취향 워밍업 — 잦은 기록이 아니다. 유실되면 사용자는 알 방법이 없다
     return { hits, entriesSeen, preferences: user.preferences };
   }
 
