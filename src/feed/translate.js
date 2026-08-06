@@ -113,7 +113,12 @@ export class TranslatingSource {
         lang: this._target,
         translated: true,
         originalLang: lang,
-        originalTitle: item.title
+        originalTitle: item.title,
+        // 원문 발췌도 남긴다. 화면에서 "원문 보기"를 누르면 제목만 바뀌고
+        // 본문은 번역문 그대로면 반쪽이다 — 무엇을 어떻게 옮겼는지 대조가 안 된다
+        // (David 2026-08-06: "원문보러가기/번역본 보기 두 개를 넣고 실제 활용
+        //  가능하게 만들자").
+        originalSummary: item.summary || ""
       };
     } catch (err) {
       // a failed translation must never drop the item from the feed

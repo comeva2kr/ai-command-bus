@@ -90,6 +90,10 @@ export function normalizeItem(raw, source) {
     translated: raw.translated === true,
     needsTranslation: raw.needsTranslation === true,
     originalLang: raw.originalLang || null,
+    // 원문 제목·발췌 — 화면의 "원문 보기" 토글이 쓴다. 화이트리스트에 없으면
+    // 여기서 조용히 사라진다(price·dest·defaultTags가 그랬다).
+    originalTitle: raw.originalTitle || null,
+    originalSummary: raw.originalSummary || null,
     category,
     // 어댑터가 주는 tags를 우선하되, 없으면 제목에서 뽑는다.
     // 2026-08-02 실측: 라이브 30건 전부 tags가 비어 있었다 — 어댑터가 tags를

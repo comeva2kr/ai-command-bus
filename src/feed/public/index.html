@@ -639,6 +639,14 @@
   .own-block .ob-more{display:inline-block;margin:10px 0 6px;color:var(--color-accent);
     font-weight:800;font-size:12.5px;text-decoration:none}
 
+  /* 해외 글 — 원문 보기 ↔ 번역본 보기 */
+  .trans-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    margin:0 0 14px;padding:9px 11px;border:1px dashed var(--line);background:var(--card-2)}
+  .trans-note{flex:1;min-width:120px;color:var(--muted);font-size:11.5px;line-height:1.4}
+  .trans-btn{border:1px solid var(--line);background:var(--card);color:var(--text);
+    padding:6px 12px;font-size:12.5px;font-weight:700;border-radius:8px;white-space:nowrap}
+  .trans-btn[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+
   /* 상세 화면의 "지금핫이 정리한 것" (애드핏 P0-A ⑤)
      본문을 퍼오지 않고도 읽을 값어치를 만든다 — 우리만 아는 것을 붙인다. */
   .our-reading{margin:16px 0 4px;padding:14px 0 0;border-top:1px solid var(--color-divider)}
@@ -3903,6 +3911,60 @@ window.addEventListener("popstate", (e)=>{
   if(document.getElementById("drawer").classList.contains("open")) closeDrawer();
 });
 
+// 해외 글: 원문 보기 ↔ 번역본 보기 (David 2026-08-06).
+//
+// "해외 기사나 컨텐츠의 경우 원문보러가기/번역본 보기 두 개를 넣고
+//  실제 활용 가능하게 만들자."
+//
+// 우리는 무료 기계번역을 쓴다. 그래서 어색한 문장이 나올 수 있고, 그때
+// **원문을 바로 대조할 수 있어야** 한다. 무엇을 어떻게 옮겼는지 숨기지 않는
+// 것이 맞기도 하다.
+//
+// 두 가지는 서로 다른 일이다:
+//  · **원문 보러가기** — 그 매체로 나간다(기존 "원문에서 계속 읽기" 버튼).
+//  · **원문 보기** — 여기서 제목·발췌만 원문으로 바꾼다. 페이지를 안 떠난다.
+// 제목만 바꾸고 발췌는 번역문 그대로면 반쪽이라 둘 다 바꾼다.
+function transToggleHtml(item){
+  if(!item || !item.translated || !item.originalTitle) return "";
+  const langKo = { en:"영어", ja:"일본어", zh:"중국어", de:"독일어", fr:"프랑스어", es:"스페인어" };
+  const from = langKo[item.originalLang] || (item.originalLang || "").toUpperCase() || "원문";
+  return `<div class="trans-bar" id="transBar"
+      data-t-title="${escapeHtml(item.title)}"
+      data-o-title="${escapeHtml(item.originalTitle)}"
+      data-t-sum="${escapeHtml(item.summary || "")}"
+      data-o-sum="${escapeHtml(item.originalSummary || "")}">
+    <span class="trans-note">${escapeHtml(from)} 글을 기계번역했어요</span>
+    <button class="trans-btn" id="transToggle" aria-pressed="false">원문 보기</button>
+  </div>`;
+}
+
+function wireTransToggle(){
+  const bar = document.getElementById("transBar");
+  const btn = document.getElementById("transToggle");
+  if(!bar || !btn) return;
+  let showingOriginal = false;
+  btn.onclick = ()=>{
+    showingOriginal = !showingOriginal;
+    const h3 = document.querySelector("#detailBody h3");
+    const sum = document.getElementById("dSummary");
+    const d = bar.dataset;
+    if(h3){
+      // 제목 옆 ↗ 아이콘은 건드리지 않는다 — 텍스트 노드만 바꾼다.
+      const icon = h3.querySelector(".newtab-hint");
+      h3.textContent = showingOriginal ? d.oTitle : d.tTitle;
+      if(icon) h3.appendChild(icon);
+    }
+    // 원문 발췌가 없으면 발췌는 그대로 둔다 — 빈 칸을 만들지 않는다.
+    if(sum && (showingOriginal ? d.oSum : d.tSum)) sum.textContent = showingOriginal ? d.oSum : d.tSum;
+    btn.textContent = showingOriginal ? "번역본 보기" : "원문 보기";
+    btn.setAttribute("aria-pressed", String(showingOriginal));
+    bar.querySelector(".trans-note").textContent = showingOriginal
+      ? "원문을 보고 있어요" : (bar.querySelector(".trans-note").dataset.orig || "기계번역했어요");
+  };
+  const note = bar.querySelector(".trans-note");
+  if(note) note.dataset.orig = note.textContent;
+}
+
 // 상세 화면에 **우리가 만든 것**을 붙인다 (애드핏 P0-A ⑤, David 2026-08-06).
 //
 // 지금 상세는 발췌 몇 줄 + "원문에서 계속 읽기"라 사실상 아웃링크 통로다.
@@ -3970,6 +4032,7 @@ async function renderDetail(itemId){
     try { await navigator.clipboard.writeText(text); toast("링크가 클립보드에 복사되었습니다"); }
     catch { prompt("복사해 주세요", text); }
   };
+  wireTransToggle();
   // 같은 사건 목록을 누르면 그 글 상세로 넘어간다.
   setTimeout(()=>{
     document.querySelectorAll("#detailBody [data-detail]").forEach(a=>{
@@ -3995,7 +4058,8 @@ async function renderDetail(itemId){
       ${item.url?`<a href="${item.url}" target="_blank" rel="noopener" style="color:var(--accent)">원문 →</a>`:""}
     </div>
     ${item.image?`<img class="detail-img" src="${item.image}" alt="${escapeHtml(item.title)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:""}
-    ${item.summary?`<p class="full">${escapeHtml(item.summary)}</p>`:""}
+    ${item.summary?`<p class="full" id="dSummary">${escapeHtml(item.summary)}</p>`:""}
+    ${transToggleHtml(item)}
     ${ourReadingHtml(item)}
     ${item.url && item.source!=="me" ? `
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">원문에서 계속 읽기 →</a>
