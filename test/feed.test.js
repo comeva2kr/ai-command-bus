@@ -70,7 +70,10 @@ test("SURVEY's 'communities' question options are exactly the live (enabled, non
   assert.ok(communitiesQ, "communities question exists");
 
   const optionIds = new Set(communitiesQ.options.map((o) => o.id));
-  const expectedLive = registry.filter((c) => c.enabled === true && (!c.adapter || c.adapter.type !== "seed"));
+  // 2026-08-06: "store" 어댑터(우리가 직접 올리는 딜 지면)도 제외한다 —
+  // 우리가 만든 지면이지 사용자가 "즐겨 보는 커뮤니티"로 고를 대상이 아니다.
+  const expectedLive = registry.filter((c) => c.enabled === true
+    && (!c.adapter || (c.adapter.type !== "seed" && c.adapter.type !== "store")));
   assert.ok(expectedLive.length > 0, "fixture assumption: at least one live source exists");
   assert.equal(optionIds.size, expectedLive.length, "option count matches live-source count exactly");
   for (const c of expectedLive) assert.ok(optionIds.has(c.id), `${c.id} (enabled, non-seed) is offered`);
@@ -81,7 +84,8 @@ test("SURVEY's 'communities' question options are exactly the live (enabled, non
   for (const id of seedDummies) assert.ok(!optionIds.has(id), `seed dummy "${id}" must not be a survey option`);
 
   // explicitly-disabled non-seed sources (e.g. pann/mlbpark/humoruniv, robots-blocked) must not appear either
-  const disabledLive = registry.filter((c) => c.enabled === false && (!c.adapter || c.adapter.type !== "seed")).map((c) => c.id);
+  const disabledLive = registry.filter((c) => c.enabled === false
+    && (!c.adapter || (c.adapter.type !== "seed" && c.adapter.type !== "store"))).map((c) => c.id);
   for (const id of disabledLive) assert.ok(!optionIds.has(id), `disabled source "${id}" must not be a survey option`);
 
   // validateAnswers must accept a live option and reject a stale seed-dummy id

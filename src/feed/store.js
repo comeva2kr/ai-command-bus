@@ -842,13 +842,21 @@ export class FeedStore {
       throw new Error("쿠팡 파트너스 링크만 등록할 수 있어요 (link.coupang.com)");
     }
     if (title.length < 4) throw new Error("상품명을 4자 이상 적어주세요");
+    if (title.length > 120) throw new Error("상품명이 너무 길어요 (120자까지)");
     if (!price) throw new Error("가격을 적어주세요 — 지어낼 수 없는 값이에요");
+    if (price.length > 40) throw new Error("가격 표기가 너무 길어요 (40자까지)");
+    const img = String(deal.image || "").trim();
+    if (img && !/^https:\/\//i.test(img)) throw new Error("사진 주소는 https 주소여야 해요");
+    if (img.length > 500) throw new Error("사진 주소가 너무 길어요");
 
     const record = {
       id: this._id("odeal"),
       via: "ourdeal",
       source: "nowhot-deal",
       sourceLabel: "지금핫 딜",
+      // kind는 출처 성격(커뮤니티/뉴스)을 가리키는 필드다 — normalizeItem이
+      // 두 값만 허용하므로 광고 표시용으로 쓸 수 없다(넣으면 "news"로 떨어진다).
+      // 광고 여부는 via/affiliate가 말한다.
       kind: "community",
       category: String(deal.category || "life"),
       title,
@@ -856,7 +864,7 @@ export class FeedStore {
       // 한 줄 소개 — 우리가 쓴 문장이다. 없으면 비워 둔다(지어내지 않는다).
       summary: String(deal.note || "").trim(),
       url,
-      image: String(deal.image || "").trim() || null,
+      image: img || null,
       dest: String(deal.dest || "").trim() || null,
       score: 0,
       commentCount: 0,
@@ -864,6 +872,15 @@ export class FeedStore {
       createdAt: Date.now()
     };
     this.ourDealsList = this.ourDealsList || [];
+    // 같은 링크를 두 번 올리면 화면에서는 하나로 합쳐지고(중복 제거) 관리자
+    // 목록에만 둘로 남아 "올렸는데 안 보인다"가 된다(검수 2026-08-06).
+    if (this.ourDealsList.some((d) => d.url === url)) {
+      throw new Error("이미 등록된 링크예요");
+    }
+    // 상한. 관리자 토큰만 있으면 저장소를 무한히 불릴 수 있었다.
+    if (this.ourDealsList.length >= 200) {
+      throw new Error("등록 상한(200건)에 닿았어요 — 오래된 딜을 먼저 내려주세요");
+    }
     this.ourDealsList.unshift(record);
     this._persist();
     return record;

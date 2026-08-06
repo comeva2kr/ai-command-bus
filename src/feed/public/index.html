@@ -1783,6 +1783,12 @@ const AD_CTX_OF = { tech:"tech", gaming:"tech", life:"life", auto:"life",
 // 맥락에 맞는 문구를 고른다. 행렬이 없거나 칸이 비면 서버가 준 기본 문구로
 // 떨어진다 — 배치가 실패해도 광고가 사라지지 않는다.
 function adVariant(link, category, rotate){
+  // **우리가 쓴 문구는 행렬로 덮지 않는다.**
+  // 우리 딜은 David가 상품명·가격·한 줄 소개를 직접 넣은 것이라, 광고 문구
+  // 행렬에서 가져온 hook으로 제목을 갈아치우면 엉뚱한 물건 이야기가 된다.
+  if(link && link.fixedCopy){
+    return { hook: link.hook, line: link.line || null, cta: link.cta || null, variant: "ourdeal" };
+  }
   const cp = state.config && state.config.coupang;
   const ctx = AD_CTX_OF[category] || "news";
   const cell = cp && cp.matrix && cp.matrix[link.dest] && cp.matrix[link.dest][ctx];
@@ -3299,7 +3305,19 @@ function commentMetaHtml(item){
     : "";
   return `<span class="open-detail" role="button" tabindex="0" title="댓글 보기">💬 ${src}</span>${oursHtml}`;
 }
-function isAdItem(item){ return item.kind === "ad" || item.kind === "affiliate"; }
+// 광고 카드로 그려야 하는가.
+//
+// kind만 보던 것이 문제였다. 우리가 직접 올린 딜은 kind가 "community"라
+// 이 검사를 통과하지 못하고 **일반 게시글 템플릿으로 그려졌다** — 그러면
+// 대가성 고지문이 화면에 아예 안 나오고(파트너스 의무 위반), url·image가
+// 이스케이프 없이 속성값에 들어가 저장형 XSS까지 열린다
+// (적대적 검수 2026-08-06 P0, 재현 확인).
+//
+// kind는 출처 성격(커뮤니티/뉴스)이고, **광고 여부는 via·affiliate가 말한다.**
+function isAdItem(item){
+  return item.kind === "ad" || item.kind === "affiliate"
+    || item.via === "ourdeal" || item.affiliate === true;
+}
 // 제휴/광고 슬롯 카드 — "동화+명시": 레이아웃은 유기 카드와 동일하되 상단
 // 배지 하나로만 구분한다. 좋아요/싫어요/스크랩 등 추천 학습 액션은 아예
 // 없다(슬롯 아이템은 엔진의 아이템 풀에 없어 애초에 학습되지 않지만, UI에서도
@@ -3418,14 +3436,26 @@ function appendAdCard(item){
   card.dataset.variant = item.variant || "";
 
   const cp = state.config && state.config.coupang;
-  const link = {
+  // 우리가 직접 올린 딜은 **우리가 쓴 문구를 그대로** 쓴다. 가격은 David가
+  // 확인한 실측값이라 화면에 반드시 보여야 한다 — 그게 이 기능의 존재 이유다.
+  const ours = item.via === "ourdeal";
+  const link = ours ? {
+    href: item.url,
+    img: item.image || null,
+    dest: item.dest || null,
+    fixedCopy: true,
+    hook: item.title || "",
+    line: [item.price, item.summary].filter(Boolean).join(" · "),
+    cta: "쿠팡에서 보기",
+    brand: item.sourceLabel || "지금핫 딜"
+  } : {
     href: item.url,
     img: item.image || null,
     dest: item.dest || null,
     hook: item.hook || item.title || "",
     brand: item.productName || item.summary || ""
   };
-  const slotName = item.slot || `feed-${item.id}`;
+  const slotName = item.slot || (ours ? `ourdeal-${item.id}` : `feed-${item.id}`);
   const v = adVariant(link, item.category || null, adRotate++);
   card.dataset.adVariant = v.variant;
   card.innerHTML = coupangCardHtml(link, item.disclosure || (cp && cp.disclosure) || "",

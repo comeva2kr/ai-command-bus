@@ -113,6 +113,12 @@ export function normalizeItem(raw, source) {
     // 정리 불가하면(urlBase 없는 상대경로 등) 조용히 null로 떨어뜨린다.
     image: normalizeImageUrl(raw.image, raw.httpsOk),
     author: raw.author || null,
+    // 우리가 직접 올린 딜의 **실측 가격**과 관리자가 고른 **상품군**.
+    // 이 화이트리스트에 없으면 통째로 버려진다 — 실제로 그렇게 유실돼서
+    // "가격은 David가 확인한 값만 쓴다"는 이 기능의 존재 이유가 화면에
+    // 도달하지 못했다(적대적 검수 2026-08-06 P0, 재현 확인).
+    price: raw.price || null,
+    dest: raw.dest || null,
     // engagement metadata used as weak popularity signals
     score: Number.isFinite(raw.score) ? raw.score : 0,
     commentCount: Number.isFinite(raw.commentCount) ? raw.commentCount : 0,

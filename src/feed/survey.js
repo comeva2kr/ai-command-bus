@@ -17,7 +17,11 @@ import { loadRegistry } from "./registry.js";
 // 전용)가 아닌 실 소스만.
 function liveSourceOptions() {
   return loadRegistry()
-    .filter((c) => c.enabled === true && (!c.adapter || c.adapter.type !== "seed"))
+    // "store" 어댑터(우리가 직접 올리는 딜)도 뺀다 — 사용자가 "즐겨 보는
+    // 커뮤니티"로 고를 대상이 아니다. 우리가 만든 지면이지 커뮤니티가 아니다
+    // (적대적 검수 2026-08-06).
+    .filter((c) => c.enabled === true
+      && (!c.adapter || (c.adapter.type !== "seed" && c.adapter.type !== "store")))
     .map((c) => ({ id: c.id, label: c.labelKo || c.label }));
 }
 

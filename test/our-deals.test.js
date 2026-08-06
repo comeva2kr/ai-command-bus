@@ -124,3 +124,88 @@ test("등록한 딜을 내릴 수 있다", async () => {
     assert.equal(list.deals.length, 0);
   });
 });
+
+// ── 화면까지 확인한다 (적대적 검수 2026-08-06) ──────────────────────────────
+//
+// 앞의 테스트들은 /api/feed의 JSON만 봤다. 그래서 disclosure 필드가 응답에
+// 들어 있는 것만 확인하고 **그게 화면에 그려지는지는 한 번도 안 봤다** —
+// 실제로는 우리 딜이 광고 카드 경로를 타지 못해 고지문이 어디에도 안 나왔고,
+// url·image가 이스케이프 없이 속성값에 들어가 저장형 XSS까지 열려 있었다.
+// P0 7건이 전부 여기서 나왔다. 다시는 JSON만 보고 끝내지 않는다.
+
+test("우리 딜은 광고 카드 경로로 간다 — 고지문이 화면에 그려져야 한다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+
+  // 광고 판정이 kind만 보면 우리 딜(kind "community")이 일반 카드로 새어 나간다.
+  const fn = html.slice(html.indexOf("function isAdItem(item){"),
+                        html.indexOf("function isAdItem(item){") + 400);
+  assert.match(fn, /item\.via === "ourdeal"/, "우리 딜이 광고 카드 경로를 안 탄다");
+  assert.match(fn, /item\.affiliate === true/, "affiliate 표시를 안 본다");
+
+  // 고지문을 실제로 그리는 곳은 coupangCardHtml 하나뿐이다.
+  const card = html.slice(html.indexOf("function coupangCardHtml("),
+                          html.indexOf("// 문맥에 맞는 제휴 링크를 고른다"));
+  assert.match(card, /<p class="ad-disclosure">\$\{escapeHtml\(disclosure\)\}<\/p>/);
+  // 속성값은 전부 이스케이프된다 — 저장형 XSS 방어선.
+  assert.match(card, /href="\$\{escapeHtml\(withSubId\(/, "링크가 이스케이프되지 않는다");
+  assert.match(card, /src="\$\{escapeHtml\(link\.img\)\}"/, "이미지 주소가 이스케이프되지 않는다");
+});
+
+test("우리 딜의 문구는 광고 행렬로 덮이지 않는다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  // David가 넣은 상품명을 행렬 hook으로 갈아치우면 엉뚱한 물건 이야기가 된다.
+  const v = html.slice(html.indexOf("function adVariant(link, category, rotate){"),
+                       html.indexOf("function adVariant(link, category, rotate){") + 700);
+  assert.match(v, /link\.fixedCopy/, "우리가 쓴 문구를 지키는 분기가 없다");
+  // 가격이 화면에 실린다 — 이 기능의 존재 이유다.
+  assert.match(html, /line: \[item\.price, item\.summary\]/, "실측 가격이 카드에 안 실린다");
+});
+
+test("실측 가격과 관리자가 고른 상품군이 피드까지 살아온다", async () => {
+  // normalizeItem은 화이트리스트라, 목록에 없는 필드는 통째로 버려진다.
+  // 실제로 price·dest가 그렇게 사라져서 "가격은 확인한 값만 쓴다"는 이 기능의
+  // 존재 이유가 화면에 도달하지 못했다.
+  await withServer(async (B) => {
+    await fetch(`${B}/api/admin/our-deal`, {
+      method: "POST", headers: ADMIN,
+      body: JSON.stringify({ ...good, dest: "fresh", title: "산지직송 딸기 2kg 선물세트" })
+    });
+    const s = await (await fetch(`${B}/api/session`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}"
+    })).json();
+    const f = await (await fetch(`${B}/api/feed?userId=${s.userId}&limit=30`)).json();
+    const mine = (f.items || []).find((x) => x.via === "ourdeal");
+    assert.equal(mine.price, good.price, "실측 가격이 유실됐다");
+    assert.equal(mine.dest, "fresh", "관리자가 고른 상품군이 유실됐다");
+    // 제목 낱말 추정보다 사람이 고른 값이 우선이어야 한다.
+    assert.equal(mine.dealDest, "fresh");
+  });
+});
+
+test("같은 링크를 두 번 등록할 수 없고, 등록에 상한이 있다", async () => {
+  // 중복이면 화면에서는 하나로 합쳐지고 관리자 목록만 둘이라
+  // "올렸는데 안 보인다"가 된다.
+  await withServer(async (B) => {
+    const first = await fetch(`${B}/api/admin/our-deal`, { method: "POST", headers: ADMIN, body: JSON.stringify(good) });
+    assert.equal(first.status, 200);
+    const dup = await fetch(`${B}/api/admin/our-deal`, { method: "POST", headers: ADMIN, body: JSON.stringify(good) });
+    assert.equal(dup.status, 400, "같은 링크가 두 번 등록됐다");
+  });
+  const { FeedStore } = await import("../src/feed/store.js");
+  const st = new FeedStore();
+  assert.throws(() => st.createOurDeal({ ...good, image: "javascript:alert(1)" }),
+    /https/, "https가 아닌 사진 주소가 통과했다");
+  assert.throws(() => st.createOurDeal({ ...good, title: "가".repeat(200) }),
+    /길어요/, "길이 상한이 없다");
+});
+
+test("'지금핫 딜'은 즐겨 보는 커뮤니티 선택지가 아니다", async () => {
+  // 우리가 만든 지면이지 커뮤니티가 아니다.
+  const { SURVEY } = await import("../src/feed/survey.js");
+  const q = SURVEY.find((x) => x.id === "sources" || /커뮤니티/.test(x.prompt || ""));
+  assert.ok(q, "커뮤니티 설문 항목을 못 찾았다");
+  assert.ok(!q.options.some((o) => o.id === "nowhot-deal"),
+    "우리 딜 지면이 커뮤니티 선택지로 나온다");
+});

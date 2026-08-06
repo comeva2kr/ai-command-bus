@@ -397,7 +397,10 @@ export class FeedEngine {
       }
       if (this._dealSources.has(item.source)) {
         item.isDeal = true;
-        const d = destForDeal(item.title);
+        // 관리자가 직접 고른 상품군이 있으면 그것을 쓴다. 제목 낱말로 추정하는
+        // destForDeal보다 사람이 고른 값이 정확하다 — 예전엔 이 값을 무시하고
+        // 무조건 추정했다(적대적 검수 2026-08-06).
+        const d = item.dest || destForDeal(item.title);
         if (d) item.dealDest = d;
       }
       // 딜이 아니어도 글에서 상품군이 읽히면 실어 둔다 — 그 옆 광고를 그쪽으로
