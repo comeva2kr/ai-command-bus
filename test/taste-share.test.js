@@ -75,3 +75,17 @@ test("취향 보장은 이미 관문을 지난 후보에서만 끌어온다", ()
   assert.match(src, /let tasteBase = null;/);
   assert.ok(!/this\._tasteBase/.test(src));
 });
+
+test("싫어요를 눌러 학습된 것은 지분 보장에서 뺀다", async () => {
+  // 검수(2026-08-06 P0)가 재현했다: 설문에서 스포츠를 고른 뒤 스포츠 글에
+  // 싫어요를 25번 눌러 rank.js가 hated로 판정했는데도 첫 페이지의 60%가
+  // 스포츠였다. 아무리 싫어요를 눌러도 안 통하는 피드는 애매하게 섞이는 것보다
+  // 나쁘다 — 관문을 두 벌로 둔 대가다.
+  const src = readFileSync("src/feed/engine.js", "utf8");
+  const block = src.slice(src.indexOf("let arranged = balanced;"),
+                          src.indexOf("if (cats.size) {"));
+  assert.match(block, /categorySets\(user\.preferences, rankParams\(\)\)/,
+    "학습된 hated를 안 본다");
+  assert.match(block, /filter\(\(c\) => !hatedCats\.has\(c\)\)/,
+    "hated를 지분 보장에서 안 뺀다");
+});

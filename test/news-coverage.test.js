@@ -16,8 +16,11 @@ import { FeedEngine } from "../src/feed/engine.js";
 import { FeedStore } from "../src/feed/store.js";
 
 const SAME = "국회 예산안 처리 무산 여야 대치 계속";
-const art = (id, source, sourceLabel, title = SAME) => ({
-  id, title, url: `https://example.com/${id}`, source, sourceLabel,
+// kind를 명시한다 — 실서비스에서는 JsonSource가 normalizeItem을 거치며
+// 소스의 kind를 아이템에 찍어 주지만, 이 테스트는 raw를 그대로 돌려주므로
+// 직접 넣어야 실제와 같은 조건이 된다.
+const art = (id, source, sourceLabel, title = SAME, kind = "news") => ({
+  id, title, url: `https://example.com/${id}`, source, sourceLabel, kind,
   publishedAt: new Date().toISOString(), category: "news"
 });
 
@@ -71,4 +74,25 @@ test("교차보도 집계는 수집 사이클 안에서만 돈다 — 요청을 
   const refreshStart = src.indexOf("async refresh(");
   const blockAt = src.indexOf("교차보도를 **풀 전체에서** 다시 센다");
   assert.ok(blockAt > refreshStart, "집계가 refresh 밖에 있다");
+});
+
+test("같은 매체가 두 번 접혀도 한 번만 센다", async () => {
+  // 검수(2026-08-06 P1) 재현: 실제 2곳인데 coverage=3이 나왔다.
+  const src = (id, label, n) => ({
+    id, kind: "news",
+    async fetch() { return Array.from({ length: n }, (_, i) => art(`${id}${i}`, id, label)); }
+  });
+  const { items } = await collect([src("mk", "매경", 1), src("hk", "한경", 3)]);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].coverage, 2, `실제 2곳인데 coverage=${items[0].coverage}`);
+});
+
+test("커뮤니티가 기사 제목을 따 와도 매체로 세지 않는다", async () => {
+  // "몇 곳의 매체가 다뤘나"가 이 신호의 뜻이다. 커뮤니티 반향은 별개 신호다.
+  const news = { id: "mk", kind: "news", async fetch() { return [art("n1", "mk", "매경")]; } };
+  const comm = { id: "clien", kind: "community",
+    async fetch() { return [art("c1", "clien", "클리앙", SAME, "community")]; } };
+  const { items } = await collect([news, comm]);
+  assert.equal(items.length, 1);
+  assert.ok(!(items[0].coverage > 0), `커뮤니티가 매체로 세졌다: ${items[0].coverage}`);
 });
