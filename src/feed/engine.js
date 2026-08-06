@@ -966,7 +966,13 @@ export class FeedEngine {
       // just a fresh user's first load.
       // 핫딜 숨기기 (David 2026-08-06). 기본은 보임이라 showTopics에
       // "nodeal"이 **있을 때** 숨긴다 — 정치·종교와 방향이 반대다.
-      const hideDeals = showTopics.has(NO_DEAL_TOPIC);
+      //
+      // **핫딜 탭에는 적용하지 않는다.** 검수(2026-08-06 P1)가 실행으로
+      // 재현했다: 숨기기를 켠 사람이 정렬바의 핫딜 탭을 눌러도 0건이었다.
+      // 숨기기의 뜻은 "홈 피드에서 안 보고 싶다"이지 "탭을 눌러도 안 보겠다"가
+      // 아니다 — 탭을 누른 것 자체가 지금 보겠다는 명시적 의사다.
+      // 기능을 줄이지 않는다(확정 규칙 c).
+      const hideDeals = showTopics.has(NO_DEAL_TOPIC) && sort !== "deals";
       const base = items.filter(
         (i) =>
           !(hideDeals && i.isDeal === true) &&
@@ -1186,7 +1192,7 @@ export class FeedEngine {
     // 그 게시판을 그대로 보여 준다.
     // 딜을 숨긴 사람에게는 딜 지분 보장도 하지 않는다 — 후보에서 뺐는데
     // 보장이 다시 끌어오면 숨기기가 안 통한다(취향 지분에서 겪은 것과 같은 종류).
-    const hideDealsNow = new Set(user.showTopics || []).has(NO_DEAL_TOPIC);
+    const hideDealsNow = new Set(user.showTopics || []).has(NO_DEAL_TOPIC) && sort !== "deals";
     if (!source && unseen.length && !hideDealsNow) {
       const scoreOf = new Map(unseen.map((r) => [r.item.id, r.score]));
       const list = unseen.map((r) => r.item);

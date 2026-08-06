@@ -337,3 +337,37 @@ test("화면 테마는 내 공간 안에 있다", async () => {
   assert.match(space, /id="themeChips"/, "내 공간에 화면 테마가 없다");
   assert.match(space, /setupThemeChips\(\)/, "옮겨 놓고 배선을 안 했다 — 칩이 안 눌린다");
 });
+
+test("핫딜을 숨겨도 핫딜 탭은 보인다", async () => {
+  // 검수(2026-08-06 P1)가 실행으로 재현했다: 숨기기를 켠 사람이 정렬바의
+  // 핫딜 탭을 눌러도 0건이었다. 숨기기의 뜻은 "홈 피드에서 안 보고 싶다"이지
+  // "탭을 눌러도 안 보겠다"가 아니다 — 탭을 누른 것 자체가 지금 보겠다는 의사다.
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const { FeedStore } = await import("../src/feed/store.js");
+  const deal = (i) => ({
+    id: `d${i}`, title: `[쇼핑몰]상품${i} (12,900원/무료)`,
+    url: `https://example.com/d${i}`, source: "ppomppu-deal", sourceLabel: "뽐뿌 핫딜",
+    kind: "community", category: "life", publishedAt: new Date().toISOString(),
+    score: 10, commentCount: 3, tags: [], topics: [], lang: "ko"
+  });
+  const store = new FeedStore();
+  const engine = new FeedEngine(store, [{
+    id: "ppomppu-deal", kind: "community",
+    async fetch() { return Array.from({ length: 12 }, (_, i) => deal(i)); }
+  }]);
+  const user = store.createUser();
+  // markSeen: false — 첫 호출이 전부 seen에 들어가면 두 번째가 빈다(테스트 자체의 함정).
+  const before = await engine.getFeed(user.id, { limit: 20, sort: "deals", markSeen: false });
+  const n0 = (before.items || []).filter((i) => i.via !== "ad").length;
+  assert.ok(n0 > 0, "숨기기 전에도 핫딜 탭이 비었다 — 이 테스트의 전제가 깨졌다");
+
+  store.setTopicFilter(user.id, "nodeal", true);
+  const after = await engine.getFeed(user.id, { limit: 20, sort: "deals", markSeen: false });
+  const n1 = (after.items || []).filter((i) => i.via !== "ad").length;
+  assert.ok(n1 > 0, `숨기기를 켰더니 핫딜 탭이 비었다 (${n0} → ${n1})`);
+
+  // 홈 피드에서는 실제로 숨겨져야 한다 — 숨기기가 아무 일도 안 하면 그것도 결함이다.
+  const home = await engine.getFeed(user.id, { limit: 20, markSeen: false });
+  const dealsInHome = (home.items || []).filter((i) => i.isDeal === true).length;
+  assert.equal(dealsInHome, 0, "홈 피드에서 숨기기가 안 먹는다");
+});

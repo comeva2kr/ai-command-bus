@@ -115,6 +115,9 @@ srv.stderr.on("data", keepLog);
 
 const stop = () => { try { srv.kill("SIGTERM"); } catch {} };
 process.on("SIGINT", () => { stop(); process.exit(130); });
+// SIGTERM도 받는다 — 없으면 `kill <pid>`나 프로세스 매니저가 보낼 때
+// Node 기본 동작(즉시 종료)으로 finally가 안 돌아 자식 서버가 좀비로 남는다.
+process.on("SIGTERM", () => { stop(); process.exit(143); });
 
 let code = 0;
 try {
@@ -141,6 +144,13 @@ try {
   // 쿠팡 자격증명은 **서버 .env에만** 둔다(David 원칙: 시크릿을 화면·로컬로
   // 옮기지 않는다). 그래서 로컬에는 없고, 광고 후보가 만들어지지 않는다.
   const noPartner = !process.env.COUPANG_PARTNER_ID;
+  // 번역도 운영과 다르다 — docker-compose는 FEED_TRANSLATE=1을 켜지만 여기는 없다.
+  // 해외 소스(하입비스트·랍스터스·라이브도어 등)가 원문 그대로 보인다.
+  if (!process.env.FEED_TRANSLATE) {
+    console.log("※ 번역이 꺼져 있습니다 — 해외 소스는 원문(영어·일본어)으로 보입니다.");
+    console.log("  운영은 FEED_TRANSLATE=1이라 한국어로 나갑니다. 번역 결과를 보려면");
+    console.log("  FEED_TRANSLATE=1 과 번역 키를 넣고 다시 실행하세요.\n");
+  }
   if (noPartner) {
     console.log("※ 이 스테이징에 없는 것: 쿠팡 파트너 자격증명(서버 .env 전용).");
     console.log("  → 광고 슬롯 관련 점검은 여기서 통과할 수 없습니다. 그 항목은");
