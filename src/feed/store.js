@@ -849,6 +849,27 @@ export class FeedStore {
     if (img && !/^https:\/\//i.test(img)) throw new Error("사진 주소는 https 주소여야 해요");
     if (img.length > 500) throw new Error("사진 주소가 너무 길어요");
 
+    // ── 우리가 확인할 수 없는 주장은 받지 않는다
+    //
+    // products.json의 원칙과 같다: "가격은 출처에 적힌 것을 그대로만 옮긴다.
+    // 우리가 확인할 수 없는 할인율·재고·기간을 쓰는 순간 허위표시다."
+    //
+    // 쿠팡 상품 페이지에는 "12% 할인", "~~27,900원~~", "한 달간 7,000명 이상
+    // 구매", "품절임박" 같은 것이 함께 붙어 온다. 그중 **가격만** 옮긴다.
+    // 나머지는 시간이 지나면 틀려지는데 우리는 그걸 갱신할 방법이 없다 —
+    // 틀린 채로 남으면 그 순간 허위표시가 된다(David 고정 원칙, 2026-08-06).
+    const note = String(deal.note || "").trim();
+    const RISKY = /(\d+\s*[%％])|할인율|최저가|역대가|품절\s*임박|재고\s*(소진|얼마|없)|한정\s*(수량|판매)|마감\s*임박|오늘\s*만|특가\s*마감/;
+    if (RISKY.test(note)) {
+      throw new Error("할인율·재고·기간 주장은 넣을 수 없어요 — 시간이 지나면 틀려지는데 우리가 갱신할 방법이 없어요");
+    }
+    if (note.length > 120) throw new Error("한 줄 소개가 너무 길어요 (120자까지)");
+    // 가격 표기에도 같은 잣대를 댄다. "27,900원 → 24,290원"처럼 원가를 함께
+    // 쓰면 그 원가가 언제 틀려질지 우리가 모른다.
+    if (/[%％]|→|->/.test(price)) {
+      throw new Error("가격은 지금 팔리는 값 하나만 적어주세요 (원가·할인율 제외)");
+    }
+
     const record = {
       id: this._id("odeal"),
       via: "ourdeal",
@@ -862,13 +883,16 @@ export class FeedStore {
       title,
       price,
       // 한 줄 소개 — 우리가 쓴 문장이다. 없으면 비워 둔다(지어내지 않는다).
-      summary: String(deal.note || "").trim(),
+      summary: note,
       url,
       image: img || null,
       dest: String(deal.dest || "").trim() || null,
       score: 0,
       commentCount: 0,
       publishedAt: nowIso(this.clock),
+      // 가격을 **언제 확인했는지**. 값만 보여주면 영원히 유효한 것처럼 읽힌다 —
+      // 우리는 갱신하지 않으므로 시점을 함께 밝혀야 정직하다.
+      priceCheckedAt: nowIso(this.clock),
       createdAt: Date.now()
     };
     this.ourDealsList = this.ourDealsList || [];

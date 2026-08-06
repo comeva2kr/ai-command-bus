@@ -209,3 +209,38 @@ test("'지금핫 딜'은 즐겨 보는 커뮤니티 선택지가 아니다", asy
   assert.ok(!q.options.some((o) => o.id === "nowhot-deal"),
     "우리 딜 지면이 커뮤니티 선택지로 나온다");
 });
+
+test("우리가 갱신할 수 없는 주장은 받지 않는다", async () => {
+  // products.json의 원칙과 같다: "가격은 출처에 적힌 것을 그대로만 옮긴다.
+  // 우리가 확인할 수 없는 할인율·재고·기간을 쓰는 순간 허위표시다."
+  //
+  // 쿠팡 상품 페이지에는 "12% 할인", "~~27,900원~~", "품절임박"이 함께 붙어
+  // 온다. 그중 **가격만** 옮긴다 — 나머지는 시간이 지나면 틀려지는데 우리는
+  // 갱신할 방법이 없고, 틀린 채로 남으면 그 순간 허위표시가 된다.
+  const { FeedStore } = await import("../src/feed/store.js");
+  const st = new FeedStore();
+  const base = { url: "https://link.coupang.com/a/zz1", title: "테스트 상품 세트", price: "24,290원" };
+
+  for (const note of ["12% 할인 중", "품절 임박이에요", "한정 수량 판매", "오늘만 이 가격", "역대가"]) {
+    assert.throws(() => st.createOurDeal({ ...base, note }), /넣을 수 없어요/, `"${note}"가 통과했다`);
+  }
+  for (const price of ["27,900원 → 24,290원", "12% 24,290원", "27,900 -> 24,290"]) {
+    assert.throws(() => st.createOurDeal({ ...base, price }), /하나만/, `"${price}"가 통과했다`);
+  }
+  // 쿠팡이 표시한 값을 옮긴 것은 막지 않는다 — 과잉방어는 쓸 수 있는 걸 없앤다.
+  const ok = st.createOurDeal({ ...base, note: "한 달간 7,000명 이상 구매 · 무료배송" });
+  assert.ok(ok.id);
+});
+
+test("가격에 확인 시점이 함께 남는다 — 영원히 유효한 값이 아니다", async () => {
+  const { FeedStore } = await import("../src/feed/store.js");
+  const st = new FeedStore();
+  const d = st.createOurDeal({
+    url: "https://link.coupang.com/a/zz2", title: "테스트 상품 세트", price: "24,290원"
+  });
+  assert.ok(d.priceCheckedAt, "확인 시점이 없다 — 값만 보면 영원히 유효한 것처럼 읽힌다");
+
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  assert.match(html, /확인 가격/, "화면에 확인 시점을 안 밝힌다");
+});

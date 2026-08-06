@@ -118,6 +118,7 @@ export function normalizeItem(raw, source) {
     // "가격은 David가 확인한 값만 쓴다"는 이 기능의 존재 이유가 화면에
     // 도달하지 못했다(적대적 검수 2026-08-06 P0, 재현 확인).
     price: raw.price || null,
+    priceCheckedAt: raw.priceCheckedAt || null,
     dest: raw.dest || null,
     // engagement metadata used as weak popularity signals
     score: Number.isFinite(raw.score) ? raw.score : 0,

@@ -3447,7 +3447,11 @@ function appendAdCard(item){
     hook: item.title || "",
     line: [item.price, item.summary].filter(Boolean).join(" · "),
     cta: "쿠팡에서 보기",
-    brand: item.sourceLabel || "지금핫 딜"
+    // 가격을 **언제 확인한 값인지** 함께 밝힌다. 값만 보여주면 영원히 유효한
+    // 것처럼 읽히는데 우리는 갱신하지 않는다 — 밝히지 않으면 시간이 지나
+    // 허위표시가 된다.
+    brand: (item.sourceLabel || "지금핫 딜")
+      + (item.priceCheckedAt ? ` · ${new Date(item.priceCheckedAt).toLocaleDateString("ko-KR",{month:"numeric",day:"numeric"})} 확인 가격` : "")
   } : {
     href: item.url,
     img: item.image || null,
