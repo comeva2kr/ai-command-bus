@@ -15,7 +15,21 @@ export const CATEGORIES = [
   { id: "culture", label: "문화/연예", labelEn: "Culture" },
   { id: "life", label: "라이프/취미", labelEn: "Lifestyle" },
   { id: "humor", label: "유머/일상", labelEn: "Humor" },
-  { id: "politics", label: "정치", labelEn: "Politics" }
+  { id: "politics", label: "정치", labelEn: "Politics" },
+  // 2026-08-06 추가 (David: "카테고리에 모든 주제별로 확장시키자. 부동산 패션 예술 등등").
+  //
+  // **재료가 있는 것만 만든다.** enabled 소스를 세어 보고 정했다:
+  //   부동산 4곳(매경·한경·조선비즈 부동산, 뽐뿌 하우스)
+  //   패션   6곳(하입비스트·하이스노비티·하입베·패셔니스타·스니커뉴스)
+  //   예술   6곳(디자인붐·아크데일리·얀코·하이퍼알러직·크리에이티브붐)
+  // health·travel·parenting은 각 1곳뿐이라 지금 칸을 만들면 빈 화면이 된다 —
+  // 소스가 늘 때 승격한다. 15개를 채우려고 빈 칸을 만들지 않는다.
+  //
+  // 이 카테고리들은 그동안 business·culture 안에 태그로만 섞여 있었다.
+  // 부동산 소식을 보려면 경제 안에서 찾아야 했고 스니커즈가 연예 옆에 있었다.
+  { id: "realestate", label: "부동산", labelEn: "Real Estate" },
+  { id: "fashion", label: "패션", labelEn: "Fashion" },
+  { id: "art", label: "예술·디자인", labelEn: "Art & Design" }
 ];
 
 // 태그의 한국어 이름 (David 2026-08-06).

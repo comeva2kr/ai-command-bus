@@ -1851,7 +1851,10 @@ function detailAdHtml(category, dealDest){
 // (클라이언트는 모듈을 import할 수 없어 부득이 복제한다. 맥락은 5개뿐이고
 //  거의 바뀌지 않으므로, 카피 표를 서버 단일 출처로 옮긴 것과는 사정이 다르다.)
 const AD_CTX_OF = { tech:"tech", gaming:"tech", life:"life", auto:"life",
-  humor:"fun", culture:"fun", news:"news", business:"news", sports:"hobby" };
+  humor:"fun", culture:"fun", news:"news", business:"news", sports:"hobby",
+  // 2026-08-06 신설. 부동산은 일부러 비워 둔다 — 기본값 news로 떨어진다.
+  // 집을 파는 광고를 우리가 붙일 수 없고, 억지 매칭은 무관한 광고가 된다.
+  fashion:"life", art:"life" };
 
 // 맥락에 맞는 문구를 고른다. 행렬이 없거나 칸이 비면 서버가 준 기본 문구로
 // 떨어진다 — 배치가 실패해도 광고가 사라지지 않는다.
@@ -1945,6 +1948,10 @@ const AD_CTX = {
   culture:  ["culture", "life"],
   humor:    ["humor", "life"],
   sports:   ["sports", "life"],
+  // 2026-08-06 신설. 패션 글에는 패션·생활 재고를, 예술·디자인 글에는
+  // 인테리어로 이어지는 생활 재고를 붙인다. 부동산은 넣지 않는다.
+  fashion:  ["fashion", "life"],
+  art:      ["life"],
   auto:     ["auto"],
   life:     ["life"]
 };

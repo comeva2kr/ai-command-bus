@@ -64,7 +64,8 @@ const KEYWORD_MAP = [
   { words: ["개발", "코딩", "프로그래밍", "개발자"], category: "tech", tag: "programming" },
   { words: ["주식", "코스피", "증시"], category: "business", tag: "markets" },
   { words: ["코인", "비트코인", "암호화폐"], category: "business", tag: "crypto" },
-  { words: ["부동산", "전세", "아파트"], category: "business", tag: "realestate" },
+  // 2026-08-06: 부동산이 독립 카테고리가 되어 business에서 옮겼다.
+  { words: ["부동산", "전세", "아파트"], category: "realestate", tag: "realestate" },
   { words: ["게임", "스팀", "플스", "롤", "lol"], category: "gaming", tag: "pc-gaming" },
   { words: ["e스포츠", "롤드컵", "결승"], category: "gaming", tag: "esports" },
   { words: ["축구", "손흥민", "epl"], category: "sports", tag: "football" },

@@ -29,7 +29,8 @@ import { loadRegistry } from "./registry.js";
 const CAT_KO = {
   news: "뉴스", tech: "IT·기술", humor: "유머", culture: "문화",
   business: "경제", life: "생활", sports: "스포츠", gaming: "게임",
-  auto: "자동차", politics: "정치", science: "과학", food: "음식"
+  auto: "자동차", politics: "정치", science: "과학", food: "음식",
+  realestate: "부동산", fashion: "패션", art: "예술·디자인"
 };
 export const catKo = (k) => CAT_KO[k] || k;
 

@@ -47,7 +47,12 @@ const CTX_OF = {
   life: "life", auto: "life",
   humor: "fun", culture: "fun",
   news: "news", business: "news",
-  sports: "hobby"
+  sports: "hobby",
+  // 2026-08-06 신설 카테고리. 상품이 실제로 붙는 분야라 맥락을 준다 —
+  // 패션은 옷·신발, 예술·디자인은 인테리어/소품이 자연스럽게 이어진다.
+  // **부동산은 news로 떨어뜨린다**(아래 기본값). 집을 파는 광고를 우리가
+  // 붙일 수 없고, 억지로 상품을 매칭하면 그게 무관한 광고가 된다.
+  fashion: "life", art: "life"
 };
 export const contextOf = (cat) => CTX_OF[cat] || "news";
 
