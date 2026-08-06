@@ -949,9 +949,20 @@ export class FeedEngine {
         // 않는다 — 딜만 보러 온 화면이다. 다양성 인터리브도 걸지 않는다:
         // 어느 게시판에 올라왔는지보다 무엇을 얼마에 파는지가 중요하다.
         const dealPool = pool.filter((i) => i.isDeal === true);
-        const orderedDeals = dealPool
+        // **우리가 직접 올린 딜을 맨 앞에 둔다.**
+        //
+        // dealRank는 반응(추천·댓글)을 재는데 우리 딜은 우리가 고른 것이라
+        // 0에서 시작한다 — 뽐뿌 핫딜과 같은 잣대로 재면 여기서도 뒤로 밀린다
+        // (실측 2026-08-06: 12칸 안에 한 건도 못 들었다).
+        // 핫딜 모아보기는 **우리 물건을 파는 자리**다. 우리 딜끼리는 최신순으로,
+        // 그 뒤에 커뮤니티 딜을 반응·신선도 순으로 잇는다.
+        const ourList = dealPool.filter((i) => i.via === "ourdeal")
+          .sort((a, b) => Date.parse(b.publishedAt || 0) - Date.parse(a.publishedAt || 0))
+          .map((item) => ({ item, score: 1e9 }));
+        const rivalList = dealPool.filter((i) => i.via !== "ourdeal")
           .map((item) => ({ item, score: dealRank(item, now) }))
           .sort((a, b) => b.score - a.score);
+        const orderedDeals = [...ourList, ...rivalList];
         this._lastSelectMeta = null;
         const dealFresh = orderedDeals.slice(cursor, cursor + limit);
         const dealBatch = dealFresh.map((r) =>

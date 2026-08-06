@@ -2041,7 +2041,10 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
           return send(res, 400, { error: "unknown source" });
         }
         // 정렬: hot(기본) | latest — 그 외 값은 hot으로 접는다 (열린 enum 방지)
-        const sort = url.searchParams.get("sort") === "latest" ? "latest" : "hot";
+        // "deals" — 핫딜 모아보기(David 2026-08-06). 엔진에는 이미 구현돼
+        // 있었는데 **이 라우트가 값을 막고 있어서** 화면에서 쓸 수 없었다.
+        const rawSort = url.searchParams.get("sort");
+        const sort = rawSort === "latest" ? "latest" : rawSort === "deals" ? "deals" : "hot";
         const feed = await engine.getFeed(userId, { cursor, limit, source, sort });
         return send(res, 200, feed);
       }

@@ -170,12 +170,23 @@ export function capDeals(items, { maxShare = DEAL_MAX_SHARE, minGap = DEAL_MIN_G
   // 몇 건까지 남길지. 한 건은 항상 남긴다 — 딜이 통째로 사라지면 David가 처음
   // 요청한 "일정 비율로 노출"이 무너진다.
   const keepCount = Math.max(1, Math.floor(list.length * maxShare));
-  const ranked = [...dealIdx].sort((a, b) => dealHeat(list[b]) - dealHeat(list[a]));
 
-  const keep = new Set();
+  // **우리가 직접 올린 딜은 경쟁에서 빼고 먼저 남긴다.**
+  //
+  // capDeals는 반응이 큰 딜부터 남기는데, 우리 딜은 우리가 고른 것이라 추천·
+  // 댓글이 0에서 시작한다 — 뽐뿌 핫딜(댓글 수십)과 같은 잣대로 재면 **영원히
+  // 꼴찌**다. 실측(2026-08-06 라이브): 등록한 딜이 피드 106칸에 한 번도 안 나왔다.
+  // 화제성으로 경쟁시킬 대상이 아니다. 애드핏 대응의 핵심 산출물이고,
+  // 수수료가 나오는 유일한 자리이기도 하다.
+  const isOurs = (it) => it && it.via === "ourdeal";
+  const oursIdx = dealIdx.filter((i) => isOurs(list[i]));
+  const rivalIdx = dealIdx.filter((i) => !isOurs(list[i]));
+  const ranked = [...rivalIdx].sort((a, b) => dealHeat(list[b]) - dealHeat(list[a]));
+
+  const keep = new Set(oursIdx);
   let lastKept = -Infinity;
   for (const i of ranked) {
-    if (keep.size >= keepCount) break;
+    if (keep.size - oursIdx.length >= keepCount) break;
     // 이미 남긴 딜과 너무 붙어 있으면 이 건은 넘긴다. 뭉쳐 보이는 원인이
     // 개수가 아니라 **간격**이었다(연달아 2~4개).
     let tooClose = false;

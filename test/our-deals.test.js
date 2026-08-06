@@ -244,3 +244,54 @@ test("가격에 확인 시점이 함께 남는다 — 영원히 유효한 값이
   const html = readFileSync("src/feed/public/index.html", "utf8");
   assert.match(html, /확인 가격/, "화면에 확인 시점을 안 밝힌다");
 });
+
+test("우리 딜은 화제성 경쟁에 밀리지 않는다 — 반응 0에서 시작한다", async () => {
+  // 실측(2026-08-06 라이브): 등록한 딜이 피드 106칸에 한 번도 안 나왔다.
+  // capDeals는 반응 큰 딜부터 남기는데 우리 딜은 우리가 고른 것이라 추천·댓글이
+  // 0에서 시작한다 — 뽐뿌 핫딜(댓글 수십)과 같은 잣대로 재면 영원히 꼴찌다.
+  // 화제성으로 경쟁시킬 대상이 아니다.
+  const { capDeals } = await import("../src/feed/deals.js");
+  const mk = (i, deal, ours, c) => ({ id: "x" + i, title: "글" + i, isDeal: deal, via: ours ? "ourdeal" : undefined, commentCount: c || 0 });
+  const list = [mk(0, false), mk(1, true, false, 90), mk(2, true, false, 80), mk(3, false),
+                mk(4, true, true, 0), mk(5, true, false, 70), mk(6, false), mk(7, false),
+                mk(8, false), mk(9, false), mk(10, false), mk(11, false)];
+  const out = capDeals(list, { is: (i) => i.isDeal === true });
+  assert.equal(out.length, list.length, "길이가 줄면 무한스크롤이 죽는다");
+  const pos = out.findIndex((x) => x.via === "ourdeal");
+  assert.ok(pos >= 0 && pos < 8, `우리 딜이 ${pos}번째 — 뒤로 밀렸다`);
+});
+
+test("핫딜 모아보기에서 우리 딜이 맨 앞에 온다", async () => {
+  // 여기가 우리 물건을 파는 자리다. dealRank는 반응을 재므로 우리 딜은
+  // 여기서도 뒤로 밀렸다(실측: 12칸 안에 한 건도 못 들었다).
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const { FeedStore } = await import("../src/feed/store.js");
+  const { StorePostsSource } = await import("../src/feed/content.js");
+  const store = new FeedStore();
+  store.createOurDeal({ url: "https://link.coupang.com/a/deals1", title: "우리가 고른 상품 세트", price: "24,290원", dest: "dgt" });
+  const rivals = Array.from({ length: 20 }, (_, i) => ({
+    id: `r${i}`, title: `[쿠팡] 경쟁 딜 ${i} (9,900원)`, url: `https://e.com/${i}`,
+    source: "ppomppu-deal", publishedAt: new Date(Date.now() - i * 60000).toISOString(),
+    commentCount: 50 - i, score: 0, tags: [], topics: [], summary: "", category: "life", lang: "ko"
+  }));
+  const engine = new FeedEngine(store, [
+    new StorePostsSource(store),
+    { id: "pp", kind: "community", async fetch() { return rivals; } }
+  ]);
+  const u = store.createUser();
+  const r = await engine.getFeed(u.id, { limit: 12, sort: "deals" });
+  const organic = r.items.filter((x) => x.via !== "ad");
+  assert.ok(organic.length > 0, "핫딜 탭이 비었다");
+  assert.ok(organic.every((x) => x.isDeal), "딜이 아닌 글이 섞였다");
+  assert.equal(organic[0].via, "ourdeal", "우리 딜이 맨 앞이 아니다");
+});
+
+test("핫딜 모아보기가 서버 라우트에서 막히지 않는다", async () => {
+  // 엔진에는 구현돼 있었는데 라우트가 sort 값을 "latest"만 통과시켜
+  // 화면에서 쓸 수 없었다.
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync("src/feed/server.js", "utf8");
+  assert.match(src, /rawSort === "deals" \? "deals"/, "sort=deals가 라우트에서 막힌다");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  assert.match(html, /data-sort="deals"/, "핫딜 탭 버튼이 없다");
+});
