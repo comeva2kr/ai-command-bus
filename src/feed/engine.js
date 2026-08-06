@@ -39,7 +39,7 @@ import {
 import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { sampleSources, evaluate, summarize } from "./health.js";
-import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams, latestInterleave, diversityKey } from "./ingest.js";
+import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams, latestInterleave, diversityKey, COVERAGE_MAX } from "./ingest.js";
 import { FILTERABLE_TOPICS, NO_DEAL_TOPIC } from "./topics.js";
 import { buildEditorialNote } from "./editorial.js";
 import {
@@ -680,7 +680,16 @@ export class FeedEngine {
         if (it.kind === "community") continue;
         const k = eventKey(it.title);
         if (!k) continue;
-        const n = bySource.get(k).size;
+        // **상한을 여기서 건다.** coverage를 쓰는 곳이 다섯인데 그중 셋
+        // (categoryTop·briefing weight·digest)이 `coverage × 50`, `× 80`을
+        // 상한 없이 쓴다(설계 검토 2026-08-06). 지금까지 안 터진 것은 구글이
+        // 주는 값이 사실상 0 아니면 5여서였을 뿐, 안전장치가 있어서가 아니다.
+        //
+        // 우리가 직접 세기 시작하면서 그 가정이 깨졌다 — 큰 사건을 15곳이
+        // 다루면 750~1,600점이 되어 반응량·검색관심 축을 통째로 눌러 버린다.
+        // 소비처마다 캡을 걸면 하나 빠뜨리는 게 시간문제라(실제로 셋이 빠져
+        // 있다) **기록하는 이 한 곳에서** 막는다.
+        const n = Math.min(bySource.get(k).size, COVERAGE_MAX);
         // 한 곳만 다뤘으면 교차보도가 아니다. 구글이 준 값이 더 크면 그쪽을 쓴다
         // — 구글은 자기 색인 범위에서, 우리는 우리 풀 범위에서 세므로 보완 관계다.
         if (n >= 2 && n > (it.coverage || 0)) it.coverage = n;

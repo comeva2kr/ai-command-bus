@@ -11,6 +11,7 @@
 import { isKnownCategory } from "./taxonomy.js";
 import { extractTags } from "./tags.js";
 import { eventKey } from "./dedupe.js";
+import { COVERAGE_MAX } from "./ingest.js";
 import { SEED_ITEMS } from "./seed-data.js";
 import { classifyTopics } from "./topics.js";
 
@@ -371,7 +372,9 @@ export async function collect(sources, opts = {}) {
         const fresh = item.kind !== "community" && kept.kind !== "community" &&
           !rel.some((r) => r.source === item.source);
         if (fresh) {
-          const mine = rel.length + 2;   // 이미 접힌 매체 + kept + 이번 것
+          // 상한은 engine.js와 같은 값을 쓴다 — 두 경로가 다른 상한을 쓰면
+          // 어느 쪽으로 들어왔느냐에 따라 점수가 달라진다.
+          const mine = Math.min(rel.length + 2, COVERAGE_MAX);
           if (mine > (kept.coverage || 0)) kept.coverage = mine;
         }
         // 한 매체가 목록을 독식하지 않게 소스당 한 줄만 남긴다.

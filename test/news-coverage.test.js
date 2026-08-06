@@ -96,3 +96,37 @@ test("커뮤니티가 기사 제목을 따 와도 매체로 세지 않는다", a
   assert.equal(items.length, 1);
   assert.ok(!(items[0].coverage > 0), `커뮤니티가 매체로 세졌다: ${items[0].coverage}`);
 });
+
+test("coverage는 상한을 넘지 않는다 — 기록하는 한 곳에서 막는다", async () => {
+  // 설계 검토(2026-08-06)가 잡은 것: coverage를 쓰는 곳이 다섯인데 그중 셋
+  // (categoryTop·briefing weight·digest)이 coverage×50, ×80을 **상한 없이** 쓴다.
+  // 지금까지 안 터진 것은 구글이 주는 값이 사실상 0 아니면 5여서였을 뿐이다.
+  // 우리가 직접 세기 시작하면서 그 가정이 깨졌다 — 큰 사건을 15곳이 다루면
+  // 750~1,600점이 되어 반응량·검색관심 축을 통째로 눌러 버린다.
+  const { COVERAGE_MAX } = await import("../src/feed/ingest.js");
+  const store = new FeedStore();
+  // 같은 사건을 15곳이 다룬 상황
+  const many = Array.from({ length: 15 }, (_, i) => ({
+    id: `s${i}`, kind: "news",
+    async fetch() { return [art(`a${i}`, `src${i}`, `매체${i}`)]; }
+  }));
+  const engine = new FeedEngine(store, many);
+  await engine.refresh();
+  const items = await engine._items();
+  const hit = items.filter((i) => i.title === SAME);
+  assert.ok(hit.length, "아이템이 없다");
+  for (const it of hit) {
+    assert.ok((it.coverage || 0) <= COVERAGE_MAX,
+      `상한을 넘었다: ${it.coverage} > ${COVERAGE_MAX}`);
+  }
+});
+
+test("접기 경로와 풀 집계 경로가 같은 상한을 쓴다", async () => {
+  // 두 경로가 다른 상한을 쓰면 어느 쪽으로 들어왔느냐에 따라 점수가 달라진다.
+  const fsm = await import("node:fs");
+  const content = fsm.readFileSync("src/feed/content.js", "utf8");
+  const engine = fsm.readFileSync("src/feed/engine.js", "utf8");
+  assert.match(content, /Math\.min\(rel\.length \+ 2, COVERAGE_MAX\)/, "접기 경로에 상한이 없다");
+  assert.match(engine, /Math\.min\(bySource\.get\(k\)\.size, COVERAGE_MAX\)/, "풀 집계에 상한이 없다");
+  assert.match(content, /import \{ COVERAGE_MAX \} from "\.\/ingest\.js"/, "상한을 따로 정의했다");
+});

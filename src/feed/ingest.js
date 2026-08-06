@@ -249,7 +249,7 @@ const HOT_GRAVITY_DEFAULT = 1.8;
 // 대략 ±2.5이므로 0.8이면 "같은 순위대에서는 확실히 이기지만 순위를 통째로
 // 뒤집지는 못하는" 크기다. HOT_COVERAGE_W로 조정 가능.
 const HOT_COVERAGE_W_DEFAULT = 0.8;
-const COVERAGE_MAX = 5; // 구글뉴스 RSS가 돌려주는 관련기사 목록의 상한(실측)
+export const COVERAGE_MAX = 5; // 구글뉴스 RSS가 돌려주는 관련기사 목록의 상한(실측)
 const HOT_BAYES_M_DEFAULT = 10;
 const HOT_VEL_W_DEFAULT = 0.3;
 const HOT_TASTE_W_DEFAULT = 0.15; // read by engine.js, exported below too
