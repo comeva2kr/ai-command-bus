@@ -37,6 +37,14 @@ export const TOPIC_CATALOG = [
 // per-user state in store.js).
 export const FILTERABLE_TOPICS = ["politics", "religion"];
 
+// 콘텐츠 필터가 다루는 키 전체. politics·religion은 **기본 숨김**이라
+// showTopics에 있으면 보이지만, 핫딜은 **기본 보임**이라 방향이 반대다.
+// 그래서 "deal"이 아니라 "nodeal"로 담는다 — showTopics에 nodeal이 있으면 숨긴다.
+// (David 2026-08-06: "메뉴에 핫딜 모아보기 없애고, 콘텐츠 필터에 핫딜을 넣어
+//  숨기기·보기". 밖 화면에 핫딜 탭이 이미 있어 모아보기 버튼은 중복이었다.)
+export const NO_DEAL_TOPIC = "nodeal";
+export const FILTER_KEYS = [...FILTERABLE_TOPICS, NO_DEAL_TOPIC];
+
 // ---- board-slug rules ----------------------------------------------------
 // `source` matches the community's registry id (communities.json); `pattern`
 // tests the item's own (already-resolved) url. Only aggregator-style sources

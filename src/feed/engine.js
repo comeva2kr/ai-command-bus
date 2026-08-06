@@ -40,7 +40,7 @@ import { collaborativeBoosts } from "./collab.js";
 import { categoryLabel, sourceLabel } from "./taxonomy.js";
 import { sampleSources, evaluate, summarize } from "./health.js";
 import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams, latestInterleave, diversityKey } from "./ingest.js";
-import { FILTERABLE_TOPICS } from "./topics.js";
+import { FILTERABLE_TOPICS, NO_DEAL_TOPIC } from "./topics.js";
 import { buildEditorialNote } from "./editorial.js";
 import {
   injectSlots,
@@ -942,8 +942,12 @@ export class FeedEngine {
       // hotGate/rankItems path did) so the round-robin/min-gap diversity
       // guarantees below hold on *every* page of the infinite scroll, not
       // just a fresh user's first load.
+      // 핫딜 숨기기 (David 2026-08-06). 기본은 보임이라 showTopics에
+      // "nodeal"이 **있을 때** 숨긴다 — 정치·종교와 방향이 반대다.
+      const hideDeals = showTopics.has(NO_DEAL_TOPIC);
       const base = items.filter(
         (i) =>
+          !(hideDeals && i.isDeal === true) &&
           !muted.has(i.source) &&
           !disabled.has(i.source) &&
           // mainFeed:false — 수집은 하되 통합 피드에서만 뺀다. 소스 칩으로
@@ -1158,7 +1162,10 @@ export class FeedEngine {
     // 후보 목록에서 먼저 조정하고 그다음에 자르면, 페이지는 늘 꽉 찬다.
     // 통합 피드에만 적용한다 — 소스 칩으로 한 게시판을 고른 사람에게는
     // 그 게시판을 그대로 보여 준다.
-    if (!source && unseen.length) {
+    // 딜을 숨긴 사람에게는 딜 지분 보장도 하지 않는다 — 후보에서 뺐는데
+    // 보장이 다시 끌어오면 숨기기가 안 통한다(취향 지분에서 겪은 것과 같은 종류).
+    const hideDealsNow = new Set(user.showTopics || []).has(NO_DEAL_TOPIC);
+    if (!source && unseen.length && !hideDealsNow) {
       const scoreOf = new Map(unseen.map((r) => [r.item.id, r.score]));
       const list = unseen.map((r) => r.item);
       const inList = new Set(list.map((i) => i.id));

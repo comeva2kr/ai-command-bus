@@ -33,7 +33,7 @@ import { loadRegistry, buildSources, summarize } from "./registry.js";
 import { makeFetcher } from "./fetchers.js";
 import { memoizedTranslator } from "./translate.js";
 import { googleFreeTranslator } from "./translator.js";
-import { TOPIC_CATALOG, FILTERABLE_TOPICS } from "./topics.js";
+import { TOPIC_CATALOG, FILTERABLE_TOPICS, FILTER_KEYS } from "./topics.js";
 import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
@@ -2214,8 +2214,8 @@ ${rankingRows(list, (above) => {
         // adult는 켤 수 있는 토픽이 아니다 (위 주석 참고). 다른 토픽 이름과
         // 똑같이 "모르는 토픽"으로 답한다 — 여기만 특별한 오류를 주면
         // 켜는 방법이 어딘가 있다는 뜻이 된다.
-        if (!FILTERABLE_TOPICS.includes(topic)) {
-          return send(res, 400, { error: "unknown topic", topics: FILTERABLE_TOPICS });
+        if (!FILTER_KEYS.includes(topic)) {
+          return send(res, 400, { error: "unknown topic", topics: FILTER_KEYS });
         }
         const showTopics = store.setTopicFilter(body.userId, topic, on);
         return send(res, 200, { ok: true, topic, on: showTopics.includes(topic), showTopics });

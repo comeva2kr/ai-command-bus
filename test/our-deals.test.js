@@ -7,6 +7,7 @@
 // 자체 콘텐츠이고 링크도 제휴 링크다 — 정책의 모든 조항을 통과한다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 const ADMIN = { "content-type": "application/json", "x-admin-token": "t" };
 
@@ -135,7 +136,7 @@ test("등록한 딜을 내릴 수 있다", async () => {
 
 test("우리 딜은 광고 카드 경로로 간다 — 고지문이 화면에 그려져야 한다", async () => {
   const { readFileSync } = await import("node:fs");
-  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const html = fs.readFileSync("src/feed/public/index.html", "utf8");
 
   // 광고 판정이 kind만 보면 우리 딜(kind "community")이 일반 카드로 새어 나간다.
   const fn = html.slice(html.indexOf("function isAdItem(item){"),
@@ -154,7 +155,7 @@ test("우리 딜은 광고 카드 경로로 간다 — 고지문이 화면에 �
 
 test("우리 딜의 문구는 광고 행렬로 덮이지 않는다", async () => {
   const { readFileSync } = await import("node:fs");
-  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const html = fs.readFileSync("src/feed/public/index.html", "utf8");
   // David가 넣은 상품명을 행렬 hook으로 갈아치우면 엉뚱한 물건 이야기가 된다.
   const v = html.slice(html.indexOf("function adVariant(link, category, rotate){"),
                        html.indexOf("function adVariant(link, category, rotate){") + 700);
@@ -241,7 +242,7 @@ test("가격에 확인 시점이 함께 남는다 — 영원히 유효한 값이
   assert.ok(d.priceCheckedAt, "확인 시점이 없다 — 값만 보면 영원히 유효한 것처럼 읽힌다");
 
   const { readFileSync } = await import("node:fs");
-  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const html = fs.readFileSync("src/feed/public/index.html", "utf8");
   assert.match(html, /확인 가격/, "화면에 확인 시점을 안 밝힌다");
 });
 
@@ -292,28 +293,41 @@ test("핫딜 모아보기가 서버 라우트에서 막히지 않는다", async 
   const { readFileSync } = await import("node:fs");
   const src = readFileSync("src/feed/server.js", "utf8");
   assert.match(src, /rawSort === "deals" \? "deals"/, "sort=deals가 라우트에서 막힌다");
-  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const html = fs.readFileSync("src/feed/public/index.html", "utf8");
   assert.match(html, /data-sort="deals"/, "핫딜 탭 버튼이 없다");
 });
 
-test("설정 메뉴에 핫딜 모아보기 버튼이 있다", async () => {
-  // David가 처음 요청한 자리는 **설정**이었다("설정에 핫딜 모아보기 버튼 하나
-  // 만들자"). 정렬바에만 붙였다가 "딜 메뉴 따로 만든다는건 어디갔음? 세팅에"로
-  // 지적받았다. 두 자리 모두 같은 상태(state.sortMode)를 가리키므로 화면은 하나다.
-  const { readFileSync } = await import("node:fs");
-  const html = readFileSync("src/feed/public/index.html", "utf8");
-  assert.match(html, /id="drawerDealsBtn"/, "설정 메뉴에 핫딜 버튼이 없다");
-  assert.match(html, /dealsBtn\.onclick[\s\S]{0,300}state\.sortMode = "deals"/,
-    "버튼이 핫딜 정렬로 안 바꾼다");
-  assert.match(html, /dealsBtn\.onclick[\s\S]{0,400}reloadFeedSilently\(\)/,
-    "정렬바와 다른 경로로 피드를 다시 그린다");
-  assert.match(html, /data-sort="deals"/, "정렬바 탭도 유지되어야 한다");
+test("설정 메뉴에서 핫딜 모아보기를 뺐고, 대신 콘텐츠 필터에 넣었다", () => {
+  // David 2026-08-06: "메뉴에 핫딜 모아보기 없애 (밖에 화면에 핫딜 있는 걸로
+  // 충분해) 그리고 콘텐츠 필터에 핫딜을 넣어 숨기기 보기".
+  // 정렬바에 핫딜 탭이 이미 있어 같은 일을 두 곳에서 하고 있었다.
+  const html = fs.readFileSync("src/feed/public/index.html", "utf8");
+  assert.ok(!/drawerDealsBtn/.test(html), "메뉴에 핫딜 버튼이 아직 있다");
+  assert.match(html, /data-deal-toggle/, "콘텐츠 필터에 핫딜 토글이 없다");
+  assert.match(html, /async function toggleDeals\(hide\)/, "토글 핸들러가 없다");
+  // 정렬바 탭은 그대로 — 밖 화면의 핫딜이 없어지면 안 된다.
+  assert.match(html, /data-sort="deals"/, "정렬바의 핫딜 탭이 사라졌다");
 });
+
+test("핫딜은 기본으로 보인다 — 숨김을 켜야 사라진다", async () => {
+  // 정치·종교는 기본 숨김이라 showTopics에 있으면 보이는데, 핫딜은 반대다.
+  // 그래서 "deal"이 아니라 "nodeal"로 담는다 — 방향을 헷갈리면 기본값이 뒤집힌다.
+  const { NO_DEAL_TOPIC, FILTER_KEYS, FILTERABLE_TOPICS } = await import("../src/feed/topics.js");
+  assert.equal(NO_DEAL_TOPIC, "nodeal");
+  assert.ok(FILTER_KEYS.includes("nodeal"));
+  assert.ok(!FILTERABLE_TOPICS.includes("nodeal"), "기본 숨김 목록에 들어갔다 — 정치·종교와 뜻이 다르다");
+  const src = fs.readFileSync("src/feed/engine.js", "utf8");
+  assert.match(src, /const hideDeals = showTopics\.has\(NO_DEAL_TOPIC\)/, "엔진이 숨김을 안 본다");
+  assert.match(src, /!\(hideDeals && i\.isDeal === true\)/, "후보에서 딜을 안 뺀다");
+  // 숨겼는데 지분 보장이 다시 끌어오면 숨기기가 안 통한다.
+  assert.match(src, /!source && unseen\.length && !hideDealsNow/, "딜 지분 보장이 숨김을 무시한다");
+});
+
 
 test("화면 테마는 내 공간 안에 있다", async () => {
   // David 2026-08-06: "메뉴에서 화면 테마는 내공간 안으로 넣자."
   const { readFileSync } = await import("node:fs");
-  const html = readFileSync("src/feed/public/index.html", "utf8");
+  const html = fs.readFileSync("src/feed/public/index.html", "utf8");
   const drawer = html.slice(html.indexOf('<aside id="drawer"') >= 0 ? html.indexOf('<aside id="drawer"') : 0,
                             html.indexOf('id="drawerSpaceBtn"'));
   assert.ok(!drawer.includes('id="themeChips"'), "드로어에 화면 테마가 남아 있다");

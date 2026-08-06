@@ -1068,7 +1068,6 @@
       </div>
 
       <div class="drawer-sec">
-        <button class="drawer-link" id="drawerDealsBtn">🔥 핫딜 모아보기</button>
         <p class="drawer-hint">제품 판매 딜만 모아서, 관심도와 최신순으로 보여드려요.</p>
       </div>
 
@@ -2351,18 +2350,9 @@ function setupDrawer(){
   document.getElementById("drawerClose").onclick = closeDrawer;
   document.getElementById("drawerBack").onclick = closeDrawer;
   document.getElementById("drawerSpaceBtn").onclick = ()=>{ closeDrawer(); openSpace(); };
-  // 핫딜 모아보기 — David가 "설정에 버튼 하나"로 요청한 것이다(2026-08-06).
-  // 정렬바에만 붙였다가 지적받고 여기에도 넣었다. 같은 상태를 가리키므로
-  // 어느 쪽으로 들어와도 화면은 하나다.
-  const dealsBtn = document.getElementById("drawerDealsBtn");
-  if(dealsBtn) dealsBtn.onclick = ()=>{
-    closeDrawer();
-    state.sortMode = "deals";
-    localStorage.setItem("feed_sort", state.sortMode);   // 정렬바와 같은 저장소를 쓴다
-    const bar = document.getElementById("sortBar");
-    if(bar) [...bar.children].forEach(b=>b.classList.toggle("active", b.dataset.sort === "deals"));
-    reloadFeedSilently();
-  };
+  // 메뉴의 "핫딜 모아보기"는 뺐다(David 2026-08-06: "밖에 화면에 핫딜 있는
+  // 걸로 충분해"). 정렬바에 핫딜 탭이 이미 있으니 같은 일을 두 곳에서 하던 것이다.
+  // 대신 콘텐츠 필터에 핫딜 숨기기·보기를 넣었다 — 아래 contentFilterHtml.
   document.addEventListener("keydown", (e)=>{
     if(e.key==="Escape" && document.getElementById("drawer").classList.contains("open")) closeDrawer();
   });
@@ -2500,12 +2490,42 @@ function contentFilterHtml(){
       return `<div class="muted-row">${icon} ${label} 글 <b>${on?"보는 중":"숨김"}</b>
         <button class="chip${on?" active":""}" data-topic-toggle="${id}" aria-pressed="${on}">${on?"숨기기":"보기"}</button></div>`;
     }).join("")}
-    <p style="color:var(--muted);font-size:11.5px;line-height:1.5;margin:6px 0 0">정치·종교 글은 기본적으로 피드에서 숨겨져요. 위 버튼으로 켜고 끌 수 있어요. 특정 매체를 안 보고 싶으면 글을 열어 “그만보기”를 누르세요.</p>`;
+    ${(()=>{
+      // 핫딜은 **기본 보임**이라 정치·종교와 방향이 반대다. showTopics에
+      // "nodeal"이 있으면 숨긴 상태다 — 화면 문구는 사람이 읽는 대로 쓴다.
+      const hidden = state.showTopics.includes("nodeal");
+      return `<div class="muted-row">🔥 핫딜 <b>${hidden?"숨김":"보는 중"}</b>
+        <button class="chip${hidden?"":" active"}" data-deal-toggle aria-pressed="${!hidden}">${hidden?"보기":"숨기기"}</button></div>`;
+    })()}
+    <p style="color:var(--muted);font-size:11.5px;line-height:1.5;margin:6px 0 0">정치·종교 글은 기본적으로 피드에서 숨겨져요. 핫딜은 기본으로 보이고, 위 버튼으로 끌 수 있어요. 특정 매체를 안 보고 싶으면 글을 열어 “그만보기”를 누르세요.</p>`;
 }
 function wireContentFilterButtons(container, onAfter){
   container.querySelectorAll("[data-topic-toggle]").forEach(btn=>{
     btn.onclick = async ()=>{ await toggleTopic(btn.dataset.topicToggle, !state.showTopics.includes(btn.dataset.topicToggle)); if(onAfter) onAfter(); };
   });
+  // 핫딜은 뜻이 반대다 — 버튼을 누르면 "숨김"을 켜고 끈다.
+  container.querySelectorAll("[data-deal-toggle]").forEach(btn=>{
+    btn.onclick = async ()=>{ await toggleDeals(!state.showTopics.includes("nodeal")); if(onAfter) onAfter(); };
+  });
+}
+
+// 핫딜 숨기기·보기. toggleTopic과 같은 배관을 쓰되 문구만 뒤집는다.
+async function toggleDeals(hide){
+  const prev = state.showTopics.slice();
+  state.showTopics = hide
+    ? [...new Set([...prev, "nodeal"])]
+    : prev.filter(t => t !== "nodeal");
+  try {
+    const res = await API.setTopic(state.userId, "nodeal", hide);
+    if (Array.isArray(res.showTopics)) state.showTopics = res.showTopics;
+    localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
+    reloadFeedSilently();
+    toast(hide ? "핫딜을 숨겼어요" : "핫딜도 함께 보여드릴게요");
+  } catch (e) {
+    state.showTopics = prev;
+    refreshDrawerFilters();
+    toast("바꾸지 못했어요 — 잠시 후 다시 시도해 주세요");
+  }
 }
 // re-render the drawer's own filter section in place (state may have changed
 // via 내 공간's copy of the same controls, or vice versa)

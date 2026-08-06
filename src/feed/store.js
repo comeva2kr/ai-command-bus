@@ -18,7 +18,7 @@ import { inferFromHistory, mergeVectors } from "./history.js";
 const PERSIST_DEBOUNCE_MS = 2000;
 import { validatePost, validateComment, userLevel, DEFAULT_RULES } from "./rules.js";
 import { nicknameFor } from "./nickname.js";
-import { FILTERABLE_TOPICS } from "./topics.js";
+import { FILTERABLE_TOPICS, FILTER_KEYS } from "./topics.js";
 
 function nowIso(clock) {
   // `clock` is injected so tests and reproducible runs don't depend on the
@@ -1140,7 +1140,7 @@ export class FeedStore {
   // 켜는 기능 자체가 없어졌다(David 2026-08-05, 애드핏 2차 보류).
   setTopicFilter(userId, topic, on) {
     const user = this.requireUser(userId);
-    if (!FILTERABLE_TOPICS.includes(topic)) {
+    if (!FILTER_KEYS.includes(topic)) {
       throw new Error(`unknown filterable topic: ${topic}`);
     }
     user.showTopics = user.showTopics || [];
