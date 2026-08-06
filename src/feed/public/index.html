@@ -600,14 +600,18 @@
      실측: 자체 콘텐츠 77쪽을 이미 만들어 놓고도 홈에서는 142px 가로 스트립
      한 줄(첫 화면의 17%)만 내주고 나머지는 전부 아웃링크 카드였다.
      안 만든 게 아니라 안 보이던 것이라, 앞자리를 내주는 것으로 고친다. */
-  .own-block{padding:14px 16px 4px;border-bottom:1px solid var(--color-divider)}
+  /* 자리를 미리 잡아 둔다 — /api/briefing 응답 뒤에 높이가 통째로 튀어나오면
+     첫 화면이 한 번 밀린다(레이아웃 시프트, 검수 2026-08-06). */
+  .own-block{padding:14px 16px 4px;border-bottom:1px solid var(--color-divider);min-height:132px}
+  .own-block[hidden]{display:none;min-height:0}
   .own-block .ob-head{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
   .own-block .ob-tag{color:var(--color-accent);font:800 10px var(--font-heading);
     letter-spacing:.1em;text-transform:uppercase}
   .own-block .ob-when{color:var(--muted);font-size:11.5px}
   .own-block .ob-sum{margin:0 0 10px;color:var(--color-text);font-size:13.5px;line-height:1.5}
   .own-block ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-  .own-block li a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+  /* radius 0 전면 — 예외 없음(디자인 규칙). 처음에 10px로 넣었다가 검수에서 잡혔다. */
+  .own-block li a{display:block;padding:10px 12px;border:1px solid var(--line);
     background:var(--card-2);text-decoration:none}
   .own-block .ob-h{display:block;color:var(--color-text);font-weight:800;font-size:14px;line-height:1.35}
   .own-block .ob-p{display:block;margin-top:4px;color:var(--muted);font-size:12.5px;line-height:1.5}
@@ -2818,7 +2822,14 @@ function markBriefSeen(id){ if(!id) return; try { localStorage.setItem(BRIEF_SEE
 function renderOwnBlock(b, hh, mm){
   const el = document.getElementById("ownBlock");
   if(!el) return;
-  const issues = (b.issues || []).filter(i => i && i.headline && i.paragraph).slice(0, 3);
+  // **이슈 하나만 펼친다.**
+  //
+  // 셋을 펼쳤더니 블록이 423px가 되어, 헤더·스트립·정렬바·고지문까지 더한
+  // 첫 카드 시작점이 841px이 됐다 — 뷰포트 812px보다 아래다. 실측(2026-08-06,
+  // 375×812): 첫 화면에 **화제글이 한 건도 안 보였다.** 자체 콘텐츠 비중을
+  // 올리려다 이 서비스가 하는 일 자체를 첫 화면에서 지운 셈이다.
+  // 목표는 비중 확보이지 피드를 가리는 게 아니다. 나머지는 /briefing으로 보낸다.
+  const issues = (b.issues || []).filter(i => i && i.headline && i.paragraph).slice(0, 1);
   if(!issues.length){ el.hidden = true; return; }
   const slotName = (b.slot && b.slot.label) ? b.slot.label + " 브리핑" : "지금 브리핑";
   el.innerHTML =
@@ -2830,7 +2841,7 @@ function renderOwnBlock(b, hh, mm){
     `<ol>` + issues.map(i =>
       `<li><a href="/briefing">
          <span class="ob-h">${escapeHtml(i.headline)}</span>
-         <span class="ob-p">${escapeHtml(String(i.paragraph).slice(0, 160))}</span>
+         <span class="ob-p">${escapeHtml(String(i.paragraph).slice(0, 120))}</span>
        </a></li>`).join("") + `</ol>` +
     `<a class="ob-more" href="/briefing">오늘의 브리핑 전체 보기 →</a>`;
   el.hidden = false;
@@ -2867,11 +2878,15 @@ async function loadBriefStrip(){
     const edition = briefEditionId(b);
     const isNew = edition && briefSeen() !== edition;
     const newCls = isNew ? " is-new" : "";
+    // 스트립의 "지금 브리핑" 카드는 **ownBlock이 있으면 넣지 않는다.**
+    // 같은 라벨("모닝 브리핑 · 10:58 편성 · 하루 세 번")이 150px 간격으로 두 번
+    // 나와서 콘텐츠가 아니라 중복 패딩으로 보였다(검수 2026-08-06).
+    const ownShown = !!(document.getElementById("ownBlock") && !document.getElementById("ownBlock").hidden);
     el.innerHTML =
-      `<a class="brief-card${newCls}" href="/briefing" style="flex-basis:140px">
+      (ownShown ? "" : `<a class="brief-card${newCls}" href="/briefing" style="flex-basis:140px">
         <div class="bc-cat">${slotName ? escapeHtml(slotName)+" 브리핑" : "지금 브리핑"}</div>
         <div class="bc-title">${escapeHtml((b.slot && b.slot.lead) || "이 시간 화제 종합 정리")}</div>
-        <div class="bc-meta">${hh}:${mm} 편성 · 하루 세 번</div></a>` +
+        <div class="bc-meta">${hh}:${mm} 편성 · 하루 세 번</div></a>`) +
       (tr && tr.trends && tr.trends.length ? `<a class="brief-card" href="/trends">
         <div class="bc-cat">X 트렌드</div>
         <div class="bc-title">${escapeHtml(tr.trends.slice(0,3).map(t=>t.name).join(" · "))}</div>

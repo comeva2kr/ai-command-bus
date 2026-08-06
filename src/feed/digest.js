@@ -185,9 +185,18 @@ export function issueHeadline(items, shape) {
       // (2026-08-05 라이브 실측). 구분이 안 되면 헤드라인이 아니다.
       // 무엇에 관한 것인지 함께 말한다 — 우리가 지어낸 말이 아니라 매체들이
       // 그 사건을 부를 때 실제로 함께 쓴 낱말이다.
+      // **개수를 쓰지 않는다.** coverage는 구글뉴스 관련기사 목록의 길이인데
+      // 그 목록에는 상한이 있다(fetchers.js COVERAGE_MAX = 5, 실측: 사실상 0 아니면 5).
+      // 상한에 걸린 값을 "5개 매체"라는 정확한 수치인 양 말하면 거짓이 된다 —
+      // editorial.js는 이미 같은 이유로 숫자를 버리고 "여러 곳"만 쓰기로 정해 뒀는데,
+      // digest.js만 그 규칙 밖에 있었다.
+      //
+      // 실측(2026-08-06 라이브): 홈에 나간 이슈 6건이 **전부** "5개 매체가 다룬"이었고,
+      // 그중에는 우리 피드에 단 한 곳(KBS뉴스)에서만 들어온 것도 있었다.
+      // 하필 그 문장이 애드핏 재심사용 자체 콘텐츠의 맨 앞자리였다.
+      void coverage;
       const subject = issueSubject(items);
-      const n = Math.max(coverage, outlets);
-      return subject ? `${n}개 매체가 다룬 “${subject}”` : `${n}개 매체가 동시에 다룬 사안`;
+      return subject ? `여러 매체가 다룬 “${subject}”` : `여러 매체가 동시에 다룬 사안`;
     }
     case "interest": {
       const m = items.find((i) => i.interest && i.interest.how === "term").interest;
@@ -213,13 +222,13 @@ export function issueParagraph(items, shape) {
   const parts = [];
 
   if (shape === "coverage") {
-    // coverage는 engine이 교차보도량으로 재는 값이라 우리 풀에 몇 건 들어왔는지와
-    // 다르다. 둘 중 큰 값을 쓴다 — "1곳이 함께 다뤘다" 같은 자기모순을 막는다(실측).
-    const coverage = Math.max(...items.map((i) => i.coverage || 0), 0);
-    const n = Math.max(coverage, outlets.length);
-    parts.push(n > outlets.length
-      ? `“${title}” 소식을 ${n}개 매체가 함께 다루고 있다. 우리 피드에는 ${outlets.slice(0, 3).join("·")}에서 들어왔다.`
-      : `“${title}” 소식을 ${outlets.slice(0, 3).join("·")} 등 ${n}곳이 함께 다뤘다.`);
+    // 여기서도 개수를 쓰지 않는다(위 issueHeadline의 이유와 같다).
+    // **우리가 실제로 센 것만 말한다** — 우리 피드에 들어온 출처 이름이 그것이다.
+    // 교차보도는 "여러 곳이 함께 다루고 있다"는 사실만 전하고 수를 붙이지 않는다.
+    const named = outlets.slice(0, 3).join("·");
+    parts.push(outlets.length > 1
+      ? `“${title}” 소식을 여러 매체가 함께 다루고 있다. 우리 피드에는 ${named} 등 ${outlets.length}곳에서 들어왔다.`
+      : `“${title}” 소식이 여러 매체에서 함께 다뤄지고 있다. 우리 피드에는 ${named}에서 들어왔다.`);
     if (items.length > 1) {
       const others = items.slice(1, 3).map((i) => `“${i.title}”`).join(", ");
       if (others) parts.push(`같은 흐름에서 ${others}도 상위에 올랐다.`);

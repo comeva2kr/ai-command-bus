@@ -213,7 +213,7 @@ function cacheHeadersFor(ext) {
     : "public, max-age=604800";
 }
 
-function serveStatic(res, urlPath, seedHtml = "") {
+function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "") {
   const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
   const filePath = path.join(PUBLIC_DIR, rel);
   // prevent path traversal outside PUBLIC_DIR
@@ -235,6 +235,15 @@ function serveStatic(res, urlPath, seedHtml = "") {
     // 유일한 통로가 그 안에 있는데 색인에서는 안 보이는 상태였다. 여기에 정적
     // <a>를 넣어두면 크롤러가 읽고, JS가 뜨면 실제 브리핑 카드가 같은 자리를
     // 대체한다(seed-list와 같은 방식). 별도 칩줄을 두는 것보다 화면이 깔끔하다.
+    if (ownSeedHtml && ext === ".html" && rel === "index.html") {
+      const h0 = buf.toString("utf8");
+      const mk0 = '<section class="own-block" id="ownBlock" hidden aria-label="지금핫이 직접 쓴 오늘의 브리핑"></section>';
+      if (h0.includes(mk0)) {
+        buf = Buffer.from(h0.replace(mk0,
+          '<section class="own-block" id="ownBlock" aria-label="지금핫이 직접 쓴 오늘의 브리핑">'
+          + ownSeedHtml + '</section>'));
+      }
+    }
     if (ext === ".html" && rel === "index.html") {
       const html0 = buf.toString("utf8");
       const mk = '<div class="brief-strip" id="briefStrip" hidden></div>';
@@ -2325,7 +2334,30 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         // (스켈레톤보다 유용하다), JS가 뜨면 개인화 피드가 같은 자리를 대체한다.
         // 사람이 보는 것을 크롤러도 읽게 만드는 것이지 다른 것을 보여주는 게 아니다.
         let seed = "";
+        let ownSeed = "";
         if (p === "/" || p === "/index.html") {
+          // 자체 콘텐츠 블록(#ownBlock)도 서버에서 채운다.
+          //
+          // 검수(2026-08-06)에서 잡힌 것: 애드핏 반려 대응으로 만든 그 블록이
+          // **JS로만 채워져서** 원본 HTML에는 빈 <section>이었다. 심사·크롤러가
+          // JS를 안 돌리면 여전히 "아웃링크 비중이 높은" 화면 그대로다.
+          // 바로 아래 briefStrip·feedSkel에는 이미 같은 처방을 해 뒀는데
+          // 정작 이번 산출물만 빠뜨렸다 — 국지적으로 본 대가다.
+          try {
+            const b = await engine.briefing();
+            const one = (b.issues || []).find((i) => i && i.headline && i.paragraph);
+            if (one) {
+              const slotName = (b.slot && b.slot.label) ? `${b.slot.label} 브리핑` : "지금 브리핑";
+              ownSeed =
+                `<div class="ob-head"><span class="ob-tag">${escapeHtml(slotName)}</span></div>` +
+                (b.digestSummary ? `<p class="ob-sum">${escapeHtml(b.digestSummary)}</p>` : "") +
+                `<ol><li><a href="/briefing">` +
+                `<span class="ob-h">${escapeHtml(one.headline)}</span>` +
+                `<span class="ob-p">${escapeHtml(String(one.paragraph).slice(0, 120))}</span>` +
+                `</a></li></ol>` +
+                `<a class="ob-more" href="/briefing">오늘의 브리핑 전체 보기 →</a>`;
+            }
+          } catch { /* 편성 전이면 빈 블록 그대로 — 홈은 계속 뜬다 */ }
           try {
             // rankingTop은 { generatedAt, items } 를 돌려준다 — 배열이 아니다.
             const top = (await engine.rankingTop(20) || {}).items || [];
@@ -2364,7 +2396,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
             // 모드에서는 비어 있는 것이 정상이다(실수집 배포에서만 채워진다).
           }
         }
-        return serveStatic(res, p, seed);
+        return serveStatic(res, p, seed, ownSeed);
       }
 
       return send(res, 404, { error: "not found" });

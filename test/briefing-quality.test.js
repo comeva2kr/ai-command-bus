@@ -121,7 +121,18 @@ test("브리핑: 수치가 자기모순이면 안 된다", async () => {
     score: 0, commentCount: 0, coverage: 5, tags: [] }];
   const para = issueParagraph(items, issueShape(items));
   assert.doesNotMatch(para, /1곳이 함께 다뤘다/, "자기모순 문장이 나오면 안 된다");
-  assert.match(para, /5개 매체/, "교차보도 수치를 정직하게 써야 한다");
+  // 2026-08-06 계약 정정: 예전엔 여기서 "5개 매체"를 **쓰라고** 요구했다.
+  // 그 요구 자체가 틀렸다. coverage는 구글뉴스 관련기사 목록의 길이인데 그
+  // 목록에는 상한이 있다(fetchers.js COVERAGE_MAX = 5, 실측: 사실상 0 아니면 5).
+  // 상한에 걸린 값을 "5개 매체"라는 정확한 수치인 양 말하면 거짓이다 —
+  // editorial.js는 이미 같은 이유로 숫자를 버렸는데 digest.js만 규칙 밖에 있었고,
+  // 이 테스트가 그 위반을 **고정하고** 있었다. 라이브 실측(2026-08-06): 홈에
+  // 나간 이슈 6건이 전부 "5개 매체가 다룬"이었고 그중에는 우리 피드에 한 곳
+  // 에서만 들어온 것도 있었다.
+  assert.doesNotMatch(para, /\d+개 매체/, "상한에 걸린 값을 정확한 수치처럼 쓰면 안 된다");
+  assert.match(para, /여러 매체/, "교차보도 사실 자체는 전해야 한다");
+  // 우리가 실제로 센 것(우리 피드에 들어온 출처)은 이름으로 밝힌다.
+  assert.match(para, /한국방송뉴스/, "우리 피드에 들어온 출처는 밝혀야 한다");
 });
 
 test("브리핑: 같은 사건 중복과 한 매체 독식을 막는다", async () => {
@@ -355,8 +366,15 @@ test("홈에 크롤러가 읽을 정적 글 목록이 심긴다 (네이버는 JS
   const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
 
   // 주입은 스켈레톤 자리를 대체한다 — 사용자도 같은 것을 본다(클로킹 아님)
-  assert.match(src, /function serveStatic\(res, urlPath, seedHtml = ""\)/,
-    "serveStatic이 seed를 받아야 한다");
+  assert.match(src, /function serveStatic\(res, urlPath, seedHtml = "", ownSeedHtml = ""\)/,
+    "serveStatic이 seed와 자체 콘텐츠 seed를 받아야 한다");
+  // 2026-08-06: 애드핏 4차 반려("아웃링크 비중이 높다") 대응으로 만든 자체
+  // 콘텐츠 블록이 **JS로만 채워져서** 원본 HTML에는 빈 section이었다.
+  // 바로 옆 briefStrip·feedSkel에는 이미 같은 처방을 해 뒀는데 정작 그 산출물만
+  // 빠뜨렸다 — 크롤러·심사 봇에게는 반려 사유 그대로였다.
+  assert.match(src, /ownSeedHtml && ext === "\.html" && rel === "index\.html"/,
+    "자체 콘텐츠 블록에 서버 시드가 없다");
+  assert.match(src, /await engine\.briefing\(\)/, "홈 자체 콘텐츠 시드는 브리핑에서 뽑는다");
   assert.match(src, /seedHtml && ext === "\.html" && rel === "index\.html"/);
   assert.match(src, /rankingTop\(20\)/, "홈 seed는 화제 랭킹에서 뽑는다");
   // 2026-08-04: 제목만 심던 것을 출처·실측 반응·발췌까지로 넓혔다. 제목 12줄로는
