@@ -1507,3 +1507,28 @@ test("광고 차단기가 본문만 지웠을 때 빈 껍데기를 남기지 않
   assert.match(html, /class="card-go"/, "광고 링크 클래스를 감췄다 — 차단 회피는 하지 않는다");
   assert.match(html, /class="badge ad-badge-static">AD/, "AD 배지를 감췄다");
 });
+
+test("몰입 모드에서도 광고 카드가 같은 문법으로 그려진다", async () => {
+  // David 2026-08-06: "몰입모드로 볼 때 광고 디자인 형식 무너짐."
+  //
+  // 몰입 모드 규칙은 **일반 카드 구조**(.card-row/.card-thumb/.card-main/.card-meta)를
+  // 100vh 세로 배치로 재구성한다. 그런데 렌더러를 하나로 합치면서 광고 카드는
+  // .card-go > .go-row > (.go-text|.go-thumb) 구조가 됐고 그 요소가 하나도 없다 —
+  // 카드만 화면 높이로 늘어나고 안은 위에 몰린 문구뿐이었다.
+  //
+  // 렌더러를 통합할 때 **그 카드가 쓰이는 모든 화면**을 봐야 했는데 피드와
+  // 상세만 봤다. 오늘 반복한 실패와 같은 종류다.
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+
+  for (const sel of [".go-thumb", ".go-text", ".ad-disclosure"]) {
+    assert.ok(html.includes(`body.immersion #feed .card.ad-card ${sel}`),
+      `몰입 모드에 광고 카드의 ${sel} 규칙이 없다`);
+  }
+  // 사진이 남는 공간을 갖는다 — 일반 카드와 같은 문법.
+  assert.match(html, /body\.immersion #feed \.card\.ad-card \.go-thumb\{order:1;flex:1 1 0/,
+    "광고 사진이 몰입 모드에서 남는 공간을 안 갖는다");
+  // 대가성 고지문은 맨 아래에 붙어 잘리지 않아야 한다.
+  assert.match(html, /body\.immersion #feed \.card\.ad-card \.ad-disclosure\{order:4/,
+    "몰입 모드에서 고지문 자리가 없다");
+});

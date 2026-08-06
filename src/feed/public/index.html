@@ -745,6 +745,29 @@
      절반을 차지하면 "사진 중심"도 "내용 전부 보이기"도 둘 다 손해다. */
   body.immersion #feed .card .card-thumb.noimg{display:none}
 
+  /* ── 몰입 모드의 광고 카드 (David 2026-08-06: "몰입모드로 볼 때 광고 디자인 형식 무너짐")
+     위 규칙들은 **일반 카드 구조**(.card-row / .card-thumb / .card-main / .card-meta)를
+     100vh 세로 배치로 재구성한다. 그런데 광고 카드는 렌더러를 하나로 합치면서
+     .card-go > .go-row > (.go-text | .go-thumb) 구조가 됐고, 그 요소들이 하나도
+     없다 — 카드만 화면 높이로 늘어나고 안은 위에 몰린 문구뿐이었다.
+     같은 문법(사진이 남는 공간 전부, 글은 아래)으로 맞춘다. */
+  body.immersion #feed .card.ad-card .card-go{display:contents}
+  body.immersion #feed .card.ad-card .go-row{display:contents}
+  body.immersion #feed .card.ad-card .go-thumb{order:1;flex:1 1 0;min-height:0;
+    width:100%;height:auto;max-height:none;margin:0;
+    border:none;border-bottom:1px solid var(--line);border-radius:0}
+  body.immersion #feed .card.ad-card .go-thumb img{width:100%;height:100%;object-fit:cover}
+  body.immersion #feed .card.ad-card .card-top{order:2;padding:12px 16px 0;margin:0;flex:none}
+  body.immersion #feed .card.ad-card .go-text{order:3;padding:8px 16px 0;flex:none;min-width:0}
+  body.immersion #feed .card.ad-card .go-text h3{font-size:19px;line-height:1.32;margin:0}
+  body.immersion #feed .card.ad-card .go-line{margin:6px 0 0;font-size:14px;line-height:1.55}
+  body.immersion #feed .card.ad-card .go-cta{margin-top:8px}
+  /* 대가성 고지문은 맨 아래에 붙인다 — 잘리면 안 되는 문구다. */
+  body.immersion #feed .card.ad-card .ad-disclosure{order:4;margin:0;padding:10px 16px;
+    margin-top:auto;flex:none;border-top:1px solid var(--line)}
+  /* 사진이 없는 광고(차단기·onerror)는 글자 카드로 완결된다 — 빈 자리를 두지 않는다. */
+  body.immersion #feed .card.ad-card:not(:has(.go-thumb)) .card-top{margin-top:auto}
+
   body.immersion #feed .card .card-top{order:2;padding:12px 16px 0;margin:0;flex:none}
   body.immersion #feed .card .card-main{order:3;padding:8px 16px 0;flex:none;min-height:0}
   body.immersion #feed .card .card-meta{order:4;padding:10px 16px;margin-top:auto;flex:none;
