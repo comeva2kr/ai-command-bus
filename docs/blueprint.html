@@ -847,6 +847,71 @@ flowchart LR
     </div>
   </div>
 
+  <div class="evidence">
+    <span class="src">1번 배포 완료 — 취향 지분 보장 (2026-08-06, 8eea158)</span>
+    <div>
+    <b>레퍼런스를 잡고 카피한 뒤 우리 방향으로 발전시켰다.</b>
+    X the-algorithm은 For You를 <b>In-Network 50% / Out-of-Network 50%</b>로 명시한다 —
+    점수 경쟁에 맡기지 않고 지분을 정해 둔다. AuthorDiversityFloor(0.25)는 감쇠시키되 0으로 죽이지 않는다.
+    TikTok은 고른 사용자에게도 무관한 것을 <b>의도적으로</b> 섞고, 안 고른 사용자에게는 인기 피드로 시작한다.
+    Netflix·Spotify의 섹션 분리는 채택하지 않았다 — 한 줄로 흐르는 피드가 이 앱의 형태다.
+    <p>우리 발전: 새 개념을 만들지 않고 <b>이미 있는 딜 지분 보장 골격</b>을 취향에 썼다.
+    취향 밖 글은 버리지 않고 뒤로 민다(버리면 발견이 사라진다). 재료가 없으면 있는 만큼만 채우고
+    부족했다는 사실을 함께 돌려준다.</p>
+
+    <div class="scroll"><table>
+      <thead><tr><th>취향</th><th>고치기 전</th><th>고친 뒤</th></tr></thead>
+      <tbody>
+      <tr><td><b>스포츠만</b></td><td>sports 32% · <b>humor 45%</b></td>
+        <td><b>sports 48%</b> · humor 28%</td></tr>
+      <tr><td>IT만</td><td>tech 60%</td><td><b>tech 68%</b></td></tr>
+      <tr><td>경제만</td><td>—</td><td><b>business 60%</b></td></tr>
+      <tr><td>취향 없음</td><td colspan="2">humor 25% · business 23% · tech 20% (변화 없음 — 고른 게 없으면 개입하지 않는다)</td></tr>
+      </tbody></table></div>
+    <p><b>스포츠가 목표 60%에 못 미치는 것은 재료 부족이다</b> — 풀에서 sports는 2%다.
+    그건 2번(소스풀)이 풀 문제이고, 알고리즘으로 만들어 낼 수 있는 것이 아니다.</p>
+    <p><b>한 번 실수했다.</b> 취향 후보를 따로 걸러서 뮤트한 소스가 되돌아왔고 기존 테스트가 잡았다 —
+    ⑤ 검수에서 나온 것과 같은 종류다. <b>관문을 두 벌로 두지 않는다.</b></p>
+    </div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">2번 소스 딥서치 결과 (2026-08-06, 병렬 조사 9건)</span>
+    <div>
+    분야별·국가별로 조사해 <b>실제로 robots.txt를 읽고 피드를 열어</b> 확인했다.
+
+    <p><b>국내 — 즉시 가능</b> (RSS 또는 공개 목록 + 반응 수치 확인)<br>
+    뽐뿌 부동산포럼(RSS에 추천·조회·댓글 배열) · 뽐뿌 자동차포럼 · 클리앙 굴러간당 ·
+    팍스넷 인기글(추천) · 쓰담쓰담 /hot(조회·좋아요·댓글) · 더쿠 패션(조회·댓글, robots 파일 없음) ·
+    루리웹 인테리어 취미갤(RSS + 목록에 추천·댓글·조회) · OKKY(추천·댓글) · velog 트렌딩 ·
+    인프런 Q&amp;A(투표·답변·조회) · 잡플래닛 커뮤니티 · 여행신문 RSS · 여행레저신문 RSS ·
+    코메디닷컴 RSS(robots가 ClaudeBot을 <b>명시 허용</b>) · 베이비뉴스 RSS</p>
+
+    <p><b>해외 — 즉시 가능</b><br>
+    Hypebeast(RSS + 목록에 조회·댓글, robots가 ClaudeBot 명시 허용) · Highsnobiety(RSS, ai-input=yes) ·
+    Sneaker News(RSS) · FNMNL(RSS) · designboom · Stereogum · ArtReview · IGNANT · Creative Boom ·
+    Ocula · Smashing Magazine · Livedoor News(robots 전면 개방) · Yahoo! Japan News RSS ·
+    하테나 북마크 핫엔트리(<b>북마크 수</b>) · Lobsters RSS · Product Hunt API(추천·댓글) ·
+    Indie Hackers · Seeking Alpha RSS</p>
+
+    <p><b>수집 불가 / 보류 — 이유를 적어 둔다</b><br>
+    · <b>Reddit</b> — robots.txt 전면 차단이고 <code>/hot.json</code>이 <b>실제로 403</b>이다(과거 정보는 이제 안 통한다).
+      쓰려면 OAuth 앱 등록·심사가 먼저다 → <b>David 판단 필요</b>.<br>
+    · 블라인드·씽크풀·Dazed — robots.txt가 <b>ClaudeBot을 이름으로 콕 집어</b> 차단. 명시적 거부는 존중한다.<br>
+    · 호갱노노 — "서면 허가 없는 크롤링 금지" 명시.<br>
+    · 무신사·오늘의집 — 일반 크롤러 전면 차단, 명시된 봇만 허용. <b>봇 UA 위장은 하지 않는다.</b><br>
+    · 네이버 카페·증권·부동산, 네이트판 — 전면 차단.<br>
+    · Nice Kicks — robots가 <code>/feed</code>를 명시 금지(열리긴 하지만 쓰지 않는다).<br>
+    · Reuters·FT·Bloomberg·CNBC·ARTnews·Billboard — 봇 차단 또는 유료벽.<br>
+    · 커리어리 — 로그인 게이트.</p>
+
+    <p><b>조사에서 나온 중요한 발견.</b> 다수 매체가 Cloudflare 표준 <code>Content-Signal</code>로
+    <b>"ai-train=no, use=reference"</b>를 명시한다 — <b>학습은 거부하되 참조·인용은 허용</b>한다는 뜻이다.
+    우리 방식(본문 미복제, 제목·링크·공개 반응 수치만, 요약은 우리가 씀)은 정확히 그 "reference"에 해당한다.
+    Hypebeast·Highsnobiety·Sneaker News가 그렇다.</p>
+    </div>
+  </div>
+
   <h3>중요도 순서</h3>
   <p>순서 기준은 <b>의존</b>이다. 앞 칸이 없으면 뒤 칸의 성과를 만들 수도, 잴 수도 없다.</p>
   <div class="scroll">
@@ -858,7 +923,7 @@ flowchart LR
         <td>David가 사용자로서 지금 못 쓰겠다고 한 바로 그것. 실측으로 재현됐다.
         인기 점수와 개인화 점수를 그냥 더하는 구조를 고친다.
         레퍼런스를 잡아 카피한 뒤 우리 방향으로 발전시킨다(혼자 발명하지 않는다).</td>
-        <td><span class="chip crit">진행</span></td></tr>
+        <td><span class="chip done">완료 08-06</span></td></tr>
       <tr><td><b>2</b></td>
         <td><b>소스풀 확장 — 국내 분야 공백 + 해외</b></td>
         <td>취향을 만족시킬 <b>재료</b>다. 1번을 고쳐도 스포츠 글이 2%면 스포츠 사용자는 여전히 못 채운다.
