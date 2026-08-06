@@ -1188,6 +1188,36 @@ flowchart LR
     </div>
   </div>
 
+  <div class="evidence">
+    <span class="src">정정 — "광고 차단"은 잘못된 말이었다 (2026-08-06)</span>
+    <div>
+    설계 검토에서 "정치·과학 카테고리를 살리면 <b>광고 차단 6곳</b>이 동시에 발동한다"고 적었는데,
+    David가 짚었다: <em>"정치과학 카테고리랑 광고차단이 무슨 상관이야? 광고는 카테고리나 다른 상황이랑
+    상관없이 일정하게 노출되는 거 아냐? 애초에 노출을 막는 걸 논의한 적도 없을 텐데?"</em>
+
+    <p><b>맞는 지적이다. 코드로 확인했다.</b></p>
+    <div class="scroll"><table>
+      <thead><tr><th>내가 "차단"이라 부른 것</th><th>실제로 하는 일</th></tr></thead>
+      <tbody>
+      <tr><td><code>AD_MATCH_OFF = ["news","politics"]</code> (engine.js:22)</td>
+        <td><b>상품 매칭만 안 한다.</b> 뉴스·정치 글 옆에는 "이 글에 맞는 상품군"을 고르지 않고
+        <b>범용 광고를 그대로 준다</b> — 광고는 뜬다</td></tr>
+      <tr><td><code>BANNED_AD_CATEGORIES</code> (monetize.js:99)</td>
+        <td><b>배너 상품 자체의 카테고리</b>를 거른다(<code>b.category</code>).
+        우리 배너 18종은 전부 쇼핑 계열이라 <b>실제로 걸리는 게 0개</b></td></tr>
+      <tr><td><code>BANNED</code> (manual-products.js:26)</td><td>위와 같은 성격 — 상품 등록 필터</td></tr>
+      <tr><td><code>OFF_CAT</code> (datastory.js)</td><td>데이터 리포트 <b>글</b>에 정치를 안 싣는 것. 광고와 무관</td></tr>
+      </tbody></table></div>
+
+    <p><b>글이 정치 카테고리여도 광고는 그대로 뜬다.</b> 노출을 막는 코드는 없고 그런 논의도 없었다.
+    "차단"이라는 말을 잘못 써서, 정치·과학을 별도 배포로 미루자는 근거까지 약해졌다.
+    <b>남은 진짜 이유는 하나뿐이다</b> — 지금 <code>category:"politics"</code>인 소스가 0개라
+    그 카테고리는 켜도 0건이다(공급이 없다).</p>
+
+    <p><b>David 결정:</b> 정치·과학은 <b>준비되면</b> 한다. 그 사이 구글 애드센스 통과를 기다린다.</p>
+    </div>
+  </div>
+
   <h3>중요도 순서</h3>
   <p>순서 기준은 <b>의존</b>이다. 앞 칸이 없으면 뒤 칸의 성과를 만들 수도, 잴 수도 없다.</p>
   <div class="scroll">
