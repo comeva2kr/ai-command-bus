@@ -113,9 +113,38 @@ export function scoreItem(item, vec, opts = {}) {
 // Exploration: occasionally lift content from interests we know little about, so
 // the feed keeps probing new territory instead of collapsing into a bubble.
 // Deterministic (hash-gated, no Math.random) so results stay reproducible.
+// 탐색에도 **자격**이 있다 (David 실사용 제보 2026-08-06).
+//
+// 화면 실측: "라이더는 노동자다"(슬로우뉴스) — 추천 0 · 댓글 0 · 2일 전인데
+// "새로운 탐색" 배지를 달고 두 번째 칸에 있었다. David: "댓글도 없고 화제성도
+// 없는데 왜 뜨는 걸까."
+//
+// 맞는 지적이다. 탐색의 뜻은 **"취향 밖이지만 화제인 글"**을 보여주는 것이지
+// "아무도 안 본 오래된 글"을 보여주는 게 아니다. 신호 없는 글을 뒤로 미는
+// 규칙(engine.js)을 만들어 뒀는데, 탐색 보너스가 그걸 도로 앞으로 끌어올리고
+// 있었다 — 한쪽에서 막고 다른 쪽에서 푸는 꼴이다.
+//
+// 그래서 탐색 대상에 최소 조건을 건다: **반응이 있거나, 아직 새롭거나.**
+// 둘 다 아니면 탐색이 아니라 그냥 묵은 글이다.
+const EXPLORE_MIN_SIGNAL = 1;      // 추천·댓글·교차보도 중 하나라도
+const EXPLORE_MAX_AGE_H = 12;      // 신호가 아직 안 붙었어도 이 안쪽이면 기회를 준다
+
+function exploreEligible(item, now) {
+  const signal = (item.score || 0) + (item.commentCount || 0) + (item.coverage || 0);
+  if (signal >= EXPLORE_MIN_SIGNAL) return true;
+  const t = Number.isFinite(item.firstSeenAt) ? item.firstSeenAt
+    : (item.publishedAt ? Date.parse(item.publishedAt) : NaN);
+  // 나이를 모르면 기회를 준다. 발행일을 아예 안 주는 소스가 여럿이라
+  // (실측: inven_hot·tildes·ppomppu·bobae·slashdot·etoland) 여기서 자르면
+  // 그 소스들이 탐색에서 통째로 빠진다 — David: "적당히 섞자."
+  if (!Number.isFinite(t)) return true;
+  return (now - t) / 3600000 <= EXPLORE_MAX_AGE_H;
+}
+
 function explorationBonus(item, vec, opts) {
   const eps = opts.explore ?? 0.2;
   if (eps <= 0) return 0;
+  if (!exploreEligible(item, opts.now || Date.now())) return 0;
   const known = Math.abs(vec.categories[item.category] || 0) +
     (item.tags.reduce((a, t) => a + Math.abs(vec.tags[t] || 0), 0) / Math.max(1, item.tags.length));
   if (known >= 0.4) return 0; // already a known interest — no exploration lift

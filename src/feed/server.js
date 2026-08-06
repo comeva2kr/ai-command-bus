@@ -34,6 +34,7 @@ import { makeFetcher } from "./fetchers.js";
 import { memoizedTranslator } from "./translate.js";
 import { googleFreeTranslator } from "./translator.js";
 import { TOPIC_CATALOG, FILTERABLE_TOPICS, FILTER_KEYS } from "./topics.js";
+import { latestRelease } from "./release-notes.js";
 import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
@@ -2086,7 +2087,10 @@ ${rankingRows(list, (above) => {
         })();
 
         return send(res, 200, {
-          build, survey: SURVEY, categories: CATEGORIES, sources: liveCatalog, topics: TOPIC_CATALOG, monetization, adfit, coupang, auth });
+          build, survey: SURVEY, categories: CATEGORIES, sources: liveCatalog, topics: TOPIC_CATALOG, monetization, adfit, coupang, auth,
+          // 업데이트 소식 — 화면이 "이미 본 것"과 대조해 새것일 때만 띄운다.
+          // 목록 전체가 아니라 최신 하나만 보낸다(사용자가 볼 것은 이번 변화뿐이다).
+          release: latestRelease() });
       }
 
       if (p === "/api/communities" && req.method === "GET") {

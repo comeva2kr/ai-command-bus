@@ -108,10 +108,23 @@ function sourceMaxAgeH(sourceId) {
   return _sourceMaxAge.get(sourceId);
 }
 
+// 소스별 상한 연장은 **신호가 있을 때만** 준다 (David 실사용 제보 2026-08-06).
+//
+// 실측: 슬로우뉴스 "라이더는 노동자다"가 추천 0 · 댓글 0 · 2일 전인데 두 번째
+// 칸에 있었다. 원인은 그 소스의 maxAgeH: 72 오버라이드다 — 발행 빈도가 낮은
+// 매체라 24시간이면 아무것도 안 남아서 넣어 둔 것이었다.
+//
+// David: "뉴스는 2일 전 꺼는 아닌 거 같아. **중요한 내용도 아닌데** 저게."
+// 정확한 지적이다. 발행이 뜸한 매체의 **좋은 글**은 오래 남을 값어치가 있지만,
+// 아무 반응도 못 받은 글까지 사흘씩 남길 이유는 없다. 연장은 특혜이지
+// 무조건 주는 것이 아니다.
 function maxAgeFor(item) {
+  const base = item.kind === "news" ? MAX_AGE_H_NEWS : MAX_AGE_H_DEFAULT;
   const override = sourceMaxAgeH(item.source);
-  if (Number.isFinite(override)) return override;
-  return item.kind === "news" ? MAX_AGE_H_NEWS : MAX_AGE_H_DEFAULT;
+  if (!Number.isFinite(override)) return base;
+  if (override <= base) return override;   // 더 짧게 잡은 것은 그대로 존중한다
+  const signal = (item.score || 0) + (item.commentCount || 0) + (item.coverage || 0);
+  return signal > 0 ? override : base;
 }
 
 // ── 뉴스 성향 슬라이더 (David 2026-07-31: "좌/중/우 같은 비율로, 슬라이드로") ──

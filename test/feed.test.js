@@ -3575,3 +3575,25 @@ test("온보딩 안내가 떠 있어도 메뉴가 눌린다", async () => {
   assert.match(fn, /getElementById\("onbBack"\)/, "메뉴를 열 때 온보딩을 안 치운다");
   assert.match(fn, /onb\.remove\(\)/, "온보딩을 안 닫는다");
 });
+
+test("반응 없는 글에는 신선도 연장을 주지 않는다", async () => {
+  // David 실사용 제보(2026-08-06): 슬로우뉴스 글이 추천 0·댓글 0·2일 전인데
+  // 두 번째 칸에 있었다. 그 소스의 maxAgeH:72 오버라이드 때문이었다 —
+  // 발행이 뜸한 매체라 24시간이면 아무것도 안 남아서 넣어 둔 것이었다.
+  // "중요한 내용도 아닌데 저게" — 연장은 특혜이지 무조건 주는 게 아니다.
+  const src = (await import("node:fs")).readFileSync("src/feed/engine.js", "utf8");
+  const fn = src.slice(src.indexOf("function maxAgeFor(item) {"), src.indexOf("// ── 뉴스 성향 슬라이더"));
+  assert.match(fn, /const signal = \(item\.score \|\| 0\)/, "신호를 안 본다");
+  assert.match(fn, /signal > 0 \? override : base/, "신호와 무관하게 연장한다");
+  assert.match(fn, /if \(override <= base\) return override/, "더 짧게 잡은 설정을 무시한다");
+});
+
+test("탐색은 반응이 있거나 아직 새로운 글에만 붙는다", async () => {
+  // "새로운 탐색" 배지가 반응 0인 2일 전 글에 붙어 있었다. 탐색의 뜻은
+  // "취향 밖이지만 화제인 글"이지 "아무도 안 본 오래된 글"이 아니다.
+  const src = (await import("node:fs")).readFileSync("src/feed/recommender.js", "utf8");
+  assert.match(src, /function exploreEligible\(item, now\)/, "자격 조건이 없다");
+  assert.match(src, /EXPLORE_MAX_AGE_H/, "신선도 조건이 없다");
+  // 날짜를 안 주는 소스가 여럿이라 나이를 모르면 기회를 준다 — "적당히 섞자".
+  assert.match(src, /if \(!Number\.isFinite\(t\)\) return true;/, "날짜 없는 소스를 통째로 뺐다");
+});
