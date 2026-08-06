@@ -66,10 +66,17 @@ export class TranslatingSource {
       // Google이 원문 언어를 오판해 반쪽만 번역되거나 아예 원문 그대로 돌아오는
       // 문제가 있었다. sl을 auto로 넘기면 Google이 실제 텍스트를 보고 언어를
       // 스스로 판별하므로 이 소스-단위 lang 태그의 부정확성과 무관해진다.
+      // opts 객체를 **미리 만들어** 넘긴다. 번역기가 여기에 detectedLang을
+      // 적어 돌려준다 — 인라인 리터럴로 넘기면 그 값을 읽을 수 없다.
+      const titleOpts = { from: "auto", to: this._target };
+      const sumOpts = { from: "auto", to: this._target };
       const [title, summary] = await Promise.all([
-        this._translate(item.title, { from: "auto", to: this._target }),
-        item.summary ? this._translate(item.summary, { from: "auto", to: this._target }) : Promise.resolve(item.summary)
+        this._translate(item.title, titleOpts),
+        item.summary ? this._translate(item.summary, sumOpts) : Promise.resolve(item.summary)
       ]);
+      // 제목 쪽 판별을 우선한다 — 목록에서 사람이 먼저 읽는 것이 제목이고,
+      // 발췌는 없을 수도 있다. 둘 다 없으면 예전처럼 소스 선언값으로 떨어진다.
+      const detectedLang = titleOpts.detectedLang || sumOpts.detectedLang || lang;
       // 원자적 처리: 제목/요약 중 하나라도 번역기가 원문을 그대로 돌려줬다면
       // (엔드포인트 실패, 언어 오판, 그 외 무응답 등 어떤 이유든) 절반만 번역된
       // 상태로 유저에게 보여주지 않는다 — 전체를 원문 그대로 유지하고 "원문"
@@ -140,7 +147,11 @@ export class TranslatingSource {
         summaryTranslated,
         lang: this._target,
         translated: true,
-        originalLang: lang,
+        // 레지스트리 선언(entry.lang)이 아니라 **번역기가 실제로 판별한 언어**.
+        // 예전엔 선언값을 그대로 돌려줘서, 조선비즈가 섞어 보내는 일본어 기사에
+        // originalLang="ko"가 붙었고 화면에 "KO 제목을 기계번역했어요" /
+        // "KO 원문"이라는 문구가 떴다(langKo 맵에 ko 키가 없어 대문자 폴백).
+        originalLang: detectedLang,
         originalTitle: item.title,
         // 원문 발췌도 남긴다. 화면에서 "원문 보기"를 누르면 제목만 바뀌고
         // 본문은 번역문 그대로면 반쪽이다 — 무엇을 어떻게 옮겼는지 대조가 안 된다
@@ -159,12 +170,21 @@ export class TranslatingSource {
 // cache so re-collections don't re-translate identical strings.
 export function memoizedTranslator(translateOne) {
   const cache = new Map();
+  // 감지 언어도 함께 기억한다. 안 그러면 **캐시가 적중할 때마다 언어를 잃어**
+  // 같은 글이 어떤 사이클에서는 "일본어", 어떤 사이클에서는 소스 선언값으로
+  // 표시된다 — 화면이 왔다갔다하는 것이 틀린 것보다 알아채기 어렵다.
+  const langCache = new Map();
   return async (text, opts) => {
     if (!text) return text;
     const key = `${opts.from}>${opts.to}:${text}`;
-    if (cache.has(key)) return cache.get(key);
+    if (cache.has(key)) {
+      const l = langCache.get(key);
+      if (l && opts && typeof opts === "object") opts.detectedLang = l;
+      return cache.get(key);
+    }
     const result = await translateOne(text, opts);
     cache.set(key, result);
+    if (opts && opts.detectedLang) langCache.set(key, opts.detectedLang);
     return result;
   };
 }

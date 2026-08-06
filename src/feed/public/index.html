@@ -3937,8 +3937,14 @@ window.addEventListener("popstate", (e)=>{
 // 제목만 바꾸고 발췌는 번역문 그대로면 반쪽이라 둘 다 바꾼다.
 function transToggleHtml(item){
   if(!item || !item.translated || !item.originalTitle) return "";
-  const langKo = { en:"영어", ja:"일본어", zh:"중국어", de:"독일어", fr:"프랑스어", es:"스페인어" };
-  const from = langKo[item.originalLang] || (item.originalLang || "").toUpperCase() || "원문";
+  const langKo = { en:"영어", ja:"일본어", zh:"중국어", "zh-CN":"중국어", "zh-TW":"중국어",
+    de:"독일어", fr:"프랑스어", es:"스페인어", ru:"러시아어", pt:"포르투갈어",
+    it:"이탈리아어", vi:"베트남어", th:"태국어", id:"인도네시아어", ar:"아랍어", hi:"힌디어" };
+  // 모르는 코드는 대문자로 노출하지 않는다. 예전엔 originalLang이 "ko"로 잘못
+  // 붙어 화면에 "KO 제목을 기계번역했어요" / "KO 원문"이 떴다(langKo에 ko 키가
+  // 없어 toUpperCase 폴백). 언어를 모르면 그냥 "원문"이라고 부른다 —
+  // 알파벳 두 글자를 보여 주는 것보다 낫다.
+  const from = langKo[item.originalLang] || "원문";
   // 옮긴 것이 제목뿐인지 본문까지인지 밝힌다 (David 2026-08-06 제보).
   // "영어 글을 기계번역했어요"라고 써 놓고 본문이 없으면 거짓말이 된다 —
   // 해커뉴스·Tildes처럼 원래 발췌가 없는 소스가 실제로 그렇게 보였다.

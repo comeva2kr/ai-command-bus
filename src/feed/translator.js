@@ -33,6 +33,16 @@ const DEFAULT_UA = "ai-command-bus-feed/0.1 (+https://github.com/comeva2kr/ai-co
 // data[0] is the list of translated chunks (long input gets split into
 // several); each chunk's [0] is the translated text for that chunk. Join
 // them back into one string.
+// data[2]는 Google이 **실제로 판별한 원문 언어**다(위 예시의 "en").
+// 그동안 이 값을 받아 놓고 버렸다. 그 대가로 화면에 "KO 제목을 기계번역했어요"
+// 같은 문구가 떴다 — originalLang이 실제 언어가 아니라 레지스트리에 적힌
+// 소스 선언(조선비즈면 "ko")을 그대로 되돌려주고 있었기 때문이다.
+// 조선비즈는 한국 매체지만 일본어판 기사를 섞어 보낸다(실측 100건 중 5건).
+function extractDetectedLang(data) {
+  const l = Array.isArray(data) ? data[2] : null;
+  return typeof l === "string" && l.length <= 8 ? l : null;
+}
+
 function extractTranslation(data) {
   if (!Array.isArray(data) || !Array.isArray(data[0])) return null;
   let out = "";
@@ -63,6 +73,11 @@ export function googleFreeTranslator({ fetchImpl = fetch, timeoutMs = DEFAULT_TI
       if (!res.ok) { discardBody(res); return text; } // free endpoint hiccup (rate limit, 5xx, ...) -> original text
       const data = await res.json();
       const translated = extractTranslation(data);
+      // 감지 언어는 **opts에 적어 돌려준다.** 반환값을 객체로 바꾸면
+      // translate.js와 engine.js의 호출부가 전부 깨진다 — 계약은 그대로 두고
+      // 부가 정보만 옆으로 흘린다.
+      const detected = extractDetectedLang(data);
+      if (detected && opts && typeof opts === "object") opts.detectedLang = detected;
       return translated || text; // empty/unexpected shape -> original text, never throw
     } catch {
       return text; // network error, timeout (AbortError), bad JSON -> original text
