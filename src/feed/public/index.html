@@ -810,15 +810,14 @@
      파라미터가 아니라 배너 ID가 정하므로 우리가 만들 수 없다. */
   .card .ad-native .ad-row{display:flex;gap:12px;align-items:flex-start}
   .card .ad-native .ad-text{flex:1 1 auto;min-width:0}
-  .card .ad-native .ad-thumb{flex:0 0 auto;width:76px;height:76px;border-radius:10px;
-    overflow:hidden;border:1px solid var(--line)}
-  /* 콘텐츠 카드의 최종 썸네일 크기와 맞춘다. 위 .card-thumb 기본값은 76px인데
-     아래 #feed .card .card-thumb 가 88px로 덮는다 — CSS만 읽고 76을 따라 쓰면
-     광고만 12px 작아진다(브라우저 실측 2026-08-05: 광고 76 vs 콘텐츠 88).
-     "같은 모양"은 눈으로 재야 하고, 나는 파일만 읽고 틀렸다. */
-  /* 각진 테두리 (David 2026-08-05: "사진 테두리 반듯하게 못하나? 각지게").
-     콘텐츠 썸네일도 같이 각지게 한다 — 광고만 다르면 그게 또 광고 티다. */
-  #feed .card .ad-native .ad-thumb{flex:0 0 88px;width:88px;height:88px;margin:2px 0 0;border-radius:0}
+  /* 광고 썸네일 — **크기 정의는 여기 한 곳뿐이고 스코프를 두지 않는다.**
+     예전엔 기본 76px에 `#feed .card ...`가 88px로 덮는 구조였다. 그래서 피드
+     안에서는 88px, 상세 화면에서는 76px — 같은 광고가 자리마다 다르게 생겼다
+     (실측 2026-08-06: 피드 88x88, 상세 76x76).
+     콘텐츠 썸네일과 같은 88px, 각진 테두리로 고정한다. 광고만 다르게 생기면
+     그게 곧 "광고 티"이고, David가 반복해서 지적한 지점이다. */
+  .card .ad-native .ad-thumb{flex:0 0 88px;width:88px;height:88px;margin:2px 0 0;
+    border-radius:0;overflow:hidden;border:1px solid var(--line)}
   #feed .card .card-thumb{border-radius:0}
   .card .ad-native .ad-thumb img{width:100%;height:100%;object-fit:cover;display:block}
   .card .ad-native .ad-brand{margin:0;font-size:13px;color:var(--muted)}

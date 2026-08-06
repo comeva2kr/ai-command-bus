@@ -1442,3 +1442,24 @@ test("대가성 고지문 스타일이 한 곳에만 정의된다", async () => 
   assert.ok(!/\.ad-disclosure\{[^}]*text-wrap:balance/.test(html),
     "고지문에 text-wrap:balance가 남아 줄바꿈이 어색해진다");
 });
+
+test("광고 카드는 어느 자리에 있든 같은 모양이다 — 스코프로 갈라지지 않는다", async () => {
+  // 실측(2026-08-06): 같은 광고가 피드에서는 썸네일 88x88, 상세 화면에서는
+  // 76x76이었다. 기본값 76px 위에 `#feed .card ...`가 88px로 덮는 구조라,
+  // #feed 밖(상세·모달)에서는 덮개가 안 닿았다.
+  //
+  // "같은 광고인데 자리마다 다르게 생긴다"가 David가 반복해서 지적한 것이고,
+  // 렌더러를 하나로 합친 뒤 마지막까지 남아 있던 조각이 이 CSS 스코프였다.
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+
+  // 광고 썸네일 크기를 정하는 규칙은 하나여야 하고, #feed에 갇히면 안 된다.
+  // **주석을 먼저 걷어낸다.** 이 검사를 처음 쓸 때 정규식이 내가 쓴 주석 안의
+  // "#feed .card …" 문구를 잡아서 거짓 실패를 냈다. 검사 대상은 규칙이지 설명이 아니다.
+  const css = html.replace(/\/\*[\s\S]*?\*\//g, "");
+  const scoped = css.match(/#feed[^{;]*\.ad-native \.ad-thumb\{/g) || [];
+  assert.equal(scoped.length, 0,
+    "광고 썸네일 크기가 #feed 안에서만 적용된다 — 상세 화면에서 달라진다");
+  assert.match(css, /\.card \.ad-native \.ad-thumb\{[^}]*width:88px/,
+    "광고 썸네일이 콘텐츠(88px)와 다른 크기다");
+});

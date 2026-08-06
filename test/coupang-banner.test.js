@@ -143,9 +143,11 @@ test("광고 카드가 콘텐츠 카드와 같은 모양이다", async () => {
   // 클래스 이름이 아니라 **자리**를 본다 — ad-img는 이제 썸네일 안에 있다.
   assert.match(block, /class="ad-thumb"><img class="ad-img"/, "이미지가 썸네일 상자 안에 있지 않다");
   assert.doesNotMatch(html.slice(from, from + 1400), /width="320" height="100"/, "가로 배너 규격이 남아 있다");
-  // 콘텐츠 카드 썸네일과 같은 규격(76px 정사각)이어야 나란히 놓았을 때 어긋나지 않는다
-  assert.match(html, /\.card \.ad-native \.ad-thumb\{[^}]*width:76px;height:76px/,
-    "썸네일이 콘텐츠 카드(76px 정사각)와 다른 규격이다");
+  // 콘텐츠 카드 썸네일과 같은 규격(88px 정사각)이어야 나란히 놓았을 때 어긋나지 않는다.
+  // 2026-08-06: 기본 76px + `#feed`가 88px로 덮던 2단 구조를 없앴다 —
+  // #feed 밖(상세 화면)에서는 덮개가 안 닿아 76px로 나왔다.
+  assert.match(html, /\.card \.ad-native \.ad-thumb\{[^}]*width:88px;height:88px/,
+    "썸네일이 콘텐츠 카드(88px 정사각)와 다른 규격이다");
   assert.match(html, /\.card \.ad-native \.ad-thumb img\{[^}]*object-fit:cover/,
     "정사각이 아닌 이미지가 들어와도 찌그러지지 않게 잘라야 한다");
 });
@@ -198,7 +200,9 @@ test("광고 썸네일이 콘텐츠 썸네일과 같은 크기다", async () => 
     return m ? Number(m[1]) : null;
   };
   const content = num(/#feed \.card \.card-thumb\{flex:0 0 (\d+)px/);
-  const ad = num(/#feed \.card \.ad-native \.ad-thumb\{flex:0 0 (\d+)px/);
+  // 광고 썸네일 규칙에는 **스코프가 없어야 한다** — #feed 안에서만 적용되면
+  // 상세 화면에서 크기가 달라진다(실측 2026-08-06: 피드 88, 상세 76).
+  const ad = num(/(?:^|\n)\s*\.card \.ad-native \.ad-thumb\{flex:0 0 (\d+)px/);
   assert.ok(content, "콘텐츠 썸네일 규칙을 못 찾았다");
   assert.ok(ad, "광고 썸네일 규칙을 못 찾았다 — 광고만 다른 크기가 된다");
   assert.equal(ad, content, `광고 ${ad}px vs 콘텐츠 ${content}px — 같아야 한다`);
