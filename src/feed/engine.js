@@ -504,6 +504,12 @@ export class FeedEngine {
   // 풀을 원자적으로 저장한다(tmp + rename) — 쓰다가 죽어도 반쪽 파일이
   // 남지 않는다. store._persist와 같은 방식이다. 실패는 조용히 넘긴다:
   // 캐시를 못 남기는 것은 느려질 뿐이지 서비스가 멈출 일은 아니다.
+  // 풀의 원시 행(아이템 + 최초 관측 + 열기 시계열). 데이터 리포트(④)가 쓴다 —
+  // _items()가 주는 것은 캡·정렬을 거친 아이템뿐이라 시계열이 붙어 있지 않다.
+  poolRows() {
+    return [...this._pool.values()];
+  }
+
   _savePool() {
     if (!this._poolFile) return;
     try {

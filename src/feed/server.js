@@ -8,6 +8,8 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { pickBanner, loadBanners } from "./manual-products.js";
+import { buildReport } from "./datastory.js";
+import { barsSvg, lineSvg, CHART_CSS } from "./chart.js";
 import { adCopy, AD_DISCLOSURE, withSubId } from "./ad-copy.js";
 import { makeWriter } from "./llm.js";
 import { SLOTS } from "./digest.js";
@@ -396,6 +398,7 @@ export function createServer(opts = {}) {
             `<nav class="seed-nav" aria-label="지금핫이 만드는 페이지">` +
             [["/briefing", "오늘의 브리핑"], ["/ranking/daily", "화제 랭킹"],
              ["/communities", "커뮤니티 순위"], ["/keywords", "화제 키워드"],
+               ["/report", "데이터 리포트"],
              ["/trends", "실시간 트렌드"]]
               .map(([href, label]) => `<a href="${href}">${escapeHtml(label)}</a>`).join("") +
             `</nav>`;
@@ -751,6 +754,52 @@ export function createServer(opts = {}) {
       coupangBannerHtml(category, size, pick, slot, dest, seen);
   };
 
+  // 데이터 리포트도 **요청 밖에서** 만든다.
+  //
+  // buildReport는 풀 원시행 수천 건과 저장된 에디션 전부를 훑는 동기 계산이다.
+  // 홈이 정확히 같은 이유로 TTFB 4초였고(현지 제보 2026-08-06), 그 교훈을
+  // 확정 표에 "홈 SSR seed는 요청 밖에서 만든다"로 못 박았다. 새 페이지를
+  // 만들면서 같은 실수를 되풀이하지 않는다.
+  //
+  // 리포트는 하루 단위 데이터라 10분 낡아도 아무 문제가 없다. 빈 결과는
+  // 성공으로 치지 않는다 — 그러면 "아직 안 모였습니다"가 10분 동안 굳는다.
+  const REPORT_TTL_MS = 10 * 60 * 1000;
+  const REPORT_RETRY_MS = 30 * 1000;
+  const reportCache = { data: null, at: 0, building: false };
+  const buildReportNow = () => {
+    const editions = store.listEditionDates()
+      .map((d) => ({ date: d, ...(store.getDailyEdition(d) || {}) }));
+    const rows = engine.poolRows ? engine.poolRows() : [];
+    return buildReport({ editions, rows });
+  };
+  const reportNow = () => {
+    const cached = reportCache.data;
+    // **첫 한 번만 기다린다.** 배경으로만 만들면 프로세스가 뜬 직후 들어온
+    // 첫 방문자 — 하필 심사 봇일 수 있다 — 에게 "아직 안 모였습니다"가
+    // 나간다. 이 페이지의 존재 이유를 생각하면 그건 4초 기다림보다 나쁘다.
+    // 한 번 만들고 나면 그 뒤로는 아무도 안 기다린다.
+    if (!cached) {
+      try {
+        reportCache.data = buildReportNow();
+        reportCache.at = Date.now();
+      } catch { /* 다음 요청이 다시 시도한다 */ }
+      return reportCache.data;
+    }
+    const ttl = cached.publishable ? REPORT_TTL_MS : REPORT_RETRY_MS;
+    if (Date.now() - reportCache.at > ttl && !reportCache.building) {
+      reportCache.building = true;
+      // 갱신은 응답 뒤로 민다 — 지금 요청은 있는 것으로 답한다.
+      setImmediate(() => {
+        try {
+          reportCache.data = buildReportNow();
+          reportCache.at = Date.now();
+        } catch { /* 다음 요청이 다시 시도한다 */ }
+        finally { reportCache.building = false; }
+      });
+    }
+    return cached;
+  };
+
   const coupangBannerHtml = (category, size = null, pick = 0, slot = "page", dest = null, seen = null) => {
     const b = pickBanner({ category, dest, size, pick, seen: seen || new Set() });
     if (!b) return "";
@@ -854,7 +903,7 @@ ${canonicalPath ? `<link rel="canonical" href="https://nowhot.kr${escapeHtml(can
 <meta property="og:url" content="https://nowhot.kr${escapeHtml(canonicalPath)}">` : ""}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&display=swap" rel="stylesheet">
-<style>/* Modernist 스킨 (NowHot.dc, 2026-08-01) — 라이트 기본, OS 다크 추종 */
+<style>${CHART_CSS}/* Modernist 스킨 (NowHot.dc, 2026-08-01) — 라이트 기본, OS 다크 추종 */
 :root{--bg:#f3f2f2;--surface:#eae9e9;--text:#201e1d;--accent:#ec3013;
 --divider:color-mix(in srgb,#201e1d 40%,transparent);--line:color-mix(in srgb,#201e1d 16%,transparent);
 --muted:color-mix(in srgb,#201e1d 55%,transparent)}
@@ -1172,6 +1221,7 @@ ${adSlotHtml("adfit")}
       { href: "/trends", label: "실시간 트렌드" },
       { href: "/communities", label: "커뮤니티 순위" },
       { href: "/keywords", label: "화제 키워드" },
+      { href: "/report", label: "데이터 리포트" },
       ...cats.map((c) => ({ href: `/briefing/${encodeURIComponent(c)}`, label: `${categoryLabel(c)} 브리핑` }))
     ].filter((l) => l.href !== current);
     return `<nav class="own-links" aria-label="지금핫이 만든 다른 콘텐츠">
@@ -1407,6 +1457,8 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
           { loc: "/ranking/weekly", freq: "daily", pri: "0.7", mod: liveMod },
           { loc: "/ranking/monthly", freq: "weekly", pri: "0.6", mod: liveMod },
           { loc: "/trends", freq: "hourly", pri: "0.6", mod: liveMod },
+          // 데이터 리포트 — 외부 링크가 0인 유일한 페이지다. 색인에 꼭 올린다.
+          { loc: "/report", freq: "daily", pri: "0.8", mod: liveMod },
           { loc: "/communities", freq: "hourly", pri: "0.8", mod: liveMod },
           { loc: "/keywords", freq: "hourly", pri: "0.7", mod: liveMod },
           { loc: "/about", freq: "monthly", pri: "0.4", mod: fileMod("about.html") },
@@ -1679,6 +1731,57 @@ ${AD(b.items[0] && b.items[0].category, null, 12, "community_mid")}
       // 두 곳 이상에서 나온 말만 페이지로 만든다. 한 커뮤니티에서만 나온
       // 단어는 그 글의 고유명사일 뿐이고, 알맹이 없는 페이지를 수백 개
       // 만들면 자체 콘텐츠를 늘리는 게 아니라 오히려 감점이다.
+      // ── 데이터 리포트 (블루프린트 P0-A ④, 2026-08-06)
+      //
+      // 여기 실리는 문장과 그림에는 **남의 글이 하나도 없다.** 재료가 전부
+      // 우리가 잰 값이라, 아웃링크가 0이어도 페이지가 성립한다 — 애드핏 4차
+      // 반려("외부 콘텐츠·외부 링크 비중")에 정면으로 답하는 유일한 형태다.
+      //
+      // 레퍼런스(2026-08-06 조사): Google Year in Search·Spotify Wrapped·
+      // hnrankings.info 계열은 "해설 없이 순위·숫자·그래프를 템플릿에 채우는"
+      // 구조라 자동 생성에 맞는다. 마부작침·The Pudding 계열은 기자의 해석이
+      // 구조의 핵심이라 자동화 대상이 아니다. 후자를 흉내 내지 않는다.
+      if (p === "/report" && req.method === "GET") {
+        const rep = reportNow();
+        if (!rep || !rep.publishable) {
+          // 알맹이 없는 글을 발행하지 않는다 — 브리핑과 같은 규칙이다.
+          // 빈 페이지를 대량으로 색인시키면 사이트 전체 평가가 그쪽으로 끌려간다.
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+          return res.end(editionShell("지금핫 데이터 리포트",
+            "지금핫이 직접 집계한 커뮤니티·뉴스 화제 데이터 리포트",
+            `<h1>지금핫 데이터 리포트</h1><p class="muted">아직 며칠치 기록이 모이지 않았습니다. 하루치 스냅샷이 쌓이면 발행합니다.</p>`,
+            "/report", ownContentNav("/report"), "", true));
+        }
+        const AD = adPage();
+        const chartHtml = (c) => {
+          if (!c) return "";
+          if (c.type === "line") return lineSvg(c);
+          return barsSvg(c);
+        };
+        const body = rep.sections.map((sec, i) => {
+          const html = `<section class="issue"><h2>${escapeHtml(sec.heading)}</h2>` +
+            sec.paragraphs.map((t) => `<p>${escapeHtml(t)}</p>`).join("") +
+            chartHtml(sec.chart) + `</section>`;
+          // 절 사이에만 광고를 넣는다. 마지막 절 뒤에 붙이면 글 끝이 광고로 끝난다.
+          return i === 0 && rep.sections.length > 1 ? html + AD(null, null, 18, "report_mid") : html;
+        }).join("");
+        const inner = `<h1>${escapeHtml(rep.title)}</h1>
+<p class="muted">${escapeHtml(rep.lead)}</p>
+<p class="muted small">이 페이지의 수치와 그림은 지금핫이 직접 수집·계측해 만든 것입니다.
+원문을 옮기지 않으므로 외부 링크가 없습니다.</p>
+${body}
+<section class="issue"><h2>어떻게 만드나</h2>
+<p>지금핫은 커뮤니티와 뉴스 매체를 정해진 주기로 돌며 글의 제목·출처·공개 반응 수치를 기록합니다.
+본문은 수집하지 않습니다. 그 기록을 날짜별로 저장해 두었다가, 여러 날을 겹쳐 봐야 보이는 것만 여기에 씁니다.</p>
+<p>표본이 모자란 항목은 문장에서 빼고, 모든 집계에는 표본 수를 함께 적습니다.
+수치를 반올림하는 것 외에 보정하지 않습니다.</p></section>
+${rankingNav("")}`;
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        return res.end(editionShell(rep.title,
+          `커뮤니티·뉴스 ${rep.landscape.sources.length}곳에서 ${rep.dayCount}일간 모은 화제 랭킹 ${rep.landscape.total}건을 지금핫이 직접 집계했습니다.`,
+          inner, "/report", ownContentNav("/report"), AD(null, null, 19, "report_bot")));
+      }
+
       if (p === "/keywords" && req.method === "GET") {
         const idx = keywordIndex(await engine.pool());
         if (!idx.length) return send(res, 404, { error: "no keywords yet" });
@@ -2607,9 +2710,13 @@ if (process.argv[1] && process.argv[1].endsWith("server.js")) {
     // 요청 한 번이 곧 "만들어 둬라"라서, 우리가 먼저 한 번 부른다.
     setTimeout(() => {
       fetch(`http://127.0.0.1:${port}/`).catch(() => {});
+      fetch(`http://127.0.0.1:${port}/report`).catch(() => {});
       // 첫 호출은 캐시가 비어 있어 배경 작업만 걸어 놓고 끝난다.
       // 다 만들어졌을 때쯤 한 번 더 불러 캐시가 실제로 찼는지 확인한다.
-      setTimeout(() => { fetch(`http://127.0.0.1:${port}/`).catch(() => {}); }, 20000);
+      setTimeout(() => {
+        fetch(`http://127.0.0.1:${port}/`).catch(() => {});
+        fetch(`http://127.0.0.1:${port}/report`).catch(() => {});
+      }, 20000);
     }, 3000).unref?.();
     if (process.env.FEED_DB) console.log(`persisting to ${process.env.FEED_DB}`);
   });
