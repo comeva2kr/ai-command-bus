@@ -1423,11 +1423,11 @@ test("광고 카드가 3단(문구·본문·CTA)과 도착지를 모두 갖춘�
   const fn = html.slice(html.indexOf("function coupangCardHtml("),
                         html.indexOf("// 문맥에 맞는 제휴 링크를 고른다"));
   assert.match(fn, /<h3>\$\{escapeHtml\(v\.hook\)\}<\/h3>/, "제목(hook)이 없다");
-  assert.match(fn, /class="ad-brand">\$\{escapeHtml\(v\.line \|\| link\.brand\)\}/, "본문(line)이 없다");
-  assert.match(fn, /class="ad-cta">\$\{escapeHtml\(v\.cta \|\| /, "CTA가 없다");
-  assert.match(fn, /class="ad-dest">\$\{escapeHtml\(link\.brand\)\}/, "도착지 표시가 없다");
+  assert.match(fn, /class="go-line">\$\{escapeHtml\(v\.line \|\| link\.brand\)\}/, "본문(line)이 없다");
+  assert.match(fn, /class="go-cta">\$\{escapeHtml\(v\.cta \|\| /, "CTA가 없다");
+  assert.match(fn, /class="go-dest">\$\{escapeHtml\(link\.brand\)\}/, "도착지 표시가 없다");
   // 썸네일은 있을 때만 — 없으면 글자 카드로 완결된다.
-  assert.match(fn, /link\.img\?`<div class="ad-thumb">/, "썸네일 조건부 렌더가 깨졌다");
+  assert.match(fn, /link\.img\?`<div class="go-thumb">/, "썸네일 조건부 렌더가 깨졌다");
   assert.match(fn, /onerror="this\.parentNode\.remove\(\)"/, "이미지 차단 시 폴백이 없다");
 });
 
@@ -1457,10 +1457,10 @@ test("광고 카드는 어느 자리에 있든 같은 모양이다 — 스코프
   // **주석을 먼저 걷어낸다.** 이 검사를 처음 쓸 때 정규식이 내가 쓴 주석 안의
   // "#feed .card …" 문구를 잡아서 거짓 실패를 냈다. 검사 대상은 규칙이지 설명이 아니다.
   const css = html.replace(/\/\*[\s\S]*?\*\//g, "");
-  const scoped = css.match(/#feed[^{;]*\.ad-native \.ad-thumb\{/g) || [];
+  const scoped = css.match(/#feed[^{;]*\.card-go \.go-thumb\{/g) || [];
   assert.equal(scoped.length, 0,
     "광고 썸네일 크기가 #feed 안에서만 적용된다 — 상세 화면에서 달라진다");
-  assert.match(css, /\.card \.ad-native \.ad-thumb\{[^}]*width:88px/,
+  assert.match(css, /\.card \.card-go \.go-thumb\{[^}]*width:88px/,
     "광고 썸네일이 콘텐츠(88px)와 다른 크기다");
 });
 
@@ -1490,7 +1490,7 @@ test("낡은 화면은 스스로 갱신한다 — 두 번 새로고침을 요구
 test("광고 차단기가 본문만 지웠을 때 빈 껍데기를 남기지 않는다", async () => {
   // David 실기기(2026-08-06, 아이폰 사파리·크롬): 화면에 "쿠팡 파트너스 / AD"와
   // 대가성 고지문만 남고 제목·본문·CTA·사진이 통째로 없었다. 캐시가 아니라
-  // 폰의 콘텐츠 차단기가 a.ad-native를 숨긴 결과다 — 렌더러를 합치면서 광고
+  // 폰의 콘텐츠 차단기가 a.card-go를 숨긴 결과다 — 렌더러를 합치면서 광고
   // 본문 전체가 ad- 접두 클래스 아래로 들어가 예전보다 더 잘 걸린다.
   //
   // 차단 자체는 우회하지 않는다. 잘못된 것은 껍데기가 남는 것이다.
@@ -1504,6 +1504,6 @@ test("광고 차단기가 본문만 지웠을 때 빈 껍데기를 남기지 않
   const calls = (html.match(/dropIfAdBlocked\(/g) || []).length;
   assert.ok(calls >= 4, `dropIfAdBlocked 호출이 ${calls}곳뿐 — 정의 1 + 삽입 지점 3 이상이어야 한다`);
   // 클래스 이름을 감춰 차단기를 피하는 방향으로 가지 않는다.
-  assert.match(html, /class="ad-native"/, "광고 링크 클래스를 감췄다 — 차단 회피는 하지 않는다");
+  assert.match(html, /class="card-go"/, "광고 링크 클래스를 감췄다 — 차단 회피는 하지 않는다");
   assert.match(html, /class="badge ad-badge-static">AD/, "AD 배지를 감췄다");
 });

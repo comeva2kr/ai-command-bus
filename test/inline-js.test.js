@@ -74,7 +74,7 @@ test("광고: 배너 이미지는 지연 로딩하지 않는다", async () => {
   // 발생하지 않는 환경이 있었다(브라우저 재현: top 323, 뷰포트 812, complete=false.
   // eager로 바꾸자 즉시 320x100 로드). 안 보이면 수익이 0이라 여기만 예외로 둔다.
   for (const [file, re] of [
-    ["src/feed/public/index.html", /class="ad-img"[^>]*loading="eager"/],
+    ["src/feed/public/index.html", /class="go-img"[^>]*loading="eager"/],
     ["src/feed/server.js", /alt="\$\{escapeHtml\(brand\)\}" loading="eager"/]
   ]) {
     assert.match(readFileSync(file, "utf8"), re, `${file}: 광고 배너가 lazy로 되돌아갔다`);

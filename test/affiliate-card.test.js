@@ -19,7 +19,7 @@ test("배너 사진은 실으로되, 못 받는 사용자에게도 카드가 성
   // 콘텐츠 차단기가 ads-partners 도메인을 거른 것이었다.
   // 사진 있는 광고가 글자만 있는 광고보다 잘 눌리므로 사진을 기본으로 두고,
   // 차단당한 사용자에게만 onerror가 img를 지워 글자 카드가 남게 한다.
-  const imgTags = [...HTML.matchAll(/<img[^>]*ad-img[^>]*>/g), ...SERVER.matchAll(/<img[^>]*ad-img[^>]*>/g)].map((m) => m[0]);
+  const imgTags = [...HTML.matchAll(/<img[^>]*go-img[^>]*>/g), ...SERVER.matchAll(/<img[^>]*go-img[^>]*>/g)].map((m) => m[0]);
   assert.ok(imgTags.length >= 2, "피드·발행 페이지 양쪽에 배너 사진이 있어야 한다");
   for (const t of imgTags) {
     // 썸네일 상자째 지운다 — img만 지우면 76px 빈 테두리가 남는다
@@ -27,7 +27,7 @@ test("배너 사진은 실으로되, 못 받는 사용자에게도 카드가 성
     assert.match(t, /onerror="this\.parentNode\.remove\(\)"/, "못 받으면 깨진 자리를 남기지 말고 지워야 한다");
     assert.ok(!/alt=""/.test(t), "배너 alt가 비면 안 된다");
   }
-  assert.match(HTML, /ad-native/, "네이티브 제휴 카드가 없다");
+  assert.match(HTML, /card-go/, "네이티브 제휴 카드가 없다");
 });
 
 test("제휴 카드에는 대가성 문구가 항상 함께 나간다", () => {

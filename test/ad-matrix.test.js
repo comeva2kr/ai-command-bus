@@ -129,8 +129,8 @@ test("앱 광고 카드가 LLM 문구를 실제로 쓴다 — hook만 쓰면 다
   assert.match(fn, /line: v\.line/, "행렬의 본문(line)을 안 돌려준다");
   assert.match(fn, /cta: v\.cta/, "행렬의 CTA를 안 돌려준다");
   // 도착지는 계속 밝혀야 한다 — 2026-08-03 "문구≠도착지" 사고의 방어선.
-  assert.match(html, /class="ad-dest">\$\{escapeHtml\(link\.brand\)\}/, "도착지 라벨이 사라졌다");
-  assert.match(html, /\.ad-dest\{display:block/, "도착지 라벨 스타일이 없다");
+  assert.match(html, /class="go-dest">\$\{escapeHtml\(link\.brand\)\}/, "도착지 라벨이 사라졌다");
+  assert.match(html, /\.go-dest\{display:block/, "도착지 라벨 스타일이 없다");
 });
 
 test("행렬이 모든 도착지 × 맥락을 덮는다", async () => {
