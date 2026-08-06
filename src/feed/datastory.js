@@ -179,6 +179,7 @@ export function heatShape(rows, { minSteps = 5, minTotal = 30, minPerCat = 5 } =
   return {
     n: scored.length,
     categories,
+    all: scored,
     fastest: sorted.slice(0, 3),
     slowest: sorted.slice(-3).reverse()
   };
@@ -305,9 +306,16 @@ export function heatParagraphs(H) {
 // 그림 하나와 규칙으로 만든 캡션 한둘. 해석을 지어내지 않는다 —
 // "왜" 그랬는지는 우리가 잰 값이 아니다.
 export function curveSection(H) {
-  if (!H || !H.fastest.length) return null;
-  const pick = H.fastest[0];
-  if (!pick || !Array.isArray(pick.series) || pick.series.length < 5) return null;
+  if (!H || !H.all || !H.all.length) return null;
+  // **모양이 보이는 글**을 고른다. 상승분이 100% 전반부에 몰린 글을 그리면
+  // 그림이 사실상 계단 하나라, "이렇게 오른다"는 제목과 그림이 어긋난다
+  // (배포 후 실측 2026-08-06: 처음엔 그런 글이 뽑혔다).
+  // 서로 다른 눈금값이 많을수록 변화를 여러 번 잡은 것이다.
+  const shapeOf = (s) => new Set(s.series || []).size;
+  const pick = [...H.all]
+    .filter((s) => Array.isArray(s.series) && s.series.length >= 5 && shapeOf(s) >= 4)
+    .sort((a, b) => shapeOf(b) - shapeOf(a) || b.rise - a.rise)[0];
+  if (!pick) return null;
   const first = pick.series[0];
   const last = pick.series[pick.series.length - 1];
   if (!(last > first)) return null;

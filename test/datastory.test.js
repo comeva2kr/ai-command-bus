@@ -163,3 +163,19 @@ test("결측으로 0이 찍힌 시계열은 버린다 — 복구분이 가짜 �
   assert.equal(H.n, 6, "결측 시계열이 집계에 들어갔다");
   assert.ok(!H.fastest.some((f) => f.id === "bad"), "결측 시계열이 1위로 올라왔다");
 });
+
+test("곡선 절은 모양이 보이는 글을 고른다", async () => {
+  // 상승분이 100% 전반부에 몰린 글을 그리면 그림이 계단 하나라
+  // "이렇게 오른다"는 제목과 어긋난다 — 첫 배포에서 실제로 그랬다.
+  const { curveSection } = await import("../src/feed/datastory.js");
+  const step = { item: { id: "step", title: "계단", source: "s", sourceLabel: "출처", category: "tech" },
+                 heatHist: [0, 250, 250, 250, 250, 250, 250] };
+  const curve = { item: { id: "curve", title: "곡선", source: "s", sourceLabel: "출처", category: "tech" },
+                  heatHist: [0, 20, 45, 70, 90, 110, 130] };
+  const pad = Array.from({ length: 5 }, (_, i) => ({
+    item: { id: `p${i}`, title: "t", source: "s", sourceLabel: "출처", category: "tech" },
+    heatHist: [0, 10, 20, 30, 40, 50] }));
+  const sec = curveSection(heatShape([step, curve, ...pad]));
+  assert.ok(sec, "곡선 절이 안 나왔다");
+  assert.match(sec.paragraphs[0], /곡선/, "계단짜리를 골랐다");
+});
