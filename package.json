@@ -11,7 +11,9 @@
     "test": "node --test --test-timeout=45000 test/*.test.js",
     "demo": "node src/router.js examples/task_queue.json",
     "feed": "node src/feed/server.js",
-    "push:keys": "node src/feed/push-keys.js"
+    "push:keys": "node src/feed/push-keys.js",
+    "staging": "node tools/staging.mjs",
+    "staging:keep": "node tools/staging.mjs --keep"
   },
   "keywords": [
     "ai-agents",
