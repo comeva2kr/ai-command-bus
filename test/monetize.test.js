@@ -665,14 +665,20 @@ test("engine: 정치 글 **옆에는** 광고가 붙지 않는다 (사용자 단
   });
 });
 
-test("광고 세션 상한은 폭주 방지지 수익 상한이 아니다", async () => {
+test("세션 총량 상한을 두지 않는다 — 촘촘함은 밀도가 막는다", async () => {
+  // David 2026-08-06: "광고에 상한선이 왜 필요해? 일정 컨텐츠 → 광고는 계속
+  // 반복되어야지. 너무 자주 나오지 않는 선에서."
+  //
+  // 총량 상한이 하는 일은 하나뿐이었다 — 많이 읽는 사람일수록 광고를 덜 보게
+  // 만드는 것. 실측(6일 때): 12페이지를 넘겨도 6건에서 멈췄다.
   const { adParams } = await import("../src/feed/monetize.js");
-  // 실측(2026-08-06 라이브): 12페이지를 넘겨도 광고가 6건에서 멈췄다.
-  // 밀도(9칸마다·페이지당 2개·앞 6칸 보호)가 이미 촘촘함을 막는데 그 위에
-  // 하루 6건을 걸어 두니, 조금만 스크롤하면 그 뒤로 광고가 영영 안 나왔다.
   const p = adParams();
-  assert.ok(p.maxPerSession >= 30,
-    `세션 상한 ${p.maxPerSession} — 밀도가 아니라 이 값이 수익을 묶고 있다`);
+  assert.ok(p.maxPerSession < 0,
+    `세션 상한 ${p.maxPerSession} — 상한이 되살아나면 많이 읽는 사용자의 수익이 묶인다`);
+  // 대신 밀도는 살아 있어야 한다 — 없으면 광고판이 된다.
+  assert.ok(p.every >= 5, `광고 간격 ${p.every}칸 — 너무 촘촘하다`);
+  assert.ok(p.maxPerPage <= 3, `요청당 ${p.maxPerPage}개 — 한 화면이 광고로 찬다`);
+  assert.ok(p.skipFirst >= 4, `앞 ${p.skipFirst}칸 — 첫 화면이 광고로 시작한다`);
 });
 
 // ---- round-2 review #2 (치명, "정치 게이트 갭") -------------------------------
@@ -1458,7 +1464,7 @@ test("광고가 0이 되는 길이 남아 있지 않다 (David 2026-08-06 '어�
 
   // ② 세션 상한 — 밀도가 아니라 이 값이 수익을 묶고 있었다(하루 6건).
   const { adParams } = await import("../src/feed/monetize.js");
-  assert.ok(adParams().maxPerSession >= 30, "세션 상한이 다시 수익 상한이 됐다");
+  assert.ok(adParams().maxPerSession < 0, "세션 총량 상한이 되살아났다 — 많이 읽을수록 광고가 줄어든다");
 
   // ③ 관련성 게이트 — 배너까지 묶어 문맥 안 맞는 페이지를 0으로 만들었다.
   assert.match(mon, /const pool = relevant\.length \? relevant : claimless;/,
