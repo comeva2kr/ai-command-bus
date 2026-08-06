@@ -23,6 +23,7 @@
 // 공유 카드에도 그대로 쓸 수 있다.
 
 import { sourceLabel as lookupSourceLabel } from "./taxonomy.js";
+import { loadRegistry } from "./registry.js";
 
 // 카테고리 한글 이름 — 화면 여러 곳에서 쓰는 것과 같은 말을 쓴다.
 const CAT_KO = {
@@ -32,9 +33,28 @@ const CAT_KO = {
 };
 export const catKo = (k) => CAT_KO[k] || k;
 
-// 정치는 이 글에서도 다루지 않는다. 기본 숨김 토픽을 자체 콘텐츠로 끌어올리면
-// 필터를 켜지 않은 사람에게 우회로가 된다(⑤ 검수 2026-08-06과 같은 종류의 구멍).
-const OFF = new Set(["politics", "religion", "adult"]);
+// 이 글에 올리지 않는 것.
+//
+// 정치는 카테고리로 걸린다. **성인은 카테고리로 안 걸린다** — 검수(2026-08-06)가
+// 잡은 것: 공식 카테고리 목록(taxonomy.js)에 adult도 religion도 없고, 성인 소스
+// 3곳은 카테고리가 humor·life·culture이며 `adult: true`라는 별도 플래그로만
+// 표시된다. OFF 세트에 "adult"를 넣어 둔 것은 **아무것도 막지 않는 죽은 코드**였다.
+//
+// 지금 안 새는 이유는 이 필터가 아니라 그 3곳이 enabled:false라 수집 자체가
+// 안 되기 때문이다. 그건 언제든 바뀔 수 있는 설정이고, 바뀌는 순간 애드핏
+// 심사자가 보는 페이지에 성인 커뮤니티 이름이 실린다. 소스 플래그로 직접 건다.
+const OFF_CAT = new Set(["politics", "religion"]);
+let adultSourceCache = null;
+function adultSources() {
+  if (!adultSourceCache) {
+    adultSourceCache = new Set(loadRegistry().filter((c) => c.adult === true).map((c) => c.id));
+  }
+  return adultSourceCache;
+}
+const excluded = (i) =>
+  !i || OFF_CAT.has(i.category) || i.adult === true ||
+  (Array.isArray(i.topics) && i.topics.some((t) => OFF_CAT.has(t))) ||
+  adultSources().has(i.source);
 
 // ---------------------------------------------------------------------------
 // 1) 주간 커뮤니티 지형 — 일별 랭킹 스냅샷에서
@@ -50,7 +70,7 @@ export function weeklyLandscape(editions, { days = 7 } = {}) {
     .slice(-days);
   if (!list.length) return null;
 
-  const itemsOf = (e) => e.ranking.items.filter((i) => i && !OFF.has(i.category));
+  const itemsOf = (e) => e.ranking.items.filter((i) => !excluded(i));
   const bySource = new Map();
   const byCategory = new Map();
   let total = 0;
@@ -125,7 +145,7 @@ export function heatShape(rows, { minSteps = 5, minTotal = 30, minPerCat = 5 } =
     const h = row && row.heatHist;
     const item = (row && row.item) || null;
     if (!item || !Array.isArray(h) || h.length < minSteps) continue;
-    if (OFF.has(item.category)) continue;
+    if (excluded(item)) continue;
     // 중간에 떨어지는 시계열은 **버린다.**
     //
     // 열기 눈금은 그 글의 공개 반응 수치에서 나온다. 상대 서버가 잠깐 응답을
@@ -219,21 +239,33 @@ export function landscapeParagraphs(L) {
   const top = L.sources[0];
   const top3 = L.sources.slice(0, 3);
 
+  // 결론 문장은 **실제 분포를 보고** 고른다. 예전엔 무조건 "독식하는 구조는
+  // 아니다"를 붙였다 — 소스가 1곳이어도 그렇게 썼다(검수 2026-08-06 P0).
+  // "나온 곳은 1곳이다"와 "독식하는 구조는 아니다"가 한 문장 안에서 모순된다.
+  const topShare = top ? top.count / L.total : 0;
+  const verdict = L.sources.length <= 2
+    ? `표본이 나온 곳이 그만큼 적어, 분포를 말하기는 이르다.`
+    : topShare >= 0.4
+      ? `한 곳이 ${pct(topShare)}를 차지해, 사실상 몇 곳이 화제를 만드는 주다.`
+      : topShare >= 0.25
+        ? `가장 많은 곳이 ${pct(topShare)}로, 쏠림이 어느 정도 보인다.`
+        : `특정 커뮤니티가 화제를 독식하는 구조는 아니다.`;
   out.push(
     `${L.from}부터 ${L.to}까지 ${L.dayCount}일 동안 지금핫 화제 랭킹에 오른 글은 ` +
     `모두 ${num(L.total)}건이고, 나온 곳은 ${num(L.sources.length)}곳이다. ` +
-    `한 곳이 평균 ${(L.total / L.sources.length).toFixed(1)}건을 올린 셈이라, ` +
-    `특정 커뮤니티가 화제를 독식하는 구조는 아니다.`
+    `한 곳이 평균 ${(L.total / L.sources.length).toFixed(1)}건을 올린 셈이다. ${verdict}`
   );
 
   if (top && top3.length >= 3) {
     const share3 = top3.reduce((a, s) => a + s.count, 0) / L.total;
     // **숫자와 모순되는 문장을 쓰지 않는다.** 상위 세 곳이 75%인데
     // "넓게 흩어져 있다"고 쓰면 그 한 줄이 글 전체를 못 믿게 만든다.
-    const tail = share3 >= 0.5
+    const tail = share3 > 0.5
       ? `${pct(share3)}로 절반이 넘는다 — 화제가 이 몇 곳에서 나온 주다.`
-      : share3 >= 0.3
-        ? `${pct(share3)}로, 3분의 1은 넘지만 절반에는 못 미친다.`
+      : share3 >= 0.5
+        ? `${pct(share3)}로 정확히 절반이다.`
+        : share3 >= 0.3
+          ? `${pct(share3)}로, 3분의 1은 넘지만 절반에는 못 미친다.`
         : `${pct(share3)}에 그친다. 나머지는 넓게 흩어져 있다.`;
     out.push(
       `가장 많이 오른 곳은 ${top.label}(${num(top.count)}건, ${L.dayCount}일 중 ${top.days}일)이다. ` +
@@ -245,12 +277,16 @@ export function landscapeParagraphs(L) {
   const c0 = L.categories[0];
   if (c0) {
     const named = L.categories.slice(0, 4).map((c) => `${c.label} ${pct(c.share)}`).join(" · ");
-    out.push(
-      `분야는 ${named}로 갈렸다. ` +
-      (c0.share >= 0.3
-        ? `${c0.label} 하나가 3분의 1 가까이를 가져간 주다.`
-        : `한 분야가 지배하지 않고 고르게 퍼진 주다.`)
-    );
+    // 100%를 "3분의 1 가까이"라고 쓰던 자리다(검수 2026-08-06 P1).
+    // 과장이든 과소진술이든 숫자를 배반하는 것은 같다.
+    const cv = c0.share >= 0.8
+      ? `${c0.label} 하나가 ${pct(c0.share)}로 이 주를 통째로 가져갔다.`
+      : c0.share >= 0.5
+        ? `${c0.label} 하나가 ${pct(c0.share)}로 절반을 넘는다.`
+        : c0.share >= 0.3
+          ? `${c0.label} 하나가 ${pct(c0.share)}로 3분의 1을 넘는다.`
+          : `한 분야가 지배하지 않고 고르게 퍼진 주다.`;
+    out.push(`분야는 ${named}로 갈렸다. ${cv}`);
   }
 
   if (L.comparable && L.movers.length) {

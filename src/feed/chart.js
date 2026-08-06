@@ -16,7 +16,10 @@ const esc = (s) => String(s == null ? "" : s)
 // 값은 그대로 쓴다 — 축을 0이 아닌 곳에서 시작하면 차이가 과장된다.
 // 데이터 시각화에서 가장 흔한 거짓말이고, 우리가 스스로에게 쓸 이유가 없다.
 export function barsSvg({ rows = [], title = "", unit = "", width = 680 } = {}) {
-  const list = rows.filter((r) => r && Number.isFinite(Number(r.value)));
+  // 음수는 받지 않는다. 0에서 시작하는 가로 막대로는 음수를 정직하게 그릴 수
+  // 없고, 지금 호출부에는 음수가 없다 — 나중에 재사용할 때 조용히 뭉개지는
+  // 것보다 빠지는 편이 낫다(검수 2026-08-06 P2).
+  const list = rows.filter((r) => r && Number.isFinite(Number(r.value)) && Number(r.value) >= 0);
   if (!list.length) return "";
   const rowH = 26;
   const padT = title ? 30 : 8;
@@ -51,7 +54,7 @@ export function barsSvg({ rows = [], title = "", unit = "", width = 680 } = {}) 
 // 축을 0에서 시작한다(막대와 같은 이유). 눈금값이 아니라 **모양**을 보여 주는
 // 그림이라 y축 숫자는 굳이 찍지 않고, 대신 시작·끝 값을 글로 적는다.
 export function lineSvg({ series = [], title = "", width = 680, height = 120 } = {}) {
-  const pts = (series || []).map(Number).filter((n) => Number.isFinite(n));
+  const pts = (series || []).map(Number).filter((n) => Number.isFinite(n) && n >= 0);
   if (pts.length < 2) return "";
   const max = Math.max(...pts, 1);
   const padT = title ? 26 : 8;
@@ -76,11 +79,16 @@ export function lineSvg({ series = [], title = "", width = 680, height = 120 } =
 export const CHART_CSS = `
 .chart{margin:14px 0 18px;padding:0;overflow-x:auto}
 .chart svg{display:block;max-width:100%}
-.ch-ti{font:800 13px var(--font-heading,inherit);fill:var(--color-text,#14100e)}
+/* 발행 페이지(editionShell)는 --text/--accent를, 앱 화면은 --color-text/
+   --color-accent를 쓴다. 처음엔 앱 쪽 이름만 참조해서 발행 페이지에서는
+   **항상 대체값(#14100e)으로 굳었고**, OS 다크모드에서 차트 제목과 값 숫자가
+   배경(#171615)과 거의 같은 색이 됐다(대비 1.05:1 — 사실상 안 보임).
+   검수 2026-08-06 P1. 두 이름을 모두 본다. */
+.ch-ti{font:800 13px var(--font-heading,inherit);fill:var(--text,var(--color-text,#201e1d))}
 .ch-lb{font:600 12px inherit;fill:var(--muted,#6b6560)}
-.ch-val{font:700 12px inherit;fill:var(--color-text,#14100e);font-variant-numeric:tabular-nums}
-.ch-bar{fill:var(--color-accent,#e02b0f);opacity:.85}
-.ch-line{stroke:var(--color-accent,#e02b0f);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
-.ch-area{fill:var(--color-accent,#e02b0f);opacity:.12}
-.ch-dot{fill:var(--color-accent,#e02b0f)}
+.ch-val{font:700 12px inherit;fill:var(--text,var(--color-text,#201e1d));font-variant-numeric:tabular-nums}
+.ch-bar{fill:var(--accent,var(--color-accent,#ec3013));opacity:.85}
+.ch-line{stroke:var(--accent,var(--color-accent,#ec3013));stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.ch-area{fill:var(--accent,var(--color-accent,#ec3013));opacity:.12}
+.ch-dot{fill:var(--accent,var(--color-accent,#ec3013))}
 `;

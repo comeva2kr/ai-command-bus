@@ -179,3 +179,74 @@ test("곡선 절은 모양이 보이는 글을 고른다", async () => {
   assert.ok(sec, "곡선 절이 안 나왔다");
   assert.match(sec.paragraphs[0], /곡선/, "계단짜리를 골랐다");
 });
+
+test("소스가 한 곳뿐이면 '독식이 아니다'라고 쓰지 않는다", () => {
+  // "나온 곳은 1곳이다"와 "독식하는 구조는 아니다"가 한 문장 안에서 모순된다.
+  // 커밋 메시지에 "숫자와 모순되는 문장을 쓰지 않는다"고 적어 놓고 이 문장에는
+  // 그대로 남아 있었다(검수 2026-08-06 P0).
+  const one = landscapeParagraphs(weeklyLandscape(week([["a", "가", "tech"]]))).join(" ");
+  assert.ok(!/독식하는 구조는 아니다/.test(one), "1곳인데 독식이 아니라고 쓴다");
+  assert.match(one, /말하기는 이르다/);
+  // 한 곳이 압도적일 때도 마찬가지다.
+  const skew = landscapeParagraphs(weeklyLandscape(week([
+    ["a", "가", "tech"], ["a", "가", "tech"], ["a", "가", "tech"],
+    ["b", "나", "news"], ["c", "다", "life"]
+  ]))).join(" ");
+  assert.ok(!/독식하는 구조는 아니다/.test(skew), "60%를 차지하는데 독식이 아니라고 쓴다");
+});
+
+test("한 분야가 100%인데 '3분의 1 가까이'라고 쓰지 않는다", () => {
+  // 과장이든 과소진술이든 숫자를 배반하는 것은 같다(검수 2026-08-06 P1).
+  const text = landscapeParagraphs(weeklyLandscape(week([
+    ["a", "가", "tech"], ["b", "나", "tech"], ["c", "다", "tech"]
+  ]))).join(" ");
+  assert.ok(!/3분의 1 가까이/.test(text));
+  assert.match(text, /100%로 이 주를 통째로 가져갔다/);
+});
+
+test("성인 소스는 카테고리가 아니라 소스 플래그로 막는다", async () => {
+  // 공식 카테고리 목록에 adult가 없다. 성인 소스 3곳은 카테고리가
+  // humor·life·culture이고 adult:true 플래그로만 표시된다 —
+  // OFF 세트의 "adult"는 아무것도 막지 않는 죽은 코드였다(검수 2026-08-06 P1).
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const adultIds = loadRegistry().filter((c) => c.adult === true).map((c) => c.id);
+  assert.ok(adultIds.length, "레지스트리에 성인 소스가 없다 — 이 테스트의 전제가 깨졌다");
+  const src = fs.readFileSync("src/feed/datastory.js", "utf8");
+  assert.match(src, /adultSources\(\)\.has\(i\.source\)/, "소스 플래그를 안 본다");
+  const L = weeklyLandscape(week([[adultIds[0], "성인방", "humor"], ["ok", "정상", "tech"]]));
+  assert.ok(!L.sources.some((s) => s.key === adultIds[0]), "성인 소스가 리포트에 실렸다");
+});
+
+test("차트 색이 발행 페이지 변수를 따라간다", async () => {
+  // --color-text는 앱 화면에만 정의돼 있다. 발행 페이지에서는 대체값(거의
+  // 검정)으로 굳어 다크모드에서 안 보였다(대비 1.05:1, 검수 2026-08-06 P1).
+  const { CHART_CSS } = await import("../src/feed/chart.js");
+  assert.match(CHART_CSS, /var\(--text,\s*var\(--color-text/, "발행 페이지 변수를 안 본다");
+  assert.match(CHART_CSS, /var\(--accent,\s*var\(--color-accent/);
+  const shell = fs.readFileSync("src/feed/server.js", "utf8");
+  const css = shell.slice(shell.indexOf("<style>${CHART_CSS}"), shell.indexOf("<style>${CHART_CSS}") + 900);
+  assert.match(css, /--text:/, "발행 페이지가 --text를 정의하지 않는다 — 전제가 바뀌었다");
+});
+
+test("리포트는 캐시를 실제로 재사용한다", async () => {
+  // 문자열 매칭만으로는 "reportNow를 부르되 안에서 캐시를 우회"하는 변경을
+  // 못 잡는다(검수 2026-08-06 P2). 데이터를 바꿔 놓고 응답이 그대로인지 본다.
+  const { createServer } = await import("../src/feed/server.js");
+  const f = path.join(os.tmpdir(), `report-cache-${process.pid}.json`);
+  const items = [["clien", "클리앙", "tech"], ["pp", "뽐뿌", "life"], ["hani", "한겨레", "news"]];
+  fs.writeFileSync(f, JSON.stringify({
+    dailyEditions: week(items).map((e) => ({ date: e.date, ranking: e.ranking, briefing: null }))
+  }));
+  try {
+    const srv = createServer({ file: f });
+    await new Promise((r) => srv.listen(0, r));
+    const base = `http://127.0.0.1:${srv.address().port}`;
+    const first = await (await fetch(`${base}/report`)).text();
+    const second = await (await fetch(`${base}/report`)).text();
+    srv.close();
+    // 광고 문구는 방문마다 도는 것이 정상이라 본문만 비교한다.
+    const bodyOf = (h) => (h.match(/<section class="issue">[\s\S]*?<\/section>/g) || []).join("");
+    assert.equal(bodyOf(second), bodyOf(first), "요청마다 다시 계산한다");
+    assert.ok(bodyOf(first).length > 200, "본문이 비어 비교가 무의미하다");
+  } finally { try { fs.unlinkSync(f); } catch {} }
+});
