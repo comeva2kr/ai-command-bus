@@ -2108,6 +2108,139 @@
         "url": "https://news.livedoor.com/topics/rss/int.xml",
         "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
       }
+    },
+    {
+      "id": "hypebae",
+      "label": "하입베이",
+      "labelKo": "하입베이",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "fashion"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://hypebae.com/feed",
+        "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
+      }
+    },
+    {
+      "id": "fashionista",
+      "label": "패셔니스타",
+      "labelKo": "패셔니스타",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "fashion"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://fashionista.com/feed",
+        "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
+      }
+    },
+    {
+      "id": "hyperallergic",
+      "label": "하이퍼알러직",
+      "labelKo": "하이퍼알러직",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "art"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://hyperallergic.com/feed/",
+        "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
+      }
+    },
+    {
+      "id": "archdaily",
+      "label": "아크데일리",
+      "labelKo": "아크데일리",
+      "country": "CL",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "design"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.archdaily.com/rss/",
+        "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
+      }
+    },
+    {
+      "id": "yankodesign",
+      "label": "얀코디자인",
+      "labelKo": "얀코디자인",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "design"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.yankodesign.com/feed/",
+        "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
+      }
+    },
+    {
+      "id": "creativeboom",
+      "label": "크리에이티브붐",
+      "labelKo": "크리에이티브붐",
+      "country": "GB",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "design",
+        "art"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.creativeboom.com/feed/",
+        "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
+      }
     }
   ]
 }
