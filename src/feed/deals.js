@@ -60,7 +60,9 @@ const PRODUCT_DEST = [
   ["dgt",      /노트북|태블릿|모니터|키보드|마우스|ssd|hdd|usb|충전기|보조배터리|이어폰|헤드폰|스피커|공기청정기|에어컨|선풍기|청소기|건조기|세탁기|냉장고|tv\b|프로젝터|블랙박스|스마트폰|갤럭시|아이폰|애플|샤오미|음식물처리기|정수기|전자레인지|전자렌지|인덕션|밥솥|커피머신|가습기|제습기|드라이어|면도기|스마트워치|공유기|카메라|렌즈\b|프린터|가전/i],
   ["kitchen",  /후라이팬|프라이팬|냄비|압력솥|에어프라이어|전기포트|텀블러|보온병|도마|칼세트|식기|그릇|수저|주방/],
   ["home",     /침대|매트리스|이불|베개|소파|의자|책상|수납|선반|커튼|조명|러그|인테리어|가구/],
-  ["fashion",  /로퍼|운동화|스니커즈|구두|샌들|슬리퍼|스케쳐스|나이키|아디다스|뉴발란스|크록스|티셔츠|맨투맨|후드|자켓|재킷|코트|패딩|바지|청바지|드로즈|트렁크|팬티|양말|속옷|잠옷|파자마|원피스|가방|백팩|지갑|벨트|선글라스|시계|모자/],
+  // 번역된 해외 기사는 브랜드명이 영문 그대로 남는다(실측: "Nike는 … 젤리 신발로").
+  // 한글 표기만 넣어 두면 그 글을 통째로 놓친다.
+  ["fashion",  /신발|스니커|nike|adidas|new balance|jordan|puma|reebok|asics|converse|vans|gucci|prada|balenciaga|sneaker|hoodie|denim|로퍼|운동화|스니커즈|구두|샌들|슬리퍼|스케쳐스|나이키|아디다스|뉴발란스|크록스|티셔츠|맨투맨|후드|자켓|재킷|코트|패딩|바지|청바지|드로즈|트렁크|팬티|양말|속옷|잠옷|파자마|원피스|가방|백팩|지갑|벨트|선글라스|시계|모자/i],
   ["baby",     /기저귀|분유|물티슈|아기|유아|신생아|젖병|유모차|카시트/],
   ["pet",      /사료|간식스틱|캣타워|고양이|강아지|반려|펫\b/],
   ["book",     /도서|책\b|전집|문제집|참고서|만화책|소설/],
@@ -83,6 +85,41 @@ const PRODUCT_DEST = [
 // 상품명이 아니라 사건을 다룬 글에도 걸릴 수 있다("전자레인지 화재"). 그래도
 // 붙는 것은 **카테고리 배너**라 특정 상품을 주장하지 않으므로 거짓말이 되지
 // 않는다 — 상품 단위 카드였다면 이렇게 넓게 걸면 안 된다.
+// 태그 → 상품 도착지.
+//
+// David 제보(2026-08-06): "아직 광고가 상세페이지에서 글 내용과 상관없는 게
+// 붙어. 적어도 뭐 스니커즈 글이면 패션이 나오고 구분하기 쉬운 건 잘 연결해야지."
+//
+// 실측이 정확히 그랬다. 스니커뉴스 글
+// "Nike는 인기 있는 Tech Runner를 젤리 신발로 전환했습니다"에 **신선식품**
+// 광고가 붙었다 — 번역된 제목에서 "젤리"를 잡아 식품으로 보낸 것이다.
+// `나이키`는 한글만 사전에 있어 영문 `Nike`를 못 잡았고 `신발`도 사전에 없었다.
+//
+// **그런데 그 소스는 이미 `sneakers` 태그를 선언하고 있었다.** 제목에서
+// 더듬어 맞히는 것보다 소스가 스스로 밝힌 분야가 훨씬 정확하다.
+// 태그를 먼저 보고, 없을 때만 제목을 본다.
+const TAG_DEST = new Map([
+  ["sneakers", "fashion"], ["fashion", "fashion"],
+  ["parenting", "baby"],
+  ["interior", "home"], ["design", "home"],
+  ["pets", "pet"],
+  ["programming", "dgt"], ["hardware", "dgt"], ["mobile", "dgt"], ["ai", "dgt"],
+  ["cars", "carparts"], ["ev", "carparts"], ["testdrive", "carparts"],
+  ["food", "fresh"],
+  ["travel", "oversea"],
+  ["pc-gaming", "dgt"], ["console", "toy"]
+]);
+
+// 아이템의 태그에서 도착지를 고른다. 못 고르면 null — 억지로 붙이지 않는다.
+export function destForTags(tags) {
+  if (!Array.isArray(tags)) return null;
+  for (const t of tags) {
+    const d = TAG_DEST.get(String(t || "").toLowerCase());
+    if (d) return d;
+  }
+  return null;
+}
+
 export function destForText(text) {
   const hay = String(text || "").toLowerCase();
   if (hay.length < 2) return null;

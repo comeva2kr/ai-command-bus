@@ -79,3 +79,29 @@ test("재고를 다 쓰면 다시 돌아온다 — 광고가 사라지지는 않
   const b = pickBanner({ category: "tech", pick: 0, seen });
   assert.ok(b, "전부 나온 뒤에 광고가 사라졌다");
 });
+
+test("소스가 밝힌 분야를 제목 추측보다 먼저 본다", async () => {
+  // David 제보(2026-08-06): "스니커즈 글이면 패션이 나오고 구분하기 쉬운 건 잘 연결해야지."
+  // 실측: 스니커뉴스 글 "Nike는 인기 있는 Tech Runner를 젤리 신발로 전환했습니다"에
+  // **신선식품** 광고가 붙었다 — 번역된 제목의 "젤리"를 잡은 것이다.
+  // 그런데 그 소스는 이미 sneakers 태그를 선언하고 있었다.
+  const { destForTags } = await import("../src/feed/deals.js");
+  assert.equal(destForTags(["sneakers"]), "fashion");
+  assert.equal(destForTags(["parenting"]), "baby");
+  assert.equal(destForTags(["interior"]), "home");
+  assert.equal(destForTags(["realestate"]), null, "상품이 없는 분야에 억지로 붙였다");
+  assert.equal(destForTags([]), null);
+  assert.equal(destForTags(null), null);
+
+  const src = readFileSync("src/feed/engine.js", "utf8");
+  assert.match(src, /destForTags\(item\.tags\) \|\| destForText\(item\.title\)/,
+    "엔진이 태그를 먼저 안 본다");
+});
+
+test("뉴스·시사와 위험한 글에는 여전히 상품을 안 붙인다", () => {
+  // 태그를 먼저 본다고 이 가드가 풀리면 안 된다 — "'엄마, 신발이 벗겨져' …"
+  // 기사에 패션 광고가 붙었던 사고가 되살아난다.
+  const src = readFileSync("src/feed/engine.js", "utf8");
+  assert.match(src, /!item\.adUnsafe && !AD_MATCH_OFF\.has\(item\.category\)/,
+    "뉴스·위험 글 가드가 사라졌다");
+});

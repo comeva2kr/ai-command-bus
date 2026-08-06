@@ -14,7 +14,7 @@ import { hasProfanity } from "./profanity.js";
 import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
 import { AD_DISCLOSURE as COUPANG_DISCLOSURE } from "./ad-copy.js";
-import { destForDeal, destForText, ensureDealShare, capDeals, dealRank } from "./deals.js";
+import { destForDeal, destForText, destForTags, ensureDealShare, capDeals, dealRank } from "./deals.js";
 import { chosenCategories, ensureTasteShare, capOneCategory } from "./taste-share.js";
 
 // 상품군 사전을 걸지 않는 분류. 사건·시사 기사에 "연관 광고"가 붙으면
@@ -429,10 +429,18 @@ export class FeedEngine {
       if (item.dealDest) {
         item.adDest = item.dealDest;
       } else if (!item.adUnsafe && !AD_MATCH_OFF.has(item.category)) {
-        // **제목만** 본다. 요약(발췌)까지 넣었더니 본문 아무 데나 있는 낱말이
-        // 걸렸다 — 실측(2026-08-06): FIFA 회장 기사가 신선식품, 연예 미담이
-        // 가전으로 갔다. 제목은 글이 무엇에 관한 것인지 스스로 밝힌 문장이다.
-        const d = destForText(item.title);
+        // **소스가 밝힌 분야를 먼저 본다** (David 제보 2026-08-06:
+        // "스니커즈 글이면 패션이 나오고 구분하기 쉬운 건 잘 연결해야지").
+        //
+        // 실측: 스니커뉴스 글 "Nike는 인기 있는 Tech Runner를 젤리 신발로
+        // 전환했습니다"에 **신선식품** 광고가 붙었다 — 번역된 제목에서 "젤리"를
+        // 잡은 것이다. 그런데 그 소스는 이미 `sneakers` 태그를 선언하고 있었다.
+        // 제목에서 더듬어 맞히는 것보다 소스가 스스로 밝힌 분야가 훨씬 정확하다.
+        //
+        // 태그가 없을 때만 제목을 본다. 제목은 **제목만** 본다 — 요약까지 넣었더니
+        // 본문 아무 데나 있는 낱말이 걸렸다(실측 2026-08-06: FIFA 회장 기사가
+        // 신선식품, 연예 미담이 가전으로 갔다).
+        const d = destForTags(item.tags) || destForText(item.title);
         if (d) item.adDest = d;
       }
 
