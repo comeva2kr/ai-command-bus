@@ -32,14 +32,13 @@ test("우리 풀에 없는 말은 페이지를 만들지 않는다", () => {
   assert.equal(keywordPage([item("a", "무관한 제목")], "존재하지않는말"), null);
 });
 
-test("/trends가 트윗 검색으로 내보내지 않는다", () => {
+test("/trends는 우리 페이지로 가는 길을 더하되 X 길을 막지 않는다", () => {
+  // 처음엔 매칭 안 된 키워드의 링크를 통째로 뺐다. 실측하니 20개 중 14개가
+  // 그랬다 — 눌러도 아무 데도 못 가는 화면이 된다. 그건 심사를 위해 기능을
+  // 줄인 것이다(David 2026-08-06: "목적을 위해 어거지로 맞추지마").
   const src = readFileSync("src/feed/server.js", "utf8");
   const route = src.slice(src.indexOf('if (p === "/trends"'), src.indexOf('if (p.startsWith("/briefing/")'));
-  assert.ok(!/x\.searchUrl/.test(route), "아직 X 검색 링크로 내보낸다");
-  assert.ok(!/twitter\.com|x\.com/.test(route), "외부 주소가 남아 있다");
-  assert.match(route, /href="\/keyword\//, "우리 키워드 페이지로 안 보낸다");
-  // 우리 풀에 없으면 링크를 만들지 않는다 — 죽은 링크 금지(⑤와 같은 원칙).
-  assert.match(route, /x\.hits\s*\n?\s*\?/, "매칭 여부와 무관하게 링크를 만든다");
-  // 실측값을 화면에 적는다.
-  assert.match(route, /우리 피드 \$\{?x?\.?hits|우리 피드 \$\{x\.hits\}건/);
+  assert.match(route, /mineHref = `\/keyword\//, "우리 키워드 페이지로 안 보낸다");
+  assert.match(route, /x\.searchUrl/, "X로 가는 길이 사라졌다 — 눌러도 갈 곳이 없는 키워드가 생긴다");
+  assert.match(route, /우리 피드 \$\{x\.hits\}건/, "실측값을 화면에 안 적는다");
 });

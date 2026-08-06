@@ -1590,9 +1590,17 @@ ${archiveHtml}`;
         // 구성되었거나 그 비중이 높은" 화면 그 자체였다. 수익으로 봐도 최악이다:
         // 사용자를 트위터로 보내면 우리 광고 노출이 거기서 끝난다.
         //
-        // 우리 풀에 그 말이 들어간 글이 있으면 우리 키워드 페이지로 보내고,
-        // 없으면 **링크를 만들지 않는다** — 죽은 링크를 만드느니 글자로 둔다
-        // (⑤에서 세운 것과 같은 원칙).
+        // **다만 X 링크를 없애지는 않는다.**
+        //
+        // 처음엔 매칭 안 된 키워드의 링크를 통째로 뺐다. 실측하니 20개 중
+        // 14개가 그랬다 — 실시간 트렌드에서 키워드를 눌렀는데 아무 데도 못
+        // 가는 화면이 된다. 그건 심사를 위해 기능을 줄인 것이고,
+        // David가 그 자리에서 짚었다: "목적을 위해 어거지로 맞추지마."
+        //
+        // 맞는 지적이다. 트렌드 키워드를 눌러 그 말을 더 보고 싶은 것은
+        // 이 페이지의 당연한 쓰임이다. 우리 글이 있으면 우리 쪽이 낫고
+        // (사용자에게도, 광고 노출에도), 없으면 X로 보내는 것이 정직하다.
+        // 우리 페이지로 가는 길을 **더한** 것이지 밖으로 가는 길을 막은 게 아니다.
         const tPool = await engine.pool();
         const tTitles = tPool.map((i) => String(i.title || "").toLowerCase());
         const hitsOf = (name) => {
@@ -1609,15 +1617,17 @@ ${archiveHtml}`;
           if (x.count) meta.push(`X 게시물 ${x.count}`);
           if (x.hits) meta.push(`우리 피드 ${x.hits}건`);
           const label = escapeHtml(x.name);
-          const inner2 = x.hits
-            ? `<a href="/keyword/${encodeURIComponent(String(x.name).replace(/^#/, ""))}">${label}</a>`
-            : label;
-          return `<li><div>${inner2}${meta.length ? `<span class="m">${escapeHtml(meta.join(" · "))}</span>` : ""}</div></li>`;
+          const mineHref = `/keyword/${encodeURIComponent(String(x.name).replace(/^#/, ""))}`;
+          const x2 = `<a class="m" href="${escapeHtml(x.searchUrl)}" target="_blank" rel="noopener">X에서 보기</a>`;
+          // 우리 글이 있으면 우리 쪽이 첫 번째 길, X는 곁길. 없으면 X가 유일한 길.
+          const head = x.hits ? `<a href="${mineHref}">${label}</a>` : `<a href="${escapeHtml(x.searchUrl)}" target="_blank" rel="noopener">${label}</a>`;
+          const tail = x.hits ? ` ${x2}` : "";
+          return `<li><div>${head}${meta.length ? `<span class="m">${escapeHtml(meta.join(" · "))}</span>` : ""}${tail}</div></li>`;
         };
         const inner = `<h1>지금 X(트위터) 실시간 트렌드</h1>
 <p class="muted">${kstLabel(t.fetchedAt)} 기준 한국 실시간 트렌드 TOP ${t.trends.length} · 약 20분마다 갱신.</p>
 <p class="muted">이 중 <b>${covered}개</b>는 지금 우리가 수집 중인 커뮤니티·뉴스 글 제목에서도 발견됐습니다.
-그 키워드를 누르면 <b>지금핫이 모은 글</b>로 갑니다. 나머지는 아직 우리 피드에 잡히지 않은 말이라 링크가 없습니다.</p>
+그 키워드를 누르면 <b>지금핫이 모은 글</b>로 가고, 나머지는 X 검색으로 갑니다.</p>
 ${rankingNav("")}
 <ol class="rank">${scored.slice(0, 8).map(row).join("")}</ol>
 ${AD(null, null, 6, "trends_mid")}
