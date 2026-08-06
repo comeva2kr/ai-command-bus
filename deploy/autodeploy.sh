@@ -22,3 +22,21 @@ git reset --hard origin/main --quiet
 cd deploy
 docker compose up -d --build app
 echo "$(date -Is) deployed ${REMOTE:0:9}"
+
+# ── 배포 직후 고정 점검 (David 2026-08-06 "자꾸 됐다 안 됐다 하게 하지 말고
+#    한 번 픽스된 건 냅둬 좀")
+#
+# 광고 하나를 사흘에 걸쳐 세 번 뒤집어 결국 원래 자리로 돌아왔다. 그 사이
+# David는 두 번 깨진 화면을 봤다. 각 단계의 실수가 아니라 **이미 정해진 것을
+# 새 입력이 올 때마다 다시 연 것**이 원인이다.
+#
+# 그래서 배포 때마다 자동으로 돈다. 실패해도 롤백은 하지 않는다 — 되돌리는
+# 판단은 사람이 한다. 다만 **로그에 크게 남겨** 다음 배포 전에 반드시 보이게 한다.
+sleep 12
+if node /root/ai-command-bus/tools/preflight.mjs https://nowhot.kr > /tmp/preflight.out 2>&1; then
+  echo "$(date -Is) preflight OK"
+else
+  echo "$(date -Is) ################ PREFLIGHT 실패 ################"
+  cat /tmp/preflight.out
+  echo "$(date -Is) ###############################################"
+fi
