@@ -2334,6 +2334,19 @@ async function pushLocalNotification(d){
 // ---- ☰ 드로어 (소스별 보기·필터·링크제출·내공간 ) ----
 // 홈은 통합 핫 피드 하나만 보이고, 나머지 메뉴는 전부 여기 안에서 열고 닫는다.
 function openDrawer(){
+  // 온보딩 안내가 떠 있으면 먼저 치운다.
+  //
+  // 온보딩 오버레이(#onbBack)는 z-index 60, 드로어는 49다. 그래서 안내가
+  // 떠 있는 채로 메뉴를 열면 **메뉴 전체가 안 눌린다** — 링크는 제자리에
+  // 보이는데 클릭은 오버레이가 먹는다(David 제보 2026-08-06 "메뉴의 실시간
+  // 트렌드 눌러도 아무것도 안 되는데?", 브라우저로 재현: 링크 좌표에서
+  // elementFromPoint가 "지금핫에 오신 걸 환영해요" DIV를 돌려줬다).
+  //
+  // z-index를 올려 겹쳐 보이게 하는 대신 안내를 닫는다 — 사용자가 메뉴를
+  // 열었다는 건 이미 둘러보기 시작했다는 뜻이고, 두 겹으로 떠 있는 화면이
+  // 더 어수선하다.
+  const onb = document.getElementById("onbBack");
+  if (onb) onb.remove();
   document.getElementById("drawer").classList.add("open");
   document.getElementById("drawerBack").classList.add("open");
   document.getElementById("drawer").setAttribute("aria-hidden","false");
