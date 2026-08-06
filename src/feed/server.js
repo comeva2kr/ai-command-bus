@@ -227,6 +227,15 @@ function buildId() {
   return _buildId;
 }
 
+// 제때 안 오면 포기한다. 홈처럼 "있으면 좋은" 데이터를 기다리다 페이지 자체가
+// 안 뜨는 것을 막는다 — 거부하지 않고 null을 돌려주므로 호출부는 seed 없이 간다.
+function withDeadline(promise, ms) {
+  return Promise.race([
+    Promise.resolve(promise).catch(() => null),
+    new Promise((r) => setTimeout(() => r(null), ms))
+  ]);
+}
+
 function cacheHeadersFor(ext) {
   return REVALIDATE.has(ext)
     ? "no-cache"
@@ -2411,8 +2420,17 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
           // 바로 아래 briefStrip·feedSkel에는 이미 같은 처방을 해 뒀는데
           // 정작 이번 산출물만 빠뜨렸다 — 국지적으로 본 대가다.
           try {
-            const b = await engine.briefing();
-            const one = (b.issues || []).find((i) => i && i.headline && i.paragraph);
+            // **홈은 seed를 기다리지 않는다.**
+            //
+            // briefing()·rankingTop()은 수집 풀(_items)과 외부 트렌드 호출을
+            // 거친다. 풀이 비어 있으면 84개 소스를 다 모을 때까지 기다리는데,
+            // 그동안 **홈이 통째로 막힌다** — 실측(2026-08-06): /api/health와
+            // /api/config는 40~200ms인데 / 만 45초 타임아웃이었다.
+            //
+            // seed는 크롤러·심사 봇을 위한 덤이지 홈이 뜨는 조건이 아니다.
+            // 제때 안 오면 없이 내보내고, JS가 뜨면 어차피 같은 자리를 채운다.
+            const b = await withDeadline(engine.briefing(), 1200);
+            const one = ((b && b.issues) || []).find((i) => i && i.headline && i.paragraph);
             if (one) {
               const slotName = (b.slot && b.slot.label) ? `${b.slot.label} 브리핑` : "지금 브리핑";
               ownSeed =
@@ -2427,7 +2445,7 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
           } catch { /* 편성 전이면 빈 블록 그대로 — 홈은 계속 뜬다 */ }
           try {
             // rankingTop은 { generatedAt, items } 를 돌려준다 — 배열이 아니다.
-            const top = (await engine.rankingTop(20) || {}).items || [];
+            const top = ((await withDeadline(engine.rankingTop(20), 1200)) || {}).items || [];
             // 우리가 직접 만드는 페이지로 가는 길 — 사람에게도 크롤러에게도
             // 서비스의 구성이 보여야 한다. 예전엔 이 링크들이 드로어 안에만
             // 있어서 /communities·/keywords는 홈에서 갈 방법이 아예 없었다

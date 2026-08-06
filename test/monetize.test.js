@@ -1437,8 +1437,12 @@ test("대가성 고지문 스타일이 한 곳에만 정의된다", async () => 
   // 세 곳에 흩어져 크기가 서로 달랐다(11.5 / 11.5 / .ad-net은 12.5px).
   // 같은 문구가 카드마다 다른 크기로 나왔고 줄바꿈도 어색했다
   // (David 2026-08-06: "폰트 커지고 줄바꿈도 이상하네").
-  const defs = html.match(/\.ad-disclosure\{/g) || [];
-  assert.equal(defs.length, 1, `고지문 스타일이 ${defs.length}곳에 정의돼 있다`);
+  // 검사 대상은 **크기·모양**이다. 세 곳에 흩어져 font-size가 11.5/11.5/12.5로
+  // 갈렸던 것이 문제였다. 몰입 모드의 배치 규칙(order·padding)은 크기를 정하지
+  // 않으므로 이 검사에 걸리면 안 된다 — 처음엔 `.ad-disclosure{`를 통째로 세서
+  // 몰입 규칙을 추가하자마자 거짓 실패가 났다(2026-08-06).
+  const sized = (html.match(/\.ad-disclosure\{[^}]*font-size/g) || []);
+  assert.equal(sized.length, 1, `고지문 크기가 ${sized.length}곳에 정의돼 있다`);
   assert.ok(!/\.ad-disclosure\{[^}]*text-wrap:balance/.test(html),
     "고지문에 text-wrap:balance가 남아 줄바꿈이 어색해진다");
 });
