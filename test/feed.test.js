@@ -3200,6 +3200,10 @@ test("트래픽 카운터: 재시작(직렬화 왕복) 후에도 수치가 유�
     const a = new FeedStore({ file: f, clock: fixedClock });
     a.recordTraffic("page");
     a.recordTraffic("feed", "u1");
+    // 방문 집계는 요청을 막지 않는다 — 11.8MB 스토어를 요청마다 동기로
+    // 쓰던 것이 홈 TTFB 4.2초의 원인이었다(현지 제보 2026-08-06).
+    // 대신 종료 훅이 밀린 것을 비운다. 그게 비면 수치가 사라진다.
+    assert.equal(a.flushPending(), true, "밀린 저장이 없다 — 지연 저장이 안 걸렸다");
     const b = new FeedStore({ file: f, clock: fixedClock }); // 재시작 시뮬레이션
     const [day] = b.trafficStats(1);
     assert.equal(day.pv, 1, "재시작 후 pv 유실");

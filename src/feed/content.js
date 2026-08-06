@@ -131,6 +131,9 @@ export function normalizeItem(raw, source) {
     // (fetchers.js의 relatedCoverage). 뉴스에는 추천수·댓글수가 아예 없어서
     // 이게 유일한 실측 반응 대용이다. 그 개념이 없는 소스는 0.
     coverage: Number.isFinite(raw.coverage) ? raw.coverage : 0,
+    // 같은 사건을 다룬 다른 소스 — 중복 제거 때 접힌 것들이다.
+    // 화이트리스트에 없으면 여기서 조용히 사라진다(price·dest가 그랬다).
+    related: Array.isArray(raw.related) ? raw.related : undefined,
     // rough word count drives the longform preference match
     length: Number.isFinite(raw.length)
       ? raw.length
@@ -295,16 +298,39 @@ export async function collect(sources, opts = {}) {
   // 제목 키는 짧으면 null이 되어 묶지 않는다(dedupe.js MIN_KEY_LEN). 커뮤니티의
   // "ㅋㅋㅋ" 같은 제목을 묶으면 서로 다른 글이 사라진다 — URL 정규화를 과하게
   // 했다가 게시판 글이 붕괴했던 2026-08-01 회귀와 같은 종류의 사고다.
+  //
+  // 접을 때 **버리지 않고 남긴다**(2026-08-06). 같은 사건을 몇 곳이 어떻게
+  // 다뤘는지는 우리가 여러 소스를 동시에 봐야만 알 수 있는 것이고, 상세
+  // 화면에서 읽을 값어치가 되는 재료다. 여기서 버리면 나중에 어디서도
+  // 복원할 수 없다 — 접힌 글은 풀에 남지 않기 때문이다.
+  const RELATED_MAX = 5;
   const seen = new Set();
-  const seenTitle = new Set();
+  const seenTitle = new Map();
   const deduped = [];
   for (const item of items) {
     const key = item.url || item.id;
     if (seen.has(key)) continue;
     const tkey = eventKey(item.title);
-    if (tkey && seenTitle.has(tkey)) continue;
+    if (tkey && seenTitle.has(tkey)) {
+      const kept = seenTitle.get(tkey);
+      if (item.source && item.source !== kept.source) {
+        const rel = (kept.related = kept.related || []);
+        // 한 매체가 목록을 독식하지 않게 소스당 한 줄만 남긴다.
+        if (rel.length < RELATED_MAX && !rel.some((r) => r.source === item.source)) {
+          rel.push({
+            source: item.source,
+            sourceLabel: item.sourceLabel || item.source,
+            title: item.title,
+            score: item.score || 0,
+            commentCount: item.commentCount || 0,
+            publishedAt: item.publishedAt || null
+          });
+        }
+      }
+      continue;
+    }
     seen.add(key);
-    if (tkey) seenTitle.add(tkey);
+    if (tkey) seenTitle.set(tkey, item);
     deduped.push(item);
   }
   return { items: deduped, errors };

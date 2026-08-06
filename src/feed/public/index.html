@@ -620,6 +620,22 @@
   .own-block .ob-more{display:inline-block;margin:10px 0 6px;color:var(--color-accent);
     font-weight:800;font-size:12.5px;text-decoration:none}
 
+  /* 상세 화면의 "지금핫이 정리한 것" (애드핏 P0-A ⑤)
+     본문을 퍼오지 않고도 읽을 값어치를 만든다 — 우리만 아는 것을 붙인다. */
+  .our-reading{margin:16px 0 4px;padding:14px 0 0;border-top:1px solid var(--color-divider)}
+  .our-reading .our-note{margin:0 0 12px;color:var(--color-text);font-size:13.5px;line-height:1.6}
+  .our-reading .our-related h3{margin:0 0 8px;font:800 12px var(--font-heading);
+    letter-spacing:.02em;color:var(--muted)}
+  .our-reading .our-related ul{list-style:none;margin:0;padding:0;
+    display:flex;flex-direction:column;gap:6px}
+  .our-reading .our-related a,
+  .our-reading .our-related .rel-flat{display:block;padding:9px 11px;
+    border:1px solid var(--line);background:var(--card-2);text-decoration:none}
+  .our-reading .rel-src{display:inline-block;color:var(--color-accent);
+    font:800 10.5px var(--font-heading);letter-spacing:.06em;margin-right:6px}
+  .our-reading .rel-title{color:var(--color-text);font-weight:700;font-size:13.5px;line-height:1.4}
+  .our-reading .rel-meta{display:block;margin-top:3px;color:var(--muted);font-size:11.5px}
+
   /* 브리핑 스트립 카드 */
   .brief-strip{padding:12px 16px 14px;border-bottom:1px solid var(--color-divider)}
   .brief-card{background:transparent;border:1px solid var(--line)}
@@ -3776,6 +3792,50 @@ window.addEventListener("popstate", (e)=>{
   if(document.getElementById("drawer").classList.contains("open")) closeDrawer();
 });
 
+// 상세 화면에 **우리가 만든 것**을 붙인다 (애드핏 P0-A ⑤, David 2026-08-06).
+//
+// 지금 상세는 발췌 몇 줄 + "원문에서 계속 읽기"라 사실상 아웃링크 통로다.
+// 애드핏 4차 반려 사유가 "아웃링크 비중이 높다"인데 이 페이지가 정확히 그 모양이었다.
+//
+// **본문은 퍼오지 않는다.** 대신 우리만 아는 것을 붙인다:
+//  · 편집 코멘트 — editorial.js가 실측으로 쓴 한 줄. 서버가 이미 만들어 보낸다.
+//  · 반응 추이 — heatHist는 수집 사이클마다 우리가 재 온 시계열이다.
+//  · 같은 사건 다른 소스 — 여러 곳을 동시에 봐야만 알 수 있다. 원문 한 곳만
+//    봐서는 절대 알 수 없는 것이고, 그게 이 페이지를 읽을 이유다.
+//
+// 없는 것은 만들지 않는다 — 재료가 없으면 그 줄을 통째로 뺀다.
+function ourReadingHtml(item){
+  const parts = [];
+
+  if(item.editorialNote){
+    parts.push(`<p class="our-note">${escapeHtml(item.editorialNote)}</p>`);
+  }
+
+  const rel = Array.isArray(item.related) ? item.related : [];
+  if(rel.length){
+    parts.push(
+      `<div class="our-related">
+        <h3>같은 사건, 다른 곳에서는</h3>
+        <ul>${rel.map(r => {
+          const bits = [];
+          if(r.score > 0) bits.push(`추천 ${r.score.toLocaleString("ko-KR")}`);
+          if(r.commentCount > 0) bits.push(`댓글 ${r.commentCount.toLocaleString("ko-KR")}`);
+          // 수집 때 접힌 글은 우리 풀에 없다(id 없음) — 갈 곳이 없으니
+          // 링크로 만들지 않는다. 죽은 링크를 만드느니 글자로 둔다.
+          const inner = `<span class="rel-src">${escapeHtml(r.sourceLabel)}</span>
+            <span class="rel-title">${escapeHtml(r.title)}</span>
+            ${bits.length ? `<span class="rel-meta">${escapeHtml(bits.join(" · "))}</span>` : ""}`;
+          return r.id
+            ? `<li><a href="#post-${encodeURIComponent(r.id)}" data-detail="${escapeHtml(r.id)}">${inner}</a></li>`
+            : `<li><span class="rel-flat">${inner}</span></li>`;
+        }).join("")}</ul>
+      </div>`);
+  }
+
+  if(!parts.length) return "";
+  return `<section class="our-reading" aria-label="지금핫이 정리한 것">${parts.join("")}</section>`;
+}
+
 async function renderDetail(itemId){
   const body = document.getElementById("detailBody");
   body.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><div class="loading-msg">글을 불러오는 중…</div></div>';
@@ -3799,6 +3859,12 @@ async function renderDetail(itemId){
     try { await navigator.clipboard.writeText(text); toast("링크가 클립보드에 복사되었습니다"); }
     catch { prompt("복사해 주세요", text); }
   };
+  // 같은 사건 목록을 누르면 그 글 상세로 넘어간다.
+  setTimeout(()=>{
+    document.querySelectorAll("#detailBody [data-detail]").forEach(a=>{
+      a.addEventListener("click", (e)=>{ e.preventDefault(); openDetail(a.dataset.detail); });
+    });
+  }, 0);
   const head = document.querySelector("#detail .detail-head");
   let muteBtn = head.querySelector(".mute-btn:not(#shareBtn)");
   if(!muteBtn){ muteBtn = document.createElement("button"); muteBtn.className="mute-btn"; head.appendChild(muteBtn); }
@@ -3819,6 +3885,7 @@ async function renderDetail(itemId){
     </div>
     ${item.image?`<img class="detail-img" src="${item.image}" alt="${escapeHtml(item.title)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:""}
     ${item.summary?`<p class="full">${escapeHtml(item.summary)}</p>`:""}
+    ${ourReadingHtml(item)}
     ${item.url && item.source!=="me" ? `
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">원문에서 계속 읽기 →</a>
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>

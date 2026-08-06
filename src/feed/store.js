@@ -12,6 +12,10 @@ import { randomUUID } from "node:crypto";
 import crypto from "node:crypto";
 import { emptyPreferenceVector, buildPreferenceVector } from "./survey.js";
 import { inferFromHistory, mergeVectors } from "./history.js";
+
+// 잦은 기록을 몇 번 모아 한 번에 쓴다. 길게 잡으면 재시작 때 잃는 게 늘고,
+// 짧게 잡으면 다시 요청마다 쓰는 꼴이 된다.
+const PERSIST_DEBOUNCE_MS = 2000;
 import { validatePost, validateComment, userLevel, DEFAULT_RULES } from "./rules.js";
 import { nicknameFor } from "./nickname.js";
 import { FILTERABLE_TOPICS } from "./topics.js";
@@ -31,6 +35,15 @@ export class FeedStore {
     this.sessions = new Map(); // token -> { userId, expiresAt } (social login sessions)
     this._seq = 0;
     if (this.file && fs.existsSync(this.file)) this._load();
+    // 밀린 저장은 종료 직전에 비운다. 지연 저장 타이머는 unref라 프로세스를
+    // 붙잡지 않으니, 여기서 안 비우면 마지막 몇 초가 그냥 사라진다.
+    // 파일에 붙은 스토어에만 건다 — 테스트가 만드는 메모리 스토어는 제외.
+    if (this.file && typeof process !== "undefined" && process.once) {
+      const flush = () => { try { this.flushPending(); } catch {} };
+      process.once("SIGTERM", () => { flush(); process.exit(0); });
+      process.once("SIGINT", () => { flush(); process.exit(0); });
+      process.once("beforeExit", flush);
+    }
   }
 
   // ── 순번 ID를 쓰지 않는다 (2026-08-05 전수검사 P0)
@@ -192,7 +205,7 @@ export class FeedStore {
     if (!s) return null;
     if (this._nowMs() > s.expiresAt) {
       this.sessions.delete(token);
-      this._persist();
+      this._persistSoon();
       return null;
     }
     return s.userId;
@@ -231,7 +244,7 @@ export class FeedStore {
     // a strong footprint gives a small confidence head start
     const signalCount = hits.sources + hits.keywords;
     if (signalCount >= 3) user.feedbackCount = Math.max(user.feedbackCount, Math.min(6, Math.floor(signalCount / 3)));
-    this._persist();
+    this._persistSoon();
     return { hits, entriesSeen, preferences: user.preferences };
   }
 
@@ -273,7 +286,7 @@ export class FeedStore {
     if (keys.length > 90) {
       for (const k of keys.sort().slice(0, keys.length - 90)) delete this.traffic[k];
     }
-    this._persist();
+    this._persistSoon();
   }
 
   trafficStats(days = 14) {
@@ -314,7 +327,7 @@ export class FeedStore {
     for (const url of Object.keys(this.enrichCache)) {
       if ((this.enrichCache[url].expiresAt || 0) < nowMs) delete this.enrichCache[url];
     }
-    this._persist();
+    this._persistSoon();
   }
 
   // ---- 열기 눈금 시계열 영속화 (2026-08-01) ------------------------------
@@ -339,7 +352,7 @@ export class FeedStore {
     for (const id of Object.keys(this.heatSeen)) {
       if (this.heatSeen[id] < cutoff) { delete this.heatSeen[id]; delete this.heatHist[id]; }
     }
-    this._persist();
+    this._persistSoon();
   }
 
   recordFirstSeen(entries, nowMs) {
@@ -352,7 +365,7 @@ export class FeedStore {
     for (const id of Object.keys(this.firstSeen)) {
       if (this.firstSeen[id] < cutoff) delete this.firstSeen[id];
     }
-    this._persist();
+    this._persistSoon();
   }
 
   // ---- 일별 에디션 (브리핑+화제랭킹 스냅샷, 자체 콘텐츠 아카이브) ----------
@@ -376,7 +389,7 @@ export class FeedStore {
   // "3일째 죽어 있다"를 영영 말할 수 없다.
   saveSourceHealth(next) {
     this.sourceHealth = { ...(this.sourceHealth || {}), ...next };
-    this._persist();
+    this._persistSoon();
   }
 
   getSourceHealth() {
@@ -407,7 +420,7 @@ export class FeedStore {
       }
     }
     this._pruneBuckets("analytics", 400);
-    this._persist();
+    this._persistSoon();
     return n;
   }
 
@@ -419,7 +432,7 @@ export class FeedStore {
     const m = this.analytics[day].identity || (this.analytics[day].identity = {});
     const k = String(source || "new").slice(0, 20);
     m[k] = (m[k] || 0) + 1;
-    this._persist();
+    this._persistSoon();
   }
 
   analyticsBuckets() {
@@ -433,7 +446,7 @@ export class FeedStore {
     if (!this.costs[day]) this.costs[day] = emptyCostBucket();
     recordCall(this.costs[day], { model, inputTokens, outputTokens, purpose });
     this._pruneBuckets("costs", 400);
-    this._persist();
+    this._persistSoon();
   }
 
   costBuckets() {
@@ -1147,8 +1160,45 @@ export class FeedStore {
     return this.commentsByItem.get(itemId) || [];
   }
 
+  // 자주 일어나고 하나쯤 늦어도 되는 기록(방문 수·행동 로그·수집 캐시)을
+  // 위한 저장. **요청을 막지 않는다.**
+  //
+  // 실사용 제보(현지, 2026-08-06 16:10) — "너무 느려졌엉", 공유링크가 뜨는 데
+  // 두 번 한참 걸린다. 실측: 홈 TTFB 4.2초인데 /briefing 42ms·/api/health
+  // 52ms. 홈만 느릴 이유가 SSR에는 없었다.
+  //
+  // 원인은 저장이었다. _persist()는 스토어 **전체**(가입자·댓글·enrichCache·
+  // heatHist·세션 …)를 JSON으로 찍어 동기로 쓴다. 그 파일이 11.8MB로 자랐는데
+  // recordTraffic·sessionUser가 **요청마다** 그걸 불렀다. 동기 작업이라 그동안
+  // 이벤트 루프가 멈추고, 그래서 홈의 withDeadline(1200) 타이머조차 못 뜬다
+  // (타이머는 루프가 비어야 뜬다) — 데드라인을 걸어 뒀는데도 4초가 걸린 이유다.
+  //
+  // 여러 번 불려도 한 번만 쓴다. 최대 PERSIST_DEBOUNCE_MS만큼 밀린다.
+  _persistSoon() {
+    if (!this.file) return;
+    if (this._flushTimer) return;
+    this._flushTimer = setTimeout(() => {
+      this._flushTimer = null;
+      try { this._persist(); } catch (err) {
+        console.error("[store] 지연 저장 실패:", err && err.message ? err.message : err);
+      }
+    }, PERSIST_DEBOUNCE_MS);
+    // 프로세스가 이것 때문에 살아 있을 이유는 없다. 대신 종료 훅에서 비운다.
+    if (this._flushTimer.unref) this._flushTimer.unref();
+  }
+
+  // 밀린 저장이 있으면 지금 쓴다. 종료 직전에 부른다.
+  flushPending() {
+    if (!this._flushTimer) return false;
+    clearTimeout(this._flushTimer);
+    this._flushTimer = null;
+    try { this._persist(); return true; } catch { return false; }
+  }
+
   _persist() {
     if (!this.file) return;
+    // 즉시 저장이 들어오면 밀려 있던 것도 함께 나간다.
+    if (this._flushTimer) { clearTimeout(this._flushTimer); this._flushTimer = null; }
     const data = {
       seq: this._seq,
       users: [...this.users.values()],
@@ -1188,7 +1238,9 @@ export class FeedStore {
     // 옛 파일 아니면 새 파일을 본다.
     const tmp = `${this.file}.tmp`;
     try {
-      fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+      // 들여쓰기를 넣지 않는다. 사람이 읽을 파일이 아니고, 실측(2026-08-06)
+      // 11.8MB짜리를 요청마다 예쁘게 찍고 있었다 — 크기도 시간도 두 배다.
+      fs.writeFileSync(tmp, JSON.stringify(data));
       fs.renameSync(tmp, this.file);
     } catch (err) {
       try { fs.unlinkSync(tmp); } catch {}

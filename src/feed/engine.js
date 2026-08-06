@@ -1804,6 +1804,58 @@ export class FeedEngine {
   }
 
   // A single item with its full comment thread, for the detail view.
+  // 같은 사건을 다룬 다른 소스 (애드핏 P0-A ⑤, David 2026-08-06).
+  //
+  // 상세 화면은 지금 발췌 몇 줄 + "원문에서 계속 읽기"라 사실상 **아웃링크
+  // 통로**다. 애드핏 4차 반려 사유가 "아웃링크 비중이 높다"인데 이 페이지가
+  // 정확히 그 모양이었다.
+  //
+  // 본문을 퍼오지 않고도 읽을 값어치를 만들 수 있다 — **우리만 아는 것**을
+  // 붙이면 된다. 같은 사건을 어느 소스가 함께 다루고 있는지는 우리가 여러
+  // 곳을 동시에 보기 때문에 아는 것이고, 원문 한 곳만 봐서는 알 수 없다.
+  //
+  // eventKey는 브리핑에서 같은 사건 중복을 걸러낼 때 쓰는 것과 **같은 함수**다.
+  // 두 벌로 두면 언젠가 판정이 어긋난다.
+  _relatedItems(item, pool) {
+    const seenSource = new Set([item.source]);
+    const out = [];
+    // 1) 수집 때 접힌 것들. 실제로는 대부분이 여기서 나온다 — 같은 사건은
+    //    풀에 하나만 남기 때문에 풀을 뒤져 봐야 잘 안 나온다.
+    //    id가 없으므로 우리 상세로 못 보낸다. 링크 없이 글자로만 보여 준다.
+    for (const r of Array.isArray(item.related) ? item.related : []) {
+      if (!r || !r.source || seenSource.has(r.source)) continue;
+      seenSource.add(r.source);
+      out.push({
+        id: null, title: r.title,
+        sourceLabel: r.sourceLabel || r.source, source: r.source,
+        score: r.score || 0, commentCount: r.commentCount || 0,
+        publishedAt: r.publishedAt || null
+      });
+      if (out.length >= 5) return out;
+    }
+    // 2) 접히지 않고 둘 다 살아남은 경우(수집 사이클이 갈렸을 때). 이쪽은
+    //    풀에 있으니 눌러서 우리 상세로 넘어갈 수 있다.
+    const key = eventKey(item.title);
+    if (!key) return out;
+    for (const other of pool) {
+      if (other.id === item.id) continue;
+      if (seenSource.has(other.source)) continue;      // 한 소스당 하나 — 목록이 한 곳으로 쏠리지 않게
+      if (eventKey(other.title) !== key) continue;
+      seenSource.add(other.source);
+      out.push({
+        id: other.id,
+        title: other.title,
+        sourceLabel: other.sourceLabel || other.source,
+        source: other.source,
+        score: other.score || 0,
+        commentCount: other.commentCount || 0,
+        publishedAt: other.publishedAt || null
+      });
+      if (out.length >= 5) break;
+    }
+    return out;
+  }
+
   async getItem(userId, itemId) {
     const items = await this._items();
     const item = items.find((i) => i.id === itemId);
@@ -1811,6 +1863,10 @@ export class FeedEngine {
     const user = this.store.getUser(userId);
     // never surface a 19금 item to a user who isn't verified + opted in
     const decorated = this._decorate(item, 0, user || { ratings: {} });
-    return { ...decorated, thread: this.store.commentsFor(itemId) };
+    return {
+      ...decorated,
+      thread: this.store.commentsFor(itemId),
+      related: this._relatedItems(item, items)
+    };
   }
 }
