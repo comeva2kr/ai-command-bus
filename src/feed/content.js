@@ -314,6 +314,26 @@ export async function collect(sources, opts = {}) {
     if (tkey && seenTitle.has(tkey)) {
       const kept = seenTitle.get(tkey);
       if (item.source && item.source !== kept.source) {
+        // ── 우리가 직접 센 교차보도 (2026-08-06)
+        //
+        // David: "랭킹이 없어도 조회수, 좋아요 추천수, 인용, 퍼나르기 등으로
+        // 기준을 못 잡나?" — 잡을 수 있다. 다만 언론사가 주는 게 아니라
+        // 우리가 만들어야 한다.
+        //
+        // 실측(2026-08-06): 언론사 RSS의 item 태그에 수치가 아예 없고
+        // (매경 부동산: no·title·link·category·author·pubDate·description·media:content),
+        // 라이브 뉴스 18건 중 교차보도 값이 있는 것이 **1건**이었다.
+        // coverage를 구글뉴스가 알려주는 관련기사 수에만 의존했기 때문이다.
+        //
+        // 그런데 우리는 89개 소스를 동시에 본다 — **몇 곳이 같은 사건을 다뤘는지
+        // 우리가 직접 셀 수 있다.** 접을 때 이미 세고 있었는데 쓰지 않았다.
+        // 이게 "인용"에 해당하는 신호다: 여러 매체가 동시에 다루면 중요한 일이다.
+        //
+        // 구글 값과 우리 값 중 **큰 쪽**을 쓴다. 둘 다 "몇 곳이 다뤘나"의 추정이고,
+        // 구글은 자기 색인 범위에서, 우리는 우리 풀 범위에서 세므로 서로를 보완한다.
+        // 더하지 않는 이유는 같은 매체를 두 번 셀 수 있어서다.
+        const mine = (kept.related ? kept.related.length : 0) + 2;   // 접힌 것 + 나 + 이번 것
+        if (mine > (kept.coverage || 0)) kept.coverage = mine;
         const rel = (kept.related = kept.related || []);
         // 한 매체가 목록을 독식하지 않게 소스당 한 줄만 남긴다.
         if (rel.length < RELATED_MAX && !rel.some((r) => r.source === item.source)) {
