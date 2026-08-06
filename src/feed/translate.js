@@ -1,3 +1,4 @@
+import { classifyTopics } from "./topics.js";
 // Translation layer for overseas communities.
 //
 // Famous foreign boards (Reddit, Hacker News, 5ch, ...) are worth surfacing to
@@ -105,9 +106,36 @@ export class TranslatingSource {
       // 보이는 손해가 크다. 발췌가 없으면 제목만 보여 주면 된다.
       //
       // 영문 처리 자체는 후순위다(David). 제대로 옮길 수 있게 되면 그때 살린다.
+      // ── 옮긴 제목으로 주제를 **다시** 판정한다 (2026-08-06 실측)
+      //
+      // 분류(classifyTopics)는 content.js가 normalize 시점에 한 번 한다. 그런데
+      // 번역은 그 **뒤에** 감싸인다(registry.js:161) — 즉 주제 판정은 언제나
+      // 원문 제목으로 끝나고, 옮겨진 한글 제목은 아무도 다시 보지 않았다.
+      //
+      // politics 사전은 한글 고유명사로 되어 있다("트럼프"·"젤렌스키"·"민주당").
+      // 원문이 "Trump ..."이면 당연히 안 걸린다. 그래서 **정치 안 보기를 켠
+      // 사용자에게 해외 정치 글이 그대로 나갔다.** 기본 숨김 항목이 새는 것은
+      // 취향 문제가 아니라 약속을 어기는 것이다.
+      //
+      // 라이브 풀 실측: 옮겨진 제목을 classifyTopics에 다시 넣으면 politics로
+      // 잡히는데 topics가 빈 채로 저장된 글 —
+      //   livedoor-jp 2 · chosunbiz 2 · slashdot 1 · techmeme 1
+      //   예) "트럼프 대통령이 헤그세스 국방장관에 불만" → topics: []
+      //
+      // **합집합으로 더한다.** 원문으로 이미 붙은 주제를 지우지 않는다 —
+      // url 기반 게시판 규칙(BOARD_TOPIC_RULES)으로 붙은 것이 번역 때문에
+      // 사라지면 관문이 반대로 뚫린다.
+      const reTopics = classifyTopics({
+        title,
+        url: item.url,
+        sourceId: item.source
+      });
+      const topics = [...new Set([...(item.topics || []), ...reTopics])];
+
       return {
         ...item,
         title,
+        topics,
         summary: summaryTranslated ? summary : "",
         summaryTranslated,
         lang: this._target,
