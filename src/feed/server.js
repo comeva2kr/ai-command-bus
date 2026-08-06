@@ -1072,8 +1072,31 @@ ${adSlotHtml("adfit")}
           if (sessionUserId !== claimedId) return { ok: false, status: 403, error: "not your account" };
           return { ok: true, userId: sessionUserId };
         }
-        if (!store.getUser(claimedId)) return { ok: false, status: 400, error: "unknown user" };
+        const claimed = store.getUser(claimedId);
+        if (!claimed) return { ok: false, status: 400, error: "unknown user" };
         const key = cookies[KEY_COOKIE] || null;
+
+        // **첫 결속은 그 계정의 기기 쿠키를 들고 온 요청만 할 수 있다.**
+        // (적대적 검수 2026-08-06 P0 — 재현 확인)
+        //
+        // 예전에는 아직 열쇠가 없는 계정이면 **아무 열쇠나** 첫 주장을 이겼다.
+        // userId는 공개 응답에 평문으로 나가고 있었으므로, 공격자가 남의
+        // userId로 쓰기 요청을 한 번 보내면 자기 열쇠가 그 계정에 박히고
+        // 진짜 주인은 영구 403이 됐다. 경쟁조차 필요 없는 결정적 탈취였다.
+        //
+        // 기기 쿠키(nh_cid)는 그 계정을 발급받은 브라우저에만 있다. 공격자는
+        // 자기 계정의 쿠키를 들고 있으므로 남의 계정 id를 주장하면 어긋난다.
+        //
+        // 쿠키를 아예 못 쓰는 클라이언트는 열쇠도 없으므로 이 분기에 걸리지
+        // 않는다 — 예전처럼 통과한다. 막으려는 것은 "열쇠는 있는데 남의 id를
+        // 주장하는" 요청뿐이다.
+        if (!claimed.deviceKey && key) {
+          const deviceId = cookies[DEVICE_COOKIE] || null;
+          if (deviceId !== claimedId) {
+            return { ok: false, status: 403, error: "not your account" };
+          }
+        }
+
         if (!store.bindDevice(claimedId, key)) {
           return { ok: false, status: 403, error: "not your account" };
         }
@@ -1669,6 +1692,9 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/submit" && req.method === "POST") {
         const body = await readBody(req);
+        // 바로 위 /api/post에는 있는 소유권 검사가 여기만 빠져 있었다
+        // (적대적 검수 2026-08-06). userId만 알면 남의 이름으로 제보가 올라간다.
+        if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         try {
           // fetch the page's own OG tags for title/excerpt where the network
@@ -1983,6 +2009,9 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
 
       if (p === "/api/push/subscribe" && req.method === "POST") {
         const body = await readBody(req);
+        // 검사가 없으면 userId만 알아도 남의 푸시 구독을 자기 엔드포인트로
+        // 덮어써 알림을 가로챌 수 있다(적대적 검수 2026-08-06).
+        if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         const enabled = store.savePushSubscription(body.userId, body.subscription || null);
         return send(res, 200, { ok: true, notifyEnabled: enabled });

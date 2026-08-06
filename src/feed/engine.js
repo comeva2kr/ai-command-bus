@@ -1246,8 +1246,13 @@ export class FeedEngine {
       const dMax = Math.max(...deltas);
       heat = dMax > 0 ? deltas.map((v) => Math.round((v / dMax) * 100) / 100) : deltas.map(() => 0);
     }
+    const publicItem = { ...item };
+    // 내부 소유자 id는 공개 응답에 싣지 않는다 — 화면은 쓰지 않고, 새어 나가면
+    // 계정 결속 탈취의 재료가 된다(적대적 검수 2026-08-06). 소유권 판정은
+    // 서버가 store의 원본 레코드로 한다.
+    delete publicItem.userId;
     return {
-      ...item,
+      ...publicItem,
       heat,
       heatPending,
       categoryLabel: categoryLabel(item.category),

@@ -761,7 +761,11 @@ export class FeedStore {
       tags: Array.isArray(post.tags) ? post.tags.slice(0, 8) : [],
       title: title.slice(0, 300),
       summary: String(post.summary || post.body || "").slice(0, 2000),
-      author: userId,
+      // **내부 userId를 공개 필드에 담지 않는다.** (적대적 검수 2026-08-06)
+      // 여기 있던 userId가 /api/feed·/api/item 응답에 그대로 나가서,
+      // 누구나 남의 계정 id를 수집할 수 있었다 — 계정 결속 탈취(P0)의 재료다.
+      // 소유권은 아래 record.userId가 계속 들고 있고, 화면에는 닉네임만 간다.
+      author: user.nickname || "익명",
       adult: post.adult === true,
       lang: "ko",
       score: 0,

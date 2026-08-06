@@ -77,3 +77,82 @@ test("계정: 아직 주인이 없는 계정은 막지 않는다 — 배포 직�
   assert.equal(store.bindDevice(u.id, "key-B"), false, "묶인 뒤에는 다른 기기를 거절한다");
   assert.equal(store.bindDevice(u.id, null), false, "쿠키를 빼면 통과하던 구멍이 막혔다");
 });
+
+test("아직 결속 안 된 계정을 남이 먼저 주장할 수 없다 (적대적 검수 2026-08-06 P0)", async () => {
+  // 재현되던 것: 피해자가 아직 쓰기를 안 해 열쇠가 없는 동안, 공격자가
+  // 피해자 userId로 글을 한 번 쓰면 **공격자 열쇠가 그 계정에 박히고**
+  // 진짜 주인은 이후 영구 403이 됐다. 경쟁도 필요 없는 결정적 탈취였다.
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({});
+  await new Promise((r) => server.listen(0, r));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const cookiesOf = (res) => (res.headers.getSetCookie?.() || [])
+      .map((c) => c.split(";")[0]).join("; ");
+
+    // 피해자: 세션만 받고 아직 아무것도 안 썼다 (열쇠 미결속)
+    const vRes = await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    const victim = await vRes.json();
+    const victimCookies = cookiesOf(vRes);
+
+    // 공격자: 자기 세션(자기 쿠키·자기 열쇠)을 들고 피해자 id를 주장한다
+    const aRes = await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    await aRes.json();
+    const attackerCookies = cookiesOf(aRes);
+
+    const forged = await fetch(`${base}/api/post`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: attackerCookies },
+      body: JSON.stringify({ userId: victim.userId, title: "가로챈 글입니다", body: "남의 계정으로 씁니다" })
+    });
+    assert.equal(forged.status, 403, "남의 미결속 계정을 선점할 수 있다");
+
+    // 진짜 주인은 그대로 쓸 수 있어야 한다 — 막는 것이 목적이 아니다
+    const mine = await fetch(`${base}/api/post`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: victimCookies },
+      body: JSON.stringify({ userId: victim.userId, title: "내 계정 내 글입니다", body: "정상 경로" })
+    });
+    assert.equal(mine.status, 200, "주인이 자기 계정에서 잠겼다");
+  } finally { server.close(); }
+});
+
+test("쿠키를 못 쓰는 클라이언트는 여전히 글을 쓸 수 있다", async () => {
+  // 첫 결속에 기기 쿠키를 요구하되, **열쇠가 아예 없는** 요청은 예전처럼
+  // 통과시킨다. 안 그러면 인앱 브라우저에서 글쓰기가 통째로 막힌다.
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({});
+  await new Promise((r) => server.listen(0, r));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const s = await (await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
+    const res = await fetch(`${base}/api/post`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },   // 쿠키 없음
+      body: JSON.stringify({ userId: s.userId, title: "쿠키 없는 기기에서 씁니다", body: "본문입니다" })
+    });
+    assert.equal(res.status, 200, "쿠키 못 쓰는 클라이언트가 잠겼다");
+  } finally { server.close(); }
+});
+
+test("내부 userId가 공개 응답에 실리지 않는다", async () => {
+  // 이것이 위 탈취의 재료였다 — 누구나 남의 계정 id를 수집할 수 있었다.
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({});
+  await new Promise((r) => server.listen(0, r));
+  try {
+    const base = `http://localhost:${server.address().port}`;
+    const s = await (await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
+    await fetch(`${base}/api/post`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: s.userId, title: "공개 피드에 나갈 글입니다", body: "본문입니다" })
+    });
+    const feed = await (await fetch(`${base}/api/feed?userId=${s.userId}&limit=30`)).json();
+    const mine = (feed.items || []).filter((i) => i.via === "me");
+    assert.ok(mine.length > 0, "내 글이 피드에 안 보인다 — 검사가 무의미해진다");
+    for (const it of mine) {
+      assert.equal(it.userId, undefined, "내부 userId가 응답에 실렸다");
+      assert.notEqual(it.author, s.userId, "author 자리에 내부 userId가 실렸다");
+    }
+  } finally { server.close(); }
+});
