@@ -13,6 +13,7 @@ import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRID
 import { hasProfanity } from "./profanity.js";
 import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
+import { AD_DISCLOSURE as COUPANG_DISCLOSURE } from "./ad-copy.js";
 import { destForDeal, destForText, ensureDealShare, capDeals, dealRank } from "./deals.js";
 
 // 상품군 사전을 걸지 않는 분류. 사건·시사 기사에 "연관 광고"가 붙으면
@@ -386,6 +387,14 @@ export class FeedEngine {
       // 화면이 이 표시를 보고 **그 글 바로 아래에 그 상품군 광고**를 붙인다.
       // 판정을 여기서 한 번만 하는 이유: 화면이 같은 규칙을 다시 구현하면 두 벌이
       // 되어 언젠가 어긋난다 — adUnsafe에서 이미 겪은 일이다.
+      // 우리가 직접 올린 딜은 **제휴 링크**다. 쿠팡 파트너스 대가성 문구가
+      // 반드시 붙어야 한다(David 고정 원칙). 커뮤니티에서 온 딜은 남의 글을
+      // 소개하는 것이라 이 문구를 붙이지 않는다 — 우리가 수수료를 받는 링크가
+      // 아니기 때문이다. 둘을 섞으면 거짓 고지가 된다.
+      if (item.via === "ourdeal") {
+        item.affiliate = true;
+        item.disclosure = COUPANG_DISCLOSURE;
+      }
       if (this._dealSources.has(item.source)) {
         item.isDeal = true;
         const d = destForDeal(item.title);

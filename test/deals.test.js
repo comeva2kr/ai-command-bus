@@ -57,10 +57,17 @@ test("딜 소스가 여러 곳 등록돼 있다", () => {
   const doc = JSON.parse(readFileSync(new URL("../src/feed/communities.json", import.meta.url), "utf8"));
   const deals = doc.communities.filter((s) => s.isDeal && s.enabled !== false);
   assert.ok(deals.length >= 4, `딜 소스 ${deals.length}곳 — 최소 4곳은 켜져 있어야 한다`);
-  for (const s of deals) {
-    assert.ok(s.adapter && s.adapter.list && s.adapter.list.parserCheckedAt,
+  // 실측일 요구는 **긁어 오는 소스**에만 해당한다. 파서가 있으면 그 파서가
+  // 언제 살아 있는지 확인했는지가 남아야 한다.
+  // 우리가 직접 올리는 딜(nowhot-deal)은 파서가 없다 — store에서 온다
+  // (StorePostsSource). 애드핏 4차 반려 대응으로 2026-08-06에 추가했다.
+  for (const s of deals.filter((d) => d.adapter && d.adapter.type === "list")) {
+    assert.ok(s.adapter.list && s.adapter.list.parserCheckedAt,
       `${s.id}: 파서 실측일이 없다`);
   }
+  // 자체 콘텐츠 딜이 등록돼 있어야 한다 — 이게 애드핏 반려 대응의 핵심이다.
+  assert.ok(deals.some((d) => d.id === "nowhot-deal"),
+    "우리가 직접 올리는 딜 소스가 없다 — 커뮤니티 딜은 전부 아웃링크다");
 });
 
 test("서버가 끼우는 광고도 딜 글의 상품군을 따라간다", async () => {

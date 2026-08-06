@@ -102,7 +102,7 @@
 const TABS = [
   ["dashboard","대시보드"], ["analytics","행동 분석"], ["finance","수익·지출"],
   ["communities","커뮤니티"], ["posts","게시글"],
-  ["ads","광고"],
+  ["ads","광고"], ["ourdeals","우리 딜"],
   ["comments","댓글"], ["words","금지어"], ["users","사용자"], ["blueprint","개발관리"]
 ];
 // 개발관리 페이지 — David 고정법칙(2026-08-04): 블루프린트를 일회성 문서가
@@ -145,6 +145,7 @@ async function render(){
     if (active==="analytics") return renderAnalytics(panel);
     if (active==="finance") return renderFinance(panel);
     if (active==="ads") return renderAds(panel);
+    if (active==="ourdeals") return renderOurDeals(panel);
     if (active==="blueprint") return renderBlueprint(panel);
     if (active==="communities") return renderCommunities(panel);
     if (active==="posts") return renderPosts(panel);
@@ -314,6 +315,83 @@ async function saveFinance(){
 // 이 화면의 규칙은 하나다: **지어내지 않는다.** 정산 연동이 없으므로 금액 칸은
 // 비워 두고, 왜 비었는지를 그 자리에 적는다. 0원으로 채우면 "안 벌린다"로
 // 읽히는데 그건 사실이 아니라 미측정이다.
+// ── 우리 딜 등록 (애드핏 P0-A ①, David 2026-08-06) ──────────────────────────
+//
+// 애드핏 4차 반려: "자체 콘텐츠가 아닌 외부 콘텐츠, 외부 링크가 많은 비중을
+// 차지하고 있는 매체는 광고 게재가 허용되지 않습니다."
+//
+// 커뮤니티에서 긁어 온 딜은 아웃링크다. 우리가 고르고 우리가 쓴 상품 소개는
+// 자체 콘텐츠이고 링크도 제휴 링크다.
+//
+// **가격·상품명은 여기서 입력받는다.** 쿠팡 짧은 링크는 Akamai 봇 차단 + JS
+// 리다이렉트라 서버에서 상품 정보를 뽑을 수 없고(2026-08-06 실측), 상품
+// 페이지를 긁는 것은 우리 원칙에 어긋난다. 지어내지 않고 David가 확인한
+// 값만 쓴다.
+async function renderOurDeals(panel){
+  const { deals } = await api("/api/admin/our-deals");
+  const cats = [["life","라이프/취미"],["tech","기술/IT"],["business","경제/비즈니스"],
+                ["culture","문화/연예"],["sports","스포츠"],["auto","자동차"]];
+  const dests = [["","(자동)"],["fresh","신선식품"],["dgt","가전·디지털"],["fashion","패션·잡화"],
+                 ["kitchen","주방"],["home","홈인테리어"],["baby","출산·유아동"],["pet","반려동물"],
+                 ["book","도서"],["toy","완구·취미"],["camp","캠핑"],["outdoor","등산·아웃도어"],
+                 ["golf","골프"],["carparts","자동차용품"],["oversea","해외직구"]];
+  panel.innerHTML = `
+    <div class="card">
+      <h3>딜 등록</h3>
+      <p class="sub">쿠팡 파트너스에서 만든 <b>짧은 링크</b>를 넣으세요(link.coupang.com).
+        상품명·가격은 콘솔에서 확인한 값 그대로 적어주세요 — 서버가 알아낼 수 없는 값이라
+        <b>지어내지 않습니다</b>. 사진은 파트너스 화면에서 상품 이미지 주소를 복사해 넣으면 됩니다.</p>
+      <div class="form">
+        <label>제휴 링크 <input id="odUrl" placeholder="https://link.coupang.com/a/..."></label>
+        <label>상품명 <input id="odTitle" placeholder="정확한 상품 이름"></label>
+        <label>가격 <input id="odPrice" placeholder="39,900원"></label>
+        <label>사진 주소 <input id="odImage" placeholder="https://... (선택)"></label>
+        <label>한 줄 소개 <input id="odNote" placeholder="왜 고른 물건인지 (선택)"></label>
+        <label>분류 <select id="odCat">${cats.map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join("")}</select></label>
+        <label>상품군 <select id="odDest">${dests.map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join("")}</select></label>
+      </div>
+      <button id="odSave">등록</button>
+      <div id="odMsg" class="sub"></div>
+    </div>
+    <div class="card">
+      <h3>등록한 딜 <span class="sub">${deals.length}건</span></h3>
+      ${deals.length ? `<table><thead><tr><th>상품</th><th>가격</th><th>등록</th><th></th></tr></thead><tbody>` +
+        deals.map(d=>`<tr>
+          <td><b>${esc(d.title)}</b><div class="sub">${esc(d.summary||"")}</div>
+              <div class="sub"><a href="${esc(d.url)}" target="_blank" rel="noopener nofollow sponsored">링크 열기 →</a></div></td>
+          <td>${esc(d.price)}</td>
+          <td class="sub">${esc(new Date(d.createdAt||Date.now()).toLocaleString("ko-KR"))}</td>
+          <td><button data-del="${esc(d.id)}">삭제</button></td>
+        </tr>`).join("") + `</tbody></table>`
+        : `<p class="sub">아직 등록한 딜이 없어요.</p>`}
+    </div>`;
+
+  document.getElementById("odSave").onclick = async () => {
+    const msg = document.getElementById("odMsg");
+    const val = (id) => document.getElementById(id).value.trim();
+    msg.textContent = "등록 중…";
+    try {
+      const r = await fetch("/api/admin/our-deal", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-token": token },
+        body: JSON.stringify({
+          url: val("odUrl"), title: val("odTitle"), price: val("odPrice"),
+          image: val("odImage"), note: val("odNote"),
+          category: val("odCat"), dest: val("odDest")
+        })
+      });
+      const j = await r.json();
+      if (!r.ok) { msg.textContent = "안 됨: " + (j.error || r.status); return; }
+      render();
+    } catch (e) { msg.textContent = "안 됨: " + e.message; }
+  };
+  panel.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm("이 딜을 내릴까요?")) return;
+    await api("/api/admin/our-deal-delete", { method: "POST", body: JSON.stringify({ id: b.dataset.del }) });
+    render();
+  });
+}
+
 async function renderAds(panel){
   const d = await api("/api/admin/ads");
   const badge = (ok, yes, no) => `<span class="pill ${ok?"ok":"warn"}">${ok?yes:no}</span>`;

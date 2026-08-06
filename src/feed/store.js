@@ -817,6 +817,65 @@ export class FeedStore {
     return this.submissions || [];
   }
 
+  // ---- 우리가 직접 올리는 딜 (애드핏 P0-A ①, David 2026-08-06) ----
+  //
+  // 애드핏 4차 반려: "자체 콘텐츠가 아닌 외부 콘텐츠, 외부 링크가 많은 비중을
+  // 차지하고 있는 매체는 광고 게재가 허용되지 않습니다."
+  //
+  // 커뮤니티에서 긁어 온 딜은 아웃링크다. 우리가 고르고 우리가 쓴 상품 소개는
+  // **자체 콘텐츠**이고, 링크도 아웃링크가 아니라 제휴 링크다. 정책의 모든
+  // 조항(복제 아님·자체 콘텐츠 있음·아웃링크 아님)을 통과한다.
+  //
+  // **가격과 상품명은 David가 확인한 값만 저장한다.** 쿠팡 짧은 링크는
+  // Akamai 봇 차단 + JS 리다이렉트라 서버에서 상품 정보를 뽑을 수 없고
+  // (2026-08-06 실측), 상품 페이지를 긁는 것은 우리 원칙에 어긋난다.
+  // 그래서 지어내지 않고 입력받는다 — 실측 안 된 숫자는 쓰지 않는다.
+  ourDeals() {
+    return this.ourDealsList || [];
+  }
+
+  createOurDeal(deal) {
+    const url = String(deal.url || "").trim();
+    const title = String(deal.title || "").trim();
+    const price = String(deal.price || "").trim();
+    if (!/^https:\/\/(link\.coupang\.com|www\.coupang\.com|coupa\.ng)\//i.test(url)) {
+      throw new Error("쿠팡 파트너스 링크만 등록할 수 있어요 (link.coupang.com)");
+    }
+    if (title.length < 4) throw new Error("상품명을 4자 이상 적어주세요");
+    if (!price) throw new Error("가격을 적어주세요 — 지어낼 수 없는 값이에요");
+
+    const record = {
+      id: this._id("odeal"),
+      via: "ourdeal",
+      source: "nowhot-deal",
+      sourceLabel: "지금핫 딜",
+      kind: "community",
+      category: String(deal.category || "life"),
+      title,
+      price,
+      // 한 줄 소개 — 우리가 쓴 문장이다. 없으면 비워 둔다(지어내지 않는다).
+      summary: String(deal.note || "").trim(),
+      url,
+      image: String(deal.image || "").trim() || null,
+      dest: String(deal.dest || "").trim() || null,
+      score: 0,
+      commentCount: 0,
+      publishedAt: nowIso(this.clock),
+      createdAt: Date.now()
+    };
+    this.ourDealsList = this.ourDealsList || [];
+    this.ourDealsList.unshift(record);
+    this._persist();
+    return record;
+  }
+
+  deleteOurDeal(id) {
+    const before = (this.ourDealsList || []).length;
+    this.ourDealsList = (this.ourDealsList || []).filter((d) => d.id !== id);
+    if (this.ourDealsList.length !== before) this._persist();
+    return before !== this.ourDealsList.length;
+  }
+
   // ---- admin / moderation ----
 
   // Extra banned words configured at runtime by an admin (merged with the
@@ -1054,6 +1113,7 @@ export class FeedStore {
       users: [...this.users.values()],
       posts: this.posts || [],
       submissions: this.submissions || [],
+      ourDealsList: this.ourDealsList || [],
       adminDisabledSources: this.adminDisabledSources || [],
       adminBannedWords: this.adminBannedWords || [],
       adEvents: this.adEvents || [],
@@ -1103,6 +1163,7 @@ export class FeedStore {
       this.commentsByItem = new Map();
       this.posts = data.posts || [];
       this.submissions = data.submissions || [];
+      this.ourDealsList = data.ourDealsList || [];
       this.adminDisabledSources = data.adminDisabledSources || [];
       this.adminBannedWords = data.adminBannedWords || [];
       this.adEvents = data.adEvents || [];

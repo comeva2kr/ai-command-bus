@@ -167,10 +167,14 @@ export class StorePostsSource {
   async fetch() {
     const posts = this._store.allPosts ? this._store.allPosts() : [];
     const subs = this._store.allSubmissions ? this._store.allSubmissions() : [];
+    // 우리가 직접 올린 딜 (애드핏 P0-A ①). 자체 콘텐츠이므로 같은 길로 흘려보낸다 —
+    // 별도 배관을 만들면 순위·다양성·광고 규칙을 또 한 벌 관리하게 된다.
+    const ours = this._store.ourDeals ? this._store.ourDeals() : [];
     // user posts keep source "me"; submissions keep their own out-link source
     return [
       ...posts.map((raw) => normalizeItem(raw, this)),
-      ...subs.map((raw) => normalizeItem(raw, { id: raw.source, kind: "community" }))
+      ...subs.map((raw) => normalizeItem(raw, { id: raw.source, kind: "community" })),
+      ...ours.map((raw) => normalizeItem(raw, { id: "nowhot-deal", kind: "community" }))
     ];
   }
 }

@@ -2323,6 +2323,28 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
           const list = store.setSourceDisabled(body.id, body.disabled === true);
           return send(res, 200, { ok: true, disabledSources: list });
         }
+        // ── 우리 딜 (애드핏 P0-A ①) ────────────────────────────────────
+        if (p === "/api/admin/our-deals" && req.method === "GET") {
+          return send(res, 200, { deals: store.ourDeals() });
+        }
+        if (p === "/api/admin/our-deal" && req.method === "POST") {
+          const body = await readBody(req);
+          try {
+            const deal = store.createOurDeal(body || {});
+            engine.invalidate();   // 다음 요청부터 피드에 보인다
+            return send(res, 200, { ok: true, deal });
+          } catch (e) {
+            // 입력 문제는 400이다 — 500으로 던지면 화면이 "서버 고장"으로 읽는다.
+            return send(res, 400, { error: e.message });
+          }
+        }
+        if (p === "/api/admin/our-deal-delete" && req.method === "POST") {
+          const body = await readBody(req);
+          const gone = store.deleteOurDeal(String(body.id || ""));
+          if (gone) engine.invalidate();
+          return send(res, 200, { ok: gone });
+        }
+
         if (p === "/api/admin/banned-word" && req.method === "POST") {
           const body = await readBody(req);
           const words = body.action === "remove" ? store.removeBannedWord(body.word) : store.addBannedWord(body.word);
