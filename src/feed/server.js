@@ -260,7 +260,11 @@ function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "") {
       // 낡은 화면이라는 뜻이고, 클라이언트가 스스로 한 번 새로고침한다.
       const bid = buildId();
       const b0 = buf.toString("utf8");
-      if (!b0.includes('name="nh-build"')) {
+      // 가드는 **여는 태그까지** 본다. 처음엔 'name="nh-build"'만 봤는데,
+      // 화면 스크립트 안의 querySelector('meta[name="nh-build"]') 문자열이
+      // 걸려서 "이미 심겨 있다"로 판정하고 매번 건너뛰었다 —
+      // 가드가 자기 자신을 잡은 것이다(2026-08-06).
+      if (!b0.includes('<meta name="nh-build"')) {
         buf = Buffer.from(b0.replace("<head>",
           `<head>\n<meta name="nh-build" content="${escapeHtml(bid)}">`));
       }
