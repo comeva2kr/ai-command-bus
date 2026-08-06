@@ -1486,6 +1486,94 @@ flowchart LR
     </div>
   </div>
 
+  <div class="evidence">
+    <span class="src">병렬 진단 5건 + 적대적 검수 5건 (2026-08-06 저녁)</span>
+    <div>
+    <p>남은 과제 다섯을 동시에 진단하고 각각을 반박하게 했다. 에이전트에게는
+    <b>코드 수정·라이브 접근·VM 접근을 주지 않았다</b> — 과거 검수 에이전트가 운영에
+    테스트 글을 쓴 사고가 있었다. 진단만 받고 수정은 이쪽에서 순차로 했다.</p>
+
+    <p><b>가장 큰 수확은 "하지 마라"였다.</b> 검수가 P0 회귀 둘을 잡았고, 그중 하나는
+    이쪽이 하려던 수정이 그대로 사고였다.</p>
+
+    <p><b>① feedGroup 추가 — 하면 안 되는 수정이었다.</b>
+    <code>ppomppu-house</code>·<code>ruliweb-interior</code>에 feedGroup이 없어 붙이려 했는데,
+    붙이면 <b>두 소스가 피드에서 통째로 사라진다(6건 → 0건).</b>
+    <code>topPerSource</code>가 diversityKey 하나당 상위 6건만 남기는데, 큰 형제(ppomppu·ruliweb)와
+    같은 키로 묶이면 작은 쪽은 한 건도 못 올라온다. <b>매경 사고(한 페이지 60%)를 막는 장치가,
+    같은 방식으로 작은 소스를 없애는 장치가 된다.</b> 하지 않는다.</p>
+
+    <p><b>② 5.7 B단계 — 근거가 폐기된 코드였다.</b> 진단이 2026-08-04 이전 코드를 읽고
+    구성 비율을 계산했다. 게다가 검수가 P0를 하나 더 짚었다 — 엔진 주석에
+    <em>"지금 26개 소스가 파서 고장으로 추천수를 0으로 내보내고 있어서 … 원인(파서)을
+    안 고치고 증상(0점)으로 자르면 더 나빠진다"</em>고 적혀 있는데, 화면에서 ▲0을
+    <b>숨기는</b> 것은 자르는 것과 같은 실수를 다른 손으로 하는 것이다.
+    <b>B단계는 보류한다. 먼저 봐야 할 것은 파서 26곳이다.</b></p>
+
+    <p><b>③ 클리앙 — "파서 점검 필요"라는 전제 자체가 틀렸다.</b>
+    <code>clien</code>은 list 파서가 아니라 <b>rss 어댑터</b>이고, <code>parseRss</code>는
+    추천·댓글을 <b>애초에 추출하지 않는다</b>(피드 원본에 그 필드가 없다).
+    이는 clien 고유 결함이 아니라 <b>enabled 78곳 중 59곳(rss)에 동일한 설계 조건</b>이다.
+    regex를 고칠 대상이 아니었다.</p>
+
+    <p><b>④ visitorMap 12.4MB — 숫자의 정체가 달랐다.</b> 그 값은 RAM이 아니라
+    <b>JSON 직렬화 크기</b>였다. 실측 heap 증가분은 34.94MB(검수 재현값).
+    다만 결론은 그대로다 — 현재 상한 근처도 아니므로 <b>지금 손대지 않는다.</b></p>
+    </div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">정치 관문이 새고 있었다 (P0, 2026-08-06)</span>
+    <div>
+    <p>검수가 정치 누수를 지적했다. 지목한 소스(clien)는 실측에서 재현되지 않았지만
+    <b>문제 자체는 실재했고 원인이 달랐다 — 번역 순서다.</b></p>
+    <p>분류는 <code>content.js</code>가 normalize 시점에 <b>한 번</b> 한다. 번역은 그
+    <b>뒤에</b> 감싸인다(<code>registry.js:161</code>). 즉 주제 판정은 언제나 원문 제목으로
+    끝나고, <b>옮겨진 한글 제목은 아무도 다시 보지 않았다.</b></p>
+    <p>politics 사전은 한글 고유명사다("트럼프"·"젤렌스키"·"민주당"). 원문이
+    "Trump …"이면 안 걸린다. <b>정치 안 보기를 켠 사용자에게 해외 정치 글이 그대로
+    나갔다.</b> politics는 기본 숨김이라, 새는 것은 취향 문제가 아니라 약속을 어기는 것이다.</p>
+    <p>라이브 풀 실측 — 옮긴 제목을 다시 넣으면 politics로 잡히는데 topics가 빈 글:
+    <b>livedoor-jp 2 · chosunbiz 2 · slashdot 1 · techmeme 1</b>.
+    번역 성공 시 옮긴 제목으로 다시 판정해 <b>합집합으로 더한다</b> —
+    원문으로 붙은 주제를 지우면 관문이 반대 방향으로 뚫린다. 테스트 5건.</p>
+    </div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">RSS 날짜 — 경향신문 50건이 통째로 "날짜 없음"이었다 (2026-08-06)</span>
+    <div>
+    <p><code>parseRss</code>가 <code>&lt;pubDate&gt;</code>와 <code>&lt;updated&gt;</code>만 읽고
+    Dublin Core의 <code>&lt;dc:date&gt;</code>를 안 봤다. 실측:
+    <b>Slashdot 16/16 null · 경향신문 50/50 null.</b></p>
+    <p>손해가 작지 않았다. <b>경향신문 50건은 전부 2시간 이내의 기사인데</b> 날짜가 없다는
+    이유로 신선도 중립(0.5)에 고정돼 있었다 — 가장 신선한 축인데 그 대우를 못 받았다.
+    포맷 문제가 아니다(<code>Date.parse</code>는 두 형식 모두 파싱한다). <b>태그를 안 본 것이다.</b></p>
+    <p>켜도 잘려나가는 글이 없음을 먼저 확인했다: slashdot 최대 34.2h(상한 48h),
+    khan 최대 1.8h(상한 24h). 표준 태그를 먼저 보고 없을 때만 내려간다. 테스트 4건.</p>
+    <p><b>기록해 둘 것</b> — 이 결함은 소스 설명에 <b>"소스 스펙 한계"로 적혀 있었다.</b>
+    같은 날 Slashdot 발췌도 똑같이 "한계"로 적혀 있다가 실은 피드 선택 실수였다.
+    <b>"한계"라고 적힌 것은 한 번은 의심해야 한다.</b></p>
+    </div>
+  </div>
+
+  <div class="evidence">
+    <span class="src">David 결정이 필요한 것 — 클리앙 robots.txt</span>
+    <div>
+    <p>확정 규칙: <b>robots.txt가 ClaudeBot/anthropic-ai를 이름으로 차단한 사이트는 수집하지 않는다</b>
+    (블라인드·씽크풀·Dazed·Vogue·Colossal이 이 규칙으로 빠졌다).</p>
+    <p>실측(2026-08-06): <code>www.clien.net/robots.txt</code>에
+    <b>"# AI 학습 크롤러 (차단)" 절이 있고 <code>anthropic-ai</code>·<code>Claude-Web</code>이
+    이름으로 올라 있다.</b> 우리는 feedburner 미러로 받고 있지만, 그 피드가 돌려주는
+    링크 40건은 <b>100% www.clien.net</b>이다 — 도메인만 다른 투명 미러다.</p>
+    <p>다만 같은 파일에서 <code>User-agent: *</code>는 <code>/service/board/</code>를
+    <b>Allow</b>하고, Claude 계열은 <b>"AI 학습"</b> 절에 있다. 우리는 학습이 아니라 피드를
+    읽는다. <b>규칙을 문자 그대로 적용하면 빼야 하고, 취지로 읽으면 남길 여지가 있다.</b>
+    클리앙은 주요 국내 커뮤니티라 수익에 영향이 있어 <b>David 판단이 필요하다.</b>
+    그때까지 현 상태를 유지한다(임의로 끄지 않는다).</p>
+    </div>
+  </div>
+
   <h3>중요도 순서</h3>
   <p>순서 기준은 <b>의존</b>이다. 앞 칸이 없으면 뒤 칸의 성과를 만들 수도, 잴 수도 없다.</p>
   <div class="scroll">
