@@ -258,16 +258,16 @@ function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "") {
     if (ext === ".html" && rel === "index.html") {
       // 화면이 자기 빌드를 알 수 있게 심는다. /api/config가 주는 값과 다르면
       // 낡은 화면이라는 뜻이고, 클라이언트가 스스로 한 번 새로고침한다.
-      const bid = buildId();
-      const b0 = buf.toString("utf8");
-      // 가드는 **여는 태그까지** 본다. 처음엔 'name="nh-build"'만 봤는데,
-      // 화면 스크립트 안의 querySelector('meta[name="nh-build"]') 문자열이
-      // 걸려서 "이미 심겨 있다"로 판정하고 매번 건너뛰었다 —
-      // 가드가 자기 자신을 잡은 것이다(2026-08-06).
-      if (!b0.includes('<meta name="nh-build"')) {
-        buf = Buffer.from(b0.replace("<head>",
-          `<head>\n<meta name="nh-build" content="${escapeHtml(bid)}">`));
-      }
+      // 자리표시자의 **값만** 갈아 끼운다.
+      //
+      // 처음엔 <head> 뒤에 태그를 새로 끼우려 했는데 라이브에서만 조용히
+      // 실패했다. 원인을 좇는 대신 실패할 수 없는 모양으로 바꿨다 —
+      // 태그는 index.html에 이미 있고(content="dev"), 서버는 값만 바꾼다.
+      // 치환 대상이 없으면 그건 그 자체로 눈에 띈다(화면이 "dev"를 보고
+      // 서버 값과 다르다며 한 번 새로고침한 뒤 멈춘다).
+      buf = Buffer.from(buf.toString("utf8").replace(
+        '<meta name="nh-build" content="dev">',
+        `<meta name="nh-build" content="${escapeHtml(buildId())}">`));
     }
     if (ownSeedHtml && ext === ".html" && rel === "index.html") {
       const h0 = buf.toString("utf8");
