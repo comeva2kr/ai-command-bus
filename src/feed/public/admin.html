@@ -432,6 +432,15 @@ async function renderAds(panel){
     </div>
     <p class="empty" style="text-align:left">${esc(m.scope||"")}</p>
 
+    <div class="panel-h">자리별 성과 (7일)</div>
+    <p class="sub" style="margin:0 0 8px">쿠팡 콘솔은 subId만 안다. 그 subId가 어느 화면의 몇 번째 칸인지는 우리만 안다 —
+    어느 자리를 늘리고 어느 자리를 뺄지는 이 표로 정한다.</p>
+    <table><thead><tr><th>자리</th><th>노출</th><th>클릭</th><th>클릭률</th></tr></thead>
+      <tbody>${(m.slots7d||[]).map(r=>`<tr><td><b>${esc(r.slot)}</b></td>
+        <td>${num(r.impressions)}</td><td>${num(r.clicks)}</td>
+        <td>${r.impressions?r.ctr+"%":"—"}</td></tr>`).join("")
+        || '<tr><td colspan="4" class="empty">아직 센 것이 없습니다.</td></tr>'}</tbody></table>
+
     <div class="panel-h">연결된 광고</div>
     <table><thead><tr><th>매체</th><th>상태</th><th>지면</th><th>정산 연동</th><th>바로가기</th></tr></thead>
       <tbody>${wired || '<tr><td colspan="5" class="empty">연결된 광고가 없습니다.</td></tr>'}</tbody></table>

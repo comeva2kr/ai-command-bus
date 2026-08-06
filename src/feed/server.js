@@ -826,7 +826,7 @@ export function createServer(opts = {}) {
     // 프록시로 우회하지 않는 이유: 노출 집계가 사용자 IP가 아니라 우리 서버
     // IP에서 발생해 무효 트래픽으로 읽힐 수 있다. 계정을 오래 지키는 게 우선이다.
     const [w, h] = String(b.size || "320x100").split("x");
-    return `<aside class="ad-slot ad-coupang">
+    return `<aside class="ad-slot ad-coupang" data-slot="${escapeHtml(slot)}">
       <p class="ad-mark"><span class="ad-tag">AD</span> 쿠팡 파트너스</p>
       <a class="ad-native" href="${escapeHtml(withSubId(b.href, `${slot}~${v.variant}`))}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
         <span class="go-row">
@@ -874,6 +874,52 @@ export function createServer(opts = {}) {
   // noindex: 페이지는 그대로 열리되 검색 색인만 막는다. 알맹이가 얇은 페이지를
   // 대량으로 색인시키면 사이트 전체 품질 평가가 그쪽으로 끌려간다
   // (2026-08-04 검색 품질 검수: 키워드 43개 중 28개가 수록 글 4건 이하).
+  // 발행 페이지 광고 계측 (2026-08-06).
+  //
+  // 여기 배너가 페이지마다 두 장씩 나가는데 **노출·클릭을 한 줄도 세지 않고
+  // 있었다.** 쿠팡 콘솔에는 subId로 남지만 우리 관리자 화면에는 0이라,
+  // 어느 자리가 돈이 되는지 우리 손으로 판단할 방법이 없었다.
+  // 블루프린트 대목적의 첫 문장이 "알고리즘보다 측정과 구매 의도가 먼저다"인데
+  // 정작 발행 페이지가 측정 밖에 있었다.
+  //
+  // 앱 화면과 **같은 API**로 보낸다(/api/ad-signal). 세는 곳이 둘로 갈리면
+  // 언젠가 숫자가 어긋난다. 자리 이름(slot)은 배너를 그릴 때 이미 정해 둔 값이라
+  // data 속성으로 내려보내기만 하면 된다.
+  const adTrackScript = `<script>
+(function(){
+  var seen = {};
+  function send(type, slot){
+    if(!slot) return;
+    if(type === "impression"){ if(seen[slot]) return; seen[slot] = 1; }
+    var body = JSON.stringify({ type: type, slot: slot, page: location.pathname });
+    try {
+      if(navigator.sendBeacon){
+        navigator.sendBeacon("/api/ad-signal", new Blob([body], {type:"application/json"}));
+        return;
+      }
+    } catch(e){}
+    try { fetch("/api/ad-signal", {method:"POST", headers:{"content-type":"application/json"}, body: body, keepalive: true}); } catch(e){}
+  }
+  function wire(){
+    var slots = document.querySelectorAll("aside.ad-slot[data-slot]");
+    for(var i=0;i<slots.length;i++){
+      (function(el){
+        var slot = el.getAttribute("data-slot");
+        var a = el.querySelector("a.ad-native");
+        if(a) a.addEventListener("click", function(){ send("click", slot); });
+        if(window.IntersectionObserver){
+          var io = new IntersectionObserver(function(es){
+            for(var k=0;k<es.length;k++) if(es[k].isIntersecting){ send("impression", slot); io.disconnect(); }
+          }, { threshold: 0.5 });
+          io.observe(el);
+        } else { send("impression", slot); }
+      })(slots[i]);
+    }
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire();
+})();
+</script>`;
+
   const editionShell = (title, desc, inner, canonicalPath = "", ownLinks = "", coupangBanner = "", noindex = false) => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 ${noindex
   ? '<meta name="robots" content="noindex,follow">'
@@ -1011,7 +1057,7 @@ ${ownLinks}
 ${adSlotHtml("adsense")}
 ${adSlotHtml("adfit")}
 <p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
-</div>${pageTracker()}</body></html>`;
+</div>${pageTracker()}${adTrackScript}</body></html>`;
   // ── 발행 페이지 방문 측정 (2026-08-05 전수검사)
   //
   // 브리핑·화제랭킹·커뮤니티별·키워드는 사이트맵에 올리고 IndexNow로 통보하고
@@ -2379,12 +2425,20 @@ ${rankingRows(list, (above) => {
       // live in the engine's collected pool, so this goes straight to the
       // store rather than through engine.signal (which does an item lookup
       // that would always miss for a slot id).
+      // **익명도 받는다**(2026-08-06). 발행 페이지 방문자 대부분이 세션 없는
+      // 검색 유입이라 userId를 요구하면 그 노출이 통째로 안 잡힌다.
+      // sendBeacon으로도 오므로 응답 본문을 기다리지 않게 짧게 닫는다.
       if (p === "/api/ad-signal" && req.method === "POST") {
-        const body = await readBody(req);
-        if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        let body = null;
+        try { body = await readBody(req); } catch { body = null; }
+        if (!body) return send(res, 400, { error: "bad body" });
+        if (body.userId && !store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         const type = body.type === "click" || body.type === "impression" ? body.type : null;
         if (!type) return send(res, 400, { error: "type must be impression or click" });
-        const stats = store.recordAdEvent(body.userId, body.itemId, type, { variant: body.variant });
+        const slot = typeof body.slot === "string" ? body.slot.slice(0, 40) : null;
+        const page = typeof body.page === "string" ? body.page.slice(0, 60) : null;
+        const stats = store.recordAdEvent(body.userId || null, body.itemId, type,
+          { variant: body.variant, slot, page });
         return send(res, 200, { ok: true, stats });
       }
 
@@ -2529,7 +2583,11 @@ ${rankingRows(list, (above) => {
               // 그 사실을 숨기지 않는다 — 0을 "성과 없음"으로 오독하면 안 된다.
               scope: "우리가 직접 센 것만 (쿠팡 제휴 카드). 애드핏·애드센스는 각 콘솔에서 본다.",
               today: { ...today.coupang, ctr: ctr(today.coupang.impressions, today.coupang.clicks) },
-              week: { ...week.coupang, ctr: ctr(week.coupang.impressions, week.coupang.clicks) }
+              week: { ...week.coupang, ctr: ctr(week.coupang.impressions, week.coupang.clicks) },
+              // 자리별 성과. 발행 페이지 배너가 어느 자리에서 눌리는지는
+              // 여기 말고 볼 곳이 없다 — 쿠팡 콘솔은 subId만 알고, 그 subId가
+              // 어느 화면의 몇 번째 칸인지는 우리만 안다.
+              slots7d: store.adSlotReport(7)
             },
             revenue: {
               // 정산 API가 연결된 곳이 없다. 추정치를 넣지 않는다.

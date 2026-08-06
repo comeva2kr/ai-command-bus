@@ -614,19 +614,41 @@ export class FeedStore {
   // small, separate counter+log — enough for the "세션당 수익 proxy"(클릭수)
   // and for monetize.js's adaptive density (adResponsiveness below) without
   // pulling in an analytics dependency.
+  // 광고 노출·클릭 기록.
+  //
+  // **익명도 받는다**(2026-08-06). 발행 페이지(브리핑·랭킹·리포트…)에는 배너가
+  // 페이지마다 두 장씩 나가는데 방문자 대부분이 세션 없는 검색 유입이라,
+  // userId를 요구하면 그 노출이 통째로 안 잡힌다. 실제로 안 잡히고 있었다 —
+  // 쿠팡 콘솔에는 subId로 남지만 **우리 관리자에는 0**이었고, 그러면 어느
+  // 자리가 돈이 되는지 우리 손으로 판단할 수 없다.
+  // (블루프린트 대목적: "알고리즘보다 측정과 구매 의도가 먼저다.")
   recordAdEvent(userId, itemId, type, meta = {}) {
-    const user = this.requireUser(userId);
-    user.adStats = user.adStats || { impressions: 0, clicks: 0 };
-    if (type === "impression") user.adStats.impressions += 1;
-    else if (type === "click") user.adStats.clicks += 1;
-    else return user.adStats; // unknown type — no-op
+    const user = userId ? this.getUser(userId) : null;
+    if (userId && !user) return null;   // 있는데 모르는 유저면 거절
+    if (type !== "impression" && type !== "click") return user ? user.adStats : null;
+    if (user) {
+      user.adStats = user.adStats || { impressions: 0, clicks: 0 };
+      if (type === "impression") user.adStats.impressions += 1;
+      else user.adStats.clicks += 1;
+    }
+    // 자리별·날짜별 집계. adEvents는 최근 2,000건만 남기므로 그것만으로는
+    // "지난주 어느 자리가 나았나"를 못 본다. 세는 값은 따로 쌓는다.
+    if (meta.slot) {
+      const day = this._trafficDay(new Date(this._nowMs()));
+      this.adSlotStats = this.adSlotStats || {};
+      const d = (this.adSlotStats[day] = this.adSlotStats[day] || {});
+      const cell = (d[meta.slot] = d[meta.slot] || { impressions: 0, clicks: 0 });
+      cell[type === "impression" ? "impressions" : "clicks"] += 1;
+      const days = Object.keys(this.adSlotStats);
+      if (days.length > 90) for (const k of days.sort().slice(0, days.length - 90)) delete this.adSlotStats[k];
+    }
 
     // 라운드1 검수 #1: which sample product ids this user has actually seen,
     // so monetize.js's rotation can skip forward past them instead of
     // re-serving the same one. Small rolling window (not the full 2000-entry
     // adEvents log) so a product can cycle back in after enough scrolling —
     // see sampleAffiliateCandidates' `excludeIds` doc comment.
-    if (type === "impression" && itemId) {
+    if (user && type === "impression" && itemId) {
       user.adSeenIds = user.adSeenIds || [];
       user.adSeenIds = user.adSeenIds.filter((id) => id !== itemId);
       user.adSeenIds.push(itemId);
@@ -634,11 +656,32 @@ export class FeedStore {
     }
 
     this.adEvents = this.adEvents || [];
-    this.adEvents.push({ userId, itemId, type, variant: meta.variant || null, at: nowIso(this.clock) });
+    this.adEvents.push({ userId: userId || null, itemId, type,
+      variant: meta.variant || null, slot: meta.slot || null, page: meta.page || null,
+      at: nowIso(this.clock) });
     if (this.adEvents.length > 2000) this.adEvents = this.adEvents.slice(-2000); // cap memory, most-recent-last
 
-    this._persist();
-    return user.adStats;
+    // 광고 노출은 스크롤마다 들어온다 — 요청마다 스토어 전체를 쓰면
+    // 그 자체가 서비스를 느리게 만든다(2026-08-06 홈 4초 사고와 같은 종류).
+    this._persistSoon();
+    return user ? user.adStats : null;
+  }
+
+  // 자리별 성과 — 관리자 화면이 읽는다. 실제로 센 값만 돌려준다.
+  adSlotReport(days = 7) {
+    const out = new Map();
+    const keys = Object.keys(this.adSlotStats || {}).sort().slice(-days);
+    for (const k of keys) {
+      for (const [slot, v] of Object.entries(this.adSlotStats[k] || {})) {
+        const cur = out.get(slot) || { slot, impressions: 0, clicks: 0 };
+        cur.impressions += v.impressions || 0;
+        cur.clicks += v.clicks || 0;
+        out.set(slot, cur);
+      }
+    }
+    return [...out.values()]
+      .map((r) => ({ ...r, ctr: r.impressions ? Math.round((r.clicks / r.impressions) * 10000) / 100 : 0 }))
+      .sort((a, b) => b.impressions - a.impressions);
   }
 
   // Recently-impressed ad/affiliate sample ids for this user (see
@@ -1208,6 +1251,7 @@ export class FeedStore {
       adminDisabledSources: this.adminDisabledSources || [],
       adminBannedWords: this.adminBannedWords || [],
       adEvents: this.adEvents || [],
+      adSlotStats: this.adSlotStats || {},
       traffic: this.traffic || {}, // 일별 방문 실측 — 재시작에도 유지 (2026-08-01)
       // 일별 에디션(브리핑+화제랭킹 스냅샷) — 자체 콘텐츠 아카이브의 원천이라
       // 재시작에도 반드시 유지 (애드핏 대응, David 2026-07-31)
@@ -1260,6 +1304,7 @@ export class FeedStore {
       this.adminDisabledSources = data.adminDisabledSources || [];
       this.adminBannedWords = data.adminBannedWords || [];
       this.adEvents = data.adEvents || [];
+      this.adSlotStats = data.adSlotStats || {};
       this.traffic = data.traffic || {};
       this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
       this.sourceHealth = data.sourceHealth || {};
