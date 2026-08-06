@@ -89,6 +89,20 @@ ok("애드핏이 수익 슬롯을 안 먹음", /const useAdfit = false;/.test(ht
 ok("애드핏 배선은 보존됨(승인 시 되살릴 수 있음)",
   /ensureAdfitPlacement/.test(html) && /kakao_ad_area/.test(html));
 
+// ── 3-B. 광고 카드가 **한 곳에서만** 그려지는가 (2026-08-06)
+//
+// 이 항목이 없어서 David가 같은 것을 네 번 지적했다. 광고를 그리는 함수가 둘이라
+// 어느 경로로 왔느냐에 따라 카드가 다르게 생겼고, 한쪽을 고치면 다른 쪽이 남았다.
+// 코드 수준에서 갈라짐을 막는다 — 화면을 안 열어도 잡힌다.
+const idx = await (await fetch(BASE + "/")).text();
+const adFn = idx.slice(idx.indexOf("function appendAdCard(item){"), idx.indexOf("// 슬롯 노출 로깅"));
+ok("광고 렌더러가 하나다", /coupangCardHtml\(link,/.test(adFn) && !/adProductNameHtml|ad-disclosure-pop/.test(adFn),
+  "서버 경로가 자기만의 마크업으로 되돌아갔다");
+const css = idx.replace(/\/\*[\s\S]*?\*\//g, "");
+ok("고지문 정의가 한 곳", (css.match(/\.ad-disclosure\{/g) || []).length === 1);
+ok("광고 썸네일이 자리와 무관", (css.match(/#feed[^{;]*\.ad-native \.ad-thumb\{/g) || []).length === 0
+  && /\.card \.ad-native \.ad-thumb\{[^}]*width:88px/.test(css));
+
 // ── 4. 자체 콘텐츠 — 애드핏 4차 반려 대응
 ok("홈에 자체 콘텐츠 블록 있음", /id="ownBlock"/.test(html));
 const brief = await json("/api/briefing");
