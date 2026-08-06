@@ -71,10 +71,23 @@ if (!s.body || !s.body.userId) {
   }
 }
 
-// ── 3. 애드핏 지면이 화면 코드에 살아 있는가 (심사 조건)
+// ── 3. 화면에 **빈 광고 칸**이 생기지 않는가
+//
+// 이 점검의 예전 판은 코드에 애드핏 지면이 "있는지"만 봤다. 그래서 8/8 통과인데
+// David 화면에는 "제휴 광고 / AD"와 고지문만 남은 169px 빈 칸이 있었다
+// (2026-08-06). 코드가 있는지가 아니라 **그 칸이 채워지는지**를 물어야 한다.
+//
+// 애드핏은 승인 전까지 지면을 만들되 아무것도 채우지 않고, 크로스오리진이라
+// 비었는지 화면에서 알 수도 없다. 그러니 **승인 전에는 지면 자체를 내주지 않는 것**만이
+// 확실하다. 승인되면 이 검사의 기대값을 뒤집는다.
 const html = await (await fetch(BASE + "/")).text();
-ok("애드핏 지면 코드 존재", /ensureAdfitPlacement/.test(html) && /kakao_ad_area/.test(html));
+const cfg = await json("/api/config");
+const adfitUnit = cfg.body && cfg.body.adfit && cfg.body.adfit.mobileUnit;
+ok("승인 전 애드핏 빈 지면을 안 그림", !adfitUnit,
+  adfitUnit ? "config가 광고단위를 내주고 있다 — 화면에 빈 칸이 생긴다" : "지면 미노출");
 ok("애드핏이 수익 슬롯을 안 먹음", /const useAdfit = false;/.test(html));
+ok("애드핏 배선은 보존됨(승인 시 되살릴 수 있음)",
+  /ensureAdfitPlacement/.test(html) && /kakao_ad_area/.test(html));
 
 // ── 4. 자체 콘텐츠 — 애드핏 4차 반려 대응
 ok("홈에 자체 콘텐츠 블록 있음", /id="ownBlock"/.test(html));

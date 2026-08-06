@@ -1374,3 +1374,27 @@ test("애드핏 폴백: 지면을 지우지 않고 접는다", async () => {
   // 폴백 카드도 클릭을 보고한다 — 안 그러면 또 클릭률 분모만 커진다
   assert.match(block, /API\.adSignal\(state\.userId, "feed-passback", "click"/, "폴백 카드 클릭 보고 누락");
 });
+
+test("광고: 승인 전 애드핏은 지면 자체를 내주지 않는다 (빈 칸 금지)", async () => {
+  // David 2026-08-06: "쿠팡 파트너스 광고 또 안 뜬다 자리만 차지하고 링크 없어.
+  // 재발 안 되게 해라 진짜."
+  //
+  // 애드핏은 승인 전까지 지면을 만들되 아무것도 채우지 않는다. 화면에는
+  // "제휴 광고 / AD"와 고지문만 남은 169px 빈 칸이 생기고, 크로스오리진이라
+  // 비었는지 알 수 없어 폴백도 안 걸린다. 사용자에게는 깨진 화면, 수익은 0.
+  //
+  // 3차 반려("광고를 설치한 이후 심사 진행이 가능합니다") 때문에 켰던 것인데,
+  // 4차 반려 사유는 "자체 콘텐츠 비중"으로 바뀌었다 — 지면 설치는 쟁점이 아니다.
+  const { readFileSync } = await import("node:fs");
+  const compose = readFileSync("deploy/docker-compose.yml", "utf8");
+  const m = compose.match(/ADFIT_ENABLED=\$\{ADFIT_ENABLED:-(\d)\}/);
+  assert.ok(m, "ADFIT_ENABLED 기본값 설정을 찾을 수 없다");
+  assert.equal(m[1], "0",
+    "기본값이 켜짐이면 새 배포마다 빈 광고 칸이 되살아난다 — 재심사 직전에만 켠다");
+
+  // 배선은 지운 게 아니다. 승인되면 되살릴 수 있어야 한다.
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  assert.match(html, /function ensureAdfitPlacement\(\)/, "애드핏 배선이 통째로 사라졌다");
+  assert.match(html, /if\(!unit \|\| document\.getElementById\("adfitSlot"\)\) return;/,
+    "광고단위가 없을 때 지면을 안 그리는 가드가 없다");
+});
