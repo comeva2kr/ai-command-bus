@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CATEGORIES, categoryLabel } from "../src/feed/taxonomy.js";
-import { keywordCategory, CATEGORY_KEYWORDS, OVERRIDE_CATEGORIES } from "../src/feed/classify.js";
+import { keywordCategory, CATEGORY_KEYWORDS, OVERRIDE_CATEGORIES, UNTRAINED_CATEGORIES } from "../src/feed/classify.js";
 import { catKo } from "../src/feed/datastory.js";
 import { contextOf } from "../src/feed/ad-matrix.js";
 
@@ -88,4 +88,36 @@ test("광고 맥락 — 패션·예술은 생활 재고로, 부동산은 붙이�
   assert.equal(contextOf("fashion"), "life");
   assert.equal(contextOf("art"), "life");
   assert.equal(contextOf("realestate"), "news", "부동산은 기본값(news)으로 떨어져야 한다");
+});
+
+test("신설 카테고리로 선언된 소스를 분류기가 덮어쓰지 않는다", async () => {
+  // 2026-08-07 라이브 실측: 카테고리를 만들고 소스를 재배정했는데 풀에 **0건**이었다.
+  //   hypebeast           registry fashion    → 분류기가 culture로 덮어씀
+  //   hankyung-realestate registry realestate → 분류기가 **auto**로 덮어씀
+  //
+  // 분류기 코퍼스에 realestate·fashion·art 라벨이 없다. 예측이 거기로 나올 수
+  // 없으니 **가장 가까운 옛 라벨로 반드시 틀린다.** 하입비스트를 연예로,
+  // 부동산 기사를 자동차로 보내는 추측보다 "이 소스는 패션이다"라는 선언이 낫다.
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const src = { async fetch() {
+    return [
+      { id: "a", title: "Nike Air Max 신상 컬러웨이 공개", url: "https://example.org/1",
+        source: "hypebeast", category: "fashion", kind: "news" },
+      { id: "b", title: "서울 아파트 전셋값 오름세 지속", url: "https://example.org/2",
+        source: "hankyung-realestate", category: "realestate", kind: "news" },
+      { id: "c", title: "국립현대미술관 회고전 개막", url: "https://example.org/3",
+        source: "hyperallergic", category: "art", kind: "news" }
+    ];
+  } };
+  const items = await new FeedEngine(null, [src]).pool();
+  const got = Object.fromEntries(items.map((i) => [i.id, i.category]));
+  assert.equal(got.a, "fashion", `하입비스트가 ${got.a}로 바뀌었다`);
+  assert.equal(got.b, "realestate", `한경 부동산이 ${got.b}로 바뀌었다`);
+  assert.equal(got.c, "art", `하이퍼알러직이 ${got.c}로 바뀌었다`);
+});
+
+test("UNTRAINED_CATEGORIES가 신설 셋을 정확히 담는다", () => {
+  // 학습 코퍼스에 이 라벨들이 들어오면 여기서 빼야 한다 — 그때까지는
+  // 소스 선언을 지킨다. 이 테스트는 그 계약을 눈에 보이게 둔다.
+  assert.deepEqual([...UNTRAINED_CATEGORIES].sort(), ["art", "fashion", "realestate"]);
 });

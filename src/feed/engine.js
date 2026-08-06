@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
-import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY } from "./classify.js";
+import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, UNTRAINED_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
 import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
@@ -777,6 +777,11 @@ export class FeedEngine {
     for (const item of capped) {
       if (item.source === "seed" || item.source === "me") continue;
       if ((item.topics || []).includes("politics")) continue;
+      // 소스가 신설 카테고리(부동산·패션·예술)를 선언했으면 재분류하지 않는다.
+      // 분류기 코퍼스에 그 라벨이 없어 예측이 거기로 나올 수 없고, 그래서
+      // **가장 가까운 옛 라벨로 반드시 틀린다** — 실측으로 하입비스트가 culture로,
+      // 한경 부동산이 auto로 덮어써지고 있었다(신설 카테고리 라이브 0건의 원인).
+      if (UNTRAINED_CATEGORIES.has(item.category)) continue;
       // 섹션 뉴스: 등록 분류 유지가 원칙이되, 자동차 사전만 예외로 적용한다
       // (시승기가 경제지에 실리는 실제 사례 — 근거는 classify.js 주석 참고).
       const sectioned = isSectionedNews(item);

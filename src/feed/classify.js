@@ -228,11 +228,25 @@ export const TRAIN_LABELS = new Map([
 // 코퍼스는 구어체 그 자체라서다. 이 두 클래스는 모델에 **남겨 둔다** —
 // 구어체 자질을 흡수해 business 등으로 새는 것을 막는 완충재 역할 — 하지만
 // 예측이 거기로 떨어지면 덮어쓰지 않고 기권으로 취급한다.
-// 2026-08-06: 신설 셋을 넣는다. 이 소스들은 registry에 business·culture로
-// 선언돼 있는데(그게 그동안의 유일한 칸이었다), 내용은 부동산·패션·예술이다.
-// 여기 없으면 소스 선언이 이겨서 새 카테고리로 절대 안 간다.
+// 2026-08-07: 신설 셋도 넣는다. 학습 모델이 언젠가 이 라벨을 배우면 예측이
+// 여기로 떨어질 수 있어야 한다. (지금은 코퍼스에 없어 예측되지 않는다.)
 export const OVERRIDE_CATEGORIES = new Set(["business", "sports", "culture", "science", "tech", "auto", "life",
   "realestate", "fashion", "art"]);
+
+// 분류기가 **학습한 적 없는** 카테고리 — 2026-08-07 신설 셋.
+//
+// 소스가 이 분야를 선언했다면 그 선언을 지킨다. 실측(2026-08-07 라이브):
+//   hypebeast          registry fashion    → 분류기가 culture로 덮어씀
+//   hankyung-realestate registry realestate → 분류기가 **auto**로 덮어씀
+// 새 카테고리를 만들었는데 라이브 풀에 0건이었던 이유가 이것이다.
+//
+// 모델 코퍼스에 realestate·fashion·art 라벨이 없으니 예측이 거기로 나올 수
+// 없고, 그래서 **가장 가까운 옛 라벨로 반드시 틀린다.** 하입비스트를 연예로,
+// 부동산 기사를 자동차로 보내는 추측보다 "이 소스는 패션이다"라는 선언이 낫다
+// — 상세 광고 매칭에서 이미 쓴 원칙과 같다(소스가 밝힌 분야를 먼저 본다).
+//
+// 학습 코퍼스에 이 라벨들이 들어오면 이 집합에서 빼면 된다.
+export const UNTRAINED_CATEGORIES = new Set(["realestate", "fashion", "art"]);
 
 // 분류 결과로 소스 카테고리를 덮어쓸 대상 — 혼합 게시판만. 학습 소스와
 // gnews 종합 섹션(news가 맞는 라벨)은 건드리지 않는다.
