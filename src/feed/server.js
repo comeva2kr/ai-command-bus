@@ -350,6 +350,87 @@ export function createServer(opts = {}) {
   // ledger for the login->callback round trip; opts.authFetch lets tests mock
   // every provider's token/userinfo endpoints with no network access (server
   // itself always defaults to the real global fetch).
+  // 홈에 심는 자체 콘텐츠(SSR seed)를 만든다. **요청 밖에서** 돈다.
+  // 여기서 도는 briefing()·rankingTop()은 수만 건 풀을 훑는 동기 계산이라,
+  // 요청 안에서 부르면 그 시간만큼 서버가 통째로 멈춘다(실측 4.0초).
+  const HOME_SEED_TTL_MS = 3 * 60 * 1000;
+  const homeSeed = { html: null, at: 0, building: false };
+  async function buildHomeSeed() {
+    let seed = "";
+    let ownSeed = "";
+
+        // 자체 콘텐츠 블록(#ownBlock)도 서버에서 채운다.
+        //
+        // 검수(2026-08-06)에서 잡힌 것: 애드핏 반려 대응으로 만든 그 블록이
+        // **JS로만 채워져서** 원본 HTML에는 빈 <section>이었다. 심사·크롤러가
+        // JS를 안 돌리면 여전히 "아웃링크 비중이 높은" 화면 그대로다.
+        // 바로 아래 briefStrip·feedSkel에는 이미 같은 처방을 해 뒀는데
+        // 정작 이번 산출물만 빠뜨렸다 — 국지적으로 본 대가다.
+        try {
+          // **홈은 seed를 기다리지 않는다.**
+          //
+          // briefing()·rankingTop()은 수집 풀(_items)과 외부 트렌드 호출을
+          // 거친다. 풀이 비어 있으면 84개 소스를 다 모을 때까지 기다리는데,
+          // 그동안 **홈이 통째로 막힌다** — 실측(2026-08-06): /api/health와
+          // /api/config는 40~200ms인데 / 만 45초 타임아웃이었다.
+          //
+          // seed는 크롤러·심사 봇을 위한 덤이지 홈이 뜨는 조건이 아니다.
+          // 제때 안 오면 없이 내보내고, JS가 뜨면 어차피 같은 자리를 채운다.
+          const b = await engine.briefing();
+          const one = ((b && b.issues) || []).find((i) => i && i.headline && i.paragraph);
+          if (one) {
+            const slotName = (b.slot && b.slot.label) ? `${b.slot.label} 브리핑` : "지금 브리핑";
+            ownSeed =
+              `<div class="ob-head"><span class="ob-tag">${escapeHtml(slotName)}</span></div>` +
+              (b.digestSummary ? `<p class="ob-sum">${escapeHtml(b.digestSummary)}</p>` : "") +
+              `<ol><li><a href="/briefing">` +
+              `<span class="ob-h">${escapeHtml(one.headline)}</span>` +
+              `<span class="ob-p">${escapeHtml(String(one.paragraph).slice(0, 120))}</span>` +
+              `</a></li></ol>` +
+              `<a class="ob-more" href="/briefing">오늘의 브리핑 전체 보기 →</a>`;
+          }
+        } catch { /* 편성 전이면 빈 블록 그대로 — 홈은 계속 뜬다 */ }
+        try {
+          // rankingTop은 { generatedAt, items } 를 돌려준다 — 배열이 아니다.
+          const top = ((await engine.rankingTop(20)) || {}).items || [];
+          // 우리가 직접 만드는 페이지로 가는 길 — 사람에게도 크롤러에게도
+          // 서비스의 구성이 보여야 한다. 예전엔 이 링크들이 드로어 안에만
+          // 있어서 /communities·/keywords는 홈에서 갈 방법이 아예 없었다
+          // (2026-08-04 실측: 링크 0개).
+          const navHtml =
+            `<nav class="seed-nav" aria-label="지금핫이 만드는 페이지">` +
+            [["/briefing", "오늘의 브리핑"], ["/ranking/daily", "화제 랭킹"],
+             ["/communities", "커뮤니티 순위"], ["/keywords", "화제 키워드"],
+             ["/trends", "실시간 트렌드"]]
+              .map(([href, label]) => `<a href="${href}">${escapeHtml(label)}</a>`).join("") +
+            `</nav>`;
+          if (top.length) {
+            // 제목만 심던 것을 **출처·실측 반응·발췌**까지로 넓힌다.
+            // 제목 12줄로는 "남의 제목 모음"과 구분되지 않고, 실제로 크롤러가
+            // 읽는 본문이 936자에 그쳤다. 반응 수치는 우리가 잰 값이고
+            // 발췌는 원문 200자 이내 인용이라 여기가 이 페이지의 알맹이다.
+            seed = navHtml + `<ol class="seed-list">` + top.map((i) => {
+              const react = [];
+              if (Number(i.score) > 0) react.push(`추천 ${Number(i.score).toLocaleString("ko-KR")}`);
+              if (Number(i.commentCount) > 0) react.push(`댓글 ${Number(i.commentCount).toLocaleString("ko-KR")}`);
+              const meta = [escapeHtml(i.sourceLabel || ""), react.join(" · ")].filter(Boolean).join(" · ");
+              const summary = typeof i.summary === "string" && i.summary.trim()
+                ? `<p class="seed-sum">${escapeHtml(maskProfanity(i.summary.slice(0, 200)))}</p>` : "";
+              return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>` +
+                `<span class="seed-src">${meta}</span>${summary}</li>`;
+            }).join("") + `</ol>`;
+          } else {
+            seed = navHtml;   // 수집 전이라도 구성은 보여준다
+          }
+        } catch {
+          // 수집 전이거나 실패하면 기존 스켈레톤이 남는다 — 홈은 계속 뜬다.
+          // rankingTop은 source가 "seed"인 항목을 제외하므로 FEED_DEV 개발
+          // 모드에서는 비어 있는 것이 정상이다(실수집 배포에서만 채워진다).
+        }
+      
+    return { seed, ownSeed };
+  }
+
   const authStates = new AuthStateStore();
   const authEnv = opts.authEnv || process.env;
 
@@ -2412,75 +2493,29 @@ ${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
         let seed = "";
         let ownSeed = "";
         if (p === "/" || p === "/index.html") {
-          // 자체 콘텐츠 블록(#ownBlock)도 서버에서 채운다.
+          // **요청이 seed를 기다리지 않는다.**
           //
-          // 검수(2026-08-06)에서 잡힌 것: 애드핏 반려 대응으로 만든 그 블록이
-          // **JS로만 채워져서** 원본 HTML에는 빈 <section>이었다. 심사·크롤러가
-          // JS를 안 돌리면 여전히 "아웃링크 비중이 높은" 화면 그대로다.
-          // 바로 아래 briefStrip·feedSkel에는 이미 같은 처방을 해 뒀는데
-          // 정작 이번 산출물만 빠뜨렸다 — 국지적으로 본 대가다.
-          try {
-            // **홈은 seed를 기다리지 않는다.**
-            //
-            // briefing()·rankingTop()은 수집 풀(_items)과 외부 트렌드 호출을
-            // 거친다. 풀이 비어 있으면 84개 소스를 다 모을 때까지 기다리는데,
-            // 그동안 **홈이 통째로 막힌다** — 실측(2026-08-06): /api/health와
-            // /api/config는 40~200ms인데 / 만 45초 타임아웃이었다.
-            //
-            // seed는 크롤러·심사 봇을 위한 덤이지 홈이 뜨는 조건이 아니다.
-            // 제때 안 오면 없이 내보내고, JS가 뜨면 어차피 같은 자리를 채운다.
-            const b = await withDeadline(engine.briefing(), 1200);
-            const one = ((b && b.issues) || []).find((i) => i && i.headline && i.paragraph);
-            if (one) {
-              const slotName = (b.slot && b.slot.label) ? `${b.slot.label} 브리핑` : "지금 브리핑";
-              ownSeed =
-                `<div class="ob-head"><span class="ob-tag">${escapeHtml(slotName)}</span></div>` +
-                (b.digestSummary ? `<p class="ob-sum">${escapeHtml(b.digestSummary)}</p>` : "") +
-                `<ol><li><a href="/briefing">` +
-                `<span class="ob-h">${escapeHtml(one.headline)}</span>` +
-                `<span class="ob-p">${escapeHtml(String(one.paragraph).slice(0, 120))}</span>` +
-                `</a></li></ol>` +
-                `<a class="ob-more" href="/briefing">오늘의 브리핑 전체 보기 →</a>`;
-            }
-          } catch { /* 편성 전이면 빈 블록 그대로 — 홈은 계속 뜬다 */ }
-          try {
-            // rankingTop은 { generatedAt, items } 를 돌려준다 — 배열이 아니다.
-            const top = ((await withDeadline(engine.rankingTop(20), 1200)) || {}).items || [];
-            // 우리가 직접 만드는 페이지로 가는 길 — 사람에게도 크롤러에게도
-            // 서비스의 구성이 보여야 한다. 예전엔 이 링크들이 드로어 안에만
-            // 있어서 /communities·/keywords는 홈에서 갈 방법이 아예 없었다
-            // (2026-08-04 실측: 링크 0개).
-            const navHtml =
-              `<nav class="seed-nav" aria-label="지금핫이 만드는 페이지">` +
-              [["/briefing", "오늘의 브리핑"], ["/ranking/daily", "화제 랭킹"],
-               ["/communities", "커뮤니티 순위"], ["/keywords", "화제 키워드"],
-               ["/trends", "실시간 트렌드"]]
-                .map(([href, label]) => `<a href="${href}">${escapeHtml(label)}</a>`).join("") +
-              `</nav>`;
-            if (top.length) {
-              // 제목만 심던 것을 **출처·실측 반응·발췌**까지로 넓힌다.
-              // 제목 12줄로는 "남의 제목 모음"과 구분되지 않고, 실제로 크롤러가
-              // 읽는 본문이 936자에 그쳤다. 반응 수치는 우리가 잰 값이고
-              // 발췌는 원문 200자 이내 인용이라 여기가 이 페이지의 알맹이다.
-              seed = navHtml + `<ol class="seed-list">` + top.map((i) => {
-                const react = [];
-                if (Number(i.score) > 0) react.push(`추천 ${Number(i.score).toLocaleString("ko-KR")}`);
-                if (Number(i.commentCount) > 0) react.push(`댓글 ${Number(i.commentCount).toLocaleString("ko-KR")}`);
-                const meta = [escapeHtml(i.sourceLabel || ""), react.join(" · ")].filter(Boolean).join(" · ");
-                const summary = typeof i.summary === "string" && i.summary.trim()
-                  ? `<p class="seed-sum">${escapeHtml(maskProfanity(i.summary.slice(0, 200)))}</p>` : "";
-                return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>` +
-                  `<span class="seed-src">${meta}</span>${summary}</li>`;
-              }).join("") + `</ol>`;
-            } else {
-              seed = navHtml;   // 수집 전이라도 구성은 보여준다
-            }
-          } catch {
-            // 수집 전이거나 실패하면 기존 스켈레톤이 남는다 — 홈은 계속 뜬다.
-            // rankingTop은 source가 "seed"인 항목을 제외하므로 FEED_DEV 개발
-            // 모드에서는 비어 있는 것이 정상이다(실수집 배포에서만 채워진다).
+          // 원래 여기에 withDeadline(…, 1200)을 걸어 뒀는데 실측(2026-08-06)
+          // 홈 TTFB는 여전히 4.0초였다. 데드라인은 타이머고, 타이머는 이벤트
+          // 루프가 비어야 뜬다 — briefing()·rankingTop()이 수만 건 풀을 도는
+          // **동기 계산**이라 그동안 루프가 멈춰 있어 데드라인이 뜰 수 없다.
+          // 데드라인으로는 절대 못 고치는 종류였다.
+          //
+          // 그래서 계산을 요청 밖으로 옮긴다. 만들어 둔 것을 그대로 주고,
+          // 낡았으면 그것도 그대로 준 다음 뒤에서 새로 만든다. seed는
+          // 크롤러·심사 봇을 위한 덤이고 사람에게는 JS가 같은 자리를 채우니,
+          // 몇 분 낡은 것이 4초 기다림보다 낫다.
+          const cached = homeSeed.html;
+          if (cached) { seed = cached.seed; ownSeed = cached.ownSeed; }
+          const age = cached ? Date.now() - homeSeed.at : Infinity;
+          if (age > HOME_SEED_TTL_MS && !homeSeed.building) {
+            homeSeed.building = true;
+            buildHomeSeed().then((next) => {
+              if (next) { homeSeed.html = next; homeSeed.at = Date.now(); }
+            }).catch(() => {}).finally(() => { homeSeed.building = false; });
           }
         }
+        
         return serveStatic(res, p, seed, ownSeed);
       }
 
@@ -2514,6 +2549,15 @@ if (process.argv[1] && process.argv[1].endsWith("server.js")) {
   const server = createServer();
   server.listen(port, () => {
     console.log(`personalized feed running at http://localhost:${port}`);
+    // 홈 SSR seed를 미리 만들어 둔다. 만드는 일이 요청 밖으로 나갔으니
+    // 아무도 안 부르면 첫 방문자(또는 심사 봇)가 빈 자체 콘텐츠 블록을 본다.
+    // 요청 한 번이 곧 "만들어 둬라"라서, 우리가 먼저 한 번 부른다.
+    setTimeout(() => {
+      fetch(`http://127.0.0.1:${port}/`).catch(() => {});
+      // 첫 호출은 캐시가 비어 있어 배경 작업만 걸어 놓고 끝난다.
+      // 다 만들어졌을 때쯤 한 번 더 불러 캐시가 실제로 찼는지 확인한다.
+      setTimeout(() => { fetch(`http://127.0.0.1:${port}/`).catch(() => {}); }, 20000);
+    }, 3000).unref?.();
     if (process.env.FEED_DB) console.log(`persisting to ${process.env.FEED_DB}`);
   });
 }
