@@ -6,13 +6,14 @@
 // aggregator. The client keeps the rendered DOM and restores scroll on back
 // navigation; the server just keeps handing out the next best unseen batch.
 
+import fs from "node:fs";
 import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
 import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
 import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
-import { destForDeal, destForText, ensureDealShare, capDeals } from "./deals.js";
+import { destForDeal, destForText, ensureDealShare, capDeals, dealRank } from "./deals.js";
 
 // 상품군 사전을 걸지 않는 분류. 사건·시사 기사에 "연관 광고"가 붙으면
 // 무관한 광고보다 더 나쁘다(2026-08-06 실측, engine의 adDest 주석 참고).
@@ -300,6 +301,18 @@ export class FeedEngine {
     this.sources = sources && sources.length ? sources : [new SeedSource()];
     this._cache = null; // collected items cache — the capped, ranked-over view of the pool
     this._pool = new Map(); // id -> { item, firstSeenAt } — the rolling accumulation pool
+    // 수집 풀을 디스크에 남긴다.
+    //
+    // ── 왜 (David 2026-08-06 "관리자 페이지 대시보드 로딩시간이 갑자기 엄청 길어졌어")
+    // 풀이 메모리에만 있어서, 재시작하면 첫 요청이 **84개 소스를 전부 수집할
+    // 때까지 막혔다.** 실측: 컨테이너 시작 00:23:33 → 수집 완료 00:25:59,
+    // 2분 26초. 그 사이 들어온 모든 요청(대시보드·앱·크롤러)이 그만큼 기다린다.
+    // 오늘 소스를 5곳 늘리고 배포를 여러 번 하면서 David가 계속 그 창에 걸렸다.
+    //
+    // 풀을 남겨 두면 재시작 직후 **바로** 지난 사이클 결과로 응답하고, 갱신은
+    // 뒤에서 돈다. 48시간 보존 상한은 그대로라 오래된 글이 되살아나지 않는다.
+    this._poolFile = process.env.FEED_POOL_FILE
+      || (store && store.file ? String(store.file).replace(/\.json$/, "") + "-pool.json" : null);
     this._clock = store && store.clock ? store.clock : null; // injectable time for tests
     // 카테고리 분류기 (David 2026-07-29 "칼같은 인덱싱"). 프로세스 수명 동안
     // 구글뉴스 섹션 라벨을 계속 흡수한다 — 15분마다 새 제목 수백 건이 공짜
@@ -320,7 +333,13 @@ export class FeedEngine {
   }
 
   async _items() {
-    if (!this._cache) await this.refresh();
+    // 디스크에 지난 사이클 결과가 있으면 그것으로 먼저 뜬다. 수집은 뒤에서
+    // 돌린다 — 첫 사용자가 84개 소스를 기다릴 이유가 없다.
+    if (!this._cache) {
+      const warm = this._loadPool();
+      if (warm) { this.refresh().catch(() => {}); }
+      else await this.refresh();
+    }
     // 풀 전체에 한 번 건다. 여기가 피드·랭킹·브리핑·공유가 모두 지나가는
     // 유일한 길목이라, 출력 지점마다 따로 거는 것보다 새는 곳이 없다
     // (2026-08-03 1차 시도에서 shareData에만 걸어 피드는 그대로였다).
@@ -470,6 +489,40 @@ export class FeedEngine {
   // 분 단위로 늘어난다. 그 사이 15분 타이머가 또 돌면 collect가 겹쳐 실행되고
   // 소켓과 워커가 계속 쌓인다. 이미 도는 사이클이 있으면 **그 약속을 함께
   // 기다린다** — 그냥 return하면 await하던 쪽이 갱신 전 데이터를 받는다.
+  // 풀을 원자적으로 저장한다(tmp + rename) — 쓰다가 죽어도 반쪽 파일이
+  // 남지 않는다. store._persist와 같은 방식이다. 실패는 조용히 넘긴다:
+  // 캐시를 못 남기는 것은 느려질 뿐이지 서비스가 멈출 일은 아니다.
+  _savePool() {
+    if (!this._poolFile) return;
+    try {
+      const rows = [...this._pool.values()];
+      const tmp = `${this._poolFile}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify({ savedAt: Date.now(), rows }));
+      fs.renameSync(tmp, this._poolFile);
+    } catch { /* 캐시일 뿐이다 */ }
+  }
+
+  // 디스크의 풀을 되살린다. 성공하면 true — 호출부가 "지금 응답할 수 있다"로 읽는다.
+  //
+  // 너무 오래된 파일은 쓰지 않는다. 48시간 보존 상한을 넘긴 풀을 되살리면
+  // 첫 화면이 통째로 만료된 글이 되고, 그건 느린 것보다 나쁘다.
+  _loadPool({ maxAgeMs = 6 * 3600 * 1000 } = {}) {
+    if (!this._poolFile || this._pool.size) return false;
+    let parsed;
+    try { parsed = JSON.parse(fs.readFileSync(this._poolFile, "utf8")); } catch { return false; }
+    if (!parsed || !Array.isArray(parsed.rows) || !parsed.rows.length) return false;
+    const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+    if (!Number.isFinite(parsed.savedAt) || now - parsed.savedAt > maxAgeMs) return false;
+    for (const row of parsed.rows) {
+      if (row && row.item && row.item.id) this._pool.set(row.item.id, row);
+    }
+    if (!this._pool.size) return false;
+    // 지난 사이클의 노출 후보를 그대로 되살린다 — 순위 재계산 없이 바로 뜬다.
+    this._cache = parsed.rows.map((r) => r.item);
+    this.lastRefreshedAt = parsed.savedAt;
+    return true;
+  }
+
   async refresh() {
     if (this._refreshing) return this._refreshing;
     this._refreshing = this._refresh().finally(() => { this._refreshing = null; });
@@ -702,6 +755,7 @@ export class FeedEngine {
     this._cache = capped;
     this._errors = errors;
     this.lastRefreshedAt = now;
+    this._savePool();
 
     // ---- 소스 헬스 판정 (health.js) ---------------------------------------
     // 여기가 사이클마다 반드시 지나는 자리라, 여기서 재지 않으면 "언제부터
@@ -873,6 +927,42 @@ export class FeedEngine {
       const rankedBySource = pool.length ? rankBySource(pool, now) : new Map();
       const seed = cursor + 1;
 
+      if (sort === "deals") {
+        // ── 핫딜 모아보기 (David 2026-08-06) ──
+        // "설정에 핫딜 모아보기 버튼 하나 만들자. 누르면 제품 판매 딜만
+        //  관심도 최신도 적절한 순으로 배열되게. 그리고 여기에 광고 진짜
+        //  적절하게 잘 배치하고."
+        //
+        // 통합 피드의 딜 상한(capDeals)·보장(ensureDealShare)은 여기서 쓰지
+        // 않는다 — 딜만 보러 온 화면이다. 다양성 인터리브도 걸지 않는다:
+        // 어느 게시판에 올라왔는지보다 무엇을 얼마에 파는지가 중요하다.
+        const dealPool = pool.filter((i) => i.isDeal === true);
+        const orderedDeals = dealPool
+          .map((item) => ({ item, score: dealRank(item, now) }))
+          .sort((a, b) => b.score - a.score);
+        this._lastSelectMeta = null;
+        const dealFresh = orderedDeals.slice(cursor, cursor + limit);
+        const dealBatch = dealFresh.map((r) =>
+          this._decorate(r.item, r.score, user, { now, sourceStats: editorialSourceStats.get(r.item.source) })
+        );
+        if (markSeen && dealBatch.length) this.store.markSeen(userId, dealBatch.map((b) => b.id));
+        // 광고를 조금 촘촘하게 낸다. 딜을 보러 온 사람은 이미 살 마음으로
+        // 읽고 있고, 각 딜의 상품군(dealDest)에 맞춘 배너가 붙는다 —
+        // 문맥이 맞는 자리라 같은 밀도라도 성가심이 덜하고 값은 더 나간다.
+        // 그래도 첫 두 칸은 콘텐츠로 둔다(광고부터 보이면 광고판이 된다).
+        const dealDisplay = this._monetize(userId, user, dealBatch, cursor, false,
+                                           { every: 5, skipFirst: 2 }).items;
+        return {
+          items: dealDisplay,
+          nextCursor: cursor + dealBatch.length,
+          exhausted: dealBatch.length < limit,
+          pageMeta: null,
+          phase: feedPhase(specializationLevel(user.preferences, user.feedbackCount)),
+          level: specializationLevel(user.preferences, user.feedbackCount),
+          feedbackCount: user.feedbackCount
+        };
+      }
+
       if (sort === "latest") {
         // ── 최신순: 시간버킷 × 소스 인터리브 (#12, ingest.js latestInterleave) ──
         // 2026-08-01 David 승인: 완전 중립 -> "약한 취향 반영". 시간 질서
@@ -983,35 +1073,31 @@ export class FeedEngine {
     // pass here would only undo that structure for no benefit.
     // 소스 보기: seen 필터가 없으므로 cursor를 진짜 오프셋으로 쓴다.
     // 홈: seen 기반 페이지네이션 그대로(항상 앞에서 limit개).
+    // ── 딜 조정은 **페이지를 자르기 전에** 한다.
+    //
+    // 처음엔 잘라 낸 페이지에서 딜을 덜어냈다. 그러면 한 페이지가 limit보다
+    // 짧아지고, 호출부는 그것을 "풀 소진"으로 읽어 무한스크롤을 멈춘다.
+    // 실기기(David 2026-08-06): "밑으로 내리니까 '새 화제글을 모으는 중'이라고
+    // 뜨고 더 글이 안 떠 한참 동안." 뒤에서 채우려 해도 후보 목록 자체가
+    // limit 길이라 채울 것이 없었다(실측: unseen 12칸).
+    //
+    // 후보 목록에서 먼저 조정하고 그다음에 자르면, 페이지는 늘 꽉 찬다.
+    // 통합 피드에만 적용한다 — 소스 칩으로 한 게시판을 고른 사람에게는
+    // 그 게시판을 그대로 보여 준다.
+    if (!source && unseen.length) {
+      const scoreOf = new Map(unseen.map((r) => [r.item.id, r.score]));
+      const list = unseen.map((r) => r.item);
+      const inList = new Set(list.map((i) => i.id));
+      const dealPool = (await this._items())
+        .filter((i) => i.isDeal === true && !inList.has(i.id) && !seen.has(i.id));
+      const withShare = ensureDealShare(list, dealPool, { is: (i) => i.isDeal === true });
+      const balanced = capDeals(withShare, { is: (i) => i.isDeal === true });
+      unseen = balanced.map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
+    }
+
     let fresh = source
       ? diversify(unseen).slice(cursor, cursor + limit)
       : unseen.slice(0, limit);
-
-    // 딜 글에 최소 비율을 보장한다 (David 2026-08-05).
-    //
-    // 왜 순위에 맡기지 않나: 딜 글은 반응 수치가 낮다 — 뽐뿌·딜바다는 목록에
-    // 추천·댓글이 사실상 0이라 화제성으로는 유머·뉴스를 절대 못 이긴다.
-    // 실측 결과 피드 120건 중 딜이 0건이었다. 그런데 딜은 **광고가 붙을 자리를
-    // 만드는 글**이라 우리에겐 값이 다르다: 이미 살 마음으로 읽던 사람 옆에
-    // 그 상품군 광고를 붙일 수 있다.
-    //
-    // 통합 피드에만 넣는다. 소스 칩으로 한 게시판을 골라 본 사람에게 다른
-    // 게시판 딜을 끼워 넣으면 그건 고른 것을 안 보여 주는 것이다.
-    if (!source && fresh.length) {
-      const inFeed = new Set(fresh.map((r) => r.item.id));
-      const pool = unseen
-        .filter((r) => !inFeed.has(r.item.id) && r.item.isDeal === true)
-        .map((r) => r.item);
-      const merged = ensureDealShare(fresh.map((r) => r.item), pool,
-                                     { is: (i) => i.isDeal === true });
-      // 넘치는 딜은 덜어낸다. 보장만 있고 상한이 없어서 뭉쳐 보였다
-      // (David 실기기 2026-08-06: 연달아 2개, 곧이어 4개).
-      const capped = capDeals(merged, { is: (i) => i.isDeal === true });
-      if (capped.length !== fresh.length || capped.some((it, i) => !fresh[i] || fresh[i].item.id !== it.id)) {
-        const scoreOf = new Map(fresh.map((r) => [r.item.id, r.score]));
-        fresh = capped.slice(0, limit).map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
-      }
-    }
 
     const level = specializationLevel(user.preferences, user.feedbackCount);
     const phase = feedPhase(level);
@@ -1082,7 +1168,9 @@ export class FeedEngine {
   // `narrowSource`: true when this call is for a source=-scoped view (a single
   // community/board), not the home feed — 라운드1 검수 #8: a niche view feels
   // ad-denser at the same cadence, so applyNarrowSourceDensity thins it out.
-  _monetize(userId, user, batch, cursor, narrowSource = false) {
+  // paramOverrides — 화면마다 광고 밀도가 달라야 할 때만 쓴다(핫딜 모아보기).
+  // 세션 총량 캡·민감 글 인접 규칙은 그대로 적용된다.
+  _monetize(userId, user, batch, cursor, narrowSource = false, paramOverrides = null) {
     const partnerId = process.env.COUPANG_PARTNER_ID || null;
     const preview = Boolean(process.env.AD_PREVIEW);
     if (!partnerId && !preview) return { items: batch, slots: [] }; // 절대원칙1: dummy content 금지
@@ -1090,6 +1178,7 @@ export class FeedEngine {
     const variant = assignVariant(userId);
     let params = applyVariant(adParams(), variant);
     params = applyNarrowSourceDensity(params, narrowSource);
+    if (paramOverrides) params = { ...params, ...paramOverrides };
 
     // 세션(24h 롤링) 총량 캡 — 라운드1 검수 #7. AD_MAX_PER_PAGE는 "이 요청
     // 1건"의 상한일 뿐이라, 이게 없으면 스크롤을 계속하는 세션은 노출이

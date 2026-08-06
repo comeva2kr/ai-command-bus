@@ -141,6 +141,25 @@ function dealHeat(item) {
   return c * 3 + s * 2 + Math.log10(1 + Math.max(0, v));
 }
 
+// 딜 전용 화면의 순서 — "관심도 최신도 적절한 순" (David 2026-08-06).
+//
+// 딜은 유통기한이 있다. 어제 1위였던 특가는 오늘 품절이거나 끝났다 — 반응만
+// 보면 죽은 딜이 계속 위에 남는다. 반대로 최신만 보면 아무도 안 본 글이
+// 첫 화면을 채운다. 그래서 **둘을 곱한다**: 반응을 로그로 눌러 한 건이
+// 판을 뒤집지 못하게 하고, 나이는 12시간 반감기로 깎는다.
+//
+// 반감기 12시간은 딜의 수명에 맞춘 값이다. 뉴스(HN 중력)보다 짧게 잡았다 —
+// 특가는 하루를 넘기면 대개 끝나 있다.
+export const DEAL_HALFLIFE_H = 12;
+export function dealRank(item, nowMs = Date.now()) {
+  const heat = Math.log10(1 + Math.max(0, dealHeat(item)));
+  const at = Date.parse(item.publishedAt || item.firstSeenAt || "") || nowMs;
+  const ageH = Math.max(0, (nowMs - at) / 3600000);
+  const fresh = Math.pow(0.5, ageH / DEAL_HALFLIFE_H);
+  // 반응이 0인 딜도 갓 올라왔으면 볼 값어치가 있다 — 바닥을 깔아 준다.
+  return (0.35 + heat) * fresh;
+}
+
 // 넘치는 딜을 덜어내고, 남긴 것끼리 최소 간격을 지키게 한다.
 export function capDeals(items, { maxShare = DEAL_MAX_SHARE, minGap = DEAL_MIN_GAP, is = isDeal } = {}) {
   const list = Array.isArray(items) ? items : [];
@@ -166,7 +185,22 @@ export function capDeals(items, { maxShare = DEAL_MAX_SHARE, minGap = DEAL_MIN_G
     lastKept = i;
   }
   void lastKept;
-  return list.filter((it, i) => !is(it) || keep.has(i));
+
+  // **지우지 않고 뒤로 민다.**
+  //
+  // 처음엔 넘치는 딜을 목록에서 걷어냈다. 그랬더니 한 페이지가 limit보다
+  // 짧아졌고, 호출부는 그것을 "풀 소진"으로 읽어 무한스크롤을 멈췄다 —
+  // 실기기(David 2026-08-06): "밑으로 내리니까 '새 화제글을 모으는 중'이라고
+  // 뜨고 더 글이 안 떠 한참 동안." 후보 목록이 짧을 때는 뒤에서 채울 것도
+  // 없어서, 지우는 방식으로는 "페이지를 채운다"와 "딜을 줄인다"를 동시에
+  // 만족시킬 수 없다.
+  //
+  // 뒤로 밀면 길이가 그대로라 페이지는 늘 꽉 차고, 앞쪽(사용자가 실제로 보는
+  // 자리)에는 가장 반응 큰 딜만 간격을 두고 남는다. 밀린 딜도 사라지지 않고
+  // 뒤 페이지나 핫딜 모아보기에서 그대로 보인다.
+  const front = list.filter((it, i) => !is(it) || keep.has(i));
+  const back = list.filter((it, i) => is(it) && !keep.has(i));
+  return front.concat(back);
 }
 
 export function ensureDealShare(items, deals, { share = DEAL_SHARE_DEFAULT, is = isDeal } = {}) {

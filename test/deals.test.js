@@ -123,10 +123,15 @@ test("딜이 뭉치지 않는다 — 상한과 최소 간격", async () => {
     mk(10, false), mk(11, false)
   ];
   const out = capDeals(list, { is: (i) => i.isDeal === true });
+  // 지우지 않고 뒤로 민다 — 길이가 줄면 무한스크롤이 죽는다.
+  assert.equal(out.length, list.length, "목록 길이가 줄었다");
   const idx = out.map((it, i) => (it.isDeal ? i : -1)).filter((i) => i >= 0);
   assert.ok(idx.length >= 1, "딜이 통째로 사라지면 안 된다");
-  for (let k = 1; k < idx.length; k++) {
-    assert.ok(idx[k] - idx[k - 1] >= DEAL_MIN_GAP, `딜이 ${idx[k] - idx[k - 1]}칸 간격으로 붙었다`);
+  // 앞쪽(남긴 딜)은 간격을 지킨다. 뒤로 민 것들은 목록 끝에 모여 있어도
+  // 사용자가 그 자리까지 스크롤하기 전에 다음 페이지로 넘어간다.
+  const kept = idx.filter((i) => i < out.length - list.filter((x) => x.isDeal).length + 1);
+  for (let k = 1; k < kept.length; k++) {
+    assert.ok(kept[k] - kept[k - 1] >= DEAL_MIN_GAP, `딜이 ${kept[k] - kept[k - 1]}칸 간격으로 붙었다`);
   }
   // 남는 건 가장 반응 큰 딜이어야 한다 — David: "가~장 핫한 것만".
   assert.ok(out.some((it) => it.id === "x1"), "댓글 17개짜리가 빠졌다");
@@ -172,5 +177,40 @@ test("서버 광고 후보가 문맥 매칭에 쓸 만큼 넉넉하다", async (
   } finally {
     if (prev === undefined) delete process.env.COUPANG_PARTNER_ID;
     else process.env.COUPANG_PARTNER_ID = prev;
+  }
+});
+
+test("딜을 덜어내도 한 페이지는 꽉 찬다 — 짧으면 무한스크롤이 죽는다", async () => {
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const { FeedStore } = await import("../src/feed/store.js");
+  // 실기기(David 2026-08-06): "밑으로 내리니까 '새 화제글을 모으는 중'이라고
+  // 뜨고 더 글이 안 떠 한참 동안." capDeals가 페이지에서 항목을 빼자
+  // batch.length < limit이 되어 exhausted가 참으로 뒤집혔다.
+  // 소스를 여러 곳으로 흩는다 — 한두 곳뿐이면 라운드로빈 후보 목록 자체가
+  // 페이지 길이만큼밖에 안 나와서, 뒤로 민 딜이 같은 페이지에 도로 들어온다.
+  // 실제 피드는 80곳이 넘는다.
+  const ORG = ["theqoo", "slrclub", "bobaedream", "etoland", "ruliweb", "clien"];
+  const DEALS = ["ppomppu-deal", "ppomppu-deal-os", "dealbada", "clien-jirum", "ruliweb-deal"];
+  const many = Array.from({ length: 60 }, (_, i) => ({
+    id: `x${i}`,
+    title: i % 3 === 0 ? `[쿠팡] 상품 ${i} (1,000원/무료)` : `일반 글 ${i}`,
+    url: `https://example.com/${i}`,
+    source: i % 3 === 0 ? DEALS[i % DEALS.length] : ORG[i % ORG.length],
+    publishedAt: new Date(Date.now() - i * 60000).toISOString(),
+    commentCount: 60 - i,
+    tags: [], topics: [], summary: '', category: 'life', lang: 'ko'
+  }));
+  const src = { id: "mix", kind: "community", async fetch() { return many; } };
+  const store = new FeedStore();
+  const engine = new FeedEngine(store, [src]);
+  const user = store.createUser();
+  const res = await engine.getFeed(user.id, { limit: 12, cursor: 0 });
+  const organic = res.items.filter((x) => x.via !== "ad");
+  assert.equal(organic.length, 12, `한 페이지가 ${organic.length}칸 — 조정하면서 길이가 줄었다`);
+  assert.equal(res.exhausted, false, "볼 글이 남았는데 소진으로 표시됐다");
+  // 사용자가 먼저 보는 앞쪽에는 딜이 뭉치지 않아야 한다.
+  const flags = organic.map((x) => !!x.isDeal);
+  for (let i = 1; i < flags.length; i++) {
+    assert.ok(!(flags[i] && flags[i - 1]), `${i}번째에서 딜이 연달아 나왔다`);
   }
 });
