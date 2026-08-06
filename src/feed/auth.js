@@ -286,6 +286,33 @@ export function serializeDeviceCookie(userId, { secure = true } = {}) {
   return attrs.join("; ");
 }
 
+// ── 방문자 쿠키 (2026-08-06)
+//
+// nh_cid는 **계정**을 담는다. 그래서 계정이 만들어지는 시점(/api/session)에만
+// 심긴다 — 앱 화면을 연 사람에게만 붙는다는 뜻이다.
+//
+// 실측(2026-08-06): 하루 세션 287건 중 새 신원이 162건(57%)이고 쿠키로
+// 알아본 것은 51건(18%)이었다. 검색으로 /briefing에 도착해 읽고 나간 사람은
+// 쿠키를 못 받고, 다음에 와도 **처음 보는 사람**이 된다. 취향을 아무리 잘
+// 파악해도 다음 방문에 못 알아보면 전부 날아간다.
+//
+// 그래서 계정과 무관한 **방문자 식별자**를 따로 둔다. 아무 페이지에서나
+// 심을 수 있고, 계정을 새로 만들지 않으므로 빈 계정이 늘지도 않는다
+// (GA4의 client_id와 같은 자리).
+export const VISITOR_COOKIE = "nh_vid";
+
+export function serializeVisitorCookie(vid, { secure = true } = {}) {
+  const attrs = [
+    `${VISITOR_COOKIE}=${encodeURIComponent(vid)}`,
+    "Path=/",
+    `Max-Age=${DEVICE_MAX_AGE_SEC}`,
+    "HttpOnly",
+    "SameSite=Lax"
+  ];
+  if (secure) attrs.push("Secure");
+  return attrs.join("; ");
+}
+
 // 신원 확정 — GA4의 blended identity와 같은 우선순위.
 //
 //   1) 로그인 세션   가장 강하다. 기기가 몇 개든 한 사람으로 합쳐진다.

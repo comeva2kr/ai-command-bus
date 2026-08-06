@@ -78,3 +78,47 @@ test("발행 페이지가 자리 이름을 화면에 실어 보낸다", () => {
   assert.match(script, /IntersectionObserver/, "실제로 보였을 때가 아니라 렌더 시점에 센다");
   assert.match(script, /if\(seen\[slot\]\) return/, "같은 자리를 여러 번 센다");
 });
+
+test("우리가 그리는 자리 이름만 집계한다", async () => {
+  // 인증이 없으니 임의의 slot 문자열 3,000개를 0.8초에 밀어 넣을 수 있었다
+  // (적대적 검수 2026-08-06 P1, 재현됨). 그러면 관리자 화면의 자리별 성과가
+  // 통째로 거짓이 되고 — 우리는 그 표로 광고 배치를 정한다 —
+  // adSlotStats에 키가 무한히 늘어 저장 파일이 부푼다.
+  const { srv, base } = await listen();
+  try {
+    await post(base, { type: "impression", slot: "brief_mid" });
+    await post(base, { type: "impression", slot: "a".repeat(40) });
+    await post(base, { type: "impression", slot: "'; DROP TABLE" });
+    const r = await (await fetch(`${base}/api/admin/ads`, { headers: { "x-admin-token": process.env.ADMIN_TOKEN || "" } })).json().catch(() => null);
+    void r;
+  } finally { srv.close(); }
+  const src = readFileSync("src/feed/server.js", "utf8");
+  assert.match(src, /const KNOWN_AD_SLOT = \/\^\(/, "자리 이름 허용목록이 없다");
+  assert.match(src, /KNOWN_AD_SLOT\.test\(raw\) \? raw : "unknown"/, "목록 밖 값을 그대로 집계한다");
+  // 지우지 않고 한 칸으로 몰아 둔다 — 이상한 값이 들어온다는 사실은 보여야 한다.
+  assert.ok(!/KNOWN_AD_SLOT\.test\(raw\) \? raw : null/.test(src));
+});
+
+test("허용목록이 실제로 쓰는 자리를 전부 덮는다", () => {
+  // 새 자리를 만들고 목록에 안 더하면 그 성과가 "unknown"으로 뭉친다.
+  const src = readFileSync("src/feed/server.js", "utf8");
+  const re = /const KNOWN_AD_SLOT = (\/\^\(.*?\)\$\/)/s.exec(src);
+  assert.ok(re, "허용목록을 못 찾았다");
+  const allow = new RegExp(re[1].slice(1, -1));
+  const used = new Set();
+  for (const m of src.matchAll(/AD\((?:[^)]*?),\s*"([a-z_]+)"/g)) used.add(m[1]);
+  for (const m of src.matchAll(/`brief_s\$\{[^}]+\}`/g)) used.add("brief_s3");
+  const app = readFileSync("src/feed/public/index.html", "utf8");
+  if (/`feed\$\{i \+ 1\}`/.test(app)) used.add("feed7");
+  if (/"feed-passback"/.test(app)) used.add("feed-passback");
+  const missing = [...used].filter((s) => !allow.test(s));
+  assert.deepEqual(missing, [], `허용목록에 빠진 자리: ${missing.join(", ")}`);
+});
+
+test("분당 상한이 걸린다 — 디스크를 안 건드리는 카운터로", () => {
+  const src = readFileSync("src/feed/server.js", "utf8");
+  assert.match(src, /adSignalAllowed\(req\)/, "상한이 없다");
+  assert.match(src, /AD_SIGNAL_PER_MIN/);
+  // 맵이 무한히 자라면 그 자체가 사고다.
+  assert.match(src, /adSignalHits\.size > 5000.*adSignalHits\.clear\(\)/s);
+});

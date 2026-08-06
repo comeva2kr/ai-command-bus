@@ -132,9 +132,10 @@ export function keywordPage(items, tag, { limit = 20 } = {}) {
   let mine = items.filter((i) => extractTags(i.title || "").includes(tag));
   let matchedBy = "tag";
   if (!mine.length) {
-    // 한 글자 말로는 찾지 않는다 — 아무 제목에나 걸린다.
+    // 짧은 말로는 찾지 않는다. 두 글자도 흔한 조각과 겹쳐 엉뚱한 글이 묶인다
+    // (검수 2026-08-06 P2) — 이 페이지는 색인 대상이라 오탐이 그대로 검색에 남는다.
     const q = String(tag || "").trim().toLowerCase();
-    if (q.length < 2) return null;
+    if (q.length < 3) return null;
     mine = items.filter((i) => String(i.title || "").toLowerCase().includes(q));
     matchedBy = "text";
   }

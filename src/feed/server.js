@@ -57,6 +57,8 @@ import {
   AuthStateStore,
   parseCookies,
   DEVICE_COOKIE,
+  VISITOR_COOKIE,
+  serializeVisitorCookie,
   SESSION_COOKIE,
   KEY_COOKIE,
   serializeKeyCookie,
@@ -798,6 +800,45 @@ export function createServer(opts = {}) {
       });
     }
     return cached;
+  };
+
+  // 방문자 쿠키를 아무 페이지에서나 심는다.
+  //
+  // 이게 없으면 검색으로 발행 페이지에 도착한 사람이 다음에 또 와도
+  // 처음 보는 사람이 된다 — 취향도 재방문도 거기서 끊긴다.
+  // 계정을 만들지는 않는다(빈 계정이 늘지 않게). 식별자만 준다.
+  const ensureVisitor = (req, res) => {
+    const existing = parseCookies(req.headers.cookie)[VISITOR_COOKIE];
+    if (existing) return { vid: existing, isNew: false };
+    const vid = randomUUID().replace(/-/g, "");
+    const prev = res.getHeader("set-cookie");
+    const list = prev ? (Array.isArray(prev) ? prev.slice() : [prev]) : [];
+    list.push(serializeVisitorCookie(vid, { secure: isSecureRequest(req) }));
+    res.setHeader("set-cookie", list);
+    return { vid, isNew: true };
+  };
+
+  // 우리가 실제로 그리는 자리 이름. 새 자리를 만들면 여기에도 더한다 —
+  // 안 더하면 그 자리 성과가 "unknown"으로 뭉쳐 보이므로 곧바로 눈에 띈다.
+  const KNOWN_AD_SLOT = /^(page_bot|brief_mid|brief_s\d{1,2}|archive_(mid|bot)|briefcat_(mid|bot)|communities(_bot)?|community_(mid|bot)|keywords(_bot)?|keyword_(mid|bot)|rank_mid|trends_mid|report_(mid|bot)|feed\d{1,3}|feed-passback)$/;
+
+  // 아주 가벼운 분당 상한. 디스크를 안 건드리는 O(1) 카운터라 요청을 막지 않는다.
+  // 사람이 한 화면에서 낼 수 있는 광고 신호는 많아야 수십 건이다.
+  const AD_SIGNAL_PER_MIN = 120;
+  const adSignalHits = new Map();   // ip -> { minute, n }
+  const adSignalAllowed = (req) => {
+    const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
+      (req.socket && req.socket.remoteAddress) || "?";
+    const minute = Math.floor(Date.now() / 60000);
+    const cur = adSignalHits.get(ip);
+    if (!cur || cur.minute !== minute) {
+      // 분이 바뀌면 통째로 비운다 — 맵이 무한히 자라지 않게.
+      if (adSignalHits.size > 5000) adSignalHits.clear();
+      adSignalHits.set(ip, { minute, n: 1 });
+      return true;
+    }
+    cur.n += 1;
+    return cur.n <= AD_SIGNAL_PER_MIN;
   };
 
   const coupangBannerHtml = (category, size = null, pick = 0, slot = "page", dest = null, seen = null) => {
@@ -2428,6 +2469,17 @@ ${rankingRows(list, (above) => {
       // **익명도 받는다**(2026-08-06). 발행 페이지 방문자 대부분이 세션 없는
       // 검색 유입이라 userId를 요구하면 그 노출이 통째로 안 잡힌다.
       // sendBeacon으로도 오므로 응답 본문을 기다리지 않게 짧게 닫는다.
+      //
+      // 다만 **아무 값이나 받지는 않는다**(적대적 검수 2026-08-06 P1, 재현됨).
+      // 인증이 없으니 임의의 slot 문자열 3,000개를 0.8초에 밀어 넣을 수 있었고,
+      // 그러면 (1) 관리자 화면의 자리별 성과가 통째로 거짓이 되고
+      // — 우리는 그 표로 광고 배치를 정한다 —
+      // (2) adSlotStats에 키가 무한히 늘어 저장 파일이 부풀고, 결국 지연 저장이
+      // 커진 파일을 계속 쓰게 된다(홈 TTFB 4초 사고와 같은 구조).
+      //
+      // 자리 이름은 **우리가 코드에 박아 둔 리터럴뿐**이다. 목록 밖의 값은
+      // 집계에 넣지 않는다. 지우지 않고 "unknown" 한 칸으로 몰아 두어,
+      // 누가 이상한 값을 밀어 넣고 있다는 사실 자체는 보이게 남긴다.
       if (p === "/api/ad-signal" && req.method === "POST") {
         let body = null;
         try { body = await readBody(req); } catch { body = null; }
@@ -2435,7 +2487,9 @@ ${rankingRows(list, (above) => {
         if (body.userId && !store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         const type = body.type === "click" || body.type === "impression" ? body.type : null;
         if (!type) return send(res, 400, { error: "type must be impression or click" });
-        const slot = typeof body.slot === "string" ? body.slot.slice(0, 40) : null;
+        const raw = typeof body.slot === "string" ? body.slot.slice(0, 40) : null;
+        const slot = raw ? (KNOWN_AD_SLOT.test(raw) ? raw : "unknown") : null;
+        if (!adSignalAllowed(req)) return send(res, 429, { error: "too many" });
         const page = typeof body.page === "string" ? body.page.slice(0, 60) : null;
         const stats = store.recordAdEvent(body.userId || null, body.itemId, type,
           { variant: body.variant, slot, page });
