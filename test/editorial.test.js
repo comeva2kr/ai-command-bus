@@ -172,6 +172,7 @@ test("editorial: 번역/해외형 fires for translated overseas items, stating o
     score: 850,
     commentCount: 5,
     translated: true,
+    summary: "옮겨온 발췌가 실제로 있다",
     publishedAt: hoursAgo(72) // old enough to avoid 급상승형
   };
   const note = buildEditorialNote(item, { now: fixedNow });
@@ -182,10 +183,34 @@ test("editorial: 번역/해외형 fires for translated overseas items, stating o
 });
 
 test("editorial: 번역/해외형 with no score still says something honest, with no number at all", () => {
-  const item = { kind: "community", source: "tildes", sourceLabel: "틸데스", score: 0, commentCount: 0, translated: true };
+  const item = { kind: "community", source: "tildes", sourceLabel: "틸데스", score: 0, commentCount: 0,
+    translated: true, summary: "옮겨온 발췌가 실제로 있다" };
   const note = buildEditorialNote(item, { now: fixedNow });
   assert.equal(note, "틸데스, 한글로 옮겨왔어요");
   assert.equal(extractNumbers(note).length, 0);
+});
+
+// David 2026-08-06 제보: 상세 화면에 "Slashdot, 한글로 옮겨왔어요"라고 적혀
+// 있는데 정작 그 아래 옮겨온 본문이 한 줄도 없었다. 옮긴 것이 제목뿐인데
+// 문장은 본문까지 옮겼다고 읽힌다.
+//
+// 발췌가 없는 경우는 둘이고 **둘 다 이 문장을 쓸 수 없다**:
+//   · 해커뉴스·Tildes처럼 원래 발췌가 없는 링크 애그리게이터
+//   · 번역기가 요약을 못 옮겨 translate.js가 발췌를 버린 경우
+// 위 두 테스트가 정확히 이 잘못된 동작을 못 박고 있었다(summary 없이 통과).
+test("editorial: 발췌가 없으면 '한글로 옮겨왔어요'라고 쓰지 않는다", () => {
+  const base = { kind: "community", source: "slashdot", sourceLabel: "Slashdot",
+    score: 0, commentCount: 0, translated: true, publishedAt: hoursAgo(72) };
+  for (const summary of [undefined, null, "", "   "]) {
+    const note = buildEditorialNote({ ...base, summary }, { now: fixedNow });
+    assert.ok(!/옮겨왔어요/.test(note || ""),
+      `발췌 ${JSON.stringify(summary)}인데 옮겨왔다고 씀: ${note}`);
+  }
+  // 발췌가 없어도 다른 진짜 신호가 있으면 그 신호로는 말할 수 있다 —
+  // 번역 문장만 막는 것이지 노트 자체를 막는 게 아니다.
+  const withSignal = buildEditorialNote(
+    { ...base, summary: "", score: 850, commentCount: 5 }, { now: fixedNow });
+  assert.ok(!/옮겨왔어요/.test(withSignal || ""));
 });
 
 test("editorial: all-zero/missing data returns '' — no forced filler sentence", () => {

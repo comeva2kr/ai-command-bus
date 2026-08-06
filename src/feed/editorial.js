@@ -168,7 +168,18 @@ export function buildEditorialNote(item, context = {}) {
 
   // 6. 번역/해외형 — item.translated is only ever set true by translate.js
   // once a real machine translation actually ran (see TranslatingSource).
-  if (item.translated === true) {
+  // 발췌가 있을 때만 쓴다 (David 2026-08-06 제보).
+  //
+  // "한글로 옮겨왔어요"라고 써 놓고 본문이 없는 화면이 나왔다. 옮겨온 것이
+  // 제목뿐인데 문장은 본문까지 옮겼다고 읽힌다 — 이 파일의 대원칙(실측되지
+  // 않은 것을 말하지 않는다)에 그대로 어긋난다.
+  //
+  // 발췌가 없는 경우는 두 가지고 **둘 다 이 문장을 못 쓴다**:
+  //   · 해커뉴스·Tildes처럼 원래 발췌가 없는 링크 애그리게이터 (정상)
+  //   · 번역기가 요약을 못 옮겨 translate.js가 발췌를 버린 경우
+  // 어느 쪽이든 아래 규칙(교차보도·순위 등)으로 넘어가고, 걸리는 게 없으면
+  // 노트를 안 붙인다. 빈 노트가 거짓 노트보다 낫다.
+  if (item.translated === true && item.summary && String(item.summary).trim()) {
     return score > 0 ? `${label} ${formatCount(score)}점, 한글로 옮겨왔어요` : `${label}, 한글로 옮겨왔어요`;
   }
 

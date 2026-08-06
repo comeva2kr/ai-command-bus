@@ -1256,8 +1256,8 @@
       "httpsOk": true,
       "adapter": {
         "type": "rss",
-        "url": "https://rss.slashdot.org/Slashdot/slashdot/to",
-        "note": "David 2026-07-24 신규 추가. 해외 개발자 커뮤니티 공식 RSS(RDF/RSS 0.9 포맷 — Atom도 표준 RSS 2.0도 아니지만 <item><title>/<link> 구조가 동일해 기존 parseRss가 코드 변경 없이 파싱). robots.txt에 개별 봇 차단은 검색/제출/댓글 등 UI 경로뿐(피드 무관), llms.txt까지 Allow. 2026-07-24 검증: 200, 15건 파싱 성공(제목+링크 확보 — 이 피드는 pubDate/description 자체가 없어 날짜는 null, 요즘IT와 동일한 소스 스펙 한계). lang:en — 번역 파이프라인 대상."
+        "url": "https://rss.slashdot.org/Slashdot/slashdotMain",
+        "note": "David 2026-07-24 신규 추가. 해외 개발자 커뮤니티 공식 RSS(RDF/RSS 0.9 포맷 — Atom도 표준 RSS 2.0도 아니지만 <item><title>/<link> 구조가 동일해 기존 parseRss가 코드 변경 없이 파싱). robots.txt에 개별 봇 차단은 검색/제출/댓글 등 UI 경로뿐(피드 무관), llms.txt까지 Allow. 2026-07-24 검증: 200, 15건 파싱 성공(제목+링크 확보 — 2026-08-06 피드 교체(/slashdot/to → /slashdotMain): 옛 피드는 발췌·날짜가 0/15였고 그것을 '소스 스펙 한계'로 적어 뒀으나 실측 결과 **피드 선택 실수**였다. slashdotMain은 <description>에 실제 발췌가 15/15 들어온다. 상세 화면에서 '한글로 옮겨왔어요'라고 써 놓고 정작 본문이 없던 원인(David 2026-08-06 제보). 날짜는 두 피드 모두 없다(RDF dc:date 미파싱 — 별건)). lang:en — 번역 파이프라인 대상."
       }
     },
     {
