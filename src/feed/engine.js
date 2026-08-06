@@ -1395,12 +1395,32 @@ export class FeedEngine {
     let heat = null;
     // 아직 표본이 모자란 글(수집 중)은 "계산 중"으로 알려 준다 — 클라이언트가
     // 빈칸 대신 스윕 애니메이션을 그린다(David 2026-08-01).
-    const heatPending = Boolean(hh && hh.length > 0 && hh.length < 4);
-    if (hh && hh.length >= 4) {
-      const deltas = [];
-      for (let i = 1; i < hh.length; i++) deltas.push(Math.max(0, (hh[i] || 0) - (hh[i - 1] || 0)));
-      const dMax = Math.max(...deltas);
-      heat = dMax > 0 ? deltas.map((v) => Math.round((v / dMax) * 100) / 100) : deltas.map(() => 0);
+    // ── 화제도 그래프: 증가분이 아니라 **쌓인 값**을 그린다 (2026-08-06)
+    //
+    // David: "화제성 그래프... 되는 것처럼 보이는 게 없어 모조리 로딩중으로만 보여."
+    //
+    // 실측(라이브 30건): heatHist는 30건 전부 있는데 heat는 5건뿐이었다.
+    // 원인은 **증가분(미분)만 그렸기 때문**이다. 이미 반응이 쌓인 글은 더 이상
+    // 안 오르므로 증가분이 전부 0이 되고, 막대 높이가 0이라 빈 줄로 보인다 —
+    // **정작 그 글이 화제인 글인데도** 아무것도 안 그려졌다.
+    // 게다가 4눈금 미만이면 아예 null이라 "계산 중" 점선만 영원히 남았다.
+    //
+    // 그래서 누적값 자체를 그린다(스파크라인의 표준). 각 글 안에서 min~max로
+    // 정규화하므로 소스마다 스케일이 달라도 모양이 나온다. 변화가 없으면
+    // 평평한 선이 보인다 — 그것도 "변화가 없다"는 정보다. 빈 줄보다 낫다.
+    //
+    // 2눈금이면 그린다. 두 점이면 선분 하나이고, 그 자체로 오르는지 아닌지가 보인다.
+    const HEAT_MIN_POINTS = 2;
+    const heatPending = Boolean(hh && hh.length > 0 && hh.length < HEAT_MIN_POINTS);
+    if (hh && hh.length >= HEAT_MIN_POINTS) {
+      const lo = Math.min(...hh);
+      const hi = Math.max(...hh);
+      const span = hi - lo;
+      heat = span > 0
+        ? hh.map((v) => Math.round(((v - lo) / span) * 100) / 100)
+        // 값이 내내 같으면 반응이 멈춘 글이다. 0이 아니라 낮은 평지로 그린다 —
+        // 0으로 두면 막대가 사라져 "그래프가 없는 것"과 구분이 안 된다.
+        : hh.map(() => 0.15);
     }
     const publicItem = { ...item };
     // 내부 소유자 id는 공개 응답에 싣지 않는다 — 화면은 쓰지 않고, 새어 나가면

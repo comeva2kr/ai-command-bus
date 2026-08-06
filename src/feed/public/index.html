@@ -3425,7 +3425,8 @@ function heatRuleHtml(item){
   // 수집 중: 13칸 자리를 잡고 좌→우 스윕. CSS 애니메이션 하나(transform)라
   // JS 타이머·리페인트 없이 GPU 합성만 쓴다. 표본이 4개 되는 순간 실제
   // 그래프로 바뀐다(별도 폴링 없이 다음 피드 응답에서 자연 교체).
-  if(!h || h.length < 3){
+  // 2점이면 그린다 — 선분 하나로도 오르는지 아닌지가 보인다(서버와 같은 기준).
+  if(!h || h.length < 2){
     if(!item.heatPending) return "";
     return `<div class="heat pending" aria-hidden="true" title="화제도 계산 중">${
       Array.from({length: HEAT_SLOTS}, ()=>'<i class="e"></i>').join("")}</div>`;
