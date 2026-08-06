@@ -15,6 +15,7 @@ import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
 import { AD_DISCLOSURE as COUPANG_DISCLOSURE } from "./ad-copy.js";
 import { destForDeal, destForText, ensureDealShare, capDeals, dealRank } from "./deals.js";
+import { chosenCategories, ensureTasteShare, capOneCategory } from "./taste-share.js";
 
 // 상품군 사전을 걸지 않는 분류. 사건·시사 기사에 "연관 광고"가 붙으면
 // 무관한 광고보다 더 나쁘다(2026-08-06 실측, engine의 adDest 주석 참고).
@@ -863,6 +864,9 @@ export class FeedEngine {
 
     let unseen;
     let collabBoosts = new Map();
+    // 취향 지분 보장이 끌어올 후보. **인스턴스 필드로 두면 안 된다** —
+    // 아래에 await가 끼어 있어 다른 요청이 그 사이에 덮어쓴다.
+    let tasteBase = null;
     if (source) {
       // "submit" is a pseudo-source: every user-submitted out-link, grouped by
       // provenance (via) rather than by the item's own out-link domain (which
@@ -926,6 +930,12 @@ export class FeedEngine {
       // 그래서 자르지 않고 순서만 내린다. 신호 있는 글이 먼저 나가고, 신호
       // 없는 글은 그 뒤에 남는다. 파서를 복구하면 이 강등은 저절로 무의미해진다.
       const pool = base;
+      // 취향 지분 보장이 끌어올 후보. **여기서 다시 거르지 않는다** —
+      // base가 이미 뮤트·차단·정치·성인·신선도 관문을 다 지난 목록이다.
+      // 관문을 두 벌로 두면 언젠가 한쪽만 고쳐져 뒤로 샌다(⑤ 검수 2026-08-06에서
+      // 관련글이 정확히 그랬고, 이 자리에서도 같은 실수를 한 번 냈다 —
+      // 뮤트한 소스가 취향 보장 경로로 되돌아와 테스트가 잡았다).
+      tasteBase = base;
 
       // "게시판별 핫 + 다양성 라운드로빈" (David 2026-07-24 redesign). Every
       // active source is already a community's own best/hot board (see
@@ -1120,7 +1130,27 @@ export class FeedEngine {
         .filter((i) => i.isDeal === true && !inList.has(i.id) && !seen.has(i.id));
       const withShare = ensureDealShare(list, dealPool, { is: (i) => i.isDeal === true });
       const balanced = capDeals(withShare, { is: (i) => i.isDeal === true });
-      unseen = balanced.map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
+
+      // ── 고른 취향이 피드의 주인이 되게 (2026-08-06)
+      //
+      // 실측: 스포츠만 고른 사용자의 피드가 sports 32% · humor 45%였다.
+      // 점수 경쟁에 맡기면 추천 수가 큰 커뮤니티가 이긴다(LinkedIn이 말하는
+      // 캘리브레이션 실패). X의 For You가 In-Network 지분을 아예 정해 두는 것과
+      // 같은 방식으로, 고른 카테고리에 최소 지분을 준다.
+      //
+      // **재료가 없으면 있는 만큼만.** 스포츠 글이 풀에 2%면 그만큼만 채워진다 —
+      // 없는 것을 만들지 않는다.
+      let arranged = balanced;
+      const cats = chosenCategories(user);
+      if (cats.size) {
+        const inNow = new Set(arranged.map((i) => i.id));
+        const tastePool = (tasteBase || []).filter(
+          (i) => cats.has(i.category) && !inNow.has(i.id)
+        );
+        const r = ensureTasteShare(arranged, tastePool, { cats });
+        arranged = capOneCategory(r.items);
+      }
+      unseen = arranged.map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
     }
 
     let fresh = source
