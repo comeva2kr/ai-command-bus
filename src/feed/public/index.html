@@ -599,11 +599,14 @@
      "보기좋게 깜밖이게 하자. 먼저 보기 유도하게. 고급스럽게, 튀지않고 은은하게."
 
      깜빡임(opacity 0↔1)은 싸구려로 보인다. 대신 **숨쉬는 테두리**로 한다:
-     accent 색 테두리와 아주 옅은 글로우가 5초 주기로 차올랐다 잦아든다.
+     accent 색 테두리와 아주 옅은 글로우가 3초 주기로 차올랐다 잦아든다.
+     처음엔 5초로 뒀는데 David 실기기에서 "눈에 너무 안 띄어"였다(2026-08-06) —
+     느리면 눈이 변화에 적응해 버려서 정지한 것처럼 보인다. 세기는 그대로 두고
+     주기만 줄인다. 튀지 않으면서 알아채게 하는 건 밝기가 아니라 리듬이다.
      글자는 건드리지 않는다 — 읽는 데 방해가 되면 은은한 게 아니다.
      한 번 보고 나면 클래스가 빠져 완전히 멈춘다. */
   .brief-card.is-new{border-color:color-mix(in srgb,var(--color-accent) 45%,var(--line));
-    animation:briefBreathe 5s ease-in-out infinite}
+    animation:briefBreathe 3s ease-in-out infinite}
   @keyframes briefBreathe{
     0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--color-accent) 0%,transparent);
             border-color:color-mix(in srgb,var(--color-accent) 28%,var(--line))}
@@ -614,7 +617,7 @@
      글자("NEW" 같은 배지)를 넣지 않는 이유: 카드 제목과 경쟁해서 튄다. */
   .brief-card.is-new .bc-cat::before{content:"";display:inline-block;width:5px;height:5px;
     border-radius:50%;background:var(--color-accent);margin-right:6px;vertical-align:middle;
-    animation:briefDot 5s ease-in-out infinite}
+    animation:briefDot 3s ease-in-out infinite}
   @keyframes briefDot{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1)}}
   /* 카테고리 카드는 **호흡하지 않는다.** 스트립 10장이 한꺼번에 맥동하면
      그건 은은한 게 아니라 화면 전체가 깜빡이는 것이다(실측 2026-08-06:

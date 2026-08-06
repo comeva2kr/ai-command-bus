@@ -34,8 +34,11 @@ test("깜빡임이 튀지 않는다 — 호흡, 그리고 움직임 축소 존�
   const h = html();
   // opacity 0↔1 점멸이 아니라 테두리·글로우가 차오르는 방식이어야 한다.
   assert.match(h, /@keyframes briefBreathe/);
-  assert.match(h, /\.brief-card\.is-new\{[^}]*animation:briefBreathe 5s/,
-    "주기가 5초가 아니다 — 빠르면 튄다");
+  // 5초로 시작했다가 3초로 줄였다 — David 실기기 "눈에 너무 안 띄어"(2026-08-06).
+  // 느리면 눈이 변화에 적응해 정지한 것처럼 보인다. 세기가 아니라 리듬 문제였다.
+  // 2초 밑으로 내려가면 그때는 깜빡임이 되어 "튀지 않게"를 어긴다.
+  const dur = Number((h.match(/\.brief-card\.is-new\{[^}]*animation:briefBreathe (\d+(?:\.\d+)?)s/) || [])[1]);
+  assert.ok(dur >= 2.5 && dur <= 4, `호흡 주기가 ${dur}초 — 2.5~4초 밖이면 튀거나 안 보인다`);
   // 글자를 흔들면 읽는 데 방해가 된다.
   assert.ok(!/\.brief-card\.is-new \.bc-title\{[^}]*animation/.test(h),
     "제목에 애니메이션이 걸렸다");
