@@ -206,7 +206,21 @@ export function parseRss(xml) {
       title,
       summary,
       url,
-      publishedAt: normalizeDate(tag(block, isAtom ? "updated" : "pubDate")),
+      // RSS 2.0은 <pubDate>, Atom은 <updated>, 그런데 **RDF(RSS 1.0)와 일부
+      // RSS 2.0 피드는 Dublin Core의 <dc:date>만 쓴다.** 그것을 안 읽어서
+      // 날짜가 통째로 null이 되고 있었다 (2026-08-06 실측):
+      //   · Slashdot(RDF)  — pubDate 0건, dc:date 16건 → 16/16 전부 null
+      //   · 경향신문(khan) — pubDate 0건, dc:date 50건 → 50/50 전부 null
+      // 경향신문 50건은 전부 **2시간 이내**의 기사인데 날짜가 없다는 이유로
+      // 신선도 중립(0.5)으로 고정돼 있었다 — 가장 신선한 축인데 그렇게 대우받지
+      // 못했다. 포맷 문제가 아니라 태그를 안 본 것이다(Date.parse는 두 형식
+      // 모두 파싱한다).
+      //
+      // 표준 태그를 먼저 보고 없을 때만 dc:date로 내려간다 — 둘 다 있는 피드에서
+      // 기존 동작이 바뀌지 않게.
+      publishedAt: normalizeDate(
+        tag(block, isAtom ? "updated" : "pubDate") || tag(block, "dc:date")
+      ),
       image: extractRssImage(block, rawDesc, originOf(url), rawContent),
       coverage: relatedCoverage(rawDesc)
     });
