@@ -1703,6 +1703,138 @@
         "type": "store",
         "note": "우리가 직접 고르고 쓴 딜(애드핏 P0-A ①). 수집하는 소스가 아니라 store에서 온다(StorePostsSource). 애드핏 4차 반려 사유가 '아웃링크 비중'이라, 커뮤니티에서 긁어 온 딜과 달리 이건 자체 콘텐츠다 — 우리가 고르고 우리가 쓴 소개이고 링크도 제휴 링크다. 가격·상품명은 David가 확인한 값만 저장한다(쿠팡 짧은 링크는 봇 차단 + JS 리다이렉트라 서버가 뽑을 수 없다, 2026-08-06 실측)."
       }
+    },
+    {
+      "id": "mk-realestate",
+      "label": "매경 부동산",
+      "labelKo": "매경 부동산",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "realestate"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.mk.co.kr/rss/50300009/",
+        "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
+      }
+    },
+    {
+      "id": "mk-stock",
+      "label": "매경 증권",
+      "labelKo": "매경 증권",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "markets"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.mk.co.kr/rss/50200011/",
+        "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
+      }
+    },
+    {
+      "id": "hankyung-realestate",
+      "label": "한경 부동산",
+      "labelKo": "한경 부동산",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "realestate"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.hankyung.com/feed/realestate",
+        "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
+      }
+    },
+    {
+      "id": "hankyung-stock",
+      "label": "한경 증권",
+      "labelKo": "한경 증권",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "markets"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.hankyung.com/feed/finance",
+        "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
+      }
+    },
+    {
+      "id": "chosunbiz-realestate",
+      "label": "조선비즈 부동산",
+      "labelKo": "조선비즈 부동산",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "realestate"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://biz.chosun.com/arc/outboundfeeds/rss/category/real_estate/?outputType=xml",
+        "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
+      }
+    },
+    {
+      "id": "chosunbiz-stock",
+      "label": "조선비즈 증권",
+      "labelKo": "조선비즈 증권",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": [
+        "markets"
+      ],
+      "adapter": {
+        "type": "rss",
+        "url": "https://biz.chosun.com/arc/outboundfeeds/rss/category/stock/?outputType=xml",
+        "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
+      }
     }
   ]
 }
