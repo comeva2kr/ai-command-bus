@@ -38,7 +38,7 @@ import { latestRelease } from "./release-notes.js";
 import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
-import { categoryLabel, sourceLabel } from "./taxonomy.js";
+import { categoryLabel, sourceLabel, tagLabel } from "./taxonomy.js";
 import { sendDigestPushes } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
 import { makeEnricher } from "./enrich.js";
@@ -2156,7 +2156,9 @@ ${rankingRows(list, (above) => {
         const t = topPreferences(prefs);
         space.taste = {
           categories: t.categories.map((c) => ({ ...c, label: categoryLabel(c.id) })),
-          tags: t.tags.map((x) => ({ ...x, label: "#" + x.id })),
+          // 한국어 이름을 붙인다 (David 2026-08-06). 예전엔 "#sneakers"처럼
+          // 영문 id가 그대로 화면에 찍혔다. 학습된 태그는 사전에 없어 id를 그대로 쓴다.
+          tags: t.tags.map((x) => ({ ...x, label: "#" + tagLabel(x.id) })),
           sources: t.sources.map((s) => ({ ...s, label: sourceLabel(s.id) })),
           disliked: t.disliked.map((d) => ({ ...d, label: categoryLabel(d.id) }))
         };

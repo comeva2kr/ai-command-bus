@@ -18,6 +18,77 @@ export const CATEGORIES = [
   { id: "politics", label: "정치", labelEn: "Politics" }
 ];
 
+// 태그의 한국어 이름 (David 2026-08-06).
+//
+// "사용성이 아주 매끄러울 수 있게 모든 화제나 정보에 대한 모든 유형별 태그들을
+//  뽑아서 정리하자."
+//
+// 그동안 화면에는 **영문 id가 그대로** 나왔다 — server.js가 `label: "#" + x.id`로
+// 만들었기 때문이다. 취향 대시보드에 "#sneakers", "#realestate", "#pc-gaming"이
+// 찍혔다. 한국어 서비스에서 관심사를 영어로 보여 주는 것은 그 자체로 새는 곳이다.
+//
+// TAGS 배열(문자열)은 **건드리지 않는다.** isKnownTag·설문·추천기가 전부 이
+// 배열을 문자열로 다루고 있어, 구조를 바꾸면 그 전부를 함께 고쳐야 한다.
+// 라벨은 옆에 맵으로 둔다 — 새 개념을 만들지 않고 덧붙이는 쪽이 안전하다.
+//
+// 일본식 한자 표기는 쓰지 않는다(프로젝트 규칙). 사람들이 실제로 쓰는 말로 적는다.
+export const TAG_LABELS = {
+  ai: "AI",
+  startup: "스타트업",
+  programming: "개발",
+  hardware: "하드웨어",
+  mobile: "모바일",
+  security: "보안",
+  cars: "자동차",
+  testdrive: "시승기",
+  ev: "전기차",
+  motorcycle: "오토바이",
+  space: "우주",
+  biology: "생명과학",
+  physics: "물리",
+  climate: "기후",
+  markets: "증시",
+  crypto: "코인",
+  realestate: "부동산",
+  career: "커리어",
+  fashion: "패션",
+  sneakers: "스니커즈",
+  interior: "인테리어",
+  art: "예술",
+  design: "디자인",
+  health: "건강",
+  "pc-gaming": "PC게임",
+  console: "콘솔게임",
+  esports: "e스포츠",
+  football: "축구",
+  baseball: "야구",
+  basketball: "농구",
+  movies: "영화",
+  music: "음악",
+  kdrama: "드라마",
+  celebrity: "연예인",
+  food: "음식",
+  travel: "여행",
+  fitness: "운동",
+  pets: "반려동물",
+  parenting: "육아",
+  meme: "밈",
+  story: "사연",
+  advice: "조언",
+  policy: "정책",
+  election: "선거",
+  world: "국제"
+};
+
+// 학습된 태그는 사전에 없다 — 추천기가 제목에서 뽑은 것(실측 예: "nike",
+// "아이돌", "awich")이라 미리 이름을 지어 둘 수 없다. 그런 태그는 **id를 그대로
+// 쓴다.** 없는 이름을 지어내는 것보다 낫고, 어차피 그 태그의 id 자체가 사람이
+// 쓴 말에서 나온 것이라 대체로 읽힌다.
+export function tagLabel(id) {
+  if (!id) return "";
+  return TAG_LABELS[id] || String(id);
+}
+
 // A curated tag vocabulary. The recommender can also learn tags it has never
 // seen before, but seeding a vocabulary keeps the survey and cold-start
 // behaviour predictable.
