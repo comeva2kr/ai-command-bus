@@ -802,19 +802,14 @@ export function createServer(opts = {}) {
     return cached;
   };
 
-  // ⚠️ 아직 **아무 데서도 부르지 않는다**(검수 2026-08-06 P1이 잡았다).
-  // 살리려면 세 곳을 함께 고쳐야 한다 — 여기서 한 곳만 이으면 기능이 안 산다:
-  //   (1) 발행 페이지·홈 핸들러에서 ensureVisitor(req, res) 호출
-  //   (2) auth.js resolveIdentity의 우선순위 사슬에 VISITOR_COOKIE 폴백 추가
-  //       (지금은 세션→nh_cid→bodyUserId만 본다. nh_vid를 심어도 안 읽는다)
-  //   (3) public/privacy.html에 nh_vid 항목 추가 — 2년 쿠키를 무고지로 심지 않는다
-  // 블루프린트 P0-B 3번 항목.
-  //
   // 방문자 쿠키를 아무 페이지에서나 심는다.
   //
   // 이게 없으면 검색으로 발행 페이지에 도착한 사람이 다음에 또 와도
   // 처음 보는 사람이 된다 — 취향도 재방문도 거기서 끊긴다.
   // 계정을 만들지는 않는다(빈 계정이 늘지 않게). 식별자만 준다.
+  // 사람이 읽는 발행 페이지들. 여기 들른 사람도 다음에 알아봐야 한다.
+  const PUBLISHED_PATH = /^\/(briefing|ranking|report|communities|community|keywords|keyword|trends)(\/|$)/;
+
   const ensureVisitor = (req, res) => {
     const existing = parseCookies(req.headers.cookie)[VISITOR_COOKIE];
     if (existing) return { vid: existing, isNew: false };
@@ -1334,6 +1329,18 @@ ${adSlotHtml("adfit")}
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     const p = url.pathname;
+
+    // 사람이 보는 화면이면 **어디서든** 기기 표식을 심는다. 라우트 분기보다
+    // 앞이어야 한다 — 처음엔 정적 파일 서빙 직전에 뒀는데, /briefing 같은
+    // 발행 페이지는 그보다 위에서 응답하고 끝나 표식이 안 심겼다(로컬 실측).
+    //
+    // 이게 없으면 검색으로 발행 페이지에 도착해 읽고 나간 사람이 다음에 또 와도
+    // 처음 보는 사람이 된다 — 취향도 재방문도 거기서 끊긴다.
+    // 계정을 만들지는 않는다(빈 계정이 늘지 않게). 표식만 준다.
+    if (req.method === "GET" && !p.startsWith("/api/") &&
+        (p === "/" || p === "/index.html" || PUBLISHED_PATH.test(p))) {
+      try { ensureVisitor(req, res); } catch {}
+    }
 
     // HEAD를 GET처럼 라우팅하고 본문만 비운다.
     //
@@ -2239,11 +2246,23 @@ ${rankingRows(list, (above) => {
         // 실제로 돌려보냈을 때**(bindDevice) 일어난다. 세션 생성 시점에 박으면
         // 쿠키를 못 쓰는 클라이언트가 곧바로 잠긴다.
         const secureCookie = isSecureRequest(req);
+        // 이 브라우저의 기기 표식과 계정을 묶는다. 표식이 아직 없으면 지금 심는다 —
+        // 그래야 다음에 localStorage가 날아가도 같은 계정을 찾는다.
+        try {
+          const v = ensureVisitor(req, res);
+          if (v && v.vid) store.linkVisitor(v.vid, user.id);
+        } catch {}
         const setCookies = [serializeDeviceCookie(user.id, { secure: secureCookie })];
         if (!parseCookies(req.headers.cookie)[KEY_COOKIE]) {
           setCookies.push(serializeKeyCookie(randomUUID().replace(/-/g, ""), { secure: secureCookie }));
         }
-        res.setHeader("set-cookie", setCookies);
+        // **이미 심어 둔 쿠키를 덮어쓰지 않는다.** ensureVisitor가 방금 넣은
+        // 기기 표식이 여기서 통째로 날아갈 뻔했다 — setHeader는 배열을 갈아 끼운다.
+        {
+          const prevSet = res.getHeader("set-cookie");
+          const prevList = prevSet ? (Array.isArray(prevSet) ? prevSet : [prevSet]) : [];
+          res.setHeader("set-cookie", [...prevList, ...setCookies]);
+        }
         return send(res, 200, {
           userId: user.id,
           identitySource: ident.source,

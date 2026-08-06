@@ -330,6 +330,15 @@ export function resolveIdentity({ cookies = {}, bodyUserId = null, store }) {
   }
   const cid = cookies[DEVICE_COOKIE];
   if (cid && store.getUser(cid)) return { userId: cid, source: "cookie", loggedIn: false };
+  // 기기 표식(nh_vid)으로 찾는다. 이건 아무 페이지에서나 심기므로,
+  // 검색으로 발행 페이지에 들렀다가 나중에 앱으로 온 사람도 같은 사람으로 이어진다.
+  // nh_cid보다 뒤인 이유: nh_cid는 계정 자체를 담아 더 직접적이다.
+  // localStorage보다 앞인 이유: 쿠키가 더 오래 살고 서버가 심어 신뢰도가 높다.
+  const vid = cookies[VISITOR_COOKIE];
+  if (vid && store.visitorUser) {
+    const linked = store.visitorUser(vid);
+    if (linked) return { userId: linked, source: "visitor", loggedIn: false };
+  }
   if (bodyUserId && store.getUser(bodyUserId)) return { userId: bodyUserId, source: "storage", loggedIn: false };
   // 클라이언트가 들고 온 ID가 서버에 없을 때도 **그 ID로** 만들어 준다.
   // 서버 데이터가 유실돼도 브라우저에 남은 ID로 같은 사람이 이어지던 기존

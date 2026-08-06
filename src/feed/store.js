@@ -273,6 +273,36 @@ export class FeedStore {
     return kst.toISOString().slice(0, 10);
   }
 
+  // ── 방문자 표식 ↔ 계정 연결 (2026-08-06)
+  //
+  // nh_cid(계정 쿠키)는 계정이 만들어질 때만 심긴다 — 앱 화면을 연 사람에게만
+  // 붙는다는 뜻이다. 검색으로 발행 페이지에 도착해 읽고 나간 사람은 아무 표식도
+  // 못 받고, 다음에 와도 처음 보는 사람이 된다(실측 2026-08-06: 세션 287건 중
+  // 새 신원 162건 57%). 취향을 아무리 잘 파악해도 다음 방문에 못 알아보면
+  // 전부 날아간다.
+  //
+  // 그래서 아무 페이지에서나 심을 수 있는 **기기 표식**(nh_vid)을 따로 두고,
+  // 계정이 생기는 순간 그 표식과 묶는다. 다음에 localStorage가 날아가도
+  // 이 표식으로 같은 계정을 찾는다.
+  //
+  // **계정을 새로 만들지는 않는다** — 표식만으로는 빈 계정이 늘지 않는다.
+  linkVisitor(vid, userId) {
+    if (!vid || !userId) return;
+    if (!this.getUser(userId)) return;
+    this.visitorMap = this.visitorMap || {};
+    if (this.visitorMap[vid] === userId) return;
+    this.visitorMap[vid] = userId;
+    // 무한히 자라지 않게 — 오래된 것부터 버린다(삽입 순서 = 오래된 순).
+    const keys = Object.keys(this.visitorMap);
+    if (keys.length > 200000) for (const k of keys.slice(0, keys.length - 200000)) delete this.visitorMap[k];
+    this._persistSoon();
+  }
+
+  visitorUser(vid) {
+    const id = vid && this.visitorMap ? this.visitorMap[vid] : null;
+    return id && this.getUser(id) ? id : null;
+  }
+
   recordTraffic(kind, userId = null) {
     if (!this.traffic) this.traffic = {};
     const day = this._trafficDay(new Date(this._nowMs()));
@@ -1252,6 +1282,7 @@ export class FeedStore {
       adminBannedWords: this.adminBannedWords || [],
       adEvents: this.adEvents || [],
       adSlotStats: this.adSlotStats || {},
+      visitorMap: this.visitorMap || {},
       traffic: this.traffic || {}, // 일별 방문 실측 — 재시작에도 유지 (2026-08-01)
       // 일별 에디션(브리핑+화제랭킹 스냅샷) — 자체 콘텐츠 아카이브의 원천이라
       // 재시작에도 반드시 유지 (애드핏 대응, David 2026-07-31)
@@ -1305,6 +1336,7 @@ export class FeedStore {
       this.adminBannedWords = data.adminBannedWords || [];
       this.adEvents = data.adEvents || [];
       this.adSlotStats = data.adSlotStats || {};
+      this.visitorMap = data.visitorMap || {};
       this.traffic = data.traffic || {};
       this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
       this.sourceHealth = data.sourceHealth || {};

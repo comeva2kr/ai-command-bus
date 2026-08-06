@@ -40,7 +40,8 @@
     <tr><th>구분</th><th>항목</th><th>수집 시점</th></tr>
     <tr>
       <td>필수 (자동)</td>
-      <td>익명 이용자 식별자(브라우저 저장소 <code>feed_uid</code> 및 기기 쿠키 <code>nh_cid</code>),
+      <td>익명 이용자 식별자(브라우저 저장소 <code>feed_uid</code>, 기기 쿠키 <code>nh_cid</code>,
+        방문자 표식 쿠키 <code>nh_vid</code>),
         취향 설정(관심 카테고리·주제), 서비스 내 활동 기록(열람·추천·스크랩·댓글)</td>
       <td>서비스 이용 시</td>
     </tr>
@@ -78,6 +79,9 @@
     <tr><th>항목</th><th>보유기간</th></tr>
     <tr><td>익명 식별자 <code>feed_uid</code></td><td>이용자가 브라우저 저장 데이터를 삭제할 때까지</td></tr>
     <tr><td>기기 쿠키 <code>nh_cid</code></td><td>발급일로부터 2년(방문 시 갱신)</td></tr>
+    <tr><td>방문자 표식 쿠키 <code>nh_vid</code></td><td>발급일로부터 2년
+      <div class="sub">같은 브라우저로 다시 방문했을 때 이전에 설정한 취향을 이어 드리기 위한 표식입니다.
+      이름·연락처 등 개인을 알아볼 수 있는 정보는 담기지 않으며, 임의로 생성된 문자열입니다.</div></td></tr>
     <tr><td>취향 설정·활동 기록</td><td>마지막 접속일로부터 12개월</td></tr>
     <tr><td>이용 분석 정보(체류시간·유입 경로·클릭)</td><td>수집일로부터 6개월</td></tr>
     <tr><td>소셜 로그인 정보</td><td>회원 탈퇴 시까지</td></tr>
