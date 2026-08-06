@@ -1486,3 +1486,24 @@ test("낡은 화면은 스스로 갱신한다 — 두 번 새로고침을 요구
   // 무한 새로고침 방지 — 같은 빌드로는 한 번만.
   assert.match(html, /sessionStorage\.getItem\("nh_build_reload"\)/, "재시도 가드가 없다");
 });
+
+test("광고 차단기가 본문만 지웠을 때 빈 껍데기를 남기지 않는다", async () => {
+  // David 실기기(2026-08-06, 아이폰 사파리·크롬): 화면에 "쿠팡 파트너스 / AD"와
+  // 대가성 고지문만 남고 제목·본문·CTA·사진이 통째로 없었다. 캐시가 아니라
+  // 폰의 콘텐츠 차단기가 a.ad-native를 숨긴 결과다 — 렌더러를 합치면서 광고
+  // 본문 전체가 ad- 접두 클래스 아래로 들어가 예전보다 더 잘 걸린다.
+  //
+  // 차단 자체는 우회하지 않는다. 잘못된 것은 껍데기가 남는 것이다.
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+
+  assert.match(html, /function dropIfAdBlocked\(card\)/, "빈 껍데기 정리가 없다");
+  assert.match(html, /card\.remove\(\)/, "가려졌을 때 카드를 치우지 않는다");
+  // 광고 카드를 붙이는 **모든 자리**에 걸려 있어야 한다 — 한 곳만 빠져도
+  // 그 경로에서 껍데기가 남는다(렌더러가 둘이던 시절의 교훈).
+  const calls = (html.match(/dropIfAdBlocked\(/g) || []).length;
+  assert.ok(calls >= 4, `dropIfAdBlocked 호출이 ${calls}곳뿐 — 정의 1 + 삽입 지점 3 이상이어야 한다`);
+  // 클래스 이름을 감춰 차단기를 피하는 방향으로 가지 않는다.
+  assert.match(html, /class="ad-native"/, "광고 링크 클래스를 감췄다 — 차단 회피는 하지 않는다");
+  assert.match(html, /class="badge ad-badge-static">AD/, "AD 배지를 감췄다");
+});

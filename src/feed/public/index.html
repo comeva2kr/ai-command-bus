@@ -1945,6 +1945,7 @@ function adfitFallback(slot){
   alt.innerHTML = coupangCardHtml(link, cp.disclosure, "feed-passback", catBefore, 0);
   slot.insertAdjacentElement("afterend", alt);
   observeAdImpression(alt, "feed-passback");
+  dropIfAdBlocked(alt);
   const vid = adVariant(link, catBefore, 0).variant;
   alt.dataset.variant = vid;
   const a = alt.querySelector("a.ad-native");
@@ -1965,6 +1966,36 @@ if (typeof window !== "undefined") {
 // 클라이언트가 직접 끼운 광고 카드의 노출 기록. 서버가 보낸 카드는
 // appendAdCard가 이미 걸어 두는데, 이쪽 경로는 빠져 있어서 발행 지면과 같은
 // 측정 사각지대였다.
+// 광고 차단기가 본문만 걷어내고 껍데기를 남기는 것을 막는다.
+//
+// ── 왜 (David 실기기 2026-08-06, 아이폰 사파리·크롬)
+// 화면에 "쿠팡 파트너스 / AD"와 대가성 고지문만 남고 제목·본문·CTA·사진이
+// 통째로 없었다. 캐시가 아니라 **폰의 콘텐츠 차단기**가 `a.ad-native`를 숨긴
+// 결과다. 렌더러를 하나로 합치면서 광고 본문 전체가 `ad-` 접두 클래스 아래로
+// 들어갔고, 그래서 예전보다 더 잘 걸린다 — 내가 만든 회귀다.
+//
+// **차단을 우회하지 않는다.** 클래스 이름을 감춰 차단기를 피하는 것은 회피
+// 행위이고, 광고 계정과 사용자 신뢰 양쪽에 위험하다. 차단기를 켠 사람에게
+// 광고가 안 보이는 것은 정상이다.
+//
+// 잘못된 것은 **껍데기가 남는 것**이다. 본문이 가려졌으면 카드 전체를 치운다 —
+// 빈 상자에 고지문만 남은 화면은 고장으로 읽힌다.
+function dropIfAdBlocked(card){
+  if(!card) return;
+  const check = () => {
+    const body = card.querySelector("a.ad-native");
+    const hidden = !body
+      || body.offsetParent === null
+      || body.getBoundingClientRect().height < 8
+      || getComputedStyle(body).display === "none"
+      || getComputedStyle(body).visibility === "hidden";
+    if(hidden) card.remove();
+  };
+  // 차단기는 렌더 직후에 손대므로 한 프레임 뒤에 본다. 느린 확장을 감안해
+  // 한 번 더 확인한다.
+  requestAnimationFrame(() => { check(); setTimeout(check, 600); });
+}
+
 function observeAdImpression(slot, slotName){
   if(!slot) return;
   if(!slot.dataset.id) slot.dataset.id = slotName || "feed-client";
@@ -2106,6 +2137,7 @@ function maybeInsertAdfit(){
     if(!useAdfit){
       slot.dataset.variant = slot.dataset.adVariant || "";
       observeAdImpression(slot, `feed${i + 1}`);
+      dropIfAdBlocked(slot);
       // 클릭도 보고한다. 예전엔 **노출만** 보냈다 — 그러면 클릭률의 분모만
       // 커지고 분자는 안 커진다. 서버는 그 낮은 값을 보고 adaptiveEvery로
       // 광고를 스스로 성글게 낸다(9칸 → 13칸). 돈 되는 자리를 우리 손으로
@@ -3399,6 +3431,7 @@ function appendAdCard(item){
   state.cardsById.set(item.id, card);
   Track.depth(state.cardsById.size); // 얼마나 내려갔나 = 그려진 카드 수
   observeAdImpression(card, slotName);
+  dropIfAdBlocked(card);
 }
 // 슬롯 노출 로깅 — 실제로 화면에 보였을 때만 1회 기록(전송됐다고 곧 "봤다"는
 // 아니므로 IntersectionObserver로 실측; skipObserver와 동일한 패턴).
