@@ -1583,15 +1583,47 @@ ${archiveHtml}`;
         const t = trendsCache ? await trendsCache.get() : null;
         if (!t || !t.trends.length) return send(res, 404, { error: "no trends yet" });
         const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
-        const row = (x) =>
-          `<li><div><a href="${escapeHtml(x.searchUrl)}" target="_blank" rel="noopener">${escapeHtml(x.name)}</a>${x.count ? `<span class="m">게시물 ${escapeHtml(x.count)}</span>` : ""}</div></li>`;
+        // ── 키워드를 **우리 페이지로** 보낸다 (2026-08-06)
+        //
+        // 예전엔 20개 전부 X(트위터) 검색으로 나갔다. 실측하면 이 페이지는
+        // 우리 글자 783자에 아웃링크 20개 — 애드핏이 말한 "아웃링크만으로
+        // 구성되었거나 그 비중이 높은" 화면 그 자체였다. 수익으로 봐도 최악이다:
+        // 사용자를 트위터로 보내면 우리 광고 노출이 거기서 끝난다.
+        //
+        // 우리 풀에 그 말이 들어간 글이 있으면 우리 키워드 페이지로 보내고,
+        // 없으면 **링크를 만들지 않는다** — 죽은 링크를 만드느니 글자로 둔다
+        // (⑤에서 세운 것과 같은 원칙).
+        const tPool = await engine.pool();
+        const tTitles = tPool.map((i) => String(i.title || "").toLowerCase());
+        const hitsOf = (name) => {
+          const q = String(name || "").replace(/^#/, "").trim().toLowerCase();
+          if (q.length < 2) return 0;
+          let n = 0;
+          for (const t2 of tTitles) if (t2.includes(q)) n += 1;
+          return n;
+        };
+        const scored = t.trends.map((x) => ({ ...x, hits: hitsOf(x.name) }));
+        const covered = scored.filter((x) => x.hits > 0).length;
+        const row = (x) => {
+          const meta = [];
+          if (x.count) meta.push(`X 게시물 ${x.count}`);
+          if (x.hits) meta.push(`우리 피드 ${x.hits}건`);
+          const label = escapeHtml(x.name);
+          const inner2 = x.hits
+            ? `<a href="/keyword/${encodeURIComponent(String(x.name).replace(/^#/, ""))}">${label}</a>`
+            : label;
+          return `<li><div>${inner2}${meta.length ? `<span class="m">${escapeHtml(meta.join(" · "))}</span>` : ""}</div></li>`;
+        };
         const inner = `<h1>지금 X(트위터) 실시간 트렌드</h1>
-<p class="muted">${kstLabel(t.fetchedAt)} 기준 한국 실시간 트렌드 TOP ${t.trends.length} · 약 20분마다 갱신 · 키워드를 누르면 X 검색이 새 탭으로 열립니다.</p>
+<p class="muted">${kstLabel(t.fetchedAt)} 기준 한국 실시간 트렌드 TOP ${t.trends.length} · 약 20분마다 갱신.</p>
+<p class="muted">이 중 <b>${covered}개</b>는 지금 우리가 수집 중인 커뮤니티·뉴스 글 제목에서도 발견됐습니다.
+그 키워드를 누르면 <b>지금핫이 모은 글</b>로 갑니다. 나머지는 아직 우리 피드에 잡히지 않은 말이라 링크가 없습니다.</p>
 ${rankingNav("")}
-<ol class="rank">${t.trends.slice(0, 8).map(row).join("")}</ol>
+<ol class="rank">${scored.slice(0, 8).map(row).join("")}</ol>
 ${AD(null, null, 6, "trends_mid")}
-<ol class="rank" start="9" style="--rank-start:8">${t.trends.slice(8).map(row).join("")}</ol>
-<p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.</p>`;
+<ol class="rank" start="9" style="--rank-start:8">${scored.slice(8).map(row).join("")}</ol>
+<p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.
+"우리 피드 N건"은 지금 우리 수집 풀에서 그 말이 제목에 들어간 글의 수이며, 우리가 직접 센 값입니다.</p>`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends"), AD(null, null, 7, "page_bot")));
       }

@@ -118,12 +118,31 @@ export function keywordIndex(items, { minSources = 2, minItems = 3, limit = 60 }
     .slice(0, limit);
 }
 
+// 키워드 페이지.
+//
+// 1차는 사전 기반 태그(extractTags)로 찾는다. 못 찾으면 **제목에 그 말이
+// 들어간 글**로 내려간다 — 실시간 트렌드에서 오는 말(아이돌 이름, 해시태그,
+// 신조어)은 사전에 없기 때문이다.
+//
+// 이 폴백이 없으면 /trends의 키워드를 우리 페이지로 보낼 수 없고, 그래서
+// 예전에는 20개 전부 X(트위터) 검색으로 나갔다 — 애드핏 반려 사유가
+// "아웃링크 비중"인데 그 페이지가 아웃링크만 20개였다(2026-08-06 실측).
+// 사용자를 트위터로 보내면 우리 광고 노출도 거기서 끝난다.
 export function keywordPage(items, tag, { limit = 20 } = {}) {
-  const mine = items.filter((i) => extractTags(i.title || "").includes(tag));
+  let mine = items.filter((i) => extractTags(i.title || "").includes(tag));
+  let matchedBy = "tag";
+  if (!mine.length) {
+    // 한 글자 말로는 찾지 않는다 — 아무 제목에나 걸린다.
+    const q = String(tag || "").trim().toLowerCase();
+    if (q.length < 2) return null;
+    mine = items.filter((i) => String(i.title || "").toLowerCase().includes(q));
+    matchedBy = "text";
+  }
   if (!mine.length) return null;
   const ranked = mine.slice().sort((a, b) => (b.score + b.commentCount) - (a.score + a.commentCount));
   return {
     tag,
+    matchedBy,
     total: mine.length,
     sources: countBy(mine, (i) => i.sourceLabel || i.source),
     categories: countBy(mine, (i) => i.category),
