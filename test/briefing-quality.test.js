@@ -680,3 +680,39 @@ test("브리핑 이슈: 말머리로 시작하는 제목도 이름을 얻는다"
   assert.equal(leadPhrase("…시작하는 제목"), "시작하는 제목");
   assert.equal(leadPhrase("[포토] "), "", "말머리뿐이면 이름이 없다 — 지어내지 않는다");
 });
+
+test("브리핑 문단이 셀 수 없는 것을 세지 않는다 (2026-08-06 라이브 실측)", async () => {
+  const { issueParagraph, issueShape, distinctOutlets } = await import("../src/feed/digest.js");
+  // 라이브에서 나온 문장: "우리 피드에는 donga.com·동아일보 등 2곳에서 들어왔다."
+  // 같은 신문사인데 한쪽은 도메인, 한쪽은 한글 사명이라 한 곳을 2곳으로 셌다.
+  // 로마자와 한글은 문자열로 합칠 수 없고, 억지로 합치면 서로 다른 매체를
+  // 하나로 묶는 더 나쁜 거짓말이 된다 — 그래서 수를 안 쓴다.
+  const items = [
+    { id: "a", title: "여야, 부동산 세제 개편안 논의 착수", sourceLabel: "donga.com", coverage: 5, score: 0, commentCount: 0, tags: [] },
+    { id: "b", title: "여야, 부동산 세제 개편안 논의 착수", sourceLabel: "동아일보", coverage: 5, score: 0, commentCount: 0, tags: [] },
+    { id: "c", title: "부동산 세제 개편 두고 여야 공방", sourceLabel: "한겨레", coverage: 5, score: 0, commentCount: 0, tags: [] }
+  ];
+  const para = issueParagraph(items, issueShape(items));
+  assert.doesNotMatch(para, /\d+곳/, "합칠 수 없는 매체 이름을 세고 있다");
+  assert.doesNotMatch(para, /\d+개 매체/, "상한에 걸린 값을 수치처럼 쓰고 있다");
+  // 도메인 꼬리는 읽기 좋게 다듬되, 서로 다른 표기를 임의로 합치지는 않는다.
+  assert.match(para, /donga·동아일보/, "출처 이름을 그대로 밝혀야 한다");
+  assert.ok(!distinctOutlets(items).some((o) => /\.(com|co\.kr|kr|net|org)$/i.test(o)),
+    "도메인 꼬리가 그대로 노출된다");
+});
+
+test("브리핑 문단이 대표 글을 두 번 소개하지 않는다", async () => {
+  const { issueParagraph, issueShape } = await import("../src/feed/digest.js");
+  // 라이브: "…「與서울의원들, 오늘 부동산 세제 개편안 논의」 소식을… /
+  //          같은 흐름에서 「與서울의원들, 오늘 부동산 세제 개편안 논의」도 상위에 올랐다."
+  // 같은 사건을 여러 매체가 같은 제목으로 쓰면 이렇게 겹친다.
+  const same = "與서울의원들, 오늘 부동산 세제 개편안 논의";
+  const items = [
+    { id: "a", title: same, sourceLabel: "동아일보", coverage: 5, score: 0, commentCount: 0, tags: [] },
+    { id: "b", title: same, sourceLabel: "한겨레", coverage: 5, score: 0, commentCount: 0, tags: [] }
+  ];
+  const para = issueParagraph(items, issueShape(items));
+  const hits = para.split(same).length - 1;
+  assert.equal(hits, 1, `대표 글 제목이 ${hits}번 나온다`);
+  assert.doesNotMatch(para, /같은 흐름에서\s*도/, "빈 목록으로 문장이 남았다");
+});

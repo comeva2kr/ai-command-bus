@@ -212,11 +212,36 @@ export function issueHeadline(items, shape) {
   }
 }
 
+// 매체 이름 목록. **개수를 세지 않는다.**
+//
+// 라이브 실측(2026-08-06): "우리 피드에는 donga.com·동아일보 등 2곳에서 들어왔다."
+// 같은 신문사인데 한 소스는 도메인, 다른 소스는 한글 사명으로 라벨이 붙어 있어서
+// 한 곳을 2곳으로 세고 있었다. 캡값 숫자를 걷어내면서 "우리가 센 것만 쓴다"고
+// 해 놓고 정작 그 센 값이 부정확했던 것이다.
+//
+// 로마자(donga.com)와 한글(동아일보)은 **문자열로는 합칠 수 없다.** 억지로
+// 합치려다 서로 다른 매체를 하나로 묶으면 더 나쁜 거짓말이 된다. 그래서
+// 합치지 않고 **수를 안 쓴다** — 이름만 밝히면 세는 문제 자체가 사라진다.
+// 표시에서 도메인 꼬리는 떼어 읽기 좋게만 다듬는다(같은 곳을 가리키는 값이다).
+export function distinctOutlets(items) {
+  const seen = new Set();
+  const out = [];
+  for (const i of items) {
+    const raw = String(i.sourceLabel || i.source || "").trim();
+    if (!raw) continue;
+    const pretty = raw.replace(/\.(com|co\.kr|kr|net|org)$/i, "");
+    if (seen.has(pretty)) continue;
+    seen.add(pretty);
+    out.push(pretty);
+  }
+  return out;
+}
+
 // 이슈 본문 — 전부 측정값으로만 쓴다. 0인 지표는 문장에서 뺀다.
 export function issueParagraph(items, shape) {
   const lead = items[0];
   const title = String(lead.title || "").trim();
-  const outlets = [...new Set(items.map((i) => i.sourceLabel || i.source))];
+  const outlets = distinctOutlets(items);
   const comments = items.reduce((s, i) => s + (i.commentCount || 0), 0);
   const score = items.reduce((s, i) => s + (i.score || 0), 0);
   const parts = [];
@@ -226,13 +251,19 @@ export function issueParagraph(items, shape) {
     // **우리가 실제로 센 것만 말한다** — 우리 피드에 들어온 출처 이름이 그것이다.
     // 교차보도는 "여러 곳이 함께 다루고 있다"는 사실만 전하고 수를 붙이지 않는다.
     const named = outlets.slice(0, 3).join("·");
-    parts.push(outlets.length > 1
-      ? `“${title}” 소식을 여러 매체가 함께 다루고 있다. 우리 피드에는 ${named} 등 ${outlets.length}곳에서 들어왔다.`
-      : `“${title}” 소식이 여러 매체에서 함께 다뤄지고 있다. 우리 피드에는 ${named}에서 들어왔다.`);
-    if (items.length > 1) {
-      const others = items.slice(1, 3).map((i) => `“${i.title}”`).join(", ");
-      if (others) parts.push(`같은 흐름에서 ${others}도 상위에 올랐다.`);
-    }
+    parts.push(`“${title}” 소식을 여러 매체가 함께 다루고 있다. 우리 피드에는 ${named}에서 들어왔다.`);
+    // 대표 글과 **같은 제목**은 빼고 소개한다. 라이브 실측(2026-08-06):
+    // "같은 흐름에서 「與서울의원들, 오늘 부동산 세제 개편안 논의」도 상위에
+    // 올랐다" — 바로 윗줄에서 소개한 그 글이었다. 같은 사건을 여러 매체가
+    // 같은 제목으로 쓰면 이렇게 겹친다.
+    const seenTitle = new Set([title]);
+    const others = items.slice(1)
+      .map((i) => String(i.title || "").trim())
+      .filter((t) => t && !seenTitle.has(t) && (seenTitle.add(t), true))
+      .slice(0, 2)
+      .map((t) => `“${t}”`)
+      .join(", ");
+    if (others) parts.push(`같은 흐름에서 ${others}도 상위에 올랐다.`);
   } else if (shape === "debate") {
     parts.push(`“${title}”을 두고 댓글 ${fmt(comments)}건이 달리며 논쟁이 이어졌다.`);
     if (score > 0) parts.push(`추천은 ${fmt(score)}건으로 댓글 수에 못 미친다 — 합의보다 이견이 큰 주제다.`);
