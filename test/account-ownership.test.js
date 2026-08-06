@@ -153,6 +153,8 @@ test("내부 userId가 공개 응답에 실리지 않는다", async () => {
     for (const it of mine) {
       assert.equal(it.userId, undefined, "내부 userId가 응답에 실렸다");
       assert.notEqual(it.author, s.userId, "author 자리에 내부 userId가 실렸다");
+      assert.ok(!/^user_[0-9a-f]{6,}$/i.test(String(it.author || "")),
+        "author가 내부 id 모양이다 — 수정 전에 저장된 글도 가려야 한다");
     }
   } finally { server.close(); }
 });

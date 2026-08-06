@@ -1251,6 +1251,11 @@ export class FeedEngine {
     // 계정 결속 탈취의 재료가 된다(적대적 검수 2026-08-06). 소유권 판정은
     // 서버가 store의 원본 레코드로 한다.
     delete publicItem.userId;
+    // 이미 저장돼 있던 글은 author 자리에 내부 id가 박힌 채로 남아 있다
+    // (수정 전에 쓰인 글 — 라이브에서 1건 확인). 저장된 값도 여기서 가린다.
+    if (typeof publicItem.author === "string" && /^user_[0-9a-f]{6,}$/i.test(publicItem.author)) {
+      publicItem.author = null;
+    }
     return {
       ...publicItem,
       heat,
