@@ -1844,6 +1844,270 @@
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
       },
       "feedGroup": "chosunbiz"
+    },
+    {
+      "id": "ppomppu-house",
+      "label": "뽐뿌 부동산",
+      "labelKo": "뽐뿌 부동산",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.ppomppu.co.kr/rss.php?id=house",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "realestate"
+      ]
+    },
+    {
+      "id": "ruliweb-interior",
+      "label": "루리웹 인테리어",
+      "labelKo": "루리웹 인테리어",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "community",
+      "category": "life",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://bbs.ruliweb.com/hobby/board/300228/rss",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "interior"
+      ]
+    },
+    {
+      "id": "traveltimes",
+      "label": "여행신문",
+      "labelKo": "여행신문",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "life",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.traveltimes.co.kr/rss/allArticle.xml",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "travel"
+      ]
+    },
+    {
+      "id": "kormedi",
+      "label": "코메디닷컴",
+      "labelKo": "코메디닷컴",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "life",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://kormedi.com/rss",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "health"
+      ]
+    },
+    {
+      "id": "ibabynews",
+      "label": "베이비뉴스",
+      "labelKo": "베이비뉴스",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "life",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.ibabynews.com/rss/allArticle.xml",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "parenting"
+      ]
+    },
+    {
+      "id": "hypebeast",
+      "label": "하입비스트",
+      "labelKo": "하입비스트",
+      "country": "HK",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://hypebeast.com/feed",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "fashion",
+        "sneakers"
+      ]
+    },
+    {
+      "id": "highsnobiety",
+      "label": "하이스노바이어티",
+      "labelKo": "하이스노바이어티",
+      "country": "DE",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.highsnobiety.com/feed/",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "fashion",
+        "sneakers"
+      ]
+    },
+    {
+      "id": "sneakernews",
+      "label": "스니커뉴스",
+      "labelKo": "스니커뉴스",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://sneakernews.com/feed/",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "sneakers"
+      ]
+    },
+    {
+      "id": "designboom",
+      "label": "디자인붐",
+      "labelKo": "디자인붐",
+      "country": "IT",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.designboom.com/feed/",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "design",
+        "art"
+      ]
+    },
+    {
+      "id": "stereogum",
+      "label": "스테레오검",
+      "labelKo": "스테레오검",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "culture",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://stereogum.com/feed/",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "music"
+      ]
+    },
+    {
+      "id": "lobsters",
+      "label": "랍스터스",
+      "labelKo": "랍스터스",
+      "country": "US",
+      "lang": "en",
+      "kind": "community",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://lobste.rs/rss",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      },
+      "defaultTags": [
+        "programming"
+      ]
+    },
+    {
+      "id": "livedoor-jp",
+      "label": "라이브도어 뉴스",
+      "labelKo": "라이브도어 뉴스",
+      "country": "JP",
+      "lang": "ja",
+      "kind": "news",
+      "category": "news",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://news.livedoor.com/topics/rss/int.xml",
+        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+      }
     }
   ]
 }

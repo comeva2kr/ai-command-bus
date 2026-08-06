@@ -40,6 +40,15 @@ export const TAGS = [
   "crypto",
   "realestate",
   "career",
+  // 2026-08-06 추가 (David: "패션, 부동산(국내), it 등 더 다양한 카테고리로
+  // 리소스를 확장"). 소스를 넣어도 이 목록에 말이 없으면 그 취향을 고를 수
+  // 없어서, 아무리 좋은 소스를 붙여도 취향과 이어지지 않는다.
+  "fashion",
+  "sneakers",
+  "interior",
+  "art",
+  "design",
+  "health",
   "pc-gaming",
   "console",
   "esports",
