@@ -3368,19 +3368,60 @@ test("parseListPage: 커뮤니티 소스의 반응 수치가 실제로 파싱된
   }
 });
 
-test("communities: 클리앙은 robots상 인기글 HTML을 읽을 수 없어 RSS를 유지한다", async () => {
+test("communities: 클리앙은 robots가 연 게시판을 쿼리 없이 직접 받는다", async () => {
   const { loadRegistry } = await import("../src/feed/registry.js");
+  const { parseListPage } = await import("../src/feed/fetchers.js");
   const clien = loadRegistry().find((c) => c.id === "clien");
-  // 2026-08-04 robots.txt 실측: Allow:/service/board/ 이지만
-  //   Disallow:/service/group/     ← 통합 인기글(clien_all)
+
+  // ── 2026-08-06: 2026-08-04의 판단을 실측으로 뒤집었다.
+  //
+  // 그때의 기록은 이랬다: "인기순 목록에 해당하는 경로가 전부 막혀 있다.
+  // 조회·공감 숫자가 HTML에는 있지만 **가져올 길이 없으므로** feedburner RSS를
+  // 유지한다." robots 사실관계는 지금도 맞다 —
+  //   Allow:/service/board/        ← 게시판 목록은 열려 있다
+  //   Disallow:/service/group/     ← 통합 인기글
   //   Disallow:/service/recommend  ← 추천글 모음
-  //   Disallow: /*?*               ← 쿼리스트링 붙은 URL 전부(정렬 파라미터 포함)
-  // 즉 "인기순 목록"에 해당하는 경로가 전부 막혀 있다. 조회·공감 숫자가
-  // HTML에는 있지만 가져올 길이 없으므로 feedburner RSS를 유지한다.
-  // 이 테스트는 "숫자가 없으니 HTML로 바꾸자"는 미래의 되돌림을 막는 기록이다.
-  assert.equal(clien.adapter.type, "rss");
-  assert.ok(!/clien\.net\/service\/(group|recommend)/.test(clien.adapter.url),
+  //   Disallow: /*?*               ← 쿼리스트링 전부(정렬 파라미터 포함)
+  //
+  // 틀린 것은 그 다음 한 걸음이었다. **정렬을 클리앙에게 시킬 필요가 없다.**
+  // 열려 있는 게시판 목록을 쿼리 없이 받아 거기 실린 추천·댓글 수를 읽고,
+  // 무엇이 뜨거운지는 우리 엔진이 고르면 된다 — 그게 이 서비스가 하는 일이다.
+  //
+  // 그리고 대안으로 유지했던 feedburner RSS는 목적을 배반하고 있었다:
+  //   · parseRss는 score/commentCount를 애초에 만들지 않는다 → 숫자가 **구조적으로 0**
+  //     (숫자를 얻으려고 고른 수단이 숫자를 하나도 못 가져왔다)
+  //   · 클리앙 공식 피드가 아니다 — <generator>PyRSS2Gen</generator>,
+  //     제3자가 파이썬으로 긁어 만든 미러. 클리앙은 RSS를 제공하지 않는다
+  //     (/service/rss·/rss 등 4경로 404/400 실측)
+  //   · <description>에 게시글 본문 HTML 전체가 실려 온다
+  //
+  // 이 테스트가 지키는 것은 이제 둘이다: robots가 막은 것을 건드리지 않을 것,
+  // 그리고 **숫자가 실제로 들어올 것**.
+  assert.equal(clien.adapter.type, "list");
+  assert.ok(/^https:\/\/www\.clien\.net\/service\/board\//.test(clien.adapter.url),
+    `robots가 연 /service/board/ 경로여야 한다: ${clien.adapter.url}`);
+  assert.ok(!/\/service\/(group|recommend)/.test(clien.adapter.url),
     "robots가 막은 경로를 수집원으로 쓰지 않는다");
+  assert.ok(!clien.adapter.url.includes("?"),
+    "Disallow: /*?* — 수집 URL에 쿼리를 붙이지 않는다");
+  assert.ok(!/feedburner/i.test(clien.adapter.url),
+    "제3자 미러가 아니라 클리앙 본체에서 받는다");
+
+  // 실제 목록 HTML로 숫자가 들어오는지 확인한다. 2026-08-06 실측 스냅숏
+  // (추천>0 17건 / 댓글>0 24건). 마크업이 바뀌면 여기서 먼저 드러난다.
+  const items = parseListPage(fixture("clien_park.html"), clien.adapter.list);
+  assert.ok(items.length >= 25, `목록 파싱 ${items.length}건`);
+  const withScore = items.filter((i) => i.score > 0).length;
+  const withComment = items.filter((i) => i.commentCount > 0).length;
+  assert.ok(withScore >= 12, `추천이 붙은 글 ${withScore}건 (>= 12 기대)`);
+  assert.ok(withComment >= 18, `댓글이 붙은 글 ${withComment}건 (>= 18 기대)`);
+
+  // 글 링크에도 쿼리를 남기지 않는다. 목록의 href는 ?od=T31&po=0... 을 달고
+  // 오는데, 그대로 두면 우리가 만드는 링크와 enricher의 요청이 Disallow 경로가 된다.
+  for (const it of items) {
+    assert.ok(!it.url.includes("?"), `글 URL에 쿼리가 남았다: ${it.url}`);
+    assert.ok(it.url.startsWith("https://www.clien.net/service/board/"), it.url);
+  }
 });
 
 test("번역: 규칙 이전에 들어온 글도 내보낼 때 걸러진다", async () => {

@@ -1,0 +1,2398 @@
+
+
+
+
+ 
+<!DOCTYPE HTML>
+<html lang="ko">
+<head>
+	<title>클리앙 : 모두의공원</title>
+	<meta name="description" content="" />
+	<meta charset="utf-8">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="referrer" content="unsafe-url">
+<meta name="viewport" content="width=1280" />
+<meta name="author" content="클리앙" />
+<meta name="apple-mobile-web-app-title" content="클리앙">
+
+<link rel="canonical" href="https://www.clien.net/service/board/park">
+
+<link rel="stylesheet" href="/service/css/font-awesome-lite.min.css?260806v4">
+<link rel="stylesheet" href="/service/css/fontello.css?260806v4">
+
+		<link rel="stylesheet" href="/service/css/clien-list.css?260806v4"> 
+	<link rel="stylesheet" href="/service/css/font-Noto.css?260806v4"> 
+
+
+<link rel="shortcut icon" href="/service/image/favicon.ico">
+
+<link rel=apple-touch-icon href="/service/image/icon180x180.png"/>
+
+<script type="application/ld+json">
+	{
+		"@context": "https://schema.org",
+		"@type": "Organization",
+		"url": "https://www.clien.net/",
+		"logo": "https://www.clien.net/service/image/logo.png"
+	}
+</script>
+
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-F2FH9F05GB"></script>
+<script>
+	window.dataLayer = window.dataLayer || [];
+	function gtag(){dataLayer.push(arguments);}
+	gtag('js', new Date());
+
+	gtag('config', 'G-F2FH9F05GB');
+</script>
+
+ 
+	
+<script async='async' src='https://securepubads.g.doubleclick.net/tag/js/gpt.js'></script>
+<script>
+    var googletag = googletag || {};
+    googletag.cmd = googletag.cmd || [];
+
+    
+    googletag.cmd.push(function() {
+        googletag.defineSlot('/44950606/cs4-pc-list-top', [728, 90], 'div-pc-list-top').addService(googletag.pubads());
+        googletag.defineSlot('/44950606/cs4-pc-list-below', [728, 90], 'div-pc-list-below').addService(googletag.pubads());
+        googletag.defineSlot('/44950606/cs4-pc-side1', [300, 250], 'div-pc-side-1').addService(googletag.pubads());
+        googletag.defineSlot('/44950606/cs4-pc-side2', [300, 250], 'div-pc-side-2').addService(googletag.pubads());
+
+        googletag.setConfig({ targeting: { board: ["park"] } });
+        googletag.enableServices();
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        googletag.cmd.push(function() {
+            googletag.display('div-pc-list-top');
+            googletag.display('div-pc-list-below');
+            googletag.display('div-pc-side-1');
+            googletag.display('div-pc-side-2');
+        });
+    });
+</script> 
+
+</head>
+
+<body >
+
+
+<div class="back-to-top" id="top"></div>
+<nav class="header_wrap">
+	<div class="nav_header" data-role="account-open">
+        <div class="nav_header_logo">
+                        <h1 class="header_logo">
+                <a href="/service/" title="클리앙홈 바로가기"><i class="icon-clien"></i><span class="blind">CLIEN</span></a>
+                <span id="eventImgLogo"></span>
+            </h1>
+            <a href="#div_content" class="skip_to">본문 바로가기</a>
+            <a href="#menuTop" class="skip_to">메뉴 바로가기</a>
+            <a href="javascript:;" class="skip_to text-large">보기설정</a>
+            <a href="javascript:;" class="skip_to button-dark">테마설정</a>
+            <div class="header_menu_center">
+	            <div class="header_menu">
+	                <a href="/service/group/clien_all" class="all_view" title="톺아보기 바로가기"><span class="txt">톺아보기</span></a>
+	                <a href="/service/group/clien_all?&od=T33" class="all_symph" title="톺아보기의 공감글"><span class="txt">공감글</span></a>
+	            </div>
+	            <div class="search ad_banner" data-role="total-search">
+	                <button type="button" class="search_button" data-role="total-submit" title="검색하기"><span class="fa fa-search"></span></button>
+	                <input type="search" name="search" class="search_input" data-role="total-input-keyword" title="통합검색" placeholder="검색어를 입력하세요." />
+	            </div>
+            </div>
+		</div>
+		
+        <div class="header_setting_area ">
+<div class="board_option">
+    <div class="option_group">
+        <a href="javascript:;" class="text-large">
+                <i class="fa fa-text-width" title="화면크게보기"></i>
+        </a>
+        <a href="javascript:;" class="button-dark">
+                <i class="fa fa-adjust" title="다크모드"></i>
+        </a>
+    </div>
+
+</div>            <div class="btn_top_setting" id="set-more">
+                <i class="fa fa-television btn_set"></i>
+                <i class="fa fa-times btn_close"></i>
+            </div>
+		</div>	
+	</div>
+</nav>
+
+<Script>
+
+	var setEventDay = [{month:3, day:1, class:'kr', url:'/service/image/kflag.png', size:26}
+	, {month:4, day:16, class:'ribbon', url:'/service/image/ribbon.png', size:21} 	, {month:6, day:6, class:'kr', url:'/service/image/kflag.png', size:26} 
+	, {month:8, day:15, class:'kr', url:'/service/image/kflag.png', size:26} 	, {month:10, day:3, class:'kr', url:'/service/image/kflag.png', size:26} 
+	, {month:10, day:9, class:'han', url:'/service/image/han_clien_m.png', size:108}  
+	, {month:10, day:29, class:'ribbon', url:'/service/image/ribbon_b.png', size:21}]; 
+	
+	var eventNowDay = new Date(); 
+	var eventNowMonth = eventNowDay.getMonth() + 1; 
+	var eventNowDay = eventNowDay.getDate(); 
+	var eventIsVaild = false;
+	var eventLogoHtml = '';
+
+	setEventDay.forEach(function(value){
+
+		if(eventNowMonth == value.month && eventNowDay == value.day) {
+			if(value.class == 'han') {
+				eventLogoHtml = '<a href="/service" class="image_logo han" title="클리앙홈 바로가기"><img src="'+value.url+'" width="'+value.size+'px"></a>';
+			} else {
+				eventLogoHtml = '<span class="image_logo '+value.class+'"><img src="'+value.url+'" width="'+value.size+'px"></span>';
+			}
+			eventIsVaild = true;
+		};
+	});
+	
+
+	if(eventIsVaild) {
+		console.log(eventLogoHtml);
+		document.getElementById("eventImgLogo").innerHTML = eventLogoHtml;
+	};
+
+</script> 
+<div class="nav_container">
+	<div class="snb" id="menuTop">
+    <div class="snb_menu">
+        <div class="side_nav" id="menu-scroll">
+            <div class="side_menu_area">
+	                        
+	            <div class="navmenu open">
+    <a class="menu-title " id="com-more">
+        <span class="menu_over">커뮤니티</span>
+        <span class="fa fa-angle-down"></span>
+	</a>
+
+
+        <a class="menu-group all" href="/service/group/board_all">
+
+            <span class="fa fa-angle-down"></span>
+        <span class="menu_over" title="커뮤니티전체">커뮤니티전체</span>
+        
+        </a>
+
+
+        <a class="menu-group" href="/service/group/community">
+
+            <span class="icon-board" alt="C">C</span>
+        <span class="menu_over" title="모두의광장">모두의광장</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/park">
+
+            <span class="icon-board" alt="F">F</span>
+        <span class="menu_over" title="모두의공원">모두의공원</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/image">
+
+            <span class="icon-board" alt="I">I</span>
+        <span class="menu_over" title="사진게시판">사진게시판</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/kin">
+
+            <span class="icon-board" alt="Q">Q</span>
+        <span class="menu_over" title="아무거나질문">아무거나질문</span>
+        
+        </a>
+
+
+        <a class="menu-group" href="/service/group/allinfo">
+
+            <span class="icon-board" alt="D">D</span>
+        <span class="menu_over" title="정보와자료">정보와자료</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/news">
+
+            <span class="icon-board" alt="N">N</span>
+        <span class="menu_over" title="새로운소식">새로운소식</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/useful">
+
+            <span class="icon-board" alt="T">T</span>
+        <span class="menu_over" title="유용한사이트">유용한사이트</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/pds">
+
+            <span class="icon-board" alt="P">P</span>
+        <span class="menu_over" title="자료실">자료실</span>
+        
+        </a>
+
+
+        <a class="menu-group" href="/service/group/allreview">
+
+            <span class="icon-board" alt="E">E</span>
+        <span class="menu_over" title="강좌/사용기">강좌/사용기</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/lecture">
+
+            <span class="icon-board" alt="L">L</span>
+        <span class="menu_over" title="팁과강좌">팁과강좌</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/use">
+
+            <span class="icon-board" alt="U">U</span>
+        <span class="menu_over" title="사용기">사용기</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/chehum">
+
+            <span class="icon-board" alt="·">·</span>
+        <span class="menu_over" title="체험단사용기">체험단사용기</span>
+        
+        </a>
+
+
+        <a class="menu-group" href="/service/group/allsell">
+
+            <span class="icon-board" alt="W">W</span>
+        <span class="menu_over" title="사고팔고">사고팔고</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/jirum">
+
+            <span class="icon-board" alt="J">J</span>
+        <span class="menu_over" title="알뜰구매">알뜰구매</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/sold">
+
+            <span class="icon-board" alt="S">S</span>
+        <span class="menu_over" title="회원중고장터">회원중고장터</span>
+        
+        </a>
+
+
+        <a class="menu-list" href="/service/board/hongbo">
+
+            <span class="icon-board" alt="B">B</span>
+        <span class="menu_over" title="직접홍보">직접홍보</span>
+        
+        </a>
+
+
+        <a class="menu-insurance" href="/service/group/insure">
+
+            <span class="icon-board" alt="·">·</span>
+        <span class="menu_over" title="보험상담실">보험상담실</span>
+        
+        </a>
+
+
+        <a class="menu-promo invisible" href="/service/">
+
+            <span class="icon-board" alt="H">H</span>
+        <span class="menu_over" title="클리앙홈">클리앙홈</span>
+        
+        </a>
+</div>
+<div class="menu_line"></div>    
+	            <div class="menu_somoim">
+    <a class="menu-title" id="more">
+		<span class="menu_over">소모임</span>
+        <span class="fa fa-angle-down"></span>
+	</a>
+	<a class="menu-group somoim" href="/service/group/cm_all">
+		<span class="menu_over">소모임전체</span>
+	</a>
+	
+			<a class="menu-list somoim" href="/service/board/cm_car"><span class="icon-board">·</span><span class="menu_over">굴러간당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_iphonien"><span class="icon-board">·</span><span class="menu_over">아이포니앙</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_stock"><span class="icon-board">·</span><span class="menu_over">주식한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_bts"><span class="icon-board">·</span><span class="menu_over">방탄소년당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_japanlive"><span class="icon-board">·</span><span class="menu_over">일본산당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_mac"><span class="icon-board">·</span><span class="menu_over">MaClien</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_bike"><span class="icon-board">·</span><span class="menu_over">자전거당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_app"><span class="icon-board">·</span><span class="menu_over">개발한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_andro"><span class="icon-board">·</span><span class="menu_over">안드로메당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_coffee"><span class="icon-board">·</span><span class="menu_over">클다방</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_baseball"><span class="icon-board">·</span><span class="menu_over">야구당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_vcoin"><span class="icon-board">·</span><span class="menu_over">가상화폐당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_nas"><span class="icon-board">·</span><span class="menu_over">나스당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_keyboard"><span class="icon-board">·</span><span class="menu_over">키보드당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_girl"><span class="icon-board">·</span><span class="menu_over">소시당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_swim"><span class="icon-board">·</span><span class="menu_over">퐁당퐁당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_running"><span class="icon-board">·</span><span class="menu_over">달린당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_werule"><span class="icon-board">·</span><span class="menu_over">소셜게임한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_mbike"><span class="icon-board">·</span><span class="menu_over">이륜차당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_venture"><span class="icon-board">·</span><span class="menu_over">창업한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_dia"><span class="icon-board">·</span><span class="menu_over">디아블로당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_gym"><span class="icon-board">·</span><span class="menu_over">땀흘린당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_ai"><span class="icon-board">·</span><span class="menu_over">AI당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_oversea"><span class="icon-board">·</span><span class="menu_over">바다건너당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_aigurim"><span class="icon-board">·</span><span class="menu_over">AI그림당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_3dmaking"><span class="icon-board">·</span><span class="menu_over">3D메이킹</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_70"><span class="icon-board">·</span><span class="menu_over">X세대당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_adhd"><span class="icon-board">·</span><span class="menu_over">ADHD당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_airplane"><span class="icon-board">·</span><span class="menu_over">날아간당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_applewatch"><span class="icon-board">·</span><span class="menu_over">사과시계당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_baby"><span class="icon-board">·</span><span class="menu_over">육아당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_badmin"><span class="icon-board">·</span><span class="menu_over">배드민턴당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_basket"><span class="icon-board">·</span><span class="menu_over">농구당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_bb"><span class="icon-board">·</span><span class="menu_over">블랙베리당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_bear"><span class="icon-board">·</span><span class="menu_over">곰돌이당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_beer"><span class="icon-board">·</span><span class="menu_over">비어있당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_billiards"><span class="icon-board">·</span><span class="menu_over">FM당구당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_blockchain"><span class="icon-board">·</span><span class="menu_over">블록체인당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_board"><span class="icon-board">·</span><span class="menu_over">보드게임당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_book"><span class="icon-board">·</span><span class="menu_over">활자중독당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_bowling"><span class="icon-board">·</span><span class="menu_over">볼링친당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_camp"><span class="icon-board">·</span><span class="menu_over">캠핑간당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_cat"><span class="icon-board">·</span><span class="menu_over">냐옹이당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_civilize"><span class="icon-board">·</span><span class="menu_over">문명하셨당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_classic"><span class="icon-board">·</span><span class="menu_over">클래시앙</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_console"><span class="icon-board">·</span><span class="menu_over">콘솔한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_cook"><span class="icon-board">·</span><span class="menu_over">요리한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_cookierun"><span class="icon-board">·</span><span class="menu_over">쿠키런당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_daegu"><span class="icon-board">·</span><span class="menu_over">대구당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_danger"><span class="icon-board">·</span><span class="menu_over">DANGER당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_dduk"><span class="icon-board">·</span><span class="menu_over">뚝딱뚝당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_dog"><span class="icon-board">·</span><span class="menu_over">개판이당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_dongsup"><span class="icon-board">·</span><span class="menu_over">동숲한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_drone"><span class="icon-board">·</span><span class="menu_over">날아올랑</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_ebicycle"><span class="icon-board">·</span><span class="menu_over">전기자전거당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_ebook"><span class="icon-board">·</span><span class="menu_over">e북본당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_edc"><span class="icon-board">·</span><span class="menu_over">갖고다닌당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_eve"><span class="icon-board">·</span><span class="menu_over">이브한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_fashion"><span class="icon-board">·</span><span class="menu_over">패셔니앙</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_fish"><span class="icon-board">·</span><span class="menu_over">물고기당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_fisher"><span class="icon-board">·</span><span class="menu_over">도시어부당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_fm"><span class="icon-board">·</span><span class="menu_over">FM한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_food"><span class="icon-board">·</span><span class="menu_over">맛있겠당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_formula1"><span class="icon-board">·</span><span class="menu_over">포뮬러당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_gemwar"><span class="icon-board">·</span><span class="menu_over">젬워한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_girlgroup"><span class="icon-board">·</span><span class="menu_over">걸그룹당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_glasses"><span class="icon-board">·</span><span class="menu_over">안경쓴당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_golf"><span class="icon-board">·</span><span class="menu_over">골프당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_gta"><span class="icon-board">·</span><span class="menu_over">차턴당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_gun"><span class="icon-board">·</span><span class="menu_over">총쏜당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_hearth"><span class="icon-board">·</span><span class="menu_over">하스스톤한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_heroes"><span class="icon-board">·</span><span class="menu_over">히어로즈한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_instar"><span class="icon-board">·</span><span class="menu_over">인스타한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_iot"><span class="icon-board">·</span><span class="menu_over">IoT당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_kara"><span class="icon-board">·</span><span class="menu_over">KARA당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_kordle"><span class="icon-board">·</span><span class="menu_over">꼬들한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_ku"><span class="icon-board">·</span><span class="menu_over">덕질한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_lang"><span class="icon-board">·</span><span class="menu_over">어학당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_leather"><span class="icon-board">·</span><span class="menu_over">가죽당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_lego"><span class="icon-board">·</span><span class="menu_over">레고당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_linux"><span class="icon-board">·</span><span class="menu_over">리눅서당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_lol"><span class="icon-board">·</span><span class="menu_over">LOLien</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_mabi"><span class="icon-board">·</span><span class="menu_over">Mabinogien</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_main"><span class="icon-board">·</span><span class="menu_over">임시소모임</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_midra"><span class="icon-board">·</span><span class="menu_over">미드당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_military"><span class="icon-board">·</span><span class="menu_over">밀리터리당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_mine"><span class="icon-board">·</span><span class="menu_over">땅판당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_monhunt"><span class="icon-board">·</span><span class="menu_over">헌팅한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_mount"><span class="icon-board">·</span><span class="menu_over">오른당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_movie"><span class="icon-board">·</span><span class="menu_over">영화본당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_mtg"><span class="icon-board">·</span><span class="menu_over">MTG한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_music"><span class="icon-board">·</span><span class="menu_over">소리당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_nokien"><span class="icon-board">·</span><span class="menu_over">노키앙</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_note"><span class="icon-board">·</span><span class="menu_over">적는당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_onair"><span class="icon-board">·</span><span class="menu_over">방송한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_pctuning"><span class="icon-board">·</span><span class="menu_over">PC튜닝한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_photo"><span class="icon-board">·</span><span class="menu_over">찰칵찍당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_pic"><span class="icon-board">·</span><span class="menu_over">그림그린당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_picnic"><span class="icon-board">·</span><span class="menu_over">소풍간당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_plant"><span class="icon-board">·</span><span class="menu_over">심는당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_poe"><span class="icon-board">·</span><span class="menu_over">패스오브엑자일당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_rasp"><span class="icon-board">·</span><span class="menu_over">라즈베리파이당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_redeem"><span class="icon-board">·</span><span class="menu_over">품앱이당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_rhythm"><span class="icon-board">·</span><span class="menu_over">리듬탄당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_rowing"><span class="icon-board">·</span><span class="menu_over">노젓는당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_sea"><span class="icon-board">·</span><span class="menu_over">Sea마당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_sim"><span class="icon-board">·</span><span class="menu_over">SimSim하당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_simsik"><span class="icon-board">·</span><span class="menu_over">심야식당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_slate"><span class="icon-board">·</span><span class="menu_over">윈태블릿당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_snow"><span class="icon-board">·</span><span class="menu_over">미끄러진당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_soccer"><span class="icon-board">·</span><span class="menu_over">축구당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_solo"><span class="icon-board">·</span><span class="menu_over">나혼자산당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_star"><span class="icon-board">·</span><span class="menu_over">스타한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_steam"><span class="icon-board">·</span><span class="menu_over">스팀한당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_surfing"><span class="icon-board">·</span><span class="menu_over">파도탄당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_tennis"><span class="icon-board">·</span><span class="menu_over">테니스친당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_test"><span class="icon-board">·</span><span class="menu_over">테스트당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_thinkpad"><span class="icon-board">·</span><span class="menu_over">빨콩이당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_tiwatch"><span class="icon-board">·</span><span class="menu_over">공대시계당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_tour"><span class="icon-board">·</span><span class="menu_over">여행을떠난당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_tpad"><span class="icon-board">·</span><span class="menu_over">터치패드당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_twit"><span class="icon-board">·</span><span class="menu_over">트윗당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_vr"><span class="icon-board">·</span><span class="menu_over">VR당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_watch"><span class="icon-board">·</span><span class="menu_over">시계찬당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_webos"><span class="icon-board">·</span><span class="menu_over">WebOs당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_whiskey"><span class="icon-board">·</span><span class="menu_over">위스키당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_wine"><span class="icon-board">·</span><span class="menu_over">와인마신당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_wow"><span class="icon-board">·</span><span class="menu_over">WOW당</span></a>
+			<a class="menu-list somoim" href="/service/board/cm_wp"><span class="icon-board">·</span><span class="menu_over">윈폰이당</span></a>
+</div>
+<a class="menu-group somoim etc" href="/service/board/cm_main">
+    <span class="menu_over">임시소모임</span>
+</a>
+<div class="menu_line"></div>        
+            </div>
+        </div>
+        <div class="button_cs">
+            <a href="javascript:;" class="button_dropmenu" data-toggle="dropdown">고객지원</a>
+            <ul class="dropdown-menu">
+                <li><a href="/service/cs/singo/article">게시물 삭제 요청</a></li>
+                <li><a href="/service/cs/singo/article?type=illegal">불법촬영물등 신고</a></li>
+                <li><a href="/service/cs/singo/message">쪽지 신고</a></li>
+                <li><a href="/service/cs/singo/nickname">닉네임 신고</a></li>
+                <li><a href="mailto:admin@clien.net">제보 및 기타 제안</a></li>
+            </ul>
+        </div>
+	</div>
+	<div class="menu_area">
+        <a href="/service" class="link_home" title="클리앙홈">© CLIEN.NET</a>
+        <a href="#menuTop" class="link_top" title="메뉴맨위로"><i class="fa fa-bars"></i></a>
+    </div>
+</div> 
+	<div class="nav_body">
+		<div class="nav_content">
+			<div class="bullhorn danger" style="display: none;" id="noticeBullhom">
+	<div class="bullhorn_msg">
+		<span class="bullhorn_label">공지</span><span class="bullhorn_txt">[점검] 잠시후 서비스 점검을 위해 약 30분간 접속이 차단됩니다. (금일 18:15 ~ 18:45)</span>
+		<button type="button" class="bullhorn_button" onclick="setNoticeCookie();">
+			<div class="button_close"></div>
+		</button>
+	</div>
+</div>
+ 
+			<div class="content_list">
+				<div class="board_head ">
+					<div class="board_name">
+						 
+							<h2><a href="/service/board/park">모두의공원</a></h2>
+
+											</div>
+					
+				</div>
+				
+				
+				 					 
+
+					
+ 
+
+ 
+
+
+
+				<div class="board_nav">
+					<div class="board_navigation">
+						<div class="select_ui_box">
+							<span class="fa fa-angle-down list"></span>
+							<select class="select select_ui" name="od" onchange="paging.getBoard('odtype')">
+								<option value="T31" selected >등록일순</option>
+								<option value="T32"  >댓글등록순</option>
+								<option value="T33"  >공감순</option>
+								<option value="T34"  >댓글순</option>
+							</select>
+						</div>
+					</div>
+					
+                    <div class="board_user">
+							<a class="board_block topic_filter_entry"
+									href="javascript:;" onclick="topicFilter.open(this);"
+									aria-haspopup="dialog" aria-controls="topicFilterModal">
+								토픽필터
+								
+							</a>
+						<a class="button_recent" href="/service/recent" title="내가본글">내가본글</a> 
+                    </div>
+				</div>
+
+
+
+
+					 
+							<div class="list_item notice">
+								<div class="list_symph">
+									<span>공지</span>
+								</div>
+								<div class="list_title">
+									<a class="list_subject" href="/service/board/annonce/19238259">[베타] 토픽 필터 기능을 추가합니다.</a>
+								</div>
+								<div class="list_author">
+									<span class="nickname">
+											<img src="https://edgio.clien.net/F94/10153810/8cbadf818f13fd.gif" alt="운영자" />
+									</span>
+								</div>
+	
+								<div class="list_hit">
+									<span class="hit">5374</span>
+								</div>
+	
+								<div class="list_time">
+										<span class="time popover">07-30<span class="timestamp">2026-07-30 15:51:11</span></span>
+								</div>
+							</div>
+							<div class="list_item notice">
+								<div class="list_symph">
+									<span>공지</span>
+								</div>
+								<div class="list_title">
+									<a class="list_subject" href="/service/board/annonce/19116383">[보안안내] 로그인 시 '이메일 인증' 필수 적용 및 향후 계획 안내</a>
+								</div>
+								<div class="list_author">
+									<span class="nickname">
+											<img src="https://edgio.clien.net/F94/10153810/8cbadf818f13fd.gif" alt="운영자" />
+									</span>
+								</div>
+	
+								<div class="list_hit">
+									<span class="hit">54.2 k</span>
+								</div>
+	
+								<div class="list_time">
+										<span class="time popover">12-26<span class="timestamp">2025-12-26 16:55:45</span></span>
+								</div>
+							</div>
+							<div class="list_item notice">
+								<div class="list_symph">
+									<span>공지</span>
+								</div>
+								<div class="list_title">
+									<a class="list_subject" href="/service/board/rule/10707404">모두의공원 게시판 이용규칙</a>
+								</div>
+								<div class="list_author">
+									<span class="nickname">
+											<img src="https://edgio.clien.net/F94/10160260/8d1e3e7e4c521a.gif" alt="운영.A" />
+									</span>
+								</div>
+	
+								<div class="list_hit">
+									<span class="hit">3.5 M</span>
+								</div>
+	
+								<div class="list_time">
+										<span class="time popover">05-07<span class="timestamp">2017-05-07 02:00:28</span></span>
+								</div>
+							</div>
+
+					<div class="list_item hongbo " id="hongboInfoList"></div>
+					
+
+<div class="list_top_kcmdjfkejf">
+	<div id='div-pc-list-top' class="ad_banner"></div>
+</div>
+
+					
+				
+				<div class="list_content">
+									 
+
+
+
+
+ 
+
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=sch57 data-board-sn=19242823 data-comment-count=0>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242823?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="방이동 안목.">
+							방이동 안목.
+						</span>
+					</a>
+					 
+						<span class="icon_pic fa fa-picture-o"></span>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname ingname">
+			<img src="https://edgio.clien.net/F94/1091337/45b921239656460685a.gif" alt="만기" title="만기">
+		</span>
+		 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">123</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							08:11
+						<span class="timestamp">2026-08-07 08:11:44</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=ggang data-board-sn=19242822 data-comment-count=1>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242822?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="'쿠팡 두둔' 美 공화당 의원들, 韓 정부에.항의 서한">
+							'쿠팡 두둔' 美 공화당 의원들, 韓 정부에.항의 서한
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242822?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글1개">
+							<span class="rSymph05">1</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="종.삼">종.삼</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">180</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							08:10
+						<span class="timestamp">2026-08-07 08:10:20</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=legend7 data-board-sn=19242821 data-comment-count=0>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>2</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242821?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="100% 투표제 요구의 핵심은 반칙을 위한 계속된 룰 변경에 있는거죠.">
+							100% 투표제 요구의 핵심은 반칙을 위한 계속된 룰 변경에 있는거죠.
+						</span>
+					</a>
+									</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="archon">archon</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">215</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							08:05
+						<span class="timestamp">2026-08-07 08:05:06</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=firefox data-board-sn=19242820 data-comment-count=0>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242820?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="[ELLE] 위스콘신의 입양아가 BTS의 아리랑을 통해 찾은 평화">
+							[ELLE] 위스콘신의 입양아가 BTS의 아리랑을 통해 찾은 평화
+						</span>
+					</a>
+					 
+						<span class="icon_pic fa fa-picture-o"></span>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="파이어폭스">파이어폭스</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">472</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							08:04
+						<span class="timestamp">2026-08-07 08:04:51</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=spacex data-board-sn=19242818 data-comment-count=6>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242818?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="자동차 보험비가 많이 올랐군요.">
+							자동차 보험비가 많이 올랐군요.
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242818?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글6개">
+							<span class="rSymph05">6</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="spacexx">spacexx</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">713</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							07:57
+						<span class="timestamp">2026-08-07 07:57:37</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=clieneko data-board-sn=19242817 data-comment-count=5>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>4</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242817?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="1인1표 보완투표권을 주세요~~!">
+							1인1표 보완투표권을 주세요~~!
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242817?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글5개">
+							<span class="rSymph05">5</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="클리앙냥">클리앙냥</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">526</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							07:55
+						<span class="timestamp">2026-08-07 07:55:30</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=ggang data-board-sn=19242816 data-comment-count=4>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242816?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="다카이치.영상에 '경악'..日배우도 '미친 짓'.avi">
+							다카이치.영상에 '경악'..日배우도 '미친 짓'.avi
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242816?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글4개">
+							<span class="rSymph05">4</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="종.삼">종.삼</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">2406</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							07:46
+						<span class="timestamp">2026-08-07 07:46:18</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=ggang data-board-sn=19242815 data-comment-count=0>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242815?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="멱살에 돌려차기까지…張 퇴진은 커녕 자멸..">
+							멱살에 돌려차기까지…張 퇴진은 커녕 자멸..
+						</span>
+					</a>
+									</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="종.삼">종.삼</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">1037</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							07:40
+						<span class="timestamp">2026-08-07 07:40:10</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=gohooni0214 data-board-sn=19242814 data-comment-count=8>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242814?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="[정답] 집값 상승 기대 수익 &lt;&lt; 금리 이자 비용">
+							[정답] 집값 상승 기대 수익 &lt;&lt; 금리 이자 비용
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242814?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글8개">
+							<span class="rSymph05">8</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="늘감사하는사람">늘감사하는사람</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">1272</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							07:39
+						<span class="timestamp">2026-08-07 07:39:56</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=dufguf data-board-sn=19242812 data-comment-count=24>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>4</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242812?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="1인1표 당원주권 노래를 불러놓고">
+							1인1표 당원주권 노래를 불러놓고
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242812?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글24개">
+							<span class="rSymph05">24</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="황금돌고래">황금돌고래</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">1749</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							07:29
+						<span class="timestamp">2026-08-07 07:29:11</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=happycool data-board-sn=19242811 data-comment-count=1>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>9</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242811?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="윤석열 탄핵 현수막 걸었던, 김포 건물주 어르신">
+							윤석열 탄핵 현수막 걸었던, 김포 건물주 어르신
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242811?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글1개">
+							<span class="rSymph05">1</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="작은희망,비록">작은희망,비록</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">2636</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							07:25
+						<span class="timestamp">2026-08-07 07:25:46</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=nicetodo data-board-sn=19242810 data-comment-count=0>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>2</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242810?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="새벽에 피서 왔어요">
+							새벽에 피서 왔어요
+						</span>
+					</a>
+					 
+						<span class="icon_pic fa fa-picture-o"></span>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="DasVincent">DasVincent</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">1932</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							07:25
+						<span class="timestamp">2026-08-07 07:25:31</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=ggang data-board-sn=19242809 data-comment-count=1>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242809?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="장예찬 ''장동혁 사퇴' 연판장, 친한계.주축..어쩌라고!''">
+							장예찬 ''장동혁 사퇴' 연판장, 친한계.주축..어쩌라고!''
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242809?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글1개">
+							<span class="rSymph05">1</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="종.삼">종.삼</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">942</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							07:09
+						<span class="timestamp">2026-08-07 07:09:44</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=sazc3r data-board-sn=19242808 data-comment-count=12>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>1</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242808?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="전 사실 연금저축펀드도 맹신하지는 않습니다.">
+							전 사실 연금저축펀드도 맹신하지는 않습니다.
+						</span>
+					</a>
+					 
+						<span class="icon_pic fa fa-picture-o"></span>
+						<a class="list_reply reply_symph" href="/service/board/park/19242808?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글12개">
+							<span class="rSymph05">12</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="백반이">백반이</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">2202</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							07:08
+						<span class="timestamp">2026-08-07 07:08:29</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=xiary_999 data-board-sn=19242807 data-comment-count=34>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>1</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242807?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="부동산 관련해서 성공적 또는 효과본 사례가 있긴 있었는지 궁금합니다.">
+							부동산 관련해서 성공적 또는 효과본 사례가 있긴 있었는지 궁금합니다.
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242807?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글34개">
+							<span class="rSymph05">34</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="자이야이리">자이야이리</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">2085</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							06:58
+						<span class="timestamp">2026-08-07 06:58:33</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=ggang data-board-sn=19242806 data-comment-count=0>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242806?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="‘돌려차기 발언’에… 장동혁, 친한계와 징계 내전">
+							‘돌려차기 발언’에… 장동혁, 친한계와 징계 내전
+						</span>
+					</a>
+									</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="종.삼">종.삼</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">1054</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							06:53
+						<span class="timestamp">2026-08-07 06:53:34</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=koboy data-board-sn=19242805 data-comment-count=11>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>7</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242805?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="민주당 전당대회 감상편">
+							민주당 전당대회 감상편
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242805?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글11개">
+							<span class="rSymph05">11</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="코보이">코보이</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">1737</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							06:41
+						<span class="timestamp">2026-08-07 06:41:36</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=nananarada data-board-sn=19242802 data-comment-count=8>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>15</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242802?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="선호투표제에 이은 추가투표제 주장을 들으며 떠오르는 악몽 같은 회상">
+							선호투표제에 이은 추가투표제 주장을 들으며 떠오르는 악몽 같은 회상
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242802?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글8개">
+							<span class="rSymph05">8</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="나나나라">나나나라</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">2423</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							04:24
+						<span class="timestamp">2026-08-07 04:24:36</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=gonpark3 data-board-sn=19242801 data-comment-count=10>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>4</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242801?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="오디세이 보기전 참고">
+							오디세이 보기전 참고
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242801?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글10개">
+							<span class="rSymph05">10</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="Iq84">Iq84</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">5554</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							02:57
+						<span class="timestamp">2026-08-07 02:57:54</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=hopanman data-board-sn=19242799 data-comment-count=19>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>6</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242799?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="분열되어가던 사회가 조금씩 통합되는 느낌입니다.">
+							분열되어가던 사회가 조금씩 통합되는 느낌입니다.
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242799?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글19개">
+							<span class="rSymph05">19</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="검사의언선교">검사의언선교</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">6974</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							01:55
+						<span class="timestamp">2026-08-07 01:55:14</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=spikio data-board-sn=19242797 data-comment-count=9>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>21</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242797?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="후달리니까 이길려고 선거규칙을 바꾸자는 인간들 심각합니다">
+							후달리니까 이길려고 선거규칙을 바꾸자는 인간들 심각합니다
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242797?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글9개">
+							<span class="rSymph05">9</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="스피키아">스피키아</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">4413</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							01:39
+						<span class="timestamp">2026-08-07 01:39:43</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=zsax497 data-board-sn=19242795 data-comment-count=1>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242795?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="현재까지 트리플 태풍 정보">
+							현재까지 트리플 태풍 정보
+						</span>
+					</a>
+					 
+						<span class="icon_pic fa fa-picture-o"></span>
+						<a class="list_reply reply_symph" href="/service/board/park/19242795?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글1개">
+							<span class="rSymph05">1</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="루다나리에">루다나리에</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">8999</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							01:07
+						<span class="timestamp">2026-08-07 01:07:31</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=irnist data-board-sn=19242792 data-comment-count=3>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242792?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="테슬라 그록 어우야 ㄷㄷㄷ">
+							테슬라 그록 어우야 ㄷㄷㄷ
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242792?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글3개">
+							<span class="rSymph05">3</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="스타X">스타X</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">10.5 k</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							00:51
+						<span class="timestamp">2026-08-07 00:51:21</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=sgotun data-board-sn=19242791 data-comment-count=20>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>11</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242791?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="신천지 세력의 실체가 조금씩 나오네요">
+							신천지 세력의 실체가 조금씩 나오네요
+						</span>
+					</a>
+					 
+						<span class="icon_pic fa fa-picture-o"></span>
+						<a class="list_reply reply_symph" href="/service/board/park/19242791?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글20개">
+							<span class="rSymph05">20</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="Mystory">Mystory</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">8896</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							00:40
+						<span class="timestamp">2026-08-07 00:40:29</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=bigbluewhale data-board-sn=19242790 data-comment-count=23>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>3</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242790?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="파키스탄 남성이 여중생에게 수상한 수박을 권했다가 잡혔네요.">
+							파키스탄 남성이 여중생에게 수상한 수박을 권했다가 잡혔네요.
+						</span>
+					</a>
+					 
+						<span class="icon_pic fa fa-picture-o"></span>
+						<a class="list_reply reply_symph" href="/service/board/park/19242790?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글23개">
+							<span class="rSymph05">23</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="인지심리학">인지심리학</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">10.5 k</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							00:39
+						<span class="timestamp">2026-08-07 00:39:22</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=cruisesh data-board-sn=19242788 data-comment-count=4>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242788?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="쿠팡 셀러들 화들짝 놀란건가요?(feat. 다이소 맥세이프 거치대)">
+							쿠팡 셀러들 화들짝 놀란건가요?(feat. 다이소 맥세이프 거치대)
+						</span>
+					</a>
+					 
+						<span class="icon_pic fa fa-picture-o"></span>
+						<a class="list_reply reply_symph" href="/service/board/park/19242788?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글4개">
+							<span class="rSymph05">4</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="쿠엔틴포체티노">쿠엔틴포체티노</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">7758</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							00:27
+						<span class="timestamp">2026-08-07 00:27:19</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=nicee data-board-sn=19242787 data-comment-count=7>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>0</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242787?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="최근에 아이폰에서 갤럭시를 쓰면서...느낀 점입니다.">
+							최근에 아이폰에서 갤럭시를 쓰면서...느낀 점입니다.
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242787?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글7개">
+							<span class="rSymph05">7</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="포비">포비</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">5163</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							00:25
+						<span class="timestamp">2026-08-07 00:25:21</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=mecander data-board-sn=19242786 data-comment-count=26>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>17</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242786?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="당대표 후보 김민석 관련 의아한 부분..">
+							당대표 후보 김민석 관련 의아한 부분..
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242786?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글26개">
+							<span class="rSymph05">26</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="메칸더v">메칸더v</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">3281</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							00:24
+						<span class="timestamp">2026-08-07 00:24:12</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=zsax497 data-board-sn=19242785 data-comment-count=3>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>5</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242785?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="농심에게 선물 받은 바나나킥 아기">
+							농심에게 선물 받은 바나나킥 아기
+						</span>
+					</a>
+											<a class="list_reply reply_symph" href="/service/board/park/19242785?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글3개">
+							<span class="rSymph05">3</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="루다나리에">루다나리에</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">4251</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							00:21
+						<span class="timestamp">2026-08-07 00:21:44</span>
+					</span>
+				</div>
+			</div>
+		
+
+ 
+			<div class="list_item symph_row  " data-role="list-row" data-author-id=happycool data-board-sn=19242784 data-comment-count=23>
+				<span class="list_stare" style="display: none;" data-role="observeIcon"><i class="fa fa-eye"></i></span>
+				
+				 
+					<div class="list_symph view_symph" data-role="list-like-count"><span>12</span></div> 
+
+				<div class="list_title " data-role="list-title" data-toggle-custom="dropdown"> 
+					<a class="list_subject" href="/service/board/park/19242784?od=T31&po=0&category=0&groupCd=" data-role="cut-string">
+						 
+						<span class="subject_fixed" data-role="list-title-text" title="뉴이재명이 주장하는 반명세력">
+							뉴이재명이 주장하는 반명세력
+						</span>
+					</a>
+					 
+						<span class="icon_pic fa fa-picture-o"></span>
+						<a class="list_reply reply_symph" href="/service/board/park/19242784?od=T31&po=0&category=0&groupCd=#comment-point" data-role="ele-after" title="댓글23개">
+							<span class="rSymph05">23</span>
+							<strong class="color_red" data-role="observeCmCount"></strong>
+							<strong class="color_red" data-role="recentCmCount"></strong>
+						</a>
+				</div>
+				<div class="list_author" data-role="list-author">
+					<span class="memo none" data-role="list_memo"></span>
+					
+	 
+		 
+		<span class="nickname">
+				<span title="작은희망,비록">작은희망,비록</span>
+		</span>
+ 
+				</div>
+
+				<div class="list_hit">
+					<span class="hit">3102</span>
+				</div>
+
+				<div class="list_time">
+					<span class="time popover">
+							00:18
+						<span class="timestamp">2026-08-07 00:18:57</span>
+					</span>
+				</div>
+			</div>
+				</div>
+
+				<div class="list_bottom_ad">
+<div id='div-pc-list-below' class="ad_banner"></div>				</div>
+
+				<div class="list_button_area">
+						<a href="javascript:;" class="button_next_page" onclick="paging.getBoard('side_plus')"><span class="button_name">다음페이지</span><i class="fa fa-caret-right"></i></a>
+
+                        
+
+<div class="board-pagination">
+    <div class="board-nav">
+
+
+
+
+        <div class="board-nav-area">
+                <a href="javascript:paging.getBoard('direct', 0);" id="pagingActiveId_1" class="board-nav-page">1</a>
+                <a href="javascript:paging.getBoard('direct', 1);" id="pagingActiveId_2" class="board-nav-page">2</a>
+                <a href="javascript:paging.getBoard('direct', 2);" id="pagingActiveId_3" class="board-nav-page">3</a>
+                <a href="javascript:paging.getBoard('direct', 3);" id="pagingActiveId_4" class="board-nav-page">4</a>
+                <a href="javascript:paging.getBoard('direct', 4);" id="pagingActiveId_5" class="board-nav-page">5</a>
+                <a href="javascript:paging.getBoard('direct', 5);" id="pagingActiveId_6" class="board-nav-page">6</a>
+                <a href="javascript:paging.getBoard('direct', 6);" id="pagingActiveId_7" class="board-nav-page">7</a>
+                <a href="javascript:paging.getBoard('direct', 7);" id="pagingActiveId_8" class="board-nav-page">8</a>
+                <a href="javascript:paging.getBoard('direct', 8);" id="pagingActiveId_9" class="board-nav-page">9</a>
+                <a href="javascript:paging.getBoard('direct', 9);" id="pagingActiveId_10" class="board-nav-page">10</a>
+        </div>
+
+            <a href="javascript:paging.getBoard('direct', 1);" class="board-nav-next"></a>
+            <a href="javascript:paging.getBoard('direct', 10);" class="board-nav-next ten">다음</a>
+    </div>
+</div>
+
+<input type="hidden" value="1" id="startPagePo">
+
+<script>
+    var num = 0+1;
+    var activeId = 'pagingActiveId_' + num.toString();
+    document.getElementById(activeId).className += " active";
+</script> 
+
+					<div class="button_post">
+						
+<div class="action_write" data-role="dropdown-write-article">
+			<a href="javascript:;" class="action_icon fix blue tooltip">
+			<span class="fa fa-pencil button_icon"></span>
+			<span class="tooltiptext">글쓰기</span>
+		</a>
+
+	<div class="dropdown-menu post_menu" data-role="select-depth" data-action="/service/board/regist">
+		<div class="post_menu_title">모두의공원 게시판</div>
+		<ul class="post_menu_list">
+
+		 
+					<li><a href="javascript:;" onclick="ui.moveWriteGroupPage('hongbo')">직접홍보</a></li>
+		</ul>
+	</div>
+</div> 
+					</div>
+				</div>
+
+				
+				
+				
+				</div>
+			</div>
+
+<div class="topic_filter_modal" id="topicFilterModal"
+		data-enabled="false"
+		data-excluded-mask="0"
+		data-authenticated="false"
+		data-filter-list-url="/service/board/park"
+		aria-hidden="true">
+	<div class="topic_filter_panel" role="dialog" aria-modal="true"
+			aria-labelledby="topicFilterTitle"
+			aria-describedby="topicFilterNotice topicFilterMessage">
+		<div class="topic_filter_title">
+			<strong id="topicFilterTitle"><i class="fa fa-filter"></i> 토픽 필터 <span class="topic_filter_beta">BETA</span></strong>
+			<button type="button" class="topic_filter_close" onclick="topicFilter.close();" aria-label="닫기">
+				<span class="fa fa-times"></span>
+			</button>
+		</div>
+
+		<div class="topic_filter_body">
+			<label class="topic_filter_enabled">
+				<input type="checkbox" id="topicFilterEnabled">
+				<span>토픽 필터 사용</span>
+			</label>
+
+			<fieldset class="topic_filter_topics">
+				<legend>목록에 노출할 토픽</legend>
+				<label><input type="checkbox" data-topic-bit="4096"> 국내정치</label>
+				<label><input type="checkbox" data-topic-bit="8192"> 해외정치</label>
+				<label><input type="checkbox" data-topic-bit="512"> 부동산</label>
+				<label><input type="checkbox" data-topic-bit="1024"> 주식</label>
+				<label><input type="checkbox" data-topic-bit="2048"> 경제일반</label>
+				<label><input type="checkbox" data-topic-bit="2"> IT·기술</label>
+				<label><input type="checkbox" data-topic-bit="8"> 일상</label>
+				<label><input type="checkbox" data-topic-bit="16"> 취미</label>
+				<label><input type="checkbox" data-topic-bit="32"> 커뮤니티</label>
+				<label><input type="checkbox" data-topic-bit="64"> 연예·뉴스</label>
+				<label><input type="checkbox" data-topic-bit="128"> 기타</label>
+			</fieldset>
+
+			<div class="topic_filter_notice" id="topicFilterNotice">
+                <p class="topic_filter_scope">
+                    <strong>토픽 필터를 사용하면 모든 토픽을 선택해도 최근 30일 등록일순 목록으로 전환됩니다.</strong>
+                </p>
+                <p>모두의공원·모두의광장에 적용되며, 내 글은 제외한 토픽이어도 항상 표시됩니다.</p>
+                <p>다른 그룹·통합 목록, 검색, 내가 본 글에는 적용되지 않습니다.</p>
+                <p>공용 기기에서는 로그아웃 후에도 마지막 설정이 브라우저에 남습니다.</p>
+			</div>
+			<p class="topic_filter_message" id="topicFilterMessage" role="status"></p>
+		</div>
+
+		<div class="topic_filter_footer">
+				<a class="topic_filter_login" href="/service/auth/login">로그인 후 변경</a>
+			<button type="button" class="topic_filter_cancel" onclick="topicFilter.close();">취소</button>
+		</div>
+	</div>
+	<button type="button" class="topic_filter_backdrop" onclick="topicFilter.close();"
+			aria-label="닫기" tabindex="-1"></button>
+</div>
+
+<input type="hidden" id="topicFilterCsrf" value="03134035-bfde-45b9-af25-b99d92d9004e">
+			<div class="nav_action">
+	<div class="action_box">
+
+
+			
+		
+				<a href="javascript:;" class="action_icon tooltip" onclick="paging.getBoard('first')">
+					<i class="fa fa-angle-double-left"></i>
+					<span class="tooltiptext">처음</span>
+				</a>
+				<a href="javascript:;" class="action_icon tooltip" onclick="paging.getBoard('side_minus')">
+					<i class="fa fa-angle-left"></i>
+					<span class="tooltiptext">이전페이지</span>
+				</a>
+
+			<a href="javascript:;" class="action_icon tooltip" onclick="paging.getBoard('side_plus')">
+				<i class="fa fa-angle-right"></i>
+				<span class="tooltiptext">다음페이지</span>
+			</a>
+
+		<a href="#down" class="action_icon none" title="맨아래로 이동">
+			<i class="fa fa-caret-down"></i>
+		</a>
+
+		<div class="backtop" id="back-top">
+			<a href="#top" class="action_icon none" title="맨위로 이동">
+				<i class="fa fa-caret-up"></i>
+			</a>
+		</div>
+	</div>
+</div>
+ 
+		<div class="aside">
+	 <div class="account_section login">
+	<form id="loginForm">
+		<div class="side_account login">
+            <div class="side_account_area">
+                <button type="button" onclick="location.href='/service/auth/login'" name="로그인하기" class="button_submit"><i class="icon-clien"></i><span>로그인</span></button>
+            </div>
+            <div class="account_submit">
+                <div class="account_signup">
+                    <a href="/service/auth/findAccountCert" class="button_signup">아이디&nbsp; · &nbsp;비밀번호 찾기</a>
+					<em></em>
+					<a href="/service/auth/join" class="button_signup">회원가입</a>
+				</div>
+			</div>
+		</div>
+	</form>
+</div>
+
+
+
+
+ 
+
+    
+    <div class="side_kljfssajfl">
+        <div class="side_posjduenfj">
+
+<div id='div-pc-side-1' class="pc_side ad_banner" data-spy="affix" data-offset-top="202"></div>
+
+        </div>
+        <div class="side_line"></div>
+        <div class="side_posjduenfj">
+
+<div id='div-pc-side-2' class="pc_side ad_banner" data-spy="affix" data-offset-top="202"></div>
+
+        </div>
+	</div>
+</div> 
+	</div>
+</div>
+
+<div class="footer_wrap" id="down">
+		<div class="area_terms">
+		<a class="at_item" href="/service/board/rule">이용규칙</a>
+		<a class="at_item" href="/service/board/annonce">운영알림판</a>
+        <a class="at_item" href="/service/board/symposium">운영소통</a>
+		<a class="at_item" href="/service/board/claim">재검토요청</a>
+		<a class="at_item" href="/service/board/faq">도움말</a>
+		<a class="at_item noline" href="/service/board/bug">버그신고</a>
+	</div>
+	<div class="area_legal">
+		<a href="/service/cs/privacy" target="_blank"><strong>개인정보처리방침</strong></a>
+		<a href="/service/cs/conditions" target="_blank">이용약관</a>
+		<a href="/service/cs/policy" target="_blank">책임의 한계와 법적고지</a>
+		<a href="/service/cs/teenager" target="_blank">청소년 보호정책</a>
+	</div>
+	<div class="area_company">© <span id="nowYear"></span>&nbsp;&nbsp;•&nbsp;&nbsp;CLIEN.NET</div>
+
+</div>
+
+<script>
+(function(){
+	var retried = {};
+	var logged = {};
+	var reportDedupTtl = 5 * 60 * 1000;
+	var baseUrl = "/service";
+	var jsPathPrefix = baseUrl + "/js/";
+	var beaconUrl = baseUrl + "/api/client-error/script";
+	var botUaPattern = /(bot|crawler|spider|bingbot|googlebot|yeti|baiduspider|bytespider|duckduckbot|slurp)/i;
+
+	if(botUaPattern.test(navigator.userAgent || '')) {
+		return;
+	}
+
+	function isRetryTarget(src) {
+		var a = document.createElement('a');
+		a.href = src;
+		var origin = location.protocol + '//' + location.host;
+		return a.protocol + '//' + a.host === origin && a.pathname.indexOf(jsPathPrefix) === 0;
+	}
+
+	function isPrerendering() {
+		return document.prerendering === true;
+	}
+
+	function isRecentlyReported(key) {
+		try {
+			var now = Date.now();
+			var storageKey = 'script_load_beacon|' + key;
+			var last = parseInt(sessionStorage.getItem(storageKey) || '0', 10);
+			if(last && now - last < reportDedupTtl) return true;
+			sessionStorage.setItem(storageKey, String(now));
+		} catch(_){}
+		return false;
+	}
+
+	function sendScriptLoadBeacon(status, url, retryUrl) {
+		var key = status + '|' + url;
+		if(logged[key] || isRecentlyReported(key)) return;
+		logged[key] = true;
+		try {
+			if(!navigator.sendBeacon) return;
+			navigator.sendBeacon(beaconUrl,
+				new Blob([JSON.stringify({status: status, url: url, retryUrl: retryUrl || '', ua: navigator.userAgent, ref: location.href, at: Date.now()})],
+					{type: 'application/json'}));
+		} catch(_){}
+	}
+
+	function handleScriptLoadError(src) {
+		if(src.indexOf('_retry=') !== -1) return;
+		if(retried[src]) return;
+		retried[src] = true;
+		sendScriptLoadBeacon('retry_scheduled', src);
+		setTimeout(function(){
+			var r = document.createElement('script');
+			r.src = src + (src.indexOf('?')<0?'?':'&') + '_retry=' + Date.now();
+			r.async = false;
+			r.onload = function(){
+				sendScriptLoadBeacon('retry_success', src, r.src);
+			};
+			r.onerror = function(){
+				sendScriptLoadBeacon('retry_failed', src, r.src);
+			};
+			document.head.appendChild(r);
+		}, 300);
+	}
+
+	window.addEventListener('error', function(e){
+		var t = e.target;
+		if(!t || t.tagName !== 'SCRIPT' || !t.src) return;
+		var src = t.src;
+		if(!isRetryTarget(src)) return;
+		if(isPrerendering()) {
+			document.addEventListener('prerenderingchange', function(){
+				handleScriptLoadError(src);
+			}, {once: true});
+			return;
+		}
+		handleScriptLoadError(src);
+	}, true);
+})();
+</script>
+
+<script src="/service/js/lib/jquery-3.6.0.slim.min.js?260806v4"></script>
+<script src="/service/js/lib/cl.dropmenu.js?260806v4"></script>
+
+<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+<script async defer src="//www.instagram.com/embed.js"></script>
+
+<script>
+	let IS_DEBUG = false;
+	const BASE_URL = "/service";
+	const API_HOST = "/service/api";
+	const CDN_URL = "https://edgio.clien.net";
+
+	const COOKIE_DOMAIN = "clien.net";
+
+	let IS_LOGIN = false;
+	let sessionUserId = ''; 
+
+
+	let IsMobile = false;
+
+
+	let PAGE_SETTING_THEME = "";
+	let PAGE_SETTING_FONT_SIZE = "";
+	let PAGE_SETTING_KIND_OF_FONT = "";
+	let PAGE_SETTING_SHORT_CUT = "";
+	let PAGE_SETTING_LIST_SIZE = "";
+	
+		PAGE_SETTING_THEME = "white";
+		PAGE_SETTING_FONT_SIZE = "normal";
+		PAGE_SETTING_KIND_OF_FONT = "basic";
+		PAGE_SETTING_SHORT_CUT = "on";
+		PAGE_SETTING_LIST_SIZE = "normal";
+
+	const HONGBO_IMG_PARAMETER = "?scale=width:480";
+	const COMMENT_IMG_PARAMETER = "?scale=width:480";
+	const IMG_PARAMETER = "?scale=width:740";
+
+	let keyData = {};
+
+				keyData["c"] = "/service/group/community";
+				keyData["f"] = "/service/board/park";
+				keyData["i"] = "/service/board/image";
+				keyData["q"] = "/service/board/kin";
+				keyData["d"] = "/service/group/allinfo";
+				keyData["n"] = "/service/board/news";
+				keyData["t"] = "/service/board/useful";
+				keyData["p"] = "/service/board/pds";
+				keyData["e"] = "/service/group/allreview";
+				keyData["l"] = "/service/board/lecture";
+				keyData["u"] = "/service/board/use";
+				keyData["w"] = "/service/group/allsell";
+				keyData["j"] = "/service/board/jirum";
+				keyData["s"] = "/service/board/sold";
+				keyData["b"] = "/service/board/hongbo";
+				keyData["h"] = "/service/";
+
+	$.ajaxSetup({
+		beforeSend: function(xhr, settings) {
+			if (settings.type === 'POST' || settings.type === 'PUT' || settings.type === 'DELETE') {
+				if (!(/^http:.*/.test(settings.url) || /^https:.*/.test(settings.url))) {
+					xhr.setRequestHeader("X-CSRF-TOKEN", "03134035-bfde-45b9-af25-b99d92d9004e");
+				}
+			}
+		}
+	});
+</script>
+
+<script src="/service/js/common/clien.cookie.js?260806v4"></script>
+
+<script src="/service/js/common/clien.storage.js?260806v4"></script>
+<script src="/service/js/common/clien.auth.js?260806v4"></script>
+<script src="/service/js/common/clien.paging.js?260806v4"></script>
+<script src="/service/js/common/clien.util.js?260806v4"></script>
+<script src="/service/js/common/clien.popup.js?260806v4"></script>
+<script src="/service/js/common/clien.setting.js?260806v4"></script>
+<script src="/service/js/common/clien.search.js?260806v4"></script>
+<script src="/service/js/common/clien.font.js?260806v4"></script>
+
+<script src="/service/js/app/clien.js?260806v4"></script>
+<script src="/service/js/app/clien.ui.js?260806v4"></script>
+
+<div class="modal_security" id="security_modal">
+    <div class="modal_security_content">
+        <div class="modal_title">
+            <strong><i class="fa fa-shield"></i> 보안 강화를 위한 이메일 인증</strong>
+            <button type="button" class="modal_close" onclick="securityModalClose();" aria-label="close">
+                <div class="modal_button_close"></div>
+            </button>
+        </div>
+
+        <div class="modal_help_msg">
+            <span class="help_subject"><strong>안전한 서비스 이용을 위해 이메일 인증을 완료해 주세요.</strong></span>
+
+            <span class="help_contents">
+         현재 회원님은 <strong>이메일 인증이 완료되지 않은 상태</strong>입니다.<br>
+         최근 급증하는 해킹 및 도용 시도로부터 계정을 보호하기 위해 인증 절차가 강화되었습니다.<br><br>
+
+         <ul class="password_help">
+            <li>이메일 미인증 시 <strong>글쓰기, 댓글 작성 등 게시판 활동이 제한됩니다.</strong></li>
+            <li>이후 <strong>새로운 기기에서 로그인할 때마다 반드시 이메일 인증을 거쳐야 합니다.</strong></li>
+            <li>2단계 인증 사용 회원도 최초 1회는 반드시 인증하여야 합니다.</strong></li>
+            <li><a href="/service/mypage/myInfo">개인정보</a>에서도 이메일 인증을 할 수 있습니다.</li>
+         </ul>
+      </span>
+
+            <a href="/service/auth/email/verify" class="button_2fa" style="margin-top: 15px;">
+                <strong class="button_2fa_title" style="color: #516B82;">지금 이메일 인증하기</strong>
+                <div class="button_2fa_msg">
+                    등록된 이메일 주소를 확인하고 인증번호를 입력하여<br>
+                    인증을 완료해 주세요.
+                </div>
+                <i class="fa fa-envelope-o"></i>
+            </a>
+        </div>
+
+        <div class="modal_footer">
+            <button type="button" class="modal_button_confirm" onclick="securityModalClose();">나중에 하기</button>
+        </div>
+    </div>
+    <div class="modal_bg" onclick="securityModalClose();"></div>
+</div>
+
+<script>
+
+    $(document).ready(function() {
+        if (sessionStorage.getItem('showEmailVerifyModal') === 'true') {
+            sessionStorage.removeItem('showEmailVerifyModal');
+            $("#security_modal").addClass('open');
+        }
+    });
+
+    function securityModalClose() {
+        // 닫기만 수행 (다시 보지 않기 설정 저장 안 함 -> 다음 로그인 시 다시 뜸)
+        $('#security_modal').removeClass('open');
+    }
+</script>
+
+ <input type="hidden" value="L11" id="confListType"> 
+<input type="hidden" value="true" id="hongboUseYn"> <input type="hidden" value="0" id="po">
+<input type="hidden" value="T31" id="od">
+<input type="hidden" value="" id="sk">
+<input type="hidden" value="" id="sv">
+<input type="hidden" value="0" id="voCategory">
+
+<input type="hidden" value="false" id="isGroup">
+<input type="hidden" value="" id="groupCd">
+<input type="hidden" value="park" id="boardCd">
+<input type="hidden" value="모두의공원" id="boardName">
+<input type="hidden" value="false" id="searchIsVaild">
+<input type="hidden" value="0" id="pt">
+
+<script src="/service/js/lib/mark.min.js?260806v4"></script> 
+
+<script src="/service/js/common/clien.hongbo.js?260806v4"></script> 
+<script src="/service/js/common/clien.dashboard.js?260806v4"></script> 
+
+
+<script src="/service/js/app/pageJs/list.js?260806v4"></script> 
+<script src="/service/js/common/clien.observe.js?260806v4"></script> 
+	<script src="/service/js/common/clien.topic-filter.js?260806v4"></script>
+
+
+</body>
+</html>
