@@ -737,12 +737,31 @@ export function createServer(opts = {}) {
   // (2026-08-03 검수 실측: /briefing·/trends·/ranking 전부 tech 배너).
   // size도 이미지 시대의 유물이다 — 크리에이티브를 우리가 그리므로 배너의
   // 픽셀 크기는 의미가 없고, 필터로 두면 재고만 절반으로 자른다.
-  const coupangBannerHtml = (category, size = null, pick = 0, slot = "page", dest = null) => {
-    const b = pickBanner({ category, dest, size, pick });
+  // 한 페이지 안에서 같은 상품이 두 번 나오지 않게 하려면 **누가 이미
+  // 나갔는지**를 알아야 한다. pickBanner는 진작 seen을 받게 돼 있었는데
+  // 여기서 한 번도 넘기지 않았다 — 그래서 브리핑에 같은 광고가 둘 나왔다
+  // (David 제보 2026-08-06). 페이지마다 adPage()로 하나 만들어 쓴다.
+  // 방문 순번. 페이지를 그릴 때마다 하나씩 올린다. 난수를 안 쓰는 이유는
+  // 난수가 같은 것을 연달아 뽑는 일이 잦기 때문이다 — 순번은 반드시 한 바퀴 돈다.
+  let adTurn = 0;
+  const adPage = () => {
+    adTurn = (adTurn + 1) % 997;      // 소수 — 문구 개수와 주기가 맞물리지 않게
+    const seen = new Set();
+    return (category, size = null, pick = 0, slot = "page", dest = null) =>
+      coupangBannerHtml(category, size, pick, slot, dest, seen);
+  };
+
+  const coupangBannerHtml = (category, size = null, pick = 0, slot = "page", dest = null, seen = null) => {
+    const b = pickBanner({ category, dest, size, pick, seen: seen || new Set() });
     if (!b) return "";
+    if (seen) seen.add(b.id);
     // 맥락별 문구 행렬에서 고른다. 행렬이 없으면 ad-copy.js 기본 문구로
     // 떨어진다 — 배치가 실패해도 광고가 사라지지 않는다.
-    const v = pickVariant(b.dest, category, { matrix: adMatrix, rotate: pick });
+    // 문구 회전값. pick은 자리마다 고정이라 **같은 자리엔 늘 같은 문장**이
+    // 나왔다 — 270개를 만들어 두고 몇 개만 돌려쓴 셈이다(David 2026-08-06).
+    // 자리 번호에 방문 순번을 더해 골고루 돈다. 난수가 아니라 순번이라
+    // 뭉치지 않고 전부가 균등하게 나온다.
+    const v = pickVariant(b.dest, category, { matrix: adMatrix, rotate: pick + adTurn });
     // 줄(line)은 게시글의 발췌 자리에 해당한다 — 제목만 있고 본문이 없으면
     // 게시글로 안 읽힌다(David 2026-08-05). 옛 행렬이면 도착지 이름이 온다.
     const hook = v.hook, brand = v.line || v.brand;
@@ -1039,6 +1058,9 @@ ${adSlotHtml("adfit")}
   // mid — 첫 밴드 뒤에 끼워 넣을 지면. 광고를 페이지 맨 아래에만 두면 TOP 20을
   // 전부 스크롤한 사람만 보게 되고, 실제로 아무도 보지 못했다(David 2026-08-03:
   // "제일 하단에만 하나 띡 들어가있고 하면 누가 이걸 보지도 못하겠다").
+  // mid는 문자열이거나 **바로 위 글을 받는 함수**다. 함수로 주면 광고 문구를
+  // 그 자리의 글에 맞출 수 있다 — "근처 콘텐츠 제목·내용이랑 맞는 걸로"
+  // (David 2026-08-06). 문자열도 계속 받는다.
   const rankingRows = (items, mid = "") => {
     let placed = false;
     return RANK_BANDS.map((b) => {
@@ -1046,7 +1068,12 @@ ${adSlotHtml("adfit")}
       if (!slice.length) return "";
       const html = `<section><h2>${escapeHtml(b.label)}</h2>
       <ol class="rank" start="${b.from}" style="--rank-start:${b.from - 1}">${slice.map((i, k) => rankRow(i, b.from + k)).join("")}</ol></section>`;
-      if (mid && !placed) { placed = true; return html + mid; }
+      if (mid && !placed) {
+        placed = true;
+        const above = slice[slice.length - 1];
+        const ad = typeof mid === "function" ? mid(above) : mid;
+        return html + (ad || "");
+      }
       return html;
     }).join("");
   };
@@ -1094,7 +1121,7 @@ ${adSlotHtml("adfit")}
   // 사건 기사 옆에 "문맥이 맞아 보이는" 광고가 붙는 것이 무관한 광고보다
   // 나쁘다(2026-08-06 피드에서 겪은 것과 같은 이유).
   const BRIEF_AD_EVERY = 3;   // 세 섹션마다 한 장
-  const briefingSectionsHtml = (b, mid = "") => { let midPlaced = false; let adNo = 0; return b.sections.map((sec, secIdx) => {
+  const briefingSectionsHtml = (b, mid = "", AD = coupangBannerHtml) => { let midPlaced = false; let adNo = 0; return b.sections.map((sec, secIdx) => {
     const lead = sec.items[0];
     // 실측이 0인 지표는 문장에서 아예 뺀다 — "추천 0·댓글 86을 모으며 화제의
     // 중심"은 자기모순이다(적대적 검수 2026-07-31, 태호·지영 페르소나 지적).
@@ -1125,7 +1152,7 @@ ${adSlotHtml("adfit")}
       const dest = AD_MATCH_OFF_CATS.has(sec.category)
         ? null
         : destForText(sec.items[0] && sec.items[0].title);
-      const ad = coupangBannerHtml(sec.category, null, 3 + adNo, `brief_s${secIdx + 1}`, dest);
+      const ad = AD(sec.category, null, 3 + adNo, `brief_s${secIdx + 1}`, dest);
       if (ad) return html + ad;
     }
     return html;
@@ -1462,6 +1489,17 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         const bodyHtml = b.publishable
           ? `${slotNav}${issuesHtml(b)}`
           : `<p class="muted">이 시간대는 아직 정리할 만큼 화제가 모이지 않았습니다. 다음 편에서 이어집니다.</p>`;
+        // 이 페이지에 나가는 광고는 한 묶음으로 본다 — 같은 상품이 두 번
+        // 나오지 않고, 문구도 자리마다 다른 것이 나온다.
+        const AD = adPage();
+        // 첫 광고도 **바로 위 글**에 맞춘다. 예전엔 category·dest를 둘 다
+        // null로 넘겨서, 정작 가장 눈에 띄는 자리만 문맥과 무관했다.
+        const sec0 = (b.sections && b.sections[0]) || null;
+        const cat0 = sec0 && !AD_MATCH_OFF_CATS.has(sec0.category) ? sec0.category : null;
+        const dest0 = cat0 && sec0.items[0] ? destForText(sec0.items[0].title) : null;
+        const secL = b.sections && b.sections.length ? b.sections[b.sections.length - 1] : null;
+        const catL = secL && !AD_MATCH_OFF_CATS.has(secL.category) ? secL.category : null;
+        const destL = catL && secL.items[0] ? destForText(secL.items[0].title) : null;
         const inner = `<h1>지금 브리핑 · ${escapeHtml(slotLabel)}</h1>
 <p class="muted">${dateStr} ${escapeHtml(slotLabel)} · 커뮤니티·뉴스 ${b.sourceCount}곳에서 모은 ${b.itemCount}건을 정리했습니다.
 ${b.slot && b.slot.lead ? escapeHtml(b.slot.lead) + " 위주로 봅니다. " : ""}원문 인용 없이 우리가 잰 수치로만 씁니다.</p>
@@ -1470,11 +1508,11 @@ ${bodyHtml}
 ${b.essay || b.digestSummary ? `<section class="issue"><h2>종합 분석</h2>${b.essay ? `<p>${escapeHtml(maskProfanity(b.essay))}</p>` : ""}${b.digestSummary ? `<p>${escapeHtml(b.digestSummary)}</p>` : ""}</section>` : ""}
 ${rankingNav("")}
 <h2 style="margin-top:28px">분야별 상위 글</h2>
-${briefingSectionsHtml(b, coupangBannerHtml(null, null, 3, "brief_mid"))}
+${briefingSectionsHtml(b, AD(cat0, null, 3, "brief_mid", dest0), AD)}
 ${debateHtml}
 ${archiveHtml}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 클리앙·뽐뿌·보배드림·이토랜드 등 커뮤니티와 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing"), coupangBannerHtml(null, null, 7, "page_bot")));
+        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 클리앙·뽐뿌·보배드림·이토랜드 등 커뮤니티와 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing"), AD(catL, null, 7, "page_bot", destL)));
       }
 
       // 홈 최상단 브리핑 스트립용 원자료 (David 2026-07-31: "최상단에 테마별로
@@ -1492,17 +1530,18 @@ ${archiveHtml}`;
       if (p === "/trends" && req.method === "GET") {
         const t = trendsCache ? await trendsCache.get() : null;
         if (!t || !t.trends.length) return send(res, 404, { error: "no trends yet" });
+        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
         const row = (x) =>
           `<li><div><a href="${escapeHtml(x.searchUrl)}" target="_blank" rel="noopener">${escapeHtml(x.name)}</a>${x.count ? `<span class="m">게시물 ${escapeHtml(x.count)}</span>` : ""}</div></li>`;
         const inner = `<h1>지금 X(트위터) 실시간 트렌드</h1>
 <p class="muted">${kstLabel(t.fetchedAt)} 기준 한국 실시간 트렌드 TOP ${t.trends.length} · 약 20분마다 갱신 · 키워드를 누르면 X 검색이 새 탭으로 열립니다.</p>
 ${rankingNav("")}
 <ol class="rank">${t.trends.slice(0, 8).map(row).join("")}</ol>
-${coupangBannerHtml(null, null, 6, "trends_mid")}
+${AD(null, null, 6, "trends_mid")}
 <ol class="rank" start="9" style="--rank-start:8">${t.trends.slice(8).map(row).join("")}</ol>
 <p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.</p>`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends"), coupangBannerHtml(null, null, 7, "page_bot")));
+        return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends"), AD(null, null, 7, "page_bot")));
       }
 
       // /briefing/<YYYY-MM-DD> = 일별 아카이브, /briefing/<카테고리> = 라이브
@@ -1510,6 +1549,7 @@ ${coupangBannerHtml(null, null, 6, "trends_mid")}
       if (p.startsWith("/briefing/") && req.method === "GET") {
         const seg = decodeURIComponent(p.slice("/briefing/".length));
         if (/^\d{4}-\d{2}-\d{2}$/.test(seg)) {
+          const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
           // 그날 발행된 편들을 보여준다. 슬롯을 지정하면 그 편, 없으면 마지막 편.
           // 예전엔 dailyEdition(수집 스냅샷)을 읽어서 **해설이 없었다** —
           // 지금은 하루 3편을 해설과 함께 저장하므로 아카이브에도 그대로 남는다.
@@ -1552,15 +1592,16 @@ ${coupangBannerHtml(null, null, 6, "trends_mid")}
 <p class="muted small">하루 세 번 — 아침 7시·점심 12시·저녁 7시에 한 편씩 발행합니다.</p>
 ${dayNav}${slotNav}
 ${rankingNav("")}
-${briefingSectionsHtml(b, coupangBannerHtml(null, null, 4, "archive_mid"))}`;
+${briefingSectionsHtml(b, AD(null, null, 4, "archive_mid"))}`;
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-          return res.end(editionShell(`${seg} 브리핑${slotLabel}`, `${seg} 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`, ownContentNav(), coupangBannerHtml(null, null, 5, "archive_bot")));
+          return res.end(editionShell(`${seg} 브리핑${slotLabel}`, `${seg} 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`, ownContentNav(), AD(null, null, 5, "archive_bot")));
         }
         // 카테고리 내부 기준(하한 없음) — 전국 랭킹 기준을 빌리면 무반응
         // 뉴스가 많은 카테고리(자동차 등)가 텅 비어 보인다 (2026-08-01 실측).
         const catTop = await engine.categoryTop(seg, 10);
         const catItems = catTop.items;
         if (!catItems.length) return send(res, 404, { error: "unknown category" });
+        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
         const all = { generatedAt: catTop.generatedAt };
         const label = catItems[0].categoryLabel;
         const lead = catItems[0];
@@ -1569,9 +1610,11 @@ ${briefingSectionsHtml(b, coupangBannerHtml(null, null, 4, "archive_mid"))}`;
 <p class="muted">${kstLabel(all.generatedAt)} · 지금 ${escapeHtml(label)} 분야에서 가장 화제인 글을 실측 반응 기준으로 정리했습니다. 수집은 15분마다 돌고, 이 목록은 그때마다 최신 반응을 반영합니다.</p>
 ${rankingNav("")}
 <p>지금 ${escapeHtml(label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})입니다${leadBits.length ? ` — ${leadBits.join(" · ")}` : ""}.</p>
-${rankingRows(catItems, coupangBannerHtml(seg, null, 1, "briefcat_mid"))}`;
+${rankingRows(catItems, (above) => AD(
+  AD_MATCH_OFF_CATS.has(seg) ? null : seg, null, 1, "briefcat_mid",
+  AD_MATCH_OFF_CATS.has(seg) || !above ? null : destForText(above.title)))}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`, ownContentNav(`/briefing/${encodeURIComponent(seg)}`), coupangBannerHtml(seg, null, 8, "briefcat_bot")));
+        return res.end(editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`, ownContentNav(`/briefing/${encodeURIComponent(seg)}`), AD(seg, null, 8, "briefcat_bot")));
       }
 
       // 화제 랭킹 TOP 20 — 일간(라이브) / 주간·월간(일별 스냅샷 병합).
@@ -1586,6 +1629,7 @@ ${rankingRows(catItems, coupangBannerHtml(seg, null, 1, "briefcat_mid"))}`;
         const items = await engine.pool();
         const rank = communityRanking(items);
         if (!rank.length) return send(res, 404, { error: "no data yet" });
+        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
         const total = rank.reduce((a, b) => a + b.posts, 0);
         const lead = rank[0];
         const inner = `<h1>커뮤니티 순위</h1>
@@ -1595,12 +1639,12 @@ ${rankingNav("")}
 <section><h2>반응량 순위</h2>
 <ol class="rank">${rank.map((e) => `<li><div><a href="/community/${encodeURIComponent(e.source)}">${escapeHtml(e.label)}</a>
   <span class="m">화제글 ${e.posts}건 · 반응 ${fmtNum(e.reactions)} · 글당 댓글 ${e.avgComments}${e.topCategory ? ` · 주로 ${escapeHtml(categoryLabel(e.topCategory))}` : ""}</span></div></li>`).join("")}</ol></section>
-${coupangBannerHtml(null, null, 10, "communities")}
+${AD(null, null, 10, "communities")}
 <p class="muted">집계 대상은 각 커뮤니티의 베스트·인기 게시판이며, 15분마다 갱신됩니다. 전체 게시물이 아니라 <b>반응이 큰 글만</b> 모으므로 커뮤니티의 총 활동량과는 다릅니다.</p>`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(editionShell("커뮤니티 순위 — 어디가 지금 가장 뜨거운가",
           "국내 커뮤니티를 지금핫이 실측한 반응량(추천+댓글)으로 줄 세운 순위. 방문자 추정치가 아니라 직접 잰 값입니다.",
-          inner, "/communities", ownContentNav("/communities"), coupangBannerHtml(null, null, 11, "communities_bot")));
+          inner, "/communities", ownContentNav("/communities"), AD(null, null, 11, "communities_bot")));
       }
 
       // ── 커뮤니티별 베스트 ────────────────────────────────────────────
@@ -1610,6 +1654,7 @@ ${coupangBannerHtml(null, null, 10, "communities")}
         const seg = decodeURIComponent(p.slice("/community/".length));
         const b = sourceBest(await engine.pool(), seg);
         if (!b) return send(res, 404, { error: "no data for source" });
+        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
         // 알맹이가 얇으면 색인만 막는다. 페이지는 그대로 열린다 —
         // 목록에서 눌러 들어온 사람에게 404를 주는 건 다른 문제다.
         const thin = b.items.length < 8;
@@ -1622,12 +1667,12 @@ ${cats ? `<p>지금 ${escapeHtml(b.label)}에서 가장 많이 다뤄지는 분�
 <section><h2>반응량 TOP ${b.items.length}</h2>
 <ol class="rank">${b.items.map((i) => `<li><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
   <span class="m">${escapeHtml(categoryLabel(i.category))}${evidenceBits(i).length ? " · " + evidenceBits(i).join(" · ") : ""}</span></div></li>`).join("")}</ol></section>
-${coupangBannerHtml(b.items[0] && b.items[0].category, null, 12, "community_mid")}
+${AD(b.items[0] && b.items[0].category, null, 12, "community_mid")}
 <p class="muted"><a href="/communities">다른 커뮤니티 순위도 보기 →</a></p>`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(editionShell(`${b.label} 인기글 모아보기`,
           `${b.label}에서 지금 반응이 큰 글을 지금핫이 실측 추천·댓글 순으로 정리했습니다.`,
-          inner, `/community/${encodeURIComponent(seg)}`, ownContentNav(), coupangBannerHtml(null, null, 13, "community_bot"), thin));
+          inner, `/community/${encodeURIComponent(seg)}`, ownContentNav(), AD(null, null, 13, "community_bot"), thin));
       }
 
       // ── 키워드 ───────────────────────────────────────────────────────
@@ -1637,23 +1682,25 @@ ${coupangBannerHtml(b.items[0] && b.items[0].category, null, 12, "community_mid"
       if (p === "/keywords" && req.method === "GET") {
         const idx = keywordIndex(await engine.pool());
         if (!idx.length) return send(res, 404, { error: "no keywords yet" });
+        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
         const inner = `<h1>지금 화제 키워드</h1>
 <p class="muted">여러 커뮤니티에서 동시에 언급되고 있는 말들입니다. 한 곳에서만 나온 단어는 싣지 않습니다 — 두 곳 이상에서 나와야 실제로 퍼지는 말입니다.</p>
 ${rankingNav("")}
 <section><h2>키워드 ${idx.length}개</h2>
 <ol class="rank">${idx.map((k) => `<li><div><a href="/keyword/${encodeURIComponent(k.tag)}">${escapeHtml(k.tag)}</a>
   <span class="m">${k.sources}곳에서 ${k.count}건 · 반응 ${fmtNum(k.reactions)}</span></div></li>`).join("")}</ol></section>
-${coupangBannerHtml(null, null, 14, "keywords")}`;
+${AD(null, null, 14, "keywords")}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(editionShell("지금 화제 키워드",
           "여러 커뮤니티에서 동시에 언급되는 키워드를 지금핫이 실측 반응량으로 정리했습니다.",
-          inner, "/keywords", ownContentNav("/keywords"), coupangBannerHtml(null, null, 15, "keywords_bot")));
+          inner, "/keywords", ownContentNav("/keywords"), AD(null, null, 15, "keywords_bot")));
       }
 
       if (p.startsWith("/keyword/") && req.method === "GET") {
         const tag = decodeURIComponent(p.slice("/keyword/".length));
         const k = keywordPage(await engine.pool(), tag);
         if (!k) return send(res, 404, { error: "no data for keyword" });
+        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
         const srcs = k.sources.slice(0, 4).map((x) => `${escapeHtml(x.key)} ${x.count}건`).join(" · ");
         const inner = `<h1>“${escapeHtml(tag)}” 관련 화제글</h1>
 <p class="muted">‘${escapeHtml(tag)}’${particle(tag, "이", "가")} 언급된 글 ${k.total}건을 커뮤니티·뉴스에서 모았습니다. 반응량 순입니다.</p>
@@ -1662,12 +1709,12 @@ ${srcs ? `<p>이 키워드는 ${srcs} 순으로 언급되고 있습니다.</p>` 
 <section><h2>관련 글</h2>
 <ol class="rank">${k.items.map((i) => `<li><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
   <span class="m">${escapeHtml(i.sourceLabel || i.source)}${evidenceBits(i).length ? " · " + evidenceBits(i).join(" · ") : ""}</span></div></li>`).join("")}</ol></section>
-${coupangBannerHtml(k.categories[0] && k.categories[0].key, null, 16, "keyword_mid")}
+${AD(k.categories[0] && k.categories[0].key, null, 16, "keyword_mid")}
 <p class="muted"><a href="/keywords">다른 화제 키워드도 보기 →</a></p>`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
         return res.end(editionShell(`${tag} — 지금 커뮤니티 반응`,
           `‘${tag}’이 언급된 커뮤니티·뉴스 화제글을 지금핫이 실측 반응 순으로 모았습니다.`,
-          inner, `/keyword/${encodeURIComponent(tag)}`, ownContentNav(), coupangBannerHtml(null, null, 17, "keyword_bot"),
+          inner, `/keyword/${encodeURIComponent(tag)}`, ownContentNav(), AD(null, null, 17, "keyword_bot"),
           k.total < 8));
       }
 
@@ -1686,13 +1733,17 @@ ${coupangBannerHtml(k.categories[0] && k.categories[0].key, null, 16, "keyword_m
           if (use.length < days) note = `아카이브 집계 시작일(${dates[0] || "오늘"}) 이후 ${use.length}일치 데이터로 집계 중입니다 — ${days}일이 쌓이면 완전한 ${label} 랭킹이 됩니다.`;
         }
         if (!list.length) return send(res, 404, { error: "no ranking data yet" });
+        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
         const inner = `<h1>${label} 화제 랭킹 TOP ${Math.min(20, list.length)}</h1>
 <p class="muted">소스별 반응 분포로 정규화한 화제성 순위입니다 — 큰 게시판의 절대 추천수가 아니라 "그 동네에서 얼마나 이례적으로 터졌는가"와 교차 보도를 봅니다. 항목마다 근거 수치를 함께 표기합니다.</p>
 ${note ? `<p class="muted">${escapeHtml(note)}</p>` : ""}
 ${rankingNav(period)}
-${rankingRows(list, coupangBannerHtml(null, null, 2, "rank_mid"))}`;
+${rankingRows(list, (above) => {
+  const cat = above && !AD_MATCH_OFF_CATS.has(above.category) ? above.category : null;
+  return AD(cat, null, 2, "rank_mid", cat ? destForText(above.title) : null);
+})}`;
         res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`, ownContentNav("/ranking/daily"), coupangBannerHtml(null, null, 7, "page_bot")));
+        return res.end(editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`, ownContentNav("/ranking/daily"), AD(null, null, 7, "page_bot")));
       }
 
       // 애드센스 판매자 확인 파일 (https://nowhot.kr/ads.txt). ADSENSE_CLIENT

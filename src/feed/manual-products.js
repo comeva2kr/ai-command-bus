@@ -84,8 +84,18 @@ export function pickBanner({ category = null, dest = null, size = null, seen = n
     sq(evCat), sq(inCat), sq(ev), sq(rest),
     wide(evCat), wide(inCat), wide(ev), wide(rest)
   ].filter((t) => t.length);
-  for (const tier of tiers) {
-    for (const group of [tier.filter((b) => !seen.has(b.id)), tier.filter((b) => seen.has(b.id))]) {
+  // ── 안 나온 것을 **모든 티어에 걸쳐** 먼저 쓴다 (2026-08-06)
+  //
+  // 예전엔 티어 하나 안에서 "안 나온 것 → 나온 것" 순으로 봤다. 그런데 재고가
+  // 도착지당 1종이라(실측 18종/18도착지), 같은 도착지가 한 페이지에서 두 번
+  // 걸리면 첫 티어에서 바로 **이미 나온 그것**을 다시 돌려줬다. seen을 넘겨도
+  // 소용이 없었던 이유다 — David 제보 "브리핑에 광고 두 개가 같은 게 나왔어".
+  //
+  // 문맥 정확도를 조금 내주고 중복을 없앤다. 한 페이지의 광고는 많아야 대여섯
+  // 장이고 재고는 18종이라, 실제로는 거의 언제나 문맥 맞는 것이 남아 있다.
+  for (const wantFresh of [true, false]) {
+    for (const tier of tiers) {
+      const group = tier.filter((b) => seen.has(b.id) !== wantFresh);
       if (group.length) return group[pick % group.length];
     }
   }
