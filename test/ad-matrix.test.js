@@ -117,3 +117,38 @@ test("광고 문구가 없는 상품을 아는 척하지 않는다", async () =>
     }
   }
 });
+
+test("앱 광고 카드가 LLM 문구를 실제로 쓴다 — hook만 쓰면 다 똑같아 보인다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  // 실기기(David 2026-08-06): "제목이랑 문장이 너무 단조로운데?"
+  // 카드는 제목·본문·CTA 3단인데 adVariant가 hook 하나만 돌려줘서, 본문에는
+  // 도착지 이름이, CTA에는 고정 문구가 나갔다. 서버 렌더 페이지는 이미
+  // line을 쓰고 있어 앱만 옛 모양으로 남아 있었다.
+  const fn = html.slice(html.indexOf("function adVariant"), html.indexOf("function coupangCardHtml"));
+  assert.match(fn, /line: v\.line/, "행렬의 본문(line)을 안 돌려준다");
+  assert.match(fn, /cta: v\.cta/, "행렬의 CTA를 안 돌려준다");
+  // 도착지는 계속 밝혀야 한다 — 2026-08-03 "문구≠도착지" 사고의 방어선.
+  assert.match(html, /class="ad-dest">\$\{escapeHtml\(link\.brand\)\}/, "도착지 라벨이 사라졌다");
+  assert.match(html, /\.ad-dest\{display:block/, "도착지 라벨 스타일이 없다");
+});
+
+test("행렬이 모든 도착지 × 맥락을 덮는다", async () => {
+  const { loadMatrix } = await import("../src/feed/ad-matrix.js");
+  const m = loadMatrix();
+  const v = m.variants || m;
+  const dests = Object.keys(v);
+  assert.ok(dests.length >= 18, `도착지 ${dests.length}종 — 재고(18)를 다 못 덮는다`);
+  let empty = [];
+  for (const d of dests) {
+    for (const ctx of ["tech", "life", "fun", "news", "hobby"]) {
+      const cell = v[d] && v[d][ctx];
+      if (!Array.isArray(cell) || !cell.length) { empty.push(`${d}/${ctx}`); continue; }
+      // 빈 칸은 정적 기본 문구로 떨어지고, 그러면 다시 단조로워진다.
+      for (const one of cell) {
+        assert.ok(one.hook && one.line && one.cta, `${d}/${ctx}에 3단이 안 찬 문구가 있다`);
+      }
+    }
+  }
+  assert.equal(empty.length, 0, `빈 칸: ${empty.slice(0, 6).join(", ")}`);
+});

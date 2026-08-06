@@ -588,6 +588,13 @@
   .dot{border-radius:0!important;width:8px!important;height:8px!important}
   /* 배지: 숫자 우선·사각·차분 */
   .badge{border-radius:0!important;font-family:var(--font-heading)}
+  /* 광고 카드의 도착지 라벨.
+     본문 자리를 LLM 문장에 내주는 대신, "어디로 가는지"는 여기서 계속 밝힌다 —
+     2026-08-03 "문구≠도착지" 사고의 방어선은 유지해야 한다. 작고 흐리게 두되
+     숨기지는 않는다. */
+  .ad-dest{display:block;margin-top:2px;color:var(--muted);
+    font:600 11px/1.3 var(--font-body);letter-spacing:-.01em}
+
   /* 브리핑 스트립 카드 */
   .brief-strip{padding:12px 16px 14px;border-bottom:1px solid var(--color-divider)}
   .brief-card{background:transparent;border:1px solid var(--line)}
@@ -1732,9 +1739,18 @@ function adVariant(link, category, rotate){
   if(!Array.isArray(cell) || !cell.length) return { hook: link.hook, variant: "base" };
   const v = cell[rotate % cell.length];
   if(!v || !v.hook) return { hook: link.hook, variant: "base" };
-  // 브랜드 줄(도착지 이름)은 행렬에서 가져오지 않는다 — 도착지 이름이 바뀌면
-  // 문구≠도착지가 된다(2026-08-03 사고).
-  return { hook: v.hook, variant: `${link.dest}_${ctx}_${rotate % cell.length}` };
+  // **line·cta도 함께 돌려준다.**
+  //
+  // 예전엔 hook 하나만 돌려줬다. 카드는 제목·본문·CTA 3단인데 문구가 1단만
+  // 오니, 본문 자리에는 도착지 이름("쿠팡 도서")이, CTA에는 고정 문구가
+  // 그대로 나갔다 — 어느 광고를 봐도 똑같아 보였다(David 실기기 2026-08-06:
+  // "제목이랑 문장이 너무 단조로운데?"). 서버가 렌더하는 브리핑·발행 페이지는
+  // 이미 line을 쓰고 있어서 앱만 옛 모양으로 남아 있었다.
+  //
+  // 2026-08-03 사고("문구≠도착지")는 **도착지 이름을 지어내지 말라**는 것이지
+  // 본문을 쓰지 말라는 게 아니다. 도착지는 아래 카드에서 별도 라벨로 계속 밝힌다.
+  return { hook: v.hook, line: v.line || null, cta: v.cta || null,
+           variant: `${link.dest}_${ctx}_${rotate % cell.length}` };
 }
 
 // 광고 배너 이미지는 **지연 로딩하지 않는다** (2026-08-04 실측).
@@ -1762,6 +1778,7 @@ function coupangCardHtml(link, disclosure, slot, category, rotate){
           <h3>${escapeHtml(v.hook)}</h3>
           <p class="ad-brand">${escapeHtml(v.line || link.brand)}</p>
           <span class="ad-cta">${escapeHtml(v.cta || "지금 보러 가기")}<span class="sr-only"> — 새 창에서 쿠팡으로 이동합니다</span></span>
+          <span class="ad-dest">${escapeHtml(link.brand)}</span>
         </div>
         ${link.img?`<div class="ad-thumb"><img class="ad-img" src="${escapeHtml(link.img)}" width="200" height="200" alt="${escapeHtml(link.brand)}" loading="eager" fetchpriority="high" onerror="this.parentNode.remove()"></div>`:""}
       </div>
