@@ -361,7 +361,13 @@
     font-size: 13.5px; font-weight: 700; cursor: pointer; }
   .space-hint { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.55; }
   .mute-btn { margin-left: auto; background: none; border: 1px solid var(--line); color: var(--muted);
-    border-radius: 8px; padding: 5px 10px; font-size: 12px; }
+    border-radius: 8px; padding: 5px 10px; font-size: 12px;
+    /* 버튼 안에서 줄이 넘어가지 않게 (David 2026-08-07 실기기 제보).
+       좁은 화면에서 소스 이름이 길면 flex가 버튼까지 눌러, 아이콘과 글자가
+       세로로 갈라지고("⬆ / 공유") 버튼 글자도 두 줄로 밀렸다.
+       버튼은 자기 내용만큼만 차지하고 더는 줄어들지 않는다 — 줄어들 것은
+       소스 이름 쪽이고, 그건 아래 .src에서 말줄임으로 처리한다. */
+    white-space: nowrap; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; }
   .muted-row { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line);
     border-radius: 10px; padding: 9px 12px; margin-bottom: 8px; font-size: 13px; }
   .muted-row button { margin-left: auto; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 5px 11px; font-size: 12px; }
@@ -444,7 +450,17 @@
 
   .detail-head { position: sticky; top: 0; background: rgba(14,15,19,.92); backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--line); padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
-    display: flex; align-items: center; gap: 12px; }
+    display: flex; align-items: center; gap: 12px;
+    /* 한 줄로 유지한다. 이 줄에는 뒤로가기 · 소스이름 · 공유 · 그만보기가 있고,
+       소스 이름은 매체마다 길이가 크게 다르다("스테레오검"·"하이퍼알러직" 등). */
+    flex-wrap: nowrap; }
+  /* 뒤로가기는 눌림 영역이 줄면 안 된다 */
+  .detail-head .back { flex: 0 0 auto; }
+  /* 줄어들 것은 여기 하나뿐. min-width:0 이 없으면 flex 자식은 내용보다
+     작아지지 않아서(기본 min-width:auto) 옆 버튼들을 밀어낸다 — 이번 밀림의
+     실제 원인이다. 넘치면 말줄임으로 자른다. */
+  .detail-head .src { flex: 1 1 auto; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
   .back { font-size: 22px; line-height: 1; background: none; border: none; color: var(--text); padding: 4px 6px; }
   .detail-body { padding: 18px 18px 60px; }
   .detail-body h2 { margin: 0 0 12px; font-size: 21px; line-height: 1.35; }
@@ -958,7 +974,7 @@
     box-shadow:0 -12px 32px color-mix(in srgb,#000 22%,transparent)}
   .detail-panel::before{content:"";display:block;width:44px;height:4px;
     background:var(--color-divider);margin:8px auto 0}
-  .detail-head{background:var(--color-bg);border-bottom:1px solid var(--line)}
+  .detail-head{background:var(--color-bg);border-bottom:1px solid var(--line);flex-wrap:nowrap}
   .detail-body h2{font-weight:800;letter-spacing:-.015em}
   .detail-actions .rate{border:1px solid var(--line);background:transparent;
     justify-content:flex-start;text-align:left}
@@ -4095,7 +4111,14 @@ async function renderDetail(itemId){
   if(!muteBtn){ muteBtn = document.createElement("button"); muteBtn.className="mute-btn"; head.appendChild(muteBtn); }
   if(item.source==="me"){ muteBtn.style.display="none"; }
   else {
-    muteBtn.style.display=""; muteBtn.textContent = `🔕 ${srcLabel(item.source)} 그만보기`;
+    // 소스 이름을 버튼에 다시 쓰지 않는다 (David 2026-08-07 실기기 제보).
+    // 같은 줄 바로 왼쪽에 이미 소스 이름이 있어 중복이고, 매체 이름이 길면
+    // ("스테레오검"·"하이퍼알러직") 이 버튼 하나가 헤더를 넘겨 글자가 두 줄로
+    // 밀렸다. 무엇을 그만보는지는 왼쪽 이름이 말해 준다.
+    // 다만 눌렀을 때 무엇이 꺼졌는지는 분명해야 하므로 title에 남긴다.
+    muteBtn.style.display=""; muteBtn.textContent = "🔕 그만보기";
+    muteBtn.title = `${srcLabel(item.source)} 그만보기`;
+    muteBtn.setAttribute("aria-label", `${srcLabel(item.source)} 그만보기`);
     muteBtn.onclick = async ()=>{
       try { await API.mute(state.userId, item.source, true);
         toast(`${srcLabel(item.source)} 글을 더 이상 안 보여드려요`); history.back();
