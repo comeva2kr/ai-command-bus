@@ -4000,6 +4000,21 @@ window.addEventListener("popstate", (e)=>{
 //  · **원문 보러가기** — 그 매체로 나간다(기존 "원문에서 계속 읽기" 버튼).
 //  · **원문 보기** — 여기서 제목·발췌만 원문으로 바꾼다. 페이지를 안 떠난다.
 // 제목만 바꾸고 발췌는 번역문 그대로면 반쪽이라 둘 다 바꾼다.
+// 원문 페이지를 통째로 한국어로 여는 링크 (David 2026-08-07).
+// 구글 번역 프록시(translate.goog) — 사용자가 누르면 브라우저가 구글
+// 서비스로 간다. 우리는 번역도 fetch도 하지 않는다.
+// 파파고 웹번역 딥링크(papago.naver.net/website?url=...)를 먼저 시도했으나
+// 실기기 확인 결과 파라미터를 버리고 메인 번역기로 리다이렉트했다(폐지된 형태).
+function transGoogUrl(item){
+  try{
+    const u = new URL(item.url);
+    const host = u.hostname.replace(/-/g, "--").replace(/\./g, "-");
+    const sl = encodeURIComponent(item.originalLang || "auto");
+    return "https://" + host + ".translate.goog" + u.pathname + u.search
+      + (u.search ? "&" : "?") + "_x_tr_sl=" + sl + "&_x_tr_tl=ko&_x_tr_hl=ko";
+  }catch{ return item.url; }
+}
+
 function transToggleHtml(item){
   if(!item || !item.translated || !item.originalTitle) return "";
   const langKo = { en:"영어", ja:"일본어", zh:"중국어", "zh-CN":"중국어", "zh-TW":"중국어",
@@ -4194,7 +4209,7 @@ async function renderDetail(itemId){
            두 개"). 이 버튼의 실제 목적은 **우리는 발췌만 싣는다**는 것이고,
            그건 바로 아래 고지문이 이미 하는 말이다. 매체 이름으로 부른다. -->
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 전체 글 보기 →</a>
-      ${item.translated ? `<a class="readmore readmore-alt" href="https://papago.naver.net/website?locale=ko&source=auto&target=ko&url=${encodeURIComponent(item.url)}" target="_blank" rel="noopener">원문 전체를 한국어로 보기 (파파고) →</a>` : ""}
+      ${item.translated && item.url ? `<a class="readmore readmore-alt" href="${transGoogUrl(item)}" target="_blank" rel="noopener">원문 전체를 한국어로 보기 →</a>` : ""}
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
     `:""}
     ${detailAdHtml(item.category, item.dealDest || item.adDest)}
