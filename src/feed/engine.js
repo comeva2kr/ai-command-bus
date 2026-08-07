@@ -1682,6 +1682,10 @@ export class FeedEngine {
         source: i.source, sourceLabel: this._labelFor(i),
         category: i.category || "news", categoryLabel: categoryLabel(i.category || "news"),
         score: i.score || 0, commentCount: i.commentCount || 0,
+        // 우리가 쓰는 실측 한 줄 — 홈 서버 렌더의 자체 서술이 8.5%뿐이라
+        // (2026-08-07 정책 감사, 애드핏 4회 반려 사유와 일치) 이미 있는
+        // 편집 코멘트를 크롤러가 읽는 화면까지 내린다. 새 문장 생성이 아니다.
+        editorialNote: buildEditorialNote(i, { now }) || null,
         coverage: i.coverage || 0, image: safeImage(i.image),
         // 발췌 — 홈 서버 렌더(seed)와 랭킹 페이지가 함께 쓴다. 제목만 있으면
         // "남의 제목 모음"과 구분되지 않는다(2026-08-04 검수). 200자 상한은

@@ -192,6 +192,7 @@
   /* 발췌 한 줄 — 제목만 있으면 "남의 제목 모음"과 구분이 안 된다.
      JS가 뜨기 전 사람이 보는 화면이자 크롤러가 읽는 본문이다. */
   .seed-sum{margin:6px 0 0;font-size:13px;line-height:1.5;color:var(--muted)}
+  .seed-note{margin:4px 0 0;font-size:12.5px;color:var(--accent);font-weight:600}
   /* 두 번째 이동 버튼 — 주 동선(원문)보다 톤을 낮춘다 */
   /* 우리가 만드는 페이지로 가는 길 — 서비스의 구성이 첫 화면에서 드러나야 한다 */
   .seed-nav{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px 4px}
@@ -236,6 +237,12 @@
   .lvbar { height: 6px; border-radius: 6px; background: var(--card-2); overflow: hidden; margin-top: 8px; }
   .lvfill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--like)); }
   .norm-hint { font-size: 12px; color: #f0a13d; margin-top: 8px; line-height: 1.5; }
+  /* 원문 전체를 번역해 보는 링크 (David 2026-08-07: "기사 원문페이지 한글로
+     제공하는 링크"). 우리가 번역하는 게 아니다 — 파파고 웹번역으로 나가는
+     링크일 뿐이라 서버 부하도 법적 문제도 없다. 해외 글(translated)에만 단다.
+     구글 translate.goog도 검토했으나 데이터센터·일부 지역에서 403이라
+     한국 사용자 기준으로 파파고가 확실하다(VM 한국 IP 실측 200). */
+  .readmore-alt { background: none; color: var(--accent); border: 1px solid var(--accent); margin-top: 8px; }
   .readmore { display: block; text-align: center; background: var(--accent); color: #fff !important;
     border-radius: 12px; padding: 14px; font-weight: 700; font-size: 15px; margin: 4px 0 8px; }
   .excerpt-note { text-align: center; color: var(--muted); font-size: 11.5px; margin-bottom: 14px; }
@@ -4190,6 +4197,7 @@ async function renderDetail(itemId){
            두 개"). 이 버튼의 실제 목적은 **우리는 발췌만 싣는다**는 것이고,
            그건 바로 아래 고지문이 이미 하는 말이다. 매체 이름으로 부른다. -->
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 전체 글 보기 →</a>
+      ${item.translated ? `<a class="readmore readmore-alt" href="https://papago.naver.net/website?locale=ko&source=auto&target=ko&url=${encodeURIComponent(item.url)}" target="_blank" rel="noopener">원문 전체를 한국어로 보기 (파파고) →</a>` : ""}
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
     `:""}
     ${detailAdHtml(item.category, item.dealDest || item.adDest)}

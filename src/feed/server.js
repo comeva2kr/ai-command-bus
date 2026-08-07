@@ -429,8 +429,12 @@ export function createServer(opts = {}) {
               const src = typeof i.url === "string" && /^https?:\/\//i.test(i.url)
                 ? ` <a class="seed-out" href="${escapeHtml(i.url)}" rel="noopener" target="_blank">${escapeHtml(i.sourceLabel || "원문")}에서 보기</a>`
                 : "";
+              // 우리가 쓴 실측 한 줄(편집 코멘트). 인용(제목·발췌)이 아니라
+              // 자체 서술이다 — 이 페이지의 자체 콘텐츠 비중이 8.5%뿐이었다.
+              const note = i.editorialNote
+                ? `<p class="seed-note">${escapeHtml(i.editorialNote)}</p>` : "";
               return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>` +
-                `<span class="seed-src">${meta}${src}</span>${summary}</li>`;
+                `<span class="seed-src">${meta}${src}</span>${note}${summary}</li>`;
             }).join("") + `</ol>`;
           } else {
             seed = navHtml;   // 수집 전이라도 구성은 보여준다
