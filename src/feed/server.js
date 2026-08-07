@@ -43,7 +43,7 @@ import { sendDigestPushes } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
 import { makeEnricher } from "./enrich.js";
 import { makeInterestsCache } from "./interest.js";
-import { readWiredStatus, CANDIDATE_NETWORKS, REFERENCE_ADSTXT, splitMeasured, ctr } from "./ad-networks.js";
+import { readWiredStatus, CANDIDATE_NETWORKS, REFERENCE_ADSTXT, splitMeasured, ctr, MEASURE_CAVEATS } from "./ad-networks.js";
 import { makeTrendsCache } from "./trends.js";
 import { destForText } from "./deals.js";
 
@@ -2669,8 +2669,15 @@ ${rankingRows(list, (above) => {
               // 애드핏은 SDK가 자체 집계하므로 우리 쪽 숫자에 안 잡힌다.
               // 그 사실을 숨기지 않는다 — 0을 "성과 없음"으로 오독하면 안 된다.
               scope: "우리가 직접 센 것만 (쿠팡 제휴 카드). 애드핏·애드센스는 각 콘솔에서 본다.",
+              // 쿠팡 콘솔과 숫자가 다른 이유를 화면에 함께 준다 — 안 그러면
+              // 둘 중 하나가 틀린 것으로 읽힌다(David 2026-08-07 실제 제보).
+              caveats: MEASURE_CAVEATS,
               today: { ...today.coupang, ctr: ctr(today.coupang.impressions, today.coupang.clicks) },
               week: { ...week.coupang, ctr: ctr(week.coupang.impressions, week.coupang.clicks) },
+              // 쿠팡이 아닌 광고 이벤트(우리 딜·카테고리 링크 등)를 따로 보여준다.
+              // 예전엔 이것까지 쿠팡으로 세고 있었다.
+              todayOther: today.unknown,
+              weekOther: week.unknown,
               // 자리별 성과. 발행 페이지 배너가 어느 자리에서 눌리는지는
               // 여기 말고 볼 곳이 없다 — 쿠팡 콘솔은 subId만 알고, 그 subId가
               // 어느 화면의 몇 번째 칸인지는 우리만 안다.

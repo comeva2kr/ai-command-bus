@@ -167,18 +167,40 @@ export function readWiredStatus(env = process.env) {
 // 지금 당장 통합하지는 않되, **어느 쪽이 애드핏이고 어느 쪽이 쿠팡인지**는
 // 가를 수 있다 — 애드핏은 우리가 이벤트를 보내지 않는다(SDK가 자체 집계).
 // 그래서 여기 잡히는 것은 전부 쿠팡 제휴 카드다. 그 사실을 숨기지 않고 밝힌다.
+// 쿠팡 제휴 카드의 itemId는 monetize.js가 "cb_" 접두로 만든다.
+// 그 외(우리 딜·카테고리 링크·애드핏 지면 등)는 쿠팡이 아니다.
+const COUPANG_ITEM = /^cb_/;
+
 export function splitMeasured(adEvents = [], sinceMs = 0) {
+  // 예전엔 **모든 이벤트를 무조건 coupang 버킷에 넣었다.**
+  // 주석은 "현재 우리가 세는 것은 쿠팡 카드뿐이다"라고 단언했는데,
+  // 실측(2026-08-07 라이브)에서 itemId가 "feed16"인 클릭이 섞여 있었다 —
+  // 전제가 깨졌는데 분류 코드는 그대로였다. unknown 버킷은 만들어 놓고
+  // 한 번도 쓰지 않는 죽은 코드였다.
+  //
+  // 이 값이 쿠팡 콘솔 숫자와 비교되므로(David 2026-08-07: "쿠팡은 한 달
+  // 13회인데 우리는 오늘만 15회") 쿠팡이 아닌 것을 쿠팡으로 세면 안 된다.
   const out = { coupang: { impressions: 0, clicks: 0 }, unknown: { impressions: 0, clicks: 0 } };
   for (const e of adEvents) {
     if (!e || !e.type) continue;
     const at = e.at ? Date.parse(e.at) : 0;
     if (sinceMs && !(at >= sinceMs)) continue;
-    const bucket = out.coupang;             // 현재 우리가 세는 것은 쿠팡 카드뿐이다
+    const bucket = COUPANG_ITEM.test(String(e.itemId || "")) ? out.coupang : out.unknown;
     if (e.type === "impression") bucket.impressions += 1;
     else if (e.type === "click") bucket.clicks += 1;
   }
   return out;
 }
+
+// 우리 숫자와 쿠팡 콘솔 숫자는 **원래 다르다.** 화면에서 그 이유를 밝히지
+// 않으면 둘 중 하나가 틀린 것으로 읽힌다(David가 실제로 그렇게 읽었다).
+// 지어낸 보정을 하지 않고 차이의 근거만 말한다.
+export const MEASURE_CAVEATS = [
+  "우리는 카드를 **누른 순간** 세고, 쿠팡은 쿠팡 페이지에 **도달한 것**을 셉니다. 누르고 바로 뒤로 가면 우리만 셉니다.",
+  "쿠팡 콘솔은 집계가 하루 정도 늦습니다. 오늘 수치는 아직 반영 전입니다.",
+  "개발·테스트 중 누른 것도 우리 숫자에는 들어갑니다.",
+  "애드핏·애드센스는 각 SDK가 자체 집계하므로 이 숫자에 잡히지 않습니다."
+];
 
 export function ctr(impressions, clicks) {
   if (!impressions) return null;            // 0으로 나누지 않는다. 0%가 아니라 "모름"이다

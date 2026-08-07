@@ -225,14 +225,46 @@ test("광고 탭: 지어내지 않는다 — 없는 것은 없다고 말한다",
   assert.equal(ctr(100, 3), 3);
 
   const now = Date.now();
+  // 쿠팡 제휴 카드의 itemId는 monetize.js가 "cb_" 접두로 만든다.
   const events = [
-    { type: "impression", at: new Date(now - 1000).toISOString() },
-    { type: "click", at: new Date(now - 2000).toISOString() },
-    { type: "impression", at: new Date(now - 40 * 24 * 3600e3).toISOString() }  // 창 밖
+    { type: "impression", itemId: "cb_aaa", at: new Date(now - 1000).toISOString() },
+    { type: "click", itemId: "cb_aaa", at: new Date(now - 2000).toISOString() },
+    { type: "impression", itemId: "cb_bbb", at: new Date(now - 40 * 24 * 3600e3).toISOString() }  // 창 밖
   ];
   const day = splitMeasured(events, now - 24 * 3600e3);
   assert.equal(day.coupang.impressions, 1);
   assert.equal(day.coupang.clicks, 1);
+
+  // ── 쿠팡이 아닌 것을 쿠팡으로 세지 않는다 (David 2026-08-07)
+  //
+  // David: "쿠팡 파트너스는 지난 한 달 클릭 13회인데 우리 관리자는 오늘 클릭만
+  // 15회. 카운팅 알고리즘이 의심간다."
+  //
+  // 실측하니 splitMeasured가 **모든 광고 이벤트를 무조건 coupang 버킷에**
+  // 넣고 있었다. 주석은 "현재 우리가 세는 것은 쿠팡 카드뿐"이라 단언했는데
+  // 라이브 이벤트에는 itemId가 "feed16"인 클릭이 섞여 있었다 —
+  // 전제가 깨졌는데 분류 코드는 그대로였고, unknown 버킷은 만들어 놓고
+  // 한 번도 쓰지 않는 죽은 코드였다.
+  //
+  // 이 값은 쿠팡 콘솔 숫자와 나란히 놓고 판단하는 자리라, 쿠팡이 아닌 것이
+  // 섞이면 "우리가 부풀린다"로 읽힌다.
+  const mixed = [
+    { type: "click", itemId: "cb_deal1", at: new Date(now - 1000).toISOString() },
+    { type: "click", itemId: "feed16", at: new Date(now - 1000).toISOString() },   // 우리 피드 카드
+    { type: "impression", itemId: "our_deal_3", at: new Date(now - 1000).toISOString() }
+  ];
+  const m = splitMeasured(mixed, now - 24 * 3600e3);
+  assert.equal(m.coupang.clicks, 1, "쿠팡 카드 클릭만 쿠팡으로 세야 한다");
+  assert.equal(m.unknown.clicks, 1, "쿠팡이 아닌 클릭은 따로 세야 한다");
+  assert.equal(m.unknown.impressions, 1);
+  assert.equal(m.coupang.impressions, 0);
+
+  // 우리 숫자와 쿠팡 콘솔이 다른 이유를 화면이 말해야 한다 — 안 그러면
+  // 둘 중 하나가 틀린 것으로 읽힌다(실제로 그렇게 읽혔다).
+  const { MEASURE_CAVEATS } = await import("../src/feed/ad-networks.js");
+  assert.ok(Array.isArray(MEASURE_CAVEATS) && MEASURE_CAVEATS.length >= 3);
+  assert.ok(MEASURE_CAVEATS.some((c) => /도달/.test(c)), "누른 것과 도달한 것의 차이를 밝혀야 한다");
+  assert.ok(MEASURE_CAVEATS.some((c) => /테스트/.test(c)), "개발 테스트가 섞인다는 사실을 밝혀야 한다");
 
   // 후보 목록은 요율을 적지 않는다 — 수시로 바뀌고 틀린 숫자가 더 비싸다
   const text = JSON.stringify(CANDIDATE_NETWORKS);
