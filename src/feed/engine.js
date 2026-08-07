@@ -890,8 +890,27 @@ export class FeedEngine {
 
   // Periodically update the DB from its sources ("정기적으로 찾으면서 db 업데이트").
   // Returns a stop function; the interval is unref'd so it never blocks exit.
+  // 기동 직후 **한 번 바로 돌고** 그 다음부터 주기로 돈다.
+  //
+  // 2026-08-07 실측으로 잡은 사고: setInterval만 걸어 두면 재시작할 때마다
+  // 15분(FEED_REFRESH_MS=900000)을 **처음부터 다시** 기다린다. 배포 간격이
+  // 그보다 짧으면 수집이 **한 번도 돌지 않는다.**
+  //
+  // 그날 라이브: 풀 저장 시각이 97분째 그대로였고 컨테이너 로그에 수집 줄이
+  // 한 줄도 없었다(기동 로그 3줄이 전부). 그날 배포를 12번 넘게 했다.
+  // staging.mjs 주석에 "수집이 끝나기 전에 재배포로 컨테이너가 재시작되기를
+  // 반복했다"고 적어 뒀는데, 실제 구조는 그보다 나빴다 — 끝나기 전에 끊긴 게
+  // 아니라 **시작조차 안 했다.**
+  //
+  // 첫 수집을 지연 없이 돌리면 배포가 잦아도 매 배포가 곧 수집 기회가 된다.
+  // 실패는 삼킨다(예전과 같다) — 한 번 실패해도 다음 주기가 온다.
   startAutoRefresh(intervalMs = 15 * 60 * 1000) {
     this.stopAutoRefresh();
+    // 이벤트 루프가 한 바퀴 돈 뒤에 시작한다. 생성자에서 곧바로 부르는
+    // 호출부가 있어, 동기적으로 refresh를 시작하면 아직 배선이 안 끝난
+    // 상태(_enricher·_translateText 등)로 첫 사이클이 돈다.
+    const kick = setTimeout(() => { this.refresh().catch(() => {}); }, 0);
+    if (kick.unref) kick.unref();
     this._timer = setInterval(() => {
       this.refresh().catch(() => {});
     }, intervalMs);
