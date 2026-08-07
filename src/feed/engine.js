@@ -1586,11 +1586,24 @@ export class FeedEngine {
     return ids.map((id) => byId.get(id)).filter(Boolean).map((it) => this._decorate(it, 0, user));
   }
 
+  // 아이템 조회는 이 헬퍼 한 벌만 쓴다 — 상한 목록에 없으면 누적 풀(48h)에서
+  // 찾는다. 피드가 내놓은 글이 다음 수집 사이클의 소스별 상한 재편성에서
+  // 빠질 수 있는데(David 2026-08-07 Alphabet 기사: 풀 8,403 vs 상한 1,973),
+  // 상세(getItem)에만 폴백을 달고 평가·신호·공유는 상한 목록만 보면 방금
+  // 서빙된 글에 좋아요가 "unknown item"으로 죽고 열람(open)이 발자취에서
+  // 빠진다. 조회를 두 벌로 두면 한쪽이 반드시 샌다.
+  _findItem(items, itemId) {
+    const hit = items.find((i) => i.id === itemId);
+    if (hit) return hit;
+    const pooled = this._pool && this._pool.get(itemId);
+    return (pooled && pooled.item) || null;
+  }
+
   // Record a like/dislike and learn from it. Returns updated confidence.
   async rate(userId, itemId, signal) {
     const user = this.store.requireUser(userId);
     const items = await this._items();
-    const item = items.find((i) => i.id === itemId);
+    const item = this._findItem(items, itemId);
     if (!item) throw new Error(`unknown item: ${itemId}`);
 
     applyFeedback(user.preferences, item, signal);
@@ -1604,8 +1617,12 @@ export class FeedEngine {
   // items get no public share page.
   async shareData(itemId) {
     const items = await this._items();
-    const item = items.find((i) => i.id === itemId);
+    const item = this._findItem(items, itemId);
     if (!item) return null;
+    // 관리자가 차단한 소스는 공유 카드로도 안 내보낸다 — getItem이 상세에
+    // 거는 것과 같은 관문. 예전엔 공유 경로에 이 관문이 아예 없었다.
+    const disabled = this.store.disabledSources ? this.store.disabledSources() : null;
+    if (disabled && disabled.has(item.source)) return null;
     return {
       id: item.id,
       title: item.title,
@@ -1626,7 +1643,9 @@ export class FeedEngine {
   async signal(userId, itemId, event) {
     const user = this.store.requireUser(userId);
     const items = await this._items();
-    const item = items.find((i) => i.id === itemId);
+    // 풀 폴백 필수 — 상한 목록만 보면 방금 서빙된 글의 열람(open)이
+    // 발자취(user.opened)에서 조용히 빠진다.
+    const item = this._findItem(items, itemId);
     if (!item) return { ok: false };
     const { step } = applyImplicit(user.preferences, item, event || {});
     this.store.recordSignal(userId, itemId, event && event.type, step);
@@ -2158,8 +2177,7 @@ export class FeedEngine {
     // 다음 수집 사이클의 소스별 상한 재편성에서 빠질 수 있다 — 그러면 방금
     // 누른 글인데 "이 글은 지금 목록에 없어요"가 떴다(David 2026-08-07,
     // Alphabet 기사 실측: 풀 8,403 vs 상한 1,973). 풀에는 그대로 있다.
-    const pooled = this._pool && this._pool.get(itemId);
-    const item = items.find((i) => i.id === itemId) || (pooled && pooled.item) || null;
+    const item = this._findItem(items, itemId);
     if (!item) return null;
     const user = this.store.getUser(userId);
     const showTopics = new Set((user && user.showTopics) || []);

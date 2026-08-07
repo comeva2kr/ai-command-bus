@@ -125,6 +125,28 @@ test("내 발자취: 같은 글을 다시 열면 맨 앞으로 온다", async ()
   assert.deepEqual(sp.recentIds.slice(0, 2), [feed.items[0].id, feed.items[2].id]);
 });
 
+test("상한 목록에서 빠진 글도 열람·좋아요가 산다 — 조회는 한 벌", async () => {
+  // 2026-08-08 정리: getItem에만 풀 폴백이 있고 rate/signal은 상한 목록만
+  // 봤다 — 방금 서빙된 글이 다음 사이클 상한 재편성에서 빠지면 좋아요가
+  // "unknown item"으로 죽고 열람(open)이 발자취에서 조용히 빠졌다.
+  const { store, user, engine } = await setup();
+  await engine.getFeed(user.id, { limit: 4 });
+  // 상한 목록엔 없고 풀에만 있는 글을 재현
+  const ghost = {
+    id: "ghost1", title: "풀에만 남은 글", url: "https://example.org/ghost",
+    source: "s0", kind: "community", tags: [], topics: [], category: "humor",
+    score: 10, commentCount: 1, publishedAt: new Date().toISOString()
+  };
+  engine._pool.set("ghost1", { item: ghost, firstSeenAt: Date.now(), lastSeenAt: Date.now() });
+  const sig = await engine.signal(user.id, "ghost1", { type: "open" });
+  assert.equal(sig.ok, true, "풀 폴백으로 신호가 산다");
+  assert.equal(store.getUser(user.id).opened.at(-1), "ghost1", "발자취에 남는다");
+  const r = await engine.rate(user.id, "ghost1", 1);
+  assert.ok(r.feedbackCount >= 1, "좋아요도 산다");
+  const share = await engine.shareData("ghost1");
+  assert.equal(share && share.id, "ghost1", "공유 카드도 산다");
+});
+
 test("연 글 목록은 100개까지만 쌓인다", () => {
   const store = new FeedStore();
   const user = store.createUser({});
