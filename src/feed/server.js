@@ -2163,6 +2163,9 @@ ${rankingRows(list, (above) => {
         const space = store.mySpace(userId);
         // resolve scrapped item ids into displayable items
         space.saved = await engine.resolveItems(userId, space.savedIds);
+        // 최근 본 글. 풀에서 내려간 글은 resolveItems가 알아서 뺀다 —
+        // 없는 것을 있는 척하지 않는다.
+        space.recent = await engine.resolveItems(userId, space.recentIds);
         // taste dashboard: top learned preferences, labelled for display
         const prefs = store.getUser(userId).preferences;
         const t = topPreferences(prefs);

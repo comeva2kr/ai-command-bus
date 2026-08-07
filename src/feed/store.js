@@ -1161,6 +1161,9 @@ export class FeedStore {
     const user = this.requireUser(userId);
     const myPosts = (this.posts || []).filter((p) => p.userId === userId);
     const myComments = user.comments || [];
+    // 최근 본 글 — "본 걸 다시 찾고 싶을 때"를 위한 발자취(David 2026-08-07).
+    // seen은 오래된 것이 앞이므로 뒤집어 최근순으로 준다.
+    const recentIds = (user.seen || []).slice(-40).reverse();
     const ratings = Object.entries(user.ratings || {}).map(([itemId, r]) => ({ itemId, ...r }));
     const liked = ratings.filter((r) => r.signal > 0).length;
     const disliked = ratings.filter((r) => r.signal < 0).length;
@@ -1189,6 +1192,7 @@ export class FeedStore {
       comments: myComments,
       ratings: { total: ratings.length, liked, disliked, items: ratings },
       savedIds: user.saved || [],
+      recentIds,
       mutedSources: user.mutedSources || [],
       showTopics: user.showTopics || [],
       // 저장된 취향 답 — 내 공간에서 "지금 이렇게 돼 있다"를 보여 주고 거기서

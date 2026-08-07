@@ -216,6 +216,17 @@
   .stat b { display: block; font-size: 20px; }
   .stat span { font-size: 11.5px; color: var(--muted); }
   .space-sec h4 { margin: 18px 0 10px; font-size: 15px; }
+  /* 내 발자취 — 최근 본 글 횡스크롤. 세로로 쌓으면 내 공간이 길어져
+     아래 설정들이 밀린다(David 2026-08-07). */
+  .sec-sub{font-weight:400;font-size:12px;color:var(--muted);margin-left:6px}
+  .trail{display:flex;gap:10px;overflow-x:auto;padding:2px 0 6px;scroll-snap-type:x proximity}
+  .trail::-webkit-scrollbar{height:0}
+  .trail-card{flex:0 0 132px;scroll-snap-align:start;display:flex;flex-direction:column;gap:4px;
+    text-decoration:none;color:inherit}
+  .trail-card img,.trail-noimg{width:132px;height:88px;border-radius:10px;object-fit:cover;display:block}
+  .trail-src{font-size:11px;font-weight:700}
+  .trail-title{font-size:12.5px;line-height:1.35;color:var(--text);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .level-banner { background: linear-gradient(135deg, #1e2740, #171922); border: 1px solid var(--line);
     border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; }
   .lvbar { height: 6px; border-radius: 6px; background: var(--card-2); overflow: hidden; margin-top: 8px; }
@@ -2785,6 +2796,17 @@ async function openSpace(){
         <p class="space-hint">시스템 설정을 고르면 폰 설정을 그대로 따라가요.</p>
       </div>
       <div class="space-sec"><h4>콘텐츠 필터</h4><div class="content-filter-block">${contentFilterHtml()}</div></div>
+      <div class="space-sec"><h4>👣 내 발자취 <span class="sec-sub">최근 본 글</span></h4>${
+        (s.recent&&s.recent.length)
+          ? `<div class="trail" role="list">${s.recent.map(p=>`
+              <a class="trail-card" role="listitem" href="#post-${encodeURIComponent(p.id)}" data-detail="${escapeHtml(p.id)}">
+                ${p.image?`<img src="${escapeHtml(p.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`
+                        :`<span class="trail-noimg" style="background:${srcColor(p.source)}"></span>`}
+                <span class="trail-src" style="color:${srcColor(p.source)}">${escapeHtml(srcLabel(p.source))}</span>
+                <span class="trail-title">${escapeHtml(p.title)}</span>
+              </a>`).join("")}</div>`
+          : '<p style="color:var(--muted);font-size:13px">아직 본 글이 없어요. 피드를 둘러보면 여기에 쌓입니다.</p>'}
+      </div>
       <div class="space-sec"><h4>스크랩</h4>${
         (s.saved&&s.saved.length) ? s.saved.map(p=>`<article class="card" data-id="${p.id}"><div class="card-top"><span class="dot" style="background:${srcColor(p.source)}"></span><span class="src">${srcLabel(p.source)}</span><span>· ${cat(p.category)}</span></div><h3>${escapeHtml(p.title)}</h3></article>`).join("")
           : '<p style="color:var(--muted);font-size:13px">카드의 북마크 버튼으로 나중에 볼 글을 저장해보세요.</p>'}
@@ -2817,6 +2839,10 @@ async function openSpace(){
       back.onclick = ()=>{ sv.classList.add("hidden"); back.hidden = true; openSpace(); };
       showSurvey();
     };
+    // 발자취 카드 → 상세 (앱 안에서 열고 새 탭으로 나가지 않는다)
+    body.querySelectorAll(".trail-card").forEach(a=>{
+      a.onclick = (e)=>{ e.preventDefault(); closeSpace(); openDetail(a.dataset.detail); };
+    });
     // unmute buttons
     body.querySelectorAll(".muted-row button").forEach(btn=>{
       btn.onclick = async ()=>{ try { await API.mute(state.userId, btn.dataset.src, false);
