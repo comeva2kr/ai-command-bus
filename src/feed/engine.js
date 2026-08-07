@@ -949,7 +949,7 @@ export class FeedEngine {
   // the "소스별 보기" chip bar. This is a jagei-style board view, not a taste
   // feed, so it skips personalized ranking (and the mute filter, since picking
   // the chip is the opposite of muting it) in favor of latest+공개화제성 order.
-  async getFeed(userId, { limit = 10, cursor = 0, markSeen = true, source = null, sort = "hot" } = {}) {
+  async getFeed(userId, { limit = 10, cursor = 0, markSeen = true, source = null, sort = "hot", category = null } = {}) {
     const user = this.store.requireUser(userId);
     const items = await this._items();
     const seen = new Set(user.seen);
@@ -1031,6 +1031,7 @@ export class FeedEngine {
           !(offMain.has(i.source) && !source) &&
           !topicsBlocked(i, showTopics) &&
           !seen.has(i.id) &&
+          (!category || i.category === category) &&
           !tooOld(i, now)
       );
       // ── 화제성 신호가 없는 글은 **뒤로 민다** (컷이 아니라 강등) ──────

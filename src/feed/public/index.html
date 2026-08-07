@@ -227,8 +227,12 @@
   .trail-src{font-size:11px;font-weight:700}
   .trail-title{font-size:12.5px;line-height:1.35;color:var(--text);
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  /* 배경이 **항상 어둡다**. 안쪽 글자가 테마 색(var(--muted))을 따라가면
+     라이트 모드에서 어두운 글자 + 어두운 배경이 된다(David 2026-08-07 제보).
+     배너 안에서는 배너 전용 색을 쓴다. */
   .level-banner { background: linear-gradient(135deg, #1e2740, #171922); border: 1px solid var(--line);
-    border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; }
+    border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; color: #eef1f7; }
+  .level-banner [style*="--muted"], .level-banner .lv-sub { color: #a8b0c2 !important; }
   .lvbar { height: 6px; border-radius: 6px; background: var(--card-2); overflow: hidden; margin-top: 8px; }
   .lvfill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--like)); }
   .norm-hint { font-size: 12px; color: #f0a13d; margin-top: 8px; line-height: 1.5; }
@@ -589,7 +593,7 @@
     --muted:color-mix(in srgb,var(--color-text) 72%,transparent);
     --accent:var(--color-accent);
     --line:color-mix(in srgb,var(--color-text) 32%,transparent);
-    --like:var(--color-accent); --dislike:var(--color-text);
+    --like:var(--color-accent); --dislike:#b23b4e;   /* 본문색(검정)이면 막대가 새까맣게 보인다 */
     /* 광고 카드 배경·테두리 — 색을 새로 박지 않고 기존 토큰에서 파생시킨다.
        라이트/다크가 바뀌면 자동으로 따라가므로 테마마다 값을 관리할 필요가 없다. */
     --ad-bg:color-mix(in srgb, var(--color-surface) 55%, var(--color-bg));
@@ -1340,10 +1344,11 @@ const API = {
   async setMix(userId, balance) { return post("/api/mix", { userId, balance }); },
   async adSignal(userId, itemId, type, variant, slot) { return post("/api/ad-signal", { userId, itemId, type, variant, slot }).catch(()=>{}); },
   async setTopic(userId, topic, on) { return post("/api/topics", { userId, topic, on }); },
-  async feed(userId, cursor, limit=10, source=null, sort="hot") {
+  async feed(userId, cursor, limit=10, source=null, sort="hot", category=null) {
     const q = new URLSearchParams({ userId, cursor, limit });
     if(source) q.set("source", source);
     if(sort && sort!=="hot") q.set("sort", sort);
+    if(category) q.set("category", category);
     return get(`/api/feed?${q}`);
   },
   async item(userId, itemId) { return get(`/api/item?userId=${userId}&itemId=${encodeURIComponent(itemId)}`); },
@@ -2772,10 +2777,10 @@ async function openSpace(){
     body.innerHTML = `
       <div class="drawer-sec" id="authSpaceSec" style="margin-top:0"></div>
       <div class="level-banner">
-        <div style="font-size:12px;color:var(--muted)">오늘의 닉네임</div>
+        <div class="lv-sub" style="font-size:12px">오늘의 닉네임</div>
         <div style="font-size:18px;font-weight:800;color:#e9b44c;margin:2px 0 8px">${escapeHtml(s.nickname||state.nickname||"게스트")}</div>
-        <div><b>Lv.${lv.level} ${lv.title}</b> <span style="color:var(--muted);font-size:12px">참여점수 ${lv.score}</span></div>
-        ${lv.nextAt!=null?`<div class="lvbar"><div class="lvfill" style="width:${Math.min(100,Math.round(lv.score/lv.nextAt*100))}%"></div></div><div style="font-size:11.5px;color:var(--muted);margin-top:4px">다음 등급까지 ${lv.toNext}점</div>`:'<div style="font-size:11.5px;color:var(--like)">최고 등급 달성 ✨</div>'}
+        <div><b>Lv.${lv.level} ${lv.title}</b> <span class="lv-sub" style="font-size:12px">참여점수 ${lv.score}</span></div>
+        ${lv.nextAt!=null?`<div class="lvbar"><div class="lvfill" style="width:${Math.min(100,Math.round(lv.score/lv.nextAt*100))}%"></div></div><div class="lv-sub" style="font-size:11.5px;margin-top:4px">다음 등급까지 ${lv.toNext}점</div>`:'<div style="font-size:11.5px;color:var(--like)">최고 등급 달성 ✨</div>'}
       </div>
       <div class="space-stats">
         <div class="stat"><b>${s.counts.posts}</b><span>내 글</span></div>
@@ -3404,12 +3409,10 @@ function setSource(id, container, btn){
   [...container.children].forEach(c=>c.classList.remove("active")); btn.classList.add("active");
   reloadFeed();
 }
-function applyFilter(){
-  for(const [,card] of state.cardsById){
-    const show = !state.activeCategory || card.dataset.cat===state.activeCategory;
-    card.style.display = show ? "" : "none";
-  }
-}
+// 카테고리를 서버에 넘긴다. 예전엔 이미 그려진 카드를 숨기기만 해서,
+// 홈 20개 중 그 카테고리가 2개면 2개만 보였다(David 2026-08-07:
+// "부동산 카테고리에서 누르니까 글이 몇개 안나와").
+function applyFilter(){ reloadFeed(); }
 
 // ---- feed ----
 // 무한 스크롤 = **선반입(prefetch) 파이프라인** (David 2026-08-01: "리스트
@@ -3426,7 +3429,7 @@ function prefetchNext(){
   if(state.prefetch || state.prefetching || state.exhausted) return;
   state.prefetching = true;
   const cursor = state.cursor, src = state.activeSource, sort = state.sortMode;
-  API.feed(state.userId, cursor, 10, src, sort).then((res)=>{
+  API.feed(state.userId, cursor, 10, src, sort, state.activeCategory).then((res)=>{
     // 그 사이 필터·정렬이 바뀌었으면 이 결과는 버린다(엉뚱한 페이지 방지)
     if(src === state.activeSource && sort === state.sortMode && cursor === state.cursor) state.prefetch = res;
   }).catch(()=>{}).finally(()=>{ state.prefetching = false; });
@@ -3456,7 +3459,7 @@ async function loadMore(){
   }
   state.loading = true; setSentinel(true);
   try {
-    const res = await API.feed(state.userId, state.cursor, 10, state.activeSource, state.sortMode);
+    const res = await API.feed(state.userId, state.cursor, 10, state.activeSource, state.sortMode, state.activeCategory);
     renderBatch(res);
     prefetchNext();
   } catch(e){ setSentinel(false, "불러오지 못했어요 — 당겨서 다시 시도"); }

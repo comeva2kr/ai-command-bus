@@ -38,7 +38,7 @@ import { latestRelease } from "./release-notes.js";
 import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
-import { categoryLabel, sourceLabel, tagLabel } from "./taxonomy.js";
+import { categoryLabel, sourceLabel, tagLabel, isKnownCategory } from "./taxonomy.js";
 import { sendDigestPushes } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
 import { makeEnricher } from "./enrich.js";
@@ -2461,7 +2461,11 @@ ${rankingRows(list, (above) => {
         // 있었는데 **이 라우트가 값을 막고 있어서** 화면에서 쓸 수 없었다.
         const rawSort = url.searchParams.get("sort");
         const sort = rawSort === "latest" ? "latest" : rawSort === "deals" ? "deals" : "hot";
-        const feed = await engine.getFeed(userId, { cursor, limit, source, sort });
+        // 카테고리 보기 — 예전엔 화면에서 이미 그려진 카드를 숨기기만 했다.
+        // 그래서 홈 20개 중 그 카테고리가 2개면 2개만 보였다(David 2026-08-07).
+        const rawCat = url.searchParams.get("category");
+        const category = rawCat && isKnownCategory(rawCat) ? rawCat : null;
+        const feed = await engine.getFeed(userId, { cursor, limit, source, sort, category });
         return send(res, 200, feed);
       }
 
