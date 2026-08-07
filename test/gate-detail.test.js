@@ -86,3 +86,40 @@ test("딜 지분 보장이 뮤트를 우회하지 않는다", async () => {
   const sources = (res.items || res).map((i) => i.source);
   assert.ok(!sources.includes("muted"), `뮤트한 소스가 딜 경로로 새어 나왔다: ${sources.join(",")}`);
 });
+
+test("dedupe: 통신사 개정 표기 꼬리를 걷어낸다 — (종합)·(2보)", async () => {
+  // 2026-08-07 감사 P1. 연합뉴스류가 속보→종합 개정판을 잇달아 내면
+  // 같은 사건 두 버전이 첫 화면에 나란히 떴다. "[속보] X / X"와 같은 계열.
+  //
+  // 확정 어휘(종합·속보·단독·N보)로만 좁힌다 — 임의 괄호를 걷으면
+  // "(전문)"과 "(인터뷰)"처럼 다른 기사가 뭉개진다(2026-08-01 뽐뿌 붕괴 계열).
+  const { isSameEvent } = await import("../src/feed/dedupe.js");
+  assert.equal(isSameEvent("이재명 대통령 긴급 담화 발표", "이재명 대통령 긴급 담화 발표(종합)"), true);
+  assert.equal(isSameEvent("정부, 수도권 폭염 특보 단계 격상 발표", "정부, 수도권 폭염 특보 단계 격상 발표(종합2보)"), true);
+  assert.equal(isSameEvent("한미 정상회담 공동선언 채택", "한미 정상회담 공동선언 채택(2보)"), true);
+  // 다른 내용의 괄호는 절대 뭉개지 않는다
+  assert.equal(isSameEvent("금리 인하 대책 발표(전문)", "금리 인하 대책 발표(인터뷰)"), false);
+});
+
+test("source와 category를 함께 주면 둘 다 좁힌다", async () => {
+  // 감사 P2: 예전엔 category가 조용히 무시돼 "클리앙의 기술 글"이
+  // "클리앙 전체"로 나왔다 — 사용자 의도보다 넓어지는 방향의 결함.
+  //
+  // 소스명은 실제 커뮤니티 id를 피한다. 처음 "clien"으로 썼다가 엔진의
+  // 혼합 게시판 재분류(MIXED_BEST_FALLBACK)가 카테고리를 humor로 바꿔
+  // 0건이 나왔다 — 코드가 아니라 픽스처가 실제 규칙과 충돌한 것.
+  const items = Array.from({ length: 12 }, (_, i) => ({
+    id: "i" + i, title: "글" + i, url: "https://example.org/" + i,
+    source: i < 8 ? "testsrc" : "other", kind: "community",
+    category: i % 2 ? "tech" : "life", tags: [], topics: [],
+    score: 50, commentCount: 2, publishedAt: new Date().toISOString()
+  }));
+  const store = new FeedStore();
+  const engine = new FeedEngine(store, [{ id: "s", async fetch() { return items; } }]);
+  await engine.refresh();
+  const user = store.createUser({});
+  const res = await engine.getFeed(user.id, { limit: 10, source: "testsrc", category: "tech", markSeen: false });
+  const got = res.items || res;
+  assert.ok(got.length >= 3, `${got.length}건`);
+  assert.ok(got.every((i) => i.source === "testsrc" && i.category === "tech"));
+});

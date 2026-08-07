@@ -21,6 +21,11 @@ export const MIN_KEY_LEN = 10;
 
 const LEAD_TAG = /^\s*[[({【〈<][^\])}】〉>]{0,12}[\])}】〉>]\s*/;
 const OUTLET_TAIL = /\s+[-–—|]\s+[^-–—|]{1,30}$/;
+// 통신사 개정 표기 꼬리: "제목(종합)", "제목(종합2보)", "제목(2보)".
+// 확정 어휘로만 좁힌다 — 임의 괄호를 걷어내면 "(전문)"과 "(인터뷰)"처럼
+// 실제로 다른 기사가 같은 키로 뭉개진다(2026-08-01 뽐뿌 18건→2건 붕괴와
+// 같은 계열의 실수다).
+const REVISION_TAIL = /[(（]\s*(?:종합|속보|단독|\d*보)\s*\d*\s*보?\s*[)）]\s*$/;
 
 export function normalizeForDedupe(title) {
   let t = String(title || "");
@@ -28,6 +33,7 @@ export function normalizeForDedupe(title) {
   // 말머리는 여러 개 붙기도 한다: "[속보][단독] ..."
   for (let n = 0; n < 3 && LEAD_TAG.test(t); n++) t = t.replace(LEAD_TAG, "");
   t = t.replace(OUTLET_TAIL, "");
+  t = t.replace(REVISION_TAIL, "");
   return t
     .toLowerCase()
     .replace(/[^0-9a-z가-힣]/g, "")

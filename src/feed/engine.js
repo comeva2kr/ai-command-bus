@@ -990,6 +990,9 @@ export class FeedEngine {
       const pool = items.filter(
         (i) =>
           matchesSource(i) &&
+          // 소스와 카테고리를 둘 다 고르면 둘 다 좁힌다 — 예전엔 category가
+          // 조용히 무시돼 "클리앙의 기술 글"이 "클리앙 전체"로 나왔다(감사 P2).
+          (!category || i.category === category) &&
           !disabled.has(i.source) &&
           !topicsBlocked(i, showTopics)
       );

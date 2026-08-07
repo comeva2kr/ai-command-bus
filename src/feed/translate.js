@@ -15,7 +15,7 @@ import { classifyTopics } from "./topics.js";
 // 한글이 한 자라도 있으면 우리 독자가 읽을 수 있는 글로 본다.
 // 숫자·기호만 있는 짧은 제목은 옮길 것이 없으므로 한글로 치지 않는다.
 function hasKorean(text) {
-  return /[가-힣]/.test(String(text || ""));
+  return /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(String(text || ""));  // ㅋㅋㅋ·ㅎㄷㄷ 같은 자모 반응도 한글이다 — 없으면 번역기로 보낸다(2026-08-07 감사)
 }
 
 export class TranslatingSource {
