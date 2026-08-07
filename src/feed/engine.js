@@ -1242,7 +1242,7 @@ export class FeedEngine {
     // 딜을 숨긴 사람에게는 딜 지분 보장도 하지 않는다 — 후보에서 뺐는데
     // 보장이 다시 끌어오면 숨기기가 안 통한다(취향 지분에서 겪은 것과 같은 종류).
     const hideDealsNow = new Set(user.showTopics || []).has(NO_DEAL_TOPIC) && sort !== "deals";
-    if (!source && unseen.length && !hideDealsNow) {
+    if (!source && !category && unseen.length && !hideDealsNow) {
       const scoreOf = new Map(unseen.map((r) => [r.item.id, r.score]));
       const list = unseen.map((r) => r.item);
       const inList = new Set(list.map((i) => i.id));
@@ -1274,7 +1274,10 @@ export class FeedEngine {
       // 애매하게 섞이는 것보다 나쁘다. rank.js가 이미 계산한 hated를 그대로 쓴다.
       const { hated: hatedCats } = categorySets(user.preferences, rankParams());
       const cats = new Set([...chosenCategories(user)].filter((c) => !hatedCats.has(c)));
-      if (cats.size) {
+      // 카테고리를 명시했으면 다른 카테고리를 끌어오지 않는다 — "부동산을 보겠다"는
+      // 명시적 의사이고, 거기에 취향 지분을 섞으면 요청과 다른 화면이 된다
+      // (David 2026-08-07 실측: 부동산 요청에 auto·life가 섞여 나왔다).
+      if (cats.size && !category) {
         const inNow = new Set(arranged.map((i) => i.id));
         const tastePool = (tasteBase || []).filter(
           (i) => cats.has(i.category) && !inNow.has(i.id)

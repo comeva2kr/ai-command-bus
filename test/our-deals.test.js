@@ -320,7 +320,10 @@ test("핫딜은 기본으로 보인다 — 숨김을 켜야 사라진다", async
   assert.match(src, /const hideDeals = showTopics\.has\(NO_DEAL_TOPIC\)/, "엔진이 숨김을 안 본다");
   assert.match(src, /!\(hideDeals && i\.isDeal === true\)/, "후보에서 딜을 안 뺀다");
   // 숨겼는데 지분 보장이 다시 끌어오면 숨기기가 안 통한다.
-  assert.match(src, /!source && unseen\.length && !hideDealsNow/, "딜 지분 보장이 숨김을 무시한다");
+  // 2026-08-07: 카테고리 보기(!category)가 조건에 추가됐다. 지키는 계약은 그대로 —
+  // **hideDealsNow가 여전히 조건에 있어야** 숨기기가 통한다.
+  assert.match(src, /!source && !category && unseen\.length && !hideDealsNow/,
+    "딜 지분 보장이 숨김을 무시한다");
 });
 
 
