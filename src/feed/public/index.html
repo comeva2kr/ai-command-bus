@@ -186,6 +186,9 @@
   .seed-list li{padding:12px 16px;border-bottom:1px solid var(--line)}
   .seed-list a{color:var(--text);text-decoration:none;font-weight:700;line-height:1.45}
   .seed-src{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+  /* 원문으로 나가는 링크 — 크롤러에게 "우리는 발췌만 싣고 트래픽은 원문으로
+     보낸다"는 사실을 HTML로 남긴다(2026-08-07 애드센스 점검). */
+  .seed-out{color:var(--muted);text-decoration:underline}
   /* 발췌 한 줄 — 제목만 있으면 "남의 제목 모음"과 구분이 안 된다.
      JS가 뜨기 전 사람이 보는 화면이자 크롤러가 읽는 본문이다. */
   .seed-sum{margin:6px 0 0;font-size:13px;line-height:1.5;color:var(--muted)}
@@ -1088,7 +1091,7 @@
 </defs></svg>
 
   <header>
-    <div class="brand" id="brandHome" role="button" tabindex="0" title="홈으로 (새로고침)" style="cursor:pointer"><svg class="brand-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#111319"/><polyline points="88,368 176,330 244,346" fill="none" stroke="#e8eaf0" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><polyline points="244,346 344,150 424,214" fill="none" stroke="#ff4b3e" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><circle cx="344" cy="150" r="32" fill="#ff4b3e"/></svg> 지금핫 <span class="brand-en">NowHot</span> <small id="phaseLabel">준비 중</small>
+    <div class="brand" id="brandHome" role="button" tabindex="0" title="홈으로 (새로고침)" style="cursor:pointer"><svg class="brand-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#111319"/><polyline points="88,368 176,330 244,346" fill="none" stroke="#e8eaf0" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><polyline points="244,346 344,150 424,214" fill="none" stroke="#ff4b3e" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><circle cx="344" cy="150" r="32" fill="#ff4b3e"/></svg> 지금핫 <span class="brand-en">NowHot</span> <small id="phaseLabel"></small>
       <button id="menuBtn" class="menu-btn" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"></use></svg></button>
     </div>
     <p class="tagline"><span>커뮤니티·뉴스에서 지금 가장 화제인 글만</span> <span>모아서 보여드려요</span></p>

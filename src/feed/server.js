@@ -417,8 +417,20 @@ export function createServer(opts = {}) {
               const meta = [escapeHtml(i.sourceLabel || ""), react.join(" · ")].filter(Boolean).join(" · ");
               const summary = typeof i.summary === "string" && i.summary.trim()
                 ? `<p class="seed-sum">${escapeHtml(maskProfanity(i.summary.slice(0, 200)))}</p>` : "";
+              // **원문으로 나가는 진짜 링크를 남긴다** (2026-08-07 애드센스 점검).
+              //
+              // 실측: 홈 초기 HTML의 외부 <a href>가 **0개**였다. 제목 링크가
+              // 내부 앵커(/#post-…)뿐이라, 크롤러 눈에는 남의 제목·발췌만 모아 둔
+              // 페이지로 보인다. 우리 방어 논리 전체가 "발췌만 싣고 트래픽은
+              // 원문으로 보낸다"인데 **그 사실이 HTML에 없었다.**
+              //
+              // rel: nofollow는 붙이지 않는다 — 우리가 실제로 추천하는 출처이고,
+              // 광고가 아니다. noopener만 붙인다(보안).
+              const src = typeof i.url === "string" && /^https?:\/\//i.test(i.url)
+                ? ` <a class="seed-out" href="${escapeHtml(i.url)}" rel="noopener" target="_blank">${escapeHtml(i.sourceLabel || "원문")}에서 보기</a>`
+                : "";
               return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>` +
-                `<span class="seed-src">${meta}</span>${summary}</li>`;
+                `<span class="seed-src">${meta}${src}</span>${summary}</li>`;
             }).join("") + `</ol>`;
           } else {
             seed = navHtml;   // 수집 전이라도 구성은 보여준다
