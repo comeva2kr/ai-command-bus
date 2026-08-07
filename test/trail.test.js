@@ -81,7 +81,7 @@ test("내 발자취: 풀에서 내려간 글은 조용히 빠진다 — 없는 �
   assert.ok(!resolved.some((r) => r.id === "없는id_1"));
 });
 
-test("본 글은 피드에 다시 나오지 않는다 — seen 상한이 그 보장의 길이다", async () => {
+test("본 글은 앵커를 빼면 피드에 다시 나오지 않는다 — seen 상한이 그 보장의 길이다", async () => {
   // David 2026-08-07: "본 걸 굳이 또 볼 필욘 없으니까"
   //
   // 피드는 seen을 후보에서 빼므로(base 필터) 상한이 곧 보장의 길이다.
@@ -92,13 +92,22 @@ test("본 글은 피드에 다시 나오지 않는다 — seen 상한이 그 보
   // base의 순서를 바꿔도 하류(hotScore·selectDiverse)가 다시 정렬해 지워진다 —
   // 검증에서 본 글이 그대로 0·1·2번 자리에 나왔다. 순서가 아니라 점수에
   // 손대야 하는데 그건 여러 경로를 건드려야 해서, 상한을 올리는 쪽이 맞다.
+  //
+  // 계약 개정(David 2026-08-08 승인): 새로고침(cursor=0) 시 직전 첫 화면의
+  // 상위 앵커 몇 개는 **의도된 재노출**이다 — "완전 랜덤으로 바뀌면 이게
+  // 맞게 나오는 건가 싶다". 앵커는 머리에만 오고, 그 밖의 본 글은 여전히
+  // 다시 나오지 않는다. (anchor.test.js가 앵커 자체를 상세 검증)
   const { store, user, engine } = await setup(12);
   const a = await engine.getFeed(user.id, { limit: 4 });
   const seenIds = (a.items || a).map((x) => x.id);
   const b = await engine.getFeed(user.id, { limit: 12 });
   const nextIds = (b.items || b).map((x) => x.id);
-  for (const id of seenIds) {
-    assert.ok(!nextIds.includes(id), `본 글이 다시 나왔다: ${id}`);
+  const repeats = nextIds.filter((id) => seenIds.includes(id));
+  assert.ok(repeats.length <= 3, `앵커(≤3)를 넘는 재노출: ${repeats}`);
+  assert.deepEqual(repeats, seenIds.slice(0, repeats.length), "재노출은 직전 상위 앵커뿐");
+  assert.deepEqual(nextIds.slice(0, repeats.length), repeats, "앵커는 머리에 있다");
+  for (const id of seenIds.slice(3)) {
+    assert.ok(!nextIds.includes(id), `앵커 아닌 본 글이 다시 나왔다: ${id}`);
   }
 });
 

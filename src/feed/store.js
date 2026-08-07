@@ -618,6 +618,30 @@ export class FeedStore {
     return user.ratings[itemId];
   }
 
+  // 새로고침 앵커 (engine.js HOME_ANCHOR_* 주석 참조) — 홈 첫 화면의 상위
+  // id 몇 개를 "처음 잡힌 시각"과 함께 기억한다. 새 목록이 기존 앵커와
+  // **하나라도 겹치면** 시각을 갱신하지 않는다 — 연속 새로고침은 물론,
+  // 앵커 하나가 중간에 죽어 일부만 교체돼도(churn) 살아남은 앵커의 TTL이
+  // 리셋되지 않는다(검수 라운드4 실측: 목록 전체 일치로만 보존하면 10분마다
+  // 하나씩 교체될 때 최초 1위가 60분 넘게 머리에 고정됐다). 겹침이 전혀
+  // 없는 목록(만료 후 새 화면)만 새 창을 연다. 새로 낀 앵커가 기존 창을
+  // 물려받아 조금 일찍 만료되는 쪽이 보수적이라 맞다.
+  rememberHomeAnchors(userId, ids) {
+    const user = this.requireUser(userId);
+    const next = Array.isArray(ids) ? ids.filter(Boolean) : [];
+    const prev = user.homeAnchors;
+    if (prev && Array.isArray(prev.ids) && next.some((id) => prev.ids.includes(id))) {
+      if (prev.ids.length === next.length && prev.ids.every((id, i) => id === next[i])) {
+        return prev; // 완전히 같은 목록 — 저장할 것도 없다
+      }
+      user.homeAnchors = { ids: next, at: prev.at }; // 겹침 — 창은 그대로
+    } else {
+      user.homeAnchors = { ids: next, at: nowIso(this.clock) };
+    }
+    this._persistSoon(); // 피드 요청마다 올 수 있는 고빈도 경로
+    return user.homeAnchors;
+  }
+
   markSeen(userId, itemIds) {
     const user = this.requireUser(userId);
     const set = new Set(user.seen);

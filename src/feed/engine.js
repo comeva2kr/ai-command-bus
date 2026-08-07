@@ -313,6 +313,19 @@ function reasonLabel(r) {
 // 공개 지면용 — 아무 토픽도 켜지 않은 상태(기본 숨김 전부 적용)
 const EMPTY_TOPICS = new Set();
 
+// ── 새로고침 앵커 연속성 (David 2026-08-08 승인)
+// "완전 랜덤으로 바뀌면 이게 맞게 나오는 거 맞나 싶잖아 — 알고리즘의
+// 연속성이 느껴져야." 새로고침(cursor=0)은 서빙 즉시 seen을 소비하는
+// 구조라 사실상 "다음 페이지"가 되어 화면이 통째로 갈렸다. 직전 첫 화면의
+// 상위 앵커를 짧은 창 안에서 유지해 "아까 1위가 아직 1위"가 보이게 한다 —
+// 트위터 당겨서-새로고침·레딧/HN 핫 랭킹의 상단 안정 문법. 창은 앵커가
+// 처음 잡힌 시각 기준이라(연속 새로고침으로 갱신 안 됨) TTL이 지나면 새
+// 1위에게 자리를 내준다. 수치는 실측이 아니라 승인된 UX 선택값.
+// `|| 기본값` — 환경변수 오타(NaN)로 기능이 에러 없이 조용히 꺼지는 것을
+// 막는다(검수 2026-08-08). 0으로 끄는 용도가 아니라 값 지정용 변수다.
+const HOME_ANCHOR_COUNT = Number(process.env.FEED_ANCHOR_COUNT) || 3;
+const HOME_ANCHOR_TTL_MS = Number(process.env.FEED_ANCHOR_TTL_MS) || 15 * 60 * 1000;
+
 export class FeedEngine {
   constructor(store, sources) {
     this.store = store;
@@ -973,6 +986,9 @@ export class FeedEngine {
 
     let unseen;
     let collabBoosts = new Map();
+    // 홈 경로의 passesGates를 앵커 재검증이 그대로 쓰도록 승격해 둔다
+    // (관문 두 벌 금지 — 앵커용 관문을 따로 만들지 않는다).
+    let anchorGate = null;
     // 취향 지분 보장이 끌어올 후보. **인스턴스 필드로 두면 안 된다** —
     // 아래에 await가 끼어 있어 다른 요청이 그 사이에 덮어쓴다.
     let tasteBase = null;
@@ -1039,6 +1055,7 @@ export class FeedEngine {
         !topicsBlocked(i, showTopics) &&
         (!category || i.category === category) &&
         !tooOld(i, now);
+      anchorGate = passesGates;
       const base = items.filter((i) => passesGates(i) && !seen.has(i.id));
       // ── 안 본 글이 하나도 없으면 본 글을 다시 내보낸다 (2026-08-07 장애)
       //
@@ -1061,6 +1078,11 @@ export class FeedEngine {
         return {
           items: page.map((i) => this._decorate(i, 0, user)),
           cursor: cursor + page.length,
+          // 검수(2026-08-08)가 잡은 기존 결함: 클라이언트는 nextCursor를 읽는데
+          // 이 응답만 cursor로 내보내 undefined → 0으로 접혀 같은 재활용
+          // 페이지가 무한 반복됐고, 카드 중복 방지도 없어 같은 카드가 계속
+          // 쌓였다. 이름을 맞춰 페이지가 전진하게 한다.
+          nextCursor: cursor + page.length,
           exhausted: cursor + page.length >= recycled.length
         };
       }
@@ -1322,6 +1344,47 @@ export class FeedEngine {
       unseen = arranged.map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
     }
 
+    // ── 새로고침 앵커 (HOME_ANCHOR_* 상수 주석 참조) — 직전 첫 화면의 상위
+    // 앵커가 아직 살아 있고(풀 폴백 포함) 관문을 통과하면 이번 첫 화면
+    // 머리에 유지한다. 앵커는 이미 seen이라 새 글 소비와 겹치지 않는다.
+    // hated 카테고리는 앵커로도 안 남긴다 — selectDiverse가 전 페이지에서
+    // 하드 배제한 것을 앵커가 15분 더 붙잡고 있으면 "아무리 싫어요를 눌러도
+    // 안 통하는 피드"의 창이 된다(검수 라운드4).
+    const anchorEntries = [];
+    let floorHated = EMPTY_TOPICS;
+    if (!source && !category) {
+      floorHated = categorySets(user.preferences, rankParams()).hated;
+      if (cursor === 0 && markSeen && sort !== "deals" && anchorGate) {
+        const saved = user.homeAnchors;
+        const anchoredMs = saved && saved.at ? Date.parse(saved.at) : NaN;
+        if (saved && Array.isArray(saved.ids) && Number.isFinite(anchoredMs) && now - anchoredMs <= HOME_ANCHOR_TTL_MS) {
+          // limit-1 클램프: 아주 작은 limit(API 직접 호출)에서도 페이지가
+          // limit를 넘지 않고, 새 글 칸이 최소 하나는 남는다(검수 라운드4).
+          for (const id of saved.ids.slice(0, Math.min(HOME_ANCHOR_COUNT, Math.max(0, limit - 1)))) {
+            const found = this._findItem(items, id);
+            if (found && anchorGate(found) && !floorHated.has(found.category)) {
+              anchorEntries.push({ item: found, score: 0 });
+            }
+          }
+        }
+      }
+    }
+
+    let fresh;
+    if (source) {
+      fresh = diversify(unseen).slice(cursor, cursor + limit);
+    } else if (anchorEntries.length) {
+      // 중복 제거 — 앵커가 seen 상한(3,000) 밖으로 밀려나면 unseen 후보로
+      // 돌아올 수 있다(검수 라운드4가 실측으로 확인한 실제 경로. 전부-seen
+      // 재활용 폴백은 위에서 조기 반환이라 여기 도달하지 않는다).
+      const anchorIds = new Set(anchorEntries.map((a) => a.item.id));
+      fresh = anchorEntries.concat(
+        unseen.filter((r) => !anchorIds.has(r.item.id)).slice(0, Math.max(0, limit - anchorEntries.length))
+      );
+    } else {
+      fresh = unseen.slice(0, limit);
+    }
+
     // ── 해외 글 페이지 하한 (5.7 B단계 채택안, 2026-08-08)
     //
     // 해외 RSS는 추천·댓글 수치가 없어 hotScore의 속도 보너스(ingest.js vel)를
@@ -1332,37 +1395,37 @@ export class FeedEngine {
     // 핫 1위에 올린다. 대신 X의 AuthorDiversityFloor 방식으로 **하한만** 둔다:
     // 점수 경쟁은 그대로, 바닥만 있고, 위쪽은 실력대로. (taste-share.js 참조)
     //
-    // 창은 페이지 크기(limit)에 맞춘다 — 검수 라운드2: 고정 20칸 창은 개인화
-    // 경로(selectDiverse가 이미 limit로 자른 목록)에서 발화 자체를 못 했고,
-    // 페이지 10칸 클라이언트에선 삽입 글이 다음 페이지로 밀렸다. 개인화 목록은
-    // 뒤쪽 꼬리가 없으므로 관문 통과 풀(tasteBase — 딜 지분과 같은 원칙)에서
-    // 후보를 받는다. 페이지마다 재적용되므로 헤비 스크롤러는 세션 후반에 해외
-    // 공급이 자연 고갈될 수 있다 — 재료가 없으면 있는 만큼만, 의도된 동작이다.
-    if (!source && !category) {
-      // 하한 후보도 rank.js가 계산한 hated를 그대로 본다 — selectDiverse가
-      // 전 페이지에서 하드 배제한 카테고리를 하한이 뒷문으로 다시 들이면
-      // "관문 두 벌" 재발이다(검수 라운드3 실측: hated=news 사용자에게 news
-      // 해외 글이 주입됐다).
-      const { hated: floorHated } = categorySets(user.preferences, rankParams());
-      const inNow = new Set(unseen.map((r) => r.item.id));
-      const foreignPool = (tasteBase || [])
-        .filter((i) => isForeignItem(i) && !inNow.has(i.id) && !seen.has(i.id) && !floorHated.has(i.category))
-        .sort((a, b) => String(b.publishedAt || "").localeCompare(String(a.publishedAt || "")))
-        .map((i) => ({ item: i, score: 0 }));
-      unseen = ensureForeignShare(unseen, foreignPool, {
+    // **최종 페이지(fresh)에 건다** — 검수 라운드4: 병합 전 후보 목록에 걸면
+    // 앵커 병합이 꼬리를 잘라 하한 슬롯이 12~15% 확률로 잘려나갔다(실측:
+    // 해외 0건 첫 화면 익명 0/60→7/60). 페이지에 걸면 앵커·딜과의 자리
+    // 경쟁이 구조적으로 없다(avoid). 후보는 페이지 밖 unseen(이미 순위
+    // 경쟁을 거침) → 관문 통과 풀(tasteBase, hated 제외 — 라운드3) 순.
+    // 페이지마다 재적용되므로 헤비 스크롤러는 세션 후반에 해외 공급이 자연
+    // 고갈될 수 있다 — 재료가 없으면 있는 만큼만, 의도된 동작이다.
+    if (!source && !category && fresh.length) {
+      const inPage = new Set(fresh.map((r) => r.item.id));
+      const anchorIds = new Set(anchorEntries.map((a) => a.item.id));
+      const donorIds = new Set();
+      const donors = [];
+      for (const r of unseen) {
+        if (isForeignItem(r.item) && !inPage.has(r.item.id) && !donorIds.has(r.item.id)) {
+          donorIds.add(r.item.id);
+          donors.push(r);
+        }
+      }
+      const poolDonors = (tasteBase || [])
+        .filter((i) => isForeignItem(i) && !inPage.has(i.id) && !donorIds.has(i.id) &&
+          !seen.has(i.id) && !floorHated.has(i.category))
+        .sort((a, b) => String(b.publishedAt || "").localeCompare(String(a.publishedAt || "")));
+      for (const i of poolDonors) { donorIds.add(i.id); donors.push({ item: i, score: 0 }); }
+      fresh = ensureForeignShare(fresh, donors, {
         is: (r) => isForeignItem(r.item),
         idOf: (r) => r.item && r.item.id,
-        // 딜 지분이 잡은 칸은 교체하지 않는다 — 두 지분 보장이 같은 균등
-        // 분산 공식을 써서, 회피 없이는 하한 발화 페이지마다 딜 칸이
-        // 체계적으로 밀렸다(검수 라운드3 실측).
-        avoid: (r) => Boolean(r.item && r.item.isDeal === true),
+        // 딜 지분 칸(라운드3)과 앵커 칸(라운드4)은 교체하지 않는다.
+        avoid: (r) => Boolean(r.item && (r.item.isDeal === true || anchorIds.has(r.item.id))),
         window: Math.min(FOREIGN_WINDOW, limit)
       }).items;
     }
-
-    let fresh = source
-      ? diversify(unseen).slice(cursor, cursor + limit)
-      : unseen.slice(0, limit);
 
     const level = specializationLevel(user.preferences, user.feedbackCount);
     const phase = feedPhase(level);
@@ -1388,8 +1451,20 @@ export class FeedEngine {
       if (this.store.recordSourceExposure) {
         // 노출 이력도 다양성 키로 적는다 — 조회(rank.js/roundRobin)와 기록이
         // 다른 키를 쓰면 그룹 소스의 적자가 영원히 0으로 보인다.
-        this.store.recordSourceExposure(userId, fresh.map((r) => diversityKey(r.item)));
+        // 앵커(재표시)는 빼고 적는다 — 새로고침마다 같은 소스의 노출 적자를
+        // 이중으로 쌓으면 그 소스가 라운드로빈에서 부당하게 밀린다.
+        const anchorIdSet = new Set(anchorEntries.map((a) => a.item.id));
+        this.store.recordSourceExposure(
+          userId,
+          fresh.filter((r) => !anchorIdSet.has(r.item.id)).map((r) => diversityKey(r.item))
+        );
       }
+    }
+    // 이번 첫 화면의 상위를 다음 새로고침의 앵커로 기억한다. 같은 앵커가
+    // 유지되는 동안은 처음 잡힌 시각을 보존한다(store.rememberHomeAnchors) —
+    // 그래야 연속 새로고침으로 TTL이 영원히 늘어나지 않는다.
+    if (!source && !category && cursor === 0 && markSeen && sort !== "deals" && batch.length) {
+      this.store.rememberHomeAnchors(userId, batch.slice(0, HOME_ANCHOR_COUNT).map((b) => b.id));
     }
 
     // ---- monetization: affiliate/ad slot insertion (docs/monetization.md) ----

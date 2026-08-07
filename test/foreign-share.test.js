@@ -162,6 +162,22 @@ test("엔진 통합: hated 카테고리는 하한 후보에서도 배제된다 �
     "hated 카테고리 해외 글이 하한 경로로 새면 안 된다");
 });
 
+test("엔진 통합: 앵커가 있는 새로고침 페이지에도 해외 하한이 유지된다", async () => {
+  // 검수 라운드4 P1 재현 — 하한을 병합 전 후보 목록에 걸면 앵커 병합이
+  // 꼬리 3칸을 잘라 하한 슬롯이 12~15% 확률로 잘려나갔다. 이제 하한은
+  // 최종 페이지에 걸리므로 앵커와 자리 경쟁이 없다.
+  const { store, engine } = rig();
+  await engine.refresh();
+  const user = store.createUser({});
+  await engine.getFeed(user.id, { limit: 10 });        // 앵커를 심는다
+  for (let i = 0; i < 3; i++) {
+    const f = await engine.getFeed(user.id, { limit: 10 }); // 새로고침 반복
+    const got = f.items.filter(isForeignItem).length;
+    assert.ok(got >= 1, `앵커 새로고침 ${i + 1}번째: 해외 ${got}건 — 하한 미달`);
+    assert.equal(f.items.length, 10);
+  }
+});
+
 test("엔진 통합(개인화): selectDiverse가 자른 페이지에도 해외 글이 나온다", async () => {
   // 검수 라운드2 P0 — 하한의 동기였던 David 계정이 정확히 이 코호트였는데
   // 구버전 하한은 여기서 아무것도 안 했다.
