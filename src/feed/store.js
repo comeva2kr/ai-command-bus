@@ -586,11 +586,25 @@ export class FeedStore {
 
   // Record that an implicit signal was applied (for observability/metrics). The
   // preference-vector mutation itself happens in the engine via applyImplicit.
+  //
+  // "open"은 발자취의 원천으로도 쌓는다(2026-08-08). 발자취는 "본 걸 다시
+  // 찾고 싶을 때"(David 2026-08-07)인데 seen은 서빙된 전부라 스크롤로 스쳐간
+  // 글이 섞였다. 클라이언트가 상세를 열 때마다 open 신호를 이미 보내고
+  // 있으므로(index.html markOpened), 실제로 연 글만 여기 따로 남긴다.
   recordSignal(userId, itemId, type, step) {
     const user = this.requireUser(userId);
     user.implicitCount = (user.implicitCount || 0) + 1;
     user.lastSignal = { itemId, type, step, at: nowIso(this.clock) };
-    this._persist();
+    if (type === "open" && itemId) {
+      // 같은 글을 다시 열면 맨 뒤(=최근)로 옮긴다. 발자취 화면은 최근
+      // 40개만 보여 주므로 100이면 충분한 여유다.
+      const list = (user.opened || []).filter((id) => id !== itemId);
+      list.push(itemId);
+      user.opened = list.slice(-100);
+    }
+    // 신호는 열람·스크롤마다 오는 고빈도 경로 — 동기 저장은 recordTraffic이
+    // 겪은 것과 같은 종류의 TTFB 세금이라 디바운스로 맞춘다(_persistSoon 참조).
+    this._persistSoon();
     return user.implicitCount;
   }
 
@@ -614,7 +628,13 @@ export class FeedStore {
     // 상한이 곧 "안 본 글만 보여주는" 보장의 길이다.
     // id 하나가 약 10바이트라 3,000개도 사용자당 30KB 수준이다.
     user.seen = [...set].slice(-3000);
-    this._persist();
+    // 피드 요청마다 불리는 고빈도 경로 — 동기 _persist()는 recordTraffic이
+    // 겪은 것과 같은 종류의 TTFB 세금이다(2026-08-08 검수 실측: 핫 파일
+    // 2.4MB 기준 호출당 ~10ms). 같은 디바운스 저장으로 맞춘다. 정상 종료·
+    // 재배포는 종료 훅 flushPending이 지키고, 비정상 종료(OOM킬·전원 단절)
+    // 때만 최대 2초 치 seen이 유실될 수 있다 — 그 창에서 본 글이 재노출될
+    // 수 있는 것이 이 전환의 값이다.
+    this._persistSoon();
     return user.seen.length;
   }
 
@@ -636,7 +656,11 @@ export class FeedStore {
       if (!src) continue;
       user.sourceExposure[src] = (user.sourceExposure[src] || 0) + 1;
     }
-    this._persist();
+    // markSeen 바로 다음 줄에서 같은 요청마다 불린다(engine.js 서빙 경로).
+    // 여기가 동기 저장이면 markSeen이 걸어둔 디바운스를 도로 취소하고 전체
+    // 저장을 즉시 수행해 디바운스 전환이 무효가 된다(검수 라운드2 실측:
+    // 요청당 동기 저장 여전히 1회, 발원지가 바로 이 줄이었다).
+    this._persistSoon();
     return user.sourceExposure;
   }
 
@@ -738,7 +762,10 @@ export class FeedStore {
   nextAdSeed(userId) {
     const user = this.requireUser(userId);
     user.adSeedSeq = (user.adSeedSeq || 0) + 1;
-    this._persist();
+    // _monetize마다(=광고 활성 시 피드 요청마다) 불린다 — markSeen과 같은
+    // 이유로 디바운스(2026-08-08 검수: 광고가 다시 켜지는 순간 요청당 동기
+    // 전체 저장이 부활하는 지뢰였다). 크래시로 잃는 건 회전 시드 한 걸음뿐.
+    this._persistSoon();
     return user.adSeedSeq;
   }
 
@@ -755,7 +782,9 @@ export class FeedStore {
     const now = this._nowMs();
     for (let i = 0; i < n; i++) user.adServedAt.push(now);
     if (user.adServedAt.length > 500) user.adServedAt = user.adServedAt.slice(-500); // cap memory
-    this._persist();
+    // nextAdSeed와 같은 이유로 디바운스 — 광고 활성 시 요청마다 불린다.
+    // 크래시 유실 최대 2초 치는 세션 상한(24h 창) 집계에 무시할 수 있는 오차.
+    this._persistSoon();
     return this.adSlotsServedCount(userId);
   }
 
@@ -1170,8 +1199,22 @@ export class FeedStore {
     const myPosts = (this.posts || []).filter((p) => p.userId === userId);
     const myComments = user.comments || [];
     // 최근 본 글 — "본 걸 다시 찾고 싶을 때"를 위한 발자취(David 2026-08-07).
-    // seen은 오래된 것이 앞이므로 뒤집어 최근순으로 준다.
-    const recentIds = (user.seen || []).slice(-40).reverse();
+    // 실제로 연 글(open 신호, recordSignal 참조)을 앞에, 서빙만 된 글(seen)을
+    // 뒤에 잇는다(2026-08-08). 예전엔 seen만 보여 줘서 스크롤로 스쳐간 글이
+    // "본 글"인 척 섞였다 — 이제 정말 연 글이 먼저 온다. seen을 아예 빼지
+    // 않는 이유: "제목만 보고 지나쳤는데 다시 찾고 싶은" 경우도 실재하고,
+    // 아직 연 글이 없는 기존 사용자의 발자취가 통째로 비면 그게 더 나쁘다.
+    //
+    // 여기서는 **후보를 여유 있게** 내보낸다 — 화면 상한 40개는 서버가 풀
+    // 생존 필터(resolveItems) **뒤에** 자른다. 검수 라운드2 실측: 풀 보존이
+    // 48시간이라 여기서 먼저 40개로 자르면, 이틀 비웠다 돌아온 사용자는
+    // 후보 40개가 전부 죽은 id라 오늘 피드를 보고도 발자취가 0행이 됐다.
+    // seen 후보 200은 48시간 풀에서 40개를 채우고 남는 여유다.
+    // 각 목록 모두 오래된 것이 앞이므로 뒤집어 최근순으로 준다.
+    const openedRecent = (user.opened || []).slice().reverse();
+    const openedSet = new Set(openedRecent);
+    const seenRecent = (user.seen || []).slice(-200).reverse().filter((id) => !openedSet.has(id));
+    const recentIds = openedRecent.concat(seenRecent);
     const ratings = Object.entries(user.ratings || {}).map(([itemId, r]) => ({ itemId, ...r }));
     const liked = ratings.filter((r) => r.signal > 0).length;
     const disliked = ratings.filter((r) => r.signal < 0).length;

@@ -124,8 +124,17 @@ ok("우리가 쓴 브리핑 문단이 있음", issues.length >= 3, `${issues.len
 }
 {
   // 피드가 실제로 글을 내놓는가. 빈 피드는 "정상 응답"이면서 죽은 서비스다.
-  const f = await json("/api/feed?userId=user_1&cursor=0&limit=10").catch(() => null);
-  const n = f && Array.isArray(f.items) ? f.items.length : 0;
+  //
+  // 2026-08-08 정정 — 이 점검은 만들어진 뒤 한 번도 통과한 적이 없었다:
+  // (1) user_1 고정 id는 새 스토어(스테이징)에 없어 400 "unknown user",
+  // (2) json()은 {status, body}를 주는데 f.items를 읽어 운영에서도 항상 0건.
+  // 1번 점검과 같은 방식으로 세션을 만들어 그 사용자로 잰다.
+  const fs = await json("/api/session", {
+    method: "POST", headers: { "content-type": "application/json" }, body: "{}"
+  }).catch(() => null);
+  const fuid = fs && fs.body && fs.body.userId;
+  const f = fuid ? await json(`/api/feed?userId=${fuid}&cursor=0&limit=10`).catch(() => null) : null;
+  const n = f && f.body && Array.isArray(f.body.items) ? f.body.items.length : 0;
   ok("피드가 글을 내놓음", n >= 3, `${n}건`);
 }
 

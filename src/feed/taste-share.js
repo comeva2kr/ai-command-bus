@@ -88,6 +88,103 @@ export function ensureTasteShare(list, pool, { cats, minShare = TASTE_MIN_SHARE 
   return { items: out.slice(0, list.length), added: extra.length, short: extra.length < need };
 }
 
+// ── 해외 글 첫 화면 하한 (5.7 B단계, 2026-08-08)
+//
+// 해외 RSS는 추천·댓글 수치가 없어 hotScore의 속도 보너스(ingest.js vel)를
+// 태생적으로 못 받는다 — 설계 워크플로 실측: 풀 지분 ~5%인데 홈 첫 20칸에서
+// 19번째 1건. David 2026-08-07: "지금 리스트에 해외게 진짜 잘 안보이네."
+// 점수를 lane별로 재정규화하는 안은 적대적 검수가 기각했다(측정된 반응이
+// 무측정 순위를 이긴다는 확정 결정을 되돌린다). 위 헤더의 X
+// AuthorDiversityFloor와 같은 발상으로 **하한만** 둔다 — 바닥은 있되,
+// 그 위는 점수 경쟁 그대로.
+export const FOREIGN_MIN_SHARE = 0.1; // 첫 화면에서 해외 글 최소 지분 (10칸에 1건)
+export const FOREIGN_WINDOW = 20;     // 하한을 계산하는 최대 창
+
+// 해외 글 판정 — engine.js 번역 안내가 쓰는 기준 그대로(번역됐거나, 번역
+// 대상이거나, 원문 언어가 한국어가 아닌 글).
+export function isForeignItem(i) {
+  return Boolean(i && (i.translated === true || i.needsTranslation === true ||
+    (i.originalLang && i.originalLang !== "ko")));
+}
+
+// list 앞쪽(사용자가 실제로 보는 첫 화면 = 페이지 크기)에 해외 글이 최소
+// 지분에 못 미치면 채운다. 검수 라운드2가 잡은 두 결함을 반영한 형태다:
+// (1) 창은 페이지 크기에 맞춘다 — 고정 20칸 창은 페이지 10칸 클라이언트에서
+//     삽입 글이 다음 페이지로 밀렸고, 개인화 경로(selectDiverse가 이미 limit로
+//     자른 목록)에서는 "목록이 창보다 짧으면 무시" 조건 탓에 아예 발화하지
+//     않았다.
+// (2) 밀어내지 않고 **스왑/교체**한다 — splice 삽입은 창 끝에 있던 기존 해외
+//     글을 창 밖으로 밀어내 하한을 자기 손으로 깼다(off-by-one 실측).
+//
+// 후보는 두 층: ① 목록 뒤쪽의 해외 글(이미 순위 경쟁을 거침 — 자리를 맞바꿔
+// 끌어올린다) ② pool(관문 통과 목록)의 해외 글 — 그 자리 글과 교체하고,
+// 밀려난 글은 이번 응답에서 빠질 뿐 seen에 안 찍혀 다음 페이지에 다시 온다
+// (ensureTasteShare의 slice-드롭과 같은 관례). 어느 쪽이든 길이가 보존된다.
+// 재료가 없으면 있는 만큼만 — 없는 것을 만들지 않는다.
+export function ensureForeignShare(
+  list, pool,
+  { is = isForeignItem, idOf, avoid, window = FOREIGN_WINDOW, minShare = FOREIGN_MIN_SHARE } = {}
+) {
+  if (!Array.isArray(list) || !list.length) return { items: list || [], moved: 0 };
+  const win = Math.min(window, list.length);
+  // 창이 아주 짧으면(풀 소진 근처) 하한을 접는다 — 3칸에 1건을 강제하면
+  // 지분(10%)의 세 배가 되어 버린다. rank.js 완화 사다리와 같은 발상.
+  if (win < 5) return { items: list, moved: 0 };
+  const minCount = Math.max(1, Math.floor(win * minShare));
+  const out = list.slice();
+  const foreignAt = new Set();
+  for (let i = 0; i < win; i++) if (is(out[i])) foreignAt.add(i);
+  let need = minCount - foreignAt.size;
+  if (need <= 0) return { items: list, moved: 0 };
+
+  const id = idOf || ((x) => x && x.id);
+  const inList = new Set(out.map(id));
+  const donors = [];
+  for (let i = win; i < out.length && donors.length < need; i++) {
+    if (is(out[i])) donors.push({ tail: i });
+  }
+  for (const p of pool || []) {
+    if (donors.length >= need) break;
+    if (is(p) && !inList.has(id(p))) donors.push({ ext: p });
+  }
+  if (!donors.length) return { items: list, moved: 0 };
+
+  // 자리: 창 안의 비해외 칸을 고르게 — 1위 칸은 점수 경쟁 결과를 존중해 두고,
+  // 해외 글 옆자리는 되도록 피한다(라운드로빈이 만든 소스 간격 존중).
+  // avoid로 표시된 칸(딜 지분 등 다른 보장이 잡은 자리)도 건드리지 않는다 —
+  // 두 지분 보장이 같은 균등 분산 공식을 쓰므로 회피 없이는 정확히 같은
+  // 칸을 노려 서로를 밀어낸다(검수 라운드3 실측).
+  const taken = new Set();
+  const pick = (want) => {
+    let best = -1, bestD = Infinity, bestAdj = true;
+    for (let s = 1; s < win; s++) {
+      if (taken.has(s) || foreignAt.has(s)) continue;
+      if (avoid && avoid(out[s])) continue;
+      const adj = foreignAt.has(s - 1) || foreignAt.has(s + 1);
+      const d = Math.abs(s - want);
+      if ((adj === false && bestAdj === true) || (adj === bestAdj && d < bestD)) {
+        best = s; bestD = d; bestAdj = adj;
+      }
+    }
+    return best;
+  };
+  const step = Math.max(2, Math.floor(win / (donors.length + 1)));
+  let moved = 0;
+  donors.forEach((d, k) => {
+    const slot = pick(Math.min(win - 1, step * (k + 1)));
+    if (slot < 0) return;
+    taken.add(slot);
+    foreignAt.add(slot);
+    if (d.tail != null) {
+      const t = out[slot]; out[slot] = out[d.tail]; out[d.tail] = t;
+    } else {
+      out[slot] = d.ext;
+    }
+    moved += 1;
+  });
+  return { items: out, moved };
+}
+
 // 한 카테고리가 상한을 넘으면 뒤로 민다. 지우지 않는다 — 길이가 줄면
 // 무한 스크롤이 끊긴다(2026-08-06 딜 상한에서 실제로 겪은 회귀).
 export function capOneCategory(list, { maxShare = TASTE_MAX_SHARE } = {}) {

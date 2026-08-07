@@ -15,7 +15,7 @@ import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
 import { AD_DISCLOSURE as COUPANG_DISCLOSURE } from "./ad-copy.js";
 import { destForDeal, destForText, destForTags, ensureDealShare, capDeals, dealRank } from "./deals.js";
-import { chosenCategories, ensureTasteShare, capOneCategory } from "./taste-share.js";
+import { chosenCategories, ensureTasteShare, capOneCategory, ensureForeignShare, isForeignItem, FOREIGN_WINDOW } from "./taste-share.js";
 
 // 상품군 사전을 걸지 않는 분류. 사건·시사 기사에 "연관 광고"가 붙으면
 // 무관한 광고보다 더 나쁘다(2026-08-06 실측, engine의 adDest 주석 참고).
@@ -1320,6 +1320,44 @@ export class FeedEngine {
         arranged = capOneCategory(r.items);
       }
       unseen = arranged.map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
+    }
+
+    // ── 해외 글 페이지 하한 (5.7 B단계 채택안, 2026-08-08)
+    //
+    // 해외 RSS는 추천·댓글 수치가 없어 hotScore의 속도 보너스(ingest.js vel)를
+    // 태생적으로 못 받고, 풀 지분 ~5%인데도 첫 화면에서 0~1건으로 죽는다
+    // (설계 워크플로 실측: 첫 20칸 중 해외는 19번째 1건뿐). 점수 체계를 고치는
+    // lane 재정규화안은 적대적 검수가 기각했다 — "측정된 반응이 무측정 순위를
+    // 이긴다"(RANK_ONLY_CONF)는 확정 결정을 수학적으로 되돌리고, 반응 0건 글을
+    // 핫 1위에 올린다. 대신 X의 AuthorDiversityFloor 방식으로 **하한만** 둔다:
+    // 점수 경쟁은 그대로, 바닥만 있고, 위쪽은 실력대로. (taste-share.js 참조)
+    //
+    // 창은 페이지 크기(limit)에 맞춘다 — 검수 라운드2: 고정 20칸 창은 개인화
+    // 경로(selectDiverse가 이미 limit로 자른 목록)에서 발화 자체를 못 했고,
+    // 페이지 10칸 클라이언트에선 삽입 글이 다음 페이지로 밀렸다. 개인화 목록은
+    // 뒤쪽 꼬리가 없으므로 관문 통과 풀(tasteBase — 딜 지분과 같은 원칙)에서
+    // 후보를 받는다. 페이지마다 재적용되므로 헤비 스크롤러는 세션 후반에 해외
+    // 공급이 자연 고갈될 수 있다 — 재료가 없으면 있는 만큼만, 의도된 동작이다.
+    if (!source && !category) {
+      // 하한 후보도 rank.js가 계산한 hated를 그대로 본다 — selectDiverse가
+      // 전 페이지에서 하드 배제한 카테고리를 하한이 뒷문으로 다시 들이면
+      // "관문 두 벌" 재발이다(검수 라운드3 실측: hated=news 사용자에게 news
+      // 해외 글이 주입됐다).
+      const { hated: floorHated } = categorySets(user.preferences, rankParams());
+      const inNow = new Set(unseen.map((r) => r.item.id));
+      const foreignPool = (tasteBase || [])
+        .filter((i) => isForeignItem(i) && !inNow.has(i.id) && !seen.has(i.id) && !floorHated.has(i.category))
+        .sort((a, b) => String(b.publishedAt || "").localeCompare(String(a.publishedAt || "")))
+        .map((i) => ({ item: i, score: 0 }));
+      unseen = ensureForeignShare(unseen, foreignPool, {
+        is: (r) => isForeignItem(r.item),
+        idOf: (r) => r.item && r.item.id,
+        // 딜 지분이 잡은 칸은 교체하지 않는다 — 두 지분 보장이 같은 균등
+        // 분산 공식을 써서, 회피 없이는 하한 발화 페이지마다 딜 칸이
+        // 체계적으로 밀렸다(검수 라운드3 실측).
+        avoid: (r) => Boolean(r.item && r.item.isDeal === true),
+        window: Math.min(FOREIGN_WINDOW, limit)
+      }).items;
     }
 
     let fresh = source

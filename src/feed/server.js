@@ -2174,8 +2174,12 @@ ${rankingRows(list, (above) => {
         // resolve scrapped item ids into displayable items
         space.saved = await engine.resolveItems(userId, space.savedIds);
         // 최근 본 글. 풀에서 내려간 글은 resolveItems가 알아서 뺀다 —
-        // 없는 것을 있는 척하지 않는다.
-        space.recent = await engine.resolveItems(userId, space.recentIds);
+        // 없는 것을 있는 척하지 않는다. 화면 상한 40개는 생존 필터 **뒤에**
+        // 자른다(2026-08-08 검수: 먼저 자르면 죽은 id가 상한을 잠식해
+        // 복귀 사용자의 발자취가 통째로 비었다). mySpace가 후보를 여유 있게
+        // 주는 이유가 이것이다.
+        space.recent = (await engine.resolveItems(userId, space.recentIds)).slice(0, 40);
+        space.recentIds = space.recent.map((r) => r.id);
         // taste dashboard: top learned preferences, labelled for display
         const prefs = store.getUser(userId).preferences;
         const t = topPreferences(prefs);

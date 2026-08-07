@@ -1634,14 +1634,17 @@
         "type": "list",
         "url": "https://bbs.ruliweb.com/market/board/1020",
         "pages": 1,
-        "note": "루리웹 예판/핫딜 게시판. 2026-08-05 실측 200 OK, robots.txt는 /market/board 를 막지 않는다. 제목이 [쇼핑몰]상품명 / 가격 형식이라 뽐뿌와 같은 방식으로 상품군을 뽑을 수 있다. 게임·IT 상품 비중이 높아 뽐뿌(생필품 위주)와 겹치지 않는다 — 딜 소스를 하나만 두면 그 게시판 취향이 곧 우리 취향이 된다.",
+        "note": "루리웹 예판/핫딜 게시판. 2026-08-05 실측 200 OK, robots.txt는 /market/board 를 막지 않는다. 제목이 [쇼핑몰]상품명 / 가격 형식이라 뽐뿌와 같은 방식으로 상품군을 뽑을 수 있다. 게임·IT 상품 비중이 높아 뽐뿌(생필품 위주)와 겹치지 않는다 — 딜 소스를 하나만 두면 그 게시판 취향이 곧 우리 취향이 된다. | 2026-08-07 파서 감사: titleRegex가 옛 마크업(class=\"subject text_over\")을 찾고 있었는데 실제 페이지는 class=\"subject_link deco\"로 바뀌어 실측 0건이었다(이전 감사가 제안한 수정안도 픽스처 실행 검증 없이 나와 0건으로 반려됨 — 채택 전 반드시 픽스처에 실행해 매치 수를 확인할 것). 실측 픽스처(test/fixtures/ruliweb_deal.html, NowHotBot/1.0으로 2026-08-07 1회 수집) 기준 title 매치 34/35행 — 안 걸리는 1행은 다른 게시판(/etcs/board/10)으로 가는 상단 고정 '전체공지'라 URL 패턴상 자연 제외되고, excludeRegex(table_body notice)로 광고성 공지 2행을 더 빼면 유효 딜은 32/35행. windowAfter는 900~1300 사이에서만 안전: 900 미만이면 recomd(최대 오프셋 775)/hit(최대 865)를 일부 놓치고, 1300 이상이면 댓글 0건이라 자체 num_reply 태그가 없는 행(실측 2건: id 106207, 106192)이 다음 행의 댓글수를 훔쳐와 행 간 오염이 생긴다 — 1000으로 확정. 추천수는 class=\"recomd\" 셀, 댓글수는 num_reply 태그(span/a 혼용)에서 그대로 받는다.",
         "list": {
           "urlBase": "https://bbs.ruliweb.com",
-          "titleRegex": "<a class=\"subject text_over\" href=\"(https://bbs\\.ruliweb\\.com/market/board/1020/read/\\d+)\"[^>]*>([^<]+)</a>",
-          "windowAfter": 300,
-          "commentRegex": "<span class=\"num_reply\">\\[(\\d+)\\]</span>",
+          "titleRegex": "<a class=\"subject_link deco\" href=\"(https://bbs\\.ruliweb\\.com/market/board/1020/read/\\d+)(?:\\?[^\"]*)?\"[^>]*>\\s*(?:<strong>)?\\s*([^<]+)",
+          "windowBefore": 600,
+          "windowAfter": 1000,
+          "excludeRegex": "<tr class=\"table_body notice",
+          "scoreRegex": "class=\"recomd\"[^>]*>\\s*(\\d*)\\s*</td>",
+          "commentRegex": "num_reply[^>]*>\\s*\\((\\d+)\\)",
           "max": 25,
-          "parserCheckedAt": "2026-08-05"
+          "parserCheckedAt": "2026-08-07"
         }
       },
       "feedGroup": "deal"

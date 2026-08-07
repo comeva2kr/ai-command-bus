@@ -1656,6 +1656,62 @@ test("parseListPage: 뽐뿌 HOT게시글 (David 2026-07-24: 단일 핫딜게시�
   assert.ok(items.some((i) => i.commentCount > 0));
 });
 
+// 2026-08-07 파서 감사: ruliweb-deal의 titleRegex가 옛 마크업
+// (class="subject text_over")을 찾고 있었는데 실제 페이지는
+// class="subject_link deco"로 바뀌어 실측 0건이었다(이전 감사가 제안한
+// 수정안도 픽스처 실행 검증 없이 나와 0건으로 반려됨 — 채택 전 반드시
+// 픽스처에 실행해 매치 수를 확인해야 한다는 이 저장소 규칙의 근거).
+// 아래 두 테스트는 test/fixtures/ruliweb_deal.html(NowHotBot/1.0 UA로
+// 2026-08-07 1회 수집, robots.txt가 /market/board를 막지 않음을 먼저 확인)
+// 을 기준으로 복구한 정규식을 검증한다.
+test("parseListPage: 루리웹 핫딜예판 — 마크업 변경(subject text_over → subject_link deco)으로 0건이던 titleRegex 복구, 공지 제외 + 추천/댓글수 수집", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "ruliweb-deal");
+  assert.equal(entry.adapter.type, "list");
+  const html = fixture("ruliweb_deal.html");
+
+  // 실측(2026-08-07): 게시판 행 35개 중 titleRegex가 잡는 것은 34행 —
+  // 안 잡히는 1행은 다른 게시판(/etcs/board/10)으로 가는 상단 고정
+  // "전체공지"라 URL 패턴(market/board/1020/read/\d+)상 애초에 매치되지
+  // 않는다. 거기서 excludeRegex(class="table_body notice...")로 광고성
+  // 공지 2행("루리웹 핫딜/예판 유저게시판 통합 공지", "[알리익스프레스]
+  // 할인에 파도타기")을 더 빼면 유효 딜은 32/35행 — adapter.list.max(25)가
+  // 그중 25건으로 자른다.
+  const items = parseListPage(html, entry.adapter.list);
+  assert.equal(items.length, 25, "유효 딜 32/35행 중 max:25 cap → 25건 (실측)");
+  assert.ok(
+    items.every((i) => /^https:\/\/bbs\.ruliweb\.com\/market\/board\/1020\/read\/\d+$/.test(i.url)),
+    "urls resolve to this board's read pages only, trailing '?' 제외"
+  );
+  assert.ok(items.every((i) => !i.title.includes("통합 공지")), "상단 고정 공지 제외");
+  assert.ok(items.every((i) => !i.title.includes("할인에 파도타기")), "광고성 안내 공지 행 제외");
+  assert.ok(items.every((i) => !("summary" in i) && !("body" in i)), "no body/excerpt collected");
+
+  // 추천수(score)·댓글수(commentCount) 수집. 25건 전부 recomd 셀을 갖고
+  // 있어 score는 전건 채워지고, num_reply 태그 자체가 없는(댓글 0건) 행만
+  // commentCount가 비어 있다 — 실측 23/25건(아래 별도 테스트가 그 2건이
+  // 옆 행 값을 훔쳐온 오염이 아님을 확인한다).
+  assert.equal(items.filter((i) => "score" in i).length, 25, "추천수 25/25건 수집 (실측)");
+  assert.ok(items.some((i) => i.score > 0), "추천수 > 0인 행 존재");
+  assert.equal(items.filter((i) => "commentCount" in i).length, 23, "댓글수 23/25건 수집 (실측)");
+  assert.ok(items.some((i) => i.commentCount > 0), "댓글수 > 0인 행 존재");
+});
+
+test("parseListPage: 루리웹 핫딜예판 — 댓글 0건(자체 num_reply 태그 없음)인 행이 windowAfter 튜닝 덕에 다음 행의 댓글수를 훔쳐오지 않는다", async () => {
+  const { parseListPage } = await import("../src/feed/fetchers.js");
+  const { loadRegistry } = await import("../src/feed/registry.js");
+  const entry = loadRegistry().find((c) => c.id === "ruliweb-deal");
+  const items = parseListPage(fixture("ruliweb_deal.html"), entry.adapter.list);
+  // 실측: id 106207([예판런]닌텐도 스위치 2...), 106192([알리] UPERFECT...)
+  // 는 페이지에 자체 num_reply 태그가 없는(댓글 0건) 행이다. windowAfter가
+  // 900~1300 사이(현재 1000)를 벗어나 더 넓으면 다음 행의 num_reply(오프셋
+  // 1335/1453 — 900보다 한참 뒤)를 주워 옆 행 댓글수가 이 행 것처럼 찍힌다.
+  const noOwnComment = items.filter((i) => /\/(106207|106192)$/.test(i.url));
+  assert.equal(noOwnComment.length, 2, "fixture assumption: 댓글 0건 행 2개가 실제로 파싱 대상에 포함됨 (실측)");
+  assert.ok(noOwnComment.every((i) => !("commentCount" in i)), "댓글 0건 행은 옆 행 댓글수를 가져오지 않는다");
+});
+
 test("listFetcher decodes 'euc-kr' as the real-world CP949/UHC superset, not just strict EUC-KR — regression for mojibake like '앜ㅋㅋ'", async () => {
   const { listFetcher } = await import("../src/feed/fetchers.js");
   // Bytes captured from a live ppomppu HOT row (2026-07-24). The syllable

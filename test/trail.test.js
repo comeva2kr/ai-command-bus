@@ -37,11 +37,32 @@ test("내 발자취: 본 글이 최근순으로 남는다", async () => {
   assert.equal(resolved[0].id, sp.recentIds[0]);
 });
 
-test("내 발자취: 40개까지만 준다 — 내 공간이 무한정 길어지지 않게", async () => {
+test("내 발자취: 화면 상한 40개는 생존 필터 뒤에 자른다", async () => {
+  // 2026-08-08 검수: 상한을 생존 필터 앞에 걸면 죽은 id가 상한을 잠식해
+  // 복귀 사용자의 발자취가 통째로 비었다. mySpace는 후보를 여유 있게 주고,
+  // 서버가 resolveItems 뒤에 40개로 자른다(server.js /api/me와 같은 순서).
   const { store, user, engine } = await setup(60);
-  await engine.getFeed(user.id, { limit: 60 });
+  let served = 0;
+  for (let i = 0; i < 4; i++) {
+    const f = await engine.getFeed(user.id, { limit: 20 });
+    served += f.items.length;
+    if (!f.items.length) break;
+  }
   const sp = store.mySpace(user.id);
-  assert.ok(sp.recentIds.length <= 40, `${sp.recentIds.length}개`);
+  const recent = (await engine.resolveItems(user.id, sp.recentIds)).slice(0, 40);
+  assert.equal(recent.length, Math.min(40, served), `서빙 ${served}건 → 발자취 ${recent.length}개`);
+});
+
+test("내 발자취: 죽은 열람 40건이 산 발자취를 가리지 않는다", async () => {
+  // 검수 라운드2 P1 재현 — 이틀 비운 사용자의 최근 연 글 40건은 풀(48h)에서
+  // 전부 내려가 있다. 구버전은 후보 40개가 전부 죽은 id라 발자취가 0행.
+  const { store, user, engine } = await setup();
+  for (let i = 0; i < 40; i++) store.recordSignal(user.id, "dead" + i, "open");
+  const feed = await engine.getFeed(user.id, { limit: 6 });
+  assert.equal(feed.items.length, 6);
+  const sp = store.mySpace(user.id);
+  const recent = (await engine.resolveItems(user.id, sp.recentIds)).slice(0, 40);
+  assert.equal(recent.length, 6, "죽은 id가 상한을 잠식하지 않는다");
 });
 
 test("내 발자취: 아무것도 안 봤으면 빈 목록", async () => {
@@ -79,6 +100,38 @@ test("본 글은 피드에 다시 나오지 않는다 — seen 상한이 그 보
   for (const id of seenIds) {
     assert.ok(!nextIds.includes(id), `본 글이 다시 나왔다: ${id}`);
   }
+});
+
+test("내 발자취: 실제로 연 글이 서빙만 된 글보다 앞에 온다", async () => {
+  // 2026-08-08: seen(서빙된 전부)만 보여 주면 스크롤로 스쳐간 글이 "본 글"인
+  // 척 섞인다. open 신호(상세를 실제로 연 글)를 앞에 세운다.
+  const { store, user, engine } = await setup();
+  const feed = await engine.getFeed(user.id, { limit: 6 });
+  const openedId = feed.items[3].id;
+  await engine.signal(user.id, openedId, { type: "open" });
+  const sp = store.mySpace(user.id);
+  assert.equal(sp.recentIds[0], openedId, "연 글이 맨 앞");
+  assert.equal(sp.recentIds.length, 6, "서빙된 글도 뒤에 그대로 남는다");
+  assert.equal(new Set(sp.recentIds).size, 6, "연 글이 중복으로 안 들어간다");
+});
+
+test("내 발자취: 같은 글을 다시 열면 맨 앞으로 온다", async () => {
+  const { store, user, engine } = await setup();
+  const feed = await engine.getFeed(user.id, { limit: 4 });
+  await engine.signal(user.id, feed.items[0].id, { type: "open" });
+  await engine.signal(user.id, feed.items[2].id, { type: "open" });
+  await engine.signal(user.id, feed.items[0].id, { type: "open" });
+  const sp = store.mySpace(user.id);
+  assert.deepEqual(sp.recentIds.slice(0, 2), [feed.items[0].id, feed.items[2].id]);
+});
+
+test("연 글 목록은 100개까지만 쌓인다", () => {
+  const store = new FeedStore();
+  const user = store.createUser({});
+  for (let i = 0; i < 130; i++) store.recordSignal(user.id, "o" + i, "open");
+  const opened = store.getUser(user.id).opened;
+  assert.equal(opened.length, 100);
+  assert.equal(opened.at(-1), "o129", "가장 최근 것이 남는다");
 });
 
 test("seen 상한은 3,000이다", () => {
