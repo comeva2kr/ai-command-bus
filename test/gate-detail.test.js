@@ -67,3 +67,22 @@ test("공개 지면(랭킹·브리핑)도 기본 숨김 토픽을 전부 거른�
   assert.equal(hard.length, 0, `공개 지면에 politics 하드코딩이 ${hard.length}곳 남아 있다`);
   assert.ok(src.includes("topicsBlocked(i, EMPTY_TOPICS)"), "공통 관문을 쓰지 않는다");
 });
+
+test("딜 지분 보장이 뮤트를 우회하지 않는다", async () => {
+  // 2026-08-07 감사 P1: dealPool을 this._items()(원본 전체)에서 가져와
+  // 뮤트·관리자 차단·오프메인·토픽차단·신선도를 **전부 우회**했다.
+  // 뮤트는 사용자가 직접 누른 의사표시다 — 그걸 딜 경로가 무시하면
+  // 뮤트 기능 자체를 못 믿게 된다.
+  const deal = (id, source) => ({
+    id, title: "딜 " + id, url: "https://example.org/" + id, source,
+    kind: "community", category: "life", tags: [], topics: [], isDeal: true,
+    score: 50, commentCount: 2, publishedAt: new Date().toISOString()
+  });
+  const plain = (id, source) => ({ ...deal(id, source), isDeal: false });
+  const items = [plain("a", "good"), plain("b", "good"), deal("d1", "muted"), deal("d2", "good")];
+  const { store, user, engine } = await setup(items);
+  store.setMute(user.id, "muted", true);
+  const res = await engine.getFeed(user.id, { limit: 10 });
+  const sources = (res.items || res).map((i) => i.source);
+  assert.ok(!sources.includes("muted"), `뮤트한 소스가 딜 경로로 새어 나왔다: ${sources.join(",")}`);
+});

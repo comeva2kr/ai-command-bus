@@ -1249,7 +1249,11 @@ export class FeedEngine {
       const scoreOf = new Map(unseen.map((r) => [r.item.id, r.score]));
       const list = unseen.map((r) => r.item);
       const inList = new Set(list.map((i) => i.id));
-      const dealPool = (await this._items())
+      // **관문을 지난 목록에서만 끌어온다.** 예전엔 this._items()(원본 전체)를
+      // 써서 뮤트·관리자 차단·오프메인·토픽차단·신선도를 전부 우회했다 —
+      // 뮤트한 소스의 딜이 그대로 보였고, 관리자가 막은 소스도 딜 경로로 샜다.
+      // tasteBase는 base(모든 관문 통과)와 같은 목록이다.
+      const dealPool = (tasteBase || [])
         .filter((i) => i.isDeal === true && !inList.has(i.id) && !seen.has(i.id));
       const withShare = ensureDealShare(list, dealPool, { is: (i) => i.isDeal === true });
       const balanced = capDeals(withShare, { is: (i) => i.isDeal === true });
