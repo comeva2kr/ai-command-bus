@@ -603,9 +603,15 @@ export class FeedEngine {
       if (prior && prior.item) {
         if (!item.image && prior.item.image) item.image = prior.item.image;
         if (!item.summary && prior.item.summary) item.summary = prior.item.summary;
+        // 직전 점수 — ingest가 관성 계산에 쓴다(목록이 매 수집마다 뒤집히지 않게)
+        if (Number.isFinite(prior.item.hotScorePrev)) item.hotScorePrev = prior.item.hotScorePrev;
       }
       this._pool.set(item.id, { item, firstSeenAt, lastSeenAt: now, heatHist });
     }
+    // 사이클당 1회 점수 확정 — 다음 사이클이 관성 계산에 쓴다.
+    // prior 이월이 끝난 뒤여야 이전 점수가 반영된다.
+    sourceHotScores(freshItems, now, { persist: true });
+
     if (newlySeen.length && this.store && this.store.recordFirstSeen) {
       try { this.store.recordFirstSeen(newlySeen, now); } catch {}
     }

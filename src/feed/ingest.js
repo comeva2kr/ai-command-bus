@@ -408,6 +408,10 @@ export function hnDecay(signal, ageHours, gravity) {
 //
 // Returns items in the SAME order as input, each annotated with hotScore
 // (what callers sort by) plus the intermediate numbers for inspection/tests.
+// 이전 점수를 얼마나 붙잡을지. 0이면 관성 없음(예전 동작), 1이면 영원히 안 바뀜.
+// 0.6이면 새 신호가 약 3사이클(15분×3)에 걸쳐 순위에 반영된다.
+const SCORE_INERTIA = Number(process.env.FEED_SCORE_INERTIA ?? 0.6);
+
 export function sourceHotScores(items, nowMs, opts = {}) {
   const now = nowMs || Date.now();
   const { gravity, bayesM, velW, neutralAgeH, coverageW } = hotParams(opts);
@@ -487,7 +491,15 @@ export function sourceHotScores(items, nowMs, opts = {}) {
     // per-item engagement snapshots and derives real velocity from them).
     // log10-scaled and weighted small so it nudges rather than dominates.
     const vel = hasSignal ? raw / (age + 2) : 0;
-    const hotScoreVal = decayed + velW * Math.log10(1 + vel);
+    const fresh = decayed + velW * Math.log10(1 + vel);
+    // 관성: 새 점수를 그대로 쓰면 수집마다 목록이 통째로 뒤집힌다
+    // (David 2026-08-07: "수집 한번에 리스트가 다 바뀌게 하지 말고 안정적으로").
+    // 이전 점수를 기억한 아이템은 섞어서 순위가 서서히 움직이게 한다.
+    const prior = item.hotScorePrev;
+    const hotScoreVal = Number.isFinite(prior) ? prior * SCORE_INERTIA + fresh * (1 - SCORE_INERTIA) : fresh;
+    // 기록은 수집 때만(opts.persist). 요청 경로에서 매번 쓰면 관성이 중복 적용돼
+    // 점수가 굳는다.
+    if (opts.persist) item.hotScorePrev = hotScoreVal;
     return {
       item,
       raw,

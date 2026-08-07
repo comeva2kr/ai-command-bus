@@ -1327,7 +1327,7 @@ const API = {
   async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
   async setLean(userId, balance) { return post("/api/lean", { userId, balance }); },
   async setMix(userId, balance) { return post("/api/mix", { userId, balance }); },
-  async adSignal(userId, itemId, type, variant) { return post("/api/ad-signal", { userId, itemId, type, variant }).catch(()=>{}); },
+  async adSignal(userId, itemId, type, variant, slot) { return post("/api/ad-signal", { userId, itemId, type, variant, slot }).catch(()=>{}); },
   async setTopic(userId, topic, on) { return post("/api/topics", { userId, topic, on }); },
   async feed(userId, cursor, limit=10, source=null, sort="hot") {
     const q = new URLSearchParams({ userId, cursor, limit });
@@ -2075,7 +2075,7 @@ function adfitFallback(slot){
   alt.dataset.variant = vid;
   const a = alt.querySelector("a.card-go");
   if(a) a.addEventListener("click", ()=>{
-    API.adSignal(state.userId, "feed-passback", "click", vid);
+    API.adSignal(state.userId, "feed-passback", "click", vid, "feed-passback");
     Track.ad("click", "feed-passback", vid);
   });
 }
@@ -2274,7 +2274,7 @@ function maybeInsertAdfit(){
       const a = slot.querySelector("a.card-go");
       const vid = slot.dataset.adVariant || null;
       if(a) a.addEventListener("click", ()=>{
-        API.adSignal(state.userId, `feed${i + 1}`, "click", vid);
+        API.adSignal(state.userId, `feed${i + 1}`, "click", vid, `feed${i + 1}`);
         Track.ad("click", `feed${i + 1}`, vid);
       });
     }
@@ -3686,7 +3686,7 @@ function appendAdCard(item){
   // 눌러도 쿠팡으로 넘어간다.
   const a = card.querySelector("a.card-go");
   if(a) a.addEventListener("click", ()=>{
-    API.adSignal(state.userId, item.id, "click", v.variant);
+    API.adSignal(state.userId, item.id, "click", v.variant, slotName);
     Track.ad("click", slotName, v.variant);
   });
 
@@ -3716,7 +3716,7 @@ function setupAdImpressionObserver(){
       if(el.dataset.impressionLogged) continue; // 이 카드 인스턴스는 이미 기록함
       const id = el.dataset.id; if(!id) continue;
       el.dataset.impressionLogged = "1";
-      API.adSignal(state.userId, id, "impression", el.dataset.variant);
+      API.adSignal(state.userId, id, "impression", el.dataset.variant, el.dataset.slot || id);
       Track.ad("impression", el.dataset.slot || id, el.dataset.variant);
       adImpressionObserver.unobserve(el);
     }
