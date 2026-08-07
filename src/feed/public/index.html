@@ -242,6 +242,7 @@
      링크일 뿐이라 서버 부하도 법적 문제도 없다. 해외 글(translated)에만 단다.
      구글 translate.goog도 검토했으나 데이터센터·일부 지역에서 403이라
      한국 사용자 기준으로 파파고가 확실하다(VM 한국 IP 실측 200). */
+  .readmore-alt { background: none; color: var(--accent); border: 1px solid var(--accent); margin-top: 8px; }
   .trans-hint { margin-top: 8px; font-size: 12.5px; color: var(--muted); line-height: 1.55;
     padding: 8px 10px; border: 1px dashed var(--line); border-radius: 8px; }
   .readmore { display: block; text-align: center; background: var(--accent); color: #fff !important;
@@ -4005,7 +4006,11 @@ window.addEventListener("popstate", (e)=>{
 //  · **원문 보러가기** — 그 매체로 나간다(기존 "원문에서 계속 읽기" 버튼).
 //  · **원문 보기** — 여기서 제목·발췌만 원문으로 바꾼다. 페이지를 안 떠난다.
 // 제목만 바꾸고 발췌는 번역문 그대로면 반쪽이라 둘 다 바꾼다.
-// 원문 전체 한국어 링크는 제공하지 않는다 (2026-08-07 실측 확정).
+// 원문 전체 한국어 링크 — **얀덱스 번역 프록시** (2026-08-07 4차 시도 성공).
+// translate.yandex.com/translate?url=...&lang=en-ko → translated.turbopages.org가
+// 기사 본문을 서빙하고 페이지 JS가 한국어로 렌더한다.
+// 한국 IP 실측: 200 · 기사 본문 정상 서빙 · 캡차/지역 차단 없음(구글과 다름).
+// 아래는 앞서 죽음을 확인한 3사 기록이다 — 다시 시도하지 않기 위해 남긴다.
 // 링크형 페이지 번역 3사를 전부 시험했고 전부 죽어 있다:
 //   구글 translate.goog  — 한국 지역 차단("isn't available in your region", David 실기기)
 //   파파고 website 딥링크 — 파라미터를 버리고 메인 번역기로 리다이렉트(폐지)
@@ -4239,7 +4244,8 @@ async function renderDetail(itemId){
            두 개"). 이 버튼의 실제 목적은 **우리는 발췌만 싣는다**는 것이고,
            그건 바로 아래 고지문이 이미 하는 말이다. 매체 이름으로 부른다. -->
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 전체 글 보기 →</a>
-      ${item.translated && item.url ? `<div class="trans-hint">${browserTransHint()}</div>` : ""}
+      ${item.translated && item.url ? `<a class="readmore readmore-alt" href="https://translate.yandex.com/translate?url=${encodeURIComponent(item.url)}&lang=${encodeURIComponent((item.originalLang||"en"))}-ko" target="_blank" rel="noopener">원문 전체를 한국어로 보기 →</a>
+      <div class="trans-hint">${browserTransHint()}</div>` : ""}
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
     `:""}
     ${detailAdHtml(item.category, item.dealDest || item.adDest)}
