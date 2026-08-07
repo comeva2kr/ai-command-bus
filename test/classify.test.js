@@ -379,10 +379,31 @@ test("카드 기본 동작: 내부 상세 우선, 원문은 ↗ 지름길 (아�
   const handler = html.slice(html.indexOf("// Card body tap"), html.indexOf('card.addEventListener("keydown"'));
   assert.ok(!/if\(item\.via !== "me" && item\.url\)\{ openOriginal\(item\); return; \}\n    openDetail/.test(handler),
     "카드 본문 탭이 곧장 아웃링크면 안 됨");
-  assert.match(handler, /newtab-hint.*openOriginal/s, "↗ 지름길로는 원문 새탭 유지 (헤비유저 이동권)");
+  assert.match(handler, /newtab-hint/, "↗ 지름길은 유지 (헤비유저 이동권)");
   assert.match(handler, /openDetail\(item\.id\);\n  \}\);/, "기본 동작은 내부 상세");
-  // 상세 안 원문 버튼은 계속 존재해야 한다
-  assert.match(html, /원문에서 계속 읽기/);
+
+  // ── 2026-08-07: ↗ 를 **진짜 <a href>** 로 바꿨다.
+  //
+  // 애드센스 정책 점검 실측: JS 렌더 후 DOM에도 홈의 외부 앵커가 28개 중
+  // 1개(쿠팡 광고)뿐이었다. 카드의 원문 이동이 span+클릭 이벤트로 처리돼
+  // 있어서, **사람 눈에는 원문으로 나가지만 크롤러는 그 사실을 볼 수 없었다.**
+  // 우리 방어 논리 전체가 "본문을 복제하지 않고 발췌만 싣고 트래픽은 원문으로
+  // 보낸다"인데 그 근거가 HTML에 없던 셈이다.
+  //
+  // 이 테스트가 지키는 것은 그대로다 — **카드 본문 탭은 내부 상세**이고
+  // 원문은 지름길이다(애드핏의 "아웃링크 위주" 판정을 피하는 규칙).
+  // 바뀐 것은 그 지름길의 구현이 span에서 앵커가 된 것뿐이다.
+  assert.match(html, /<a class="newtab-hint" href="\$\{escapeHtml\(item\.url\)\}"/,
+    "원문 지름길은 진짜 <a href>여야 한다 — 크롤러가 읽을 수 있어야 한다");
+  assert.match(html, /class="card-out"[\s\S]{0,200}href="\$\{escapeHtml\(item\.url\)\}"/,
+    "카드에 출처로 나가는 앵커가 있어야 한다");
+  assert.match(handler, /closest\("\.newtab-hint, \.card-out a"\)\) return/,
+    "앵커는 브라우저 기본 동작에 맡긴다 — 가로채면 크롤러에게만 링크가 된다");
+
+  // 상세 안 원문 버튼은 계속 존재해야 한다 (문구는 2026-08-06에
+  // "원문에서 계속 읽기" → "◯◯에서 전체 글 보기"로 바뀌었다 — 같은 화면의
+  // 언어 토글과 말이 겹쳐 둘이 같은 뜻으로 보였기 때문이다)
+  assert.match(html, /에서 전체 글 보기/);
 });
 
 // ---- 키워드 확정 분류 + 보배 혼합 베스트 (David 2026-07-31 실측 지적) ----

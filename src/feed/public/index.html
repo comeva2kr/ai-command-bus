@@ -319,6 +319,14 @@
      낯선 사이트로 튕기는 당황을 줄이려고 제목 옆에 항상 붙는 작은 화살표. 유저 본인
      글(via==="me")은 인앱 상세로 열리므로 표시하지 않는다. */
   .newtab-hint { color: var(--muted); font-weight: 400; font-size: 0.85em; margin-left: 2px; }
+  /* 원문으로 나가는 링크 — **진짜 <a href>여야 한다.**
+     2026-08-07 애드센스 점검 실측: JS 렌더 후 DOM에도 홈의 외부 앵커가
+     28개 중 1개(쿠팡 광고)뿐이었다. 카드 클릭은 이벤트로 처리되고 있어,
+     사람 눈에는 원문으로 나가지만 **크롤러는 그 사실을 볼 수 없었다.**
+     우리 방어 논리("발췌만 싣고 트래픽은 원문으로")가 HTML에 없던 셈이다. */
+  .card-out { margin-top: 8px; font-size: 12px; }
+  .card-out a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+  .card-out a:hover, .card-out a:focus-visible { color: var(--text); }
   .card .orig-title { margin: -3px 0 6px; font-size: 11.5px; color: var(--muted); font-style: italic;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* 광고 카드 전용: 후킹 헤드라인(h3) 바로 아래 실제 상품명 보조 라인
@@ -3738,11 +3746,12 @@ function appendCard(item){
     </div>
     <div class="card-row">
     <div class="card-main">
-    <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ` <span class="newtab-hint" role="button" tabindex="0" title="원문 바로 열기 (새 탭)">${ic('external',14)}</span>` : ''}</h3>
+    <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ` <a class="newtab-hint" href="${escapeHtml(item.url)}" target="_blank" rel="noopener" title="${escapeHtml(srcLabel(item.source))} 원문 바로 열기 (새 탭)">${ic('external',14)}</a>` : ''}</h3>
     ${heatRuleHtml(item)}
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     ${item.editorialNote?`<div class="editorial-note">${escapeHtml(item.editorialNote)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>
+    ${item.via!=="me" && item.url ? `<div class="card-out"><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 원문 보기 →</a></div>` : ''}
     ${statusBadgesHtml(item) || (item.reasons&&item.reasons.length) ? `<div class="reasons">${statusBadgesHtml(item)}${(item.reasons||[]).map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>` : ''}
     </div>
     ${cardThumbHtml(item)}
@@ -3771,7 +3780,11 @@ function appendCard(item){
     // 순위는 지금 피드에 그려진 카드 수로 센다 — 서버 rank를 따로 싣지 않아도
     // "첫 화면에서 눌렸나, 한참 내려가서 눌렸나"를 알 수 있다.
     Track.click(item, state.cardsById ? state.cardsById.size : 0);
-    if(e.target.closest(".newtab-hint")){ if(item.via !== "me" && item.url){ openOriginal(item); return; } }
+    // 원문 앵커(.newtab-hint / .card-out a)는 이제 진짜 <a href>다.
+    // 브라우저 기본 동작(새 탭)에 맡긴다 — 여기서 가로채 openOriginal을 부르면
+    // **크롤러에게만 링크이고 사람에게는 아닌** 이상한 상태가 된다.
+    // 클릭 기록은 바로 위에서 이미 남겼다.
+    if(e.target.closest(".newtab-hint, .card-out a")) return;
     openDetail(item.id);
   });
   card.addEventListener("keydown", (e)=>{
