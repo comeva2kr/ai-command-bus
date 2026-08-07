@@ -1027,19 +1027,37 @@ export class FeedEngine {
       // 아니다 — 탭을 누른 것 자체가 지금 보겠다는 명시적 의사다.
       // 기능을 줄이지 않는다(확정 규칙 c).
       const hideDeals = showTopics.has(NO_DEAL_TOPIC) && sort !== "deals";
-      const base = items.filter(
-        (i) =>
-          !(hideDeals && i.isDeal === true) &&
-          !muted.has(i.source) &&
-          !disabled.has(i.source) &&
-          // mainFeed:false — 수집은 하되 통합 피드에서만 뺀다. 소스 칩으로
-          // 직접 고른 경우(source 지정)에는 그대로 나온다.
-          !(offMain.has(i.source) && !source) &&
-          !topicsBlocked(i, showTopics) &&
-          !seen.has(i.id) &&
-          (!category || i.category === category) &&
-          !tooOld(i, now)
-      );
+      // 관문을 술어 하나로 뽑는다 — 아래 "본 글 재활용" 폴백이 같은 관문을
+      // 그대로 써야 한다(관문 두 벌 금지).
+      const passesGates = (i) =>
+        !(hideDeals && i.isDeal === true) &&
+        !muted.has(i.source) &&
+        !disabled.has(i.source) &&
+        // mainFeed:false — 수집은 하되 통합 피드에서만 뺀다. 소스 칩으로
+        // 직접 고른 경우(source 지정)에는 그대로 나온다.
+        !(offMain.has(i.source) && !source) &&
+        !topicsBlocked(i, showTopics) &&
+        (!category || i.category === category) &&
+        !tooOld(i, now);
+      const base = items.filter((i) => passesGates(i) && !seen.has(i.id));
+      // ── 안 본 글이 하나도 없으면 본 글을 다시 내보낸다 (2026-08-07 장애)
+      //
+      // 무한 재로드 버그가 돌 때마다 markSeen을 남겨, 탭을 열어뒀던 사용자는
+      // 풀 전체가 seen이 됐다 — 빈 피드에 "새 화제글을 모으는 중"만 남는다.
+      // 버그가 아니어도 헤비유저는 언젠가 같은 벽에 닿는다. **빈 화면은
+      // 이탈이고, 본 글 재노출은 게시판의 문법이다**(소스 보기가 seen을 안
+      // 거르는 것과 같은 이유). 점수순으로 다시 내보내고 seen은 다시 찍지
+      // 않는다.
+      if (!base.length) {
+        const recycled = items.filter(passesGates)
+          .sort((a, b) => (b.hotScorePrev || 0) - (a.hotScorePrev || 0));
+        const page = recycled.slice(cursor, cursor + limit);
+        return {
+          items: page.map((i) => this._decorate(i, 0, user)),
+          cursor: cursor + page.length,
+          exhausted: cursor + page.length >= recycled.length
+        };
+      }
       // ── 화제성 신호가 없는 글은 **뒤로 민다** (컷이 아니라 강등) ──────
       //
       // 실측(2026-08-04): 핫 첫 30건 중 16건이 추천 0 · 댓글 0 · 교차보도 0.

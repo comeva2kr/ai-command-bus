@@ -111,5 +111,23 @@ const brief = await json("/api/briefing");
 const issues = ((brief.body && brief.body.issues) || []).filter((i) => i && i.headline && i.paragraph);
 ok("우리가 쓴 브리핑 문단이 있음", issues.length >= 3, `${issues.length}건`);
 
+// ── 5. 살아있는 서비스인가 — 2026-08-07 장애 2건 대응
+//
+// 둘 다 테스트 910건을 통과한 채 배포됐다: 저장 직렬화가 이벤트 루프를 먹어
+// TTFB 2.5초(사실상 접속 불가), 클라이언트 무한 재로드로 스피너만 도는 화면.
+// 테스트가 못 보는 층은 배포 직후 실측으로 잡는다.
+{
+  const t0 = Date.now();
+  await fetch(BASE + "/?preflight=1").then((r) => r.text());
+  const ms = Date.now() - t0;
+  ok("홈 응답 1.5초 이내", ms < 1500, `${ms}ms — 넘으면 이벤트 루프가 막혀 있을 가능성`);
+}
+{
+  // 피드가 실제로 글을 내놓는가. 빈 피드는 "정상 응답"이면서 죽은 서비스다.
+  const f = await json("/api/feed?userId=user_1&cursor=0&limit=10").catch(() => null);
+  const n = f && Array.isArray(f.items) ? f.items.length : 0;
+  ok("피드가 글을 내놓음", n >= 3, `${n}건`);
+}
+
 console.log(`\n${fails.length ? `실패 ${fails.length}건: ${fails.join(", ")}` : "전부 통과"}`);
 process.exit(fails.length ? 1 : 0);
