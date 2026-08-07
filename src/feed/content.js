@@ -299,9 +299,46 @@ async function settledWithLimit(tasks, limit) {
   return out;
 }
 
+// 소스 하나가 응답하지 않으면 **수집 전체가 끝나지 않는다.**
+//
+// 2026-08-07 라이브 사고: "기동 직후 첫 수집 시작" 로그가 찍힌 뒤 9분이
+// 지나도 완료도 실패도 없었다. 풀 저장 시각이 142분째 그대로였고 새 소스
+// 설정을 아무리 배포해도 반영되지 않았다.
+//
+// collect()가 s.fetch()를 **데드라인 없이** 그대로 await 했다. 개별 fetcher가
+// 각자 타임아웃을 걸든 말든(거는 것도 있고 안 거는 것도 있다), 번역까지
+// 감싸인 소스는 아이템마다 번역기를 부르므로 한 소스가 수 분씩 매달릴 수 있다.
+// allSettled 방식이라 **실패는 잡지만 매달림은 못 잡는다** — 거절되지 않는
+// 프로미스는 영원히 pending이다.
+//
+// 소스 하나의 사정이 나머지 106곳을 볼모로 잡으면 안 된다. 시간이 지나면
+// 그 소스만 버리고 나머지로 진행한다. 다음 주기에 다시 시도한다.
+const SOURCE_TIMEOUT_MS = Number(process.env.FEED_SOURCE_TIMEOUT_MS || 45000);
+
+function withDeadline(promise, ms, label) {
+  if (!(ms > 0)) return promise;
+  return new Promise((resolve, reject) => {
+    // unref 하지 않는다. unref된 타이머는 이벤트 루프를 붙잡지 않아서,
+    // 매달린 fetch 말고 할 일이 없으면 **타이머가 터지기 전에 프로세스가 끝난다** —
+    // 데드라인이 있으나 마나다(작성 직후 로컬 검증에서 바로 드러났다).
+    // 이 타이머는 반드시 터져야 하고, 아래에서 항상 clearTimeout 된다.
+    const t = setTimeout(() => {
+      reject(new Error(`source timeout after ${ms}ms: ${label}`));
+    }, ms);
+    Promise.resolve(promise).then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); }
+    );
+  });
+}
+
 export async function collect(sources, opts = {}) {
   const limit = opts.concurrency || FETCH_CONCURRENCY;
-  const results = await settledWithLimit(sources.map((s) => () => s.fetch()), limit);
+  const perSource = opts.sourceTimeoutMs != null ? opts.sourceTimeoutMs : SOURCE_TIMEOUT_MS;
+  const results = await settledWithLimit(
+    sources.map((s) => () => withDeadline(s.fetch(), perSource, (s && s.id) || "?")),
+    limit
+  );
   const items = [];
   const errors = [];
   results.forEach((res, i) => {
