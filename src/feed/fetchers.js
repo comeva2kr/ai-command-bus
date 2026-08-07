@@ -246,6 +246,15 @@ export function parseRss(xml, feedUrl) {
       publishedAt: normalizeDate(
         tag(block, isAtom ? "updated" : "pubDate") || tag(block, "dc:date")
       ),
+      // Slash 모듈의 댓글 수. 피드가 **이미 실어 보내는데** 읽지 않고 있었다
+      // (2026-08-07 적대적 검수). 실측: 딴지일보 RSS 15건 중 14건이
+      // <slash:comments>를 달고 온다(값 3·4·4·4·1·3·8·3·2·5·1·3·10·2).
+      // 뉴스에는 반응 지표가 없다고 전제해 왔는데, 이 소스는 예외였고
+      // 그 예외를 우리가 버리고 있었다.
+      ...(() => {
+        const c = Number(tag(block, "slash:comments"));
+        return Number.isFinite(c) && c > 0 ? { commentCount: c } : {};
+      })(),
       image: extractRssImage(block, rawDesc, originOf(url), rawContent),
       coverage: relatedCoverage(rawDesc, feedUrl)
     });

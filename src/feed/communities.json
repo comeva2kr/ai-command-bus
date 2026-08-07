@@ -1572,16 +1572,17 @@
         "type": "list",
         "url": "https://www.ppomppu.co.kr/zboard/zboard.php?id=ppomppu",
         "pages": 1,
-        "note": "뽐뿌 **핫딜 게시판**. 2026-08-05 실측: 우리가 쓰던 hot.php는 전 게시판 통합 인기글이라 핫딜이 거의 없었다(피드 120건 중 뽐뿌 6건이 전부 여행·정치·잡담). 진짜 딜은 여기 있다. 제목이 [쇼핑몰]상품명 (가격/배송) 형식이라 상품군을 뽑아 광고 도착지와 이을 수 있다(deals.js). EUC-KR이라 cp949 디코더를 탄다. 21건 파싱 확인.",
+        "note": "뽐뿌 **핫딜 게시판**. 2026-08-05 실측: 우리가 쓰던 hot.php는 전 게시판 통합 인기글이라 핫딜이 거의 없었다(피드 120건 중 뽐뿌 6건이 전부 여행·정치·잡담). 진짜 딜은 여기 있다. 제목이 [쇼핑몰]상품명 (가격/배송) 형식이라 상품군을 뽑아 광고 도착지와 이을 수 있다(deals.js). EUC-KR이라 cp949 디코더를 탄다. 21건 파싱 확인. | 2026-08-07 파서 감사: adapter.list에 scoreRegex가 **아예 없었다** — 추천 컬럼(baseList-rec)에 실제 값이 있는데 한 번도 읽힌 적이 없다. windowAfter도 400이라 그 지점(제목에서 379~542자 뒤)에 닿지 못했다. 실측 검증: 추천>0 9/21. rec 셀은 추천 0이면 빈 문자열, N건이면 'N - 0' 형태라 (\\d*)로 선두 숫자만 잡는다.",
         "list": {
           "urlBase": "https://www.ppomppu.co.kr/zboard/",
           "titleRegex": "<a class=['\"]baseList-title[^'\"]*['\"]\\s+href=\"(view\\.php[^\"]+)\"[^>]*>(?:<span>)?(?:<em[^>]*>[^<]*</em>)?([^<]+)",
-          "windowAfter": 400,
+          "windowAfter": 600,
           "commentRegex": "class=\"baseList-c\"[^>]*>(\\d+)<",
           "max": 25,
           "parserCheckedAt": "2026-08-05",
           "charset": "euc-kr",
-          "excludeRegex": "id=regulation"
+          "excludeRegex": "id=regulation",
+          "scoreRegex": "class=\"baseList-space baseList-rec\"[^>]*>\\s*(\\d*)"
         }
       },
       "feedGroup": "deal"
@@ -1602,16 +1603,17 @@
         "type": "list",
         "url": "https://www.ppomppu.co.kr/zboard/zboard.php?id=ppomppu4",
         "pages": 1,
-        "note": "뽐뿌 **핫딜 게시판**. 2026-08-05 실측: 우리가 쓰던 hot.php는 전 게시판 통합 인기글이라 핫딜이 거의 없었다(피드 120건 중 뽐뿌 6건이 전부 여행·정치·잡담). 진짜 딜은 여기 있다. 제목이 [쇼핑몰]상품명 (가격/배송) 형식이라 상품군을 뽑아 광고 도착지와 이을 수 있다(deals.js). EUC-KR이라 cp949 디코더를 탄다. 21건 파싱 확인.",
+        "note": "뽐뿌 **핫딜 게시판**. 2026-08-05 실측: 우리가 쓰던 hot.php는 전 게시판 통합 인기글이라 핫딜이 거의 없었다(피드 120건 중 뽐뿌 6건이 전부 여행·정치·잡담). 진짜 딜은 여기 있다. 제목이 [쇼핑몰]상품명 (가격/배송) 형식이라 상품군을 뽑아 광고 도착지와 이을 수 있다(deals.js). EUC-KR이라 cp949 디코더를 탄다. 21건 파싱 확인. | 2026-08-07 파서 감사: adapter.list에 scoreRegex가 **아예 없었다** — 추천 컬럼(baseList-rec)에 실제 값이 있는데 한 번도 읽힌 적이 없다. windowAfter도 400이라 그 지점(제목에서 379~542자 뒤)에 닿지 못했다. 실측 검증: 추천>0 12/17. rec 셀은 추천 0이면 빈 문자열, N건이면 'N - 0' 형태라 (\\d*)로 선두 숫자만 잡는다.",
         "list": {
           "urlBase": "https://www.ppomppu.co.kr/zboard/",
           "titleRegex": "<a class=['\"]baseList-title[^'\"]*['\"]\\s+href=\"(view\\.php[^\"]+)\"[^>]*>(?:<span>)?(?:<em[^>]*>[^<]*</em>)?([^<]+)",
-          "windowAfter": 400,
+          "windowAfter": 600,
           "commentRegex": "class=\"baseList-c\"[^>]*>(\\d+)<",
           "max": 25,
           "parserCheckedAt": "2026-08-05",
           "charset": "euc-kr",
-          "excludeRegex": "id=regulation"
+          "excludeRegex": "id=regulation",
+          "scoreRegex": "class=\"baseList-space baseList-rec\"[^>]*>\\s*(\\d*)"
         }
       },
       "feedGroup": "deal"

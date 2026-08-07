@@ -266,3 +266,31 @@ test("registry: kind=community로 등록된 소스의 글은 community로 수집
     if (commIds.has(s.id)) assert.equal(s.kind, "community", `${s.id}: 소스 객체의 kind가 community여야`);
   }
 });
+
+// 2026-08-07 적대적 검수: "rss 소스는 반응 지표가 없다"는 일괄 판정이 틀렸다.
+// 딴지일보 RSS는 Slash 모듈의 <slash:comments>로 댓글 수를 실어 보내는데
+// parseRss가 그 태그를 읽지 않아 신호를 버리고 있었다.
+// 실측: 15건 중 14건에 값이 있다(3·4·4·4·1·3·8·3·2·5·1·3·10·2).
+//
+// 뉴스에는 반응이 없다고 전제해 왔고 그 전제 위에 랭킹을 세웠다.
+// 그런데 예외가 있었고, 그 예외를 우리 손으로 버리고 있었다.
+test("parseRss: Slash 모듈의 댓글 수(<slash:comments>)를 읽는다", () => {
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const xml = fs.readFileSync(path.join(dir, "fixtures", "ddanzi_news.xml"), "utf8");
+  const items = parseRss(xml, "https://www.ddanzi.com/rss");
+  const withC = items.filter((i) => (i.commentCount || 0) > 0);
+  assert.ok(withC.length >= 12, `댓글이 붙은 글 ${withC.length}건 (>=12 기대, 예전엔 0건)`);
+  // 값이 실제 피드와 일치하는지 — 아무 숫자나 주워 온 것이 아니어야 한다
+  assert.ok(withC.every((i) => Number.isInteger(i.commentCount) && i.commentCount > 0));
+});
+
+test("parseRss: slash:comments가 없는 피드는 commentCount를 만들지 않는다", () => {
+  // 0을 채워 넣으면 "댓글 0개"와 "댓글 정보 없음"이 구별되지 않는다.
+  const xml = `<rss><channel><item>
+    <title>댓글 태그 없는 글</title><link>https://example.org/1</link>
+    <pubDate>Tue, 28 Jul 2026 09:00:00 GMT</pubDate>
+  </item></channel></rss>`;
+  const items = parseRss(xml, "https://example.org/rss");
+  assert.equal(items.length, 1);
+  assert.equal(items[0].commentCount, undefined);
+});
