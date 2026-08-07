@@ -175,13 +175,38 @@ function originOf(url) {
 const RELATED_LI = /&lt;li&gt;|<li[\s>]/gi;
 export const COVERAGE_MAX = 5; // 구글이 돌려주는 관련기사 목록의 상한(실측)
 
-export function relatedCoverage(rawDesc) {
+// **구글뉴스 피드에만** 적용한다 (2026-08-07 적대적 검수).
+//
+// 위 주석은 처음부터 "구글뉴스 RSS는"이라고 말하고 있는데, 정작 코드는
+// **모든 rss 소스의 description에 무조건** 이 정규식을 돌렸다. 그래서 본문
+// 요약에 HTML 목록을 싣는 피드는 그 <li>가 통째로 "다른 매체도 이 사건을
+// 다뤘다"는 신호로 둔갑했다.
+//
+// 실측(test/fixtures/geeknews.xml, 외부 요청 0): 50건 중 **43건이 coverage>0**,
+// 9건은 coverage>=3. 긱뉴스는 한 사이트의 글 목록이지 교차보도가 아니다.
+//
+// 이건 0보다 나쁘다. coverage는 이 코드베이스에서 1급 화제성 신호이고
+// (뉴스에는 추천·댓글이 없어 사실상 유일한 신호다), 랭킹·편집 코멘트·
+// "같은 사건, 다른 곳에서는"이 모두 이 값을 읽는다. **없는 신호를 만들어
+// 랭킹에 올리는 것은 신호가 없는 것보다 해롭다.**
+const GOOGLE_NEWS = /news\.google\.com/i;
+
+export function relatedCoverage(rawDesc, feedUrl) {
   if (!rawDesc) return 0;
+  // 피드 주소를 알면 그것으로 판정한다. 주소를 안 넘겨주는 옛 호출부를 위해
+  // description 안의 news.google.com 링크로도 확인한다 — 구글뉴스 관련기사
+  // 목록은 각 <li>가 news.google.com 링크를 달고 오기 때문이다.
+  const fromFeed = feedUrl && GOOGLE_NEWS.test(String(feedUrl));
+  const fromDesc = /news\.google\.com/i.test(String(rawDesc));
+  if (!fromFeed && !fromDesc) return 0;
   const m = String(rawDesc).match(RELATED_LI);
   return m ? m.length : 0;
 }
 
-export function parseRss(xml) {
+export function parseRss(xml, feedUrl) {
+  // feedUrl은 선택 인자다 — 안 넘겨도 기존 호출부가 그대로 돈다.
+  // coverage(교차보도) 판정에만 쓴다. 없으면 description 안의 구글뉴스 링크로
+  // 판정하므로 결과는 같다(2026-08-07 검수 대응).
   const items = [];
   const isAtom = /<feed[\s>]/i.test(xml) && /<entry[\s>]/i.test(xml);
   const blockRe = isAtom ? /<entry[\s>][\s\S]*?<\/entry>/gi : /<item[\s>][\s\S]*?<\/item>/gi;
@@ -222,7 +247,7 @@ export function parseRss(xml) {
         tag(block, isAtom ? "updated" : "pubDate") || tag(block, "dc:date")
       ),
       image: extractRssImage(block, rawDesc, originOf(url), rawContent),
-      coverage: relatedCoverage(rawDesc)
+      coverage: relatedCoverage(rawDesc, feedUrl)
     });
   }
   return items;
@@ -261,7 +286,7 @@ function normalizeDate(s, now = () => Date.now()) {
 }
 
 export function rssFetcher(url, fetchImpl = fetch) {
-  return async () => parseRss(await getText(url, fetchImpl));
+  return async () => parseRss(await getText(url, fetchImpl), url);
 }
 
 // --- Hacker News (Algolia front page) ------------------------------------

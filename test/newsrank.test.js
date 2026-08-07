@@ -20,14 +20,50 @@ import { sourceLabel } from "../src/feed/taxonomy.js";
 // 아래 테스트들은 (a) 소스가 다시 검색 피드로 돌아가지 못하게 막고,
 // (b) 구글이 주는 실측 화제성 신호(관련기사 수)가 점수에 반영되는지 검증한다.
 
-const GNEWS_DESC = `&lt;ol&gt;&lt;li&gt;&lt;a href="https://x/1"&gt;기사1&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://x/2"&gt;기사2&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://x/3"&gt;기사3&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;`;
+// 실제 구글뉴스 관련기사 목록은 각 <li>가 **news.google.com 링크**를 단다.
+// 2026-08-07까지 이 픽스처는 https://x/1 같은 가짜 주소를 썼는데, 그 상태로도
+// 통과했다 — 코드가 피드를 가리지 않고 아무 <li>나 셌기 때문이다.
+// 실물 형태로 바꾼다. 픽스처가 실물과 다르면 그 차이만큼 못 잡는다.
+const GNEWS_DESC = `&lt;ol&gt;&lt;li&gt;&lt;a href="https://news.google.com/articles/1"&gt;기사1&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://news.google.com/articles/2"&gt;기사2&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://news.google.com/articles/3"&gt;기사3&lt;/a&gt;&lt;/li&gt;&lt;/ol&gt;`;
 
 test("relatedCoverage: 구글뉴스 description의 관련기사 <li> 개수를 센다", () => {
   assert.equal(relatedCoverage(GNEWS_DESC), 3);
-  assert.equal(relatedCoverage("<ol><li>a</li><li>b</li></ol>"), 2); // 이스케이프 안 된 형태도
   assert.equal(relatedCoverage("관련기사 없는 평범한 요약문"), 0);
   assert.equal(relatedCoverage(""), 0);
   assert.equal(relatedCoverage(null), 0);
+  // 피드 주소로도 판정한다 — 구글뉴스 피드면 링크 형태와 무관하게 센다.
+  assert.equal(relatedCoverage("<ol><li>a</li><li>b</li></ol>", "https://news.google.com/rss/topics/x"), 2);
+});
+
+// 2026-08-07 적대적 검수가 잡은 것. 이 함수의 주석은 처음부터 "구글뉴스 RSS는"
+// 이라고 말하는데, 코드는 **모든 rss 소스의 description에 무조건** 돌고 있었다.
+// 그래서 본문 요약에 HTML 목록을 싣는 피드는 그 <li>가 통째로 "다른 매체도 이
+// 사건을 다뤘다"는 신호로 둔갑했다.
+//
+// 실측(test/fixtures/geeknews.xml): 50건 중 **43건이 coverage>0**, 9건은 >=3.
+// 긱뉴스는 한 사이트의 글 목록이지 교차보도가 아니다.
+//
+// 이건 0보다 나쁘다. coverage는 뉴스에 사실상 유일한 화제성 신호라
+// 랭킹·편집 코멘트·"같은 사건, 다른 곳에서는"이 전부 이 값을 읽는다.
+// **없는 신호를 만들어 랭킹에 올리는 것은 신호가 없는 것보다 해롭다.**
+test("relatedCoverage: 구글뉴스가 아닌 피드의 <li>는 교차보도가 아니다", () => {
+  const blogList = "<p>정리</p><ul><li>첫째</li><li>둘째</li><li>셋째</li></ul>";
+  assert.equal(relatedCoverage(blogList), 0, "평범한 본문 목록을 교차보도로 세면 안 된다");
+  assert.equal(relatedCoverage(blogList, "https://news.hada.io/rss/news"), 0);
+  assert.equal(relatedCoverage("&lt;li&gt;a&lt;/li&gt;&lt;li&gt;b&lt;/li&gt;", "https://example.org/feed"), 0);
+});
+
+test("relatedCoverage: 긱뉴스 실물 피드에서 가짜 신호가 사라졌다", async () => {
+  // 회귀를 실물로 못 박는다 — 정규식만 보면 다음에 또 넓어질 수 있다.
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const url = await import("node:url");
+  const dir = path.dirname(url.fileURLToPath(import.meta.url));
+  const xml = fs.readFileSync(path.join(dir, "fixtures", "geeknews.xml"), "utf8");
+  const items = parseRss(xml, "https://news.hada.io/rss/news");
+  assert.ok(items.length >= 40, `파싱 ${items.length}건`);
+  const fake = items.filter((i) => (i.coverage || 0) > 0);
+  assert.equal(fake.length, 0, `가짜 coverage ${fake.length}건 — 예전엔 43건이었다`);
 });
 
 test("parseRss: 관련기사 수를 coverage로 실어 보낸다 (다른 필드를 망가뜨리지 않고)", () => {
@@ -39,7 +75,8 @@ test("parseRss: 관련기사 수를 coverage로 실어 보낸다 (다른 필드�
       <pubDate>Tue, 28 Jul 2026 09:00:00 GMT</pubDate>
       <description>관련기사 없음</description></item>
   </channel></rss>`;
-  const items = parseRss(xml);
+  // 구글뉴스 피드임을 알려 준다 — coverage는 이제 그 피드에서만 센다.
+  const items = parseRss(xml, "https://news.google.com/rss/topics/x");
   assert.equal(items.length, 2);
   assert.equal(items[0].coverage, 3);
   assert.equal(items[1].coverage, 0);
