@@ -4219,7 +4219,7 @@ async function renderDetail(itemId){
            두 개"). 이 버튼의 실제 목적은 **우리는 발췌만 싣는다**는 것이고,
            그건 바로 아래 고지문이 이미 하는 말이다. 매체 이름으로 부른다. -->
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 전체 글 보기 →</a>
-      ${item.translated && item.url ? `<div class="trans-hint">원문을 연 뒤 <b>브라우저의 번역</b>(주소창 번역 아이콘, 사파리는 <b>ᴀA</b> 메뉴)을 누르면 페이지 전체가 한국어로 나와요</div>` : ""}
+      ${item.translated && item.url ? `<div class="trans-hint">원문을 연 뒤 주소창의 <b>번역 아이콘</b>(사파리는 <b>ᴀA</b> 메뉴)을 누르면 페이지 전체가 한국어로 나와요. 이때 <b>“항상 번역”</b>을 켜 두면 다음부터는 누를 것도 없이 <b>자동으로 한국어로</b> 열려요</div>` : ""}
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
     `:""}
     ${detailAdHtml(item.category, item.dealDest || item.adDest)}
