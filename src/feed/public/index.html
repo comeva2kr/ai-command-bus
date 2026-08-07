@@ -1473,14 +1473,15 @@ const state = {
   userId: localStorage.getItem("feed_uid") || null,
   cursor: 0, loading: false, exhausted: false,
   prefetch: null, prefetching: false, // 다음 페이지 선반입 버퍼
-  activeCategory: null, config: null,
+  activeCategory: localStorage.getItem("feed_cat") || null, config: null,
   // 정렬 모드: hot(추천) | latest(최신순, #12). 새로고침 간 유지.
   sortMode: localStorage.getItem("feed_sort") === "latest" ? "latest" : "hot",
   registry: [], // full /api/communities list (all sources, unfiltered) — labels + frameable lookups
-  communities: [], activeSource: null, // 홈은 항상 "전체"로 시작 (필터 선택이 저장돼 갇히지 않게 )
+  communities: [], activeSource: localStorage.getItem("feed_src") || null, // 새로고침해도 보기 설정 유지(David 2026-08-07). 등록에 없는 값은 아래 검증이 지운다
   feedScrollY: 0, // remembered scroll position for exact back-restore
   pagesLoaded: 0, // 읽던 자리 복원용 — 몇 페이지까지 봤나
   cardsById: new Map(),
+  itemsById: new Map(), // 카드가 그린 원본 데이터 — 상세 폴백용(보여서 누른 글은 무조건 열린다)
   // 정치/종교처럼 기본 숨김인 토픽 중 유저가 켠 것들. 서버가 진실의 원천이고
   // (session/me 응답으로 매번 덮어써짐), localStorage는 다음 로드 전까지의 캐시일 뿐.
   showTopics: JSON.parse(localStorage.getItem("feed_topics") || "[]"),
@@ -3101,6 +3102,7 @@ function setupBrandHome(){
     if(document.getElementById("drawer").classList.contains("open")) closeDrawer();
     window.scrollTo(0,0);
     state.activeSource = null; state.activeCategory = null;
+    localStorage.removeItem("feed_src"); localStorage.removeItem("feed_cat");
     reloadFeed("최신 화제글을 새로 불러왔어요");
     loadBriefStrip();
   };
@@ -3318,6 +3320,7 @@ function renderChips(){
 }
 function setCategory(cat, container, btn){
   state.activeCategory = cat;
+  if(cat) localStorage.setItem("feed_cat", cat); else localStorage.removeItem("feed_cat");
   [...container.children].forEach(c=>c.classList.remove("active")); btn.classList.add("active");
   reloadFeed();
   closeDrawer(); // selection made — back to the clean home feed
@@ -3756,6 +3759,7 @@ function setupAdImpressionObserver(){
   }, { threshold: 0.5 });
 }
 function appendCard(item){
+  state.itemsById.set(item.id, item);
   if(isAdItem(item)) return appendAdCard(item);
   const card = document.createElement("article"); card.className="card"; card.dataset.cat=item.category; card.dataset.id=item.id;
   if(item.adUnsafe) card.dataset.adUnsafe = "1";   // 이 글 옆에는 광고를 붙이지 않는다
@@ -4146,12 +4150,22 @@ async function renderDetail(itemId){
   let item;
   try { item = await API.item(state.userId, itemId); }
   catch(e){
-    // 풀에서 내려간 오래된 글일 수 있다 — 막다른 길 대신 다음 행동을 준다
-    body.innerHTML = '<div class="loading-wrap"><div class="loading-msg">이 글은 지금 목록에 없어요<br>' +
-      '<span style="font-size:13px;opacity:.75">시간이 지나 내려갔을 수 있어요</span></div>' +
-      '<a class="readmore" href="/" style="margin-top:14px">지금 화제글 보러가기 →</a></div>';
-    return;
+    // **보여서 누른 글은 무조건 열린다** (David 2026-08-07: "납득 안돼").
+    // 서버 쪽 사정(소스별 상한 재편성·수집 사이클 사이 id 변동)으로 조회가
+    // 실패해도, 카드를 그릴 때 쓴 데이터가 브라우저에 그대로 있다 — 그걸로
+    // 그린다. 댓글·관련글만 빠질 뿐 제목·본문·원문 링크는 전부 있다.
+    const cached = state.itemsById.get(itemId);
+    if(cached){ item = { ...cached, thread: [], related: [] }; }
+    else {
+      // 캐시조차 없는 경우: 공유 링크·오래된 즐겨찾기 등 이 세션에서 그린 적
+      // 없는 글뿐이다 — 그때만 안내를 보여준다.
+      body.innerHTML = '<div class="loading-wrap"><div class="loading-msg">이 글은 지금 목록에 없어요<br>' +
+        '<span style="font-size:13px;opacity:.75">시간이 지나 내려갔을 수 있어요</span></div>' +
+        '<a class="readmore" href="/" style="margin-top:14px">지금 화제글 보러가기 →</a></div>';
+      return;
+    }
   }
+  item.thread = item.thread || []; item.related = item.related || [];
   document.getElementById("detailSrc").innerHTML =
     `<span class="dot" style="display:inline-block;background:${srcColor(item.source)}"></span> <span style="color:${srcColor(item.source)};font-weight:700">${srcLabel(item.source)}</span> · ${item.categoryLabel}`;
   // 공유 = 즉시 클립보드 복사 (David 2026-08-01: 공유창 없이 바로 복사 +
