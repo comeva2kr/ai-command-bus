@@ -909,11 +909,21 @@ export class FeedEngine {
     // 이벤트 루프가 한 바퀴 돈 뒤에 시작한다. 생성자에서 곧바로 부르는
     // 호출부가 있어, 동기적으로 refresh를 시작하면 아직 배선이 안 끝난
     // 상태(_enricher·_translateText 등)로 첫 사이클이 돈다.
-    const kick = setTimeout(() => { this.refresh().catch(() => {}); }, 0);
+    // 실패를 **로그로 남긴다.** 예전엔 catch(() => {})로 통째로 삼켰다.
+    // 2026-08-07 라이브에서 수집이 111분간 멈췄는데 컨테이너 로그가 3줄뿐이라
+    // 무엇이 잘못됐는지 알 길이 없었다 — 조용한 실패는 없는 실패가 아니라
+    // **진단할 수 없는 실패**다. 삼키는 동작(다음 주기가 온다)은 그대로 두고
+    // 흔적만 남긴다.
+    const run = (why) => this.refresh().then(
+      () => {},
+      (e) => console.warn(`[feed] refresh 실패 (${why}):`, (e && e.stack) || e)
+    );
+    const kick = setTimeout(() => {
+      console.log("[feed] 기동 직후 첫 수집 시작");
+      run("첫 수집");
+    }, 0);
     if (kick.unref) kick.unref();
-    this._timer = setInterval(() => {
-      this.refresh().catch(() => {});
-    }, intervalMs);
+    this._timer = setInterval(() => run("주기"), intervalMs);
     if (this._timer.unref) this._timer.unref();
     return () => this.stopAutoRefresh();
   }
