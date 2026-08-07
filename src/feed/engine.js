@@ -310,6 +310,9 @@ function reasonLabel(r) {
   }
 }
 
+// 공개 지면용 — 아무 토픽도 켜지 않은 상태(기본 숨김 전부 적용)
+const EMPTY_TOPICS = new Set();
+
 export class FeedEngine {
   constructor(store, sources) {
     this.store = store;
@@ -1639,7 +1642,9 @@ export class FeedEngine {
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     const pool = items.filter(
       (i) =>
-        !(i.topics || []).includes("politics") &&
+        // 기본 숨김 토픽 전부를 본다 — politics만 하드코딩하면 religion이 샌다.
+        // 공개 지면(랭킹·브리핑)은 로그인 없이 보이고 sitemap에도 올라간다.
+        !topicsBlocked(i, EMPTY_TOPICS) &&
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
         // 우리가 "오늘의 화제"라고 이름 붙이는 자리다. 그 커뮤니티 안에서만
@@ -1725,8 +1730,7 @@ export class FeedEngine {
     const pool = items.filter(
       (i) =>
         (i.category || "news") === cat &&
-        !(i.topics || []).includes("politics") &&
-        !(i.topics || []).includes("religion") &&
+        !topicsBlocked(i, EMPTY_TOPICS) &&
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
         !offMain.has(i.source) &&
@@ -1834,7 +1838,9 @@ export class FeedEngine {
     };
     const pool = items.filter(
       (i) =>
-        !(i.topics || []).includes("politics") &&
+        // 기본 숨김 토픽 전부를 본다 — politics만 하드코딩하면 religion이 샌다.
+        // 공개 지면(랭킹·브리핑)은 로그인 없이 보이고 sitemap에도 올라간다.
+        !topicsBlocked(i, EMPTY_TOPICS) &&
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
         promotable(i) &&
@@ -2078,15 +2084,20 @@ export class FeedEngine {
     const item = items.find((i) => i.id === itemId);
     if (!item) return null;
     const user = this.store.getUser(userId);
+    const showTopics = new Set((user && user.showTopics) || []);
+    const disabled = this.store.disabledSources ? this.store.disabledSources() : null;
+    // **본 아이템에도 같은 관문을 건다.** 예전엔 관련글(_relatedItems)에만 걸어서,
+    // 정치를 끈 사용자나 관리자가 차단한 소스의 글이 상세 직접 접근(공유 링크,
+    // 검색 색인, 예전 기록)으로는 그대로 열렸다. 관문을 두 벌로 두면 한쪽이
+    // 반드시 샌다 — 오늘만 이 유형을 세 번 만났다.
+    if (topicsBlocked(item, showTopics)) return null;
+    if (disabled && disabled.has(item.source)) return null;
     // never surface a 19금 item to a user who isn't verified + opted in
     const decorated = this._decorate(item, 0, user || { ratings: {} });
     return {
       ...decorated,
       thread: this.store.commentsFor(itemId),
-      related: this._relatedItems(item, items, {
-        showTopics: new Set((user && user.showTopics) || []),
-        disabled: this.store.disabledSources ? this.store.disabledSources() : null
-      })
+      related: this._relatedItems(item, items, { showTopics, disabled })
     };
   }
 }
