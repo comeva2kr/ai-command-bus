@@ -387,6 +387,10 @@ export function createServer(opts = {}) {
               `<span class="ob-h">${escapeHtml(one.headline)}</span>` +
               `<span class="ob-p">${escapeHtml(String(one.paragraph).slice(0, 120))}</span>` +
               `</a></li></ol>` +
+              // 우리 데이터로 쓴 리포트 한 줄 (reportStoryLine 주석 참조).
+              // 캐시가 콜드면 빈 문자열 — 홈이 리포트 계산을 기다리지 않는다.
+              (() => { const st = reportStoryLine(); return st
+                ? `<p class="ob-story">${escapeHtml(st)} <a href="/report">리포트 전체 보기 →</a></p>` : ""; })() +
               `<a class="ob-more" href="/briefing">오늘의 브리핑 전체 보기 →</a>`;
           }
         } catch { /* 편성 전이면 빈 블록 그대로 — 홈은 계속 뜬다 */ }
@@ -804,20 +808,66 @@ export function createServer(opts = {}) {
       } catch { /* 다음 요청이 다시 시도한다 */ }
       return reportCache.data;
     }
-    const ttl = cached.publishable ? REPORT_TTL_MS : REPORT_RETRY_MS;
-    if (Date.now() - reportCache.at > ttl && !reportCache.building) {
-      reportCache.building = true;
-      // 갱신은 응답 뒤로 민다 — 지금 요청은 있는 것으로 답한다.
-      setImmediate(() => {
-        try {
-          reportCache.data = buildReportNow();
-          reportCache.at = Date.now();
-        } catch { /* 다음 요청이 다시 시도한다 */ }
-        finally { reportCache.building = false; }
-      });
-    }
+    if (reportStale()) scheduleReportRefresh();
     return cached;
   };
+  const reportStale = () => {
+    const cached = reportCache.data;
+    if (!cached) return false;
+    const ttl = cached.publishable ? REPORT_TTL_MS : REPORT_RETRY_MS;
+    return Date.now() - reportCache.at > ttl;
+  };
+  // 갱신은 응답 뒤로 민다 — 지금 요청은 있는 것으로 답한다. /report와
+  // 홈(reportStoryLine)이 같은 갱신 한 벌을 쓴다.
+  const scheduleReportRefresh = () => {
+    if (reportCache.building) return;
+    reportCache.building = true;
+    setImmediate(() => {
+      try {
+        reportCache.data = buildReportNow();
+        reportCache.at = Date.now();
+      } catch { /* 다음 요청이 다시 시도한다 */ }
+      finally { reportCache.building = false; }
+    });
+  };
+
+  // 홈 자체 서술용 리포트 한 줄 (2026-08-08 설계 채택안 B) — 우리만 가진
+  // 집계 데이터로 쓴 실측 문장을 홈 자체 콘텐츠 블록까지 내린다(/report와
+  // 같은 자산, 이미 캐시된 계산의 재노출). **캐시를 읽기만 한다** —
+  // reportNow()는 콜드 스타트에 동기 빌드를 하는데(리포트 페이지의 의도된
+  // 트레이드), 홈 경로에서 그걸 부르면 2026-08-07 TTFB 사고와 같은 클래스다.
+  // 홈은 "제때 안 오면 없이" 원칙 그대로 — 콜드면 조용히 빠진다.
+  const reportStoryLine = () => {
+    // 캐시가 낡았으면 백그라운드 갱신만 건다(동기 빌드 절대 금지 — 홈 경로).
+    // 이게 없으면 /report 방문이 없는 장수 프로세스에서 날짜가 박힌 문장이
+    // 무기한 굳고, 웜업이 집계-전 리포트를 잡은 경우 재시도도 없다(검수).
+    if (reportStale()) scheduleReportRefresh();
+    const r = reportCache.data;
+    if (!r || !r.publishable) return null;
+    const s = (r.sections || []).find((x) => x && x.id === "landscape");
+    const line = s && Array.isArray(s.paragraphs) ? s.paragraphs[0] : null;
+    if (!line) return null;
+    // 길이 상한 — 홈 첫 화면의 화제글 노출 예산(v92→v93 회귀 조건)을 문장
+    // 길이 변동으로부터 지킨다. 잘림은 말줄임표로 정직하게 표시하고 전문은
+    // /report 링크가 담당한다.
+    const str = String(line);
+    return str.length > 160 ? str.slice(0, 159) + "…" : str;
+  };
+  // 부팅 90초 뒤 리포트 캐시를 백그라운드로 한 번 데워 둔다 — 이 배포
+  // 체계(하루 십수 회)는 재시작마다 캐시가 콜드라, 워밍 없이는 /report에
+  // 누가 들어올 때까지 홈의 리포트 한 줄이 계속 비어 있게 된다. 90초는
+  // 첫 수집(소스별 데드라인 45초)이 끝난 뒤라는 뜻의 여유값. 동기 빌드가
+  // 도는 그 순간만큼은 이벤트 루프가 서므로 "공짜"는 아니고, /report 콜드
+  // 방문이 치르는 것과 같은 값을 한 번 미리 치르는 것이다. 실패해도 다음
+  // /report 방문이나 홈의 낡음 갱신이 다시 시도한다.
+  const reportWarm = setTimeout(() => {
+    if (reportCache.data) return;
+    try {
+      reportCache.data = buildReportNow();
+      reportCache.at = Date.now();
+    } catch { /* 다음 방문이 다시 시도 */ }
+  }, 90 * 1000);
+  if (reportWarm.unref) reportWarm.unref();
 
   // 방문자 쿠키를 아무 페이지에서나 심는다.
   //
@@ -1695,7 +1745,10 @@ ${archiveHtml}`;
       // 홈 최상단 브리핑 스트립용 원자료 (David 2026-07-31: "최상단에 테마별로
       // 시간별 브리핑") — 클라이언트는 섹션별 대표 이슈만 카드로 얹는다.
       if (p === "/api/briefing" && req.method === "GET") {
-        return send(res, 200, await engine.briefing());
+        // story: 우리 데이터로 쓴 리포트 한 줄(홈 자체 서술 보강, 채택안 B).
+        // SSR(buildHomeSeed)과 같은 헬퍼를 써서 첫 페인트와 JS 이후 화면이
+        // 같은 문장을 보인다 — 한쪽만 고치면 "약속과 실물 불일치"가 된다.
+        return send(res, 200, { ...(await engine.briefing()), story: reportStoryLine() });
       }
 
       // X 실시간 트렌드 — 키워드+X 검색 링크만 (트윗 본문 없음, trends.js 헤더 참고)

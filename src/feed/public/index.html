@@ -688,6 +688,8 @@
     background:var(--card-2);text-decoration:none}
   .own-block .ob-h{display:block;color:var(--color-text);font-weight:800;font-size:14px;line-height:1.35}
   .own-block .ob-p{display:block;margin-top:4px;color:var(--muted);font-size:12.5px;line-height:1.5}
+  .own-block .ob-story{margin:8px 0 0;color:var(--color-text);opacity:.78;font-size:12.5px;line-height:1.5}
+  .own-block .ob-story a{color:var(--color-accent);text-decoration:none}
   .own-block .ob-more{display:inline-block;margin:10px 0 6px;color:var(--color-accent);
     font-weight:800;font-size:12.5px;text-decoration:none}
 
@@ -3166,6 +3168,7 @@ function renderOwnBlock(b, hh, mm){
          <span class="ob-h">${escapeHtml(i.headline)}</span>
          <span class="ob-p">${escapeHtml(String(i.paragraph).slice(0, 120))}</span>
        </a></li>`).join("") + `</ol>` +
+    (b.story ? `<p class="ob-story">${escapeHtml(b.story)} <a href="/report">리포트 전체 보기 →</a></p>` : "") +
     `<a class="ob-more" href="/briefing">오늘의 브리핑 전체 보기 →</a>`;
   el.hidden = false;
 }
