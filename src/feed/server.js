@@ -18,7 +18,7 @@ import { mergeCostBuckets, profitAndLoss, daysInMonth } from "./costs.js";
 import { communityRanking, sourceBest, keywordIndex, keywordPage } from "./pages.js";
 import { loadMatrix, pickVariant } from "./ad-matrix.js";
 import { makeIndexNow } from "./indexnow.js";
-import { maskProfanity } from "./profanity.js";
+import { maskProfanity, unsafeForLead } from "./profanity.js";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -1272,9 +1272,15 @@ ${adSlotHtml("adfit")}
   // 읽어(destForText) 그 도착지 배너를 쓴다. 뉴스·시사 섹션에는 걸지 않는다 —
   // 사건 기사 옆에 "문맥이 맞아 보이는" 광고가 붙는 것이 무관한 광고보다
   // 나쁘다(2026-08-06 피드에서 겪은 것과 같은 이유).
+// 우리가 "가장 뜨거운 글은 …입니다"라고 **직접 쓰는 문장**의 주어를 고른다.
+// 성적 표현이 든 제목은 건너뛰고 다음 순위로 — 글을 지우는 게 아니라
+// 대표로 내세우지 않을 뿐이다(피드에는 그대로 남는다).
+// 전부 걸리면 예전과 같이 1위를 쓴다(악화시키지 않는다).
+const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) || (arr || [])[0];
+
   const BRIEF_AD_EVERY = 3;   // 세 섹션마다 한 장
   const briefingSectionsHtml = (b, mid = "", AD = coupangBannerHtml) => { let midPlaced = false; let adNo = 0; return b.sections.map((sec, secIdx) => {
-    const lead = sec.items[0];
+    const lead = pickLead(sec.items);
     // 실측이 0인 지표는 문장에서 아예 뺀다 — "추천 0·댓글 86을 모으며 화제의
     // 중심"은 자기모순이다(적대적 검수 2026-07-31, 태호·지영 페르소나 지적).
     const leadParts = [];
@@ -1813,7 +1819,7 @@ ${briefingSectionsHtml(b, AD(null, null, 4, "archive_mid"))}`;
         const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
         const all = { generatedAt: catTop.generatedAt };
         const label = catItems[0].categoryLabel;
-        const lead = catItems[0];
+        const lead = pickLead(catItems);
         const leadBits = evidenceBits(lead);
         const inner = `<h1>${escapeHtml(label)} 브리핑</h1>
 <p class="muted">${kstLabel(all.generatedAt)} · 지금 ${escapeHtml(label)} 분야에서 가장 화제인 글을 실측 반응 기준으로 정리했습니다. 수집은 15분마다 돌고, 이 목록은 그때마다 최신 반응을 반영합니다.</p>
@@ -2412,7 +2418,9 @@ ${rankingRows(list, (above) => {
       // 없을 뿐 하나라도 들어오면 그대로 노출된다.
       //
       // 글을 지우지는 않는다 — David의 원칙은 "삭제가 아니라 태그 후 가림"이다.
-      // adult 태그는 그대로 붙고, 걸러 내는 필터도 그대로다. 없앤 것은
+      // adult 태그는 소스 등록정보에만 남는다 — **아이템 단위 필터는 지금 코드에 없다**
+    // (2026-08-07 감사 확인: normalizeItem이 adult를 보존하지 않고 engine에 .adult 조건도 0건).
+    // 지금 성인물이 안 나오는 이유는 게이트가 아니라 adult:true 소스 3곳이 전부 enabled:false여서다. 없앤 것은
       // **가림을 풀 수 있는 방법**뿐이다. 제대로 된 본인확인을 붙일 수 있게 되면
       // 그때 다시 연다.
 
