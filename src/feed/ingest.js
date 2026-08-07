@@ -408,9 +408,12 @@ export function hnDecay(signal, ageHours, gravity) {
 //
 // Returns items in the SAME order as input, each annotated with hotScore
 // (what callers sort by) plus the intermediate numbers for inspection/tests.
-// 이전 점수를 얼마나 붙잡을지. 0이면 관성 없음(예전 동작), 1이면 영원히 안 바뀜.
-// 0.6이면 새 신호가 약 3사이클(15분×3)에 걸쳐 순위에 반영된다.
-const SCORE_INERTIA = Number(process.env.FEED_SCORE_INERTIA ?? 0.6);
+// 내려갈 때만 붙잡는다. 오르는 것은 즉시 반영한다 —
+// "지금핫"인데 급등을 45분 늦게 보여주면 이름값을 못 한다(David 2026-08-07).
+//
+// 사용자가 느끼는 충격은 **보던 글이 사라지는 것**이지 새 글이 올라오는 게 아니다.
+// 그래서 상승은 그대로, 하락만 천천히 내린다.
+const SCORE_DECAY_INERTIA = Number(process.env.FEED_SCORE_INERTIA ?? 0.7);
 
 export function sourceHotScores(items, nowMs, opts = {}) {
   const now = nowMs || Date.now();
@@ -496,7 +499,10 @@ export function sourceHotScores(items, nowMs, opts = {}) {
     // (David 2026-08-07: "수집 한번에 리스트가 다 바뀌게 하지 말고 안정적으로").
     // 이전 점수를 기억한 아이템은 섞어서 순위가 서서히 움직이게 한다.
     const prior = item.hotScorePrev;
-    const hotScoreVal = Number.isFinite(prior) ? prior * SCORE_INERTIA + fresh * (1 - SCORE_INERTIA) : fresh;
+    const blended = !Number.isFinite(prior) || fresh >= prior
+      ? fresh                                                              // 급등은 즉시
+      : prior * SCORE_DECAY_INERTIA + fresh * (1 - SCORE_DECAY_INERTIA);   // 하락만 천천히
+    const hotScoreVal = Math.round(blended * 1e6) / 1e6;
     // 기록은 수집 때만(opts.persist). 요청 경로에서 매번 쓰면 관성이 중복 적용돼
     // 점수가 굳는다.
     if (opts.persist) item.hotScorePrev = hotScoreVal;
@@ -509,7 +515,7 @@ export function sourceHotScores(items, nowMs, opts = {}) {
       age,
       decayed,
       vel,
-      hotScore: Math.round(hotScoreVal * 1e6) / 1e6
+      hotScore: hotScoreVal
     };
   });
 }
