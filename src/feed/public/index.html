@@ -243,6 +243,7 @@
      구글 translate.goog도 검토했으나 데이터센터·일부 지역에서 403이라
      한국 사용자 기준으로 파파고가 확실하다(VM 한국 IP 실측 200). */
   .readmore-alt { background: none; color: var(--accent); border: 1px solid var(--accent); margin-top: 8px; }
+  .trans-note-sm { margin: 4px 2px 0; font-size: 12px; color: var(--muted); }
   .trans-hint { margin-top: 8px; font-size: 12.5px; color: var(--muted); line-height: 1.55;
     padding: 8px 10px; border: 1px dashed var(--line); border-radius: 8px; }
   .readmore { display: block; text-align: center; background: var(--accent); color: #fff !important;
@@ -4251,7 +4252,8 @@ async function renderDetail(itemId){
            두 개"). 이 버튼의 실제 목적은 **우리는 발췌만 싣는다**는 것이고,
            그건 바로 아래 고지문이 이미 하는 말이다. 매체 이름으로 부른다. -->
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 전체 글 보기 →</a>
-      ${item.translated && item.url ? `${/Android|iPhone|iPad/i.test(navigator.userAgent) ? `<a class="readmore readmore-alt" href="naversearchapp://inappbrowser?url=${encodeURIComponent(item.url)}&target=new&version=6">네이버 앱으로 한국어 번역 보기 →</a>` : ""}
+      ${item.translated && item.url ? `${/Android|iPhone|iPad/i.test(navigator.userAgent) ? `<a class="readmore readmore-alt" href="naversearchapp://inappbrowser?url=${encodeURIComponent(item.url)}&target=new&version=6">네이버 앱으로 한국어 번역 보기 →</a>
+      <div class="trans-note-sm">열린 화면 <b>상단의 “번역”</b> 한 번만 누르면 전체가 한국어로 나와요</div>` : ""}
       <div class="trans-hint">${browserTransHint()}</div>` : ""}
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
     `:""}
