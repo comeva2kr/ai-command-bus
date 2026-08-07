@@ -605,7 +605,12 @@ export class FeedStore {
     const user = this.requireUser(userId);
     const set = new Set(user.seen);
     for (const id of itemIds) set.add(id);
-    user.seen = [...set].slice(-500); // cap memory
+    // 상한 3,000 (David 2026-08-07: "본 걸 굳이 또 볼 필욘 없으니까").
+    // 500이던 때 실측: 821명 중 17명이 이미 도달했고, 잘려나간 만큼 예전에
+    // 본 글이 **다시 후보로 돌아왔다.** 피드는 seen을 후보에서 빼므로
+    // 상한이 곧 "안 본 글만 보여주는" 보장의 길이다.
+    // id 하나가 약 10바이트라 3,000개도 사용자당 30KB 수준이다.
+    user.seen = [...set].slice(-3000);
     this._persist();
     return user.seen.length;
   }
