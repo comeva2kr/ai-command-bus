@@ -3319,7 +3319,7 @@ function renderChips(){
 function setCategory(cat, container, btn){
   state.activeCategory = cat;
   [...container.children].forEach(c=>c.classList.remove("active")); btn.classList.add("active");
-  applyFilter();
+  reloadFeed();
   closeDrawer(); // selection made — back to the clean home feed
 }
 
@@ -3416,10 +3416,8 @@ function setSource(id, container, btn){
   [...container.children].forEach(c=>c.classList.remove("active")); btn.classList.add("active");
   reloadFeed();
 }
-// 카테고리를 서버에 넘긴다. 예전엔 이미 그려진 카드를 숨기기만 해서,
-// 홈 20개 중 그 카테고리가 2개면 2개만 보였다(David 2026-08-07:
-// "부동산 카테고리에서 누르니까 글이 몇개 안나와").
-function applyFilter(){ reloadFeed(); }
+// (applyFilter는 없어졌다 — 카테고리는 서버가 거른다. 이 함수를 남겨 두고
+// 로드 완료 훅에서 부르던 것이 로드→재로드 무한 루프를 만들었다.)
 
 // ---- feed ----
 // 무한 스크롤 = **선반입(prefetch) 파이프라인** (David 2026-08-01: "리스트
@@ -3452,7 +3450,6 @@ function renderBatch(res){
   ensureAdfitPlacement(); // 애드핏 지면 1장 — 목록 끝, 수익 슬롯과 자리를 나눈다
   if(res.exhausted){ state.exhausted=true; setSentinel(false, "새 화제글을 모으는 중… 평가할수록 더 정확해져요"); }
   else setSentinel(false);
-  applyFilter();
 }
 
 async function loadMore(){
