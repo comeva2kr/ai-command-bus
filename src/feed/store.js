@@ -353,6 +353,7 @@ export class FeedStore {
   saveEnrichCache(entries, nowMs) {
     if (!entries) return;
     this.enrichCache = entries;
+    this._coldDirty = true;
     // 만료분 청소 — 저장 파일이 무한히 커지지 않게
     for (const url of Object.keys(this.enrichCache)) {
       if ((this.enrichCache[url].expiresAt || 0) < nowMs) delete this.enrichCache[url];
@@ -370,6 +371,7 @@ export class FeedStore {
   }
 
   recordHeat(entries, nowMs) {
+    this._coldDirty = true;
     if (!entries || !entries.length) return;
     if (!this.heatHist) this.heatHist = {};
     if (!this.heatSeen) this.heatSeen = {};
@@ -386,6 +388,7 @@ export class FeedStore {
   }
 
   recordFirstSeen(entries, nowMs) {
+    this._coldDirty = true;
     if (!entries || !entries.length) return;
     if (!this.firstSeen) this.firstSeen = {};
     for (const [id, at] of entries) {
@@ -1302,10 +1305,6 @@ export class FeedStore {
       costs: this.costs || {},
       fixedCosts: this.fixedCosts || {},
       revenue: this.revenue || {},
-      firstSeen: this.firstSeen || {}, // 수집 풀 최초 관측 시각 — 재시작 뒷북 방지 (P1-a)
-      heatHist: this.heatHist || {}, // 열기 눈금 시계열 — 배포마다 리셋되면 시그니처가 죽는다
-      enrichCache: this.enrichCache || {}, // og:image/발췌 — 재수집 비용이 커 반드시 유지
-      heatSeen: this.heatSeen || {},
       sessions: [...(this.sessions || new Map())].map(([token, s]) => ({ token, ...s }))
     };
     // ── 원자적 쓰기 (2026-08-05 전수검사 P0)
@@ -1320,12 +1319,35 @@ export class FeedStore {
     // 임시 파일에 다 쓴 뒤 rename으로 바꿔치기한다. rename은 같은 파일
     // 시스템에서 원자적이라 중간 상태가 존재하지 않는다 — 읽는 쪽은 항상
     // 옛 파일 아니면 새 파일을 본다.
+    // ── 더운 것과 찬 것을 나눈다 (2026-08-07 라이브 장애)
+    //
+    // 실측: 저장 파일 8.8MB 중 6.3MB(firstSeen·heatSeen·heatHist·enrichCache)는
+    // **수집 사이클(15분)에 한 번만 바뀌는** 데이터인데, 사용자 행동이 올 때마다
+    // 2초 디바운스로 전체를 다시 직렬화했다. CPU 프로파일에서 _persist가
+    // **71%** — 이벤트 루프가 상시 막혀 /api/health까지 0.8초, 홈 TTFB 2.5초,
+    // David 제보 "접속이 안 돼 이용자 다 이탈하겠다".
+    //
+    // 찬 4종은 별도 파일에, **바뀐 사이클에만** 쓴다(recordFirstSeen·recordHeat·
+    // setEnrichCache가 _coldDirty를 세운다). 더운 파일은 ~2MB라 2초 디바운스가
+    // 다시 감당된다. 디바운스 자체(TTFB 4초 사고의 해법)는 건드리지 않는다.
     const tmp = `${this.file}.tmp`;
     try {
       // 들여쓰기를 넣지 않는다. 사람이 읽을 파일이 아니고, 실측(2026-08-06)
       // 11.8MB짜리를 요청마다 예쁘게 찍고 있었다 — 크기도 시간도 두 배다.
       fs.writeFileSync(tmp, JSON.stringify(data));
       fs.renameSync(tmp, this.file);
+      if (this._coldDirty) {
+        const cold = {
+          firstSeen: this.firstSeen || {},
+          heatHist: this.heatHist || {},
+          heatSeen: this.heatSeen || {},
+          enrichCache: this.enrichCache || {}
+        };
+        const ctmp = `${this.file}.cold.tmp`;
+        fs.writeFileSync(ctmp, JSON.stringify(cold));
+        fs.renameSync(ctmp, `${this.file}.cold`);
+        this._coldDirty = false;
+      }
     } catch (err) {
       try { fs.unlinkSync(tmp); } catch {}
       throw err;
@@ -1368,6 +1390,16 @@ export class FeedStore {
           this.commentsByItem.set(c.itemId, list);
         }
       }
+      // 분리 저장된 찬 데이터(있으면). 반드시 **모든 대입이 끝난 뒤**에 덮는다 —
+      // 처음엔 중간에 넣었다가 뒤의 `this.firstSeen = data.firstSeen`이 도로
+      // 덮어 재시작 생존이 조용히 깨졌다(로컬 검증에서 잡음).
+      try {
+        const cold = JSON.parse(fs.readFileSync(`${this.file}.cold`, "utf8"));
+        if (cold.firstSeen) this.firstSeen = cold.firstSeen;
+        if (cold.heatHist) this.heatHist = cold.heatHist;
+        if (cold.heatSeen) this.heatSeen = cold.heatSeen;
+        if (cold.enrichCache) this.enrichCache = cold.enrichCache;
+      } catch { /* cold 파일이 아직 없으면 그대로 */ }
     } catch (err) {
       // ── 손상된 파일을 조용히 무시하지 않는다 (2026-08-05 전수검사 P0)
       //
