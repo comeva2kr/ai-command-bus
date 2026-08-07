@@ -4006,11 +4006,18 @@ window.addEventListener("popstate", (e)=>{
 //  · **원문 보러가기** — 그 매체로 나간다(기존 "원문에서 계속 읽기" 버튼).
 //  · **원문 보기** — 여기서 제목·발췌만 원문으로 바꾼다. 페이지를 안 떠난다.
 // 제목만 바꾸고 발췌는 번역문 그대로면 반쪽이라 둘 다 바꾼다.
-// 원문 전체 한국어 링크 — **얀덱스 번역 프록시** (2026-08-07 4차 시도 성공).
-// translate.yandex.com/translate?url=...&lang=en-ko → translated.turbopages.org가
-// 기사 본문을 서빙하고 페이지 JS가 한국어로 렌더한다.
-// 한국 IP 실측: 200 · 기사 본문 정상 서빙 · 캡차/지역 차단 없음(구글과 다름).
-// 아래는 앞서 죽음을 확인한 3사 기록이다 — 다시 시도하지 않기 위해 남긴다.
+// 원문 전체 한국어 — 링크형 번역 프록시는 **한국 실사용자 기준 전멸**이다.
+// 다시 시도하지 않도록 사망 기록을 남긴다(전부 2026-08-07 실측):
+//   구글 translate.goog — 지역 차단("isn't available in your region", 실기기)
+//   파파고 website 딥링크 — 파라미터 버리고 메인 번역기로 리다이렉트(폐지)
+//   Kagi — "무료 서비스가 일시적으로 중단"
+//   카카오 i 번역 — 접속 불가(000)
+//   얀덱스 turbopages — VM(데이터센터)에선 200이지만 **주거용 통신사에서
+//     ERR_CONNECTION_REFUSED**(SNI 차단, 실기기 확정). 서버 실측이 통과해도
+//     실사용자 회선과 다를 수 있다는 교훈까지 포함해 남긴다.
+// 남은 후보는 네이버 앱 인앱브라우저(파파고 번역 내장) 딥링크뿐이다 —
+// naversearchapp:// 스킴, 모바일에서만 노출. 이것도 실기기 확인 대상.
+// 우리 서버가 전문을 번역·중계하는 것은 저작권·광고심사 방어선 붕괴라 불가.
 // 링크형 페이지 번역 3사를 전부 시험했고 전부 죽어 있다:
 //   구글 translate.goog  — 한국 지역 차단("isn't available in your region", David 실기기)
 //   파파고 website 딥링크 — 파라미터를 버리고 메인 번역기로 리다이렉트(폐지)
@@ -4244,7 +4251,7 @@ async function renderDetail(itemId){
            두 개"). 이 버튼의 실제 목적은 **우리는 발췌만 싣는다**는 것이고,
            그건 바로 아래 고지문이 이미 하는 말이다. 매체 이름으로 부른다. -->
       <a class="readmore" href="${item.url}" target="_blank" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 전체 글 보기 →</a>
-      ${item.translated && item.url ? `<a class="readmore readmore-alt" href="https://translate.yandex.com/translate?url=${encodeURIComponent(item.url)}&lang=${encodeURIComponent((item.originalLang||"en"))}-ko" target="_blank" rel="noopener">원문 전체를 한국어로 보기 →</a>
+      ${item.translated && item.url ? `${/Android|iPhone|iPad/i.test(navigator.userAgent) ? `<a class="readmore readmore-alt" href="naversearchapp://inappbrowser?url=${encodeURIComponent(item.url)}&target=new&version=6">네이버 앱으로 한국어 번역 보기 →</a>` : ""}
       <div class="trans-hint">${browserTransHint()}</div>` : ""}
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
     `:""}
