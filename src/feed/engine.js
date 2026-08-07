@@ -1049,8 +1049,14 @@ export class FeedEngine {
       // 거르는 것과 같은 이유). 점수순으로 다시 내보내고 seen은 다시 찍지
       // 않는다.
       if (!base.length) {
-        const recycled = items.filter(passesGates)
-          .sort((a, b) => (b.hotScorePrev || 0) - (a.hotScorePrev || 0));
+        // 다양성 배치를 반드시 태운다. 처음엔 점수순 그대로 내보냈더니
+        // 글 많은 소스(뽐뿌 70여 건)가 통째로 쏟아졌다(David 실측:
+        // "싹다 뽐뿌만 나와"). diversify가 홈과 같은 소스 연속 제한을 건다.
+        const recycled = diversify(
+          items.filter(passesGates)
+            .sort((a, b) => (b.hotScorePrev || 0) - (a.hotScorePrev || 0))
+            .map((i) => ({ item: i, score: i.hotScorePrev || 0 }))
+        ).map((r) => r.item);
         const page = recycled.slice(cursor, cursor + limit);
         return {
           items: page.map((i) => this._decorate(i, 0, user)),
@@ -2110,7 +2116,12 @@ export class FeedEngine {
 
   async getItem(userId, itemId) {
     const items = await this._items();
-    const item = items.find((i) => i.id === itemId);
+    // 상한 목록에 없으면 **누적 풀(48h)에서 찾는다.** 피드가 내놓은 글이
+    // 다음 수집 사이클의 소스별 상한 재편성에서 빠질 수 있다 — 그러면 방금
+    // 누른 글인데 "이 글은 지금 목록에 없어요"가 떴다(David 2026-08-07,
+    // Alphabet 기사 실측: 풀 8,403 vs 상한 1,973). 풀에는 그대로 있다.
+    const pooled = this._pool && this._pool.get(itemId);
+    const item = items.find((i) => i.id === itemId) || (pooled && pooled.item) || null;
     if (!item) return null;
     const user = this.store.getUser(userId);
     const showTopics = new Set((user && user.showTopics) || []);
