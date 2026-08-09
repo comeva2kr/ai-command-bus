@@ -5,7 +5,7 @@
 // survives restarts. No external database required — this keeps the project's
 // zero-dependency posture while still being real enough to demo end to end.
 
-import { emptyBucket, applyEvent } from "./analytics.js";
+import { emptyBucket, applyEvent, bumpDeviceInfo } from "./analytics.js";
 import { emptyCostBucket, recordCall } from "./costs.js";
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -311,12 +311,81 @@ export class FeedStore {
     if (kind === "page") t.pv += 1;
     else if (kind === "feed") t.feed += 1;
     if (userId && !t.uids.includes(userId) && t.uids.length < 100000) t.uids.push(userId);
-    // 90일 이전 버킷은 정리 (무한 성장 방지)
-    const keys = Object.keys(this.traffic);
-    if (keys.length > 90) {
-      for (const k of keys.sort().slice(0, keys.length - 90)) delete this.traffic[k];
-    }
+    this._pruneTraffic();
     this._persistSoon();
+  }
+
+  // ── 사람 판정 — 그날 마킹 (Phase 1, 2026-08-09) ─────────────────────────
+  // src/feed/audience.js의 QUALIFYING_SIGNAL_TYPES(open·rate·save·comment·
+  // survey)이 발생했을 때만 호출된다 — server.js 각 라우트가 UA 관문
+  // (봇이면 호출 자체를 안 함)을 먼저 통과시킨 뒤 부른다.
+  //
+  // trafficStats의 "평생 흔적 소급 engaged"와는 다른 축이다. engaged는
+  // "그날 방문자 중 지금까지 흔적이 있는 계정"(다른 날의 흔적도 인정)이고,
+  // 이건 **그날 자체에** qualifying 신호가 있었는지만 본다 — 재방문해서
+  // 읽기만 하고 아무것도 클릭하지 않은 진짜 사람은 그날 0으로 잡힌다(과소,
+  // 정직하게 명시). 두 수치가 같은 날 다르게 나오는 것은 버그가 아니다.
+  markHumanDay(userId) {
+    if (!userId) return;
+    if (!this.traffic) this.traffic = {};
+    const day = this._trafficDay(new Date(this._nowMs()));
+    if (!this.traffic[day]) this.traffic[day] = { pv: 0, feed: 0, uids: [] };
+    const t = this.traffic[day];
+    if (!t.humanUids) t.humanUids = [];
+    if (!t.humanUids.includes(userId) && t.humanUids.length < 100000) t.humanUids.push(userId);
+    // hoursHuman — "사람 활동 시간대"다. **방문 시각이 아니라 qualifying
+    // 신호가 찍힌 시각**이다(David/검수 지적) — 몰입해서 한참 읽다 뒤늦게
+    // open이 기록되면 그 늦은 시각이 여기 잡힌다.
+    if (!t.hoursHuman) t.hoursHuman = new Array(24).fill(0);
+    const kstHour = new Date(this._nowMs() + 9 * 3600 * 1000).getUTCHours();
+    t.hoursHuman[kstHour] = (t.hoursHuman[kstHour] || 0) + 1;
+    this._pruneTraffic();
+    this._persistSoon();
+  }
+
+  // 전체 유입 시간대(hoursHuman과 짝인 "전체" 축) — KST, recordTraffic과
+  // 같은 날짜 기준. store.recordEvents가 "view"+entry 이벤트(그 화면에 처음
+  // 도착)마다 부른다 — 홈 앱과 발행 페이지(브리핑·랭킹 등, 검색 유입
+  // 착지점)가 같은 Track 파이프라인을 타므로 이 한 곳이 둘 다 덮는다.
+  recordTrafficHour() {
+    if (!this.traffic) this.traffic = {};
+    const day = this._trafficDay(new Date(this._nowMs()));
+    if (!this.traffic[day]) this.traffic[day] = { pv: 0, feed: 0, uids: [] };
+    const t = this.traffic[day];
+    if (!t.hours) t.hours = new Array(24).fill(0);
+    const kstHour = new Date(this._nowMs() + 9 * 3600 * 1000).getUTCHours();
+    t.hours[kstHour] = (t.hours[kstHour] || 0) + 1;
+    this._persistSoon();
+  }
+
+  // 90일 초과 traffic 버킷을 지우기 전에 스칼라 요약만 접어 400일 아카이브에
+  // 남긴다(적대적 검수 REVISE #5 — "며칠에 몇 명"이 David 지시의 핵심인데
+  // 90일 절벽에서 그냥 사라지고 있었다). humanUids가 아직 없던 과거 버킷은
+  // humanCount 0으로 접힌다 — "그날 사람이 0명"이 아니라 "그 시절엔 이
+  // 필드가 없었다"는 뜻이므로 화면에 구분해 보여줘야 한다(다음 단계).
+  _pruneTraffic() {
+    if (!this.traffic) return;
+    const keys = Object.keys(this.traffic);
+    if (keys.length <= 90) return;
+    this.trafficArchive = this.trafficArchive || {};
+    for (const k of keys.sort().slice(0, keys.length - 90)) {
+      const t = this.traffic[k] || {};
+      this.trafficArchive[k] = {
+        date: k,
+        visitors: (t.uids || []).length,
+        humanCount: (t.humanUids || []).length,
+        pv: t.pv || 0,
+        // 시간대도 접어 남긴다(검수 라운드2 — 장기 시간대 추세는 소급 불가라
+        // 지금 안 접으면 영영 없다). 24칸 정수라 아카이브 비용은 미미하다.
+        hours: Array.isArray(t.hours) ? t.hours.slice() : null,
+        hoursHuman: Array.isArray(t.hoursHuman) ? t.hoursHuman.slice() : null
+      };
+      delete this.traffic[k];
+    }
+    const archiveKeys = Object.keys(this.trafficArchive);
+    if (archiveKeys.length > 400) {
+      for (const k of archiveKeys.sort().slice(0, archiveKeys.length - 400)) delete this.trafficArchive[k];
+    }
   }
 
   trafficStats(days = 14) {
@@ -342,7 +411,14 @@ export class FeedStore {
         if (activeSig || (u.feedbackCount || 0) > 0 || u.surveyed ||
             (u.saved || []).length > 0 || (u.opened || []).length > 0) engaged += 1;
       }
-      out.push({ date: day, pv: t[day].pv, feed: t[day].feed, visitors: t[day].uids.length, engaged });
+      // human = markHumanDay가 **그날** 실제로 마킹한 수 — 이행기 동안은
+      // humanUids가 없는(이 필드 도입 이전) 날짜만 engaged로 소급 폴백한다.
+      // humanUids가 있는 날은 빈 배열이라도 그대로 쓴다(0명이 사람이 없었단
+      // 뜻이지 미계측이 아니다) — Boolean 체크가 아니라 존재 여부로 가른다.
+      const human = Object.prototype.hasOwnProperty.call(t[day], "humanUids")
+        ? t[day].humanUids.length
+        : engaged;
+      out.push({ date: day, pv: t[day].pv, feed: t[day].feed, visitors: t[day].uids.length, engaged, human });
     }
     return out;
   }
@@ -460,6 +536,14 @@ export class FeedStore {
     let n = 0;
     for (const ev of events.slice(0, 50)) { // 한 요청이 버킷을 통째로 흔들지 못하게
       if (applyEvent(b, ev, ctx)) n++;
+      // "view"+entry = 그 화면에 처음 도착 — 전체 유입 시간대는 여기서 함께
+      // 센다(traffic[day].hours, markHumanDay의 hoursHuman과 짝인 "전체"
+      // 축). 기기·OS·브라우저는 applyEvent 내부에서 같은 이벤트로 이미
+      // 반영된다(analytics.js bumpDeviceInfo) — 홈 앱·발행 페이지가 같은
+      // Track 파이프라인을 타므로 이 한 곳이 두 표면을 다 덮는다.
+      if (ev && ev.type === "view" && ev.entry) {
+        try { this.recordTrafficHour(); } catch {}
+      }
     }
     if (ctx.userId) {
       if (!b.uids.includes(ctx.userId) && b.uids.length < 100000) b.uids.push(ctx.userId);
@@ -472,8 +556,34 @@ export class FeedStore {
       }
     }
     this._pruneBuckets("analytics", 400);
+    this._rollupOldAnalyticsUids();
     this._persistSoon();
     return n;
+  }
+
+  // analytics는 400일 보존이지만 uids 리스트가 하루 방문자 규모에 비례해
+  // 계속 자란다(uid 1건 ~30B 실측) — 60일 지난 버킷은 리스트를 세어서
+  // 개수(uidCount/newUidCount)로만 접는다(2026-08-07 핫 파일 TTFB 장애
+  // 전례 재발 방지, 적대적 검수 REVISE #5). analytics.js의 mergeBuckets가
+  // 이 카운트를 유니크 집합과 별도로 더하므로, 주/월 유니크는 최근 60일
+  // 창까지만 정확하고 그 밖은 근사치다(같은 사람이 여러 날 왔다면 중복
+  // 카운트될 수 있음 — 화면에 명시할 항목, 다음 단계).
+  _rollupOldAnalyticsUids(keepFullDays = 60) {
+    if (!this.analytics) return;
+    const keys = Object.keys(this.analytics).sort();
+    if (keys.length <= keepFullDays) return;
+    for (const k of keys.slice(0, keys.length - keepFullDays)) {
+      const b = this.analytics[k];
+      if (!b) continue;
+      if (Array.isArray(b.uids) && b.uids.length && b.uidCount == null) {
+        b.uidCount = b.uids.length;
+        b.uids = [];
+      }
+      if (Array.isArray(b.newUids) && b.newUids.length && b.newUidCount == null) {
+        b.newUidCount = b.newUids.length;
+        b.newUids = [];
+      }
+    }
   }
 
   // 세션 발급 때 신원 경로를 남긴다(server.js /api/session).
@@ -1390,6 +1500,9 @@ export class FeedStore {
       adSlotStats: this.adSlotStats || {},
       visitorMap: this.visitorMap || {},
       traffic: this.traffic || {}, // 일별 방문 실측 — 재시작에도 유지 (2026-08-01)
+      // 90일 초과 traffic 버킷을 지우기 전에 접어 두는 400일 스칼라
+      // 아카이브(Phase 1, 2026-08-09) — {date,visitors,humanCount,pv}.
+      trafficArchive: this.trafficArchive || {},
       // 일별 에디션(브리핑+화제랭킹 스냅샷) — 자체 콘텐츠 아카이브의 원천이라
       // 재시작에도 반드시 유지 (애드핏 대응, David 2026-07-31)
       dailyEditions: [...(this.dailyEditions || new Map())].map(([date, e]) => ({ date, ...e })),
@@ -1463,6 +1576,7 @@ export class FeedStore {
       this.adSlotStats = data.adSlotStats || {};
       this.visitorMap = data.visitorMap || {};
       this.traffic = data.traffic || {};
+      this.trafficArchive = data.trafficArchive || {};
       this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
       this.sourceHealth = data.sourceHealth || {};
       this.briefings = data.briefings || {};

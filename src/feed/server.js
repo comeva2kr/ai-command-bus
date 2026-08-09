@@ -46,6 +46,7 @@ import { makeInterestsCache } from "./interest.js";
 import { readWiredStatus, CANDIDATE_NETWORKS, REFERENCE_ADSTXT, splitMeasured, ctr, MEASURE_CAVEATS } from "./ad-networks.js";
 import { makeTrendsCache } from "./trends.js";
 import { destForText } from "./deals.js";
+import { classify as classifyAudience } from "./audience.js";
 
 // 상품군 사전을 걸지 않는 분류. engine.js의 AD_MATCH_OFF와 같은 원칙이다 —
 // 사건·시사 글 옆에 "문맥이 맞아 보이는" 광고가 붙으면 무관한 광고보다 나쁘다.
@@ -897,7 +898,9 @@ export function createServer(opts = {}) {
   const AD_SIGNAL_PER_MIN = 120;
   const adSignalHits = new Map();   // ip -> { minute, n }
   const adSignalAllowed = (req) => {
-    const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
+    // XFF 마지막 토큰 — makeIpRateLimiter와 같은 이유(첫 토큰은 위조 자유).
+    const xffA = String(req.headers["x-forwarded-for"] || "").split(",");
+    const ip = (xffA[xffA.length - 1] || "").trim() ||
       (req.socket && req.socket.remoteAddress) || "?";
     const minute = Math.floor(Date.now() / 60000);
     const cur = adSignalHits.get(ip);
@@ -910,6 +913,41 @@ export function createServer(opts = {}) {
     cur.n += 1;
     return cur.n <= AD_SIGNAL_PER_MIN;
   };
+
+  // 같은 골격을 재사용한 IP 분당 상한 (Phase 1, 2026-08-09 — 관리자 분석
+  // 재설계 적대적 검수 REVISE #3·#4). adSignalAllowed와 상태를 공유하지
+  // 않는다 — 예산이 다른 자리(설문/이력 생성 vs 행동 이벤트 배치)라 서로의
+  // 트래픽에 영향을 주면 안 된다.
+  const makeIpRateLimiter = (perMin) => {
+    const hits = new Map(); // ip -> { minute, n }
+    return (req) => {
+      // XFF는 **마지막** 토큰을 쓴다 — 우리 앞단 Caddy가 실제 접속 IP를 뒤에
+      // 붙이므로 마지막이 신뢰값이고, 첫 토큰은 클라이언트가 마음대로 미리
+      // 붙일 수 있어 요청마다 바꾸면 상한이 무력화된다(검수 2026-08-09 P1).
+      const xff = String(req.headers["x-forwarded-for"] || "").split(",");
+      const ip = (xff[xff.length - 1] || "").trim() ||
+        (req.socket && req.socket.remoteAddress) || "?";
+      const minute = Math.floor(Date.now() / 60000);
+      const cur = hits.get(ip);
+      if (!cur || cur.minute !== minute) {
+        if (hits.size > 5000) hits.clear();
+        hits.set(ip, { minute, n: 1 });
+        return true;
+      }
+      cur.n += 1;
+      return cur.n <= perMin;
+    };
+  };
+  // /api/survey·/api/history — 무인증 createUser+저장을 매 요청 반복할 수
+  // 있는 자리라, 사람이 낼 수 없는 빈도만 자른다(정상 온보딩은 세션당 1회).
+  const surveyOrHistoryAllowed = makeIpRateLimiter(20);
+  // /api/track — sendBeacon 배치라 ad-signal과 같은 예산을 쓴다(한 화면
+  // 체류 동안 view/click/exit 몇 건이 뭉쳐서 온다).
+  const trackAllowed = makeIpRateLimiter(AD_SIGNAL_PER_MIN);
+  // /api/session — uid 대량 발급이 "사람" 지표 부풀리기의 출발점이라(검수
+  // P1) 사람이 낼 수 없는 빈도만 자른다. 정상 사용은 브라우저당 방문 시
+  // 1회 수준이고, 통신사 공유 IP(CGNAT)를 고려해 넉넉히 둔다.
+  const sessionAllowed = makeIpRateLimiter(60);
 
   const coupangBannerHtml = (category, size = null, pick = 0, slot = "page", dest = null, seen = null) => {
     const b = pickBanner({ category, dest, size, pick, seen: seen || new Set() });
@@ -2252,6 +2290,9 @@ ${rankingRows(list, (above) => {
         if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         const saved = store.toggleSave(body.userId, body.itemId, body.on);
+        // 저장 버튼은 클릭 게이트가 확실한 qualifying 신호다 (src/feed/audience.js).
+        // 봇 UA는 신호가 있어도 사람이 아니다 — UA 관문이 먼저다.
+        if (classifyAudience(req) === "observed") { try { store.markHumanDay(body.userId); } catch {} }
         return send(res, 200, { ok: true, saved });
       }
 
@@ -2310,6 +2351,7 @@ ${rankingRows(list, (above) => {
       }
 
       if (p === "/api/session" && req.method === "POST") {
+        if (!sessionAllowed(req)) return send(res, 429, { error: "too many sessions" });
         const body = await readBody(req);
         // 신원 확정은 GA4 blended identity와 같은 순서다 (auth.js resolveIdentity):
         // 로그인 세션 > 기기 쿠키 > localStorage > 신규.
@@ -2488,16 +2530,34 @@ ${rankingRows(list, (above) => {
       if (p === "/api/survey" && req.method === "POST") {
         const body = await readBody(req);
         if (denied(body.userId)) return;
+        // 가짜 사람 구멍 봉쇄(적대적 검수 P0급, 2026-08-09): denied()가 이미
+        // "존재하는 계정"을 요구하지만, 방어를 한 겹만 믿지 않는다 — 무인증
+        // /api/session이 IP 상한 없이 uid를 계속 찍어낼 수 있어, "막 만든
+        // uid로 곧장 설문 제출"이 여전히 싸다. IP 분당 상한(adSignalAllowed
+        // 골격 재사용)을 먼저 건다.
+        if (!surveyOrHistoryAllowed(req)) return send(res, 429, { error: "too many" });
         const { ok, errors } = validateAnswers(body.answers);
         if (!ok) return send(res, 400, { error: "invalid survey", details: errors });
+        // 이 요청이 오기 **전에** 이미 있던 계정인지 — 방금 이 요청으로 막
+        // 생긴 계정(성립은 안 되지만 방어적으로 다시 확인)은 사람으로 세지
+        // 않는다. 설문 저장 자체는 그대로 성공시킨다.
+        const existedBefore = Boolean(store.getUser(body.userId));
         store.createUser(body.userId);
         store.saveSurvey(body.userId, body.answers);
+        if (existedBefore && classifyAudience(req) === "observed") {
+          try { store.markHumanDay(body.userId); } catch {}
+        }
         return send(res, 200, { ok: true });
       }
 
       if (p === "/api/history" && req.method === "POST") {
         const body = await readBody(req);
         if (denied(body.userId)) return;
+        // 같은 상한 — /api/history도 무인증 createUser+쓰기 경로다. 이력
+        // 가져오기는 qualifying 신호가 아니므로(스스로 클릭한 게 아니라
+        // 클라이언트가 로컬 방문기록을 그대로 보낸 것) markHumanDay는 애초에
+        // 걸지 않는다.
+        if (!surveyOrHistoryAllowed(req)) return send(res, 429, { error: "too many" });
         store.createUser(body.userId);
         if (!Array.isArray(body.entries)) return send(res, 400, { error: "entries must be an array" });
         const result = store.applyHistory(body.userId, body.entries.slice(0, 500));
@@ -2584,6 +2644,13 @@ ${rankingRows(list, (above) => {
           type: body.type,
           dwellMs: Number(body.dwellMs || 0)
         });
+        // qualifying 신호 중 "open"만 사람 증거로 친다(src/feed/audience.js).
+        // dwell·complete는 몰입 모드가 스크롤만으로 자동 발화하는 것과 서버가
+        // 구분할 수 없어 제외했다(적대적 검수 2026-08-09 라운드2) — skip도
+        // 원래부터 제외.
+        if (body.type === "open" && classifyAudience(req) === "observed") {
+          try { store.markHumanDay(body.userId); } catch {}
+        }
         return send(res, 200, result);
       }
 
@@ -2626,6 +2693,10 @@ ${rankingRows(list, (above) => {
       // 기다리지 않는다 — 204로 즉시 닫는다. 인증은 걸지 않는다: 익명 방문자의
       // 유입 경로가 우리가 가장 알고 싶은 것이고, userId가 없어도 집계는 된다.
       if (p === "/api/track" && req.method === "POST") {
+        // 무인증 배치 수집 자리라 임의 이벤트를 밀어 넣으면 analytics 버킷이
+        // 부풀 수 있다(ad-signal이 이미 겪은 것과 같은 구조) — 같은 골격의
+        // IP 분당 상한을 건다(적대적 검수 REVISE #4).
+        if (!trackAllowed(req)) return send(res, 429, { error: "too many" });
         let body = null;
         try { body = await readBody(req); } catch { body = null; }
         const events = body && Array.isArray(body.events) ? body.events : null;
@@ -2633,7 +2704,12 @@ ${rankingRows(list, (above) => {
         try {
           store.recordEvents(events, {
             userId: body.userId && store.getUser(body.userId) ? body.userId : null,
-            selfHost: (req.headers.host || "").split(":")[0].toLowerCase()
+            selfHost: (req.headers.host || "").split(":")[0].toLowerCase(),
+            // "view"+entry 이벤트(그 화면에 처음 도착)에서 시간대·기기를
+            // 함께 센다. 홈 앱과 발행 페이지(브리핑·랭킹 등)가 같은 Track
+            // 파이프라인을 쓰므로 이 한 곳이 두 표면을 다 덮는다 — 검색
+            // 유입 착지점만 UA 관문이 빠지던 문제(검수 지적)의 해법.
+            ua: req.headers["user-agent"] || null
           });
         } catch {}
         res.writeHead(204);
@@ -2648,6 +2724,8 @@ ${rankingRows(list, (above) => {
         // 취향 벡터가 한 번에 오염된다(적대적 검수 P1-c, API 페르소나 실측).
         if (![1, 0, -1].includes(body.signal)) return send(res, 400, { error: "signal must be 1, 0, or -1" });
         const result = await engine.rate(body.userId, body.itemId, body.signal);
+        // 평가 버튼 클릭 — qualifying 신호(src/feed/audience.js).
+        if (classifyAudience(req) === "observed") { try { store.markHumanDay(body.userId); } catch {} }
         return send(res, 200, result);
       }
 
@@ -2657,6 +2735,9 @@ ${rankingRows(list, (above) => {
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
         try {
           const comment = store.addComment(body.userId, body.itemId, body.body);
+          // 댓글 작성 — qualifying 신호. 규칙 위반으로 실패한 시도는 아래
+          // catch로 빠지므로 성공한 경우만 여기서 마킹된다.
+          if (classifyAudience(req) === "observed") { try { store.markHumanDay(body.userId); } catch {} }
           return send(res, 200, comment);
         } catch (err) {
           const status = err.rule && err.rule.rateLimited ? 429 : 400;

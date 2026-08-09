@@ -23,6 +23,8 @@
 
 // 유입 출처를 사람이 읽는 이름으로. 도메인을 그대로 두면 m.search.naver.com과
 // search.naver.com이 따로 세어져서 정작 "네이버에서 얼마나 오나"를 알 수 없다.
+import { isBotUserAgent } from "./audience.js";
+
 const REF_GROUPS = [
   [/(^|\.)naver\.com$/, "네이버"],
   [/(^|\.)google\.[a-z.]+$/, "구글"],
@@ -85,8 +87,61 @@ export function emptyBucket() {
     // 이게 없으면 "쿠키 복구가 실제로 되고 있나"를 영영 확인할 수 없다.
     identity: {},
     clicks: { total: 0, bySource: {}, byCategory: {}, byRank: {} },
-    ads: { imp: 0, click: 0, bySlot: {}, byVariant: {} }
+    ads: { imp: 0, click: 0, bySlot: {}, byVariant: {} },
+    // 기기·OS·브라우저 — 원시 UA는 저장하지 않고 enum 카운트만 남긴다
+    // (Phase 1, 2026-08-09). applyEvent가 "view"+entry(그 화면에 처음
+    // 도착) 이벤트마다 채운다 — 홈 앱과 발행 페이지(브리핑·랭킹 등)가 같은
+    // Track 파이프라인을 타므로 이 한 곳이 두 표면을 다 덮는다.
+    device: { mobile: 0, tablet: 0, desktop: 0, unknown: 0 },
+    os: {},
+    browser: {}
   };
+}
+
+// 기기·OS·브라우저 판정 — 자작 정규식(의존성 0 유지). 우선순위가 중요하다:
+// 카카오톡·네이버 인앱 브라우저·삼성 인터넷·엣지는 UA에 "Chrome/..."도 함께
+// 들어 있어서, 이들을 먼저 걸러내지 않으면 전부 "chrome"으로 뭉친다.
+export function parseUserAgent(ua) {
+  const s = typeof ua === "string" ? ua : "";
+
+  let device = "unknown";
+  if (s) {
+    // SM-X는 갤럭시 탭 신형 모델명(검수: desktop으로 새고 있었다).
+    if (/iPad|Tablet(?!.*Mobile)|SM-[TX]\d|Nexus (7|9|10)/i.test(s)) device = "tablet";
+    else if (/Mobi|Android.*Mobile|iPhone|iPod/i.test(s)) device = "mobile";
+    else device = "desktop";
+  }
+
+  let os = "other";
+  if (/iPhone|iPad|iPod|iOS/i.test(s)) os = "iOS";
+  else if (/Android/i.test(s)) os = "Android";
+  else if (/Windows/i.test(s)) os = "Windows";
+  else if (/Macintosh|Mac OS X/i.test(s)) os = "macOS";
+
+  let browser = "other";
+  if (/KAKAOTALK/i.test(s)) browser = "kakao_webview";
+  else if (/NAVER\(/i.test(s)) browser = "naver_webview";
+  else if (/SamsungBrowser/i.test(s)) browser = "samsung";
+  // 웨일은 UA에 Chrome 토큰을 같이 실으므로 Chrome보다 먼저 본다
+  // (검수: 국내 점유 있는 국산 브라우저가 chrome으로 흡수되고 있었다).
+  else if (/Whale\//i.test(s)) browser = "whale";
+  else if (/Edg(A|iOS)?\//i.test(s)) browser = "edge";
+  else if (/Chrome|CriOS/i.test(s)) browser = "chrome";
+  else if (/Safari/i.test(s)) browser = "safari";
+
+  return { device, os, browser };
+}
+
+// bucket에 UA 판정 결과를 1건 더한다. 세션·방문당 1회 호출을 전제한다
+// (store.recordDeviceInfo).
+export function bumpDeviceInfo(bucket, ua) {
+  const { device, os, browser } = parseUserAgent(ua);
+  bucket.device = bucket.device || { mobile: 0, tablet: 0, desktop: 0, unknown: 0 };
+  bucket.os = bucket.os || {};
+  bucket.browser = bucket.browser || {};
+  bucket.device[device] = (bucket.device[device] || 0) + 1;
+  bucket.os[os] = (bucket.os[os] || 0) + 1;
+  bucket.browser[browser] = (bucket.browser[browser] || 0) + 1;
 }
 
 // 키 폭발 방지 — 한 버킷의 한 축에 이만큼 넘게 쌓이면 새 키는 "기타"로 접는다.
@@ -113,6 +168,13 @@ export function applyEvent(bucket, ev = {}, ctx = {}) {
         const ck = campaignKey(ev.params);
         if (ck) bump(b.camp, ck);
         bump(b.entry, viewLabel(ev.path));
+        // 기기·OS·브라우저 — 그 화면에 처음 도착한 요청(entry)에서만 1회
+        // 센다. ctx.ua는 server.js가 이 요청의 User-Agent 헤더를 그대로
+        // 넘긴 것 — 원시 문자열은 여기서 곧장 enum으로 바뀌고 저장되지
+        // 않는다(parseUserAgent/bumpDeviceInfo 참고).
+        // 알려진 봇 UA는 기기 분포에서 뺀다(audience.js와 같은 관문 —
+        // 검수: Googlebot 모바일 렌더러가 mobile/chrome으로 섞이고 있었다).
+        if (ctx.ua && !isBotUserAgent(ctx.ua)) bumpDeviceInfo(b, ctx.ua);
       }
       break;
     }
@@ -177,9 +239,19 @@ function mergeAdMap(into, from) {
 }
 
 // 여러 일 버킷을 하나로. 유니크 방문자만 합집합이고 나머지는 덧셈이다.
+//
+// **additive 확장 원칙**: 새 필드를 추가할 때는 여기서도 반드시 합산해야
+// 한다 — 안 하면 그 필드만 조용히 0으로 그려진다(발견이 늦다, 검수 지적).
+// mergeCounts는 from이 undefined여도 안전하므로 신규 필드가 없는 구버킷과
+// 섞여도 죽지 않는다.
 export function mergeBuckets(list) {
   const out = emptyBucket();
   const uids = new Set(), news = new Set();
+  // uidCount/newUidCount — 60일 초과 버킷은 uids 리스트 대신 개수만 남는다
+  // (store._rollupOldAnalyticsUids, 핫 파일 비대 방지). 그 몫은 유니크
+  // 집합에 합류할 수 없으니 근사치로 더한다 — 그 구간의 주/월 유니크는
+  // 정확하지 않을 수 있다(같은 사람이 여러 날 왔다면 중복 카운트).
+  let uidCount = 0, newUidCount = 0;
   for (const b of list) {
     if (!b) continue;
     out.pv += b.pv || 0; out.feed += b.feed || 0; out.sessions += b.sessions || 0;
@@ -187,6 +259,8 @@ export function mergeBuckets(list) {
     out.depth += b.depth || 0; out.depthN += b.depthN || 0;
     for (const u of b.uids || []) uids.add(u);
     for (const u of b.newUids || []) news.add(u);
+    uidCount += b.uidCount || 0;
+    newUidCount += b.newUidCount || 0;
     mergeCounts(out.ref, b.ref); mergeCounts(out.camp, b.camp);
     mergeCounts(out.entry, b.entry); mergeCounts(out.exit, b.exit);
     mergeCounts(out.identity, b.identity);
@@ -198,9 +272,14 @@ export function mergeBuckets(list) {
     out.ads.click += (b.ads && b.ads.click) || 0;
     mergeAdMap(out.ads.bySlot, b.ads && b.ads.bySlot);
     mergeAdMap(out.ads.byVariant, b.ads && b.ads.byVariant);
+    mergeCounts(out.device, b.device);
+    mergeCounts(out.os, b.os);
+    mergeCounts(out.browser, b.browser);
   }
   out.uids = [...uids];
   out.newUids = [...news];
+  if (uidCount) out.uidCount = uidCount;
+  if (newUidCount) out.newUidCount = newUidCount;
   return out;
 }
 
@@ -223,22 +302,28 @@ function adRows(map, n = 20) {
 // 한 기간의 요약. 평균에는 반드시 표본 수를 붙인다.
 export function summarize(bucket, { key, label } = {}) {
   const b = bucket;
+  // 60일 초과분(uidCount)이 섞인 기간은 유니크 집합에 못 들어간 근사치가
+  // 함께 더해진다 — 정확한 유니크는 최근 60일 창까지만 보장된다(위
+  // mergeBuckets 주석 참고).
+  const visitors = b.uids.length + (b.uidCount || 0);
+  const newVisitors = b.newUids.length + (b.newUidCount || 0);
   return {
     key, label,
-    visitors: b.uids.length,
-    newVisitors: b.newUids.length,
-    returning: Math.max(0, b.uids.length - b.newUids.length),
+    visitors,
+    newVisitors,
+    returning: Math.max(0, visitors - newVisitors),
+    uidsApproximate: Boolean(b.uidCount || b.newUidCount),
     pv: b.pv,
     sessions: b.sessions,
     feedCalls: b.feed,
-    pvPerVisitor: b.uids.length ? Math.round((b.pv / b.uids.length) * 10) / 10 : null,
+    pvPerVisitor: visitors ? Math.round((b.pv / visitors) * 10) / 10 : null,
     // 표본이 없으면 null. 0을 내보내면 "0초 머물렀다"로 읽힌다.
     avgDwellSec: b.dwellN ? Math.round(b.dwellMs / b.dwellN / 1000) : null,
     dwellSamples: b.dwellN,
     avgDepth: b.depthN ? Math.round((b.depth / b.depthN) * 10) / 10 : null,
     depthSamples: b.depthN,
     contentClicks: b.clicks.total,
-    clickPerVisitor: b.uids.length ? Math.round((b.clicks.total / b.uids.length) * 10) / 10 : null,
+    clickPerVisitor: visitors ? Math.round((b.clicks.total / visitors) * 10) / 10 : null,
     adImpressions: b.ads.imp,
     adClicks: b.ads.click,
     adCtr: b.ads.imp ? b.ads.click / b.ads.imp : null,
@@ -254,7 +339,12 @@ export function summarize(bucket, { key, label } = {}) {
     clickCategories: topN(b.clicks.byCategory, 10),
     clickRanks: topN(b.clicks.byRank, 10),
     adSlots: adRows(b.ads.bySlot),
-    adVariants: adRows(b.ads.byVariant)
+    adVariants: adRows(b.ads.byVariant),
+    // 기기·OS·브라우저 — 관리자 화면 개편(다음 단계)이 그리기 전까지는
+    // 조회 API 응답에만 실린다.
+    devices: { ...(b.device || {}) },
+    osBreakdown: topN(b.os, 10),
+    browsers: topN(b.browser, 10)
   };
 }
 

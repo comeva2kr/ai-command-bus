@@ -2489,6 +2489,24 @@ flowchart LR
     테스트 양성 대조 추가. 남긴 과제: Caddy 접속 로그 활성화(UA 소급),
     UA 기반 봇 분리, preflight 유령 사용자 정리 — 관리자 분석 재설계
     워크플로(진행 중)가 포괄.</p>
+    <p><b>관리자 분석 재설계 착수 — 설계·검수 완료, Phase 1 배포</b>
+    (David: "실제 사람만 카운팅. 대형 레퍼런스 관리자 페이지 모방. 수집할 수
+    있는 건 다 수집"): 설계 결론 = Plausible식 단일 화면 + GA4의 실시간·기간
+    비교·시간대 히트맵 차용. 인벤토리에서 유입경로·UTM·진입이탈·체류·신규
+    재방문·카테고리 소비·광고 성과는 <b>이미 수집 중</b>(#22)이고 화면만
+    없음을 확인 — 시간대·기기·지역·PWA·공유만 신규. <b>Phase 1 구현</b>:
+    audience.js 사람 판정 한 벌(internal→봇UA→observed, qualifying=클릭
+    게이트 신호만 — dwell·skip 제외), traffic.humanUids 일별 확정 집계 +
+    90일 prune 전 400일 아카이브 롤업(시간대 포함), analytics uids 60일
+    롤업(핫파일 비대 방지), 시간대 hours[24] + UA 파싱 enum(기기/OS/브라우저,
+    웨일 분리·봇 UA 제외·원시 UA 미저장) — 발행 페이지 유입까지 Track
+    파이프라인 한 곳에서 커버, /api/survey·history·track·session IP 상한
+    (XFF는 마지막 토큰 — 첫 토큰은 위조 자유, 기존 adSignalAllowed도 같이
+    정정). 검수(Fable-low 단일) SHIP + 지적 6건 중 5건 즉시 반영, 1건(429
+    카운터)은 성장 시 과제로 기록. 테스트 971건 통과. <b>성별·연령은 보류
+    권고</b>(로그인 동의/설문 옵션 정리됨, David 결정 대기) — 광고 판매용
+    1차 재고는 취향×시간대×기기 3축. Phase 2 = 관리자 화면 전면 개편
+    (Plausible 골격, 사람 축 KPI·확정일 비교·히트맵 표본 임계).</p>
     <p><b>병렬 완료 — 브리핑 이슈 근접 중복 제거(#38, 서브에이전트)</b>:
     dedupe.js의 확정 어휘 정규식을 재사용한 titleWords/sharedTitleWordCount
     (내용어 4단어 이상 겹침 = 근접 중복, 실측: 변주 간 3~7 vs 무관 쌍 최대 1

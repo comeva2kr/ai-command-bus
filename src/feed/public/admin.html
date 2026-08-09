@@ -518,11 +518,11 @@ function trafficHtml(days){
   if (!Array.isArray(days)) return '<p class="empty">데이터 없음 — 트래픽 API를 불러오지 못했습니다.</p>';
   if (!days.length) return '<p class="empty">데이터 없음 — 아직 집계된 트래픽이 없습니다.</p>';
   const todayKey = new Date(Date.now()+9*3600*1000).toISOString().slice(0,10); // KST
-  const today = days.find(d=>d.date===todayKey) || { pv:0, feed:0, visitors:0, engaged:0 };
+  const today = days.find(d=>d.date===todayKey) || { pv:0, feed:0, visitors:0, engaged:0, human:0 };
   const max = Math.max(1, ...days.map(d=>Math.max(d.pv, d.visitors)));
   const barH = v => Math.max(3, Math.round(v/max*100));
   const cols = days.map(d=>`
-    <div class="bcol" title="${esc(d.date)} · 사람 ${d.engaged??"?"} · 전체 ${d.visitors} · PV ${d.pv} · 피드요청 ${d.feed}">
+    <div class="bcol" title="${esc(d.date)} · 사람 ${d.human??d.engaged??"?"} · 전체 ${d.visitors} · PV ${d.pv} · 피드요청 ${d.feed}">
       <div class="bpair">
         <div class="bar vis${d.visitors?'':' zero'}" style="height:${d.visitors?barH(d.visitors):2}px"></div>
         <div class="bar pv${d.pv?'':' zero'}" style="height:${d.pv?barH(d.pv):2}px"></div>
@@ -531,7 +531,7 @@ function trafficHtml(days){
     </div>`).join("");
   return `
     <div class="stats">
-      <div class="stat big"><b>${today.engaged??"?"}</b><span>오늘 사람 방문자 (${esc(todayKey)})</span></div>
+      <div class="stat big"><b>${today.human??today.engaged??"?"}</b><span>오늘 사람 방문자 (${esc(todayKey)})</span></div>
       <div class="stat big"><b>${today.visitors}</b><span>오늘 전체 (봇·점검 포함)</span></div>
       <div class="stat"><b>${today.pv}</b><span>오늘 페이지뷰</span></div>
       <div class="stat"><b>${today.feed}</b><span>오늘 피드 요청</span></div>
@@ -539,9 +539,11 @@ function trafficHtml(days){
     <div class="row-card">
       <div class="bars">${cols}</div>
       <div class="legend"><span><i style="background:var(--ok)"></i>전체 방문자</span><span><i style="background:var(--accent)"></i>페이지뷰</span></div>
-      <p class="muted" style="margin:6px 0 0;font-size:11.5px">사람 = 열람·체류·평가·설문·저장 같은 <b>능동적 상호작용</b>이 있는 방문자.
-      전체에는 JS를 실행하는 크롤러가 섞인다(배포 점검은 집계에서 제외됨). 한계: 첫 화면만 보고 나간
-      사람은 "사람"에 안 잡히고, 과거 날짜의 사람 수는 그 방문자가 나중에 상호작용하면 소급해 오를 수 있다.</p>
+      <p class="muted" style="margin:6px 0 0;font-size:11.5px">사람 = 그날 <b>클릭 게이트가 확실한</b> 상호작용(열람·평가·저장·댓글·설문)이
+      있었던 방문자(store.markHumanDay, Phase 1). 스크롤만으로 자동 발화하는 skip·dwell·complete는 근거로 안 친다.
+      이 필드가 아직 없던 과거 날짜는 예전 방식(평생 흔적 소급 engaged)으로 대신 표시된다 — 이행기 표시일 뿐 오차가 아니다.
+      전체에는 JS를 실행하는 크롤러가 섞인다(배포 점검은 집계에서 제외됨). 한계: 재방문해서 읽기만 하고
+      아무것도 클릭하지 않은 진짜 사람은 그날 "사람"에 안 잡힌다(과소).</p>
     </div>`;
 }
 
