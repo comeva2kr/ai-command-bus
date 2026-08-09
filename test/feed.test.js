@@ -3228,6 +3228,14 @@ test("트래픽 카운터: 일별 pv/feed/고유방문자를 세고 admin API로
   assert.equal(day.feed, 3);
   assert.equal(day.visitors, 2);
 
+  // engaged = 상호작용 흔적 있는 방문자만 (2026-08-09: 방문자 집계 정직화 —
+  // 전체 266 중 사람 19였던 날이 있었다. 크롤러·점검은 engaged에 못 든다)
+  const su = store.createUser("u1");
+  store.recordSignal(su.id, "itemX", "open");
+  const [day2] = store.trafficStats(1);
+  assert.equal(day2.engaged, 1, "신호 있는 u1만 engaged");
+  assert.equal(day2.visitors, 2, "전체 방문자는 그대로");
+
   // admin 엔드포인트 (토큰 게이트)
   const { createServer } = await import("../src/feed/server.js");
   const prev = process.env.ADMIN_TOKEN;
@@ -3241,6 +3249,24 @@ test("트래픽 카운터: 일별 pv/feed/고유방문자를 세고 admin API로
     assert.equal(ok.status, 200);
     const body = await ok.json();
     assert.ok(Array.isArray(body.days));
+    // 내부 점검 표식(x-nowhot-check)이 붙은 요청은 방문자·PV로 안 센다
+    // (2026-08-09: 배포 preflight가 방문자 94명으로 잡혔던 날의 재발 방지)
+    const s = await fetch(`${base}/api/session`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}"
+    }).then((r) => r.json());
+    await fetch(`${base}/api/feed?userId=${s.userId}&limit=5`, { headers: { "x-nowhot-check": "1" } });
+    await fetch(`${base}/`, { headers: { "x-nowhot-check": "1" } });
+    const after = await fetch(`${base}/api/admin/traffic`, { headers: { "x-admin-token": "t0k" } }).then((r) => r.json());
+    const todayRow = after.days.at(-1) || { visitors: 0, pv: 0 };
+    assert.equal(todayRow.visitors || 0, 0, "점검 요청이 방문자로 잡히면 안 된다");
+    assert.equal(todayRow.pv || 0, 0, "점검 요청이 PV로 잡히면 안 된다");
+    // 양성 대조 — 헤더 없는 진짜 요청은 세야 한다. 이게 없으면 "아무도 안
+    // 세는" 회귀(조건 오타)도 조용히 통과한다(검수 라운드2).
+    await fetch(`${base}/api/feed?userId=${s.userId}&limit=5`);
+    await fetch(`${base}/`);
+    const after2 = await fetch(`${base}/api/admin/traffic`, { headers: { "x-admin-token": "t0k" } }).then((r) => r.json());
+    const row2 = after2.days.at(-1);
+    assert.ok(row2 && row2.visitors === 1 && row2.pv >= 1, `일반 요청은 집계된다 (${JSON.stringify(row2)})`);
     server.close();
   } finally {
     if (prev === undefined) delete process.env.ADMIN_TOKEN; else process.env.ADMIN_TOKEN = prev;

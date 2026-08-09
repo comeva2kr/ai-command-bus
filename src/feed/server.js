@@ -2505,8 +2505,13 @@ ${rankingRows(list, (above) => {
       }
 
       if (p === "/api/feed" && req.method === "GET") {
-        // 트래픽 실측: 피드 요청 1회 = 실사용 1회 (userId로 고유 방문자 집계)
-        try { store.recordTraffic("feed", url.searchParams.get("userId")); } catch {}
+        // 트래픽 실측: 피드 요청 1회 = 실사용 1회 (userId로 고유 방문자 집계).
+        // 내부 점검(배포 preflight·운영 확인)은 x-nowhot-check 헤더로 자기
+        // 정체를 밝히고, 방문자로 세지 않는다 — 2026-08-09 실측: 8/6 방문자
+        // 266명 중 94명이 preflight였다(그날 배포 80회 = 가짜 방문자 80명).
+        if (!req.headers["x-nowhot-check"]) {
+          try { store.recordTraffic("feed", url.searchParams.get("userId")); } catch {}
+        }
         const userId = url.searchParams.get("userId");
         if (!userId || !store.getUser(userId)) return send(res, 400, { error: "unknown user" });
         // 음수·비수치 cursor/limit은 400이 아니라 안전값으로 접는다 — 무한
@@ -2664,7 +2669,10 @@ ${rankingRows(list, (above) => {
         if (!isAdmin(req, url)) return send(res, 401, { error: "admin auth required" });
 
         if (p === "/api/admin/traffic" && req.method === "GET") {
-          return send(res, 200, { days: store.trafficStats(Number(url.searchParams.get("days") || 14)) });
+          // days 상한 31 — engaged 계산이 uids×users 조인이라 워스트(10만 uid)
+          // ×90일이면 ~수백 ms 동기 블록이 된다(검수 실측 14일 워스트 85~96ms).
+          const tDays = Math.min(31, Math.max(1, Number(url.searchParams.get("days")) || 14));
+          return send(res, 200, { days: store.trafficStats(tDays) });
         }
         if (p === "/api/admin/stats" && req.method === "GET") {
           return send(res, 200, { stats: store.adminStats(), communities: summarize(registry), ads: store.adminAdStats() });
@@ -2908,7 +2916,10 @@ ${rankingRows(list, (above) => {
 
       // --- static client ---
       if ((p === "/" || p === "/index.html") && req.method === "GET") {
-        try { store.recordTraffic("page"); } catch {}
+        // 내부 점검은 PV로도 안 센다 (위 /api/feed와 같은 이유).
+        if (!req.headers["x-nowhot-check"]) {
+          try { store.recordTraffic("page"); } catch {}
+        }
       }
       if (req.method === "GET") {
         // 홈은 크롤러가 읽을 정적 콘텐츠를 함께 심는다 (2026-08-03).

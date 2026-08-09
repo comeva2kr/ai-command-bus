@@ -20,8 +20,12 @@ const ok = (name, cond, detail) => {
   if (!cond) fails.push(name);
 };
 
+// 모든 요청에 내부 점검 표식을 단다 — 서버가 이 헤더를 보고 방문자 집계에서
+// 뺀다. 2026-08-09 실측: 배포마다 도는 이 점검이 방문자 1~2명으로 잡혀,
+// 배포 80회였던 8/6엔 "방문자 266명" 중 94명이 이 점검이었다.
+const CHECK_HEADERS = { "x-nowhot-check": "1" };
 async function json(path, init) {
-  const r = await fetch(BASE + path, init);
+  const r = await fetch(BASE + path, { ...init, headers: { ...CHECK_HEADERS, ...(init && init.headers) } });
   return { status: r.status, body: await r.json().catch(() => null) };
 }
 
@@ -80,7 +84,7 @@ if (!s.body || !s.body.userId) {
 // 애드핏은 승인 전까지 지면을 만들되 아무것도 채우지 않고, 크로스오리진이라
 // 비었는지 화면에서 알 수도 없다. 그러니 **승인 전에는 지면 자체를 내주지 않는 것**만이
 // 확실하다. 승인되면 이 검사의 기대값을 뒤집는다.
-const html = await (await fetch(BASE + "/")).text();
+const html = await (await fetch(BASE + "/", { headers: CHECK_HEADERS })).text();
 const cfg = await json("/api/config");
 const adfitUnit = cfg.body && cfg.body.adfit && cfg.body.adfit.mobileUnit;
 ok("승인 전 애드핏 빈 지면을 안 그림", !adfitUnit,
@@ -94,7 +98,7 @@ ok("애드핏 배선은 보존됨(승인 시 되살릴 수 있음)",
 // 이 항목이 없어서 David가 같은 것을 네 번 지적했다. 광고를 그리는 함수가 둘이라
 // 어느 경로로 왔느냐에 따라 카드가 다르게 생겼고, 한쪽을 고치면 다른 쪽이 남았다.
 // 코드 수준에서 갈라짐을 막는다 — 화면을 안 열어도 잡힌다.
-const idx = await (await fetch(BASE + "/")).text();
+const idx = await (await fetch(BASE + "/", { headers: CHECK_HEADERS })).text();
 const adFn = idx.slice(idx.indexOf("function appendAdCard(item){"), idx.indexOf("// 슬롯 노출 로깅"));
 ok("광고 렌더러가 하나다", /coupangCardHtml\(link,/.test(adFn) && !/adProductNameHtml|ad-disclosure-pop/.test(adFn),
   "서버 경로가 자기만의 마크업으로 되돌아갔다");
@@ -118,7 +122,7 @@ ok("우리가 쓴 브리핑 문단이 있음", issues.length >= 3, `${issues.len
 // 테스트가 못 보는 층은 배포 직후 실측으로 잡는다.
 {
   const t0 = Date.now();
-  await fetch(BASE + "/?preflight=1").then((r) => r.text());
+  await fetch(BASE + "/?preflight=1", { headers: CHECK_HEADERS }).then((r) => r.text());
   const ms = Date.now() - t0;
   ok("홈 응답 1.5초 이내", ms < 1500, `${ms}ms — 넘으면 이벤트 루프가 막혀 있을 가능성`);
 }

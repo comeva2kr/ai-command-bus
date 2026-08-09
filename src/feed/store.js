@@ -323,7 +323,26 @@ export class FeedStore {
     const out = [];
     const t = this.traffic || {};
     for (const day of Object.keys(t).sort().slice(-days)) {
-      out.push({ date: day, pv: t[day].pv, feed: t[day].feed, visitors: t[day].uids.length });
+      // engaged = **능동적 상호작용 흔적이 있는** 방문자(열람·체류·완독·평가·
+      // 설문·저장). 전체 방문자(uids)는 JS를 실행하는 무엇이든 다 들어간다 —
+      // 2026-08-09 실측: 8/6 전체 266명 중 상호작용 흔적 19명, 94명은 배포
+      // preflight, 나머지 대부분 렌더링 크롤러 패턴. skip 신호는 스크롤만으로
+      // 자동 발화라 크롤러도 만들 수 있어 단독으로는 증거로 안 친다(검수
+      // 라운드2). 한계도 정직하게: 첫 화면만 보고 나간 진짜 사람은 여기에 안
+      // 잡히고(과소), 이 값은 "그날 방문자 중 지금까지 흔적이 있는 계정" 수라
+      // 과거 날짜 값이 뒤늦게 조금 오를 수 있다.
+      let engaged = 0;
+      for (const uid of t[day].uids || []) {
+        const u = typeof uid === "string" ? this.users.get(uid) : null;
+        if (!u) continue;
+        const st = u.sigTypes;
+        const activeSig = st
+          ? ((st.open || 0) + (st.dwell || 0) + (st.complete || 0)) > 0
+          : (u.implicitCount || 0) > 0; // sigTypes 도입 전 레거시는 굵은 기준
+        if (activeSig || (u.feedbackCount || 0) > 0 || u.surveyed ||
+            (u.saved || []).length > 0 || (u.opened || []).length > 0) engaged += 1;
+      }
+      out.push({ date: day, pv: t[day].pv, feed: t[day].feed, visitors: t[day].uids.length, engaged });
     }
     return out;
   }
@@ -594,6 +613,14 @@ export class FeedStore {
   recordSignal(userId, itemId, type, step) {
     const user = this.requireUser(userId);
     user.implicitCount = (user.implicitCount || 0) + 1;
+    // 종류별 카운트 — "사람 방문자"(trafficStats engaged) 판정에 쓴다.
+    // skip은 카드가 1.2초 화면에 있다 지나가기만 해도 자동 발화라, 스크롤을
+    // 하는 렌더링 크롤러도 만들 수 있다(검수 2026-08-09). 열람·체류·완독처럼
+    // 능동적인 신호만 사람 증거로 친다.
+    if (type) {
+      user.sigTypes = user.sigTypes || {};
+      user.sigTypes[type] = (user.sigTypes[type] || 0) + 1;
+    }
     user.lastSignal = { itemId, type, step, at: nowIso(this.clock) };
     if (type === "open" && itemId) {
       // 같은 글을 다시 열면 맨 뒤(=최근)로 옮긴다. 발자취 화면은 최근
