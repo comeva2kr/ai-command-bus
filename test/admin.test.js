@@ -175,9 +175,10 @@ test("admin: 쿼리스트링 ?token= 으로도 게이트를 통과한다 (기존
 test("admin.html: 대시보드에 트래픽·수익·소스 헬스 패널이 있고 기존 조정 기능이 보존된다", () => {
   const p = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "admin.html");
   const html = fs.readFileSync(p, "utf8");
-  // 신규 패널
-  assert.match(html, /트래픽 \(최근 14일/);
-  assert.match(html, /api\/admin\/traffic/);
+  // 신규 패널 — 2026-08-09 날짜 선택기 도입으로 고정 14일 문구는 사라지고
+  // 기간 조회(traffic-range)가 트래픽 패널을 그린다.
+  assert.match(html, /📈 트래픽/);
+  assert.match(html, /api\/admin\/traffic-range/);
   assert.match(html, /api\/admin\/source-health/);
   assert.match(html, /소스 헬스/);
   assert.match(html, /수익/);

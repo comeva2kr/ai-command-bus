@@ -66,6 +66,19 @@
   .bar { width:9px; border-radius:3px 3px 0 0; }
   .bar.pv { background:var(--accent); }
   .bar.vis { background:var(--ok); }
+  .bar.hum { background:var(--warn); }
+  /* 날짜 선택기 (네이버 광고관리식: 프리셋 칩 + 직접 기간 + 일/주/월) —
+     대시보드·행동분석이 같은 상태를 공유한다(localStorage) */
+  .rangebar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-bottom:14px; }
+  .rchip { background:var(--card); border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:6px 12px; font-size:12.5px; }
+  .rchip.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .rangebar input[type=date] { background:var(--card2); border:1px solid var(--line); color:var(--text); border-radius:8px; padding:6px 8px; font-size:12.5px; -webkit-appearance:none; appearance:none; min-height:32px; }
+  .rangebar .gsep { width:1px; height:22px; background:var(--line); margin:0 4px; }
+  .tblwrap { overflow-x:auto; max-width:100%; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .delta { font-size:12px; margin-left:6px; }
+  .delta.up { color:var(--ok); } .delta.down { color:var(--danger); }
+  .pipe { font-size:11px; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:1px 8px; margin-left:8px; vertical-align:middle; font-weight:400; }
   .bar.zero { background:var(--line); height:2px !important; }
   .blab { font-size:10px; color:var(--muted); white-space:nowrap; }
   .legend { display:flex; gap:14px; font-size:11.5px; color:var(--muted); margin-top:8px; }
@@ -156,8 +169,53 @@ async function render(){
 }
 
 
+// ── 날짜 선택기 — 대시보드·행동 분석 공유 상태 ──────────────────────────────
+// 네이버 광고관리식: 프리셋 칩(오늘/어제/최근 7일/최근 30일/이번 달/지난달)
+// + 직접 기간(date 입력 2개, iOS 사파리 호환) + 일/주/월 토글.
+// localStorage에 저장해 재방문·탭 전환에도 유지된다.
+const RANGE_KEY = "admin_range";
+const PRESETS = [["today","오늘"],["yesterday","어제"],["7d","최근 7일"],["30d","최근 30일"],["thisMonth","이번 달"],["lastMonth","지난달"]];
+function kstDay(offsetDays=0){ return new Date(Date.now()+9*3600*1000-offsetDays*86400000).toISOString().slice(0,10); }
+function presetRange(p, gran){
+  const today = kstDay(0);
+  let from = today, to = today;
+  if (p==="yesterday") { from = to = kstDay(1); }
+  else if (p==="7d") from = kstDay(6);
+  else if (p==="30d") from = kstDay(29);
+  else if (p==="thisMonth") from = today.slice(0,7)+"-01";
+  else if (p==="lastMonth") {
+    const d = new Date(today.slice(0,7)+"-01T00:00:00Z"); d.setUTCDate(0); // 지난달 말일
+    to = d.toISOString().slice(0,10); from = to.slice(0,7)+"-01";
+  }
+  return { preset:p, from, to, gran: gran||"day" };
+}
+let range = (()=>{ try{ const r=JSON.parse(localStorage.getItem(RANGE_KEY)||"null");
+  // from>to 파손값은 기본 기간으로 자가 복구 — 안 걸러주면 400 → "데이터
+  // 없음"에 영영 갇힌다(검수).
+  if (r && /^\d{4}-\d{2}-\d{2}$/.test(r.from||"") && /^\d{4}-\d{2}-\d{2}$/.test(r.to||"") && r.from <= r.to && ["day","week","month"].includes(r.gran)) {
+    // 프리셋은 "오늘 기준"이라 저장된 절대 날짜가 낡는다 — 재계산해서 쓴다.
+    return r.preset && r.preset!=="custom" ? presetRange(r.preset, r.gran) : r;
+  } }catch{} return presetRange("30d","day"); })();
+function saveRange(){ try{ localStorage.setItem(RANGE_KEY, JSON.stringify(range)); }catch{} }
+function setPreset(p){ range = presetRange(p, range.gran); saveRange(); render(); }
+function setGran(g){ range = { ...range, gran:g }; saveRange(); render(); }
+function applyCustomRange(){
+  const from = document.getElementById("rgFrom").value, to = document.getElementById("rgTo").value;
+  if (!from || !to || from > to) return alert("기간이 올바르지 않습니다 (시작 ≤ 끝).");
+  range = { preset:"custom", from, to, gran:range.gran }; saveRange(); render();
+}
+function rangeBarHtml(){
+  const chips = PRESETS.map(([id,label])=>'<button class="rchip'+(range.preset===id?" active":"")+'" onclick="setPreset(\''+id+'\')">'+label+'</button>').join("");
+  const gbtn = (id,label)=>'<button class="rchip'+(range.gran===id?" active":"")+'" onclick="setGran(\''+id+'\')">'+label+'</button>';
+  return '<div class="rangebar">'+chips+
+    '<span class="gsep"></span>'+
+    '<input type="date" id="rgFrom" value="'+esc(range.from)+'"> ~ <input type="date" id="rgTo" value="'+esc(range.to)+'">'+
+    '<button class="rchip'+(range.preset==="custom"?" active":"")+'" onclick="applyCustomRange()">적용</button>'+
+    '<span class="gsep"></span>'+gbtn("day","일")+' '+gbtn("week","주")+' '+gbtn("month","월")+
+    '</div>';
+}
+
 // ── 행동 분석 ───────────────────────────────────────────────────────────────
-let anGran = "day";
 function pct(v){ return v==null ? "—" : (v*100).toFixed(2)+"%"; }
 function num(v){ return v==null ? "—" : Number(v).toLocaleString("ko-KR"); }
 function sec(v){ return v==null ? "—" : (v>=60 ? Math.floor(v/60)+"분 "+(v%60)+"초" : v+"초"); }
@@ -178,16 +236,21 @@ function adTable(rows){
 }
 
 async function renderAnalytics(panel){
-  const res = await api("/api/admin/analytics?granularity="+anGran+"&limit=30");
+  // 대시보드와 같은 날짜 선택 상태(range)를 쓴다. 이 탭은 전부
+  // **클라이언트 측정(analytics — 브라우저 이벤트)** 축이다. 서버 측정
+  // traffic과 수치가 다른 것이 정상이다(측정 지점이 다르다).
+  const res = await api("/api/admin/analytics?granularity="+range.gran+"&from="+range.from+"&to="+range.to);
   const rows = res.rows || [];
   const L = res.latest;
-  const gbtn = (id,label)=>'<button class="tab'+(anGran===id?" active":"")+'" onclick="anGran=\''+id+'\';render()">'+label+'</button>';
   if(!rows.length){
-    panel.innerHTML = '<div class="panel-h">📊 행동 분석</div><p class="empty">아직 수집된 이벤트가 없어요. 방문이 발생하면 여기에 쌓입니다.</p>';
+    panel.innerHTML = '<div class="panel-h">📊 행동 분석</div>'+rangeBarHtml()+'<p class="empty">이 기간에 수집된 이벤트가 없어요. 기간을 바꾸거나, 방문이 발생하면 여기에 쌓입니다.</p>';
     return;
   }
   panel.innerHTML = `
-    <div class="panel-h">📊 행동 분석 <span style="float:right">${gbtn("day","일별")} ${gbtn("week","주별")} ${gbtn("month","월별")}</span></div>
+    <div class="panel-h">📊 행동 분석 <span class="pipe">클라이언트 측정 (analytics)</span></div>
+    ${rangeBarHtml()}
+    <p class="empty" style="text-align:left;margin-top:0">이 탭의 모든 수치는 <b>브라우저가 보낸 이벤트(클라이언트 측정)</b> 기준입니다.
+    대시보드의 서버 측정 트래픽과 숫자가 달라도 오류가 아닙니다 — JS를 안 돌리는 봇은 여기 안 잡히고, 화면 내 이동은 여기만 잡힙니다.</p>
     <table>
       <thead><tr><th>기간</th><th>방문자</th><th>신규</th><th>재방문</th><th>PV</th><th>1인당 PV</th><th>평균 체류</th><th>평균 깊이</th><th>글 클릭</th><th>광고 노출</th><th>광고 클릭</th><th>CTR</th></tr></thead>
       <tbody>${rows.slice().reverse().map(r=>`<tr>
@@ -200,7 +263,7 @@ async function renderAnalytics(panel){
     </table>
     <p class="empty" style="text-align:left">평균 체류·깊이 옆의 건수는 그 평균이 몇 건의 표본에서 나왔는지입니다. 표본이 없으면 0이 아니라 —로 표시합니다.</p>
 
-    <div class="panel-h">🪪 방문자를 무엇으로 알아봤나 (최근 ${esc(L.label||L.key)})</div>
+    <div class="panel-h">🪪 방문자를 무엇으로 알아봤나 (최근 ${esc(L.label||L.key)}) <span class="pipe">클라 측정</span></div>
     <div class="cards">
       <div class="card"><div class="k">복구된 세션</div><div class="v">${num(L.identityRecovered)}</div><div class="n">로그인·기기 쿠키로 같은 사람으로 이어짐</div></div>
       <div class="card"><div class="k">새로 발급</div><div class="v">${num(L.identityNew)}</div><div class="n">단서가 없어 새 사람으로 잡힘</div></div>
@@ -210,20 +273,20 @@ async function renderAnalytics(panel){
     "새로 발급"이 압도적이면 쿠키가 안 남고 있다는 뜻이라 재방문 수치를 믿으면 안 됩니다.
     앱 내장 브라우저(카카오톡·네이버)는 저장소를 자주 비우지만 쿠키는 살아남습니다.</p>
 
-    <div class="panel-h">🚪 어디에서 들어오나</div>
+    <div class="panel-h">🚪 어디에서 들어오나 <span class="pipe">클라 측정</span></div>
     ${kvTable(L.referrers, ["유입 출처","방문","비중"])}
 
-    <div class="panel-h">📣 대외 광고 캠페인 (utm)</div>
+    <div class="panel-h">📣 대외 광고 캠페인 (utm) <span class="pipe">클라 측정</span></div>
     ${L.campaigns && L.campaigns.length ? kvTable(L.campaigns, ["source | medium | campaign","유입","비중"])
       : '<p class="empty">캠페인 유입이 아직 없어요. 외부에 링크를 뿌릴 때 <code>?utm_source=naver_blog&utm_medium=post&utm_campaign=0804</code> 같은 파라미터를 붙이면 여기서 채널별 성과가 갈립니다.</p>'}
 
-    <div class="panel-h">🧭 어느 화면으로 들어와서 어디서 나가나</div>
+    <div class="panel-h">🧭 어느 화면으로 들어와서 어디서 나가나 <span class="pipe">클라 측정</span></div>
     <div class="grid2">
       <div><h4>진입 화면</h4>${kvTable(L.entries, ["화면","진입","비중"])}</div>
       <div><h4>이탈 화면</h4>${kvTable(L.exits, ["화면","이탈","비중"])}</div>
     </div>
 
-    <div class="panel-h">👆 무엇을 누르나</div>
+    <div class="panel-h">👆 무엇을 누르나 <span class="pipe">클라 측정</span></div>
     <div class="grid2">
       <div><h4>소스별 클릭</h4>${kvTable(L.clickSources, ["소스","클릭","비중"])}</div>
       <div><h4>카테고리별 클릭</h4>${kvTable(L.clickCategories, ["카테고리","클릭","비중"])}</div>
@@ -231,7 +294,7 @@ async function renderAnalytics(panel){
     <h4>순위대별 클릭 — 첫 화면에서 눌리나, 내려가서 눌리나</h4>
     ${kvTable(L.clickRanks, ["순위대","클릭","비중"])}
 
-    <div class="panel-h">💰 광고 성과</div>
+    <div class="panel-h">💰 광고 성과 <span class="pipe">클라 측정</span></div>
     <div class="grid2">
       <div><h4>슬롯별</h4>${adTable(L.adSlots)}</div>
       <div><h4>문구(variant)별</h4>${adTable(L.adVariants)}</div>
@@ -484,17 +547,20 @@ function renderBlueprint(panel){
 }
 
 async function renderDashboard(panel){
-  // 병렬 로드: 통계(+광고), 트래픽 14일, 소스 헬스, 공개 설정(수익 채널 여부)
-  const [statsRes, trafficRes, healthRes, config] = await Promise.all([
+  // 병렬 로드: 통계(+광고), 선택 기간 트래픽, KPI Δ용 최근 9일, 소스 헬스, 공개 설정
+  const [statsRes, rangeRes, kpiRes, healthRes, config] = await Promise.all([
     api("/api/admin/stats"),
-    api("/api/admin/traffic?days=14").catch(()=>null),
+    api("/api/admin/traffic-range?from="+range.from+"&to="+range.to+"&granularity="+range.gran).catch(()=>null),
+    // Δ는 확정일 비교(어제 vs 지난주 같은 요일) — 오늘은 부분일이라 절대값만.
+    api("/api/admin/traffic-range?from="+kstDay(8)+"&to="+kstDay(0)+"&granularity=day").catch(()=>null),
     api("/api/admin/source-health").catch(()=>null),
     fetch("/api/config").then(r=>r.ok?r.json():null).catch(()=>null)
   ]);
   const { stats, communities, ads } = statsRes;
   panel.innerHTML = `
-    <div class="panel-h">📈 트래픽 (최근 14일 · 실측)</div>
-    ${trafficHtml(trafficRes && trafficRes.days)}
+    <div class="panel-h">📈 트래픽 <span class="pipe">서버 측정 (traffic)</span></div>
+    ${rangeBarHtml()}
+    ${trafficHtml(rangeRes && rangeRes.rows, kpiRes && kpiRes.rows)}
     <div class="panel-h">👥 유저 요약</div>
     <div class="stats">
       <div class="stat"><b>${stats.users}</b><span>사용자</span></div>
@@ -513,32 +579,67 @@ async function renderDashboard(panel){
     <div class="row-card"><b>추가 금지어</b> ${stats.bannedWords.length?stats.bannedWords.map(w=>`<span class="pill">${esc(w)}</span>`).join(""):'<span class="muted">없음</span>'}</div>`;
 }
 
-// 트래픽 패널: 오늘 수치 크게 + 순수 CSS 막대(14일). 실측만 — 없으면 "데이터 없음".
-function trafficHtml(days){
-  if (!Array.isArray(days)) return '<p class="empty">데이터 없음 — 트래픽 API를 불러오지 못했습니다.</p>';
-  if (!days.length) return '<p class="empty">데이터 없음 — 아직 집계된 트래픽이 없습니다.</p>';
-  const todayKey = new Date(Date.now()+9*3600*1000).toISOString().slice(0,10); // KST
-  const today = days.find(d=>d.date===todayKey) || { pv:0, feed:0, visitors:0, engaged:0, human:0 };
-  const max = Math.max(1, ...days.map(d=>Math.max(d.pv, d.visitors)));
-  const barH = v => Math.max(3, Math.round(v/max*100));
-  const cols = days.map(d=>`
-    <div class="bcol" title="${esc(d.date)} · 사람 ${d.human??d.engaged??"?"} · 전체 ${d.visitors} · PV ${d.pv} · 피드요청 ${d.feed}">
-      <div class="bpair">
-        <div class="bar vis${d.visitors?'':' zero'}" style="height:${d.visitors?barH(d.visitors):2}px"></div>
-        <div class="bar pv${d.pv?'':' zero'}" style="height:${d.pv?barH(d.pv):2}px"></div>
-      </div>
-      <div class="blab">${esc(d.date.slice(5).replace("-","/"))}</div>
-    </div>`).join("");
-  return `
+// Δ 표기 — 확정일끼리만 비교한다(오늘은 부분일이라 Δ를 만들지 않는다).
+function deltaHtml(cur, prev){
+  if (cur==null || prev==null) return "";
+  const d = cur - prev;
+  if (!prev) return d ? '<span class="delta up">+'+d+'</span>' : "";
+  const pctv = Math.round((d/prev)*100);
+  if (!d) return '<span class="delta">±0</span>';
+  return '<span class="delta '+(d>0?"up":"down")+'">'+(d>0?"+":"")+d+' ('+(pctv>0?"+":"")+pctv+'%)</span>';
+}
+
+// 트래픽 패널: 기간 KPI(사람 먼저) + 사람/전체/PV 막대 + 숫자 표.
+// rows = 선택 기간(/api/admin/traffic-range), kpiRows = Δ용 최근 9일(일별).
+// 실측만 — 없으면 "데이터 없음". 아카이브 구간의 피드 수는 미계측(—)이다.
+function trafficHtml(rows, kpiRows){
+  if (!Array.isArray(rows)) return '<p class="empty">데이터 없음 — 트래픽 API를 불러오지 못했습니다.</p>';
+  const todayKey = kstDay(0), yKey = kstDay(1), lwKey = kstDay(8); // 지난주 같은 요일
+  const find = (rs,k)=>(rs||[]).find(r=>r.key===k) || null;
+  const today = find(kpiRows,todayKey), yday = find(kpiRows,yKey), lastWk = find(kpiRows,lwKey);
+  const sum = f => rows.reduce((a,r)=>a+(r[f]==null?0:r[f]),0);
+  const anyApprox = rows.some(r=>r.humanApprox);
+  const kpi = `
     <div class="stats">
-      <div class="stat big"><b>${today.human??today.engaged??"?"}</b><span>오늘 사람 방문자 (${esc(todayKey)})</span></div>
-      <div class="stat big"><b>${today.visitors}</b><span>오늘 전체 (봇·점검 포함)</span></div>
-      <div class="stat"><b>${today.pv}</b><span>오늘 페이지뷰</span></div>
-      <div class="stat"><b>${today.feed}</b><span>오늘 피드 요청</span></div>
-    </div>
+      <div class="stat big"><b>${today?today.human:0}</b><span>오늘 사람 (집계 중 · Δ 없음)</span></div>
+      <div class="stat big"><b>${yday?yday.human:0}${deltaHtml(yday&&yday.human, lastWk&&lastWk.human)}</b><span>어제 사람 vs 지난주 ${esc(lwKey.slice(5))}</span></div>
+      <div class="stat"><b>${sum("human")}</b><span>기간 사람 합계</span></div>
+      <div class="stat"><b>${sum("visitors")}</b><span>기간 전체 (봇·점검 포함)</span></div>
+      <div class="stat"><b>${sum("pv")}</b><span>기간 PV</span></div>
+    </div>`;
+  if (!rows.length) return kpi + '<p class="empty">이 기간에 집계된 트래픽이 없습니다.</p>';
+  const max = Math.max(1, ...rows.map(r=>Math.max(r.pv, r.visitors)));
+  const barH = v => Math.max(3, Math.round(v/max*100));
+  const lab = k => range.gran==="month" ? k.slice(2) : k.slice(5).replace("-","/");
+  const cols = rows.map(r=>`
+    <div class="bcol" title="${esc(r.key)} · 사람 ${r.human}${r.humanApprox?"*":""} · 전체 ${r.visitors} · PV ${r.pv} · 피드 ${r.feed==null?"—":r.feed}">
+      <div class="bpair">
+        <div class="bar hum${r.human?'':' zero'}" style="height:${r.human?barH(r.human):2}px"></div>
+        <div class="bar vis${r.visitors?'':' zero'}" style="height:${r.visitors?barH(r.visitors):2}px"></div>
+        <div class="bar pv${r.pv?'':' zero'}" style="height:${r.pv?barH(r.pv):2}px"></div>
+      </div>
+      <div class="blab">${esc(lab(r.key))}</div>
+    </div>`).join("");
+  const tbl = `
+    <div class="tblwrap"><table>
+      <thead><tr><th>${range.gran==="week"?"주 (월요일)":range.gran==="month"?"월":"날짜"}</th><th class="num">사람</th><th class="num">전체 (봇·점검 포함)</th><th class="num">PV</th><th class="num">피드</th></tr></thead>
+      <tbody>${rows.slice().reverse().map(r=>`<tr>
+        <td>${esc(r.key)}${r.humanApprox?"*":""}</td>
+        <td class="num"><b>${num(r.human)}</b></td>
+        <td class="num">${num(r.visitors)}</td>
+        <td class="num">${num(r.pv)}</td>
+        <td class="num">${r.feed==null?"—":num(r.feed)}</td>
+      </tr>`).join("")}</tbody>
+    </table></div>`;
+  return kpi + `
     <div class="row-card">
       <div class="bars">${cols}</div>
-      <div class="legend"><span><i style="background:var(--ok)"></i>전체 방문자</span><span><i style="background:var(--accent)"></i>페이지뷰</span></div>
+      <div class="legend"><span><i style="background:var(--warn)"></i>사람</span><span><i style="background:var(--ok)"></i>전체 방문자</span><span><i style="background:var(--accent)"></i>페이지뷰</span></div>
+      ${tbl}
+      ${anyApprox?'<p class="muted" style="margin:6px 0 0;font-size:11.5px">* 표시 구간은 사람 수가 예전 방식(engaged 소급)이라 소급 변동할 수 있습니다.</p>':''}
+      <p class="muted" style="margin:6px 0 0;font-size:11.5px">서버 측정(traffic) 축 — 오늘의 Δ는 만들지 않습니다(부분일 vs 완결일 비교는 항상 음수로 오독됩니다).
+      어제 Δ만 지난주 같은 요일과 비교합니다. 주/월 행의 사람·전체는 일별 유니크의 합산이라 기간 유니크와 다를 수 있고,
+      아카이브(90일 초과) 구간의 피드 수는 미계측이라 —로 둡니다.</p>
       <p class="muted" style="margin:6px 0 0;font-size:11.5px">사람 = 그날 <b>클릭 게이트가 확실한</b> 상호작용(열람·평가·저장·댓글·설문)이
       있었던 방문자(store.markHumanDay, Phase 1). 스크롤만으로 자동 발화하는 skip·dwell·complete는 근거로 안 친다.
       이 필드가 아직 없던 과거 날짜는 예전 방식(평생 흔적 소급 engaged)으로 대신 표시된다 — 이행기 표시일 뿐 오차가 아니다.

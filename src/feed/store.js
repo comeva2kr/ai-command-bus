@@ -5,7 +5,7 @@
 // survives restarts. No external database required — this keeps the project's
 // zero-dependency posture while still being real enough to demo end to end.
 
-import { emptyBucket, applyEvent, bumpDeviceInfo } from "./analytics.js";
+import { emptyBucket, applyEvent, bumpDeviceInfo, weekKey, monthKey } from "./analytics.js";
 import { emptyCostBucket, recordCall } from "./costs.js";
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -370,15 +370,22 @@ export class FeedStore {
     this.trafficArchive = this.trafficArchive || {};
     for (const k of keys.sort().slice(0, keys.length - 90)) {
       const t = this.traffic[k] || {};
+      const hasHumanField = Object.prototype.hasOwnProperty.call(t, "humanUids");
       this.trafficArchive[k] = {
         date: k,
         visitors: (t.uids || []).length,
-        humanCount: (t.humanUids || []).length,
+        // humanUids가 없던(Phase 1 이전) 날은 0으로 접으면 "사람 0명"으로
+        // 읽힌다 — 그건 미계측이지 0이 아니다. prune 시점의 engaged 소급
+        // 스냅샷으로 접고 humanApprox로 표시한다(소급 변동 가능 명시).
+        humanCount: hasHumanField ? t.humanUids.length : this._engagedCount(t.uids || []),
         pv: t.pv || 0,
         // 시간대도 접어 남긴다(검수 라운드2 — 장기 시간대 추세는 소급 불가라
         // 지금 안 접으면 영영 없다). 24칸 정수라 아카이브 비용은 미미하다.
         hours: Array.isArray(t.hours) ? t.hours.slice() : null,
-        hoursHuman: Array.isArray(t.hoursHuman) ? t.hoursHuman.slice() : null
+        hoursHuman: Array.isArray(t.hoursHuman) ? t.hoursHuman.slice() : null,
+        // humanApprox — humanUids 필드가 없던(Phase 1 이전) 날을 접은 것.
+        // humanCount 0이 "사람 0명"인지 "미계측"인지 이 플래그로만 구분된다.
+        humanApprox: !hasHumanField
       };
       delete this.traffic[k];
     }
@@ -386,6 +393,84 @@ export class FeedStore {
     if (archiveKeys.length > 400) {
       for (const k of archiveKeys.sort().slice(0, archiveKeys.length - 400)) delete this.trafficArchive[k];
     }
+  }
+
+  // engaged = 능동 상호작용 흔적이 있는 방문자(trafficStats 주석 참고).
+  // trafficStats·_pruneTraffic·trafficRange가 같은 판정 한 벌을 쓴다.
+  _engagedCount(uids) {
+    let engaged = 0;
+    for (const uid of uids) {
+      const u = typeof uid === "string" ? this.users.get(uid) : null;
+      if (!u) continue;
+      const st = u.sigTypes;
+      const activeSig = st
+        ? ((st.open || 0) + (st.dwell || 0) + (st.complete || 0)) > 0
+        : (u.implicitCount || 0) > 0; // sigTypes 도입 전 레거시는 굵은 기준
+      if (activeSig || (u.feedbackCount || 0) > 0 || u.surveyed ||
+          (u.saved || []).length > 0 || (u.opened || []).length > 0) engaged += 1;
+    }
+    return engaged;
+  }
+
+  // ── 기간 조회 — 날짜 선택기용 (Phase 2, 2026-08-09) ──────────────────────
+  // live traffic(90일) + trafficArchive(400일)를 합쳐 [from, to] 구간의
+  // 스파스 행만 준다(기록 없는 날은 건너뛴다 — 지어낸 0을 만들지 않는다).
+  // 행: { key, visitors, human, pv, feed, humanApprox }
+  //  - human: live 구간은 humanUids(필드 없으면 engaged 소급 폴백 →
+  //    humanApprox=true, 소급 변동 가능), 아카이브 구간은 humanCount.
+  //  - feed: 아카이브에는 없던 필드라 null(미계측 ≠ 0).
+  //  - 주/월 행의 visitors·human은 일별 유니크의 합산(기간 유니크 아님).
+  trafficRange(from, to, granularity = "day") {
+    const live = this.traffic || {};
+    const arc = this.trafficArchive || {};
+    const days = [];
+    const end = new Date(to + "T00:00:00Z");
+    for (let d = new Date(from + "T00:00:00Z"); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      const k = d.toISOString().slice(0, 10);
+      if (live[k]) {
+        const t = live[k];
+        const hasHuman = Object.prototype.hasOwnProperty.call(t, "humanUids");
+        days.push({
+          key: k,
+          visitors: (t.uids || []).length,
+          human: hasHuman ? t.humanUids.length : this._engagedCount(t.uids || []),
+          pv: t.pv || 0,
+          feed: t.feed || 0,
+          humanApprox: !hasHuman
+        });
+      } else if (arc[k]) {
+        const a = arc[k];
+        days.push({
+          key: k,
+          visitors: a.visitors || 0,
+          human: a.humanCount || 0,
+          pv: a.pv || 0,
+          feed: null,
+          humanApprox: a.humanApprox === true
+        });
+      }
+    }
+    if (granularity === "day") return days;
+    const keyOf = granularity === "week" ? weekKey : monthKey;
+    const groups = new Map();
+    for (const r of days) {
+      const gk = keyOf(r.key);
+      if (!groups.has(gk)) groups.set(gk, { key: gk, visitors: 0, human: 0, pv: 0, feed: 0, feedKnown: true, humanApprox: false, days: 0 });
+      const g = groups.get(gk);
+      g.visitors += r.visitors;
+      g.human += r.human;
+      g.pv += r.pv;
+      // 미계측(아카이브) 날이 하나라도 끼면 그 버킷의 feed는 통째로 미계측 —
+      // 부분합을 확정치처럼 내보내면 과소집계가 측정치로 오독된다(검수).
+      if (r.feed != null) g.feed += r.feed;
+      else g.feedKnown = false;
+      if (r.humanApprox) g.humanApprox = true;
+      g.days += 1;
+    }
+    return [...groups.values()].map((g) => ({
+      key: g.key, visitors: g.visitors, human: g.human, pv: g.pv,
+      feed: g.feedKnown ? g.feed : null, humanApprox: g.humanApprox, days: g.days
+    }));
   }
 
   trafficStats(days = 14) {
@@ -400,17 +485,7 @@ export class FeedStore {
       // 라운드2). 한계도 정직하게: 첫 화면만 보고 나간 진짜 사람은 여기에 안
       // 잡히고(과소), 이 값은 "그날 방문자 중 지금까지 흔적이 있는 계정" 수라
       // 과거 날짜 값이 뒤늦게 조금 오를 수 있다.
-      let engaged = 0;
-      for (const uid of t[day].uids || []) {
-        const u = typeof uid === "string" ? this.users.get(uid) : null;
-        if (!u) continue;
-        const st = u.sigTypes;
-        const activeSig = st
-          ? ((st.open || 0) + (st.dwell || 0) + (st.complete || 0)) > 0
-          : (u.implicitCount || 0) > 0; // sigTypes 도입 전 레거시는 굵은 기준
-        if (activeSig || (u.feedbackCount || 0) > 0 || u.surveyed ||
-            (u.saved || []).length > 0 || (u.opened || []).length > 0) engaged += 1;
-      }
+      const engaged = this._engagedCount(t[day].uids || []);
       // human = markHumanDay가 **그날** 실제로 마킹한 수 — 이행기 동안은
       // humanUids가 없는(이 필드 도입 이전) 날짜만 engaged로 소급 폴백한다.
       // humanUids가 있는 날은 빈 배열이라도 그대로 쓴다(0명이 사람이 없었단

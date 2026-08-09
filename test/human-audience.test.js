@@ -186,7 +186,9 @@ test("_pruneTraffic: 90일 초과분을 지우기 전에 {date,visitors,humanCou
   // 시간대도 함께 접힌다(검수 라운드2 — 장기 시간대 추세는 소급 불가).
   assert.deepEqual(first, {
     date: archived[0], visitors: 2, humanCount: 1, pv: 1,
-    hours: someHours, hoursHuman: null
+    hours: someHours, hoursHuman: null,
+    // humanUids가 있던 날이라 확정치(소급 아님)로 접혔다.
+    humanApprox: false
   });
   assert.equal(store.trafficArchive[archived[1]].hours, null, "시간대 없던 날은 null로 정직하게");
 });

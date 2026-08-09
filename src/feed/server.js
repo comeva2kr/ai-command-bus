@@ -2755,6 +2755,24 @@ ${rankingRows(list, (above) => {
           const tDays = Math.min(31, Math.max(1, Number(url.searchParams.get("days")) || 14));
           return send(res, 200, { days: store.trafficStats(tDays) });
         }
+        // 날짜 선택기용 기간 조회 — live traffic(90일)+trafficArchive(400일)
+        // 합산. 응답은 스파스 필드만(행마다 top-N 배열을 싣지 않는다 — 검수).
+        if (p === "/api/admin/traffic-range" && req.method === "GET") {
+          const from = url.searchParams.get("from") || "";
+          const to = url.searchParams.get("to") || "";
+          const g = url.searchParams.get("granularity") || "day";
+          const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+          if (!DATE_RE.test(from) || !DATE_RE.test(to)) return send(res, 400, { error: "from/to must be YYYY-MM-DD" });
+          if (!["day", "week", "month"].includes(g)) return send(res, 400, { error: "granularity must be day|week|month" });
+          const fromMs = Date.parse(from + "T00:00:00Z");
+          const toMs = Date.parse(to + "T00:00:00Z");
+          // 존재하지 않는 날짜(2월 30일 등)는 Date.parse가 NaN — 아래 비교가 걸러낸다.
+          if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || fromMs > toMs) return send(res, 400, { error: "invalid range: from must be a real date <= to" });
+          const spanDays = (toMs - fromMs) / 86400000 + 1;
+          // 400일 상한 — trafficArchive 보존과 같은 창. 그 밖은 데이터가 없다.
+          if (spanDays > 400) return send(res, 400, { error: "range must be <= 400 days" });
+          return send(res, 200, { from, to, granularity: g, rows: store.trafficRange(from, to, g) });
+        }
         if (p === "/api/admin/stats" && req.method === "GET") {
           return send(res, 200, { stats: store.adminStats(), communities: summarize(registry), ads: store.adminAdStats() });
         }
@@ -2818,8 +2836,23 @@ ${rankingRows(list, (above) => {
           const g = url.searchParams.get("granularity") || "day";
           const granularity = ["day", "week", "month"].includes(g) ? g : "day";
           const limit = Math.min(120, Math.max(1, Number(url.searchParams.get("limit")) || 30));
-          const buckets = store.analyticsBuckets();
-          const rows = series(buckets, granularity, limit);
+          let buckets = store.analyticsBuckets();
+          // 날짜 선택기 지원(2026-08-09) — from/to가 오면 그 구간의 일 버킷만
+          // 남기고 롤업한다. 기존 limit 호출은 그대로 동작(호환 유지).
+          const aFrom = url.searchParams.get("from");
+          const aTo = url.searchParams.get("to");
+          let effLimit = limit;
+          if (aFrom || aTo) {
+            const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+            if (!DATE_RE.test(aFrom || "") || !DATE_RE.test(aTo || "") || aFrom > aTo) {
+              return send(res, 400, { error: "from/to must be YYYY-MM-DD and from <= to" });
+            }
+            const filtered = {};
+            for (const [k, v] of Object.entries(buckets)) if (k >= aFrom && k <= aTo) filtered[k] = v;
+            buckets = filtered;
+            effLimit = 400; // 구간을 이미 좁혔으니 그 안은 전부 준다(보존 상한과 동일)
+          }
+          const rows = series(buckets, granularity, effLimit);
           // 최신 기간의 상세(출처·화면·클릭·광고 표)를 함께 준다 — 화면이
           // 한 번 더 왕복하지 않도록.
           return send(res, 200, { granularity, rows, latest: rows[rows.length - 1] || null });
