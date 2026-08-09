@@ -54,3 +54,33 @@ export function isSameEvent(a, b) {
   const ka = eventKey(a);
   return ka !== null && ka === eventKey(b);
 }
+
+// ---------------------------------------------------------------------------
+// 근접 중복(브리핑 이슈 간) — 어순·수식어가 달라 완전일치는 아니지만 같은 사건.
+//
+// 실측(2026-08-09): "채상병 순직 책임" 계열 헤드라인 4건이 각자 다른 말로
+// 쓰여 eventKey도 다르고, digest.js가 클러스터를 나눌 때 보는 태그(사전
+// 기반이라 인명이 없다)도 안 겹쳐서 브리핑 이슈 6건 중 4건을 차지했다.
+// isSameEvent의 완전일치는 이런 변주를 못 잡는다. 그렇다고 새 유사도 계산을
+// 만들지 않는다 — 같은 전처리(말머리·매체명 꼬리·개정 표기 제거)를 그대로
+// 쓰고, 비교만 낱말 단위로 한다.
+const WORD_RE = /[0-9a-z가-힣]{2,}/g;
+
+export function titleWords(title) {
+  let t = String(title || "");
+  if (!t) return [];
+  for (let n = 0; n < 3 && LEAD_TAG.test(t); n++) t = t.replace(LEAD_TAG, "");
+  t = t.replace(OUTLET_TAIL, "").replace(REVISION_TAIL, "");
+  return [...new Set(t.toLowerCase().match(WORD_RE) || [])];
+}
+
+// 두 제목이 공유하는 내용어 수 — digest.js clusterIssues의 sharedTagCount와
+// 같은 셈법을 제목 낱말에 적용한 것뿐이다.
+export function sharedTitleWordCount(a, b) {
+  const wa = titleWords(a);
+  if (!wa.length) return 0;
+  const wb = new Set(titleWords(b));
+  let n = 0;
+  for (const w of wa) if (wb.has(w)) n++;
+  return n;
+}

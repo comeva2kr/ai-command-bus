@@ -27,7 +27,7 @@ import { WEIGHTY } from "./interest.js";
 //    무엇보다 측정값에서 결정적으로 유도된 문장이라야 매번 같은 입력에 같은
 //    글이 나온다(재현 가능·검증 가능).
 import { extractTags } from "./tags.js";
-import { eventKey } from "./dedupe.js";
+import { eventKey, sharedTitleWordCount } from "./dedupe.js";
 
 // ---------------------------------------------------------------------------
 // 이슈 묶기 — 같은 사건을 다룬 글들을 한 덩어리로
@@ -64,6 +64,35 @@ export function clusterIssues(items, { minShared = 2 } = {}) {
     else clusters.push({ members: [e] });
   }
   return clusters.map((c) => c.members.map((m) => m.item));
+}
+
+// 이슈 간 근접 중복 제거 — clusterIssues가 못 묶은(완전일치·태그 안 겹침)
+// 변주 헤드라인이 서로 다른 클러스터로 각각 이슈 자리를 차지하는 것을 막는다.
+// 실측(2026-08-09): "채상병 순직 책임 임성근" 변주 4건이 이 문제로 이슈
+// 6건 중 4건을 차지했다(아래 buildDigest 실측 참고).
+//
+// clusterIssues 자체는 건드리지 않는다 — 거긴 완전일치·태그로만 묶어야
+// 문단 안에 서로 다른 사실이 섞이지 않는다(그 파일 상단 주석). 여기는
+// "어느 클러스터를 이슈로 뽑을지" 고르는 단계라 위험이 다르다 — 잘못
+// 걸러도 그 클러스터가 사라지는 게 아니라 다음 순위 클러스터가 그 자리를
+// 메운다.
+//
+// 클러스터 하나 안에서도 여러 클러스터와 겹칠 수 있으므로(A~B 3단어,
+// B~C 3단어처럼 사슬로 이어지는 경우) 그룹의 대표(첫 멤버)만이 아니라
+// 그룹에 이미 들어간 멤버 전체와 비교한다 — clusterIssues가 `c.members.some`
+// 으로 같은 일을 하는 것과 같은 방식이다.
+const NEAR_DUP_WORDS = 4; // 실측 픽스처: 변주 4건은 대표 클러스터와 4~7단어를
+// 공유했고, 무관한 이슈 쌍은 최대 1단어였다(여유를 둔 값, 임의 수치 아님).
+
+export function dedupeNearIssues(scored) {
+  const groups = [];
+  for (const c of scored) {
+    const title = c.members[0].title;
+    const hit = groups.find((g) =>
+      g.some((m) => sharedTitleWordCount(title, m.members[0].title) >= NEAR_DUP_WORDS));
+    if (hit) hit.push(c); else groups.push([c]);
+  }
+  return groups.map((g) => g[0]); // scored는 weight 내림차순 — 그룹의 첫 멤버가 대표
 }
 
 // ---------------------------------------------------------------------------
@@ -397,6 +426,10 @@ export function buildDigest(items, { maxIssues = 6, perIssueRefs = 4, maxPerSour
     };
   }).sort((a, b) => b.weight - a.weight);
 
+  // 이슈로 뽑을 후보를 정하기 전에 근접 중복부터 접는다 — 그래야 아래
+  // maxPerSource·maxIssues 선정이 "서로 다른 사건 중 상위"를 고르게 된다.
+  const deduped = dedupeNearIssues(scored);
+
   // 한 소스가 브리핑을 독식하지 않게 상한을 둔다.
   //
   // 실측(2026-08-03): 상한 없이 뽑으니 이슈 1~4위가 전부 더쿠였다. 소스마다
@@ -409,7 +442,7 @@ export function buildDigest(items, { maxIssues = 6, perIssueRefs = 4, maxPerSour
   // 목적을 잃지 않도록 편성 단계에서 막는다.
   const perSource = new Map();
   const balanced = [];
-  for (const c of scored) {
+  for (const c of deduped) {
     const src = c.members[0].sourceLabel || c.members[0].source || "?";
     if ((perSource.get(src) || 0) >= maxPerSource) continue;
     perSource.set(src, (perSource.get(src) || 0) + 1);
@@ -417,8 +450,8 @@ export function buildDigest(items, { maxIssues = 6, perIssueRefs = 4, maxPerSour
     if (balanced.length >= maxIssues) break;
   }
   // 공급이 얇아 상한 때문에 못 채우면 상한을 풀어 채운다(빈 브리핑보다 낫다)
-  if (balanced.length < Math.min(maxIssues, scored.length)) {
-    for (const c of scored) {
+  if (balanced.length < Math.min(maxIssues, deduped.length)) {
+    for (const c of deduped) {
       if (balanced.includes(c)) continue;
       balanced.push(c);
       if (balanced.length >= maxIssues) break;

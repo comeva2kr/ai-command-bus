@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { eventKey, normalizeForDedupe, isSameEvent, MIN_KEY_LEN } from "../src/feed/dedupe.js";
+import { eventKey, normalizeForDedupe, isSameEvent, MIN_KEY_LEN,
+  sharedTitleWordCount } from "../src/feed/dedupe.js";
 import { hasProfanity, maskProfanity } from "../src/feed/profanity.js";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,32 @@ test("dedupe: 다른 사건을 같은 것으로 묶지 않는다", () => {
                          "삼성전자 4분기 영업이익 발표했다고 합니다"));
   assert.ok(!isSameEvent("서울 지역 폭염경보 발효되었습니다",
                          "부산 지역 폭염경보 발효되었습니다"));
+});
+
+test("dedupe: 근접 중복 — 완전일치는 아니어도 내용어가 크게 겹치는 변주를 잡는다", () => {
+  // 실측(2026-08-09): "채상병 순직 책임 임성근" 계열 헤드라인 4건이 어순·
+  // 수식어만 달라 eventKey(완전일치)로는 하나도 안 묶였다. digest.js가
+  // 브리핑 이슈를 뽑을 때 이 함수로 그 변주를 잡는다.
+  const variants = [
+    "채상병 순직 책임 놓고 임성근 전 사단장 구속영장 재청구",
+    "'채상병 순직' 책임자 임성근, 구속영장 다시 청구",
+    "임성근 전 사단장 구속영장 재청구...채상병 순직 책임 물어",
+    "[속보] 채상병 순직 책임 임성근 구속 위기, 검찰 영장 재청구"
+  ];
+  for (let i = 0; i < variants.length; i++) {
+    assert.equal(eventKey(variants[0]) === eventKey(variants[i]), i === 0,
+      "이 변주들은 완전일치로는 안 잡혀야 한다(그래서 근접 중복 함수가 필요하다)");
+  }
+  for (let i = 0; i < variants.length; i++) {
+    for (let j = i + 1; j < variants.length; j++) {
+      assert.ok(sharedTitleWordCount(variants[i], variants[j]) >= 3,
+        `변주끼리는 내용어가 겹쳐야 한다: "${variants[i]}" / "${variants[j]}"`);
+    }
+  }
+  // 무관한 제목과는 겹치지 않는다 — 실측 픽스처 기준 최대 1단어였다
+  for (const other of ["삼성전자 3분기 실적 발표, 영업이익 급증", "손흥민 시즌 첫 골, 토트넘 승리 이끌어"]) {
+    assert.ok(sharedTitleWordCount(variants[0], other) <= 1, `무관한 제목과 과하게 겹친다: ${other}`);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -656,6 +683,35 @@ test("브리핑 이슈: 우리 풀에 한 편뿐인 사건도 이름을 갖는�
   ], { maxIssues: 2 });
   const heads = issues.map((i) => i.headline);
   assert.equal(new Set(heads).size, 2, `헤드라인이 겹친다: ${heads.join(" | ")}`);
+});
+
+test("브리핑 이슈: 근접 중복 헤드라인은 최대 1건만 뽑고 빈 자리는 다음 이슈로 채운다", async () => {
+  // 실측(2026-08-09): /api/briefing 이슈 6건 중 4건이 "채상병 순직 책임
+  // 임성근" 변주였다. clusterIssues는 완전일치·태그로만 묶는데(문단에 서로
+  // 다른 사실이 섞이면 안 되므로 그대로 둔다), 인명은 태그 사전에 없어서
+  // 어순만 다른 4건이 각각 다른 클러스터가 됐고 전부 이슈 자리를 차지했다.
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const mk = (id, title, extra) => ({
+    id, title, sourceLabel: id, source: id, score: 0, commentCount: 0,
+    coverage: 3, category: "politics", tags: [], ...extra
+  });
+  const items = [
+    mk("a", "채상병 순직 책임 놓고 임성근 전 사단장 구속영장 재청구", { coverage: 5 }),
+    mk("b", "'채상병 순직' 책임자 임성근, 구속영장 다시 청구", { coverage: 4 }),
+    mk("c", "임성근 전 사단장 구속영장 재청구...채상병 순직 책임 물어"),
+    mk("d", "[속보] 채상병 순직 책임 임성근 구속 위기, 검찰 영장 재청구"),
+    mk("e", "삼성전자 3분기 실적 발표, 영업이익 급증", { category: "business", coverage: 2 }),
+    mk("f", "서울 아파트값 상승세 지속...정부 대책 검토", { category: "business", coverage: 2 })
+  ];
+  const { issues } = buildDigest(items, { maxIssues: 6 });
+  const chaeIds = issues.flatMap((i) => i.refs.map((r) => r.id)).filter((id) => ["a", "b", "c", "d"].includes(id));
+  assert.equal(chaeIds.length, 1, `변주 4건 중 최대 1건만 이슈가 돼야 한다: ${chaeIds.join(",")}`);
+  // 빈 자리는 지워지는 게 아니라 다음 순위의 서로 다른 사건이 채운다
+  const ids = new Set(issues.flatMap((i) => i.refs.map((r) => r.id)));
+  assert.ok(ids.has("e") && ids.has("f"), "빈 자리는 다음 순위 이슈로 채워져야 한다");
+  // 이 픽스처는 서로 다른 사건이 3건뿐이다(채상병 그룹 1 + e + f) — 재료가
+  // 그만큼밖에 없으면 이슈도 그만큼만 나와야 한다(억지로 6건을 채우지 않는다)
+  assert.equal(issues.length, 3, "서로 다른 사건 수만큼만 이슈가 나와야 한다");
 });
 
 test("브리핑 이슈: 잘라 온 구절에 부호 흔적이 남지 않는다", async () => {
