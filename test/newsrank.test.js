@@ -124,7 +124,7 @@ test("sourceHotScores: coverage가 전혀 없어도(전부 0) 예전처럼 순�
   }
 });
 
-test("editorial: 다중보도 뉴스는 문구가 붙되 관련기사 '개수'는 절대 말하지 않는다", () => {
+test("editorial: 관련기사 묶음은 직접 교차확인과 구분하고 '개수'를 말하지 않는다", () => {
   const now = Date.parse("2026-07-28T12:00:00.000Z");
   const item = {
     kind: "news", source: "gnews", sourceLabel: "구글뉴스 주요뉴스",
@@ -132,14 +132,15 @@ test("editorial: 다중보도 뉴스는 문구가 붙되 관련기사 '개수'�
     publishedAt: new Date(now - 5 * 3600 * 1000).toISOString()
   };
   const note = buildEditorialNote(item, { now });
-  assert.match(note, /여러 매체가 함께 다루는 뉴스/);
+  assert.match(note, /관련 보도 묶음에 잡힌 뉴스/);
+  assert.doesNotMatch(note, /여러 매체|교차 확인/, "관련기사 묶음을 직접 관측처럼 승격하면 안 된다");
   // 핵심: 구글이 관련기사를 5건까지만 주므로 그 값은 상한에 걸린 값이다.
   // 그걸 "5개 매체"라고 쓰면 실측되지 않은 수치를 단정하는 셈이라 금지.
   assert.equal(note.match(/\d/), null, `다중보도 문구엔 숫자가 없어야: "${note}"`);
 
   // 관련기사가 적으면(단신 묶임 수준) 이 문구는 안 붙는다
   const few = buildEditorialNote({ ...item, coverage: 1 }, { now });
-  assert.ok(!few.includes("여러 매체"), "coverage 1엔 다중보도 문구가 붙으면 안 됨");
+  assert.ok(!few.includes("관련 보도 묶음"), "coverage 1엔 관련 보도 문구가 붙으면 안 됨");
 });
 
 // 회귀 방지 — 원래 결함을 그대로 잡아내는 테스트.
@@ -163,6 +164,28 @@ test("registry: 활성화된 구글뉴스 소스는 검색 피드가 아니라 �
       `${c.id}: 편집 섹션 피드(/rss/topics/)여야 한다 — ${c.adapter.url}`
     );
   }
+});
+
+test("registry: 선택 가능한 과학 분야는 복수의 활성 RSS 공급을 가져야 한다", () => {
+  const science = loadRegistry().filter((source) =>
+    source.enabled && source.kind === "news" && source.category === "science");
+  assert.ok(science.length >= 2, `활성 과학 뉴스 소스 ${science.length}곳`);
+  assert.ok(science.every((source) => source.adapter && source.adapter.type === "rss"));
+  assert.ok(science.every((source) => /^https:\/\//.test(source.adapter.url)));
+  // P2-C(DEVCHG-NOWHOT-20260813-086): NASA는 기관 공식 발표라 primary가 정확하다.
+  // 과학 소스의 sourceRole 필수 원칙은 유지하되, 인정 값에 primary를 추가한다.
+  assert.ok(science.every((source) => ["reported_secondary", "primary"].includes(source.sourceRole)));
+});
+
+test("registry: 하입비스트는 종합 문화 피드가 아니라 패션 섹션 피드를 쓴다", () => {
+  const registry = loadRegistry();
+  const retired = registry.find((row) => row.id === "hypebeast");
+  const source = registry.find((row) => row.id === "hypebeast-fashion");
+  assert.equal(retired && retired.enabled, false);
+  assert.equal(retired && retired.mainFeed, false, "기존 48시간 풀 행도 대표 지면에서 빠져야 한다");
+  assert.equal(source && source.enabled, true);
+  assert.equal(source && source.adapter && source.adapter.url, "https://hypebeast.com/fashion/feed");
+  assert.equal(source && source.ownershipGroup, "hypebeast", "피드가 갈려도 같은 발행사로 세야 한다");
 });
 
 test("registry: 모든 소스의 category가 taxonomy에 실재하는 id여야 한다", async () => {

@@ -2573,6 +2573,71 @@
       },
       "sourceTier": "specialist",
       "operatorGroup": "fnnews"
+    },
+    {
+      "id": "nasa",
+      "label": "NASA",
+      "labelKo": "NASA",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "science",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.nasa.gov/feed/",
+        "note": "P2-C 과학 전문 소스 보강(DEVCHG-NOWHOT-20260813-086). NASA 공식 사이트 RSS. 2026-08-13 기존 rssFetcher 경로 실측: 200/10건, 최근 24h 9건, 최신 항목 당일, URL 파싱 10/10. robots.txt는 전 UA Allow. 표본 제목 전부 우주·과학·NASA 활동(혼합 섹션 아님). 미 연방기관 공식 발표 — 기존 과학 소스(sciencedaily·physorg)와 운영그룹 미중복. 제목·요약·원문 링크만 편집 재료로 사용한다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "nasa",
+      "sourceRole": "primary"
+    },
+    {
+      "id": "livescience",
+      "label": "Live Science",
+      "labelKo": "라이브사이언스",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "science",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.livescience.com/feeds/all",
+        "note": "P2-C 과학 전문 소스 보강(DEVCHG-NOWHOT-20260813-086). Future plc 산하 Live Science 공식 RSS. 2026-08-13 기존 rssFetcher 경로 실측: 200/50건, 최근 24h 10건, 최신 항목 당일, URL 파싱 50/50. robots.txt는 피드 경로 미차단. 표본 제목 전부 과학(생물·천문·물리 — 혼합 섹션 아님). 기존 소스와 운영그룹 미중복. 제목·요약·원문 링크만 편집 재료로 사용한다."
+      },
+      "sourceTier": "specialist",
+      "sourceRole": "reported_secondary",
+      "operatorGroup": "futureplc"
+    },
+    {
+      "id": "espn",
+      "label": "ESPN",
+      "labelKo": "ESPN",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "sports",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.espn.com/espn/rss/news",
+        "note": "P2-C 스포츠 전문 소스 보강(DEVCHG-NOWHOT-20260813-086). ESPN 공식 RSS 목록의 top news 피드. 2026-08-13 기존 rssFetcher 경로 실측: 200/36건, 최근 24h 36건, 최신 항목 당일, URL 파싱 36/36. robots.txt 와일드카드 섹션은 /espn/rss 경로 미차단(AI 학습봇만 이름 차단 — 우리 수집 UA 해당 없음). 표본 제목 전부 스포츠(혼합 섹션 아님). 기존 스포츠 소스(mlbpark·sportsline·gnews-sports)와 운영그룹 미중복 — BBC Sport는 bbc, 연합 스포츠는 yonhap 기등재로 제외. 제목·요약·원문 링크만 편집 재료로 사용한다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "disney"
     }
   ]
 }
