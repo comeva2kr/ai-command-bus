@@ -2511,6 +2511,68 @@
         "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
       },
       "sourceTier": "specialist"
+    },
+    {
+      "id": "cnbc-economy",
+      "label": "CNBC Economy",
+      "labelKo": "CNBC 경제",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.cnbc.com/id/20910258/device/rss/rss.html",
+        "note": "P2-B 경제 전문 소스 보강(DEVCHG-NOWHOT-20260813-084). CNBC 공식 RSS 목록의 Economy 섹션 피드. 2026-08-13 기존 rssFetcher 경로 실측: 200/30건, 최근 24h 8건, 최신 항목 당일. 표본 제목 전부 경제·물가·재정(혼합 섹션 아님). robots.txt 자체는 Akamai가 비브라우저 UA에 403을 주지만 피드 본체는 우리 UA로 정상 200 — CNBC가 공개 안내하는 공식 RSS다. 제목·요약·원문 링크만 편집 재료로 사용한다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "nbcuniversal"
+    },
+    {
+      "id": "bbc-business",
+      "label": "BBC Business",
+      "labelKo": "BBC 비즈니스",
+      "country": "GB",
+      "lang": "en",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+        "note": "P2-B 경제 전문 소스 보강(DEVCHG-NOWHOT-20260813-084). BBC 공식 뉴스 RSS의 Business 섹션. 2026-08-13 기존 rssFetcher 경로 실측: 200/52건, 최근 24h 16건, 최신 항목 당일. feeds.bbci.co.uk robots.txt는 피드 경로 허용. 표본 제목 전부 기업·경제(혼합 섹션 아님). 제목·요약·원문 링크만 편집 재료로 사용한다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "bbc"
+    },
+    {
+      "id": "fnnews-economy",
+      "label": "파이낸셜뉴스 경제",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.fnnews.com/rss/r20/fn_realnews_economy.xml",
+        "note": "P2-B 경제 전문 소스 보강(DEVCHG-NOWHOT-20260813-084). 파이낸셜뉴스 공식 RSS의 경제 섹션. 2026-08-13 기존 rssFetcher 경로 실측: 200/21건, 최근 24h 21건, 최신 항목 당일. robots.txt는 print/sample 등만 차단, RSS 경로 허용. 기존 등재 경제지(maekyung·hankyung·chosun·moneytoday·herald·etoday)와 운영그룹 미중복 — 독립 언론 계수에 기여. 표본 제목 전부 경제·정책(혼합 섹션 아님)."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "fnnews"
     }
   ]
 }
