@@ -26,37 +26,37 @@ import { WEIGHTY } from "./interest.js";
 // 4. LLM을 부르지 않는다. 아이템당 API 호출은 이 프로젝트의 제약을 벗어나고,
 //    무엇보다 측정값에서 결정적으로 유도된 문장이라야 매번 같은 입력에 같은
 //    글이 나온다(재현 가능·검증 가능).
-import { extractTags } from "./tags.js";
-import { eventKey, sharedTitleWordCount } from "./dedupe.js";
+import { canonicalContentUrl, eventKey, sharedTitleConcepts } from "./dedupe.js";
+import {
+  assessEditorialDraft,
+  coverageEvidence,
+  subjectQuality
+} from "./editorial-quality.js";
+import { buildSourceEvidence } from "./editorial-lineage.js";
+import { operationalSourceIdentity } from "./editorial-source-identity.js";
+import { composeEventFromMembers, decideEventMerge } from "./event-cluster.js";
 
 // ---------------------------------------------------------------------------
 // 이슈 묶기 — 같은 사건을 다룬 글들을 한 덩어리로
 // ---------------------------------------------------------------------------
 
-// 두 글이 같은 이슈인가. 판단 재료는 (a) 정규화 제목 완전일치, (b) 내용 태그 겹침.
-// 부분 유사도(자카드 임계값)는 쓰지 않는다 — 임계값이 감이 되기 쉽고, 잘못
-// 묶이면 서로 다른 사건이 한 문단에 뒤섞여 사실이 아닌 글이 된다.
-// 태그는 사전 기반이라 "메모리·D램" 같은 고유명사가 겹칠 때만 묶인다.
-function sharedTagCount(a, b) {
-  if (!a.length || !b.length) return 0;
-  const set = new Set(a);
-  let n = 0;
-  for (const t of b) if (set.has(t)) n++;
-  return n;
-}
-
-export function clusterIssues(items, { minShared = 2 } = {}) {
+// 한 문단으로 합치는 기준은 보수적으로 잡는다. 정규화 제목이 완전히 같거나
+// 추적 파라미터를 걷은 원문 URL이 같을 때만 같은 사건으로 확정한다. 태그와
+// 부분 제목 유사도는 주제만 같고 사건은 다른 글까지 합칠 수 있으므로 여기서
+// 쓰지 않는다. 비슷한 제목의 화면 중복은 아래 dedupeNearIssues에서 따로 막는다.
+export function clusterIssues(items) {
   const enriched = items.map((i) => ({
     item: i,
-    tags: (i.tags && i.tags.length ? i.tags : extractTags(i.title)) || [],
-    key: eventKey(i.title)
+    key: eventKey(i.title),
+    canonicalUrl: canonicalContentUrl(i.url)
   }));
   const clusters = [];
   for (const e of enriched) {
     let placed = null;
     for (const c of clusters) {
       const same = c.members.some(
-        (m) => (m.key && m.key === e.key) || sharedTagCount(m.tags, e.tags) >= minShared
+        (m) => (m.key && m.key === e.key)
+          || (m.canonicalUrl && m.canonicalUrl === e.canonicalUrl)
       );
       if (same) { placed = c; break; }
     }
@@ -66,12 +66,12 @@ export function clusterIssues(items, { minShared = 2 } = {}) {
   return clusters.map((c) => c.members.map((m) => m.item));
 }
 
-// 이슈 간 근접 중복 제거 — clusterIssues가 못 묶은(완전일치·태그 안 겹침)
+// 이슈 간 근접 중복 제거 — clusterIssues가 못 묶은 제목 변주가
 // 변주 헤드라인이 서로 다른 클러스터로 각각 이슈 자리를 차지하는 것을 막는다.
 // 실측(2026-08-09): "채상병 순직 책임 임성근" 변주 4건이 이 문제로 이슈
 // 6건 중 4건을 차지했다(아래 buildDigest 실측 참고).
 //
-// clusterIssues 자체는 건드리지 않는다 — 거긴 완전일치·태그로만 묶어야
+// clusterIssues 자체는 건드리지 않는다 — 거긴 완전일치 제목·원문 URL로만 묶어야
 // 문단 안에 서로 다른 사실이 섞이지 않는다(그 파일 상단 주석). 여기는
 // "어느 클러스터를 이슈로 뽑을지" 고르는 단계라 위험이 다르다 — 잘못
 // 걸러도 그 클러스터가 사라지는 게 아니라 다음 순위 클러스터가 그 자리를
@@ -81,18 +81,83 @@ export function clusterIssues(items, { minShared = 2 } = {}) {
 // B~C 3단어처럼 사슬로 이어지는 경우) 그룹의 대표(첫 멤버)만이 아니라
 // 그룹에 이미 들어간 멤버 전체와 비교한다 — clusterIssues가 `c.members.some`
 // 으로 같은 일을 하는 것과 같은 방식이다.
-const NEAR_DUP_WORDS = 4; // 실측 픽스처: 변주 4건은 대표 클러스터와 4~7단어를
-// 공유했고, 무관한 이슈 쌍은 최대 1단어였다(여유를 둔 값, 임의 수치 아님).
+const NEAR_DUP_CONCEPTS = 3; // 실제 새 판의 트럼프·이란 배상과 축구협회 성접대
+// 변주는 조사·활용형을 접으면 각각 개념 3개가 겹쳤다. 영어 불용어는 세지 않는다.
+const STRONG_EVENT_CONCEPTS = new Set(["지진"]);
+const DISTINCTIVE_ENTITY_MIN_LENGTH = 3;
 
-export function dedupeNearIssues(scored) {
+export function nearIssueGroups(scored) {
   const groups = [];
   for (const c of scored) {
     const title = c.members[0].title;
-    const hit = groups.find((g) =>
-      g.some((m) => sharedTitleWordCount(title, m.members[0].title) >= NEAR_DUP_WORDS));
+    const categories = new Set(c.members.map((item) => item.category || "news"));
+    const hit = groups.find((g) => g.some((m) => {
+      const sameCategory = m.members.some((item) => categories.has(item.category || "news"));
+      const sharedConcepts = sharedTitleConcepts(title, m.members[0].title);
+      if (sameCategory && sharedConcepts.length >= NEAR_DUP_CONCEPTS) return true;
+
+      // 한 매체가 같은 사건을 여러 각도로 연속 발행하면 제목 변주는 두 핵심어만
+      // 겹칠 수 있다. 실제 낮판에서 한겨레의 "호남 반도체 클러스터"와
+      // "호남 반도체 전격전"이 기술 세 자리 중 두 자리를 차지했다. 출처와
+      // 분야가 모두 같을 때만 문턱을 2로 낮춰, 다른 매체의 독립 후속 보도나
+      // 일반어 하나만 같은 별개 사건은 보존한다.
+      const source = operationalSourceIdentity(c.members[0]);
+      const previousSource = operationalSourceIdentity(m.members[0]);
+      const sameOperationalSource = source.ownershipGroup === previousSource.ownershipGroup;
+      const bothCommunity = c.members.every((item) => sourceRoleOf(item) === "community_signal")
+        && m.members.every((item) => sourceRoleOf(item) === "community_signal");
+      const hasRelatedCoverageSignal = (cluster) => Math.max(
+        ...cluster.members.map((item) => Number(item.coverage) || 0), 0
+      ) >= 3;
+      const bothRelated = hasRelatedCoverageSignal(c) && hasRelatedCoverageSignal(m);
+      if (sameCategory && bothRelated && sharedConcepts.length >= 2
+          && sharedConcepts.some((concept) => STRONG_EVENT_CONCEPTS.has(concept))) return true;
+      // 서로 다른 매체라도 같은 긴 고유명사와 같은 흐름어가 함께 겹치면 한 판에서
+      // 하나만 대표한다. 긴 이름 하나만 같은 별개 사건은 그대로 보존한다.
+      if (sameCategory && bothRelated && sharedConcepts.length >= 2
+          && sharedConcepts.some((concept) => /^[가-힣]+$/.test(concept)
+            && concept.length >= DISTINCTIVE_ENTITY_MIN_LENGTH)) return true;
+      if (sameCategory && sameOperationalSource && bothCommunity && sharedConcepts.length >= 2) return true;
+      if (sameCategory && sameOperationalSource && sharedConcepts.length >= 2 && bothRelated) return true;
+
+      // 서로 다른 지면 라벨(news/politics)로 들어온 동일 사건은 핵심 내용어와
+      // 같은 큰 수치가 함께 맞을 때만 접는다. 인물만 같은 별개 후속 보도는 남긴다.
+      return !sameCategory && bothRelated && sharedConcepts.length >= NEAR_DUP_CONCEPTS
+        && sharedConcepts.some((concept) => concept.startsWith("num:"));
+    }));
     if (hit) hit.push(c); else groups.push([c]);
   }
-  return groups.map((g) => g[0]); // scored는 weight 내림차순 — 그룹의 첫 멤버가 대표
+  return groups;
+}
+
+// 기존 호출 계약 유지 — 대표만 필요할 때. scored는 weight 내림차순이라
+// 그룹의 첫 멤버가 대표다. P1-B부터 buildDigest는 그룹 전체를 받아 병합된
+// 클러스터의 기사를 근거로 보존한다(첫 건만 남기고 버리지 않는다).
+export function dedupeNearIssues(scored) {
+  return nearIssueGroups(scored).map((g) => g[0]);
+}
+
+// 사건 2단 판정(event-cluster.js)으로 근접 휴리스틱이 못 잡은 동일 사건을
+// 추가 병합한다. 판 편성에서는 **강한 결합(canonicalUrl·eventKey — 표본 5
+// 중계 재유통)과 한/영 결합(표본 1)만** 쓴다. 한/한 내용어 결합은 위
+// nearIssueGroups의 실측 검증된 휴리스틱이 담당한다 — 사전·형태소 없이
+// 일반 명사 겹침만으로 판을 접으면 서로 다른 사건이 오병합되는 것이 표본
+// 밖 픽스처에서 확인됐다(오병합은 미병합보다 나쁜 실패). 그룹을 나누는
+// 일은 없다(병합만 추가).
+const editionMergeDecision = (a, b) => {
+  const decision = decideEventMerge(a, b);
+  return decision.merge && (decision.mode === "strong" || decision.crossLanguage);
+};
+
+function mergeGroupsByEventDecision(groups) {
+  const merged = [];
+  for (const group of groups) {
+    const hit = merged.find((existing) => existing.some((prevCluster) =>
+      group.some((cluster) => cluster.members.some((item) =>
+        prevCluster.members.some((prevItem) => editionMergeDecision(prevItem, item))))));
+    if (hit) hit.push(...group); else merged.push([...group]);
+  }
+  return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,13 +170,37 @@ const fmt = (n) => {
   return String(v);
 };
 
+// 과학은 화제성만으로 대표 이슈를 세우면 농담·추측성 커뮤니티 글이 연구 보도보다
+// 앞설 수 있다. 커뮤니티 신호는 유지하되 보도·공식 근거가 있는 이슈를 먼저 둔다.
+const EDITORIAL_WEIGHTY = new Set([...WEIGHTY, "realestate", "science"]);
+const VERIFIED_SOURCE_ROLES = new Set(["primary", "reported_secondary", "first_party"]);
+const VERIFIED_SOURCE_BONUS = 90;
+
+function sourceRoleOf(item) {
+  const role = item && item.editorialCandidate && item.editorialCandidate.sourceRole;
+  if (role) return role;
+  if (item && item.kind === "news") return "reported_secondary";
+  if (item && item.kind === "community") return "community_signal";
+  if (item && (item.via === "me" || item.via === "ourdeal")) return "first_party";
+  return "unknown";
+}
+
+function sourceRoleCounts(items) {
+  const counts = {};
+  for (const item of items || []) {
+    const role = sourceRoleOf(item);
+    counts[role] = (counts[role] || 0) + 1;
+  }
+  return counts;
+}
+
 // 이 묶음의 성격을 데이터 모양으로 판정한다. 문장 형태가 여기서 갈린다.
 export function issueShape(items) {
-  const outlets = new Set(items.map((i) => i.sourceLabel || i.source)).size;
+  const evidence = coverageEvidence(items);
   const coverage = Math.max(...items.map((i) => i.coverage || 0), 0);
   const comments = items.reduce((s, i) => s + (i.commentCount || 0), 0);
   const score = items.reduce((s, i) => s + (i.score || 0), 0);
-  if (coverage >= 3 || outlets >= 3) return "coverage";   // 여러 매체가 동시에
+  if (coverage >= 3 || evidence.independentGroupCount >= 2) return "coverage";
   // 매체가 하나뿐이어도 지금 사람들이 몰려 찾아보는 사안이면 그게 이유다.
   if (items.some((i) => i.interest && i.interest.how === "term")) return "interest";
   if (comments >= 100 && comments > score) return "debate"; // 댓글이 추천을 앞선다
@@ -128,21 +217,36 @@ export function issueShape(items) {
 // 한 편에만 나오는 낱말은 그 매체의 표현일 뿐이므로 쓰지 않는다.
 export function issueSubject(items, { max = 2 } = {}) {
   const count = new Map();
+  const generic = new Set(["관련", "기사", "뉴스", "보도", "소식", "출처의", "관측"]);
   for (const i of items) {
     const seen = new Set();
     for (const w of String(i.title || "").split(/[^가-힣a-zA-Z0-9]+/)) {
-      if (w.length < 2) continue;
+      if (w.length < 2 || generic.has(w)) continue;
       if (seen.has(w)) continue;      // 한 제목 안의 반복은 한 번만 센다
       seen.add(w);
       count.set(w, (count.get(w) || 0) + 1);
     }
   }
-  const shared = [...count.entries()]
+  // 같은 제목이 여러 수집 경로에서 중복 관측된 경우 공통어 두 개를 다시
+  // 조합하면 원문에 없던 파편이 된다. 실제로
+  // "[뉴욕증시] 유가 급등에 숨 고르며 CPI 경계…"가 "뉴욕증시 급등에"로
+  // 축약됐다. 수집된 원제목이 전부 같으면 원래 앞 구절을 그대로 사용한다.
+  // 짧은 제목은 eventKey가 비어도 서로 다른 제목이면 공통어를 뽑아야 한다.
+  const normalizedTitles = new Set(items
+    .map((item) => String(item && item.title || "").replace(/\s+/g, " ").trim().toLowerCase())
+    .filter(Boolean));
+  const shared = normalizedTitles.size > 1 ? [...count.entries()]
     .filter(([, n]) => n >= 2)        // 최소 두 편이 함께 쓴 말
     .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
     .slice(0, max)
-    .map(([w]) => w);
-  if (shared.length) return shared.join(" ");
+    .map(([w]) => w) : [];
+  if (shared.length) {
+    const subject = cleanIssueSubject(shared.join(" "));
+    // 여러 중계 피드가 같은 클릭 유도형 앞구절을 반복해도 그것을 사건명으로
+    // 확정하지 않는다. 실측 런치판에서 세 매체의 공통어가
+    // "55세에 없었더니"로 축약돼, 뒤의 치매·수명 정보가 사라졌다.
+    if (subjectQuality(subject).pass && !VAGUE_OPENING_HOOK.test(subject)) return subject;
+  }
 
   // 우리 풀에 그 사건 글이 하나뿐일 때 — 흔한 경우다. 교차보도 5건은 구글이
   // "관련 기사가 5개 있다"고 알려 준 숫자이지, 우리가 5편을 갖고 있다는 뜻이
@@ -152,12 +256,36 @@ export function issueSubject(items, { max = 2 } = {}) {
   // 낫다 — 우리가 만들어 낸 표현이면 사실에서 벗어날 수 있지만, 따온 말은
   // 그 매체가 실제로 쓴 말이다. 헤드라인 전체가 아니라 우리 문장 안에
   // 인용부호로 들어가므로 제목 나열과는 다르다.
-  return leadPhrase(items[0] && items[0].title);
+  const first = cleanIssueSubject(leadPhrase(items[0] && items[0].title));
+  if (subjectQuality(first).pass) return first;
+  const extended = cleanIssueSubject(leadPhrase(items[0] && items[0].title, { max: 72 }));
+  return subjectQuality(extended).pass ? extended : "";
+}
+
+function cleanIssueSubject(text) {
+  return String(text || "")
+    .replace(/[“”‘’"']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// 실제 사건보다 반응을 먼저 내세운 제목만 뒤의 사실 구절로 교체한다.
+// 따옴표 전체를 버리는 일반 규칙은 정상적인 직접 인용까지 훼손하므로,
+// 실측된 모호한 훅 + 사건 동사를 모두 만족할 때만 작동한다.
+const VAGUE_OPENING_HOOK = /(살지롱|줄\s*알았|맞나|불확실(?:해|하다|성)?|다\s*했(?:다|네|네요)|\d+\s*(?:초|분|시간)\s*만에.*(?:화염|불길).*|죽어서.*살려서|죽을\s*때까지|느니|이\s*\d+\s*가지|\d+세에\s+없었더니|네가\s*사는\s*그\s*집|감도\s*안|긴\s*휴식\s*끝\s*전력대결|새벽\s*\d+시부터.*대출런|폭탄\s*터진\s*듯.*건물\s*와르르|이유\s*있었네|논란\s*일자.*(?:멈춘|중단)|순풍에\s*돛\s*단.*덕|요즘\s+.+핫하네|사후\s*치료\s*넘어\s*조기\s*개입|계속\s*웃기면\s*(?:드라마|코미디)|^(?:상승률|하락률|증가율|감소율|수익률|점유율|성장률)\s*[-+]?\d+(?:\.\d+)?%$|^(?:혈압|혈당|금연)(?:[·,\s]+(?:혈압|혈당|금연)){1,}$)/i;
+const INFORMATIVE_EVENT_TAIL = /(확산|화재|긴급\s*방류|언쟁|발언|발표|체포|구속|기소|판결|사망|실종|대피|출시|공개|착수|조사|수사|급등|급락|반등|상승|하락|붕괴|침수|파업|합의|통과|부결|당선|사퇴|해임|배치|충돌|폭발|지진|태풍|폭우|방침|결정|제재|공급|개편|수출|역대\s*(?:최대|최고)|실패|부동산\s*세제|대출총량제|연금|치매|생존|수명|가을야구|플레이오프|인공위성|연구진|발견|관측|실험|논문|모집|연기|돌파)/i;
+
+function prefersInformativeTail(first, tail) {
+  const firstClean = cleanIssueSubject(first);
+  const tailClean = cleanIssueSubject(tail);
+  return VAGUE_OPENING_HOOK.test(firstClean)
+    && INFORMATIVE_EVENT_TAIL.test(tailClean)
+    && subjectQuality(tailClean).pass;
 }
 
 // 제목의 앞 구절. 부제·인용이 시작되는 지점(…, —, [ ) 앞에서 자르고,
 // 너무 길면 낱말 경계에서 끊는다. 억지로 자른 티가 나면 안 된다.
-export function leadPhrase(title, { max = 20 } = {}) {
+export function leadPhrase(title, { max = 72 } = {}) {
   let t = String(title || "").trim();
   if (!t) return "";
   // 말머리를 먼저 떼어 낸다 — "[속보]", "【단독】", "(종합)". 사건 이름이 아니라
@@ -169,9 +297,24 @@ export function leadPhrase(title, { max = 20 } = {}) {
     if (stripped === t) break;
     t = stripped;
   }
-  // 그다음 부제가 시작되는 지점에서 자른다.
-  t = t.split(/[…·|]|—|\.\.\.|\s-\s/).map((x) => x.trim()).find(Boolean) || "";
-  t = t.replace(/^["“'‘\s]+/, "").replace(/["”'’\s]+$/, "");
+  // 그다음 부제가 시작되는 지점에서 자른다. 다만 첫 구절이 조사·연결어로
+  // 끝나면 거기서 끊지 않는다. 뒤 구절까지 이어야 사건명이 문장이 된다.
+  // 가운데점(·)은 사람·정당·상품명의 일부로 자주 쓰인다. 구분자로 자르면
+  // "李·與 서울 지지율"이 "李" 한 글자로 붕괴한다.
+  const parts = t.split(/[…|]|—|\.\.\.|·{2,}|\s-\s/).map((x) => x.trim()).filter(Boolean);
+  t = parts[0] || "";
+  const firstClean = tidyPhrase(t.replace(/^["“'‘\s]+/, "").replace(/["”'’\s]+$/, ""));
+  if (parts.length > 1 && prefersInformativeTail(parts[0], parts[1])) {
+    t = parts[1];
+  } else if (parts.length > 1 && !subjectQuality(firstClean).checks.completeEnding) {
+    t = `${parts[0]} ${parts[1]}`;
+  }
+  // 추출한 사건명은 우리 헤드라인에서 다시 인용한다. 원제목의 여러 인용부를
+  // 이어 붙인 뒤 닫는 따옴표와 다음 여는 따옴표가 가짜 한 쌍으로 남지 않게 한다.
+  t = t.replace(/[“”‘’"']/g, "")
+    .replace(/\s*(?:\((?:종합|속보|영상|포토|사진)\)|\[(?:종합|속보|영상|포토|사진)\])\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (t.length > max) {
     const cut = t.slice(0, max);
     const sp = cut.lastIndexOf(" ");
@@ -196,10 +339,10 @@ export function tidyPhrase(text) {
   if (q % 2 === 1) t = t.replace(/["']/g, "");
   void OPEN; void CLOSE;
   // 잘린 자리에 남은 이음 부호
-  return t.replace(/[\s,·、:;\-–—]+$/, "").trim();
+  return t.replace(/\.{2,}$/, "").replace(/[\s,·、:;\-–—]+$/, "").trim();
 }
 
-export function issueHeadline(items, shape) {
+export function issueHeadline(items, shape, evidence = coverageEvidence(items), subject = issueSubject(items)) {
   const lead = items[0];
   const label = lead.sourceLabel || lead.source;
   const outlets = new Set(items.map((i) => i.sourceLabel || i.source)).size;
@@ -224,20 +367,22 @@ export function issueHeadline(items, shape) {
       // 그중에는 우리 피드에 단 한 곳(KBS뉴스)에서만 들어온 것도 있었다.
       // 하필 그 문장이 애드핏 재심사용 자체 콘텐츠의 맨 앞자리였다.
       void coverage;
-      const subject = issueSubject(items);
-      return subject ? `여러 매체가 다룬 “${subject}”` : `여러 매체가 동시에 다룬 사안`;
+      if (!subject) return "근거 확인이 필요한 보도 흐름";
+      return evidence.mode === "multiple_feed_observed"
+        ? `“${subject}” · 복수 수집 경로 확인`
+        : `“${subject}” · 관련 보도 묶음 포착`;
     }
     case "interest": {
       const m = items.find((i) => i.interest && i.interest.how === "term").interest;
-      return m.traffic > 0 ? `지금 검색이 몰리는 “${m.term}”` : `지금 검색이 몰리는 “${m.term}”`;
+      return `“${m.term}” 검색과 함께 뜬 “${subject}”`;
     }
     case "debate":
-      return `${label} · 댓글 ${fmt(comments)}건의 논쟁`;
+      return `댓글 ${fmt(comments)}건이 붙은 “${subject}”`;
     case "applause":
-      return `${label} · 추천 ${fmt(score)}건`;
+      return `추천 ${fmt(score)}건을 모은 “${subject}”`;
     default:
-      return comments > 0 ? `${label} · 댓글 ${fmt(comments)}건`
-                          : `${label} 상위 글`;
+      return comments > 0 ? `${label} 상위의 “${subject}” · 댓글 ${fmt(comments)}건`
+                          : `${label} 상위의 “${subject}”`;
   }
 }
 
@@ -267,7 +412,7 @@ export function distinctOutlets(items) {
 }
 
 // 이슈 본문 — 전부 측정값으로만 쓴다. 0인 지표는 문장에서 뺀다.
-export function issueParagraph(items, shape) {
+export function issueParagraph(items, shape, evidence = coverageEvidence(items)) {
   const lead = items[0];
   const title = String(lead.title || "").trim();
   const outlets = distinctOutlets(items);
@@ -276,11 +421,14 @@ export function issueParagraph(items, shape) {
   const parts = [];
 
   if (shape === "coverage") {
-    // 여기서도 개수를 쓰지 않는다(위 issueHeadline의 이유와 같다).
-    // **우리가 실제로 센 것만 말한다** — 우리 피드에 들어온 출처 이름이 그것이다.
-    // 교차보도는 "여러 곳이 함께 다루고 있다"는 사실만 전하고 수를 붙이지 않는다.
-    const named = outlets.slice(0, 3).join("·");
-    parts.push(`“${title}” 소식을 여러 매체가 함께 다루고 있다. 우리 피드에는 ${named}에서 들어왔다.`);
+    const named = [...new Set(
+      (evidence.groups && evidence.groups.length ? evidence.groups.map((group) => group.label) : outlets)
+    )].filter(Boolean).slice(0, 3).join("·");
+    if (evidence.mode === "multiple_feed_observed") {
+      parts.push(`서로 다른 수집 경로에서 “${title}” 보도를 확인했다. 직접 확인한 원문은 ${named}에서 들어왔다.`);
+    } else {
+      parts.push(`관련 보도 묶음 신호에서 “${title}” 보도를 포착했다. 지금핫 수집 풀에서 직접 확인한 원문은 ${named} 기사 한 건이다.`);
+    }
     // 대표 글과 **같은 제목**은 빼고 소개한다. 라이브 실측(2026-08-06):
     // "같은 흐름에서 「與서울의원들, 오늘 부동산 세제 개편안 논의」도 상위에
     // 올랐다" — 바로 윗줄에서 소개한 그 글이었다. 같은 사건을 여러 매체가
@@ -294,14 +442,14 @@ export function issueParagraph(items, shape) {
       .join(", ");
     if (others) parts.push(`같은 흐름에서 ${others}도 상위에 올랐다.`);
   } else if (shape === "debate") {
-    parts.push(`“${title}”을 두고 댓글 ${fmt(comments)}건이 달리며 논쟁이 이어졌다.`);
+    parts.push(`${outlets[0]}의 “${title}” 게시물에 댓글 ${fmt(comments)}건이 달리며 논쟁이 이어졌다.`);
     if (score > 0) parts.push(`추천은 ${fmt(score)}건으로 댓글 수에 못 미친다 — 합의보다 이견이 큰 주제다.`);
     else parts.push(`추천보다 댓글이 앞서는 전형적인 논쟁형 흐름이다.`);
   } else if (shape === "applause") {
-    parts.push(`“${title}”이 ${outlets[0]}에서 추천 ${fmt(score)}건을 모았다.`);
+    parts.push(`${outlets[0]}의 “${title}” 게시물이 추천 ${fmt(score)}건을 모았다.`);
     if (comments > 0) parts.push(`댓글은 ${fmt(comments)}건이다.`);
   } else {
-    parts.push(`${outlets[0]} 상위에 “${title}”이 올라 있다.`);
+    parts.push(`${outlets[0]} 상위 목록에 “${title}” 제목이 올라 있다.`);
     if (comments > 0) parts.push(`댓글 ${fmt(comments)}건이 달렸다.`);
     else if (score > 0) parts.push(`추천 ${fmt(score)}건을 받았다.`);
   }
@@ -312,8 +460,86 @@ export function issueParagraph(items, shape) {
 }
 
 // 감정/성격 태그 — 라벨도 측정값에서 나온다(감정 분석이 아니다).
-export function issueTone(shape) {
-  return { coverage: "다발 보도", debate: "논쟁", applause: "호응", single: "단독" }[shape] || "단독";
+export function issueTone(shape, evidence = null) {
+  if (shape === "coverage") {
+    return evidence && evidence.mode === "multiple_feed_observed" ? "운영그룹 교차 관측" : "관련 보도";
+  }
+  return { debate: "논쟁", applause: "호응", single: "단독" }[shape] || "단독";
+}
+
+function buildIssueDraft(members, perIssueRefs, requireKoreanAudience = false) {
+  const shape = issueShape(members);
+  const evidence = coverageEvidence(members);
+  const subject = issueSubject(members);
+  const headline = issueHeadline(members, shape, evidence, subject);
+  const paragraph = issueParagraph(members, shape, evidence);
+  const sourceLabels = [...new Set([
+    ...evidence.sources.map((source) => source.label),
+    ...distinctOutlets(members)
+  ])].filter(Boolean);
+  const editorialGate = assessEditorialDraft({
+    headline,
+    paragraph,
+    subject,
+    evidence,
+    sourceLabels,
+    categoryItems: members,
+    requireKoreanAudience
+  });
+  const sourceEvidence = buildSourceEvidence(members);
+  const roleCounts = sourceRoleCounts(members);
+  const carryoverEvidenceCount = members.filter((item) => item.editorialCarryover).length;
+  return {
+    subject,
+    headline,
+    paragraph,
+    tone: issueTone(shape, evidence),
+    shape,
+    categoryIds: [...new Set(members.map((item) => item.category || "news"))],
+    metrics: {
+      sourceCount: evidence.observedFeedCount,
+      independentGroupCount: evidence.independentGroupCount,
+      score: members.reduce((sum, item) => sum + (item.score || 0), 0),
+      comments: members.reduce((sum, item) => sum + (item.commentCount || 0), 0),
+      coverage: evidence.coverage,
+      evidenceMode: evidence.mode,
+      relatedCoverageSignal: evidence.relatedCoverageSignal,
+      sourceRoles: roleCounts,
+      verifiedSourceCount: [...VERIFIED_SOURCE_ROLES]
+        .reduce((sum, role) => sum + (roleCounts[role] || 0), 0),
+      carryoverUsed: carryoverEvidenceCount > 0,
+      carryoverEvidenceCount,
+      communityOnly: (roleCounts.community_signal || 0) > 0
+        && Object.entries(roleCounts).every(([role, count]) => role === "community_signal" || count === 0)
+    },
+    evidence: {
+      mode: evidence.mode,
+      observedFeedCount: evidence.observedFeedCount,
+      independentGroupCount: evidence.independentGroupCount,
+      ownershipGroups: evidence.ownershipGroups,
+      groups: evidence.groups,
+      independenceBasis: evidence.independenceBasis,
+      relatedCoverageSignal: evidence.relatedCoverageSignal,
+      sources: evidence.sources
+    },
+    sourceEvidence,
+    editorialGate,
+    refs: members.slice(0, perIssueRefs).map((item) => {
+      const identity = operationalSourceIdentity(item);
+      return {
+        id: item.id, title: item.title, sourceLabel: item.sourceLabel || item.source,
+        category: item.category || "news", score: item.score || 0,
+        commentCount: item.commentCount || 0, coverage: item.coverage || 0,
+        canonicalUrl: item.editorialCandidate && item.editorialCandidate.canonicalUrl || null,
+        publishedAt: item.publishedAt || null,
+        sourceRole: item.editorialCandidate && item.editorialCandidate.sourceRole || "unknown",
+        ownershipGroup: identity.ownershipGroup,
+        ownershipBasis: identity.ownershipBasis,
+        syndicationGroup: item.editorialCandidate && item.editorialCandidate.syndicationGroup || null,
+        carryover: item.editorialCarryover ? { ...item.editorialCarryover } : null
+      };
+    })
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -361,7 +587,10 @@ export const SLOTS = [
   }
 ];
 
-export const slotById = (id) => SLOTS.find((s) => s.id === id) || SLOTS[0];
+// 설계 문서와 일부 초기 로컬 호출은 낮판을 `midday`라고 불렀고, 운영 저장
+// ID는 이미 `lunch`다. 저장 키를 바꾸지 않고 별칭만 받아 잘못 모닝판으로
+// 떨어지던 동작을 막는다.
+export const slotById = (id) => SLOTS.find((s) => s.id === (id === "midday" ? "lunch" : id)) || SLOTS[0];
 
 // 해외 소스인가 — 언어로 판별한다. kind는 community/news로 갈릴 뿐 국적을
 // 말해 주지 않고(해커뉴스가 community다), 소스 목록을 하드코딩하면 소스를
@@ -379,8 +608,17 @@ export function slotForHour(kstHour) {
 }
 
 // items: 이미 필터링된(성인·정치·광고 제외) 화제성 순 배열.
-// 반환: { issues:[{headline, paragraph, tone, refs:[{id,title,sourceLabel,...}]}], summary }
-export function buildDigest(items, { maxIssues = 6, perIssueRefs = 4, maxPerSource = 2 } = {}) {
+// 반환: { issues:[...], summary, quality }. quality는 현재 동적 후보의 기계
+// 편집 게이트 영수증이며 E1의 별도 고정 사람 평가 표본 수와 무관하다.
+export function buildDigest(items, {
+  maxIssues = 6,
+  perIssueRefs = 4,
+  maxPerSource = 2,
+  selectedCategories = [],
+  minIssuesPerCategory = 0,
+  additiveCategoryUnion = false,
+  requireKoreanAudience = false
+} = {}) {
   const clusters = clusterIssues(items);
 
   // ── 이슈 정렬: 반응 총량이 아니라 **중요도** 순 (David 2026-08-05)
@@ -407,28 +645,55 @@ export function buildDigest(items, { maxIssues = 6, perIssueRefs = 4, maxPerSour
   // 커뮤니티 글을 빼는 게 아니다 — 중요한 사건 **다음에** 놓는다.
   const REACTION_K = 60;
   const COVERAGE_K = 80;
+  const RELATED_COVERAGE_K = 40;
   const INTEREST_MAX = 250;
   const WEIGHTY_BONUS = 105;
   const scored = clusters.map((members) => {
     const eng = members.reduce((s, i) => s + (i.score || 0) + (i.commentCount || 0) * 2, 0);
-    const cov = Math.max(...members.map((i) => i.coverage || 0), 0);
+    const evidence = coverageEvidence(members);
     const best = members.reduce((m, i) => {
       const t = i.interest ? (i.interest.traffic || 0) * (i.interest.strength || 1) : 0;
       return t > m ? t : m;
     }, 0);
-    const weighty = members.some((i) => WEIGHTY.has(i.category)) ? WEIGHTY_BONUS : 0;
+    const isWeighty = members.some((i) => EDITORIAL_WEIGHTY.has(i.category));
+    const roles = sourceRoleCounts(members);
+    const hasVerifiedSource = [...VERIFIED_SOURCE_ROLES].some((role) => (roles[role] || 0) > 0);
+    // 중요한 분야라는 이유만으로 커뮤니티 단일 글에 105점을 주지 않는다.
+    // 실측에서 핫딜·추측성 글이 business 라벨 하나로 보도보다 앞섰다. 보도·
+    // 공식 근거나 서로 다른 운영그룹 관측이 있을 때만 중요도 보너스를 부여한다.
+    const weighty = isWeighty && (hasVerifiedSource || evidence.mode === "multiple_feed_observed")
+      ? WEIGHTY_BONUS : 0;
+    const sourceTrust = isWeighty && hasVerifiedSource ? VERIFIED_SOURCE_BONUS : 0;
+    const coveragePoints = evidence.mode === "multiple_feed_observed"
+      ? Math.min(5, evidence.independentGroupCount) * COVERAGE_K
+      : evidence.relatedCoverageSignal
+        ? Math.min(5, evidence.coverage) * RELATED_COVERAGE_K
+        : 0;
     return {
       members,
+      draft: buildIssueDraft(members, perIssueRefs, requireKoreanAudience),
+      carryoverOnly: members.every((item) => Boolean(item.editorialCarryover)),
       weight: Math.log10(1 + Math.max(0, eng)) * REACTION_K
-        + cov * COVERAGE_K
+        + coveragePoints
         + INTEREST_MAX * Math.min(1, best / 1000)
         + weighty
+        + sourceTrust
     };
-  }).sort((a, b) => b.weight - a.weight);
+  }).sort((a, b) => Number(a.carryoverOnly) - Number(b.carryoverOnly) || b.weight - a.weight);
 
-  // 이슈로 뽑을 후보를 정하기 전에 근접 중복부터 접는다 — 그래야 아래
-  // maxPerSource·maxIssues 선정이 "서로 다른 사건 중 상위"를 고르게 된다.
-  const deduped = dedupeNearIssues(scored);
+  // 문장·근거 계약을 먼저 통과시킨 뒤 근접 중복을 접는다. 실패 클러스터를 먼저
+  // 대표로 정하면, 같은 사건의 다음 정상 클러스터까지 중복으로 사라져 빈자리가
+  // 생긴다. 게이트 실패 후보는 어떤 형태로도 유효 후보의 자리를 차지하지 않는다.
+  const machinePassed = scored.filter((cluster) => cluster.draft.editorialGate.pass);
+  // P1-B 사건 계층: 근접 중복은 "첫 건만 남김"이 아니라 사건 병합이다.
+  // 기존 휴리스틱 그룹 위에 사건 2단 판정 병합을 얹고, 병합된 클러스터의
+  // 기사는 대표 이슈의 근거(sourceEvidence)로 보존한다 — 타 매체 근거 소실 0.
+  const eventGroups = mergeGroupsByEventDecision(nearIssueGroups(machinePassed));
+  const deduped = eventGroups.map((group) => group[0]);
+  const mergedEvidenceOf = new Map(eventGroups.map((group) => [
+    group[0],
+    group.slice(1).flatMap((cluster) => cluster.members)
+  ]));
 
   // 한 소스가 브리핑을 독식하지 않게 상한을 둔다.
   //
@@ -440,41 +705,170 @@ export function buildDigest(items, { maxIssues = 6, perIssueRefs = 4, maxPerSour
   //
   // 근본 해결은 소스 간 점수 정규화이고 그건 별건이다. 여기서는 브리핑이
   // 목적을 잃지 않도록 편성 단계에서 막는다.
+  const rankOfOriginal = new Map(deduped.map((cluster, index) => [cluster, index]));
   const perSource = new Map();
   const balanced = [];
-  for (const c of deduped) {
-    const src = c.members[0].sourceLabel || c.members[0].source || "?";
-    if ((perSource.get(src) || 0) >= maxPerSource) continue;
+  const chosen = new Set();
+  const chosenSubjects = new Set();
+  const chosenTrendTerms = new Set();
+  const selected = new Set((selectedCategories || []).filter(Boolean));
+  const categoryCounts = new Map();
+  const addBalanced = (cluster, { ignoreSourceCap = false } = {}) => {
+    if (chosen.has(cluster) || balanced.length >= maxIssues) return false;
+    const src = cluster.members[0].sourceLabel || cluster.members[0].source || "?";
+    if (!ignoreSourceCap && (perSource.get(src) || 0) >= maxPerSource) return false;
+    const subjectKey = String(cluster.draft.subject || "").toLowerCase();
+    const trendTerms = [...new Set(cluster.members
+      .filter((item) => item.interest && item.interest.how === "term")
+      .map((item) => String(item.interest.term || "").trim().toLowerCase())
+      .filter(Boolean))];
+    if (subjectKey && chosenSubjects.has(subjectKey)) return false;
+    if (trendTerms.some((term) => chosenTrendTerms.has(term))) return false;
+    chosen.add(cluster);
+    balanced.push(cluster);
+    if (subjectKey) chosenSubjects.add(subjectKey);
+    for (const term of trendTerms) chosenTrendTerms.add(term);
     perSource.set(src, (perSource.get(src) || 0) + 1);
-    balanced.push(c);
-    if (balanced.length >= maxIssues) break;
+    for (const category of new Set(cluster.members.map((item) => item.category || "news"))) {
+      if (selected.has(category)) categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+    }
+    return true;
+  };
+
+  // 개인판은 후보에 여러 분야가 있어도 최종 중요도 정렬에서 한 분야가 다시
+  // 지면을 독식할 수 있다. 공급이 있는 선택 분야의 대표 이슈를 먼저 확보하고,
+  // 남은 자리는 아래 전체 중요도 순으로 채운다. 기본 브리핑은 floor=0이라
+  // 기존 동작을 그대로 유지한다.
+  const floor = Math.max(0, Math.floor(Number(minIssuesPerCategory) || 0));
+  if (floor && selected.size) {
+    for (const category of selected) {
+      for (const cluster of deduped) {
+        if ((categoryCounts.get(category) || 0) >= floor) break;
+        if (!cluster.members.some((item) => (item.category || "news") === category)) continue;
+        addBalanced(cluster);
+      }
+    }
+    // 앞선 분야가 전역 소스 상한을 먼저 소진해 뒤의 분야가 후보를 갖고도 0~1건에
+    // 머무르면, 전체 중요도 자리를 채우기 전에 그 분야의 최소 깊이에 한해 상한을
+    // 푼다. 중복 사건·주제·전체 판본 상한은 그대로라 없는 공급을 만들지는 않는다.
+    for (const category of selected) {
+      for (const cluster of deduped) {
+        if ((categoryCounts.get(category) || 0) >= floor) break;
+        if (!cluster.members.some((item) => (item.category || "news") === category)) continue;
+        addBalanced(cluster, { ignoreSourceCap: true });
+      }
+    }
   }
-  // 공급이 얇아 상한 때문에 못 채우면 상한을 풀어 채운다(빈 브리핑보다 낫다)
-  if (balanced.length < Math.min(maxIssues, deduped.length)) {
+  if (!additiveCategoryUnion) {
     for (const c of deduped) {
-      if (balanced.includes(c)) continue;
-      balanced.push(c);
+      addBalanced(c);
       if (balanced.length >= maxIssues) break;
     }
   }
+  // 공급이 얇아 상한 때문에 못 채우면 상한을 풀되, 현재 가장 적게 뽑힌
+  // 출처의 다음 고순위 이슈부터 채운다. 정렬 순서대로 곧장 풀면 실측 게임
+  // 단독판처럼 14건 중 10건이 한 매체가 되어 "충분한 브리핑"이 그 매체의
+  // 최신글 모음으로 되돌아간다. 모든 후보는 이미 품질 게이트를 통과했고,
+  // 출처별 내부 순위는 deduped의 원래 중요도 순서를 그대로 보존한다.
+  const fillTarget = additiveCategoryUnion
+    ? balanced.length
+    : Math.min(maxIssues, deduped.length);
+  while (balanced.length < fillTarget) {
+    const remaining = deduped
+      .filter((cluster) => !chosen.has(cluster))
+      .sort((a, b) => {
+        const sourceOf = (cluster) => cluster.members[0].sourceLabel || cluster.members[0].source || "?";
+        return (perSource.get(sourceOf(a)) || 0) - (perSource.get(sourceOf(b)) || 0)
+          || rankOfOriginal.get(a) - rankOfOriginal.get(b);
+      });
+    let added = false;
+    for (const cluster of remaining) {
+      if (addBalanced(cluster, { ignoreSourceCap: true })) {
+        added = true;
+        break;
+      }
+    }
+    if (!added) break;
+  }
+  // 예약 순서가 분야 탭 순서가 되지 않게 원래 중요도 순서를 복원한다.
+  const rankOf = rankOfOriginal;
+  balanced.sort((a, b) => rankOf.get(a) - rankOf.get(b));
 
-  const issues = balanced.map(({ members }) => {
-    const shape = issueShape(members);
+  const issues = balanced.map((cluster) => {
+    const draft = cluster.draft;
+    const mergedMembers = mergedEvidenceOf.get(cluster) || [];
+    const allMembers = [...cluster.members, ...mergedMembers];
+    if (mergedMembers.length) {
+      // 병합된 클러스터의 기사도 근거로 남긴다(사라지지 않는다 — v4 성공지표).
+      // 대표의 측정값·게이트는 그대로 둔다: 병합 근거로 교차 계수를 부풀리지
+      // 않는다(합산 금지, 커뮤 반응은 별도 축 — event.counts가 축별 정본).
+      draft.sourceEvidence = buildSourceEvidence(allMembers);
+    }
+    // 사건 투영: 안정 사건 ID를 기존 소비처 필드명 clusterId로 노출한다
+    // (edition-change 등 소비처 무변경 호환 — 없으면 종전대로 스냅샷 키 사용).
+    const event = composeEventFromMembers(allMembers);
+    draft.clusterId = event.eventId;
+    draft.event = event;
+    return draft;
+  });
+
+  const machinePass = machinePassed.length;
+  const failuresByRule = {};
+  for (const cluster of scored) {
+    for (const failure of cluster.draft.editorialGate.failures || []) {
+      failuresByRule[failure] = (failuresByRule[failure] || 0) + 1;
+    }
+  }
+  const evidenceModes = {};
+  for (const issue of issues) {
+    const mode = issue.evidence && issue.evidence.mode || "unknown";
+    evidenceModes[mode] = (evidenceModes[mode] || 0) + 1;
+  }
+  const categoriesOfCluster = (cluster) => new Set(
+    (cluster && cluster.members || []).map((item) => item.category || "news")
+  );
+  const countClusters = (rows, category) => (rows || [])
+    .filter((cluster) => categoriesOfCluster(cluster).has(category)).length;
+  const funnelCategories = [...new Set([
+    ...(selectedCategories || []).filter(Boolean),
+    ...items.map((item) => item.category || "news")
+  ])];
+  const categoryFunnel = funnelCategories.map((categoryId) => {
+    const inputItemCount = items.filter((item) => (item.category || "news") === categoryId).length;
+    const clusterCount = countClusters(scored, categoryId);
+    const machinePassClusterCount = countClusters(machinePassed, categoryId);
+    const qualifiedClusterCount = countClusters(deduped, categoryId);
+    const draftSelectedCount = issues.filter((issue) =>
+      (issue.categoryIds || []).includes(categoryId)).length;
     return {
-      headline: issueHeadline(members, shape),
-      paragraph: issueParagraph(members, shape),
-      tone: issueTone(shape),
-      shape,
-      // 참조 글은 **제목과 우리 지표만** 넘긴다. summary(원문 발췌)는 넘기지 않는다 —
-      // 브리핑에 외부 본문이 실리는 것이 애드핏 지적의 직접적 근거였다.
-      refs: members.slice(0, perIssueRefs).map((i) => ({
-        id: i.id, title: i.title, sourceLabel: i.sourceLabel || i.source,
-        score: i.score || 0, commentCount: i.commentCount || 0, coverage: i.coverage || 0
-      }))
+      categoryId,
+      inputItemCount,
+      clusterCount,
+      machinePassClusterCount,
+      qualifiedClusterCount,
+      draftSelectedCount,
+      machineHoldCount: Math.max(0, clusterCount - machinePassClusterCount),
+      nearDuplicateHoldCount: Math.max(0, machinePassClusterCount - qualifiedClusterCount),
+      selectionHoldCount: Math.max(0, qualifiedClusterCount - draftSelectedCount)
     };
   });
 
-  return { issues, summary: buildSummary(issues, items) };
+  return {
+    issues,
+    summary: buildSummary(issues, items),
+    quality: {
+      sampleMode: "dynamic_current_edition",
+      evaluatedClusters: scored.length,
+      machinePass,
+      machineHold: scored.length - machinePass,
+      qualifiedClusters: deduped.length,
+      nearDuplicateHolds: Math.max(0, machinePassed.length - deduped.length),
+      selectedAfterGate: issues.length,
+      failuresByRule,
+      evidenceModes,
+      categoryFunnel
+    }
+  };
 }
 
 // 종합 문단 — 이슈들의 성격 분포를 한 문장으로. 여기서도 새 사실을 만들지 않는다.
@@ -485,10 +879,11 @@ export function buildSummary(issues, items) {
   const outlets = new Set(items.map((i) => i.sourceLabel || i.source)).size;
   const bits = [];
   bits.push(`커뮤니티·매체 ${outlets}곳에서 모은 ${items.length}건을 ${issues.length}개 이슈로 정리했다.`);
-  const cov = byTone["다발 보도"] || 0;
+  const cross = byTone["운영그룹 교차 관측"] || 0;
+  const related = byTone["관련 보도"] || 0;
   const deb = byTone["논쟁"] || 0;
-  if (cov && deb) bits.push(`여러 매체가 동시에 다룬 사안이 ${cov}건, 댓글이 길게 이어진 논쟁이 ${deb}건이다.`);
-  else if (cov) bits.push(`이 중 ${cov}건은 여러 매체가 동시에 다뤘다.`);
-  else if (deb) bits.push(`이 중 ${deb}건은 추천보다 댓글이 앞서는 논쟁형이다.`);
+  if (cross) bits.push(`이 중 ${cross}건은 서로 다른 운영그룹에서 교차 관측했다.`);
+  if (related) bits.push(`${related}건은 관련 보도 묶음 신호가 있었다.`);
+  if (deb) bits.push(`${deb}건은 추천보다 댓글이 앞서는 논쟁형이다.`);
   return bits.join(" ");
 }
