@@ -23,12 +23,15 @@ const AD_MATCH_OFF = new Set(["news", "politics"]);
 import { promotable, isLowValue } from "./promotion.js";
 import { isJunkImage } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
+import { canonicalContentUrl } from "./dedupe.js";
+import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import { buildDigest, MIN_ISSUES, slotForHour, slotById, isOverseas } from "./digest.js";
 import { rankParams, categorySets, selectDiverse } from "./rank.js";
 import {
   rankItems,
   diversify,
   applyFeedback,
+  revertFeedback,
   applyImplicit,
   explain,
   specializationLevel,
@@ -37,7 +40,19 @@ import {
   tasteScore
 } from "./recommender.js";
 import { collaborativeBoosts } from "./collab.js";
-import { categoryLabel, sourceLabel } from "./taxonomy.js";
+import { CATEGORIES, categoryLabel, sourceLabel } from "./taxonomy.js";
+import {
+  EDITION_CANDIDATE_CONTRACT,
+  buildEditionCandidateFixture,
+  candidateFixtureReceipt
+} from "./edition-candidates.js";
+import { attachEditorialLineage } from "./editorial-lineage.js";
+import {
+  EDITORIAL_FULFILLMENT_CONTRACT,
+  attachEditorialFulfillment,
+  editorialIssueBudget,
+  editorialMinimumPerCategory
+} from "./editorial-fulfillment.js";
 import { sampleSources, evaluate, summarize } from "./health.js";
 import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams, latestInterleave, diversityKey, COVERAGE_MAX } from "./ingest.js";
 import { FILTERABLE_TOPICS, NO_DEAL_TOPIC } from "./topics.js";
@@ -51,6 +66,21 @@ import {
   applyVariant,
   applyNarrowSourceDensity
 } from "./monetize.js";
+
+// 섹션 뉴스는 등록 분야가 강한 신호다. 다만 과학·기술 묶음에 게임·과학 기사가
+// 실측으로 섞이듯, 제목에 전용어가 있는 분야만 좁게 바로잡는다.
+const SECTIONED_NEWS_TITLE_OVERRIDES = new Set(["auto", "gaming", "science"]);
+// 이 값은 판본 수집량·발행량 목표가 아니다. 약지도 NB가 두세 제목만 보고
+// 오분류하지 않게 하는 프로세스 시작 시점의 내부 준비 보호값이다.
+const MIN_NB_TRAINING_ROWS = 100;
+
+function preferCanonicalItem(current, candidate, offMain, engagement) {
+  if (!current) return candidate;
+  const currentVisible = !offMain.has(current.source);
+  const candidateVisible = !offMain.has(candidate.source);
+  if (currentVisible !== candidateVisible) return candidateVisible ? candidate : current;
+  return engagement(candidate) > engagement(current) ? candidate : current;
+}
 
 // How long a collected item stays in the rolling pool before it's eligible for
 // eviction (David 2026-07-24: refresh should *accumulate*, not replace — a
@@ -312,6 +342,152 @@ function reasonLabel(r) {
 
 // 공개 지면용 — 아무 토픽도 켜지 않은 상태(기본 숨김 전부 적용)
 const EMPTY_TOPICS = new Set();
+const CATEGORY_IDS = new Set(CATEGORIES.map((category) => category.id));
+export const DEFAULT_EDITORIAL_PREVIEW = ["news", "business", "tech", "humor"];
+
+function hasFinalConsonant(word) {
+  const text = String(word || "").trim();
+  if (!text) return false;
+  const latinToken = text.match(/[a-z]+$/i)?.[0].toUpperCase();
+  if (["AI", "API", "IT", "PC", "UI"].includes(latinToken)) return false;
+  const last = text[text.length - 1];
+  const code = last.charCodeAt(0);
+  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0;
+  if (/[0-9]/.test(last)) return "013678".includes(last);
+  return /[lmnkptbcdfgszx]$/i.test(last);
+}
+
+function withObjectParticle(text) {
+  return `${text}${hasFinalConsonant(text) ? "을" : "를"}`;
+}
+
+function normalizedCategories(value) {
+  const list = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  return [...new Set(list.map((id) => String(id || "").trim()).filter((id) => CATEGORY_IDS.has(id)))];
+}
+
+export function editorialValue(issue) {
+  const categoryIds = issue.categoryIds || [];
+  const ids = new Set(categoryIds || []);
+  const text = [issue.headline, ...(issue.refs || []).map((ref) => ref.title)].join(" ");
+  const market = /(금리|채권|환율|달러|원화|코스피|코스닥|증시|주가|주식|지수|S&P|나스닥|실적|영업이익|매출|배당|목표치)/i;
+  const international = /(전쟁|공습|미사일|호르무즈|정유시설|무역|관세|제재|공급망|북한군|북중|미군기지|우크라|이란|외교|안보)/;
+  const policy = /(대통령|정부|국회|법안|법률|시행령|정책|규제|세금|교육감|지지율|행정)/;
+  const weather = /(폭염|태풍|호우|폭설|날씨|기온|열대야|너울|지진|산불|홍수|강진|붕괴|대피|사망)/;
+  const health = /(건강|의료|치료|치매|알츠하이머|퇴행성|백신|항체|신약|임상|질환|병원|영양|임신|모체|바이오|감염)/;
+  const sportsSafety = /(구장|경기장|관중|낙하|추락|붕괴|사고|부상|안전|대피|사망)/;
+  const sportsIntegrity = /(심판|협회|성접대|승부조작|도핑|비리|수사|조사|징계|의혹|논란)/;
+
+  // 분야가 판단 가치의 주어다. 제목 속 우연한 단어 하나가 다른 분야의
+  // 상투문을 가져가면 개인화 설명 자체가 틀어진다.
+  if (ids.has("sports")) {
+    if (sportsSafety.test(text)) {
+      return { lens: "안전·운영", text: "경기장과 관중 안전에 연결되는 사안이라 사고 원인·시설 조치·후속 운영 변화를 확인할 가치가 있다." };
+    }
+    if (sportsIntegrity.test(text)) {
+      return { lens: "운영·신뢰", text: "심판·협회 운영과 경기 신뢰에 연결되는 사안이라 조사 결과와 공식 후속 조치를 확인할 가치가 있다." };
+    }
+    return { lens: "경기·선수", text: "경기 일정·선수 상태·순위 흐름을 따라가는 데 필요한 맥락이라 결과와 후속 변화를 함께 볼 가치가 있다." };
+  }
+  if (ids.has("gaming")) {
+    return { lens: "출시·플레이", text: "출시·업데이트와 실제 이용자 반응을 구분해 게임 선택과 흐름을 판단하는 데 참고할 가치가 있다." };
+  }
+  if (ids.has("realestate")) {
+    return { lens: "주거·자산", text: "주거비·공급·대출과 보유 판단에 연결되는 흐름이라 적용 대상과 시행 범위를 이어서 볼 가치가 있다." };
+  }
+  if (ids.has("business")) {
+    if (international.test(text)) return { lens: "거시·공급망", text: "원자재·물류·기업 비용과 시장 변동성에 연결될 수 있어 후속 지표와 공식 발표를 함께 볼 가치가 있다." };
+    if (market.test(text)) return { lens: "시장·실적", text: "시장 가격과 기업·자산 판단에 연결되는 흐름이라 후속 수치와 원자료를 확인할 가치가 있다." };
+    return { lens: "기업·경제", text: "기업 활동과 경기 흐름을 판단하는 현재 맥락이라 실제 수치와 후속 발표를 함께 볼 가치가 있다." };
+  }
+  if (ids.has("politics")) {
+    if (international.test(text)) return { lens: "외교·안보", text: "외교·안보 결정과 국제 관계의 변화를 판단하는 데 필요한 맥락이라 당사국 발표와 후속 조치를 볼 가치가 있다." };
+    if (/(선거|투표|경선|당권|정당|후보|민주당|국민의힘)/.test(text)) return { lens: "선거·권력구도", text: "정당 선택과 권력구도의 변화를 보여주는 흐름이라 실제 투표 결과와 후속 입장을 확인할 가치가 있다." };
+    return { lens: "정책·의사결정", text: "정책 결정의 방향과 실제 시행 범위를 구분해 시민·시장에 미칠 후속 변화를 볼 가치가 있다." };
+  }
+  if (ids.has("science")) {
+    return { lens: "연구·근거", text: "새 연구가 기존 설명을 얼마나 바꾸는지 판단하려면 원 연구와 검증 범위를 함께 볼 가치가 있다." };
+  }
+  if (ids.has("tech")) {
+    return { lens: "기술·제품", text: "기술 채택과 제품·산업 경쟁의 변화를 따라가는 데 필요한 맥락이라 실제 적용 범위와 후속 발표를 볼 가치가 있다." };
+  }
+  if (ids.has("auto")) {
+    return { lens: "구매·이동", text: "차량 선택·운행 경험과 모빌리티 시장 변화에 연결되는 흐름이라 제원과 실제 이용 반응을 함께 볼 가치가 있다." };
+  }
+  if (ids.has("life")) {
+    if (health.test(text)) return { lens: "건강·근거", text: "건강과 생활 판단에 연결되는 정보라 적용 대상·근거 수준·실제 효용을 구분해 볼 가치가 있다." };
+    if (weather.test(text)) return { lens: "생활·안전", text: "이동·야외활동·안전 계획에 연결되는 변화라 지역과 시간대별 후속 정보를 확인할 가치가 있다." };
+    return { lens: "생활·활용", text: "일상 선택과 실제 활용에 연결되는 흐름이라 조건과 이용 경험을 함께 볼 가치가 있다." };
+  }
+  if (ids.has("fashion")) {
+    return { lens: "제품·스타일", text: "제품과 스타일이 어디서 주목받는지 보여주는 흐름이라 출시 맥락과 실제 반응을 함께 볼 가치가 있다." };
+  }
+  if (ids.has("art")) {
+    return { lens: "작품·디자인", text: "작품·전시·디자인의 현재 흐름을 이해하는 데 필요한 맥락이라 창작 배경과 공개 반응을 함께 볼 가치가 있다." };
+  }
+  if (ids.has("culture")) {
+    return { lens: "대중문화", text: "대중문화에서 무엇이 반응을 얻고 확산되는지 보여주는 흐름이라 공식 정보와 대중 반응을 구분해 볼 가치가 있다." };
+  }
+  if (ids.has("humor")) {
+    return { lens: "공유·유행", text: "지금 어떤 소재가 빠르게 공유되고 있는지 보여주는 흐름이라 반응의 규모와 맥락을 함께 볼 가치가 있다." };
+  }
+
+  // 종합 뉴스만 교차 분야 신호를 제목에서 해석한다.
+  if (weather.test(text)) return { lens: "재난·안전", text: "안전과 이동·생활 계획에 직접 연결되는 사안이라 피해 범위와 공식 후속 정보를 확인할 가치가 있다." };
+  if (international.test(text)) return { lens: "국제정세", text: "외교·안보와 공급망 변화에 연결되는 사안이라 당사국 발표와 후속 영향을 함께 볼 가치가 있다." };
+  if (market.test(text)) return { lens: "경제 흐름", text: "시장과 기업 판단에 연결될 수 있는 사안이라 실제 수치와 후속 보도를 확인할 가치가 있다." };
+  if (policy.test(text)) return { lens: "정책·사회", text: "정책·사회 변화의 방향과 실제 시행 범위를 구분해 후속 보도를 확인할 가치가 있다." };
+  if (health.test(text)) return { lens: "건강·사회", text: "건강과 공공 판단에 연결되는 정보라 대상과 근거 범위를 확인할 가치가 있다." };
+  return { lens: "공공 맥락", text: "사회 흐름에서 무엇이 달라졌는지 파악하는 데 필요한 사건이라 후속 사실과 영향을 함께 볼 가치가 있다." };
+}
+
+function enrichDigestIssue(issue, selectedCategories) {
+  const categoryIds = issue.categoryIds || [];
+  const labels = categoryIds.map(categoryLabel).filter(Boolean);
+  const metrics = issue.metrics || {};
+  const evidenceMode = metrics.evidenceMode || issue.evidence && issue.evidence.mode;
+  const value = editorialValue(issue);
+  const heat = [];
+  if (evidenceMode === "multiple_feed_observed") heat.push("서로 다른 운영그룹에서 관측됐다");
+  else if (evidenceMode === "related_coverage_signal") heat.push("관련 보도 묶음 신호가 확인됐다");
+  if (metrics.score > 0) heat.push(`추천 ${Math.round(metrics.score).toLocaleString("ko-KR")}건`);
+  if (metrics.comments > 0) heat.push(`댓글 ${Math.round(metrics.comments).toLocaleString("ko-KR")}건`);
+  if (!heat.length) heat.push("현재 수집 목록의 상위 후보로 들어왔다");
+  const crossObserved = evidenceMode === "multiple_feed_observed";
+  const relatedObserved = evidenceMode === "related_coverage_signal";
+  const measured = metrics.score > 0 || metrics.comments > 0;
+  const communityOnly = metrics.communityOnly === true;
+  const weightyCategory = categoryIds.some((id) => WEIGHTY.has(id) || id === "realestate");
+  const enriched = {
+    ...issue,
+    whatHappened: issue.paragraph,
+    impactLens: value.lens,
+    whyImportant: communityOnly && weightyCategory
+      ? "확정된 보도 사실이 아니라 해당 커뮤니티의 관심·논쟁 신호로만 참고할 가치가 있다."
+      : value.text,
+    whyHot: heat.join(" · ") + ".",
+    whyForYou: selectedCategories.length
+      ? `${withObjectParticle(labels.join("·") || "관심 분야")} 선택한 오늘판이라 포함했다.`
+      : `${labels.join("·") || "현재 관심사"} 흐름을 보여주기 위해 포함했다.`,
+    watchNext: crossObserved
+      ? "서로 다른 운영그룹이 같은 핵심 내용을 계속 싣는지 다음 판에서 다시 대조한다."
+      : relatedObserved
+        ? "현재 풀의 다른 피드에서도 같은 사실이 확인되는지 후속 보도를 대조한다."
+        : measured
+          ? "추천·댓글의 증가 속도와 후속 반응이 유지되는지 다음 판에서 확인한다."
+          : "새 근거가 추가되는지 다음 판에서 다시 확인한다.",
+    confidence: crossObserved
+      ? { code: "multiple_feed_observed", label: "운영그룹 교차 관측", note: "지금핫 수집 풀의 서로 다른 운영그룹에서 관측했다. 법적 독립성이나 사실 확정을 뜻하지 않는다." }
+      : relatedObserved
+        ? { code: "related_coverage_signal", label: "관련 보도 신호", note: "관련기사 묶음 신호가 있으나 현재 풀에서 직접 확인한 피드는 하나다." }
+        : communityOnly
+          ? { code: "community_signal", label: "커뮤니티 반응 신호", note: "보도 사실 확인이 아니라 한 커뮤니티의 공개 반응을 관측했다." }
+        : measured
+        ? { code: "single_source_measured", label: "단일 출처·반응 확인", note: "한 출처의 공개 반응을 확인했다." }
+        : { code: "single_source_observed", label: "단일 출처 관측", note: "추가 교차 확인 전의 관측 후보다." }
+  };
+  return attachEditorialLineage(enriched, { selectedCategories });
+}
 
 // ── 새로고침 앵커 연속성 (David 2026-08-08 승인)
 // "완전 랜덤으로 바뀌면 이게 맞게 나오는 거 맞나 싶잖아 — 알고리즘의
@@ -363,6 +539,25 @@ export class FeedEngine {
     this._learnedIds = new Set(); // 같은 제목을 중복 학습하지 않기 위한 장부
   }
 
+  _ensureCategoryIntegrityMetadata() {
+    if (this._itemRegistryCategories !== undefined && this._dealSources !== undefined
+      && this._itemSourceRoles !== undefined) return;
+    const registry = loadRegistry();
+    if (this._itemRegistryCategories === undefined) {
+      this._itemRegistryCategories = new Map(
+        registry.filter((c) => c.category).map((c) => [c.id, c.category]));
+    }
+    if (this._dealSources === undefined) {
+      // 핫딜 여부와 기본 분야는 제목 추정값이 아니라 등록부가 정본이다.
+      this._dealSources = new Set(registry.filter((c) => c.isDeal).map((c) => c.id));
+    }
+    if (this._itemSourceRoles === undefined) {
+      this._itemSourceRoles = new Map(
+        registry.filter((c) => c.sourceRole).map((c) => [c.id, c.sourceRole])
+      );
+    }
+  }
+
   async _items() {
     // 디스크에 지난 사이클 결과가 있으면 그것으로 먼저 뜬다. 수집은 뒤에서
     // 돌린다 — 첫 사용자가 84개 소스를 기다릴 이유가 없다.
@@ -392,12 +587,22 @@ export class FeedEngine {
       this._itemGroups = new Map(
         loadRegistry().filter((c) => c.feedGroup).map((c) => [c.id, c.feedGroup]));
     }
-    if (this._dealSources === undefined) {
-      // 어느 게시판이 핫딜 게시판인지는 **등록 정보**가 안다. 제목 모양으로
-      // 짐작하면 뉴스의 "[단독]"까지 딜이 된다 — 등록부가 유일한 정답이다.
-      this._dealSources = new Set(loadRegistry().filter((c) => c.isDeal).map((c) => c.id));
-    }
+    this._ensureCategoryIntegrityMetadata();
     for (const item of this._cache) {
+      const registeredCategory = this._itemRegistryCategories.get(item.source);
+      const registeredDeal = this._dealSources.has(item.source);
+      if (registeredDeal && registeredCategory) {
+        if (item.category !== registeredCategory) item.registryCategory = registeredCategory;
+        item.category = registeredCategory;
+      } else if (registeredCategory && item.registryCategory !== undefined
+        && !isReclassifiable(item.source)) {
+        // 규칙 변경 전에 저장된 웜캐시도 즉시 복구한다. 다만 제목 사전으로
+        // 확정된 분야(예: 경제지의 자동차 시승기)는 유효한 편집 결과라 보존한다.
+        const keywordCategory = definiteCategory({
+          title: item.title, url: item.url, sourceId: item.source
+        });
+        if (!keywordCategory) item.category = registeredCategory;
+      }
       if (item.image) item.image = safeImage(item.image);
       const g = this._itemGroups.get(item.source);
       if (g) item.feedGroup = g;
@@ -405,6 +610,9 @@ export class FeedEngine {
       // 그대로 노출된다. 2026-08-04 실측: 피드 30건 중 22건이 null이었고,
       // 커뮤니티 순위에 "dcinside"처럼 id가 찍힌 것과 같은 뿌리다.
       if (!item.sourceLabel) item.sourceLabel = this._itemLabels.get(item.source) || item.source;
+      const sourceIdentity = operationalSourceIdentity(item);
+      item.ownershipGroup = sourceIdentity.ownershipGroup;
+      item.ownershipBasis = sourceIdentity.ownershipBasis;
 
       // 이 글 **옆에** 광고를 붙여도 되는가. 서버는 자기가 끼우는 슬롯에만
       // 이 판정을 쓰고 있었는데, 화면도 따로 광고를 꽂는다(maybeInsertAdfit).
@@ -468,6 +676,163 @@ export class FeedEngine {
       if (item.translated && item.summaryTranslated === false && item.summary) item.summary = "";
     }
     return this._cache;
+  }
+
+  // 과거 슬롯 백필은 현재 노출용 소스 상한을 먼저 적용하면 안 된다. 예를 들어
+  // 새 글 100건이 들어온 뒤 전날 저녁판을 만들면, 당시 존재했던 글은 48시간
+  // 풀에 남아 있어도 현재 상한 밖이라 전부 사라진다. 누적 풀에서 as-of를 먼저
+  // 적용하고 그 시점의 최신 글에 소스 상한을 다시 건다.
+  async _itemsAsOf(asOfMs) {
+    await this._items();
+    if (!Number.isFinite(asOfMs) || !this._pool.size) return this._cache || [];
+
+    this._ensureCategoryIntegrityMetadata();
+    const kindBySource = new Map(this.sources.map((source) => [source.id, source.kind]));
+    const bySource = new Map();
+    for (const entry of this._pool.values()) {
+      if (!entry || !entry.item) continue;
+      const firstSeenAt = Number.isFinite(entry.firstSeenAt)
+        ? entry.firstSeenAt
+        : Number.isFinite(entry.item.firstSeenAt) ? entry.item.firstSeenAt : NaN;
+      const publishedAt = entry.item.publishedAt ? Date.parse(entry.item.publishedAt) : NaN;
+      if ((Number.isFinite(firstSeenAt) && firstSeenAt > asOfMs)
+        || (Number.isFinite(publishedAt) && publishedAt > asOfMs)) continue;
+
+      const item = {
+        ...entry.item,
+        firstSeenAt: Number.isFinite(firstSeenAt) ? firstSeenAt : entry.item.firstSeenAt,
+        heatHist: Array.isArray(entry.heatHist) ? [...entry.heatHist] : entry.item.heatHist,
+        // 현재 시점에 커진 풀 교차관측 값을 과거 판으로 소급하지 않는다. 구글뉴스가
+        // 당시 항목에 실어 준 관련기사 묶음만 보존하고, 풀 관측은 아래에서 다시 센다.
+        coverage: Number.isFinite(entry.item.relatedCoverage)
+          ? entry.item.relatedCoverage
+          : /^gnews(?:-|$)/i.test(entry.item.source || "") ? entry.item.coverage || 0 : 0,
+        poolCoverage: 0
+      };
+      if (item.image) item.image = safeImage(item.image);
+      const group = this._itemGroups && this._itemGroups.get(item.source);
+      if (group) item.feedGroup = group;
+      if (!item.sourceLabel) item.sourceLabel = this._itemLabels && this._itemLabels.get(item.source) || item.source;
+      const sourceIdentity = operationalSourceIdentity(item);
+      item.ownershipGroup = sourceIdentity.ownershipGroup;
+      item.ownershipBasis = sourceIdentity.ownershipBasis;
+      item.adUnsafe = adUnsafe(item);
+
+      const sourceId = item.source || "unknown";
+      if (!bySource.has(sourceId)) bySource.set(sourceId, []);
+      bySource.get(sourceId).push(item);
+    }
+
+    const capped = [];
+    const availableAt = (item) => {
+      const published = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
+      const firstSeen = Number.isFinite(item.firstSeenAt) ? item.firstSeenAt : NaN;
+      const values = [published, firstSeen].filter(Number.isFinite);
+      return values.length ? Math.max(...values) : 0;
+    };
+    for (const [sourceId, items] of bySource) {
+      items.sort((a, b) => availableAt(b) - availableAt(a));
+      const cap = resolveCap(kindBySource.get(sourceId), {});
+      capped.push(...(cap > 0 ? items.slice(0, cap) : items));
+    }
+
+    const engagement = (item) => (item.score || 0) + (item.commentCount || 0) * 2;
+    const offMain = this._offMainSet();
+    const byUrl = new Map();
+    for (const item of capped) {
+      const key = item.url ? canonicalContentUrl(item.url) : null;
+      if (!key) { byUrl.set(Symbol(), item); continue; }
+      byUrl.set(key, preferCanonicalItem(byUrl.get(key), item, offMain, engagement));
+    }
+    const items = [...byUrl.values()];
+    // 현재 상한 밖에 있던 과거 행도 현재판과 같은 분류 규칙을 거친다. 그렇지
+    // 않으면 보배 베스트의 정치 글이 auto, 루리웹 유머판 글이 gaming으로
+    // 되살아나 후보 공급과 분야 충족도를 동시에 오염시킨다.
+    this._classifyItems(items);
+    const sourcesByEvent = new Map();
+    for (const item of items) {
+      if (item.kind === "community") continue;
+      const key = eventKey(item.title);
+      if (!key) continue;
+      if (!sourcesByEvent.has(key)) sourcesByEvent.set(key, new Set());
+      sourcesByEvent.get(key).add(operationalSourceIdentity(item).ownershipGroup);
+    }
+    for (const item of items) {
+      if (item.kind === "community") continue;
+      const key = eventKey(item.title);
+      const count = key && sourcesByEvent.has(key) ? sourcesByEvent.get(key).size : 0;
+      item.poolCoverage = count >= 2 ? Math.min(count, COVERAGE_MAX) : 0;
+      item.coverage = Math.max(item.coverage || 0, item.poolCoverage);
+    }
+    return items;
+  }
+
+  // 현재 수집 상한 안의 글과 늦게 복원한 과거 글이 같은 분류 계약을 쓰게 한다.
+  // 학습은 최신 수집 사이클에서만 하고, 이 메서드는 이미 학습된 분류기와
+  // 설명 가능한 제목·게시판·혼합소스 규칙만 적용한다.
+  _classifyItems(items) {
+    this._ensureCategoryIntegrityMetadata();
+    const registry = loadRegistry();
+    const mixedSources = new Set(registry.filter((source) => source && source.mixed).map((source) => source.id));
+    const newsCategories = new Map(registry.map((source) => [source.id, source.category]));
+    const isSectionedNews = (item) => {
+      if (item.kind !== "news") return false;
+      const category = newsCategories.get(item.source);
+      return Boolean(category && category !== "news");
+    };
+
+    for (const item of items) {
+      if (!item || item.source === "seed" || item.source === "me") continue;
+      const registeredCategory = this._itemRegistryCategories.get(item.source);
+      // 이전 사이클의 편집 결과를 다음 판의 원 분류로 쓰지 않는다.
+      if (registeredCategory && item.registryCategory !== undefined) item.category = registeredCategory;
+      if (this._dealSources.has(item.source)) {
+        if (registeredCategory && item.category !== registeredCategory) {
+          item.registryCategory = registeredCategory;
+          item.category = registeredCategory;
+        }
+        continue;
+      }
+      // 혼합 베스트의 등록 분야는 제목 근거가 아니다. 정치 토픽·학습 분류기보다
+      // 먼저 중립화해야 보배 정치글이 auto로 남는 식의 분야 자리 탈취를 막는다.
+      // 아래 확정 사전은 계속 돌아가므로 실제 자동차·게임·연예 글은 복구된다.
+      const mixed = MIXED_BEST_FALLBACK.get(item.source);
+      if (mixed && item.category === mixed.registryCategory) {
+        item.registryCategory = item.category;
+        item.category = mixed.fallback;
+      } else if (mixedSources.has(item.source) && item.category !== MIXED_NEUTRAL_CATEGORY) {
+        if (item.registryCategory === undefined) item.registryCategory = item.category;
+        item.category = MIXED_NEUTRAL_CATEGORY;
+      }
+      const sectioned = isSectionedNews(item);
+      const definite = definiteCategory({
+        title: item.title,
+        url: item.url,
+        sourceId: item.source
+      });
+      const urlDefinite = definiteCategory({ title: "", url: item.url, sourceId: item.source });
+      const politicsTopic = (item.topics || []).includes("politics");
+      if (politicsTopic && definite !== "science") continue;
+      if (UNTRAINED_CATEGORIES.has(item.category) && definite !== "science") continue;
+
+      if (definite && (!sectioned || SECTIONED_NEWS_TITLE_OVERRIDES.has(definite) || urlDefinite === definite)) {
+        if (definite !== item.category) {
+          if (item.registryCategory === undefined) item.registryCategory = item.category;
+          item.category = definite;
+        }
+        continue;
+      }
+      if (sectioned) continue;
+      if (mixed || mixedSources.has(item.source)) continue;
+      if (isReclassifiable(item.source) && this._classifier.trained >= MIN_NB_TRAINING_ROWS) {
+        const predicted = classifyTitle(this._classifier, item.title);
+        if (predicted && predicted !== item.category && OVERRIDE_CATEGORIES.has(predicted)) {
+          if (item.registryCategory === undefined) item.registryCategory = item.category;
+          item.category = predicted;
+          continue;
+        }
+      }
+    }
   }
 
   // 수집 풀 공개 접근자 — 자체 콘텐츠 페이지(커뮤니티 순위/키워드/그룹별
@@ -695,7 +1060,7 @@ export class FeedEngine {
     // 이게 David가 말한 "인용"에 해당하는 신호다: 언론사는 조회수도 추천수도
     // 주지 않지만, 여러 곳이 동시에 다뤘다는 사실은 우리가 직접 셀 수 있다.
     {
-      const bySource = new Map();   // eventKey -> Set(source)
+      const bySource = new Map();   // eventKey -> Set(operational publisher group)
       for (const it of capped) {
         // 커뮤니티는 매체가 아니다 — 기사 제목을 그대로 따 온 글을 "매체가 다뤘다"로
         // 세면 문장이 거짓이 된다(검수 2026-08-06 P1). 커뮤니티 반향은 별개 신호다.
@@ -704,7 +1069,10 @@ export class FeedEngine {
         if (!k) continue;
         let set = bySource.get(k);
         if (!set) { set = new Set(); bySource.set(k, set); }
-        set.add(it.source);
+        const sourceIdentity = operationalSourceIdentity(it);
+        it.ownershipGroup = sourceIdentity.ownershipGroup;
+        it.ownershipBasis = sourceIdentity.ownershipBasis;
+        set.add(sourceIdentity.ownershipGroup);
       }
       for (const it of capped) {
         if (it.kind === "community") continue;
@@ -720,9 +1088,14 @@ export class FeedEngine {
         // 소비처마다 캡을 걸면 하나 빠뜨리는 게 시간문제라(실제로 셋이 빠져
         // 있다) **기록하는 이 한 곳에서** 막는다.
         const n = Math.min(bySource.get(k).size, COVERAGE_MAX);
-        // 한 곳만 다뤘으면 교차보도가 아니다. 구글이 준 값이 더 크면 그쪽을 쓴다
-        // — 구글은 자기 색인 범위에서, 우리는 우리 풀 범위에서 세므로 보완 관계다.
-        if (n >= 2 && n > (it.coverage || 0)) it.coverage = n;
+        const relatedCoverage = Number.isFinite(it.relatedCoverage)
+          ? it.relatedCoverage
+          : /^gnews(?:-|$)/i.test(it.source || "") ? it.coverage || 0 : 0;
+        // 원시 피드 수가 아니라 운영상 같은 발행사 계열을 접은 그룹 수만 풀
+        // 교차관측으로 기록한다. 법적 독립성 판정은 하지 않는다.
+        it.relatedCoverage = relatedCoverage;
+        it.poolCoverage = n >= 2 ? n : 0;
+        it.coverage = Math.max(relatedCoverage, it.poolCoverage);
       }
     }
 
@@ -735,21 +1108,13 @@ export class FeedEngine {
       // origin+pathname만 남기면 안 된다 — 뽐뿌·보배류는 zboard.php?id=…&no=…
       // 처럼 쿼리스트링이 글의 정체라, 게시판 전체가 한 키로 붕괴한다
       // (2026-08-01 라이브 실측: 뽐뿌 18건 -> 2건 회귀를 즉시 롤백한 교훈).
-      const canonUrl = (u) => {
-        try {
-          const x = new URL(u);
-          const params = [...x.searchParams].filter(([k]) => !/^(utm_|fbclid|gclid|igshid|ref$)/i.test(k));
-          params.sort((a, b) => a[0].localeCompare(b[0]));
-          return x.origin + x.pathname + (params.length ? "?" + params.map(([k, v]) => `${k}=${v}`).join("&") : "");
-        } catch { return null; }
-      };
       const eng = (i) => (i.score || 0) + (i.commentCount || 0) * 2 + (i.coverage || 0);
+      const offMain = this._offMainSet();
       const byUrl = new Map();
       for (const item of capped) {
-        const key = item.url ? canonUrl(item.url) : null;
+        const key = item.url ? canonicalContentUrl(item.url) : null;
         if (!key) { byUrl.set(Symbol(), item); continue; }
-        const prev = byUrl.get(key);
-        if (!prev || eng(item) > eng(prev)) byUrl.set(key, item);
+        byUrl.set(key, preferCanonicalItem(byUrl.get(key), item, offMain, eng));
       }
       if (byUrl.size < capped.length) capped.length = 0, capped.push(...byUrl.values());
     }
@@ -765,83 +1130,8 @@ export class FeedEngine {
     // 장부가 무한히 크지 않게 — 분류기 카운트는 이미 흡수됐으므로 id만 비운다.
     if (this._learnedIds.size > 20000) this._learnedIds.clear();
 
-    // 2) 분류 3단 파이프라인 (2026-07-31 David: "제목 단어로 카테고리를
-    //    유추하는 알고리즘 개선" — 실측: 보배 베스트 15건 중 자동차 1건인데
-    //    전부 auto, 경제 뉴스에 씨라이언7 시승기):
-    //    ① 키워드 확정(사전) — 소스 불문. 시승기가 경제지에 실려도 auto로.
-    //    ② NB 재분류 — 혼합 게시판만, 기권 시 등록 카테고리 유지(기존 그대로).
-    //    ③ 혼합 베스트 폴백 — 주제 사이트의 통합 베스트(보배)에서 키워드도
-    //       NB도 못 잡은 글은 사이트 주제(auto)가 아니라 게시판의 실측 지배
-    //       성격(humor)으로 되돌린다.
-    //    정치 태그 글은 전 단계 제외 — 논쟁 문체가 humor/gaming 말투와 겹쳐
-    //    오분류의 최대 진원지였다(라이브 실측 2026-07-29).
-    // 섹션이 이미 정해진 뉴스 소스는 **등록 카테고리를 그대로 쓴다**
-    // (David 2026-08-02: "뉴스는 이미 분류된 거 그대로 매핑하면 됨").
-    // 경제지·연예지·자동차 전문지처럼 매체 자체가 섹션인 소스를 통계 분류가
-    // 흔들면 정확도가 떨어질 뿐이다. 종합(category==="news")인 소스만 예외로
-    // 제목 분류를 태운다 — 종합은 사실상 미분류이기 때문.
-    let _newsSectioned;
-    // 레지스트리에서 종합게시판 집합을 뽑아 둔다 (communities.json의 mixed:true).
-    const mixedSources = new Set(
-      loadRegistry().filter((c) => c && c.mixed).map((c) => c.id)
-    );
-    const isSectionedNews = (item) => {
-      if (item.kind !== "news") return false;
-      if (_newsSectioned === undefined) {
-        try {
-          _newsSectioned = new Map(loadRegistry().map((c) => [c.id, c.category]));
-        } catch { _newsSectioned = new Map(); }
-      }
-      const cat = _newsSectioned.get(item.source);
-      return Boolean(cat && cat !== "news");
-    };
-
-    for (const item of capped) {
-      if (item.source === "seed" || item.source === "me") continue;
-      if ((item.topics || []).includes("politics")) continue;
-      // 소스가 신설 카테고리(부동산·패션·예술)를 선언했으면 재분류하지 않는다.
-      // 분류기 코퍼스에 그 라벨이 없어 예측이 거기로 나올 수 없고, 그래서
-      // **가장 가까운 옛 라벨로 반드시 틀린다** — 실측으로 하입비스트가 culture로,
-      // 한경 부동산이 auto로 덮어써지고 있었다(신설 카테고리 라이브 0건의 원인).
-      if (UNTRAINED_CATEGORIES.has(item.category)) continue;
-      // 섹션 뉴스: 등록 분류 유지가 원칙이되, 자동차 사전만 예외로 적용한다
-      // (시승기가 경제지에 실리는 실제 사례 — 근거는 classify.js 주석 참고).
-      const sectioned = isSectionedNews(item);
-      const kw = definiteCategory({
-        title: item.title, url: item.url, sourceId: item.source, autoOnly: sectioned
-      });
-      if (kw) {
-        if (kw !== item.category) {
-          if (item.registryCategory === undefined) item.registryCategory = item.category;
-          item.category = kw;
-        }
-        continue;
-      }
-      if (sectioned) continue; // NB·혼합 폴백은 섹션 뉴스에 적용하지 않는다
-      if (isReclassifiable(item.source) && this._classifier.trained >= 100) {
-        const predicted = classifyTitle(this._classifier, item.title);
-        if (predicted && predicted !== item.category && OVERRIDE_CATEGORIES.has(predicted)) {
-          item.registryCategory = item.category;
-          item.category = predicted;
-          continue;
-        }
-      }
-      const mixed = MIXED_BEST_FALLBACK.get(item.source);
-      if (mixed && item.category === mixed.registryCategory) {
-        item.registryCategory = item.category;
-        item.category = mixed.fallback;
-        continue;
-      }
-      // 종합게시판(레지스트리 mixed:true)은 여기까지 왔다는 것 자체가
-      // "제목으로 못 정했다"는 뜻이다. 그때 소스의 등록 카테고리를 물려주면
-      // 다모앙 정치글이 life가 되고 인스티즈 사건기사가 culture가 된다
-      // (2026-08-02 라이브 실측). 전문 커뮤니티(인벤 등)는 이 분기를 타지 않으므로
-      // 등록값이 그대로 정답으로 남는다.
-      if (mixedSources.has(item.source) && item.category !== MIXED_NEUTRAL_CATEGORY) {
-        item.registryCategory = item.category;
-        item.category = MIXED_NEUTRAL_CATEGORY;
-      }
-    }
+    // 2) 현재 노출 상한과 늦은 백필이 같은 분류 파이프라인을 공유한다.
+    this._classifyItems(capped);
 
     // ---- 썸네일·발췌 보강 (og:image/og:description, enrich.js) -------------
     // 주입된 경우에만 동작(서버 전용), 실패·403은 enrich.js가 조용히 부정캐시로
@@ -1676,13 +1966,26 @@ export class FeedEngine {
 
   // Record a like/dislike and learn from it. Returns updated confidence.
   async rate(userId, itemId, signal) {
+    if (![1, 0, -1].includes(signal)) throw new Error("signal must be 1, 0, or -1");
     const user = this.store.requireUser(userId);
     const items = await this._items();
     const item = this._findItem(items, itemId);
     if (!item) throw new Error(`unknown item: ${itemId}`);
 
-    applyFeedback(user.preferences, item, signal);
-    this.store.recordRating(userId, itemId, signal >= 0 ? 1 : -1);
+    const previousSignal = Number(user.ratings[itemId] && user.ratings[itemId].signal || 0);
+    if (previousSignal !== signal) {
+      if (user.preferenceBase) {
+        this.store.recordRating(userId, itemId, signal, item);
+      } else {
+        // Legacy records created before the overlay contract may already have
+        // explicit effects folded into preferences. Keep their old mutation
+        // path until the last legacy rating is removed; clean users migrate on
+        // load without approximation.
+        if (previousSignal) revertFeedback(user.preferences, item, previousSignal);
+        if (signal) applyFeedback(user.preferences, item, signal);
+        this.store.recordRating(userId, itemId, signal, item);
+      }
+    }
 
     const level = specializationLevel(user.preferences, user.feedbackCount);
     return { level, phase: feedPhase(level), feedbackCount: user.feedbackCount };
@@ -1722,7 +2025,8 @@ export class FeedEngine {
     // 발자취(user.opened)에서 조용히 빠진다.
     const item = this._findItem(items, itemId);
     if (!item) return { ok: false };
-    const { step } = applyImplicit(user.preferences, item, event || {});
+    const { step } = applyImplicit(this.store.learningPreferences(userId), item, event || {});
+    this.store.refreshPreferenceProjection(userId);
     this.store.recordSignal(userId, itemId, event && event.type, step);
     return { ok: true, type: event && event.type, step };
   }
@@ -1989,32 +2293,150 @@ export class FeedEngine {
     try { return (await this._interestsFn()) || []; } catch { return []; }
   }
 
-  async briefing({ slotId = null } = {}) {
-    const items = await this._items();
-    const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+  async briefing({
+    slotId = null,
+    categories = null,
+    userId = null,
+    asOfMs = null,
+    maxIssues = 6,
+    perCategory = 3,
+    candidateLimit = 60,
+    minimumIssuesPerCategory = null,
+    additiveCategoryUnion = false,
+    personalized = false,
+    includeCandidates = false,
+    allowCarryover = false,
+    servedCanonicalUrls = []
+  } = {}) {
+    const requestedAsOf = asOfMs == null ? NaN : Number(asOfMs);
+    const items = Number.isFinite(requestedAsOf)
+      ? await this._itemsAsOf(requestedAsOf)
+      : await this._items();
+    const now = Number.isFinite(requestedAsOf)
+      ? requestedAsOf
+      : this._clock ? new Date(this._clock()).getTime() : Date.now();
+    const selectedCategories = normalizedCategories(categories);
+    const selectedSet = new Set(selectedCategories);
+    const user = userId ? this.store.getUser(userId) : null;
+    const visibleTopics = new Set(personalized ? (user && user.showTopics) || [] : []);
+    for (const category of selectedCategories) {
+      if (FILTERABLE_TOPICS.includes(category)) visibleTopics.add(category);
+    }
+    const perCategoryLimit = Math.max(1, Math.min(20, Math.floor(Number(perCategory) || 3)));
+    const issueLimit = Math.max(
+      MIN_ISSUES,
+      Math.min(
+        EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.maxGeneratedWithChangeReserve,
+        Math.floor(Number(maxIssues) || 6)
+      )
+    );
+    const fixtureLimit = Math.max(1, Math.min(
+      EDITION_CANDIDATE_CONTRACT.maxCandidateCap,
+      Math.floor(Number(candidateLimit) || EDITION_CANDIDATE_CONTRACT.defaultCandidateCap)
+    ));
     const kstHour0 = new Date(now + 9 * 3600 * 1000).getUTCHours();
     const slotDef = slotId ? slotById(slotId) : slotForHour(kstHour0);
     // 그 시간대에 **새로 화제가 된 것**만 본다. 예전엔 풀 전체(48시간)를 그대로
     // 봐서 아침·점심·저녁 브리핑이 사실상 같은 글을 실었다. 창을 나눠야
     // "아침엔 밤사이 일, 저녁엔 오늘 일"이 성립한다.
     const windowMs = (slotDef.windowHours || 12) * 3600 * 1000;
-    const inWindow = (i) => {
-      const t = Number.isFinite(i.firstSeenAt) ? i.firstSeenAt
-        : (i.publishedAt ? Date.parse(i.publishedAt) : NaN);
-      return !Number.isFinite(t) || (now - t) <= windowMs;
+    const availableAt = (i) => {
+      // 백필 판본은 그 슬롯 뒤에 들어온 항목을 미래에서 끌어오면 안 된다.
+      // 발행시각과 최초 관측시각이 모두 있으면 더 늦은 쪽부터 우리가 실제로
+      // 사용할 수 있었던 것으로 본다.
+      const seen = Number.isFinite(i.firstSeenAt) ? i.firstSeenAt : NaN;
+      const published = i.publishedAt ? Date.parse(i.publishedAt) : NaN;
+      const times = [seen, published].filter(Number.isFinite);
+      return times.length ? Math.max(...times) : NaN;
     };
-    const pool = items.filter(
+    const inWindow = (i) => {
+      const t = availableAt(i);
+      return !Number.isFinite(t) || (t <= now && (now - t) <= windowMs);
+    };
+    // 정치 선택은 기존 공개 피드의 기본 숨김 계약을 바꾸지 않는다. 로컬 개인판에서
+    // 사용자가 명시적으로 politics를 골랐을 때만 이미 판별된 정치 토픽을 해당
+    // 분야의 편집 카테고리로 투영한다.
+    const editionCategory = (item) => {
+      const category = item.category || "news";
+      const explicitScience = category === "science" && definiteCategory({
+        title: item.title,
+        url: item.url,
+        sourceId: item.source
+      }) === "science";
+      return personalized && selectedSet.has("politics")
+        && (item.topics || []).includes("politics") && !explicitScience
+        ? "politics"
+        : category;
+    };
+    const eligiblePool = items.filter(
       (i) =>
         // 기본 숨김 토픽 전부를 본다 — politics만 하드코딩하면 religion이 샌다.
         // 공개 지면(랭킹·브리핑)은 로그인 없이 보이고 sitemap에도 올라간다.
-        !topicsBlocked(i, EMPTY_TOPICS) &&
+        !topicsBlocked(i, visibleTopics) &&
         i.kind !== "ad" && i.kind !== "affiliate" &&
         i.source !== "seed" && i.source !== "me" &&
         promotable(i) &&
         !this._offMainSet().has(i.source) &&
-        inWindow(i) &&
+        (!selectedSet.size || selectedSet.has(editionCategory(i))) &&
         !tooOld(i, now)
-    );
+    ).map((item) => {
+      const category = editionCategory(item);
+      return category === item.category ? item : {
+        ...item,
+        registryCategory: item.registryCategory === undefined ? item.category : item.registryCategory,
+        category
+      };
+    });
+    const freshPool = eligiblePool.filter(inWindow);
+    const servedUrls = new Set((servedCanonicalUrls || [])
+      .map((url) => canonicalContentUrl(url))
+      .filter(Boolean));
+    const carryoverEnabled = personalized && allowCarryover && selectedSet.size > 0;
+    const carryoverRows = [];
+    if (carryoverEnabled) {
+      const carryoverWindowMs = EDITION_CANDIDATE_CONTRACT.carryoverMaxHours * 3600 * 1000;
+      const currentCounts = new Map();
+      for (const item of freshPool) {
+        const category = item.category || "news";
+        currentCounts.set(category, (currentCounts.get(category) || 0) + 1);
+      }
+      const backlog = eligiblePool.filter((item) => {
+        if (inWindow(item) || item.kind !== "news") return false;
+        const role = this._itemSourceRoles && this._itemSourceRoles.get(item.source);
+        if (!EDITION_CANDIDATE_CONTRACT.carryoverSourceRoles.includes(role)) return false;
+        const canonicalUrl = canonicalContentUrl(item.url);
+        if (!canonicalUrl || servedUrls.has(canonicalUrl)) return false;
+        const at = availableAt(item);
+        return Number.isFinite(at) && at <= now && now - at <= carryoverWindowMs;
+      }).sort((a, b) =>
+        availableAt(b) - availableAt(a)
+        || Number(a.sourceRank ?? Number.MAX_SAFE_INTEGER) - Number(b.sourceRank ?? Number.MAX_SAFE_INTEGER)
+        || String(a.title || "").localeCompare(String(b.title || ""))
+      );
+      const seenUrls = new Set();
+      for (const category of selectedSet) {
+        let needed = Math.max(0,
+          EDITION_CANDIDATE_CONTRACT.carryoverCandidateFloor - (currentCounts.get(category) || 0));
+        for (const item of backlog) {
+          if (!needed || (item.category || "news") !== category) continue;
+          const canonicalUrl = canonicalContentUrl(item.url);
+          if (!canonicalUrl || seenUrls.has(canonicalUrl)) continue;
+          seenUrls.add(canonicalUrl);
+          const at = availableAt(item);
+          carryoverRows.push({
+            ...item,
+            editorialCarryover: {
+              reason: "unserved_reported_inventory",
+              maxAgeHours: EDITION_CANDIDATE_CONTRACT.carryoverMaxHours,
+              availableAt: new Date(at).toISOString(),
+              ageHours: Math.max(0, Math.round((now - at) / 360000) / 10)
+            }
+          });
+          needed -= 1;
+        }
+      }
+    }
+    const pool = [...freshPool, ...carryoverRows];
     const engagement = (i) => (i.score || 0) + (i.commentCount || 0) * 2;
 
     // ── 관심사 축 (David 2026-08-05)
@@ -2068,7 +2490,7 @@ export class FeedEngine {
         if (key) seenEvent.add(key);
         perOutlet.set(outlet, (perOutlet.get(outlet) || 0) + 1);
         top.push(i);
-        if (top.length >= 3) break;
+        if (top.length >= perCategoryLimit) break;
       }
       if (!top.length) continue; // 공급 0인 카테고리만 스킵 — 1건이라도 있으면 싣는다
       // 대표 글(문장을 우리가 직접 쓰는 자리)은 비속어가 없는 것을 앞으로 당긴다.
@@ -2118,13 +2540,33 @@ export class FeedEngine {
     // 카테고리로 흩어져 묶이지 않는다 — 실측에서 6개 이슈가 전부 1건짜리였다).
     const ranked = [...pool]
       .map((i) => ({
-        id: i.id, title: i.title, source: i.source, sourceLabel: this._labelFor(i),
+        ...i,
+        sourceLabel: this._labelFor(i),
         score: i.score || 0, commentCount: i.commentCount || 0,
         coverage: i.coverage || 0, tags: i.tags || [],
-        category: i.category || "news", interest: interestOf(i)
+        category: i.category || "news", interest: interestOf(i),
+        briefingWeight: weight(i)
       }))
       .filter((i) => promotable(i))
-      .sort((a, b) => weight(b) - weight(a));
+      .sort((a, b) => b.briefingWeight - a.briefingWeight);
+
+    // 동적 후보 계약은 로컬 개인판과 관리자 증거용이다. 기존 공개 브리핑에는
+    // 새 응답 필드나 후보 컷을 끼워 넣지 않아 운영 동작을 그대로 보존한다.
+    const useCandidateContract = personalized || includeCandidates;
+    const candidateFixture = useCandidateContract ? buildEditionCandidateFixture(ranked, {
+      registry: loadRegistry(),
+      selectedCategories,
+      limit: fixtureLimit,
+      minPerSelectedCategory: perCategoryLimit,
+      preferKoreanAudience: personalized,
+      observedAt: new Date(now).toISOString()
+    }) : null;
+    const candidateIds = candidateFixture
+      ? new Set(candidateFixture.candidates.map((row) => row.itemId))
+      : null;
+    const fixtureRanked = candidateIds
+      ? ranked.filter((item) => candidateIds.has(item.id)).map((item) => ({ ...item, editorialCandidate: candidateFixture.candidates.find((row) => row.itemId === item.id) || null }))
+      : ranked;
 
     // 후보 단계에서 소스 균형을 잡는다.
     //
@@ -2139,13 +2581,14 @@ export class FeedEngine {
     // 잃지 않도록 편성 단계에서 막는다.
     const perSourceCandidates = new Map();
     const balancedPool = [];
-    for (const i of ranked) {
+    const perSourceLimit = Math.max(2, Math.ceil(fixtureLimit / 10));
+    for (const i of fixtureRanked) {
       const key = i.source || i.sourceLabel;
       const n = perSourceCandidates.get(key) || 0;
-      if (n >= 6) continue;
+      if (n >= perSourceLimit) continue;
       perSourceCandidates.set(key, n + 1);
       balancedPool.push(i);
-      if (balancedPool.length >= 60) break;
+      if (balancedPool.length >= fixtureLimit) break;
     }
     // 아침에는 해외를 앞으로 당긴다. 한국이 자는 동안 새로 생긴 이야기는
     // 대부분 해외 쪽이고, 국내 커뮤니티는 그 시간에 조용하다.
@@ -2156,7 +2599,25 @@ export class FeedEngine {
       const w = (i) => ((i.score || 0) + (i.commentCount || 0) * 2) * (isOverseas(i) ? bias : 1);
       return w(b) - w(a);
     });
-    const digest = buildDigest(slotPool);
+    const minIssuesPerCategory = personalized && selectedCategories.length
+      ? minimumIssuesPerCategory == null
+        ? Math.max(1, Math.min(3, Math.floor(issueLimit / (selectedCategories.length * 2))))
+        : Math.max(1, Math.min(
+          Math.floor(issueLimit / selectedCategories.length),
+          Math.floor(Number(minimumIssuesPerCategory) || 1)
+        ))
+      : 0;
+    const digest = buildDigest(slotPool, {
+      maxIssues: issueLimit,
+      maxPerSource: personalized ? 3 : 2,
+      selectedCategories,
+      minIssuesPerCategory,
+      additiveCategoryUnion,
+      requireKoreanAudience: personalized
+    });
+    const issues = personalized
+      ? digest.issues.map((issue) => enrichDigestIssue(issue, selectedCategories))
+      : digest.issues;
     const slot = slotDef;
 
     return {
@@ -2168,9 +2629,27 @@ export class FeedEngine {
       slot: { id: slot.id, label: slot.label, lead: slot.lead || null,
         windowHours: slot.windowHours, overseasBias: slot.overseasBias },
       overseasShare: pool.length ? Math.round(pool.filter(isOverseas).length / pool.length * 100) : 0,
-      issues: digest.issues,
+      issues,
       digestSummary: digest.summary,
-      publishable: digest.issues.length >= MIN_ISSUES,
+      ...(personalized ? { editorialQuality: digest.quality } : {}),
+      ...(personalized ? {
+        editorialCarryover: {
+          stableId: "NOWHOT-UNSERVED-QUALITY-CARRYOVER-001",
+          enabled: carryoverEnabled,
+          maxAgeHours: EDITION_CANDIDATE_CONTRACT.carryoverMaxHours,
+          sourceRoles: EDITION_CANDIDATE_CONTRACT.carryoverSourceRoles,
+          servedCanonicalUrlCount: servedUrls.size,
+          candidateCount: carryoverRows.length,
+          categoryCounts: Object.fromEntries([...new Set(carryoverRows.map((item) => item.category || "news"))]
+            .map((category) => [category, carryoverRows.filter((item) => (item.category || "news") === category).length])),
+          selectedIssueCount: issues.filter((issue) => issue.metrics && issue.metrics.carryoverUsed).length,
+          rule: "현재 슬롯 후보가 얇은 분야만 최근 24시간의 미제공 보도형 원문으로 보충"
+        }
+      } : {}),
+      publishable: issues.length >= MIN_ISSUES,
+      ...(personalized ? { personalized: true, selectedCategories } : {}),
+      ...(candidateFixture ? { candidateContract: candidateFixtureReceipt(candidateFixture) } : {}),
+      ...(includeCandidates && candidateFixture ? { candidateFixture } : {}),
       // 카테고리 컷 없음 (David 2026-08-01 "모든 카테고리 다, 안 빼먹고") —
       // 공급이 2건 이상인 카테고리는 전부 싣는다. 정치만 공개 페이지 원칙상
       // 제외(위 pool 필터), 라이프처럼 공급이 빈 카테고리는 소스가 생기면
@@ -2181,6 +2660,126 @@ export class FeedEngine {
         sourceLabel: this._labelFor(debate)
       }
     };
+  }
+
+  // 기존 브리핑을 사용자 선택 카테고리와 공급량에 맞춰 넓힌 로컬 오늘판.
+  // 수집·랭킹·클러스터·문장 생성은 위 briefing()의 기존 경로를 그대로 쓰고,
+  // 여기서는 명시적 선택과 분량만 결정한다. 사용자마다 LLM을 다시 부르지 않는다.
+  async todayEdition({
+    userId = null,
+    categories = null,
+    slotId = null,
+    asOfMs = null,
+    includeCandidates = false,
+    reserveIssues = 0,
+    sharedCanonical = false,
+    allowCarryover = false,
+    servedCanonicalUrls = []
+  } = {}) {
+    const user = userId ? this.store.getUser(userId) : null;
+    const explicit = normalizedCategories(categories);
+    const saved = normalizedCategories(user && user.briefingCategories);
+    const survey = normalizedCategories(user && user.surveyAnswers && user.surveyAnswers.categories);
+    let selected = explicit;
+    let mode = "request";
+    if (!selected.length && saved.length) { selected = saved; mode = "saved"; }
+    if (!selected.length && survey.length) { selected = survey; mode = "survey"; }
+    if (!selected.length) { selected = DEFAULT_EDITORIAL_PREVIEW.slice(); mode = "preview"; }
+
+    const count = selected.length;
+    const perCategory = EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory;
+    const maxIssues = editorialIssueBudget(count);
+    const additiveCategoryUnion = true;
+    // 이전 판과 같은 사건을 제거한 뒤에도 새 사건으로 지면을 채울 수 있도록
+    // 서버의 판본 확정 경로만 여분 이슈를 요청한다. 기본값은 0이라 기존 호출과
+    // 테스트·운영 브리핑은 그대로다.
+    const changeReserve = Math.max(0, Math.min(8, Math.floor(Number(reserveIssues) || 0)));
+    const generatedIssueBudget = Math.min(
+      EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.maxGeneratedWithChangeReserve,
+      maxIssues + changeReserve
+    );
+    // 후보 수는 제품 법칙이 아니다. 이슈 예산과 선택 분야 수에서 계산한 요청당
+    // 안전 상한이며, 공급이 적으면 있는 만큼만 쓰고 많으면 품질 관문 뒤에서 자른다.
+    const candidateCap = Math.min(
+      EDITION_CANDIDATE_CONTRACT.maxCandidateCap,
+      Math.max(generatedIssueBudget * 8, perCategory * count * 2)
+    );
+    const minIssuesPerCategory = selected.length
+      ? editorialMinimumPerCategory(selected.length, maxIssues)
+      : 0;
+    // 직전 판과 같은 사건 한 건이 보류돼도 분야 최소 깊이가 무너지지 않도록
+    // 변화 검사 전에는 분야마다 한 칸의 대체 후보를 더 요청한다. 고정 숫자로
+    // 채우지 않고 생성 예산을 선택 분야 수로 나눈 실제 상한 안에서만 늘린다.
+    const generationMinIssuesPerCategory = selected.length
+      ? Math.floor(generatedIssueBudget / selected.length)
+      : 0;
+    const edition = await this.briefing({
+      slotId,
+      categories: selected,
+      // 공유 저장 판본은 카테고리 조합만으로 재사용한다. 첫 요청자의
+      // 정치·종교 토픽 설정이 같은 조합의 다른 사용자에게 섞이면 안 된다.
+      userId: sharedCanonical ? null : userId,
+      asOfMs,
+      maxIssues: generatedIssueBudget,
+      perCategory,
+      candidateLimit: candidateCap,
+      minimumIssuesPerCategory: generationMinIssuesPerCategory,
+      additiveCategoryUnion,
+      personalized: true,
+      includeCandidates,
+      allowCarryover,
+      servedCanonicalUrls
+    });
+    // 판 ID의 날짜는 **슬롯 기준 시각(asOfMs)** 으로 앵커한다 (2026-08-13
+    // 9인 검수 후속): 생성 시각(generatedAt) 파생이면 과거 슬롯 판을 나중에
+    // 만들 때 하루 밀린 ID가 붙었다 — 실측: 8-12 저녁 데이터 판이
+    // "2026-08-13-evening-science" ID로 저장·서빙돼 servedDate(8-12)와
+    // 모순됐다. late-backfill의 as-of 우선 원칙(DEVCHG-021)과 같은 잣대.
+    const editionAnchorMs = Number.isFinite(asOfMs) ? Number(asOfMs) : Date.parse(edition.generatedAt);
+    const editionDate = Number.isFinite(editionAnchorMs)
+      ? new Date(editionAnchorMs + 9 * 3600 * 1000).toISOString().slice(0, 10)
+      : String(edition.generatedAt || "").slice(0, 10);
+    const availableCategories = CATEGORIES.map((category) => ({
+      ...category,
+      selected: selected.includes(category.id),
+      supply: (edition.sections.find((section) => section.category === category.id) || { items: [] }).items.length
+    }));
+    const baseEdition = {
+      ...edition,
+      editionId: `${editionDate}-${edition.slot.id}-${selected.slice().sort().join(".")}`,
+      editorialMode: "deterministic_evidence_editor",
+      llmCalls: 0,
+      selection: {
+        mode,
+        categories: selected.map((id) => ({ id, label: categoryLabel(id) })),
+        explicit: mode !== "preview",
+        perCategory,
+        maxIssues,
+        categoryIssueLimit: perCategory,
+        additiveCategoryUnion,
+        generatedIssueBudget,
+        changeReserve,
+        candidateCap,
+        minIssuesPerCategory,
+        generationMinIssuesPerCategory
+      },
+      sharedCanonical,
+      availableCategories,
+      limits: [
+        "현재 로컬 후보는 기존 결정론적 편집 문장만 사용하며 새 LLM 호출은 0회다.",
+        "사람 블라인드 클러스터·주장 검수와 운영 배포 승인은 아직 남아 있다."
+      ]
+    };
+    const fulfilled = attachEditorialFulfillment(baseEdition);
+    if (!fulfilled.categoryFulfillment.goalSatisfied) {
+      const unmet = fulfilled.categoryFulfillment.rows
+        .filter((row) => row.state !== "met")
+        .map((row) => row.label)
+        .join("·");
+      fulfilled.limits = [...fulfilled.limits,
+        `선택 분야 중 ${unmet || "일부"}는 이번 판의 동적 최소 이슈 수를 충족하지 못했다.`];
+    }
+    return fulfilled;
   }
 
   // A single item with its full comment thread, for the detail view.

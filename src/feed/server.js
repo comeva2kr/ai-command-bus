@@ -12,7 +12,10 @@ import { buildReport } from "./datastory.js";
 import { barsSvg, lineSvg, CHART_CSS } from "./chart.js";
 import { adCopy, AD_DISCLOSURE, withSubId } from "./ad-copy.js";
 import { makeWriter } from "./llm.js";
-import { SLOTS } from "./digest.js";
+import { EDITORIAL_LLM_CANARY_CONTRACT, makeEvidenceEditorialPipeline } from "./editorial-llm.js";
+import { verifyEditorialLineage } from "./editorial-lineage.js";
+import { attachEditorialFulfillment } from "./editorial-fulfillment.js";
+import { SLOTS, slotById } from "./digest.js";
 import { series } from "./analytics.js";
 import { mergeCostBuckets, profitAndLoss, daysInMonth } from "./costs.js";
 import { communityRanking, sourceBest, keywordIndex, keywordPage } from "./pages.js";
@@ -25,7 +28,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { FeedStore } from "./store.js";
-import { FeedEngine } from "./engine.js";
+import { FeedEngine, DEFAULT_EDITORIAL_PREVIEW } from "./engine.js";
 import { SeedSource, StorePostsSource } from "./content.js";
 import { SURVEY, validateAnswers } from "./survey.js";
 import { CATEGORIES, SOURCE_CATALOG } from "./taxonomy.js";
@@ -47,6 +50,46 @@ import { readWiredStatus, CANDIDATE_NETWORKS, REFERENCE_ADSTXT, splitMeasured, c
 import { makeTrendsCache } from "./trends.js";
 import { destForText } from "./deals.js";
 import { classify as classifyAudience } from "./audience.js";
+import { projectProductBlueprint } from "./product-blueprint.js";
+import {
+  buildBlindReviewPacket,
+  hasHumanReviewWork,
+  HUMAN_REVIEW_QUEUE_CONTRACT,
+  HUMAN_REVIEW_FIELDS,
+  summarizeHumanReview
+} from "./editorial-quality.js";
+import {
+  applyEditionChanges,
+  editionSegmentKey
+} from "./edition-change.js";
+import {
+  EDITORIAL_INVENTORY_CONTRACT,
+  assertEditorialSnapshotCompatibility,
+  buildEditorialInventory,
+  dueEditorialSlots,
+  editorialInventorySegmentKey,
+  kstDate as editorialKstDate,
+  nextEditorialSlot,
+  resolveEditorialTarget,
+  slotAsOfMs
+} from "./editorial-inventory.js";
+import {
+  ELAPSED_EDITION_EVIDENCE_CONTRACT,
+  buildEditorialSlotObservation,
+  summarizeElapsedEditionEvidence
+} from "./editorial-elapsed-evidence.js";
+import {
+  buildEditorialQualityHistory,
+  buildEditorialReliabilityHistory
+} from "./editorial-reliability.js";
+import { projectEditorialPersonalization } from "./editorial-personalization.js";
+import { projectEditorialReaderCopy } from "./editorial-reader-copy.js";
+import { buildEditorialReviewDesk } from "./editorial-review-desk.js";
+import {
+  EDITORIAL_SERVING_CONTRACT,
+  assessEditorialServeability,
+  sameEditorialCategorySet
+} from "./editorial-serving.js";
 
 // 상품군 사전을 걸지 않는 분류. engine.js의 AD_MATCH_OFF와 같은 원칙이다 —
 // 사건·시사 글 옆에 "문맥이 맞아 보이는" 광고가 붙으면 무관한 광고보다 나쁘다.
@@ -87,6 +130,22 @@ function send(res, status, body, headers = {}) {
   const payload = typeof body === "string" ? body : JSON.stringify(body);
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", ...headers });
   res.end(payload);
+}
+
+function sendHtml(res, html, status = 200) {
+  const body = Buffer.from(String(html));
+  const etag = '"' + createHash("sha1").update(body).digest("base64").slice(0, 22) + '"';
+  const headers = {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-cache",
+    etag
+  };
+  if (status === 200 && res.req && res.req.headers["if-none-match"] === etag) {
+    res.writeHead(304, headers);
+    return res.end();
+  }
+  res.writeHead(status, headers);
+  return res.end(body);
 }
 
 function readBody(req) {
@@ -160,7 +219,7 @@ function sharePage(data, origin, id) {
   const url = `${origin}/p?id=${encodeURIComponent(id)}`;
   const title = escapeHtml(data.title);
   const desc = escapeHtml((data.summary || "").slice(0, 160) || `${data.source} · ${data.category}`);
-  const appUrl = `/#post-${encodeURIComponent(id)}`;
+  const appUrl = `/live#post-${encodeURIComponent(id)}`;
   // 글에 사진이 있으면 그 사진이 공유 카드 그림이 된다. 없을 때만 앱 아이콘.
   // 폴백은 SVG가 아니라 PNG를 쓴다 — 다수 SNS 크롤러가 SVG를 미리보기 이미지로
   // 처리하지 않는다(설령 처리하더라도, 글마다 사진이 있는데 전부 같은 로고를
@@ -317,7 +376,7 @@ function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "") {
 
     if ((adsense || ga) && ext === ".html" && rel === "index.html") {
       let tags = "";
-      if (adsense) tags += `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsense}" crossorigin="anonymous"></script>\n`;
+      if (adsense) tags += `<meta name="google-adsense-account" content="${escapeHtml(adsense)}">\n`;
       if (ga) tags += `<script async src="https://www.googletagmanager.com/gtag/js?id=${ga}"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','${ga}');</script>\n`;
       buf = Buffer.from(buf.toString("utf8").replace("</head>", tags + "</head>"));
     }
@@ -344,7 +403,15 @@ function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "") {
 const indexNowKey = () => process.env.INDEXNOW_KEY || null;
 
 export function createServer(opts = {}) {
-  const store = new FeedStore({ file: opts.file || process.env.FEED_DB || null });
+  const store = new FeedStore({
+    file: opts.file || process.env.FEED_DB || null,
+    clock: opts.clock || null
+  });
+  const serverNowMs = () => {
+    const raw = opts.clock ? opts.clock() : Date.now();
+    const value = typeof raw === "number" ? raw : Date.parse(raw);
+    return Number.isFinite(value) ? value : Date.now();
+  };
 
   // Social login (src/feed/auth.js). authStates is the short-lived CSRF-state
   // ledger for the login->callback round trip; opts.authFetch lets tests mock
@@ -425,7 +492,7 @@ export function createServer(opts = {}) {
               // **원문으로 나가는 진짜 링크를 남긴다** (2026-08-07 애드센스 점검).
               //
               // 실측: 홈 초기 HTML의 외부 <a href>가 **0개**였다. 제목 링크가
-              // 내부 앵커(/#post-…)뿐이라, 크롤러 눈에는 남의 제목·발췌만 모아 둔
+              // 내부 앵커(/live#post-…)뿐이라, 크롤러 눈에는 남의 제목·발췌만 모아 둔
               // 페이지로 보인다. 우리 방어 논리 전체가 "발췌만 싣고 트래픽은
               // 원문으로 보낸다"인데 **그 사실이 HTML에 없었다.**
               //
@@ -438,7 +505,7 @@ export function createServer(opts = {}) {
               // 자체 서술이다 — 이 페이지의 자체 콘텐츠 비중이 8.5%뿐이었다.
               const note = i.editorialNote
                 ? `<p class="seed-note">${escapeHtml(i.editorialNote)}</p>` : "";
-              return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>` +
+              return `<li><a href="/live#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>` +
                 `<span class="seed-src">${meta}${src}</span>${note}${summary}</li>`;
             }).join("") + `</ol>`;
           } else {
@@ -452,6 +519,22 @@ export function createServer(opts = {}) {
       
     return { seed, ownSeed };
   }
+
+  // 요청은 이미 만들어 둔 시드만 읽는다. 갱신은 뒤에서 돌려 실시간 피드와
+  // 편집 홈 모두 첫 응답 시간을 수집 비용과 분리한다.
+  const homeSeedSnapshot = () => {
+    const cached = homeSeed.html;
+    const age = cached ? Date.now() - homeSeed.at : Infinity;
+    const ttl = cached && (cached.seed || cached.ownSeed)
+      ? HOME_SEED_TTL_MS : HOME_SEED_RETRY_MS;
+    if (age > ttl && !homeSeed.building) {
+      homeSeed.building = true;
+      buildHomeSeed().then((next) => {
+        if (next) { homeSeed.html = next; homeSeed.at = Date.now(); }
+      }).catch(() => {}).finally(() => { homeSeed.building = false; });
+    }
+    return cached || { seed: "", ownSeed: "" };
+  };
 
   const authStates = new AuthStateStore();
   const authEnv = opts.authEnv || process.env;
@@ -501,6 +584,1015 @@ export function createServer(opts = {}) {
   }
   sources.push(new StorePostsSource(store));
   const engine = new FeedEngine(store, opts.sources || sources);
+  // 새 편집 홈은 로컬 스테이징에서만 연다. 플래그가 없으면 운영 `/`와
+  // 기존 API 동작은 그대로라, 로컬 고도화 중인 화면이 실사용자에게 새지 않는다.
+  const localEditorial = opts.localEditorial != null
+    ? Boolean(opts.localEditorial)
+    : process.env.NOWHOT_LOCAL_EDITORIAL === "1";
+  const localEditorialCanaryReceiptFile = opts.editorialLlmCanaryReceiptFile !== undefined
+    ? opts.editorialLlmCanaryReceiptFile
+    : process.env.NOWHOT_EDITORIAL_CANARY_RECEIPT || null;
+  const localEditorialLlmEnabled = localEditorial && (opts.localEditorialLlmEnabled != null
+    ? Boolean(opts.localEditorialLlmEnabled)
+    : process.env.NOWHOT_LOCAL_EDITORIAL_LLM === "1");
+  const localEditorialLlm = opts.localEditorialLlm || makeEvidenceEditorialPipeline({
+    enabled: localEditorialLlmEnabled,
+    apiKey: opts.editorialLlmApiKey !== undefined
+      ? opts.editorialLlmApiKey
+      : process.env.ANTHROPIC_API_KEY || null,
+    model: process.env.NOWHOT_EDITORIAL_MODEL || process.env.LLM_MODEL || "claude-sonnet-5",
+    verifierModel: process.env.NOWHOT_EDITORIAL_VERIFIER_MODEL || "claude-haiku-4-5",
+    maxIssues: process.env.NOWHOT_EDITORIAL_LLM_MAX_ISSUES || 24,
+    fetchImpl: opts.editorialLlmFetch || fetch,
+    invoke: opts.editorialLlmInvoke,
+    cache: {
+      get: (key) => store.getEditorialLlmEdit(key),
+      set: (key, value) => store.saveEditorialLlmEdit(key, value)
+    },
+    onUsage: (usage) => { try { store.recordLlmCall(usage); } catch {} },
+    log: (message) => console.log(message),
+    clock: serverNowMs
+  });
+  const LOCAL_SLOT_ORDER = SLOTS.map((slot) => slot.id);
+  const localEditionInFlight = new Map();
+
+  function validEditorialDate(value) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
+    const parsed = Date.parse(`${value}T00:00:00+09:00`);
+    return Number.isFinite(parsed) && new Date(parsed + 9 * 3600 * 1000).toISOString().slice(0, 10) === value;
+  }
+
+  function localEditionTarget({ slotId = null, targetDate = null, asOfMs = null } = {}) {
+    if (targetDate && slotId) {
+      const slot = slotById(slotId);
+      const requestedAsOf = asOfMs == null ? slotAsOfMs(targetDate, slot.id) : Number(asOfMs);
+      return {
+        available: validEditorialDate(targetDate) && Number.isFinite(requestedAsOf) && requestedAsOf <= serverNowMs(),
+        date: targetDate,
+        slot,
+        asOfMs: requestedAsOf
+      };
+    }
+    return resolveEditorialTarget(serverNowMs(), slotId);
+  }
+
+  function normalizedEditorialLlmReceipt(receipt) {
+    if (!receipt) return null;
+    const usedModel = Number(receipt.calls || 0) > 0 || Number(receipt.cacheHits || 0) > 0;
+    return {
+      ...receipt,
+      configuredModel: receipt.configuredModel || receipt.model || null,
+      configuredVerifierModel: receipt.configuredVerifierModel || receipt.verifierModel || null,
+      model: usedModel ? receipt.model || receipt.configuredModel || null : null,
+      verifierModel: usedModel ? receipt.verifierModel || receipt.configuredVerifierModel || null : null
+    };
+  }
+
+  function priorEditorialHistory(date, slotId, segmentKey, baseKey) {
+    return store.priorCompatibleEditorialEditions(
+      date,
+      slotId,
+      segmentKey,
+      baseKey,
+      LOCAL_SLOT_ORDER,
+      LOCAL_SLOT_ORDER.length
+    );
+  }
+
+  function servedEditorialCanonicalUrls(editions) {
+    const urls = new Set();
+    for (const edition of editions || []) {
+      for (const issue of edition && edition.issues || []) {
+        for (const row of issue && issue.sourceEvidence || []) {
+          if (row && row.canonicalUrl) urls.add(row.canonicalUrl);
+        }
+        for (const row of issue && issue.refs || []) {
+          if (row && row.canonicalUrl) urls.add(row.canonicalUrl);
+        }
+      }
+    }
+    return [...urls];
+  }
+
+  function editionForRequest(snapshot, preview, includeCandidates, editionDate, user = null) {
+    const segmentKey = snapshot && snapshot.editionSegment && snapshot.editionSegment.key ||
+      editorialInventorySegmentKey(preview.selectedCategories);
+    const baseKey = snapshot && snapshot.editionSegment && snapshot.editionSegment.baseKey ||
+      editionSegmentKey(preview.selectedCategories);
+    const history = priorEditorialHistory(
+      editionDate,
+      snapshot && snapshot.slot && snapshot.slot.id || preview.slot.id,
+      segmentKey,
+      baseKey
+    );
+    const [previous = null, ...olderEditions] = history;
+    const continuity = applyEditionChanges(snapshot, previous, {
+      targetLimit: snapshot && snapshot.issues && snapshot.issues.length || 1,
+      minIssuesPerCategory: snapshot && snapshot.selection && snapshot.selection.minIssuesPerCategory || 0,
+      enforceRepeatRule: false,
+      historyEditions: olderEditions
+    });
+    const canonical = attachEditorialFulfillment({
+      ...snapshot,
+      issues: continuity.issues,
+      continuityProjection: {
+        ...continuity.editionChange,
+        responseOnly: true,
+        canonicalSnapshotMutated: false
+      },
+      editorialLlm: normalizedEditorialLlmReceipt(snapshot.editorialLlm),
+      editionDate,
+      selection: {
+        ...snapshot.selection,
+        mode: preview.selection.mode,
+        explicit: preview.selection.explicit
+      },
+      ...(includeCandidates && preview.candidateFixture ? {
+        candidateContract: preview.candidateContract,
+        candidateFixture: preview.candidateFixture
+      } : {})
+    });
+    return projectEditorialReaderCopy(projectEditorialPersonalization(canonical, user));
+  }
+
+  async function buildLocalTodayEdition({
+    userId = null,
+    categories = null,
+    slotId = null,
+    includeCandidates = false,
+    targetDate = null,
+    asOfMs = null,
+    generationMode = "on_demand"
+  } = {}) {
+    const target = localEditionTarget({ slotId, targetDate, asOfMs });
+    if (!target.available) {
+      const error = new Error(`${target.slot.label}판은 아직 발행 시각 전입니다.`);
+      error.code = "EDITORIAL_SLOT_NOT_DUE";
+      throw error;
+    }
+    let evidenceAsOfMs = target.asOfMs;
+    let preview = await engine.todayEdition({
+      userId,
+      categories,
+      slotId: target.slot.id,
+      asOfMs: evidenceAsOfMs,
+      includeCandidates,
+      sharedCanonical: true
+    });
+    const currentTarget = resolveEditorialTarget(serverNowMs());
+    const isCurrentTarget = target.date === currentTarget.date &&
+      target.slot.id === currentTarget.slot.id;
+    const delayedCurrentSlotRecovery = isCurrentTarget &&
+      !(preview.categoryFulfillment && preview.categoryFulfillment.goalSatisfied) &&
+      serverNowMs() > target.asOfMs;
+    if (delayedCurrentSlotRecovery) {
+      evidenceAsOfMs = serverNowMs();
+      preview = await engine.todayEdition({
+        userId,
+        categories,
+        slotId: target.slot.id,
+        asOfMs: evidenceAsOfMs,
+        includeCandidates,
+        sharedCanonical: true
+      });
+    }
+    const date = target.date;
+    const compatibility = assertEditorialSnapshotCompatibility();
+    const baseKey = editionSegmentKey(preview.selectedCategories);
+    const segmentKey = editorialInventorySegmentKey(preview.selectedCategories);
+    const existing = store.getEditorialEdition(date, preview.slot.id, segmentKey);
+    const requestUser = userId ? store.getUser(userId) : null;
+    if (existing) return editionForRequest(existing, preview, includeCandidates, date, requestUser);
+
+    const buildKey = `${date}|${preview.slot.id}|${segmentKey}`;
+    let running = localEditionInFlight.get(buildKey);
+    if (!running) {
+      running = (async () => {
+        const history = priorEditorialHistory(date, preview.slot.id, segmentKey, baseKey);
+        const [prior = null, ...olderEditions] = history;
+        const candidate = prior
+          ? await engine.todayEdition({
+            userId,
+            categories,
+            slotId: target.slot.id,
+            asOfMs: evidenceAsOfMs,
+            includeCandidates,
+            reserveIssues: Math.min(
+              preview.selection.maxIssues,
+              Math.max(8, history.length * 8)
+            ),
+            sharedCanonical: true,
+            allowCarryover: true,
+            servedCanonicalUrls: servedEditorialCanonicalUrls(history)
+          })
+          : preview;
+        const finalized = attachEditorialFulfillment(applyEditionChanges(candidate, prior, {
+          targetLimit: preview.selection.maxIssues,
+          minIssuesPerCategory: preview.selection.minIssuesPerCategory,
+          additiveCategoryUnion: preview.selection.additiveCategoryUnion,
+          categoryIssueLimit: preview.selection.categoryIssueLimit,
+          enforceRepeatRule: true,
+          historyEditions: olderEditions
+        }));
+        const edited = await localEditorialLlm(finalized);
+        const snapshot = {
+          ...edited,
+          editionSegment: {
+            key: segmentKey,
+            baseKey,
+            snapshotVersion: EDITORIAL_INVENTORY_CONTRACT.snapshotVersion,
+            compatibility,
+            categories: preview.selectedCategories.slice().sort(),
+            previousEditionId: prior && prior.editionId || null,
+            slotAsOf: new Date(target.asOfMs).toISOString(),
+            evidenceAsOf: new Date(evidenceAsOfMs).toISOString(),
+            generationMode,
+            delayedRecovery: {
+              applied: delayedCurrentSlotRecovery,
+              reason: delayedCurrentSlotRecovery
+                ? "current_slot_was_not_fulfilled_at_scheduled_time"
+                : null,
+              delayedByMs: delayedCurrentSlotRecovery
+                ? Math.max(0, evidenceAsOfMs - target.asOfMs)
+                : 0,
+              historicalSlotBackdated: false
+            },
+            personalizationBase: "user_neutral_shared_canonical"
+          }
+        };
+        // 현재 슬롯의 보류 후보를 첫 저장으로 굳히면, 다음 수집에서 공급이
+        // 회복돼도 inventory가 기존 판으로 오인해 영구 409가 된다. 보류 후보는
+        // 응답·관측에는 쓰되 저장하지 않아 다음 점검이 다시 만들게 하고,
+        // 기계 서빙 관문을 통과한 판만 불변 스냅샷으로 고정한다.
+        const snapshotAssessment = assessEditorialServeability(
+          projectEditorialReaderCopy(snapshot)
+        );
+        if (isCurrentTarget && !snapshotAssessment.pass) return snapshot;
+        return store.saveEditorialEdition(date, preview.slot.id, segmentKey, snapshot);
+      })().finally(() => localEditionInFlight.delete(buildKey));
+      localEditionInFlight.set(buildKey, running);
+    }
+    return editionForRequest(await running, preview, includeCandidates, date, requestUser);
+  }
+
+  function editorialServingStatus(assessment, extra = {}) {
+    return {
+      contractId: EDITORIAL_SERVING_CONTRACT.stableId,
+      contractVersion: EDITORIAL_SERVING_CONTRACT.version,
+      state: assessment.pass ? "current_machine_verified" : "current_machine_hold",
+      responsePacketId: assessment.packetId,
+      editionId: assessment.editionId,
+      selectedCategories: assessment.selectedCategories,
+      availableCategories: CATEGORIES.map(({ id, label }) => ({ id, label })),
+      failures: assessment.failures,
+      metrics: assessment.metrics,
+      readerDiversity: assessment.packet && assessment.packet.readerDiversity || null,
+      fulfillment: assessment.fulfillment,
+      humanReviewRequired: EDITORIAL_SERVING_CONTRACT.humanReviewRequired,
+      ...extra
+    };
+  }
+
+  function saveEditorialServingVerification(edition, assessment) {
+    return store.saveEditorialServingVerification({
+      contractId: EDITORIAL_SERVING_CONTRACT.stableId,
+      contractVersion: EDITORIAL_SERVING_CONTRACT.version,
+      packetId: assessment.packetId,
+      editionId: assessment.editionId,
+      date: edition.editionDate || null,
+      slotId: edition.slot && edition.slot.id || null,
+      slotAsOf: edition.editionSegment && edition.editionSegment.slotAsOf || edition.generatedAt || null,
+      segmentKey: edition.editionSegment && edition.editionSegment.key ||
+        editorialInventorySegmentKey(assessment.selectedCategories),
+      categories: assessment.selectedCategories,
+      verifiedAt: new Date(serverNowMs()).toISOString()
+    });
+  }
+
+  function verifiedEditorialFallback(currentEdition, currentAssessment, userId) {
+    const segmentKey = currentEdition && currentEdition.editionSegment && currentEdition.editionSegment.key ||
+      editorialInventorySegmentKey(currentAssessment.selectedCategories);
+    const currentAsOf = Date.parse(
+      currentEdition && currentEdition.editionSegment && currentEdition.editionSegment.slotAsOf ||
+      currentEdition && currentEdition.generatedAt || ""
+    );
+    if (!Number.isFinite(currentAsOf)) return null;
+    const requestUser = userId ? store.getUser(userId) : null;
+
+    for (const receipt of store.listEditorialServingVerifications(segmentKey)) {
+      if (receipt.contractId !== EDITORIAL_SERVING_CONTRACT.stableId ||
+          Number(receipt.contractVersion) !== EDITORIAL_SERVING_CONTRACT.version ||
+          receipt.editionId === currentAssessment.editionId ||
+          !sameEditorialCategorySet(receipt.categories, currentAssessment.selectedCategories)) continue;
+      const fallbackAsOf = Date.parse(receipt.slotAsOf || "");
+      const ageMs = currentAsOf - fallbackAsOf;
+      if (!Number.isFinite(fallbackAsOf) || ageMs < 0 || ageMs > EDITORIAL_SERVING_CONTRACT.maxFallbackAgeMs) continue;
+      const snapshot = store.getEditorialEdition(receipt.date, receipt.slotId, receipt.segmentKey);
+      if (!snapshot || snapshot.editionId !== receipt.editionId) continue;
+      const fallback = editionForRequest(snapshot, currentEdition, false, receipt.date, requestUser);
+      const assessment = assessEditorialServeability(fallback);
+      if (!assessment.pass || assessment.packetId !== receipt.packetId ||
+          !sameEditorialCategorySet(assessment.selectedCategories, currentAssessment.selectedCategories)) continue;
+      return {
+        edition: fallback,
+        assessment,
+        receipt,
+        ageMs
+      };
+    }
+    return null;
+  }
+
+  // S3b A안 부분 서빙 (David 확정 지시 2026-08-13) — 미달 분야의 제외 사유
+  // 문구. 미래를 보장하는 표현("다음 판에" 등)은 쓰지 않는다.
+  function withheldCategoryNotice(row) {
+    if (row.state === "no_supply") return `${row.label} 분야는 이번 판에 수집된 후보가 없어 제외했습니다.`;
+    if (row.state === "no_qualified_supply") return `${row.label} 분야는 이번 판 후보가 검증 기준을 통과하지 못해 제외했습니다.`;
+    return `${row.label} 분야는 이번 판에 확인된 소식이 부족해 제외했습니다.`;
+  }
+
+  async function buildServeableTodayEdition(options = {}) {
+    const current = await buildLocalTodayEdition(options);
+    const assessment = assessEditorialServeability(current);
+    if (assessment.pass) {
+      const receipt = saveEditorialServingVerification(current, assessment);
+      return {
+        ...current,
+        requestedCategories: assessment.selectedCategories,
+        servedCategories: assessment.selectedCategories,
+        withheldCategories: [],
+        serving: editorialServingStatus(assessment, {
+          fallback: false,
+          requestedDate: current.editionDate || null,
+          servedDate: receipt.date,
+          servedSlotId: receipt.slotId,
+          verifiedAt: receipt.verifiedAt
+        })
+      };
+    }
+
+    // ── S3b A안: 실패 사유가 분야 충족뿐이고 충족(met) 분야가 하나라도 있으면,
+    // **충족 분야만의 조합 판**을 서빙한다. 그 판은 자기 세그먼트의 1급
+    // 판이라 모든 기계 관문·검수 지문·중복 제거·중요도 혼합이 실제 제공
+    // 콘텐츠 기준으로 성립한다 — 기본판이나 다른 분야의 낡은 판을 몰래 섞는
+    // 경로가 구조적으로 없다. 미달 분야는 사유·확인 시각·공급 수량과 함께
+    // 명시적으로 고지한다. 전 분야 미달이면 아래 기존 폴백→409로 떨어진다.
+    const onlyFulfillmentHold = assessment.failures.length > 0 &&
+      assessment.failures.every((code) => code === "category_fulfillment_hold");
+    const fulfillRows = current && current.categoryFulfillment &&
+      Array.isArray(current.categoryFulfillment.rows) ? current.categoryFulfillment.rows : [];
+    const metIds = fulfillRows.filter((row) => row.state === "met").map((row) => row.categoryId);
+    const requestedIds = (assessment.selectedCategories || []).slice();
+    if (onlyFulfillmentHold && metIds.length > 0 && metIds.length < requestedIds.length) {
+      try {
+        const served = await buildServeableTodayEdition({ ...options, categories: metIds });
+        const checkedAt = new Date(serverNowMs()).toISOString();
+        const servedSet = new Set(served.servedCategories || metIds);
+        const withheld = fulfillRows
+          .filter((row) => requestedIds.includes(row.categoryId) && !servedSet.has(row.categoryId))
+          .map((row) => ({
+            id: row.categoryId,
+            label: row.label,
+            reason: withheldCategoryNotice(row),
+            state: row.state,
+            checkedAt,
+            supply: {
+              candidateCount: row.candidateCount ?? null,
+              qualifiedClusterCount: row.qualifiedClusterCount ?? null,
+              issueCount: row.issueCount ?? null
+            }
+          }));
+        return {
+          ...served,
+          partial: true,
+          requestedCategories: requestedIds,
+          servedCategories: [...servedSet],
+          withheldCategories: withheld
+        };
+      } catch (err) {
+        // 축소 조합도 성립하지 않으면 기존 폴백·409 경로를 그대로 탄다.
+        // 단, 계약 오류만 삼킨다 — 프로그래밍 결함까지 409로 위장하면
+        // 탐지가 늦어진다(검수 P2).
+        if (!err || !["EDITORIAL_SLOT_NOT_DUE", "EDITORIAL_EDITION_NOT_SERVEABLE"].includes(err.code)) throw err;
+      }
+    }
+
+    const fallback = verifiedEditorialFallback(current, assessment, options.userId || null);
+    if (fallback) {
+      return {
+        ...fallback.edition,
+        serving: editorialServingStatus(fallback.assessment, {
+          state: "fallback_machine_verified",
+          fallback: true,
+          requestedDate: current.editionDate || null,
+          requestedSlotId: current.slot && current.slot.id || null,
+          servedDate: fallback.receipt.date,
+          servedSlotId: fallback.receipt.slotId,
+          verifiedAt: fallback.receipt.verifiedAt,
+          ageMs: fallback.ageMs,
+          currentHold: editorialServingStatus(assessment)
+        })
+      };
+    }
+
+    const error = new Error("새 브리핑을 검수 중입니다. 검증된 이전 브리핑도 아직 없습니다.");
+    error.code = "EDITORIAL_EDITION_NOT_SERVEABLE";
+    error.serving = editorialServingStatus(assessment, {
+      fallback: false,
+      requestedDate: current.editionDate || null,
+      requestedSlotId: current.slot && current.slot.id || null,
+      fallbackSearchedWithinMs: EDITORIAL_SERVING_CONTRACT.maxFallbackAgeMs
+    });
+    throw error;
+  }
+
+  async function buildLocalEditionReplay(categories = CATEGORIES.map((category) => category.id)) {
+    const history = [];
+    const slots = [];
+    const date = resolveEditorialTarget(serverNowMs()).date;
+    for (const slot of SLOTS) {
+      const candidate = await engine.todayEdition({
+        categories,
+        slotId: slot.id,
+        asOfMs: slotAsOfMs(date, slot.id),
+        reserveIssues: Math.min(Math.max(8, categories.length * 3), history.length * 8),
+        sharedCanonical: true,
+        allowCarryover: history.length > 0,
+        servedCanonicalUrls: servedEditorialCanonicalUrls(history)
+      });
+      const [previous = null, ...olderEditions] = history;
+      const edition = attachEditorialFulfillment(applyEditionChanges(candidate, previous, {
+        targetLimit: candidate.selection.maxIssues,
+        minIssuesPerCategory: candidate.selection.minIssuesPerCategory,
+        additiveCategoryUnion: candidate.selection.additiveCategoryUnion,
+        categoryIssueLimit: candidate.selection.categoryIssueLimit,
+        enforceRepeatRule: true,
+        historyEditions: olderEditions
+      }));
+      const preflightReviewPacket = buildBlindReviewPacket(edition);
+      slots.push({
+        id: slot.id,
+        label: slot.label,
+        editionId: edition.editionId,
+        candidateIssueCount: edition.editionChange.candidateIssueCount,
+        selectedIssueCount: edition.editionChange.selectedIssueCount,
+        heldRepeatCount: edition.editionChange.heldRepeatCount,
+        counts: edition.editionChange.counts,
+        comparedEditionIds: edition.editionChange.comparedEditionIds || [],
+        carryover: edition.editorialCarryover || null,
+        publishable: edition.publishable,
+        candidateQuality: edition.editorialQuality || null,
+        categoryFulfillment: edition.categoryFulfillment ? {
+          state: edition.categoryFulfillment.state,
+          goalSatisfied: edition.categoryFulfillment.goalSatisfied,
+          selectedCount: edition.categoryFulfillment.selectedCount,
+          metCount: edition.categoryFulfillment.metCount,
+          targetPerCategory: edition.categoryFulfillment.targetPerCategory,
+          missingCategoryIds: edition.categoryFulfillment.missingCategoryIds || [],
+          noQualifiedCategoryIds: edition.categoryFulfillment.noQualifiedCategoryIds || [],
+          underfilledCategoryIds: edition.categoryFulfillment.underfilledCategoryIds || []
+        } : null,
+        preflightReview: {
+          stableId: "NOWHOT-PROJECTED-EDITION-PREFLIGHT-001",
+          contractId: preflightReviewPacket.contractId,
+          packetId: preflightReviewPacket.packetId,
+          editionId: preflightReviewPacket.editionId,
+          state: preflightReviewPacket.state,
+          projectedOnly: true,
+          persisted: false,
+          actualElapsedProof: false,
+          humanInputAllowed: false,
+          metrics: preflightReviewPacket.metrics,
+          rows: preflightReviewPacket.rows,
+          boundary: "현재 수집 풀의 비저장 코드 경로 사전검수다. 실제 슬롯 수집·저장·사람 품질 PASS 증거가 아니다."
+        }
+      });
+      history.unshift(edition);
+    }
+    return {
+      stableId: "NOWHOT-THREE-SLOT-REPLAY-001",
+      state: "same_pool_replay_complete",
+      observedAt: new Date(serverNowMs()).toISOString(),
+      mode: "same_current_pool_no_elapsed_time",
+      projectedOnly: true,
+      fixedItemCount: false,
+      selectedCategories: categories.slice().sort(),
+      slots,
+      llmCalls: 0,
+      proves: "세 슬롯 순서·직전 판 연결·반복 보류 코드 경로",
+      doesNotProve: "실제 시간차 수집량·세 판 콘텐츠 충분성·사람 품질 PASS"
+    };
+  }
+
+  const LOCAL_INVENTORY_BATCH_LIMIT = Math.max(1, Math.min(
+    48,
+    Number(process.env.NOWHOT_EDITORIAL_INVENTORY_BATCH || 12)
+  ));
+  const LOCAL_INVENTORY_CHECK_MS = Math.max(
+    1_000,
+    Number(process.env.NOWHOT_EDITORIAL_INVENTORY_CHECK_MS || 5 * 60 * 1000)
+  );
+  const LOCAL_EDITORIAL_CLOCK_SOURCE = opts.clock ? "injected" : "system";
+  const LOCAL_INVENTORY_SCHEDULE_ENABLED = localEditorial &&
+    !process.env.NODE_TEST_CONTEXT && opts.localEditorialInventorySchedule !== false;
+  let localInventoryPending = null;
+  let localInventoryReceipt = null;
+  let localElapsedReceipt = null;
+  let localQualityReviewSamplingReceipt = null;
+
+  function freezeInventoryQualityReviewPackets(inventory) {
+    const segment = [...(inventory && inventory.segments || [])].sort((a, b) =>
+      (b.categories || []).length - (a.categories || []).length ||
+      Number(b.audienceCount || 0) - Number(a.audienceCount || 0) ||
+      String(a.key).localeCompare(String(b.key))
+    )[0] || null;
+    const frozen = [];
+    if (segment) {
+      for (const slotRow of inventory && inventory.slots || []) {
+        const edition = store.getEditorialEdition(slotRow.date, slotRow.id, segment.key);
+        if (!edition) continue;
+        const packet = buildBlindReviewPacket(edition);
+        const record = store.saveEditorialReviewPacket(packet, {
+          date: slotRow.date,
+          slotId: slotRow.id,
+          segmentKey: segment.key,
+          activateIfEmpty: false
+        });
+        frozen.push({
+          packetId: record.packetId,
+          editionId: record.editionId,
+          date: record.date,
+          slotId: record.slotId,
+          segmentKey: record.segmentKey,
+          issueCount: record.packet && record.packet.rows && record.packet.rows.length || 0,
+          readerFrozenCount: record.packet && record.packet.rows
+            ? record.packet.rows.filter((row) => row.reader).length
+            : 0,
+          readerGateState: record.packet && record.packet.state || null
+        });
+      }
+    }
+    return {
+      stableId: "NOWHOT-QUALITY-REVIEW-SAMPLING-001",
+      state: frozen.length ? "quality_review_packets_frozen" : "quality_review_packet_waiting",
+      strategy: "widest_shared_category_segment_per_due_slot",
+      fixedItemCount: false,
+      selectedSegmentKey: segment && segment.key || null,
+      selectedCategories: segment && segment.categories || [],
+      frozenPacketCount: frozen.length,
+      frozen,
+      activationChanged: false,
+      proves: "관리자 화면을 열지 않아도 슬롯별 가장 넓은 공유 판의 사람 검수 입력 대상이 불변 보존됨",
+      doesNotProve: "사람 검수 완료·검수자 신원·사람 품질 PASS"
+    };
+  }
+
+  function upgradeLegacyActiveReviewPacket(record) {
+    if (!record) return record;
+    const ledger = store.getEditorialReview(record.packetId, record.editionId);
+    if (hasHumanReviewWork(ledger)) return record;
+    const edition = store.getEditorialEdition(record.date, record.slotId, record.segmentKey);
+    if (!edition) return record;
+    const expected = buildBlindReviewPacket(edition);
+    if (record.packetId === expected.packetId && Number(record.packet && record.packet.packetVersion || 0) >= 3) {
+      return record;
+    }
+    const packet = {
+      ...expected,
+      supersedes: {
+        packetId: record.packetId,
+        reason: Number(record.packet && record.packet.packetVersion || 0) >= 2
+          ? "reader_projection_changed_before_human_review"
+          : "legacy_packet_missing_frozen_reader_payload"
+      }
+    };
+    const upgraded = store.saveEditorialReviewPacket(packet, {
+      date: record.date,
+      slotId: record.slotId,
+      segmentKey: record.segmentKey,
+      activateIfEmpty: false
+    });
+    store.activateEditorialReviewPacket(upgraded.packetId, upgraded.editionId);
+    return upgraded;
+  }
+
+  function captureElapsedInventoryEvidence(inventory, nowMs) {
+    const dates = new Set();
+    const observations = [];
+    for (const slotRow of inventory && inventory.slots || []) {
+      dates.add(slotRow.date);
+      const editions = (inventory.segments || []).map((segment) => ({
+        segmentKey: segment.key,
+        edition: store.getEditorialEdition(slotRow.date, slotRow.id, segment.key)
+      }));
+      const observation = buildEditorialSlotObservation({
+        date: slotRow.date,
+        slot: slotById(slotRow.id),
+        asOfMs: Date.parse(slotRow.asOf),
+        observedAtMs: nowMs,
+        clockSource: LOCAL_EDITORIAL_CLOCK_SOURCE,
+        segments: inventory.segments || [],
+        editions,
+        timingBasis: "inventory_completed",
+        inventoryStartedAt: inventory.startedAt,
+        inventoryCompletedAt: inventory.completedAt,
+        inventoryDurationMs: inventory.durationMs
+      });
+      observations.push(observation);
+    }
+    store.saveEditorialSlotObservations(observations);
+    const latestDate = [...dates].sort().at(-1) || null;
+    return summarizeElapsedEditionEvidence(
+      latestDate ? store.editorialSlotObservationsForDate(latestDate) : [],
+      { date: latestDate }
+    );
+  }
+
+  function localEditorialSchedulerStatus(nowMs = serverNowMs()) {
+    const date = editorialKstDate(nowMs);
+    const due = dueEditorialSlots(nowMs);
+    const observations = store.editorialSlotObservationsForDate(date);
+    const observedIds = new Set(observations.map((row) => row.slotId));
+    const pendingDue = due.filter((entry) => !observedIds.has(entry.slot.id));
+    const captureWindowMs = ELAPSED_EDITION_EVIDENCE_CONTRACT.captureWindowMs;
+    const open = pendingDue.find((entry) => nowMs - entry.asOfMs <= captureWindowMs) || null;
+    const overdue = pendingDue.filter((entry) => nowMs - entry.asOfMs > captureWindowMs);
+    const target = open || nextEditorialSlot(nowMs);
+    const state = !localEditorial
+      ? "disabled"
+      : !LOCAL_INVENTORY_SCHEDULE_ENABLED
+        ? "manual_only"
+        : overdue.length
+          ? "slot_capture_overdue"
+          : open
+            ? "slot_capture_window_open"
+            : "slot_scheduler_armed";
+    return {
+      stableId: "NOWHOT-EDITORIAL-SCHEDULER-STATUS-001",
+      state,
+      enabled: LOCAL_INVENTORY_SCHEDULE_ENABLED,
+      clockSource: LOCAL_EDITORIAL_CLOCK_SOURCE,
+      checkIntervalMs: LOCAL_INVENTORY_CHECK_MS,
+      captureWindowMs,
+      serverNow: new Date(nowMs).toISOString(),
+      date,
+      dueSlotIds: due.map((entry) => entry.slot.id),
+      observedSlotIds: observations.map((row) => row.slotId),
+      pendingDueSlotIds: pendingDue.map((entry) => entry.slot.id),
+      overdueSlotIds: overdue.map((entry) => entry.slot.id),
+      nextAction: {
+        mode: open ? "capture_window_open" : "upcoming_slot",
+        date: target.date,
+        slotId: target.slot.id,
+        slotLabel: target.slot.label,
+        scheduledAt: new Date(target.asOfMs).toISOString(),
+        captureWindowEndsAt: new Date(target.asOfMs + captureWindowMs).toISOString()
+      }
+    };
+  }
+
+  async function runLocalEditorialInventory(nowMs = serverNowMs()) {
+    if (!localEditorial) return null;
+    if (localInventoryPending) return localInventoryPending;
+    localInventoryPending = buildEditorialInventory({
+      store,
+      buildEdition: buildLocalTodayEdition,
+      nowMs,
+      clock: serverNowMs,
+      defaultCategories: DEFAULT_EDITORIAL_PREVIEW,
+      knownCategoryIds: CATEGORIES.map((category) => category.id),
+      batchLimit: LOCAL_INVENTORY_BATCH_LIMIT
+    }).then((receipt) => {
+      localInventoryReceipt = receipt;
+      localQualityReviewSamplingReceipt = freezeInventoryQualityReviewPackets(receipt);
+      // 정시 증거는 작업을 시작한 시각이 아니라 모든 제한 큐 처리가 끝나
+      // 실제 저장 판을 관측한 시각으로 판정한다.
+      localElapsedReceipt = captureElapsedInventoryEvidence(
+        receipt,
+        Date.parse(receipt.completedAt) || serverNowMs()
+      );
+      return receipt;
+    }).finally(() => { localInventoryPending = null; });
+    return localInventoryPending;
+  }
+
+  // 로컬판에서만 슬롯 재고를 점검한다. 사용자별 생성이 아니라 선택 조합별
+  // 제한 큐라 같은 취향을 가진 이용자는 한 저장 판을 함께 읽는다.
+  if (LOCAL_INVENTORY_SCHEDULE_ENABLED) {
+    const inventoryTick = () => runLocalEditorialInventory().catch((error) => {
+      console.warn("[editorial-inventory] 판본 점검 실패:", error && error.message);
+    });
+    const interval = setInterval(inventoryTick, LOCAL_INVENTORY_CHECK_MS);
+    interval.unref?.();
+    const warm = setTimeout(inventoryTick, Number(process.env.NOWHOT_EDITORIAL_INVENTORY_DELAY_MS || 30_000));
+    warm.unref?.();
+  }
+
+  const localEditorialEvidenceCache = { at: 0, value: null, pending: null };
+
+  async function freezeCurrentEditorialReviewPacket() {
+    if (!store.file) {
+      const error = new Error("persistent local store is required");
+      error.code = "EDITORIAL_REVIEW_PERSISTENCE_REQUIRED";
+      throw error;
+    }
+
+    const target = resolveEditorialTarget(serverNowMs());
+    const categories = CATEGORIES.map((category) => category.id);
+    const reviewSegmentKey = `review:${EDITORIAL_INVENTORY_CONTRACT.snapshotVersion}:${editionSegmentKey(categories)}`;
+    const active = store.activeEditorialReviewPacket();
+    const reusable = active &&
+      active.date === target.date &&
+      active.segmentKey === reviewSegmentKey &&
+      active.packet && active.packet.state === "human_annotation_ready" &&
+      active.packet.rows && active.packet.rows.length === 42;
+    if (reusable) return { record: active, reused: true };
+
+    const activeLedger = active && store.getEditorialReview(active.packetId, active.editionId);
+    if (active && hasHumanReviewWork(activeLedger)) {
+      const error = new Error("active review has unfinished annotations or adjudication");
+      error.code = "EDITORIAL_REVIEW_ACTIVE_IN_PROGRESS";
+      throw error;
+    }
+
+    // 검수용 현재 표본은 수집 완료 뒤의 시각을 기준으로 만든다. 정시 슬롯의
+    // canonical 저장판은 건드리지 않으며, 이 경로에서는 외부 LLM도 부르지 않는다.
+    await engine.refresh();
+    const observedAtMs = serverNowMs();
+    const preview = await engine.todayEdition({
+      categories,
+      slotId: target.slot.id,
+      asOfMs: observedAtMs,
+      includeCandidates: true,
+      sharedCanonical: true
+    });
+    const finalized = projectEditorialReaderCopy(attachEditorialFulfillment(applyEditionChanges(preview, null, {
+      targetLimit: preview.selection.maxIssues,
+      minIssuesPerCategory: preview.selection.minIssuesPerCategory,
+      enforceRepeatRule: false,
+      historyEditions: []
+    })));
+    const provisional = buildBlindReviewPacket(finalized, {
+      observedAt: new Date(observedAtMs).toISOString()
+    });
+    const edition = {
+      ...finalized,
+      editionId: `${preview.editionId}-review-${provisional.packetId.slice(4)}`,
+      reviewFreeze: {
+        stableId: "NOWHOT-REVIEW-PACKET-FREEZE-001",
+        reviewOnly: true,
+        canonicalEditionMutated: false,
+        externalLlmCalls: 0
+      }
+    };
+    const packet = buildBlindReviewPacket(edition, {
+      observedAt: new Date(observedAtMs).toISOString()
+    });
+    if (packet.rows.length !== 42 || packet.state !== "human_annotation_ready") {
+      const error = new Error("current review packet did not satisfy the 42-row machine-ready gate");
+      error.code = "EDITORIAL_REVIEW_PACKET_HOLD";
+      error.freeze = {
+        expectedIssueCount: 42,
+        issueCount: packet.rows.length,
+        state: packet.state,
+        metrics: packet.metrics,
+        selectedCategories: categories,
+        categoryFulfillment: finalized.categoryFulfillment || null,
+        candidateMetrics: preview.candidateFixture && preview.candidateFixture.metrics || null
+      };
+      throw error;
+    }
+
+    const record = store.saveEditorialReviewPacket(packet, {
+      date: target.date,
+      slotId: target.slot.id,
+      segmentKey: reviewSegmentKey,
+      activateIfEmpty: false
+    });
+    store.activateEditorialReviewPacket(record.packetId, record.editionId);
+    localEditorialEvidenceCache.at = 0;
+    localEditorialEvidenceCache.value = null;
+    return { record, reused: false };
+  }
+
+  function readLocalEditorialCanaryReceipt() {
+    if (!localEditorialCanaryReceiptFile) return null;
+    try {
+      const receipt = JSON.parse(fs.readFileSync(localEditorialCanaryReceiptFile, "utf8"));
+      const constraints = receipt && receipt.constraints || {};
+      const totals = receipt && receipt.totals || {};
+      const pipeline = receipt && receipt.pipeline || {};
+      const calls = Number(totals.calls || 0);
+      const requested = Number(constraints.requestedIssueCount || 0);
+      if (receipt.stableId !== EDITORIAL_LLM_CANARY_CONTRACT.stableId) return null;
+      if (!/^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/.test(String(constraints.localBase || ""))) return null;
+      if (calls < 0 || calls > EDITORIAL_LLM_CANARY_CONTRACT.maxCalls) return null;
+      if (requested < 1 || requested > EDITORIAL_LLM_CANARY_CONTRACT.maxIssues) return null;
+      return {
+        contractId: receipt.stableId,
+        state: receipt.state || pipeline.state || "unknown",
+        actualReceipt: true,
+        executedAt: receipt.executedAt || null,
+        requestedIssueCount: requested,
+        maxIssues: EDITORIAL_LLM_CANARY_CONTRACT.maxIssues,
+        maxCalls: EDITORIAL_LLM_CANARY_CONTRACT.maxCalls,
+        externalCalls: calls,
+        edited: Number(pipeline.edited || 0),
+        rejected: Number(pipeline.rejected || 0),
+        inputTokens: Number(totals.inputTokens || 0),
+        outputTokens: Number(totals.outputTokens || 0),
+        outputReceipt: path.basename(localEditorialCanaryReceiptFile)
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async function localEditorialEvidenceSnapshot() {
+    if (!localEditorial) return null;
+    if (localEditorialEvidenceCache.value && Date.now() - localEditorialEvidenceCache.at < 60_000) {
+      return localEditorialEvidenceCache.value;
+    }
+    if (localEditorialEvidenceCache.pending) return localEditorialEvidenceCache.pending;
+    localEditorialEvidenceCache.pending = (async () => {
+      const inventory = await runLocalEditorialInventory();
+      const edition = await buildLocalTodayEdition({
+        categories: CATEGORIES.map((category) => category.id),
+        includeCandidates: true
+      });
+      const servingAssessment = assessEditorialServeability(edition);
+      const servingVerifications = store.listEditorialServingVerifications();
+      const latestServingVerification = servingVerifications[0] || null;
+      const editionReplay = await buildLocalEditionReplay();
+      const fixture = edition.candidateFixture;
+      const candidatePacket = buildBlindReviewPacket(edition);
+      const candidateRecord = store.saveEditorialReviewPacket(candidatePacket, {
+        date: edition.editionDate || null,
+        slotId: edition.slot && edition.slot.id || null,
+        segmentKey: edition.editionSegment && edition.editionSegment.key || null
+      });
+      let activeRecord = store.activeEditorialReviewPacket() || candidateRecord;
+      activeRecord = upgradeLegacyActiveReviewPacket(activeRecord);
+      const packet = activeRecord.packet;
+      const humanReview = summarizeHumanReview(
+        packet,
+        store.getEditorialReview(packet.packetId, packet.editionId)
+      );
+      const reviewQueueItems = store.listEditorialReviewPackets().map((record) => {
+        const summary = summarizeHumanReview(
+          record.packet,
+          store.getEditorialReview(record.packetId, record.editionId)
+        );
+        return {
+          packetId: record.packetId,
+          editionId: record.editionId,
+          date: record.date,
+          slotId: record.slotId,
+          segmentKey: record.segmentKey,
+          issueCount: record.packet && record.packet.rows && record.packet.rows.length || 0,
+          frozenAt: record.frozenAt,
+          state: summary.overallState,
+          humanState: summary.state,
+          hasProgress: Object.values(summary.completedByReviewer).some((row) => row.completed > 0),
+          isActive: record.key === activeRecord.key,
+          isCurrentCandidate: record.key === candidateRecord.key
+        };
+      });
+      const reviewQueue = {
+        stableId: HUMAN_REVIEW_QUEUE_CONTRACT.stableId,
+        state: activeRecord.key === candidateRecord.key ? "active_current_packet" : "active_packet_pinned",
+        activation: HUMAN_REVIEW_QUEUE_CONTRACT.activation,
+        packetRule: HUMAN_REVIEW_QUEUE_CONTRACT.packetRule,
+        independenceRule: HUMAN_REVIEW_QUEUE_CONTRACT.independenceRule,
+        adjudicationRule: HUMAN_REVIEW_QUEUE_CONTRACT.adjudicationRule,
+        activePacketId: activeRecord.packetId,
+        activeEditionId: activeRecord.editionId,
+        currentCandidatePacketId: candidateRecord.packetId,
+        currentCandidateEditionId: candidateRecord.editionId,
+        queuedCount: reviewQueueItems.length,
+        pendingCount: reviewQueueItems.filter((row) => !row.isActive).length,
+        items: reviewQueueItems
+      };
+      const reviewPacket = {
+        ...packet,
+        frozenAt: activeRecord.frozenAt,
+        sourceDate: activeRecord.date,
+        sourceSlotId: activeRecord.slotId,
+        sourceSegmentKey: activeRecord.segmentKey,
+        machineState: packet.state,
+        state: humanReview.overallState,
+        humanState: humanReview.state,
+        metrics: { ...packet.metrics, humanCompleted: humanReview.doubleReviewed },
+        humanReview,
+        queue: reviewQueue
+      };
+      const qualityReviewSummaries = store.listEditorialReviewPackets().map((record) => ({
+        editionId: record.editionId,
+        ...summarizeHumanReview(
+          record.packet,
+          store.getEditorialReview(record.packetId, record.editionId)
+        )
+      }));
+      const value = {
+        stableId: "NOWHOT-LOCAL-EDITORIAL-EDITION-001",
+        state: edition.publishable && fixture && fixture.state === "machine_observation_ready"
+          && edition.categoryFulfillment && edition.categoryFulfillment.goalSatisfied
+          ? "local_candidate_ready" : "local_candidate_with_limits",
+        observedAt: edition.generatedAt,
+        route: "/",
+        api: "/api/today",
+        featureFlag: "NOWHOT_LOCAL_EDITORIAL=1",
+        llmCalls: edition.llmCalls,
+        preview: {
+          issueCount: edition.issues.length,
+          sectionCount: edition.sections.length,
+          sourceCount: edition.sourceCount,
+          itemCount: edition.itemCount,
+          publishable: edition.publishable,
+          selectedCategoryCount: edition.selection && edition.selection.categories.length || 0,
+          maxIssues: edition.selection && edition.selection.maxIssues || 0,
+          minIssuesPerCategory: edition.selection && edition.selection.minIssuesPerCategory || 0
+        },
+        editorialQuality: edition.editorialQuality || null,
+        categoryFulfillment: edition.categoryFulfillment || null,
+        servingGate: {
+          contractId: EDITORIAL_SERVING_CONTRACT.stableId,
+          contractVersion: EDITORIAL_SERVING_CONTRACT.version,
+          state: servingAssessment.state,
+          pass: servingAssessment.pass,
+          responsePacketId: servingAssessment.packetId,
+          editionId: servingAssessment.editionId,
+          failures: servingAssessment.failures,
+          metrics: servingAssessment.metrics,
+          readerDiversity: servingAssessment.packet && servingAssessment.packet.readerDiversity || null,
+          fulfillment: servingAssessment.fulfillment,
+          humanReviewRequired: EDITORIAL_SERVING_CONTRACT.humanReviewRequired,
+          verificationCount: servingVerifications.length,
+          latestVerification: latestServingVerification ? {
+            packetId: latestServingVerification.packetId,
+            editionId: latestServingVerification.editionId,
+            date: latestServingVerification.date,
+            slotId: latestServingVerification.slotId,
+            segmentKey: latestServingVerification.segmentKey,
+            categories: latestServingVerification.categories,
+            verifiedAt: latestServingVerification.verifiedAt,
+            savedAt: latestServingVerification.savedAt
+          } : null,
+          fallbackRule: EDITORIAL_SERVING_CONTRACT.fallbackRule,
+          doesNotProve: "사람 편집 품질 PASS·기사 사실성·운영 배포 가능"
+        },
+        personalization: edition.personalization || null,
+        editorialLineage: (() => {
+          const receipts = edition.issues.map((issue) => verifyEditorialLineage(issue));
+          const sourceEvidence = edition.issues.flatMap((issue) => issue.sourceEvidence || []);
+          const sourceRoles = {};
+          const ownershipBases = {};
+          for (const row of sourceEvidence) {
+            const role = row.sourceRole || "unknown";
+            const basis = row.ownershipBasis || "unknown";
+            sourceRoles[role] = (sourceRoles[role] || 0) + 1;
+            ownershipBases[basis] = (ownershipBases[basis] || 0) + 1;
+          }
+          const passCount = receipts.filter((receipt) => receipt.pass).length;
+          return {
+            contractId: "NOWHOT-EDITORIAL-LINEAGE-CONTRACT-001",
+            state: passCount === receipts.length ? "machine_lineage_pass" : "machine_lineage_hold",
+            issueCount: receipts.length,
+            passCount,
+            holdCount: receipts.length - passCount,
+            sourceEvidenceCount: sourceEvidence.length,
+            sourceRoles,
+            ownershipBases,
+            failures: receipts.flatMap((receipt) => receipt.failures || []),
+            proves: "판본 문장별 원문·측정·개인 선택·편집 판단의 기계 계보",
+            doesNotProve: "원문 사실의 진실성·사람 검수 PASS·운영 배포"
+          };
+        })(),
+        editorialLlm: edition.editorialLlm || null,
+        llmCanary: readLocalEditorialCanaryReceipt(),
+        editionChange: edition.editionChange || null,
+        inventory: inventory || localInventoryReceipt,
+        elapsedEvidence: localElapsedReceipt,
+        reliabilityHistory: buildEditorialReliabilityHistory(
+          store.allEditorialSlotObservations(),
+          { nowMs: serverNowMs() }
+        ),
+        qualityHistory: buildEditorialQualityHistory(
+          store.allEditorialEditions(),
+          { nowMs: serverNowMs(), reviewSummaries: qualityReviewSummaries }
+        ),
+        qualityReviewSampling: localQualityReviewSamplingReceipt,
+        scheduler: localEditorialSchedulerStatus(),
+        editionReplay,
+        reviewPacket,
+        fixture
+      };
+      localEditorialEvidenceCache.value = value;
+      localEditorialEvidenceCache.at = Date.now();
+      return value;
+    })().finally(() => { localEditorialEvidenceCache.pending = null; });
+    return localEditorialEvidenceCache.pending;
+  }
 
   // 썸네일 보강 (enrich.js): image 없는 아이템의 원문 og:image URL 핫링크 채움.
   // FEED_ENRICH_IMAGES=0 으로 끌 수 있다. node --test 자식 프로세스에서는
@@ -593,7 +1685,7 @@ export function createServer(opts = {}) {
   });
   if (indexNowKey()) {
     const notify = () => {
-      indexNow.ping(["/", "/briefing", "/ranking/daily", "/trends"]).catch(() => {});
+      indexNow.ping(["/", "/briefing", "/report"]).catch(() => {});
     };
     notify();
     const t = setInterval(notify, Number(process.env.INDEXNOW_INTERVAL_MS || 6 * 3600 * 1000));
@@ -733,6 +1825,25 @@ export function createServer(opts = {}) {
       || withEssay(await engine.briefing());
   }
 
+  // 편집 홈은 요청 중 수집이나 LLM 생성을 시작하지 않는다. 이미 발행된 최신본만
+  // 읽고, 없으면 준비 상태를 정직하게 보여준다.
+  function editorialBriefingSnapshot() {
+    const now = Date.now();
+    const today = kstDate(now);
+    const yesterday = kstDate(now - 24 * 3600 * 1000);
+    const due = dueSlot(now);
+    return (due && store.getBriefing(today, due.id)) ||
+      store.latestBriefing(today, SLOT_ORDER) ||
+      store.latestBriefing(yesterday, SLOT_ORDER) || (() => {
+        const dates = store.listEditionDates ? store.listEditionDates().slice().reverse() : [];
+        for (const date of dates) {
+          const ed = store.getDailyEdition ? store.getDailyEdition(date) : null;
+          if (ed && ed.briefing && ed.briefing.publishable) return ed.briefing;
+        }
+        return null;
+      })();
+  }
+
   // 슬롯 시각마다 한 번씩 발행. 정각을 놓쳐도(재기동 등) 다음 점검에서
   // 저장본이 없으면 만든다 — 정각 트리거가 아니라 "있어야 할 게 있는가"로 본다.
   const BRIEFING_CHECK_MS = Number(process.env.BRIEFING_CHECK_MS || 5 * 60 * 1000);
@@ -759,6 +1870,11 @@ export function createServer(opts = {}) {
   }
 
   const COUPANG_DISCLOSURE = AD_DISCLOSURE;
+  // ADFIT_ENABLED=1은 단순히 피드 광고를 켜는 스위치가 아니라 심사 지면을
+  // 고정하는 모드다. 이때는 외부 링크가 계속 갱신되는 /live에서 모든 광고를
+  // 빼고, 색인 가능한 자체 편집 페이지에만 AdFit 한 단위를 둔다.
+  const adfitReviewMode = () =>
+    process.env.ADFIT_ENABLED === "1" && Boolean(process.env.ADFIT_UNIT_MOBILE);
   // pick — 회전 인덱스. 예전엔 인자를 안 넘겨 pick=0으로 고정됐고, 그래서
   // 32장 재고가 있어도 **모든 방문자가 매 페이지에서 같은 배너 한 장**을 봤다
   // (2026-08-03 검수 실측: /briefing·/trends·/ranking 전부 tech 배너).
@@ -771,7 +1887,8 @@ export function createServer(opts = {}) {
   // 방문 순번. 페이지를 그릴 때마다 하나씩 올린다. 난수를 안 쓰는 이유는
   // 난수가 같은 것을 연달아 뽑는 일이 잦기 때문이다 — 순번은 반드시 한 바퀴 돈다.
   let adTurn = 0;
-  const adPage = () => {
+  const adPage = (eligible = true) => {
+    if (!eligible || adfitReviewMode()) return () => "";
     adTurn = (adTurn + 1) % 997;      // 소수 — 문구 개수와 주기가 맞물리지 않게
     const seen = new Set();
     return (category, size = null, pick = 0, slot = "page", dest = null) =>
@@ -989,14 +2106,14 @@ export function createServer(opts = {}) {
       <p class="ad-disclosure">${COUPANG_DISCLOSURE}</p></aside>`;
   };
 
-  const adSlotHtml = (slot) => {
+  const displayAdHtml = () => {
     const adsense = process.env.ADSENSE_CLIENT;
     const adfitUnit = process.env.ADFIT_UNIT_MOBILE;
-    if (slot === "adfit" && adfitUnit && process.env.ADFIT_ENABLED === "1") {
+    if (adfitReviewMode()) {
       return `<div class="ad-slot"><span class="ad-mark">AD</span>
         <ins class="kakao_ad_area" style="display:none;" data-ad-unit="${escapeHtml(adfitUnit)}" data-ad-width="320" data-ad-height="100"></ins></div>`;
     }
-    if (slot === "adsense" && adsense) {
+    if (adsense) {
       // 반응형 자동 크기 — 페이지 폭(720px)에 맞춰 구글이 채운다
       return `<div class="ad-slot"><span class="ad-mark">AD</span>
         <ins class="adsbygoogle" style="display:block" data-ad-client="${escapeHtml(adsense)}"
@@ -1007,15 +2124,15 @@ export function createServer(opts = {}) {
   };
   // 광고 로더 — 자체 콘텐츠 페이지는 index.html의 주입 경로를 타지 않으므로
   // 여기서 직접 넣는다.
-  const adLoadersHtml = () => {
-    let out = "";
+  const adLoadersHtml = (eligible) => {
+    if (!eligible) return "";
+    if (adfitReviewMode()) {
+      return `<script async src="https://t1.kakaocdn.net/kas/static/ba.min.js"></script>`;
+    }
     if (process.env.ADSENSE_CLIENT) {
-      out += `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${escapeHtml(process.env.ADSENSE_CLIENT)}" crossorigin="anonymous"></script>`;
+      return `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${escapeHtml(process.env.ADSENSE_CLIENT)}" crossorigin="anonymous"></script>`;
     }
-    if (process.env.ADFIT_UNIT_MOBILE) {
-      out += `<script async src="https://t1.kakaocdn.net/kas/static/ba.min.js"></script>`;
-    }
-    return out;
+    return "";
   };
 
   // 자체 콘텐츠 페이지의 검색 노출용 공통 머리. canonical·og:image가 없으면
@@ -1070,15 +2187,17 @@ export function createServer(opts = {}) {
 </script>`;
 
   const editionShell = (title, desc, inner, canonicalPath = "", ownLinks = "", coupangBanner = "", noindex = false) => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+${process.env.ADSENSE_CLIENT ? `<meta name="google-adsense-account" content="${escapeHtml(process.env.ADSENSE_CLIENT)}">` : ""}
+<meta name="naver-site-verification" content="0d469593c15f0aca6694a0eac43985579c104a4d">
 ${noindex
   ? '<meta name="robots" content="noindex,follow">'
   // 자체 콘텐츠 페이지(브리핑·랭킹·커뮤니티순위)가 정작 Discover가 가장
   // 필요한 쪽인데 이 줄이 공유 페이지에만 들어가 있었다(2026-08-04 배포 후 실측).
   : '<meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1">'}
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escapeHtml(title)} — 지금핫 NowHot</title>
+<title>${escapeHtml(canonicalPath === "/" ? title : `${title} — 지금핫 NowHot`)}</title>
 <meta name="description" content="${escapeHtml(desc)}">
-<meta property="og:title" content="${escapeHtml(title)} — 지금핫 NowHot">
+<meta property="og:title" content="${escapeHtml(canonicalPath === "/" ? title : `${title} — 지금핫 NowHot`)}">
 <meta property="og:description" content="${escapeHtml(desc)}">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="지금핫 NowHot">
@@ -1087,9 +2206,10 @@ ${noindex
 <link rel="alternate" type="application/rss+xml" title="지금핫 NowHot" href="https://nowhot.kr/rss.xml">
 <script type="application/ld+json">${JSON.stringify({
   "@context": "https://schema.org",
-  "@type": "CollectionPage",
-  name: title,
+  "@type": canonicalPath === "/" ? "WebSite" : "CollectionPage",
+  name: canonicalPath === "/" ? "지금핫 NowHot" : title,
   description: desc,
+  ...(canonicalPath === "/" ? { url: "https://nowhot.kr/" } : {}),
   inLanguage: "ko",
   isPartOf: { "@type": "WebSite", name: "지금핫 NowHot", url: "https://nowhot.kr/" },
   publisher: { "@type": "Organization", name: "페퍼클럽", url: "https://nowhot.kr/" }
@@ -1198,13 +2318,19 @@ ol.rank li a{color:var(--text);font-weight:700}
    안 보이는 글자였다. David의 시인성 수정(2026-08-02)이 앱에만 들어가고 여기는
    빠진 결과다. 본문색을 그대로 쓰고 크기를 올린다. */
 .ad-disclosure{margin:10px 0 0;padding-top:9px;border-top:1px solid var(--line);
-  font-size:13px;line-height:1.6;color:var(--text)}</style>${adLoadersHtml()}</head><body><div class="wrap">
-<a class="back" href="/">← 지금핫 피드로</a>
+  font-size:13px;line-height:1.6;color:var(--text)}
+.home-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:30px;border-bottom:2px solid var(--divider);padding-bottom:14px}
+.home-brand{font:800 18px/1 "Archivo",sans-serif;color:var(--text)}
+.home-live{font-size:13px;font-weight:800}.home-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 28px}
+.home-actions a{display:inline-flex;align-items:center;min-height:42px;padding:8px 14px;border:1px solid var(--divider);font-weight:800;color:var(--text)}
+.home-actions a.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.home-kicker{font-size:12px;font-weight:800;color:var(--accent);margin:0 0 6px}.home-lead{font-size:17px;line-height:1.65;margin:10px 0 0}
+</style>${adLoadersHtml(!noindex)}</head><body><div class="wrap">
+${canonicalPath === "/" ? '<header class="home-head"><a class="home-brand" href="/">지금핫</a><a class="home-live" href="/live">실시간 피드 →</a></header>' : '<a class="back" href="/">← 지금핫 홈</a>'}
 ${inner}
 ${coupangBanner}
 ${ownLinks}
-${adSlotHtml("adsense")}
-${adSlotHtml("adfit")}
+${noindex ? "" : displayAdHtml()}
 <p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
 </div>${pageTracker()}${adTrackScript}</body></html>`;
   // ── 발행 페이지 방문 측정 (2026-08-05 전수검사)
@@ -1284,7 +2410,7 @@ ${adSlotHtml("adfit")}
   };
   const rankRow = (i, n) => {
     const bits = evidenceBits(i);
-    return `<li value="${n}"><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+    return `<li value="${n}"><div><a href="/live#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
       <span class="m">${escapeHtml(i.sourceLabel)} · ${escapeHtml(i.categoryLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span>
       ${heatBar(i.heat)}</div></li>`;
   };
@@ -1352,9 +2478,40 @@ ${adSlotHtml("adfit")}
       ${is.essay ? `<p>${escapeHtml(maskProfanity(is.essay))}</p>` : ""}
       <p>${escapeHtml(maskProfanity(is.paragraph))}</p>
       <div class="m"><span class="tone">${escapeHtml(is.tone)}</span> · 관련 글 ${is.refs.length}건</div>
-      <ul>${is.refs.map((r) => `<li><a href="/#post-${encodeURIComponent(r.id)}">${escapeHtml(maskProfanity(r.title))}</a>
+      <ul>${is.refs.map((r) => `<li><a href="/live#post-${encodeURIComponent(r.id)}">${escapeHtml(maskProfanity(r.title))}</a>
         <span class="m">${escapeHtml(r.sourceLabel)}${evidenceBits(r).length ? " · " + evidenceBits(r).join(" · ") : ""}</span></li>`).join("")}</ul>
     </section>`).join("");
+
+  const editorialHomeHtml = (briefing) => {
+    const issues = briefing && briefing.publishable
+      ? (briefing.issues || []).filter((i) => i && i.headline && i.paragraph).slice(0, 3)
+      : [];
+    const issueBlocks = issues.length
+      ? issues.map((issue, index) => `<section class="issue">
+          <h2>${index + 1}. ${escapeHtml(maskProfanity(issue.headline))}</h2>
+          <p>${escapeHtml(maskProfanity(issue.paragraph))}</p>
+          <p class="muted"><span class="tone">${escapeHtml(issue.tone || "관찰")}</span> · 관련 신호 ${Array.isArray(issue.refs) ? issue.refs.length : 0}건</p>
+        </section>`).join("")
+      : `<section class="issue"><h2>오늘의 편집본 준비 중</h2>
+          <p>발행 기준을 충족한 반응 데이터가 모이면 이 자리에 핵심 이슈와 근거 수치를 싣습니다. 빈 목록을 기사처럼 발행하지 않습니다.</p></section>`;
+    const stats = briefing
+      ? `공개 반응 ${fmtNum(briefing.itemCount || 0)}건 · 출처 ${fmtNum(briefing.sourceCount || 0)}곳`
+      : "공개 추천·댓글·보도량을 같은 기준으로 집계";
+    const story = reportStoryLine();
+    return `<p class="home-kicker">NOWHOT EDITORIAL</p>
+<h1>지금핫</h1>
+<p class="home-lead">커뮤니티와 뉴스의 공개 반응을 직접 계측하고, 지금 함께 번지는 이슈와 흐름을 짧게 해설합니다.</p>
+<div class="home-actions"><a class="primary" href="/briefing">오늘의 브리핑</a><a href="/live">실시간 피드</a><a href="/report">데이터 리포트</a></div>
+<section><h2>지금 읽어야 할 흐름</h2><p class="muted">${escapeHtml(stats)} · 원문 전문을 복제하지 않고 측정값과 교차 출처로 편집합니다.</p>${issueBlocks}
+<p><a href="/briefing">브리핑 전체 읽기 →</a></p></section>
+<section><h2>데이터로 본 지금</h2>
+<p>${escapeHtml(story || "날짜별 반응 스냅샷을 누적해 하루 목록에서는 보이지 않는 출처 분포와 화제의 지속 시간을 비교합니다.")}</p>
+<p><a href="/report">집계 리포트와 방법론 보기 →</a></p></section>
+<section><h2>어떻게 고르나</h2>
+<p>단순 조회수 합계 대신 각 출처 안에서 평소보다 얼마나 이례적으로 반응했는지 보고, 여러 곳에서 같은 이슈가 확인될수록 비중을 높입니다.</p>
+<p>수집한 제목과 공개 지표는 발견을 위한 단서로만 쓰고, 편집 문장과 그래프는 지금핫이 보유한 측정 기록으로 만듭니다.</p></section>
+<nav class="nav" aria-label="지금핫 둘러보기"><a href="/briefing">브리핑</a><a href="/report">리포트</a><a href="/ranking/daily">랭킹</a><a href="/about">소개</a></nav>`;
+  };
 
   // 브리핑 본문 사이사이에 광고를 넣는다 (David 2026-08-06 "그 안에도 연관 광고
   // 사이사이 넣고"). 예전엔 가운데 딱 한 장이었다 — 9개 섹션짜리 글에 광고
@@ -1387,7 +2544,7 @@ const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) 
       // 섹션 전부가 같은 템플릿 문장 + 제목 나열이었고 설명 문장이 0개였다 —
       // 애드핏이 요구한 "자체 콘텐츠"의 반대편이다. 피드에는 이미 summary가
       // 있는데 브리핑에서 한 줄도 쓰지 않고 있었다.
-      return `<li><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+      return `<li><a href="/live#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
         <span class="m">${escapeHtml(i.sourceLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></li>`;
     }).join("");
     const html = `<section><h2><a href="/briefing/${encodeURIComponent(sec.category)}" style="color:inherit">${escapeHtml(sec.label)}</a></h2>
@@ -1449,7 +2606,7 @@ const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) 
     // 처음 보는 사람이 된다 — 취향도 재방문도 거기서 끊긴다.
     // 계정을 만들지는 않는다(빈 계정이 늘지 않게). 표식만 준다.
     if (req.method === "GET" && !p.startsWith("/api/") &&
-        (p === "/" || p === "/index.html" || PUBLISHED_PATH.test(p))) {
+        (p === "/" || p === "/live" || p === "/index.html" || PUBLISHED_PATH.test(p))) {
       try { ensureVisitor(req, res); } catch {}
     }
 
@@ -1566,9 +2723,9 @@ const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) 
           if (i.coverage >= 3) bits.push(`${i.coverage}개 매체 보도`);
           items.push({
             title: i.title,
-            link: `${origin}/#post-${encodeURIComponent(i.id)}`,
+            link: `${origin}/live#post-${encodeURIComponent(i.id)}`,
             desc: `${i.sourceLabel || ""}${bits.length ? " — " + bits.join(" · ") : ""} (지금핫 실측)`,
-            guid: `${origin}/#post-${encodeURIComponent(i.id)}`
+            guid: `${origin}/live#post-${encodeURIComponent(i.id)}`
           });
         }
         const body = `<?xml version="1.0" encoding="UTF-8"?>
@@ -1610,22 +2767,8 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         res.end([
           "User-agent: *",
           "Allow: /",
-          // 읽기 전용 GET만 열어 둔다 (2026-08-04).
-          //
-          // 예전엔 `Disallow: /api/` 하나로 전부 막았다. 그런데 홈 피드는
-          // JS가 /api/feed를 불러 채우고, 구글 크롤러는 **렌더링 도중에도**
-          // robots를 지킨다 — 즉 우리가 우리 콘텐츠를 스스로 막고 있었다.
-          // 실측(2026-08-04): 크롤러가 보는 홈 본문 936자, 카드 0개, 첫 문구
-          // "준비 중". 색인되는 홈이 빈 화면이었다.
-          //
-          // 이 엔드포인트들은 이미 누구나 열 수 있는 공개 GET이라 여는 것만으로
-          // 새로 드러나는 정보가 없다. 쓰기·세션·관리자 경로는 계속 막는다.
-          "Allow: /api/feed",
-          "Allow: /api/item",
-          "Allow: /api/briefing",
-          "Allow: /api/trends",
-          "Allow: /api/communities",
-          "Allow: /api/config",
+          // 색인 가능한 홈은 서버가 자체 편집 본문을 완성해 응답한다. 개인화
+          // 데이터 API를 크롤러에 열 이유가 없어졌고, /live는 자체 noindex를 낸다.
           "Disallow: /api/",
           "Disallow: /admin",
           "Disallow: /p?",           // 공유 링크는 앱으로 튕기는 중계 페이지
@@ -1638,16 +2781,6 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
 
       if (p === "/sitemap.xml" && req.method === "GET") {
         const origin = originOf(req);
-        const cats = registry
-          .filter((c) => c.enabled && c.category)
-          .map((c) => c.category);
-        // 색인에 올릴 만한 알맹이가 있는가 (2026-08-04 검색 품질 검수).
-        //
-        // 키워드 43개 중 28개(65%)가 수록 글 4건 이하였다. 그런 페이지는
-        // "이 키워드가 왜 지금 뜨는가"를 말해 주지 못하고 남의 제목 서너 줄만
-        // 남는다 — 구글 스팸 정책의 "가치 없는 페이지 대량 생성"에 해당한다.
-        // 지우지는 않는다. 목록에서 들어갈 수는 있되 **색인만 안 한다.**
-        const INDEXABLE_MIN_ITEMS = 8;
         // lastmod — 구글이 "이 페이지가 언제 바뀌었나"를 판단하는 사실상 유일한
         // 신호다. 없으면 사이트맵을 다시 읽어도 무엇이 바뀌었는지 알 수 없어
         // 재크롤링 우선순위가 안 올라간다. 반대로 changefreq·priority는 구글이
@@ -1666,45 +2799,23 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         const urls = [
           { loc: "/", freq: "hourly", pri: "1.0", mod: liveMod },
           { loc: "/briefing", freq: "hourly", pri: "0.9", mod: liveMod },
-          { loc: "/ranking/daily", freq: "daily", pri: "0.8", mod: liveMod },
-          { loc: "/ranking/weekly", freq: "daily", pri: "0.7", mod: liveMod },
-          { loc: "/ranking/monthly", freq: "weekly", pri: "0.6", mod: liveMod },
-          { loc: "/trends", freq: "hourly", pri: "0.6", mod: liveMod },
-          // 데이터 리포트 — 외부 링크가 0인 유일한 페이지다. 색인에 꼭 올린다.
           { loc: "/report", freq: "daily", pri: "0.8", mod: liveMod },
-          { loc: "/communities", freq: "hourly", pri: "0.8", mod: liveMod },
-          { loc: "/keywords", freq: "hourly", pri: "0.7", mod: liveMod },
           { loc: "/about", freq: "monthly", pri: "0.4", mod: fileMod("about.html") },
           { loc: "/terms", freq: "yearly", pri: "0.2", mod: fileMod("terms.html") },
           { loc: "/privacy", freq: "yearly", pri: "0.2", mod: fileMod("privacy.html") }
         ];
-        for (const cat of [...new Set(cats)]) {
-          urls.push({ loc: `/briefing/${encodeURIComponent(cat)}`, freq: "hourly", pri: "0.7", mod: liveMod });
-        }
-        // ⑤ 날짜별 아카이브 — 매일 쌓이므로 sitemap이 함께 자란다
+        // 날짜별 아카이브는 실제로 발행 기준을 통과한 편만 색인한다.
         const dates = store.listEditionDates ? store.listEditionDates().slice(-90) : [];
         const briefDates = new Set([...dates, ...(store.briefingDates ? store.briefingDates() : [])]);
         for (const d of briefDates) {
-          // 날짜 아카이브는 그날 마지막으로 저장된 시각이 진짜 lastmod다.
           const day = SLOTS.map((sl) => store.getBriefing(d, sl.id)).filter(Boolean);
+          const legacy = store.getDailyEdition ? store.getDailyEdition(d) : null;
+          const published = day.some((x) => x && x.publishable) ||
+            Boolean(legacy && legacy.briefing && legacy.briefing.publishable);
+          if (!published) continue;
           const savedAt = day.length ? Math.max(...day.map((x) => x.savedAt || 0)) : 0;
           urls.push({ loc: `/briefing/${d}`, freq: "never", pri: "0.5", mod: savedAt ? isoOf(savedAt) : undefined });
         }
-        // 실재하는 페이지의 4분의 1만 사이트맵에 있었다(검수 지적: 24개 vs 107개).
-        // 알맹이가 있는 것만 올린다 — 올릴 것은 빼고 뺄 것은 올리던 상태였다.
-        try {
-          const pool = await engine.pool();
-          for (const k of keywordIndex(pool)) {
-            if (k.count >= INDEXABLE_MIN_ITEMS) {
-              urls.push({ loc: `/keyword/${encodeURIComponent(k.tag)}`, freq: "daily", pri: "0.5", mod: liveMod });
-            }
-          }
-          for (const c of communityRanking(pool)) {
-            if (c.posts >= INDEXABLE_MIN_ITEMS) {
-              urls.push({ loc: `/community/${encodeURIComponent(c.source)}`, freq: "daily", pri: "0.6", mod: liveMod });
-            }
-          }
-        } catch { /* 수집 전이면 기본 목록만 나간다 */ }
 
         const body = `<?xml version="1.0" encoding="UTF-8"?>\n` +
           `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
@@ -1722,7 +2833,7 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         const b = await currentBriefing();
         const dateStr = kstLabel(b.generatedAt);
         const debateHtml = b.debate
-          ? `<section><h2>오늘의 논쟁</h2><p>가장 많은 댓글이 달린 글은 <b>“${escapeHtml(b.debate.title)}”</b>(${escapeHtml(b.debate.sourceLabel)})입니다 — 댓글 ${fmtNum(b.debate.commentCount)}개가 이어지고 있습니다. <a href="/#post-${encodeURIComponent(b.debate.id)}">지금핫 댓글로 의견 남기기 →</a></p></section>`
+          ? `<section><h2>오늘의 논쟁</h2><p>가장 많은 댓글이 달린 글은 <b>“${escapeHtml(b.debate.title)}”</b>(${escapeHtml(b.debate.sourceLabel)})입니다 — 댓글 ${fmtNum(b.debate.commentCount)}개가 이어지고 있습니다. <a href="/live#post-${encodeURIComponent(b.debate.id)}">지금핫 댓글로 의견 남기기 →</a></p></section>`
           : "";
         const archiveDates = store.listEditionDates ? store.listEditionDates().slice(-14).reverse() : [];
         const archiveHtml = archiveDates.length > 1
@@ -1756,7 +2867,7 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
           : `<p class="muted">이 시간대는 아직 정리할 만큼 화제가 모이지 않았습니다. 다음 편에서 이어집니다.</p>`;
         // 이 페이지에 나가는 광고는 한 묶음으로 본다 — 같은 상품이 두 번
         // 나오지 않고, 문구도 자리마다 다른 것이 나온다.
-        const AD = adPage();
+        const AD = adPage(Boolean(b.publishable));
         // 첫 광고도 **바로 위 글**에 맞춘다. 예전엔 category·dest를 둘 다
         // null로 넘겨서, 정작 가장 눈에 띄는 자리만 문맥과 무관했다.
         const sec0 = (b.sections && b.sections[0]) || null;
@@ -1776,8 +2887,7 @@ ${rankingNav("")}
 ${briefingSectionsHtml(b, AD(cat0, null, 3, "brief_mid", dest0), AD)}
 ${debateHtml}
 ${archiveHtml}`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 클리앙·뽐뿌·보배드림·이토랜드 등 커뮤니티와 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing"), AD(catL, null, 7, "page_bot", destL)));
+        return sendHtml(res, editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 클리앙·뽐뿌·보배드림·이토랜드 등 커뮤니티와 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing"), AD(catL, null, 7, "page_bot", destL), !b.publishable));
       }
 
       // 홈 최상단 브리핑 스트립용 원자료 (David 2026-07-31: "최상단에 테마별로
@@ -1789,6 +2899,68 @@ ${archiveHtml}`;
         return send(res, 200, { ...(await engine.briefing()), story: reportStoryLine() });
       }
 
+      // 로컬 고도화 후보: 기존 수집·랭킹·브리핑을 사용자의 명시적 카테고리로
+      // 넓혀 한 페이지 오늘판으로 조립한다. 플래그가 없는 운영에서는 404다.
+      if (p === "/api/today" && req.method === "GET" && localEditorial) {
+        const userId = url.searchParams.get("userId") || null;
+        if (userId && !store.getUser(userId)) return send(res, 400, { error: "unknown user" });
+        const categories = url.searchParams.has("categories")
+          ? url.searchParams.get("categories").split(",").map((c) => c.trim()).filter(Boolean) : null;
+        // 무효 슬러그는 조용히 버리지 않는다 (9인 검수 P0, 2026-08-13):
+        // economy·game 같은 오타가 에러 없이 무시되고 기본판(유머 포함)으로
+        // 폴백돼 "내 관심사만"이라는 약속이 깨졌다. POST /api/today/categories는
+        // 이미 known 검증을 하는데 GET만 구멍이었다 — 같은 잣대로 400을 준다.
+        if (categories) {
+          const known = new Set(CATEGORIES.map((category) => category.id));
+          const unknown = categories.filter((id) => !known.has(id));
+          if (unknown.length) {
+            return send(res, 400, {
+              error: `알 수 없는 카테고리: ${unknown.join(", ")}`,
+              code: "UNKNOWN_CATEGORY",
+              unknown,
+              validCategories: CATEGORIES.map(({ id, label }) => ({ id, label }))
+            });
+          }
+        }
+        const slotId = url.searchParams.get("slot") || null;
+        const targetDate = url.searchParams.get("date") || null;
+        if (targetDate && !validEditorialDate(targetDate)) {
+          return send(res, 400, { error: "invalid editorial date", code: "INVALID_EDITORIAL_DATE" });
+        }
+        try {
+          return send(res, 200, await buildServeableTodayEdition({ userId, categories, slotId, targetDate }));
+        } catch (error) {
+          if (error && ["EDITORIAL_SLOT_NOT_DUE", "EDITORIAL_EDITION_NOT_SERVEABLE"].includes(error.code)) {
+            return send(res, 409, {
+              error: error.message,
+              code: error.code,
+              ...(error.serving ? { serving: error.serving } : {})
+            });
+          }
+          throw error;
+        }
+      }
+
+      if (p === "/api/today/categories" && req.method === "POST" && localEditorial) {
+        const body = await readBody(req);
+        if (denied(body.userId)) return;
+        const known = new Set(CATEGORIES.map((category) => category.id));
+        const categories = [...new Set(
+          (Array.isArray(body.categories) ? body.categories : [])
+            .map((id) => String(id || "").trim())
+            .filter((id) => known.has(id))
+        )];
+        if (!categories.length) return send(res, 400, { error: "select at least one category" });
+        const savedCategories = store.setBriefingCategories(body.userId, categories);
+        localEditorialEvidenceCache.at = 0;
+        const queued = setTimeout(() => runLocalEditorialInventory().catch(() => {}), 0);
+        queued.unref?.();
+        return send(res, 200, {
+          ok: true,
+          categories: savedCategories
+        });
+      }
+
       // X 실시간 트렌드 — 키워드+X 검색 링크만 (트윗 본문 없음, trends.js 헤더 참고)
       if (p === "/api/trends" && req.method === "GET") {
         const t = trendsCache ? await trendsCache.get() : null;
@@ -1798,7 +2970,7 @@ ${archiveHtml}`;
       if (p === "/trends" && req.method === "GET") {
         const t = trendsCache ? await trendsCache.get() : null;
         if (!t || !t.trends.length) return send(res, 404, { error: "no trends yet" });
-        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
+        const AD = adPage(false);
         // ── 키워드를 **우리 페이지로** 보낸다 (2026-08-06)
         //
         // 예전엔 20개 전부 X(트위터) 검색으로 나갔다. 실측하면 이 페이지는
@@ -1850,8 +3022,7 @@ ${AD(null, null, 6, "trends_mid")}
 <ol class="rank" start="9" style="--rank-start:8">${scored.slice(8).map(row).join("")}</ol>
 <p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.
 "우리 피드 N건"은 지금 우리 수집 풀에서 그 말이 제목에 들어간 글의 수이며, 우리가 직접 센 값입니다.</p>`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends"), AD(null, null, 7, "page_bot")));
+        return sendHtml(res, editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends"), "", true));
       }
 
       // /briefing/<YYYY-MM-DD> = 일별 아카이브, /briefing/<카테고리> = 라이브
@@ -1859,7 +3030,6 @@ ${AD(null, null, 6, "trends_mid")}
       if (p.startsWith("/briefing/") && req.method === "GET") {
         const seg = decodeURIComponent(p.slice("/briefing/".length));
         if (/^\d{4}-\d{2}-\d{2}$/.test(seg)) {
-          const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
           // 그날 발행된 편들을 보여준다. 슬롯을 지정하면 그 편, 없으면 마지막 편.
           // 예전엔 dailyEdition(수집 스냅샷)을 읽어서 **해설이 없었다** —
           // 지금은 하루 3편을 해설과 함께 저장하므로 아카이브에도 그대로 남는다.
@@ -1874,6 +3044,7 @@ ${AD(null, null, 6, "trends_mid")}
             b = ed && ed.briefing;
           }
           if (!b) return send(res, 404, { error: "no edition for that date" });
+          const AD = adPage(Boolean(b.publishable));
 
           const dates = store.briefingDates ? store.briefingDates() : [];
           const at = dates.indexOf(seg);
@@ -1901,17 +3072,19 @@ ${AD(null, null, 6, "trends_mid")}
 <p class="muted">화제글 ${b.itemCount}건 / 소스 ${b.sourceCount}곳${b.slot && b.slot.lead ? ` · ${escapeHtml(b.slot.lead)}` : ""}</p>
 <p class="muted small">하루 세 번 — 아침 7시·점심 12시·저녁 7시에 한 편씩 발행합니다.</p>
 ${dayNav}${slotNav}
+${b.publishable ? issuesHtml(b) : '<p class="muted">이 편은 발행 기준을 충족할 만큼 신호가 모이지 않았습니다.</p>'}
+${b.essay || b.digestSummary ? `<section class="issue"><h2>종합 분석</h2>${b.essay ? `<p>${escapeHtml(maskProfanity(b.essay))}</p>` : ""}${b.digestSummary ? `<p>${escapeHtml(b.digestSummary)}</p>` : ""}</section>` : ""}
 ${rankingNav("")}
+<h2 style="margin-top:28px">분야별 상위 글</h2>
 ${briefingSectionsHtml(b, AD(null, null, 4, "archive_mid"))}`;
-          res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-          return res.end(editionShell(`${seg} 브리핑${slotLabel}`, `${seg} 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`, ownContentNav(), AD(null, null, 5, "archive_bot")));
+          return sendHtml(res, editionShell(`${seg} 브리핑${slotLabel}`, `${seg} 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`, ownContentNav(), AD(null, null, 5, "archive_bot"), !b.publishable));
         }
         // 카테고리 내부 기준(하한 없음) — 전국 랭킹 기준을 빌리면 무반응
         // 뉴스가 많은 카테고리(자동차 등)가 텅 비어 보인다 (2026-08-01 실측).
         const catTop = await engine.categoryTop(seg, 10);
         const catItems = catTop.items;
         if (!catItems.length) return send(res, 404, { error: "unknown category" });
-        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
+        const AD = adPage(false);
         const all = { generatedAt: catTop.generatedAt };
         const label = catItems[0].categoryLabel;
         const lead = pickLead(catItems);
@@ -1923,8 +3096,7 @@ ${rankingNav("")}
 ${rankingRows(catItems, (above) => AD(
   AD_MATCH_OFF_CATS.has(seg) ? null : seg, null, 1, "briefcat_mid",
   AD_MATCH_OFF_CATS.has(seg) || !above ? null : destForText(above.title)))}`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`, ownContentNav(`/briefing/${encodeURIComponent(seg)}`), AD(seg, null, 8, "briefcat_bot")));
+        return sendHtml(res, editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`, ownContentNav(`/briefing/${encodeURIComponent(seg)}`), "", true));
       }
 
       // 화제 랭킹 TOP 20 — 일간(라이브) / 주간·월간(일별 스냅샷 병합).
@@ -1939,7 +3111,7 @@ ${rankingRows(catItems, (above) => AD(
         const items = await engine.pool();
         const rank = communityRanking(items);
         if (!rank.length) return send(res, 404, { error: "no data yet" });
-        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
+        const AD = adPage(false);
         const total = rank.reduce((a, b) => a + b.posts, 0);
         const lead = rank[0];
         const inner = `<h1>커뮤니티 순위</h1>
@@ -1951,10 +3123,9 @@ ${rankingNav("")}
   <span class="m">화제글 ${e.posts}건 · 반응 ${fmtNum(e.reactions)} · 글당 댓글 ${e.avgComments}${e.topCategory ? ` · 주로 ${escapeHtml(categoryLabel(e.topCategory))}` : ""}</span></div></li>`).join("")}</ol></section>
 ${AD(null, null, 10, "communities")}
 <p class="muted">집계 대상은 각 커뮤니티의 베스트·인기 게시판이며, 15분마다 갱신됩니다. 전체 게시물이 아니라 <b>반응이 큰 글만</b> 모으므로 커뮤니티의 총 활동량과는 다릅니다.</p>`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell("커뮤니티 순위 — 어디가 지금 가장 뜨거운가",
+        return sendHtml(res, editionShell("커뮤니티 순위 — 어디가 지금 가장 뜨거운가",
           "국내 커뮤니티를 지금핫이 실측한 반응량(추천+댓글)으로 줄 세운 순위. 방문자 추정치가 아니라 직접 잰 값입니다.",
-          inner, "/communities", ownContentNav("/communities"), AD(null, null, 11, "communities_bot")));
+          inner, "/communities", ownContentNav("/communities"), "", true));
       }
 
       // ── 커뮤니티별 베스트 ────────────────────────────────────────────
@@ -1964,10 +3135,9 @@ ${AD(null, null, 10, "communities")}
         const seg = decodeURIComponent(p.slice("/community/".length));
         const b = sourceBest(await engine.pool(), seg);
         if (!b) return send(res, 404, { error: "no data for source" });
-        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
+        const AD = adPage(false);
         // 알맹이가 얇으면 색인만 막는다. 페이지는 그대로 열린다 —
         // 목록에서 눌러 들어온 사람에게 404를 주는 건 다른 문제다.
-        const thin = b.items.length < 8;
         const cats = b.categories.slice(0, 3)
           .map((c) => `${escapeHtml(categoryLabel(c.key))} ${c.count}건`).join(" · ");
         const inner = `<h1>${escapeHtml(b.label)} 인기글</h1>
@@ -1975,14 +3145,13 @@ ${AD(null, null, 10, "communities")}
 ${rankingNav("")}
 ${cats ? `<p>지금 ${escapeHtml(b.label)}에서 가장 많이 다뤄지는 분야는 ${cats} 순입니다.</p>` : ""}
 <section><h2>반응량 TOP ${b.items.length}</h2>
-<ol class="rank">${b.items.map((i) => `<li><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+<ol class="rank">${b.items.map((i) => `<li><div><a href="/live#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
   <span class="m">${escapeHtml(categoryLabel(i.category))}${evidenceBits(i).length ? " · " + evidenceBits(i).join(" · ") : ""}</span></div></li>`).join("")}</ol></section>
 ${AD(b.items[0] && b.items[0].category, null, 12, "community_mid")}
 <p class="muted"><a href="/communities">다른 커뮤니티 순위도 보기 →</a></p>`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${b.label} 인기글 모아보기`,
+        return sendHtml(res, editionShell(`${b.label} 인기글 모아보기`,
           `${b.label}에서 지금 반응이 큰 글을 지금핫이 실측 추천·댓글 순으로 정리했습니다.`,
-          inner, `/community/${encodeURIComponent(seg)}`, ownContentNav(), AD(null, null, 13, "community_bot"), thin));
+          inner, `/community/${encodeURIComponent(seg)}`, ownContentNav(), "", true));
       }
 
       // ── 키워드 ───────────────────────────────────────────────────────
@@ -2004,8 +3173,7 @@ ${AD(b.items[0] && b.items[0].category, null, 12, "community_mid")}
         if (!rep || !rep.publishable) {
           // 알맹이 없는 글을 발행하지 않는다 — 브리핑과 같은 규칙이다.
           // 빈 페이지를 대량으로 색인시키면 사이트 전체 평가가 그쪽으로 끌려간다.
-          res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-          return res.end(editionShell("지금핫 데이터 리포트",
+          return sendHtml(res, editionShell("지금핫 데이터 리포트",
             "지금핫이 직접 집계한 커뮤니티·뉴스 화제 데이터 리포트",
             `<h1>지금핫 데이터 리포트</h1><p class="muted">아직 며칠치 기록이 모이지 않았습니다. 하루치 스냅샷이 쌓이면 발행합니다.</p>`,
             "/report", ownContentNav("/report"), "", true));
@@ -2034,8 +3202,7 @@ ${body}
 <p>표본이 모자란 항목은 문장에서 빼고, 모든 집계에는 표본 수를 함께 적습니다.
 수치를 반올림하는 것 외에 보정하지 않습니다.</p></section>
 ${rankingNav("")}`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(rep.title,
+        return sendHtml(res, editionShell(rep.title,
           `커뮤니티·뉴스 ${rep.landscape.sources.length}곳에서 ${rep.dayCount}일간 모은 화제 랭킹 ${rep.landscape.total}건을 지금핫이 직접 집계했습니다.`,
           inner, "/report", ownContentNav("/report"), AD(null, null, 19, "report_bot")));
       }
@@ -2043,7 +3210,7 @@ ${rankingNav("")}`;
       if (p === "/keywords" && req.method === "GET") {
         const idx = keywordIndex(await engine.pool());
         if (!idx.length) return send(res, 404, { error: "no keywords yet" });
-        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
+        const AD = adPage(false);
         const inner = `<h1>지금 화제 키워드</h1>
 <p class="muted">여러 커뮤니티에서 동시에 언급되고 있는 말들입니다. 한 곳에서만 나온 단어는 싣지 않습니다 — 두 곳 이상에서 나와야 실제로 퍼지는 말입니다.</p>
 ${rankingNav("")}
@@ -2051,32 +3218,29 @@ ${rankingNav("")}
 <ol class="rank">${idx.map((k) => `<li><div><a href="/keyword/${encodeURIComponent(k.tag)}">${escapeHtml(k.tag)}</a>
   <span class="m">${k.sources}곳에서 ${k.count}건 · 반응 ${fmtNum(k.reactions)}</span></div></li>`).join("")}</ol></section>
 ${AD(null, null, 14, "keywords")}`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell("지금 화제 키워드",
+        return sendHtml(res, editionShell("지금 화제 키워드",
           "여러 커뮤니티에서 동시에 언급되는 키워드를 지금핫이 실측 반응량으로 정리했습니다.",
-          inner, "/keywords", ownContentNav("/keywords"), AD(null, null, 15, "keywords_bot")));
+          inner, "/keywords", ownContentNav("/keywords"), "", true));
       }
 
       if (p.startsWith("/keyword/") && req.method === "GET") {
         const tag = decodeURIComponent(p.slice("/keyword/".length));
         const k = keywordPage(await engine.pool(), tag);
         if (!k) return send(res, 404, { error: "no data for keyword" });
-        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
+        const AD = adPage(false);
         const srcs = k.sources.slice(0, 4).map((x) => `${escapeHtml(x.key)} ${x.count}건`).join(" · ");
         const inner = `<h1>“${escapeHtml(tag)}” 관련 화제글</h1>
 <p class="muted">‘${escapeHtml(tag)}’${particle(tag, "이", "가")} 언급된 글 ${k.total}건을 커뮤니티·뉴스에서 모았습니다. 반응량 순입니다.</p>
 ${rankingNav("")}
 ${srcs ? `<p>이 키워드는 ${srcs} 순으로 언급되고 있습니다.</p>` : ""}
 <section><h2>관련 글</h2>
-<ol class="rank">${k.items.map((i) => `<li><div><a href="/#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+<ol class="rank">${k.items.map((i) => `<li><div><a href="/live#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
   <span class="m">${escapeHtml(i.sourceLabel || i.source)}${evidenceBits(i).length ? " · " + evidenceBits(i).join(" · ") : ""}</span></div></li>`).join("")}</ol></section>
 ${AD(k.categories[0] && k.categories[0].key, null, 16, "keyword_mid")}
 <p class="muted"><a href="/keywords">다른 화제 키워드도 보기 →</a></p>`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${tag} — 지금 커뮤니티 반응`,
+        return sendHtml(res, editionShell(`${tag} — 지금 커뮤니티 반응`,
           `‘${tag}’이 언급된 커뮤니티·뉴스 화제글을 지금핫이 실측 반응 순으로 모았습니다.`,
-          inner, `/keyword/${encodeURIComponent(tag)}`, ownContentNav(), AD(null, null, 17, "keyword_bot"),
-          k.total < 8));
+          inner, `/keyword/${encodeURIComponent(tag)}`, ownContentNav(), "", true));
       }
 
       if ((p === "/ranking" || /^\/ranking\/(daily|weekly|monthly)$/.test(p)) && req.method === "GET") {
@@ -2094,7 +3258,7 @@ ${AD(k.categories[0] && k.categories[0].key, null, 16, "keyword_mid")}
           if (use.length < days) note = `아카이브 집계 시작일(${dates[0] || "오늘"}) 이후 ${use.length}일치 데이터로 집계 중입니다 — ${days}일이 쌓이면 완전한 ${label} 랭킹이 됩니다.`;
         }
         if (!list.length) return send(res, 404, { error: "no ranking data yet" });
-        const AD = adPage();   // 이 페이지의 광고는 한 묶음 — 같은 상품이 두 번 나오지 않게
+        const AD = adPage(false);
         const inner = `<h1>${label} 화제 랭킹 TOP ${Math.min(20, list.length)}</h1>
 <p class="muted">소스별 반응 분포로 정규화한 화제성 순위입니다 — 큰 게시판의 절대 추천수가 아니라 "그 동네에서 얼마나 이례적으로 터졌는가"와 교차 보도를 봅니다. 항목마다 근거 수치를 함께 표기합니다.</p>
 ${note ? `<p class="muted">${escapeHtml(note)}</p>` : ""}
@@ -2103,8 +3267,7 @@ ${rankingRows(list, (above) => {
   const cat = above && !AD_MATCH_OFF_CATS.has(above.category) ? above.category : null;
   return AD(cat, null, 2, "rank_mid", cat ? destForText(above.title) : null);
 })}`;
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-        return res.end(editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`, ownContentNav("/ranking/daily"), AD(null, null, 7, "page_bot")));
+        return sendHtml(res, editionShell(`${label} 인기글 랭킹 TOP 20`, `${label} 커뮤니티·뉴스 인기글 TOP 20 — 추천·댓글 실측 반응으로 매긴 지금핫 화제 랭킹`, inner, `/ranking/${period}`, ownContentNav("/ranking/daily"), "", true));
       }
 
       // 애드센스 판매자 확인 파일 (https://nowhot.kr/ads.txt). ADSENSE_CLIENT
@@ -2124,7 +3287,10 @@ ${rankingRows(list, (above) => {
         // Drives the client's one-time top-of-app disclosure banner — it must
         // never show that banner on a deploy that will never actually serve
         // an ad (docs/monetization.md "①앱 전역 상단 1회 통합 고지").
-        const monetization = { enabled: Boolean(process.env.COUPANG_PARTNER_ID) || Boolean(process.env.AD_PREVIEW) };
+        const reviewMode = adfitReviewMode();
+        const monetization = {
+          enabled: !reviewMode && (Boolean(process.env.COUPANG_PARTNER_ID) || Boolean(process.env.AD_PREVIEW))
+        };
         // 소셜 로그인: provider별 클라이언트 id/secret 둘 다 있어야 활성 —
         // 키가 하나도 없으면 빈 배열이라 클라이언트는 로그인 버튼을 아예
         // 렌더하지 않는다(회귀 없는 완전 익명 동작).
@@ -2149,10 +3315,11 @@ ${rankingRows(list, (above) => {
         //
         // 승인되면 ADFIT_ENABLED=1로 켠다. 패스백 배선(data-ad-onfail →
         // 쿠팡)은 그대로 두므로, 켠 뒤 미충족이 생기면 그때는 넘어간다.
-        const adfitOn = process.env.ADFIT_ENABLED === "1" && process.env.ADFIT_UNIT_MOBILE;
         // 화면이 자기 빌드와 서버 빌드를 대조할 수 있게 함께 준다.
         const build = buildId();
-        const adfit = { mobileUnit: adfitOn ? process.env.ADFIT_UNIT_MOBILE : null };
+        // 실시간 피드는 목록이 계속 바뀌는 지면이라 AdFit을 내려보내지 않는다.
+        // reviewMode는 운영 점검용 공개 상태값이며 광고단위 식별자는 아니다.
+        const adfit = { mobileUnit: null, reviewMode };
         const auth = {
           providers: enabledProviders(authEnv),
           kakaoJsKey: process.env.KAKAO_JS_KEY || null
@@ -2175,7 +3342,7 @@ ${rankingRows(list, (above) => {
         // 것은 link.coupang.com 클릭이지 이미지가 아니다. 링크는 내비게이션이라
         // 차단 목록의 서브리소스 규칙에 걸리지 않는다. 덤으로 피드 카드와 같은
         // 디자인이 되어 다크모드에서 흰 배너가 튀는 문제도 사라진다.
-        const coupang = (() => {
+        const coupang = reviewMode ? null : (() => {
           // 카테고리당 하나가 아니라 **전 재고**를 내려보낸다. 예전엔 첫 배너만
           // 담아서 32장 중 24장이 앱에서 영원히 도달 불가였다(검수 실측).
           // 카피도 여기서 붙인다 — 클라이언트가 같은 표를 복사해 두면 한쪽만
@@ -2200,7 +3367,8 @@ ${rankingRows(list, (above) => {
         })();
 
         return send(res, 200, {
-          build, survey: SURVEY, categories: CATEGORIES, sources: liveCatalog, topics: TOPIC_CATALOG, monetization, adfit, coupang, auth,
+          build, survey: SURVEY, categories: CATEGORIES, sources: liveCatalog, topics: TOPIC_CATALOG,
+          monetization, adfit, coupang, auth, localEditorial,
           // 업데이트 소식 — 화면이 "이미 본 것"과 대조해 새것일 때만 띄운다.
           // 목록 전체가 아니라 최신 하나만 보낸다(사용자가 볼 것은 이번 변화뿐이다).
           release: latestRelease() });
@@ -2400,6 +3568,7 @@ ${rankingRows(list, (above) => {
           nickname: user.nickname,
           surveyed: user.surveyed,
           feedbackCount: user.feedbackCount,
+          briefingCategories: user.briefingCategories || [],
           showTopics: user.showTopics || [],
           leanBalance: Number.isFinite(user.leanBalance) ? user.leanBalance : 0,
           mixBalance: Number.isFinite(user.mixBalance) ? user.mixBalance : 0
@@ -2749,6 +3918,207 @@ ${rankingRows(list, (above) => {
       if (p.startsWith("/api/admin/")) {
         if (!isAdmin(req, url)) return send(res, 401, { error: "admin auth required" });
 
+        if (p === "/api/admin/product-blueprint" && req.method === "GET") {
+          const localEditorialEvidence = await localEditorialEvidenceSnapshot();
+          return send(res, 200, {
+            blueprint: projectProductBlueprint(registry, { localEditorialEvidence })
+          });
+        }
+        if (p === "/api/admin/editorial-review-freeze" && req.method === "POST") {
+          if (!localEditorial) return send(res, 404, { error: "local editorial review is disabled" });
+          try {
+            const { record, reused } = await freezeCurrentEditorialReviewPacket();
+            return send(res, 200, {
+              ok: true,
+              stableId: "NOWHOT-REVIEW-PACKET-FREEZE-001",
+              state: reused ? "review_packet_reused" : "review_packet_frozen",
+              persisted: true,
+              reused,
+              packetId: record.packetId,
+              editionId: record.editionId,
+              issueCount: record.packet.rows.length,
+              packetState: record.packet.state,
+              frozenAt: record.frozenAt,
+              canonicalEditionMutated: false,
+              externalLlmCalls: 0
+            });
+          } catch (error) {
+            const known = new Set([
+              "EDITORIAL_REVIEW_PERSISTENCE_REQUIRED",
+              "EDITORIAL_REVIEW_ACTIVE_IN_PROGRESS",
+              "EDITORIAL_REVIEW_PACKET_HOLD"
+            ]);
+            if (known.has(error && error.code)) {
+              return send(res, 409, {
+                error: error.message,
+                code: error.code,
+                freeze: error.freeze || null
+              });
+            }
+            throw error;
+          }
+        }
+        if (p === "/api/admin/editorial-desk" && req.method === "GET") {
+          if (!localEditorial) return send(res, 404, { error: "local editorial review is disabled" });
+          const reviewerId = url.searchParams.get("reviewerId") || "";
+          if (!new Set(["reviewer-a", "reviewer-b"]).has(reviewerId)) {
+            return send(res, 400, { error: "reviewerId must be reviewer-a or reviewer-b" });
+          }
+          const evidence = await localEditorialEvidenceSnapshot();
+          const packet = evidence && evidence.reviewPacket;
+          if (!packet) return send(res, 409, { error: "review packet is not ready" });
+          const review = store.getEditorialReview(packet.packetId, packet.editionId, reviewerId);
+          const humanReview = summarizeHumanReview(
+            packet,
+            store.getEditorialReview(packet.packetId, packet.editionId)
+          );
+          return send(res, 200, buildEditorialReviewDesk({
+            packet,
+            reviewerId,
+            review,
+            humanReview
+          }));
+        }
+        if (p === "/api/admin/editorial-review" && req.method === "GET") {
+          if (!localEditorial) return send(res, 404, { error: "local editorial review is disabled" });
+          const reviewerId = url.searchParams.get("reviewerId") || "";
+          if (!new Set(["reviewer-a", "reviewer-b"]).has(reviewerId)) {
+            return send(res, 400, { error: "reviewerId must be reviewer-a or reviewer-b" });
+          }
+          const evidence = await localEditorialEvidenceSnapshot();
+          const packet = evidence && evidence.reviewPacket;
+          if (!packet) return send(res, 409, { error: "review packet is not ready" });
+          const review = store.getEditorialReview(packet.packetId, packet.editionId, reviewerId);
+          const summary = summarizeHumanReview(
+            packet,
+            store.getEditorialReview(packet.packetId, packet.editionId)
+          );
+          return send(res, 200, {
+            packetId: packet.packetId,
+            editionId: packet.editionId,
+            reviewerId,
+            annotations: review && review.annotations || [],
+            savedAt: review && review.savedAt || null,
+            humanReview: summary
+          });
+        }
+        if (p === "/api/admin/editorial-review" && req.method === "POST") {
+          if (!localEditorial) return send(res, 404, { error: "local editorial review is disabled" });
+          const body = await readBody(req);
+          const reviewerId = String(body.reviewerId || "");
+          if (!new Set(["reviewer-a", "reviewer-b"]).has(reviewerId)) {
+            return send(res, 400, { error: "reviewerId must be reviewer-a or reviewer-b" });
+          }
+          const evidence = await localEditorialEvidenceSnapshot();
+          const packet = evidence && evidence.reviewPacket;
+          if (!packet) return send(res, 409, { error: "review packet is not ready" });
+          if (body.packetId !== packet.packetId || body.editionId !== packet.editionId) {
+            return send(res, 409, { error: "review packet changed; reload before saving" });
+          }
+          const rows = new Set(packet.rows.map((row) => row.blindId));
+          const incoming = Array.isArray(body.annotations) ? body.annotations : [];
+          const incomingIds = incoming.map((annotation) => annotation && annotation.blindId);
+          if (new Set(incomingIds).size !== incomingIds.length) {
+            return send(res, 400, { error: "annotations must not duplicate blind review rows" });
+          }
+          const annotations = incoming.filter((annotation) => rows.has(annotation && annotation.blindId)).map((annotation) => {
+            const normalized = { blindId: annotation.blindId };
+            for (const field of HUMAN_REVIEW_FIELDS) normalized[field] = typeof annotation[field] === "boolean" ? annotation[field] : null;
+            normalized.notes = String(annotation.notes || "").trim().slice(0, 500);
+            return normalized;
+          });
+          if (annotations.length !== packet.rows.length) {
+            return send(res, 400, { error: "annotations must include every blind review row" });
+          }
+          const saved = store.saveEditorialReview(packet.packetId, packet.editionId, reviewerId, annotations);
+          localEditorialEvidenceCache.at = 0;
+          localEditorialEvidenceCache.value = null;
+          const summary = summarizeHumanReview(
+            packet,
+            store.getEditorialReview(packet.packetId, packet.editionId)
+          );
+          return send(res, 200, {
+            ok: true,
+            packetId: packet.packetId,
+            editionId: packet.editionId,
+            reviewerId,
+            annotations: saved.annotations,
+            savedAt: saved.savedAt,
+            humanReview: summary
+          });
+        }
+        if (p === "/api/admin/editorial-review-packet" && req.method === "POST") {
+          if (!localEditorial) return send(res, 404, { error: "local editorial review is disabled" });
+          const body = await readBody(req);
+          const evidence = await localEditorialEvidenceSnapshot();
+          const activePacket = evidence && evidence.reviewPacket;
+          if (!activePacket) return send(res, 409, { error: "review packet is not ready" });
+          const target = store.getEditorialReviewPacket(String(body.packetId || ""), String(body.editionId || ""));
+          if (!target) return send(res, 404, { error: "review packet was not found" });
+          const currentLedger = store.getEditorialReview(activePacket.packetId, activePacket.editionId);
+          const currentSummary = summarizeHumanReview(activePacket, currentLedger);
+          const hasProgress = hasHumanReviewWork(currentLedger);
+          const terminal = new Set(["human_quality_pass", "human_adjudicated_pass", "human_quality_hold"]);
+          if (`${activePacket.packetId}|${activePacket.editionId}` !== target.key && hasProgress && !terminal.has(currentSummary.state)) {
+            return send(res, 409, { error: "active review has unfinished annotations or adjudication" });
+          }
+          const activated = store.activateEditorialReviewPacket(target.packetId, target.editionId);
+          localEditorialEvidenceCache.at = 0;
+          localEditorialEvidenceCache.value = null;
+          return send(res, 200, {
+            ok: true,
+            packetId: activated.packetId,
+            editionId: activated.editionId,
+            frozenAt: activated.frozenAt
+          });
+        }
+        if (p === "/api/admin/editorial-review-adjudication" && req.method === "POST") {
+          if (!localEditorial) return send(res, 404, { error: "local editorial review is disabled" });
+          const body = await readBody(req);
+          const evidence = await localEditorialEvidenceSnapshot();
+          const packet = evidence && evidence.reviewPacket;
+          if (!packet) return send(res, 409, { error: "review packet is not ready" });
+          if (body.packetId !== packet.packetId || body.editionId !== packet.editionId) {
+            return send(res, 409, { error: "active review packet changed; reload before adjudicating" });
+          }
+          const ledger = store.getEditorialReview(packet.packetId, packet.editionId);
+          const before = summarizeHumanReview(packet, ledger);
+          if (!before.comparisonReady) return send(res, 409, { error: "both reviewers must finish before adjudication" });
+          const required = new Set(before.adjudication.rows.map((row) => `${row.blindId}|${row.field}`));
+          const incoming = Array.isArray(body.resolutions) ? body.resolutions : [];
+          const incomingKeys = incoming.map((row) => `${row && row.blindId}|${row && row.field}`);
+          if (new Set(incomingKeys).size !== incomingKeys.length) {
+            return send(res, 400, { error: "adjudication resolutions must not contain duplicates" });
+          }
+          if (incomingKeys.length !== required.size || incomingKeys.some((key) => !required.has(key))) {
+            return send(res, 400, { error: "adjudication must include every disagreement field and no other fields" });
+          }
+          const resolutions = incoming.map((row) => ({
+            blindId: row.blindId,
+            field: row.field,
+            value: typeof row.value === "boolean" ? row.value : null,
+            notes: String(row.notes || "").trim().slice(0, 500)
+          }));
+          const saved = store.saveEditorialReviewAdjudication(
+            packet.packetId,
+            packet.editionId,
+            "editorial-adjudicator",
+            resolutions
+          );
+          localEditorialEvidenceCache.at = 0;
+          localEditorialEvidenceCache.value = null;
+          const summary = summarizeHumanReview(
+            packet,
+            store.getEditorialReview(packet.packetId, packet.editionId)
+          );
+          return send(res, 200, {
+            ok: true,
+            packetId: packet.packetId,
+            editionId: packet.editionId,
+            savedAt: saved.savedAt,
+            humanReview: summary
+          });
+        }
         if (p === "/api/admin/traffic" && req.method === "GET") {
           // days 상한 31 — engaged 계산이 uids×users 조인이라 워스트(10만 uid)
           // ×90일이면 ~수백 ms 동기 블록이 된다(검수 실측 14일 워스트 85~96ms).
@@ -3012,6 +4382,7 @@ ${rankingRows(list, (above) => {
 
       // --- admin page ---
       if (p === "/admin" && req.method === "GET") return serveStatic(res, "/admin.html");
+      if (p === "/admin/editorial-desk" && req.method === "GET") return serveStatic(res, "/editorial-desk.html");
       // 정책 페이지는 확장자 없는 주소로도 열린다. 심사관·크롤러·다른 사이트가
       // 관행적으로 /privacy, /terms, /about을 치는데 예전엔 전부 404였다
       // (2026-08-04 실측). 링크가 죽으면 "필수 페이지 없음"으로 판정된다.
@@ -3028,58 +4399,32 @@ ${rankingRows(list, (above) => {
         return;
       }
 
-      // --- static client ---
-      if ((p === "/" || p === "/index.html") && req.method === "GET") {
+      // --- editorial home + live client ---
+      if ((p === "/" || p === "/live") && req.method === "GET") {
         // 내부 점검은 PV로도 안 센다 (위 /api/feed와 같은 이유).
         if (!req.headers["x-nowhot-check"]) {
           try { store.recordTraffic("page"); } catch {}
         }
       }
+      if (p === "/" && req.method === "GET") {
+        if (localEditorial) return serveStatic(res, "/today.html");
+        homeSeedSnapshot();
+        const inner = editorialHomeHtml(editorialBriefingSnapshot());
+        return sendHtml(res, editionShell(
+          "지금핫 — 공개 반응 데이터로 읽는 오늘의 이슈",
+          "커뮤니티와 뉴스의 공개 반응을 직접 계측해 지금 함께 번지는 이슈와 흐름을 해설합니다.",
+          inner, "/"));
+      }
+      if (p === "/index.html" && req.method === "GET") {
+        res.writeHead(308, { location: "/live", "cache-control": "no-cache" });
+        return res.end();
+      }
+      if (p === "/live" && req.method === "GET") {
+        const cached = homeSeedSnapshot();
+        return serveStatic(res, "/index.html", cached.seed, cached.ownSeed);
+      }
       if (req.method === "GET") {
-        // 홈은 크롤러가 읽을 정적 콘텐츠를 함께 심는다 (2026-08-03).
-        //
-        // 실측: 홈 175KB 중 정적 텍스트가 1,499B(0%)였다. 읽히는 것은
-        // "준비 중 / 메뉴 / 화면 테마"뿐이고 글 목록은 전부 JS로 그려진다.
-        // 네이버는 자바스크립트를 거의 실행하지 않고 구글도 JS 렌더링은 뒤로
-        // 밀린다 — 홈이 검색엔진에게 빈 페이지였다.
-        //
-        // **클로킹이 아니다.** 사용자도 첫 페인트에 이 목록을 그대로 보고
-        // (스켈레톤보다 유용하다), JS가 뜨면 개인화 피드가 같은 자리를 대체한다.
-        // 사람이 보는 것을 크롤러도 읽게 만드는 것이지 다른 것을 보여주는 게 아니다.
-        let seed = "";
-        let ownSeed = "";
-        if (p === "/" || p === "/index.html") {
-          // **요청이 seed를 기다리지 않는다.**
-          //
-          // 원래 여기에 withDeadline(…, 1200)을 걸어 뒀는데 실측(2026-08-06)
-          // 홈 TTFB는 여전히 4.0초였다. 데드라인은 타이머고, 타이머는 이벤트
-          // 루프가 비어야 뜬다 — briefing()·rankingTop()이 수만 건 풀을 도는
-          // **동기 계산**이라 그동안 루프가 멈춰 있어 데드라인이 뜰 수 없다.
-          // 데드라인으로는 절대 못 고치는 종류였다.
-          //
-          // 그래서 계산을 요청 밖으로 옮긴다. 만들어 둔 것을 그대로 주고,
-          // 낡았으면 그것도 그대로 준 다음 뒤에서 새로 만든다. seed는
-          // 크롤러·심사 봇을 위한 덤이고 사람에게는 JS가 같은 자리를 채우니,
-          // 몇 분 낡은 것이 4초 기다림보다 낫다.
-          const cached = homeSeed.html;
-          if (cached) { seed = cached.seed; ownSeed = cached.ownSeed; }
-          const age = cached ? Date.now() - homeSeed.at : Infinity;
-          // 빈 결과는 **성공이 아니다.** buildHomeSeed는 내부에서 다 삼키고
-          // 항상 객체를 돌려주므로, 그대로 캐시에 넣으면 "빈 화면을 3분 동안
-          // 확정"하는 꼴이 된다. 이 기능 자체가 빈 화면을 없애려고 만든 것이라
-          // 정확히 반대로 동작한다(적대적 검수 2026-08-06 P1).
-          // 빈 것이면 짧게 다시 시도한다.
-          const ttl = cached && (cached.seed || cached.ownSeed)
-            ? HOME_SEED_TTL_MS : HOME_SEED_RETRY_MS;
-          if (age > ttl && !homeSeed.building) {
-            homeSeed.building = true;
-            buildHomeSeed().then((next) => {
-              if (next) { homeSeed.html = next; homeSeed.at = Date.now(); }
-            }).catch(() => {}).finally(() => { homeSeed.building = false; });
-          }
-        }
-        
-        return serveStatic(res, p, seed, ownSeed);
+        return serveStatic(res, p);
       }
 
       return send(res, 404, { error: "not found" });
