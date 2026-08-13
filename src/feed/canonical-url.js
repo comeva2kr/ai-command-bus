@@ -129,9 +129,24 @@ function normalizeHostAndPath(u) {
 //   - 해소·정규화된 절대 http(s) URL 문자열
 //   - 구글뉴스 리다이렉트인데 오프라인 복원 불가 → null
 //   - http(s) URL이 아니거나 파싱 불가 → null
+//
+// 메모이즈 — 같은 URL이 수집 사이클마다 반복 정규화된다(순수 함수라 캐시
+// 안전). 무상한 성장 방지로 10,000건 캡(수집 풀 2배 여유), 넘으면 통째로
+// 비운다. 계기: 이 호출이 normalizeItem에 얹히면서 45초 한계 코앞이던
+// 대형 테스트가 cancelled로 넘어갔다(DEVCHG-079).
+const canonicalCache = new Map();
+const CANONICAL_CACHE_MAX = 10000;
 export function canonicalizeUrl(url) {
   const input = String(url || "").trim();
   if (!/^https?:\/\//i.test(input)) return null;
+  if (canonicalCache.has(input)) return canonicalCache.get(input);
+  const result = canonicalizeUrlUncached(input);
+  if (canonicalCache.size >= CANONICAL_CACHE_MAX) canonicalCache.clear();
+  canonicalCache.set(input, result);
+  return result;
+}
+
+function canonicalizeUrlUncached(input) {
   let resolved = input;
   if (isGoogleNewsRedirect(input)) {
     const decoded = decodeGoogleNewsUrl(input);
