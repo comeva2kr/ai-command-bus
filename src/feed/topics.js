@@ -75,7 +75,8 @@ export const POLITICS_KEYWORDS = [
   // 2026-08-02 적대적 검수 A1: "여당"·"야당"·"정당" 단독은 무경계 매칭에서
   // "급여당일지급"·"심야당직"·"부정당" 같은 일상어를 정치로 은폐시켰다.
   // 정치 토글은 기본 숨김이라 오탐이 곧 조용한 검열이 된다 — 복합어로 한정.
-  "여야", "여당 대표", "야당 대표", "여야정", "집권여당",
+  // "여야" 단독은 아래 POLITICS_KEYWORD_PATTERNS로 옮겼다(고정 표본 6).
+  "여당 대표", "야당 대표", "여야정", "집권여당",
   // A9: 국제 정치 고유명사가 통째로 비어 있어 "정치 끄기"를 우회했다
   "트럼프", "시진핑", "푸틴", "김정은", "젤렌스키", "바이든",
   "백악관", "크렘린", "노동당 대회", "북미회담", "한미정상", "한일정상",
@@ -111,6 +112,17 @@ export const RELIGION_KEYWORDS = [
 // enabled:false라 수집 자체를 하지 않는다 — 그건 필터가 아니라 소스 선택이다.
 
 
+// 경계가 필요한 정치 어휘 (고정 표본 6 실측, 2026-08-13 P2-A): 더쿠
+// "40대가 되면 줄여야 하는 음식들"이 "줄여야" 안의 부분문자열 "여야"로 정치
+// 태그가 붙어 politics 칸에 실렸다. "여야"는 용언 활용 어미(-여야: 줄여야·
+// 보여야·해야…)와 충돌하는 항목이라 단순 부분문자열로 둘 수 없고, 그렇다고
+// 빼면 진짜 정치 제목("여야, 세제 개편 공방")을 놓친다. 앞 글자가 한글이
+// 아닐 때(문장 시작·공백·괄호 뒤)만 인정한다 — classify.js가 영문 약어에
+// 쓰는 경계 원칙과 같다.
+export const POLITICS_KEYWORD_PATTERNS = [
+  /(?:^|[^가-힣])여야/
+];
+
 function titleHasAny(title, keywords) {
   if (!title) return false;
   return keywords.some((k) => title.includes(k));
@@ -128,7 +140,8 @@ export function classifyTopics({ title, url, sourceId } = {}) {
   const topics = new Set();
 
   for (const t of boardTopicsFor(sourceId, url)) topics.add(t);
-  if (titleHasAny(title, POLITICS_KEYWORDS)) topics.add("politics");
+  if (titleHasAny(title, POLITICS_KEYWORDS)
+    || (title && POLITICS_KEYWORD_PATTERNS.some((p) => p.test(title)))) topics.add("politics");
   if (titleHasAny(title, RELIGION_KEYWORDS)) topics.add("religion");
 
   return [...topics];

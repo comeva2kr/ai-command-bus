@@ -56,6 +56,7 @@ import {
 import { sampleSources, evaluate, summarize } from "./health.js";
 import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams, latestInterleave, diversityKey, COVERAGE_MAX } from "./ingest.js";
 import { FILTERABLE_TOPICS, NO_DEAL_TOPIC } from "./topics.js";
+import { specialistCorrection, untrainedOverrideAllowed, isTranslatedTitle } from "./category-policy.js";
 import { buildEditorialNote } from "./editorial.js";
 import {
   injectSlots,
@@ -773,6 +774,8 @@ export class FeedEngine {
   _classifyItems(items) {
     this._ensureCategoryIntegrityMetadata();
     const registry = loadRegistry();
+    // P2-A 분류 이원화 관문(category-policy.js): tier가 재분류 허용 범위를 정한다.
+    const tierBySource = new Map(registry.map((source) => [source.id, source.sourceTier]));
     const mixedSources = new Set(registry.filter((source) => source && source.mixed).map((source) => source.id));
     const newsCategories = new Map(registry.map((source) => [source.id, source.category]));
     const isSectionedNews = (item) => {
@@ -786,6 +789,9 @@ export class FeedEngine {
       const registeredCategory = this._itemRegistryCategories.get(item.source);
       // 이전 사이클의 편집 결과를 다음 판의 원 분류로 쓰지 않는다.
       if (registeredCategory && item.registryCategory !== undefined) item.category = registeredCategory;
+      // 교정 감사 기록도 매 사이클 다시 판정한다 — 지난 판의 교정이 관문을
+      // 다시 통과하지 못하면 남아 있으면 안 된다.
+      if (item.categoryCorrection !== undefined) delete item.categoryCorrection;
       if (this._dealSources.has(item.source)) {
         if (registeredCategory && item.category !== registeredCategory) {
           item.registryCategory = registeredCategory;
@@ -816,13 +822,41 @@ export class FeedEngine {
       if (UNTRAINED_CATEGORIES.has(item.category) && definite !== "science") continue;
 
       if (definite && (!sectioned || SECTIONED_NEWS_TITLE_OVERRIDES.has(definite) || urlDefinite === definite)) {
+        // P2-A 관문: 번역 제목이 확정 사전 1히트로 UNTRAINED 카테고리(부동산·
+        // 패션·예술)에 승격되는 것을 막는다 — 표본 7 계열의 구조적 방어.
+        if (!untrainedOverrideAllowed({
+          toCategory: definite, title: item.title, translated: isTranslatedTitle(item)
+        })) continue;
         if (definite !== item.category) {
           if (item.registryCategory === undefined) item.registryCategory = item.category;
+          if (sectioned && tierBySource.get(item.source) === "specialist") {
+            // specialist 선언을 제목 확정 사전이 뒤집는 좁은 기존 예외 —
+            // 교정이므로 감사 기록을 남긴다.
+            item.categoryCorrection = { from: item.category, to: definite, rule: "specialist-title-definite" };
+          }
           item.category = definite;
         }
         continue;
       }
-      if (sectioned) continue;
+      if (sectioned) {
+        // P2-A specialist 관문: 소스 선언은 강한 기본값이고, "명백한 의미 충돌"
+        // (NB 임계 + 대상 카테고리 전용 사전 신호 2개 이상, category-policy.js)일
+        // 때만 교정한다. 통과 못 하면 전부 선언 유지.
+        if (tierBySource.get(item.source) === "specialist"
+          && this._classifier.trained >= MIN_NB_TRAINING_ROWS) {
+          const corrected = specialistCorrection({
+            declaredCategory: item.category,
+            title: item.title,
+            prediction: this._classifier.predict(item.title)
+          });
+          if (corrected) {
+            if (item.registryCategory === undefined) item.registryCategory = item.category;
+            item.categoryCorrection = corrected.correction;
+            item.category = corrected.category;
+          }
+        }
+        continue;
+      }
       if (mixed || mixedSources.has(item.source)) continue;
       if (isReclassifiable(item.source) && this._classifier.trained >= MIN_NB_TRAINING_ROWS) {
         const predicted = classifyTitle(this._classifier, item.title);

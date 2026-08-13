@@ -205,7 +205,8 @@ export const TRAIN_LABELS = new Map([
   // 게시판 통합이라 15건 중 자동차 글이 1건뿐이었다 — 이 제목들로 auto를
   // 학습시키는 것은 오염이고, 학습 소스로 묶여 재분류까지 금지되는 이중
   // 손해였다. 자동차 판별은 아래 AUTO_KEYWORDS(설명 가능한 사전)가 맡는다.
-  ["ruliweb", { category: "gaming", weight: 0.3 }],
+  // ruliweb RSS는 전체 게임판이 아니라 board 300143 유머 게시판 베스트다.
+  // 게임 고유어가 있는 글만 gaming으로 보내고 나머지는 mixed 폴백에 맡긴다.
   ["inven_hot", { category: "gaming", weight: 0.3 }],
   ["theqoo", { category: "culture", weight: 0.3 }],
   // etoland는 학습 라벨에서 뺐다 (2026-08-02 라이브 실측 27건). bobae를 뺀 것과
@@ -288,7 +289,9 @@ export const AUTO_KEYWORDS = [
 // "테슬라 실적 발표") — 이 가드에 걸리면 키워드 확정을 포기하고 원 분류 유지.
 export const AUTO_FINANCE_GUARD = ["주가", "실적", "영업이익", "매출", "수출", "노조", "파업", "채용", "공장", "투자",
   // 2026-08-02 검수 A15: 부고 기사가 브랜드명만으로 auto로 갔다
-  "별세", "타계"];
+  "별세", "타계",
+  // 대학·기관의 교육 운영은 자율주행이 등장해도 자동차 제품·시장 기사가 아니다.
+  "비교과", "교육과정", "인력양성"];
 // "화재"·"기소"·"구속"은 여기서 뺐다(2026-08-05). 사건 보도는 이제 INCIDENT_GUARD가
 // 더 정확하게 잡고, "화재"를 금융 가드에 두면 **자동차 주제인 글까지 떨어졌다** —
 // "전기차 화재 원인 분석"은 자동차 이슈다. 가드는 좁을수록 좋다.
@@ -320,7 +323,7 @@ export const INCIDENT_GUARD = [
   "사망", "숨져", "숨진", "숨졌", "참변", "빈소", "발인",
   // 사고 유형
   "전복사고", "추돌", "뺑소니", "음주운전", "역주행", "무면허",
-  "교통사고", "인명사고", "낙상", "감전",
+  "졸음운전", "교통사고", "인명사고", "낙상", "감전",
   // 수사·재판
   "구속", "체포", "검거", "송치", "입건", "피의자", "용의자", "징역", "실형",
   // 사건 영상·제보 형식
@@ -329,11 +332,19 @@ export const INCIDENT_GUARD = [
   "어제자 ", "오늘자 "
 ];
 
+// "대참사"는 일상적인 실패담에도 흔해서 단어 하나만으로 사건 처리할 수 없다.
+// 대신 실제 재난 대상이나 수사 후속어가 함께 있을 때만 사건 보도로 본다.
+const INCIDENT_CONTEXT = [
+  /(여객기|항공|열차|선박|압사|산재|붕괴).{0,12}참사/i,
+  /참사.{0,18}(수사|특수단|희생자|유가족|사망|추모|압수수색)/i
+];
+
 // 이 제목이 "사건 보도"인가. 그렇다면 거기 등장하는 사물(자동차·게임·기업)이
 // 아니라 **사건**이 주제다.
 export function looksLikeIncident(title) {
   const t = String(title || "").toLowerCase();
-  return INCIDENT_GUARD.some((k) => t.includes(k.toLowerCase()));
+  return INCIDENT_GUARD.some((k) => t.includes(k.toLowerCase()))
+    || INCIDENT_CONTEXT.some((pattern) => pattern.test(t));
 }
 
 // 카테고리별 문맥 가드 (검수 A3) — AUTO_FINANCE_GUARD와 대칭.
@@ -343,20 +354,122 @@ export function looksLikeIncident(title) {
 // 단정할 근거는 없기 때문(확신 없는 라우팅이 바로 이 검수가 지적한 병이다).
 export const CATEGORY_GUARDS = new Map([
   ["gaming", ["주가", "실적", "영업이익", "매출", "노조", "파업", "별세", "사옥",
-              "상장", "공모", "채용", "소송", "인수", "합병", "지분"]],
-  ["tech", ["주가", "실적", "영업이익", "매출", "상장", "공모", "별세", "지분"]],
-  ["culture", ["주가", "실적", "상장", "별세", "지분"]]
+              "상장", "공모", "채용", "소송", "인수", "합병", "지분", "여행가챠"]],
+  ["tech", ["주가", "실적", "영업이익", "매출", "상장", "공모", "별세", "지분",
+             "뉴욕증시", "유가", "3대 지수", "코스피", "코스닥", "나스닥", "다우지수", "환율",
+             "Pokémon", "Pokemon", "포켓몬", "Pokopia", "포트나이트", "에픽게임즈", "팰월드", "Palworld"]],
+  ["science", ["ETF", "펀드", "자산운용", "증권", "주가", "실적", "영업이익", "매출", "상장", "공모", "지분"]],
+  ["business", ["임직원 초청 행사", "꿈나무 초대행사", "사내 봉사활동", "기부금 전달"]],
+  ["culture", ["주가", "실적", "상장", "별세", "지분", "이완용", "친일 매국노"]],
+  // "코디네이터"는 고정 표본 7 실측(2026-08-13 P2-A): dev.to 공지 번역 제목
+  // "…DEV 커뮤니티 프로그램 코디네이터인 Jem입니다"에서 사전의 "코디"가
+  // 낱말 내부로 매칭돼 tech 선언이 fashion으로 뒤집혔고 패션 1위에 올랐다.
+  // 직업명 "코디네이터"가 있는 제목은 fashion 후보에서 뺀다.
+  ["fashion", ["악마는 프라다를 입는다", "코디네이터"]],
+  ["humor", ["대학살", "학살", "사망", "숨져", "참사", "화재", "살해", "실종",
+             "강제 낙태", "강제불임", "한센인", "전쟁범죄", "고문 피해", "친일파", "친일 후손", "매국노"]]
 ]);
+
+const TECH_SUBJECT = /(인공지능|\bai\b|챗gpt|chatgpt|gpt-|클로드|제미나이|오픈ai|반도체|hbm|파운드리|소프트웨어|앱\b|ios\b|안드로이드|클라우드|데이터센터|해킹|랜섬웨어|스마트폰|노트북|그래픽카드|디지털|가상현실|증강현실|\bvr\b|\bar\b)/i;
+const CULTURE_EVENT_SUBJECT = /(?:아티스트|아이돌|가수|보이그룹|걸그룹|엔하이픈).{0,40}(?:전시|콘서트|팬미팅)|(?:전시|콘서트|팬미팅).{0,40}(?:아티스트|아이돌|가수|보이그룹|걸그룹|엔하이픈)/i;
+const GAMING_SUBJECT = /(게임|게이머|오버워치|overwatch|옵치|팰월드|palworld|포켓몬|pok[eé]mon|pokopia|포트나이트|fortnite|스팀\s*머신|플레이스테이션|xbox|엑스박스|\bcbt\b)/i;
+const CULTURE_SUBJECT = /(영화|드라마|예능|배우|감독|아이돌|가수|음악|음원|앨범|신곡|공연|콘서트|팬미팅|전시|작품|소설|웹툰|넷플릭스|박스오피스)/i;
+const CULTURE_PRODUCTION_CONTEXT = /(영화|예능|배우|감독|아이돌|가수|음악|음원|앨범|신곡|공연|콘서트|팬미팅|전시|작품|소설|웹툰|넷플릭스|박스오피스|드라마.{0,12}(?:방영|공개|제작|출연|시청률)|(?:방영|공개|제작|출연|시청률).{0,12}드라마)/i;
+const CULTURE_PERFORMER = /(아이돌|가수|배우\s|보이그룹|걸그룹|bts|블랙핑크|뉴진스|아이브|세븐틴|에스파|르세라핌|트와이스|비비지|프로미스나인|피프티피프티|아이들|스테이씨|있지|레드벨벳|스트레이\s*키즈)/i;
+const FASHION_SUBJECT = /(패션|의상|룩북|스타일|화보|컬렉션|브랜드|가방|앰배서더|착용|런웨이|코디)/i;
+const CELEBRITY_DONATION = /(기부|후원|성금)/i;
+const BUSINESS_DONATION_CONTEXT = /(기업|회사|법인|재단|사회공헌|esg|임직원|매출|협약)/i;
+const GEOPOLITICAL_ACTOR = /(우크라이나|러시아|이스라엘|이란|북한|중국|미국|일본|유럽|나토|정부|대통령)/i;
+const GEOPOLITICAL_CONFLICT = /(전쟁|침공|공격|제재|외교|국경|미사일|핵무기|저주|망하라고|혐오)/i;
+const REALESTATE_SUBJECT = /(부동산|주택|아파트|집값|전셋값|월세|전세(?!계)|매매가|분양|청약|재건축|재개발|입주|공시가격|종부세|취득세|주택담보대출|임대차|전세사기|갭투자|미분양|택지|그린벨트|역세권|오피스텔|상가\s*임대)/i;
+const CLIMATE_OR_DISASTER_SUBJECT = /(폭염|한파|태풍|폭우|홍수|해수면\s*온도|기후|지진|강진|화산|산불|earthquake|\bquake\b|wildfire|flood)/i;
+const SCIENCE_REPORTING_CONTEXT = /(연구|연구진|논문|학술|분석|관측|실험|데이터|과학자|기후변화|study|research|researcher|scientist|journal|experiment|analysis|data)/i;
+const DISASTER_OR_OBITUARY_REPORT = /(사망|숨져|숨진|별세|타계|국가비상사태|killing|killed|\bdies\b|\bdeath\b|earthquake|\bquake\b)/i;
+const POLITICAL_PROCESS_CONTEXT = /(대통령|정부|국회|민주당|국민의힘|정당|선거|특검|수사|김건희|박지원|이재명|한동훈|정청래|나경원|윤상현)/i;
+const AUTO_PRODUCT_CONTEXT = /(자동차|차량|현대차|기아|제네시스|테슬라|벤츠|bmw|아우디|폭스바겐|볼보|포르쉐|렉서스|토요타|도요타|혼다|쉐보레|르노|kgm|byd|아반떼|쏘나타|그랜저|팰리세이드|싼타페|투싼|쏘렌토|스포티지|카니발|셀토스|캐스퍼|아이오닉|ev[369]|모델[3y]|씨라이언|전기차|하이브리드|내연기관|suv|세단|쿠페|해치백|시승|연비|주행거리|자율주행|급발진|리콜|배터리|브레이크)/i;
+
+// 제목의 낱말 하나가 분야를 훔치지 못하게 하는 공통 가드. 분류 단계뿐 아니라
+// 자체 편집 기계 게이트에서도 같은 함수를 써서, 디스크에 이미 잘못 저장된
+// 과거 분류가 다음 판 대표 이슈로 되살아나는 경로까지 막는다.
+export function categoryGuardReason(category, title, item = null) {
+  const raw = String(title || "");
+  const text = String(title || "").toLowerCase();
+  if (category === "tech" && GAMING_SUBJECT.test(raw) && !TECH_SUBJECT.test(raw)) {
+    return "gaming-without-tech-subject";
+  }
+  if (category === "tech" && CULTURE_EVENT_SUBJECT.test(raw) && !TECH_SUBJECT.test(raw)) {
+    return "culture-event-without-tech-subject";
+  }
+  if (category === "culture" && GEOPOLITICAL_ACTOR.test(raw)
+      && GEOPOLITICAL_CONFLICT.test(raw) && !CULTURE_SUBJECT.test(raw)) {
+    return "geopolitical-conflict-without-culture-subject";
+  }
+  if (category === "culture" && POLITICAL_PROCESS_CONTEXT.test(raw)
+      && !CULTURE_PRODUCTION_CONTEXT.test(raw)) {
+    return "political-process-without-culture-subject";
+  }
+  if (category === "business" && CULTURE_PERFORMER.test(raw)
+      && CELEBRITY_DONATION.test(raw) && !BUSINESS_DONATION_CONTEXT.test(raw)) {
+    return "celebrity-donation-without-business-subject";
+  }
+  if (category === "business" && CULTURE_PERFORMER.test(raw) && /(별세|타계)/.test(raw)) {
+    return "performer-obituary-without-business-subject";
+  }
+  if (category === "fashion" && CULTURE_PERFORMER.test(raw) && !FASHION_SUBJECT.test(raw)) {
+    return "performer-name-collision-without-fashion-subject";
+  }
+  if (category === "fashion" && /(치약|세척|청소|얼룩|세탁)/.test(raw) && /(?:운동화|신발)/.test(raw)
+      && !FASHION_SUBJECT.test(raw)) {
+    return "household-care-without-fashion-subject";
+  }
+  if (category === "realestate" && looksLikeIncident(raw) && !REALESTATE_SUBJECT.test(raw)) {
+    return "incident-without-realestate-subject";
+  }
+  if (category === "auto" && looksLikeIncident(raw) && !AUTO_PRODUCT_CONTEXT.test(raw)) {
+    return "incident-without-auto-subject";
+  }
+  if (category === "realestate" && CLIMATE_OR_DISASTER_SUBJECT.test(raw) && !REALESTATE_SUBJECT.test(raw)) {
+    return "climate-without-realestate-subject";
+  }
+  if (category === "science" && DISASTER_OR_OBITUARY_REPORT.test(raw)
+      && !SCIENCE_REPORTING_CONTEXT.test(raw)) {
+    return "incident-without-science-subject";
+  }
+  if (item && item.registryCategory === "news" && category !== "news" && category !== "politics"
+      && looksLikeIncident(raw) && category !== "realestate") {
+    return "incident-from-general-news";
+  }
+  const guard = CATEGORY_GUARDS.get(category) || [];
+  const matched = guard.find((keyword) => text.includes(String(keyword).toLowerCase()));
+  return matched ? String(matched) : null;
+}
+
+// category-policy.js(P2-A 관문)가 같은 경계 규칙으로 사전 히트를 세도록 export.
+export function includesCategoryKeyword(lowerTitle, keyword) {
+  const lowerKeyword = String(keyword || "").toLowerCase();
+  if (!lowerKeyword) return false;
+  // 짧은 영문 약어는 영단어 내부 부분문자열로 세지 않는다. 예: disappeared의
+  // "isa"를 금융상품 ISA로 읽으면 생활 글이 경제판으로 이동한다. 한글과 붙는
+  // 표기(ISA계좌)는 경계로 인정하되 영숫자 내부만 차단한다.
+  if (/^[a-z0-9]+$/.test(lowerKeyword)) {
+    const escaped = lowerKeyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(^|[^a-z0-9])${escaped}($|[^a-z0-9])`, "i").test(lowerTitle);
+  }
+  return lowerTitle.includes(lowerKeyword);
+}
 
 export function keywordCategory(title, opts = {}) {
   const t = String(title || "");
   if (!t) return null;
   const tl = t.toLowerCase(); // A5: 소문자 영문 브랜드(bmw·chatgpt·github) 미탐 해소
+  // "정신차려라" 안의 "신차"를 자동차로 읽지 않는다. 표현 부분만 걷으므로
+  // "정신 차리고 신차를 샀다"처럼 별도 자동차 낱말이 있으면 그대로 잡힌다.
+  const autoTitle = tl.replace(/정신\s*차(?:려라|려야|려|리고|리자|리세요|립니다|리다)/g, "");
   // 자동차가 먼저 — 브랜드·모델이 다른 사전과 겹치지 않고 금융 가드가 붙는다
   // 사건 보도면 주제 확정을 포기한다 — 자동차가 등장할 뿐 주제가 아니다.
   // 모든 주제 카테고리에 공통으로 걸리므로 여기 한 번만 검사한다.
   if (looksLikeIncident(t)) return null;
-  if (AUTO_KEYWORDS.some((k) => tl.includes(k.toLowerCase()))) {
+  if (AUTO_KEYWORDS.some((k) => includesCategoryKeyword(autoTitle, k))) {
     if (AUTO_FINANCE_GUARD.some((k) => t.includes(k))) return null;
     return "auto";
   }
@@ -366,10 +479,9 @@ export function keywordCategory(title, opts = {}) {
   // 오답"을 냈고, 그 오답이 취향 벡터·쿼터·브리핑까지 검증 없이 번졌다.
   const scored = [];
   for (const [cat, words] of CATEGORY_KEYWORDS) {
-    const guard = CATEGORY_GUARDS.get(cat);
-    if (guard && guard.some((k) => t.includes(k))) continue;
+    if (categoryGuardReason(cat, t)) continue;
     let hits = 0;
-    for (const w of words) if (tl.includes(w.toLowerCase())) hits++;
+    for (const w of words) if (includesCategoryKeyword(tl, w)) hits++;
     if (hits) scored.push([cat, hits]);
   }
   if (!scored.length) return null;
@@ -383,7 +495,8 @@ export function keywordCategory(title, opts = {}) {
 // 원리, 대상이 topic이 아니라 category일 뿐). 적대적 검수 실측(2026-07-31):
 // 뽐뿌 자동차게시판(zboard id=car) 글이 business로 배달되고 있었다.
 export const BOARD_CATEGORY_RULES = [
-  { source: "ppomppu", pattern: /[?&]id=car\b/i, category: "auto" }
+  { source: "ppomppu", pattern: /[?&]id=car\b/i, category: "auto" },
+  { source: "chosunbiz", pattern: /\/sports\/baseball\//i, category: "sports" }
 ];
 
 // ---------------------------------------------------------------------------
@@ -414,7 +527,10 @@ export const CATEGORY_KEYWORDS = [
     "스니커즈", "운동화", "나이키", "아디다스", "뉴발란스", "조던", "컨버스", "아식스",
     "패션위크", "컬렉션", "런웨이", "룩북", "코디", "스타일링", "구찌", "프라다",
     "루이비통", "샤넬", "에르메스", "발렌시아가", "디올", "버버리", "유니클로",
-    "무신사", "스트릿웨어", "명품 가방", "신상 출시", "협업 컬렉션", "드로우 응모"
+    // 쇼핑 플랫폼 이름 하나만으로 상품 카테고리를 확정하지 않는다. 실측에서
+    // "[무신사] 생리대 18x6팩"이 패션 대표 이슈가 됐다. 상품 자체를 말하는
+    // 전용어가 함께 있을 때만 패션으로 보낸다.
+    "스트릿웨어", "명품 가방", "신상 출시", "협업 컬렉션", "드로우 응모"
   ]],
   ["art", [
     "전시회", "미술관", "갤러리", "비엔날레", "아트페어", "설치미술", "조각전",
@@ -426,7 +542,8 @@ export const CATEGORY_KEYWORDS = [
     "롤드컵", "리그오브레전드", "리그 오브 레전드", "LoL", "롤체", "옵치", "발로란트", "오버워치", "배그", "배틀그라운드",
     "메이플", "던파", "던전앤파이터", "로스트아크", "디아블로", "스타크래프트",
     "피파온라인", "넥슨", "엔씨소프트", "넷마블", "크래프톤", "스팀 세일", "스팀 신작", "닌텐도",
-    "플스", "플레이스테이션", "엑스박스", "e스포츠", "이스포츠", "패치노트",
+    "Pokémon", "Pokemon", "포켓몬", "Pokopia", "포트나이트", "에픽게임즈",
+    "플스", "플레이스테이션", "엑스박스", "인디 게임", "e스포츠", "이스포츠", "패치노트",
     "젠지", "T1", "한화생명e", "디플러스", "케스파", "가챠", "인게임", "너프", "버프"
   ]],
   ["sports", [
@@ -443,7 +560,7 @@ export const CATEGORY_KEYWORDS = [
     "OST", "콘서트", "팬미팅", "소속사", "열애설", "결별설", "복귀작", "출연 확정",
     "BTS", "블랙핑크", "뉴진스", "아이브", "세븐틴", "에스파", "르세라핌",
     // 2026-08-02 라이브 실측(이토랜드 HIT): 아래 그룹 글이 전부 humor로 배달됐다.
-    "트와이스", "비비지", "프로미스나인", "아이들", "스테이씨", "있지", "레드벨벳",
+    "트와이스", "비비지", "프로미스나인", "피프티피프티", "아이들", "스테이씨", "있지", "레드벨벳",
     // "배우"는 A6에서 "연극 배우 이사"를 이유로 뺐지만, 진짜 원인은 같은 제목의
     // "이사"였고 그건 이미 제거됐다. 뒤 공백을 붙이면 "배우자"·"배우고"·"배우기"를
     // 피하면서 "배우 김고은"은 잡는다(오탐 6종 실측 확인).
@@ -455,10 +572,12 @@ export const CATEGORY_KEYWORDS = [
   // business:2 vs realestate:2로 맞서 null이 됐다. 실측으로 잡은 회귀다.
   // 부동산 기사는 이제 realestate로 간다. 증시·환율 등은 그대로 business다.
   ["business", [
-    "코스피", "코스닥", "나스닥", "다우지수", "환율", "원달러", "기준금리",
+    "코스피", "코스닥", "나스닥", "다우지수", "뉴욕증시", "증시", "유가", "3대 지수",
+    "환율", "원달러", "기준금리",
     "한국은행", "금통위", "물가상승률", "소비자물가", "주가", "상한가", "하한가", "공모주",
     "실적발표", "영업이익", "매출액", "적자전환", "흑자전환", "인수합병",
-    "상장폐지", "배당금", "연금저축", "ISA", "대출금리", "예금금리", "세금 신고"
+    "상장폐지", "배당금", "연금저축", "ISA", "ETF", "펀드", "자산운용",
+    "대출금리", "예금금리", "세금 신고"
   ]],
   ["tech", [
     "인공지능", "AI 모델", "챗GPT", "ChatGPT", "GPT-", "클로드", "제미나이",
@@ -471,12 +590,13 @@ export const CATEGORY_KEYWORDS = [
     "레시피", "집밥", "다이어트 식단", "홈트", "캠핑", "등산", "낚시", "반려견",
     "반려묘", "강아지", "고양이", "육아", "인테리어", "포장이사", "청소 꿀팁",
     "여행 코스", "숙소 추천", "맛집", "카페 추천", "건강검진", "영양제",
-    "탈모", "피부과", "치과", "다이소", "쿠팡 주문", "장보기"
+    "탈모", "피부과", "치과", "다이소", "쿠팡 주문", "장보기", "치약 활용법"
   ]],
   ["science", [
     "우주선", "NASA", "스페이스X", "누리호", "인공위성", "블랙홀",
-    "외계행성", "제임스웹", "천체", "유전자", "백신 개발", "임상시험",
-    "노벨상", "논문 발표", "연구진", "화석", "고생물", "기후변화", "탄소중립"
+    "외계행성", "제임스웹", "천체", "우주 쓰레기", "달 표면", "유전자", "백신 개발", "자폐 연관성", "임상시험",
+    "노벨상", "논문 발표", "연구진", "화석", "고생물", "기후변화", "탄소중립",
+    "C3S", "해양 표면 온도"
   ]]
 ];
 
@@ -498,7 +618,8 @@ export const MIXED_BEST_FALLBACK = new Map([
   ["bobae", { registryCategory: "auto", fallback: "humor" }],
   // 뽐뿌 핫게시글도 전 게시판 통합 — 2차 검수 실측: business 태그 10건 중
   // 8건이 비경제("아파트 복도 에어컨" 등). 잡담 지배 성격은 humor.
-  ["ppomppu", { registryCategory: "business", fallback: "humor" }]
+  ["ppomppu", { registryCategory: "business", fallback: "humor" }],
+  ["ruliweb", { registryCategory: "gaming", fallback: "humor" }]
 ]);
 
 // 종합게시판이 등록 카테고리를 아이템에 물려주지 못하게 하는 중립 버킷.
@@ -524,7 +645,8 @@ export const MIXED_BEST_FALLBACK = new Map([
 // 낫다** — 잘못된 카테고리는 취향 벡터·쿼터·브리핑까지 검증 없이 번진다.
 export const MIXED_NEUTRAL_CATEGORY = "humor";
 
-// 학습 소스지만 재분류도 허용하는 예외 — 해커뉴스는 tech 위주라 학습 가치는
-// 있지만 종합 글(스포츠 성명·환경·생활)도 섞인다. 2차 검수 실측: UEFA 축구
-// 성명이 tech 1위. 학습(약지도 0.3)은 유지하되 NB가 확신하면 덮어쓴다.
-export const RECLASSIFY_DESPITE_TRAINING = new Set(["hackernews"]);
+// 학습 소스 재분류 예외는 현재 없다. 해커뉴스를 예외로 열어 뒀더니 영문 생활
+// 글("I made tinnitus my friend...")이 business로 이동해 경제 개인판에 실렸다.
+// 영문 카테고리 정답 코퍼스가 없는 현재 NB 확신도는 근거가 아니므로, 별도
+// 영문 평가셋이 생기기 전에는 등록된 tech 분류를 보존한다.
+export const RECLASSIFY_DESPITE_TRAINING = new Set();
