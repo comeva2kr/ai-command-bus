@@ -11,6 +11,8 @@
 import { isKnownCategory } from "./taxonomy.js";
 import { extractTags } from "./tags.js";
 import { eventKey } from "./dedupe.js";
+import { operationalSourceIdentity } from "./editorial-source-identity.js";
+import { canonicalizeUrl } from "./canonical-url.js";
 import { COVERAGE_MAX } from "./ingest.js";
 import { SEED_ITEMS } from "./seed-data.js";
 import { classifyTopics } from "./topics.js";
@@ -69,6 +71,7 @@ export function normalizeItem(raw, source) {
   const category = isKnownCategory(raw.category) ? raw.category : "news";
   const sourceId = raw.source || (source ? source.id : "unknown");
   const url = upgradeToHttps(raw.url, raw.httpsOk);
+  const sourceIdentity = operationalSourceIdentity({ ...raw, source: sourceId });
   // 분류 태그(키워드+게시판 기반, AI 아님) — topics.js. politics/religion은
   // 유저 토글로 기본 숨김(engine.js), adult는 아래에서 기존 19금 필드에 합류시켜
   // 별도 게이트를 만들지 않고 기존 verify-age/adult 게이트 하나로 처리한다.
@@ -82,6 +85,9 @@ export function normalizeItem(raw, source) {
     // (카드의 커뮤/뉴스 배지가 항상 "뉴스", 2026-07-28 실측).
     kind: (raw.kind || (source && source.kind)) === "community" ? "community" : "news",
     source: sourceId,
+    feedGroup: raw.feedGroup || null,
+    ownershipGroup: sourceIdentity.ownershipGroup,
+    ownershipBasis: sourceIdentity.ownershipBasis,
     // 19금(성인) 여부. 인증되지 않은 사용자에게는 엔진 단에서 절대 노출되지 않는다.
     // 게시판/키워드 분류가 adult로 판정한 경우도 같은 필드로 합류(중복 게이트 금지).
     topics,
@@ -119,6 +125,10 @@ export function normalizeItem(raw, source) {
       raw.via === "me" || raw.via === "seed" || !raw.via ? 1000 : 200
     ),
     url: url || null, // out-link to the original (required for aggregated items) — https-upgraded above if applicable
+    // 사건 클러스터링용 정규화 URL(canonical-url.js) — 구글뉴스 리다이렉트 오프라인
+    // 해소·트래킹 파라미터 제거·m./amp. 정리. 해소 실패(신식 불투명 포맷 등)면
+    // null이고, 원본 `url` 필드는 어떤 경우에도 바꾸지 않는다(원본 보존).
+    canonicalUrl: canonicalizeUrl(url),
     via: raw.via || "seed", // provenance: seed | rss | api | submit | me
     sourceLabel: raw.sourceLabel || null,
     // 원본 서버 URL 핫링크만 — 저장/재호스팅 안 함 (docs/legal.md). 상대/
@@ -144,6 +154,10 @@ export function normalizeItem(raw, source) {
     // (fetchers.js의 relatedCoverage). 뉴스에는 추천수·댓글수가 아예 없어서
     // 이게 유일한 실측 반응 대용이다. 그 개념이 없는 소스는 0.
     coverage: Number.isFinite(raw.coverage) ? raw.coverage : 0,
+    relatedCoverage: Number.isFinite(raw.relatedCoverage)
+      ? raw.relatedCoverage
+      : /^gnews(?:-|$)/i.test(sourceId) && Number.isFinite(raw.coverage) ? raw.coverage : 0,
+    poolCoverage: Number.isFinite(raw.poolCoverage) ? raw.poolCoverage : 0,
     // 같은 사건을 다룬 다른 소스 — 중복 제거 때 접힌 것들이다.
     // 화이트리스트에 없으면 여기서 조용히 사라진다(price·dest가 그랬다).
     related: Array.isArray(raw.related) ? raw.related : undefined,
@@ -410,25 +424,39 @@ export async function collect(sources, opts = {}) {
         // 커뮤니티 반향은 별개 신호이지 교차보도가 아니다.
         // kind가 없으면 뉴스로 본다 — normalizeItem이 쓰는 규칙과 같다
         // ("community"가 아니면 news). 여기서 규칙을 다르게 두면 어긋난다.
-        const fresh = item.kind !== "community" && kept.kind !== "community" &&
-          !rel.some((r) => r.source === item.source);
+        const keptGroup = operationalSourceIdentity(kept).ownershipGroup;
+        const itemGroup = operationalSourceIdentity(item).ownershipGroup;
+        const observedGroups = new Set([
+          keptGroup,
+          ...rel.filter((row) => row.kind !== "community")
+            .map((row) => operationalSourceIdentity(row).ownershipGroup)
+        ].filter(Boolean));
+        const fresh = item.kind !== "community" && kept.kind !== "community"
+          && !observedGroups.has(itemGroup);
         if (fresh) {
           // 상한은 engine.js와 같은 값을 쓴다 — 두 경로가 다른 상한을 쓰면
           // 어느 쪽으로 들어왔느냐에 따라 점수가 달라진다.
-          const mine = Math.min(rel.length + 2, COVERAGE_MAX);
-          if (mine > (kept.coverage || 0)) kept.coverage = mine;
+          observedGroups.add(itemGroup);
+          const mine = Math.min(observedGroups.size, COVERAGE_MAX);
+          kept.poolCoverage = Math.max(kept.poolCoverage || 0, mine);
+          kept.coverage = Math.max(kept.relatedCoverage || 0, kept.poolCoverage);
         }
         // 한 매체가 목록을 독식하지 않게 소스당 한 줄만 남긴다.
         if (rel.length < RELATED_MAX && !rel.some((r) => r.source === item.source)) {
           rel.push({
             source: item.source,
             sourceLabel: item.sourceLabel || item.source,
+            kind: item.kind,
+            feedGroup: item.feedGroup || null,
+            ownershipGroup: item.ownershipGroup || itemGroup,
+            ownershipBasis: item.ownershipBasis || operationalSourceIdentity(item).ownershipBasis,
             title: item.title,
             // 토픽을 함께 남긴다. 접힌 뒤에는 이 글이 풀에 없어서 나중에
             // 다시 판정할 방법이 없다 — 정치·종교 필터가 여기서 막힌다.
             topics: Array.isArray(item.topics) ? item.topics : [],
             score: item.score || 0,
             commentCount: item.commentCount || 0,
+            relatedCoverage: item.relatedCoverage || 0,
             publishedAt: item.publishedAt || null
           });
         }

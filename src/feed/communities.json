@@ -32,7 +32,8 @@
         }
       },
       "mixed": true,
-      "mixedNote": "list?code=best — 전 게시판 베스트"
+      "mixedNote": "list?code=best — 전 게시판 베스트",
+      "sourceTier": "community"
     },
     {
       "id": "getcha",
@@ -48,7 +49,8 @@
       "adapter": {
         "type": "seed",
         "note": "구조적 수집불가(앱전용/거래플랫폼/robots) 2026-07-24 — enabled:false, 개발 시드로만 유지(FEED_DEV=1)."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "encar",
@@ -64,7 +66,8 @@
       "adapter": {
         "type": "seed",
         "note": "구조적 수집불가(앱전용/거래플랫폼/robots) 2026-07-24 — enabled:false, 개발 시드로만 유지(FEED_DEV=1)."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "clien",
@@ -95,7 +98,9 @@
         }
       },
       "mixed": true,
-      "mixedNote": "c_hot50 — 전 게시판 인기글 50"
+      "mixedNote": "c_hot50 — 전 게시판 인기글 50",
+      "sourceTier": "community",
+      "operatorGroup": "clien"
     },
     {
       "id": "ppomppu",
@@ -104,6 +109,7 @@
       "lang": "ko",
       "kind": "community",
       "category": "business",
+      "ownershipGroup": "ppomppu",
       "size": "large",
       "adult": false,
       "enabled": true,
@@ -129,7 +135,9 @@
         }
       },
       "mixed": true,
-      "mixedNote": "hot.php — 전 게시판 인기글"
+      "mixedNote": "hot.php — 전 게시판 인기글",
+      "sourceTier": "community",
+      "operatorGroup": "ppomppu"
     },
     {
       "id": "ruliweb",
@@ -138,6 +146,8 @@
       "lang": "ko",
       "kind": "community",
       "category": "gaming",
+      "mixed": true,
+      "mixedNote": "board 300143 — 루리웹 전체 게임판이 아니라 유머 게시판 베스트",
       "size": "large",
       "adult": false,
       "enabled": true,
@@ -147,7 +157,49 @@
         "type": "rss",
         "url": "https://bbs.ruliweb.com/best/board/300143/rss",
         "note": "공식 RSS(베스트 유머판, board 300143). 302로 /community/board/300143/rss 로 리다이렉트되며 fetch가 자동 추적함 — 2026-07-23 검증(200, 유효 RSS)."
-      }
+      },
+      "sourceTier": "community",
+      "operatorGroup": "ruliweb"
+    },
+    {
+      "id": "gamemeca",
+      "label": "게임메카",
+      "labelKo": "게임메카",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "gaming",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.gamemeca.com/rss.php",
+        "note": "일반 독자가 읽을 수 있는 국내 게임 뉴스 공급원. 2026-08-11 robots.txt에서 RSS 경로 허용·crawl-delay 30초 확인, 공식 RSS 200 응답과 최신 30건 파싱을 실제 검증했다. 기사 제목·요약·원문 링크만 편집 재료로 사용한다."
+      },
+      "sourceTier": "specialist"
+    },
+    {
+      "id": "pcgamer",
+      "label": "PC Gamer",
+      "labelKo": "PC 게이머",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "gaming",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.pcgamer.com/rss/",
+        "note": "국외 게임 이슈를 보강하는 편집 뉴스 공급원. 2026-08-11 robots.txt의 일반 User-agent 규칙에서 RSS 경로 허용, 공식 RSS 200 응답과 최신 50건 파싱을 실제 검증했다. 기사 제목·짧은 요약·원문 링크만 편집 재료로 사용한다."
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "inven",
@@ -163,7 +215,9 @@
       "adapter": {
         "type": "seed",
         "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+      },
+      "sourceTier": "community",
+      "operatorGroup": "inven"
     },
     {
       "id": "inven_hot",
@@ -190,7 +244,9 @@
         }
       },
       "mainFeed": false,
-      "mainFeedNote": "David 2026-08-04: \"메인에서 좀 빼자. 올리는 게 싹 다 게임 플레이 얘기라 너무 매니악하고 비주류\". 수집원은 정확하다 — hot.inven.co.kr은 인벤 전 게임 통합 인기글(핫벤)이 맞다. 다만 그 통합 인기글이 곧 '그때 제일 뜨거운 게임의 인게임 얘기'라, 실측 제목이 '로아 레이드 상위 난이도', '레테 밑에 애들은 직업 호소인', '로펙 서폿 팔찌 정리글'처럼 그 게임을 안 하면 한 줄도 안 읽히는 글로 채워진다. 수집은 계속하되 통합 피드에서만 뺀다 — 소스 칩으로 골라 보는 사람에겐 그대로 나온다."
+      "mainFeedNote": "David 2026-08-04: \"메인에서 좀 빼자. 올리는 게 싹 다 게임 플레이 얘기라 너무 매니악하고 비주류\". 수집원은 정확하다 — hot.inven.co.kr은 인벤 전 게임 통합 인기글(핫벤)이 맞다. 다만 그 통합 인기글이 곧 '그때 제일 뜨거운 게임의 인게임 얘기'라, 실측 제목이 '로아 레이드 상위 난이도', '레테 밑에 애들은 직업 호소인', '로펙 서폿 팔찌 정리글'처럼 그 게임을 안 하면 한 줄도 안 읽히는 글로 채워진다. 수집은 계속하되 통합 피드에서만 뺀다 — 소스 칩으로 골라 보는 사람에겐 그대로 나온다.",
+      "sourceTier": "community",
+      "operatorGroup": "inven"
     },
     {
       "id": "humoruniv",
@@ -218,7 +274,8 @@
           "pageUrl": "https://web.humoruniv.com/board/humor/list.html?table=pds&st=day&pg={page0}",
           "max": 40
         }
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "dcinside",
@@ -234,7 +291,8 @@
       "adapter": {
         "type": "seed",
         "note": "David 지시로 라이브 수집 제외 확정 (2026-07-23) — 개발 시드로만 유지, 라이브 어댑터 구현 금지. enabled:false로 전환해 프로덕션 소스칩에서도 제외 (2026-07-24)."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "instiz",
@@ -266,7 +324,8 @@
         }
       },
       "mixed": true,
-      "mixedNote": "/pt — 인기글 (실측: 사건사고·일상 섞임)"
+      "mixedNote": "/pt — 인기글 (실측: 사건사고·일상 섞임)",
+      "sourceTier": "community"
     },
     {
       "id": "theqoo",
@@ -299,7 +358,8 @@
         }
       },
       "mixed": true,
-      "mixedNote": "/hot — 전 게시판 핫"
+      "mixedNote": "/hot — 전 게시판 핫",
+      "sourceTier": "community"
     },
     {
       "id": "mlbpark",
@@ -324,7 +384,8 @@
           "dateIn": "before",
           "max": 40
         }
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "82cook",
@@ -347,7 +408,8 @@
           "titleRegex": "href=\"(/entiz/read\\.php[^\"]*)\"[^>]*>([^<]{3,80})",
           "windowAfter": 600
         }
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "etoland",
@@ -382,7 +444,8 @@
         }
       },
       "mixed": true,
-      "mixedNote": "/hit/list — 사이트 통합 HIT (실측: 연예·상품광고 섞임)"
+      "mixedNote": "/hit/list — 사이트 통합 HIT (실측: 연예·상품광고 섞임)",
+      "sourceTier": "community"
     },
     {
       "id": "fmkorea",
@@ -399,7 +462,8 @@
         "type": "rss",
         "url": "",
         "note": "David 지시로 제외 확정 (2026-07-23) — 어댑터 구현/fetch 시도 금지."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "gasengi",
@@ -415,7 +479,8 @@
       "adapter": {
         "type": "rss",
         "url": ""
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "todayhumor",
@@ -446,7 +511,8 @@
         }
       },
       "mixed": true,
-      "mixedNote": "bestofbe — 베스트오브베스트(전 게시판)"
+      "mixedNote": "bestofbe — 베스트오브베스트(전 게시판)",
+      "sourceTier": "community"
     },
     {
       "id": "slrclub",
@@ -478,7 +544,8 @@
           "parserCheckedAt": "2026-08-05",
           "note": ""
         }
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "damoang",
@@ -505,7 +572,8 @@
       },
       "httpsOk": true,
       "mixed": true,
-      "mixedNote": "/free — 자유게시판 (실측: 정치·IT 섞임)"
+      "mixedNote": "/free — 자유게시판 (실측: 정치·IT 섞임)",
+      "sourceTier": "community"
     },
     {
       "id": "arca",
@@ -522,7 +590,8 @@
         "type": "rss",
         "url": "",
         "note": "David 지시로 제외 확정 (2026-07-23) — 어댑터 구현/fetch 시도 금지."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "pann",
@@ -553,7 +622,8 @@
           "pageUrl": "https://pann.nate.com/talk/ranking/d?page={page}",
           "max": 40
         }
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "naverblog",
@@ -569,7 +639,8 @@
       "adapter": {
         "type": "rss",
         "url": ""
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "reddit",
@@ -587,7 +658,9 @@
       "adapter": {
         "type": "reddit",
         "url": ""
-      }
+      },
+      "sourceTier": "community",
+      "operatorGroup": "reddit"
     },
     {
       "id": "hackernews",
@@ -606,7 +679,9 @@
         "type": "json",
         "url": "",
         "note": "makeFetcher가 id==hackernews를 Algolia front_page API로 디스패치. 코드 기존 정상, 2026-07-23 검증 완료."
-      }
+      },
+      "sourceTier": "community",
+      "operatorGroup": "hackernews"
     },
     {
       "id": "geeknews",
@@ -624,7 +699,10 @@
         "type": "rss",
         "url": "https://news.hada.io/rss/news",
         "note": "David 2026-07-24 신규 추가. 공식 Atom RSS(news.hada.io — GeekNews, 개발/기술/스타트업 뉴스, HN 한국형). robots.txt에 Claude-SearchBot·Claude-User·OAI-SearchBot 등이 명시 Allow: / (Content-Signal: ai-input=yes도 확인). 2026-07-24 검증: 200, Atom 50건 정상 파싱(기존 parseRss가 Atom 이미 지원, 코드 변경 없음). IT 인기글 큐레이션(투표 상위 노출) 성격이라 베스트 기준 충족."
-      }
+      },
+      "sourceTier": "community",
+      "operatorGroup": "hackernews",
+      "aliasOf": "hackernews"
     },
     {
       "id": "4chan_g",
@@ -641,7 +719,8 @@
       "adapter": {
         "type": "json",
         "url": ""
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "2ch",
@@ -658,7 +737,8 @@
       "adapter": {
         "type": "rss",
         "url": ""
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "pixiv_r",
@@ -675,7 +755,8 @@
       "adapter": {
         "type": "json",
         "url": ""
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "dc_adult",
@@ -691,7 +772,8 @@
       "adapter": {
         "type": "seed",
         "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "adult_life",
@@ -707,7 +789,8 @@
       "adapter": {
         "type": "seed",
         "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "reddit_nsfw",
@@ -725,7 +808,9 @@
       "adapter": {
         "type": "reddit",
         "url": ""
-      }
+      },
+      "sourceTier": "community",
+      "operatorGroup": "reddit"
     },
     {
       "id": "techwire",
@@ -741,7 +826,8 @@
       "adapter": {
         "type": "seed",
         "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "autopost",
@@ -757,23 +843,64 @@
       "adapter": {
         "type": "seed",
         "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "sciencedaily",
       "label": "사이언스데일리",
+      "labelKo": "사이언스데일리",
       "country": "US",
       "lang": "en",
       "kind": "news",
       "category": "science",
+      "ownershipGroup": "sciencedaily",
+      "sourceRole": "reported_secondary",
       "size": "large",
       "adult": false,
-      "enabled": false,
+      "enabled": true,
       "frameable": false,
+      "httpsOk": true,
       "adapter": {
-        "type": "seed",
-        "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+        "type": "rss",
+        "url": "https://www.sciencedaily.com/rss/top/science.xml",
+        "note": "2026-08-11 과학 공급 0건 복구. ScienceDaily 공식 RSS 안내가 웹사이트 통합을 허용하며, 전체 본문을 싣지 않고 출처와 원문 링크를 표시하는 조건을 확인했다. 라이브 어댑터 실측 60건·날짜 60건·요약 60건."
+      },
+      "defaultTags": [
+        "space",
+        "biology",
+        "physics",
+        "climate"
+      ],
+      "sourceTier": "specialist"
+    },
+    {
+      "id": "physorg",
+      "label": "Phys.org",
+      "labelKo": "Phys.org",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "science",
+      "ownershipGroup": "physorg",
+      "sourceRole": "reported_secondary",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://phys.org/rss-feed/",
+        "note": "2026-08-11 과학 공급 다양성 복구. Phys.org 공식 RSS 안내가 개인·상업 사용을 허용하고 제목·링크·출처 보존을 요구한다. 원문 제목과 링크를 참조 행에 보존하며 전체 본문은 수집하지 않는다. 라이브 어댑터 실측 30건·날짜 30건·요약 30건."
+      },
+      "defaultTags": [
+        "space",
+        "biology",
+        "physics",
+        "climate"
+      ],
+      "sourceTier": "specialist"
     },
     {
       "id": "marketpost",
@@ -789,7 +916,8 @@
       "adapter": {
         "type": "seed",
         "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "sportsline",
@@ -805,7 +933,8 @@
       "adapter": {
         "type": "seed",
         "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "entnews",
@@ -821,7 +950,8 @@
       "adapter": {
         "type": "seed",
         "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "gamespot",
@@ -837,7 +967,8 @@
       "adapter": {
         "type": "seed",
         "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "newswire",
@@ -853,7 +984,8 @@
       "adapter": {
         "type": "seed",
         "note": "프로덕션 죽은 소스칩 정리로 enabled:false 전환 — 개발용 seed 더미, FEED_DEV=1에서만 노출 (2026-07-24)."
-      }
+      },
+      "sourceTier": "aggregate"
     },
     {
       "id": "gnews",
@@ -871,7 +1003,8 @@
         "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFZxYUdjU0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko"
       },
       "feedGroup": "gnews",
-      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "sourceTier": "aggregate"
     },
     {
       "id": "hani-rank",
@@ -891,7 +1024,9 @@
         "note": "David 2026-07-29 '뉴스가 구글에만 편중' 지적으로 추가. 한겨레 '많이 본 뉴스' 랭킹 피드 — 절대원칙 4(뉴스도 핫/랭킹 큐레이션만)에 정확히 부합하는 유형. 서울 서버 실측: robots 전면차단 없음, 200/70건, 상위 항목이 실제 화제 기사(홍명보 법카·국힘 397억 등)."
       },
       "lean": -2,
-      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: AllSides 'Left'(allsides.com/news-source/hankyoreh-media-bias) + KCI ART001057406 '가장 진보'"
+      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: AllSides 'Left'(allsides.com/news-source/hankyoreh-media-bias) + KCI ART001057406 '가장 진보'",
+      "sourceTier": "aggregate",
+      "operatorGroup": "hankyoreh"
     },
     {
       "id": "mk-news",
@@ -912,7 +1047,9 @@
       },
       "lean": 1,
       "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: Blue Roof Politics '보수'(경제지·시장친화, blueroofpolitics.com/post/starter-kit-south-koreas-media-landscape/)",
-      "feedGroup": "mk"
+      "feedGroup": "mk",
+      "sourceTier": "specialist",
+      "operatorGroup": "maekyung"
     },
     {
       "id": "etnews",
@@ -930,7 +1067,9 @@
         "type": "rss",
         "url": "https://rss.etnews.com/Section901.xml",
         "note": "David 2026-07-29 뉴스 소스 다변화. IT/과학 분야 보강(구글뉴스 과학·기술 섹션과 다른 시각). 서울 서버 실측: robots 전면차단 없음, 200/30건."
-      }
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "etnews"
     },
     {
       "id": "yna",
@@ -951,7 +1090,9 @@
       },
       "excludeTitleRegex": "^\\s*\\[(부고|인사|동정|재판|알림|바로잡습니다|주요일정|안내)|소식\\]",
       "lean": 0,
-      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: 국가기간뉴스통신사. 참고: MBFC는 Right-Center로 평가(mediabiasfactcheck.com/yonhap-news-agency-bias/) — 내부 병기"
+      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: 국가기간뉴스통신사. 참고: MBFC는 Right-Center로 평가(mediabiasfactcheck.com/yonhap-news-agency-bias/) — 내부 병기",
+      "sourceTier": "aggregate",
+      "operatorGroup": "yonhap"
     },
     {
       "id": "khan",
@@ -971,7 +1112,9 @@
         "note": "David 2026-07-29 뉴스 소스 다변화(관점 다양성). 서울 서버 실측: robots 전면차단 없음, 200/50건. 전체 기사 피드라 랭킹 성격은 약하다 — hotScore의 sourceRank/신선도로만 정렬된다."
       },
       "lean": -1,
-      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: KCI ART001057406 '한겨레 다음 진보', 위키피디아 centre~centre-left"
+      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: KCI ART001057406 '한겨레 다음 진보', 위키피디아 centre~centre-left",
+      "sourceTier": "aggregate",
+      "operatorGroup": "khan"
     },
     {
       "id": "donga",
@@ -991,7 +1134,9 @@
         "type": "rss",
         "url": "https://rss.donga.com/total.xml",
         "note": "David 2026-07-31 성향 균형('좌/중/우 같은 비율') 지시로 추가. 서울 서버 실측: 200/50건, robots 전면차단 없음. 전체기사 피드라 랭킹성은 약함 — hotScore 정렬로 보완. 조선일보 RSS는 4건뿐이라 보류, 중앙일보 RSS는 사망 확인."
-      }
+      },
+      "sourceTier": "aggregate",
+      "operatorGroup": "donga"
     },
     {
       "id": "hankyung",
@@ -1012,7 +1157,9 @@
         "url": "https://www.hankyung.com/feed/all-news",
         "note": "David 2026-07-31 성향 균형('좌/중/우 같은 비율') 지시로 추가. 서울 서버 실측: 200/50건, robots 전면차단 없음. 전체기사 피드라 랭킹성은 약함 — hotScore 정렬로 보완. 조선일보 RSS는 4건뿐이라 보류, 중앙일보 RSS는 사망 확인."
       },
-      "feedGroup": "hankyung"
+      "feedGroup": "hankyung",
+      "sourceTier": "specialist",
+      "operatorGroup": "hankyung"
     },
     {
       "id": "gnews-world",
@@ -1030,7 +1177,8 @@
         "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko"
       },
       "feedGroup": "gnews",
-      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "sourceTier": "aggregate"
     },
     {
       "id": "gnews-kr",
@@ -1048,7 +1196,8 @@
         "url": "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNRFp4WkRNU0FtdHZLQUFQAQ?hl=ko&gl=KR&ceid=KR:ko"
       },
       "feedGroup": "gnews",
-      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "sourceTier": "aggregate"
     },
     {
       "id": "gnews-auto",
@@ -1067,7 +1216,8 @@
         "note": " [2026-08-01 비활성] rss/search 검색 피드 — 순서에 화제성이 없어 hotScore를 왜곡한다(뉴스=핫/랭킹만 방침). 자동차는 모터그래프·오토헤럴드, 게임은 커뮤니티 소스가 대체."
       },
       "feedGroup": "gnews",
-      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "sourceTier": "aggregate"
     },
     {
       "id": "gnews-tech",
@@ -1085,7 +1235,8 @@
         "url": "https://news.google.com/rss/topics/CAAqKAgKIiJDQkFTRXdvSkwyMHZNR1ptZHpWbUVnSnJieG9DUzFJb0FBUAE?hl=ko&gl=KR&ceid=KR:ko"
       },
       "feedGroup": "gnews",
-      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "sourceTier": "aggregate"
     },
     {
       "id": "gnews-biz",
@@ -1103,7 +1254,8 @@
         "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko"
       },
       "feedGroup": "gnews",
-      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "sourceTier": "aggregate"
     },
     {
       "id": "gnews-sports",
@@ -1121,7 +1273,8 @@
         "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFp1ZEdvU0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko"
       },
       "feedGroup": "gnews",
-      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "sourceTier": "aggregate"
     },
     {
       "id": "gnews-ent",
@@ -1139,7 +1292,8 @@
         "url": "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNREpxYW5RU0FtdHZHZ0pMVWlnQVAB?hl=ko&gl=KR&ceid=KR:ko"
       },
       "feedGroup": "gnews",
-      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "sourceTier": "aggregate"
     },
     {
       "id": "gnews-science",
@@ -1158,7 +1312,8 @@
         "note": " [2026-08-01 교정] 이 피드는 구글뉴스 건강 섹션이다 — science로 태깅·학습되며 과학 카테고리 오분류 65%(2차 검수 실측)의 근원이었다. 건강=라이프/취미(life)로 재배치 (life 공급 0 문제도 동시 해소)."
       },
       "feedGroup": "gnews",
-      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "sourceTier": "aggregate"
     },
     {
       "id": "gnews-game",
@@ -1177,7 +1332,8 @@
         "note": " [2026-08-01 비활성] rss/search 검색 피드 — 순서에 화제성이 없어 hotScore를 왜곡한다(뉴스=핫/랭킹만 방침). 자동차는 모터그래프·오토헤럴드, 게임은 커뮤니티 소스가 대체."
       },
       "feedGroup": "gnews",
-      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로."
+      "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "sourceTier": "aggregate"
     },
     {
       "id": "44bits",
@@ -1195,7 +1351,8 @@
         "type": "rss",
         "url": "https://44bits.io/feed.xml",
         "note": "David 2026-07-24 신규 추가. IT/인프라 기술 블로그 공식 RSS(www.44bits.io로 301 리다이렉트, fetch가 자동 추적). robots.txt는 User-agent:* Allow:/ (전면 허용, ClaudeBot/anthropic-ai 개별 차단 없음). 2026-07-24 검증: 200, RSS 2.0 30건 파싱 성공(제목+링크+날짜 모두 확보)."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "yozm",
@@ -1213,7 +1370,8 @@
         "type": "rss",
         "url": "https://yozm.wishket.com/magazine/feed/",
         "note": "David 2026-07-24 신규 추가. 위시켓 IT 매거진 공식 RSS. robots.txt는 /magazine/ 경로 Allow(개별 봇 차단 없음, Crawl-delay:5만 명시). 2026-07-24 검증: 200, RSS 2.0 30건 파싱 성공(제목+링크 확보). 주의: 이 피드는 항목별 pubDate가 없어 publishedAt이 전부 null로 들어옴 — 파싱 실패가 아니라 소스 자체의 피드 스펙 한계이며, recommender는 날짜 없을 때 기본 신선도 가중치로 안전하게 대체함(fetchers.js 기존 동작)."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "outstanding",
@@ -1233,7 +1391,8 @@
         "note": "David 2026-07-24 신규 추가. IT/스타트업 매체 공식 RSS(wp.outstanding.kr로 리다이렉트, fetch가 자동 추적). robots.txt에 ClaudeBot 명시 Allow:/ (login만 차단). 2026-07-24 검증: 200, RSS 2.0 10건 파싱 성공(제목+링크+날짜 모두 확보)."
       },
       "maxAgeH": 72,
-      "maxAgeHNote": "종류 기본값(news=24h) 예외. 아웃스탠딩: IT 전문 심층기사, 실측 중앙 46.0h — 24h 컷이면 이 소스가 통째로 사라진다 (2026-07-29 실측)."
+      "maxAgeHNote": "종류 기본값(news=24h) 예외. 아웃스탠딩: IT 전문 심층기사, 실측 중앙 46.0h — 24h 컷이면 이 소스가 통째로 사라진다 (2026-07-29 실측).",
+      "sourceTier": "community"
     },
     {
       "id": "techmeme",
@@ -1251,7 +1410,8 @@
         "type": "rss",
         "url": "https://www.techmeme.com/feed.xml",
         "note": "David 2026-07-24 신규 추가. 해외 테크 뉴스 큐레이션 공식 RSS. robots.txt에 Claude-User/Claude-SearchBot 명시 Allow:/ (검색/추적 관련 경로만 일반 차단, 피드/기사 무관). 2026-07-24 검증: 200, RSS 2.0 15건 파싱 성공(제목+링크+날짜 모두 확보). lang:en — 번역 파이프라인(translate.js) 대상, 번역기 미연결 시 원문+needsTranslation 플래그로 노출."
-      }
+      },
+      "sourceTier": "aggregate"
     },
     {
       "id": "slashdot",
@@ -1269,7 +1429,8 @@
         "type": "rss",
         "url": "https://rss.slashdot.org/Slashdot/slashdotMain",
         "note": "David 2026-07-24 신규 추가. 해외 개발자 커뮤니티 공식 RSS(RDF/RSS 0.9 포맷 — Atom도 표준 RSS 2.0도 아니지만 <item><title>/<link> 구조가 동일해 기존 parseRss가 코드 변경 없이 파싱). robots.txt에 개별 봇 차단은 검색/제출/댓글 등 UI 경로뿐(피드 무관), llms.txt까지 Allow. 2026-07-24 검증: 200, 15건 파싱 성공(제목+링크 확보 — 2026-08-06 피드 교체(/slashdot/to → /slashdotMain): 옛 피드는 발췌·날짜가 0/15였고 그것을 '소스 스펙 한계'로 적어 뒀으나 실측 결과 **피드 선택 실수**였다. slashdotMain은 <description>에 실제 발췌가 15/15 들어온다. 상세 화면에서 '한글로 옮겨왔어요'라고 써 놓고 정작 본문이 없던 원인(David 2026-08-06 제보). 날짜는 두 피드 모두 없다(RDF dc:date 미파싱 — 별건)). lang:en — 번역 파이프라인 대상."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "ddanzi",
@@ -1289,7 +1450,8 @@
         "note": "David 2026-07-24 신규 추가. 시사 큐레이션 매체 공식 RSS. robots.txt는 User-agent:* 기준 전면 Disallow:/ 이지만 Allow:/ddanziNews 로 이 피드 경로만 명시 예외 허용(개별 봇 차단 없음). 2026-07-24 검증: 200, RSS 2.0 15건 파싱 성공(제목+링크+날짜 모두 확보). 주의: 요청 빈도에 민감(429 관찰 사례 있음) — 저빈도 폴링 권장, 헬스체크/재검증도 과도하게 반복하지 말 것."
       },
       "maxAgeH": 72,
-      "maxAgeHNote": "종류 기본값(news=24h) 예외. 딴지일보: 풍자/칼럼, 실측 중앙 37.6h — 24h 컷이면 이 소스가 통째로 사라진다 (2026-07-29 실측)."
+      "maxAgeHNote": "종류 기본값(news=24h) 예외. 딴지일보: 풍자/칼럼, 실측 중앙 37.6h — 24h 컷이면 이 소스가 통째로 사라진다 (2026-07-29 실측).",
+      "sourceTier": "aggregate"
     },
     {
       "id": "slownews",
@@ -1309,7 +1471,8 @@
         "note": "David 2026-07-24 신규 추가. 시사 매체 공식 RSS. robots.txt는 /wp-admin/만 차단(개별 봇 차단 없음). 2026-07-24 검증: 200, RSS 2.0 20건 파싱 성공(제목+링크+날짜 모두 확보)."
       },
       "maxAgeH": 72,
-      "maxAgeHNote": "종류 기본값(news=24h) 예외. 슬로우뉴스: 논평 매체, 실측 중앙 46.9h — 24h 컷이면 이 소스가 통째로 사라진다 (2026-07-29 실측)."
+      "maxAgeHNote": "종류 기본값(news=24h) 예외. 슬로우뉴스: 논평 매체, 실측 중앙 46.9h — 24h 컷이면 이 소스가 통째로 사라진다 (2026-07-29 실측).",
+      "sourceTier": "aggregate"
     },
     {
       "id": "newspeppermint",
@@ -1327,7 +1490,8 @@
         "type": "rss",
         "url": "https://newspeppermint.com/feed/",
         "note": "David 2026-07-24 신규 추가. 해외 기사 번역/큐레이션 매체(제작진이 직접 한국어로 번역해 싣는 국내 매체라 lang:ko) 공식 RSS. robots.txt는 /wp-admin/만 차단(개별 봇 차단 없음). 2026-07-24 검증: 200, RSS 2.0 10건 파싱 성공(제목+링크+날짜 모두 확보)."
-      }
+      },
+      "sourceTier": "aggregate"
     },
     {
       "id": "devto",
@@ -1345,7 +1509,8 @@
         "type": "json",
         "url": "https://dev.to/api/articles?top=7",
         "note": "David 2026-07-24 신규 추가. dev.to 공개 API(인증 불필요, JSON 배열). 필드명이 정규 스키마와 달라(positive_reactions_count/comments_count/published_at/description) makeFetcher의 범용 json 패스스루로는 못 맞춰 devtoFetcher(fetchers.js)를 전용 매핑기로 추가(hackerNewsFetcher와 동일 패턴, entry.id==='devto'로 디스패치). robots.txt에 개별 봇 차단 없음(관리/검색 등 UI 경로만 차단, /api/ 무관). 2026-07-24 검증: 200, 30건(top=7=최근7일 인기순, 개수 제한 아님) 파싱 성공(제목+링크+공개지표 확보). lang:en — 번역 파이프라인 대상."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "tildes",
@@ -1373,7 +1538,8 @@
           "excludeRegex": "/~tildes(?:\\.official)?/",
           "max": 50
         }
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "mydaily",
@@ -1391,7 +1557,8 @@
         "type": "rss",
         "url": "https://www.mydaily.co.kr/ent_rss.xml",
         "note": "2026-07-31 culture 공급 확충(적대적 검수: 연예 랭킹 2건 vs tech 10건). 연예 전문매체 공식 RSS. 실측 200/UTF-8/100건, description+content:encoded 이미지 확보, pubDate RFC822 정상. robots 무관. 전체기사 피드라 랭킹성 약함 — 뉴스 수집 상한 20건 + hotScore로 보완(donga/hankyung 패턴)."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "tenasia",
@@ -1409,7 +1576,8 @@
         "type": "rss",
         "url": "https://www.tenasia.co.kr/rss/topic/",
         "note": "2026-07-31 culture 공급 확충. 한경 계열 연예전문 공식 RSS(topic). 실측 200/UTF-8/50건, pubDate RFC822 정상, description/이미지 없음(소스 스펙 한계 — og:image 보강기가 채움). robots /rss/ 무관."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "starnews",
@@ -1427,7 +1595,8 @@
         "type": "rss",
         "url": "https://rss.mt.co.kr/st_news.xml",
         "note": "2026-07-31 조사 — 콘텐츠 살아있으나(100건/오늘자) 응답이 euc-kr이라 rssFetcher(getText, UTF-8 가정)에서 한글 깨짐 + pubDate가 YYYYMMDDHHmmss+0900 비표준. fetchers.js에 rss euc-kr 디코드·비표준 날짜 파싱 추가 후 활성화할 것. rss.mt.co.kr robots는 302로 확인 불가(WARN, 명시 Disallow 아님)."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "motorgraph",
@@ -1445,7 +1614,8 @@
         "type": "rss",
         "url": "https://www.motorgraph.com/rss/allArticle.xml",
         "note": "2026-08-01 auto 공급 확충(David: 자동차 뉴스 많지 않아? — 실측: 자동차 전용 공급원 0곳, 키워드로 건진 기사뿐). 자동차 전문지 공식 RSS. 실측 200/UTF-8/50건/오늘자, robots /admin/만 차단. 전체기사 피드 — 뉴스 수집 상한 20 + hotScore 보완."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "autoherald",
@@ -1463,7 +1633,8 @@
         "type": "rss",
         "url": "https://www.autoherald.co.kr/rss/allArticle.xml",
         "note": "2026-08-01 auto 공급 확충. 자동차 전문지 공식 RSS. 실측 200/UTF-8/50건/오늘자, robots /admin/만 차단."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "chosunbiz",
@@ -1482,7 +1653,9 @@
         "url": "https://biz.chosun.com/arc/outboundfeeds/rss/?outputType=xml",
         "note": "2026-08-01 실측: UTF-8/200/100건/오늘자. robots 일반(*)는 일부 경로만 차단. pubDate 표준 RFC822. media:content(type=image/jpeg) 썸네일 명시 — 이미지 추출 안정적."
       },
-      "feedGroup": "chosunbiz"
+      "feedGroup": "chosunbiz",
+      "sourceTier": "specialist",
+      "operatorGroup": "chosun"
     },
     {
       "id": "mt",
@@ -1500,7 +1673,9 @@
         "type": "rss",
         "url": "https://rss.mt.co.kr/mt_news.xml",
         "note": "2026-08-01 실측: UTF-8/200/100건/오늘자. mt.co.kr robots 일반(*) Allow:/ (뉴스플래시·api만 차단), rss 서브도메인 robots 없음. pubDate 표준. description 내 img 임베드로 썸네일 확보."
-      }
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "moneytoday"
     },
     {
       "id": "heraldbiz",
@@ -1518,7 +1693,9 @@
         "type": "rss",
         "url": "https://biz.heraldcorp.com/rss/google/newsAll",
         "note": "2026-08-01 실측: UTF-8/200/300건/오늘자. biz.heraldcorp.com robots는 /_TP/ /_CP/ /_CT/ /search/ /test/만 차단. 주의: pubDate가 YYYY-MM-DD HH:MM:SS 비표준(타임존 없음) — 서버 TZ가 KST여야 정확(현 VM은 KST). media:content 썸네일 있음."
-      }
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "herald"
     },
     {
       "id": "etoday",
@@ -1536,7 +1713,9 @@
         "type": "rss",
         "url": "https://rss.etoday.co.kr/eto/etoday_news_all.xml",
         "note": "2026-08-01 실측: UTF-8/200/25건/오늘자. robots 전면허용. pubDate 표준(+dc:date 병기). description은 짧으나 content:encoded의 img로 썸네일 추출."
-      }
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "etoday"
     },
     {
       "id": "bloter",
@@ -1554,7 +1733,8 @@
         "type": "rss",
         "url": "https://cdn.bloter.net/rss/gns_allArticle.xml",
         "note": "2026-08-01 실측: UTF-8/200/50건. robots는 /admin/만 차단. pubDate 표준. description이 매우 풍부(본문 수준)하고 img 임베드로 썸네일 확보. 실측 콘텐츠가 IT/스타트업 중심이라 business가 아닌 tech로 분류."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "ppomppu-deal",
@@ -1585,7 +1765,9 @@
           "scoreRegex": "class=\"baseList-space baseList-rec\"[^>]*>\\s*(\\d*)"
         }
       },
-      "feedGroup": "deal"
+      "feedGroup": "deal",
+      "sourceTier": "community",
+      "operatorGroup": "ppomppu"
     },
     {
       "id": "ppomppu-deal-os",
@@ -1616,7 +1798,9 @@
           "scoreRegex": "class=\"baseList-space baseList-rec\"[^>]*>\\s*(\\d*)"
         }
       },
-      "feedGroup": "deal"
+      "feedGroup": "deal",
+      "sourceTier": "community",
+      "operatorGroup": "ppomppu"
     },
     {
       "id": "ruliweb-deal",
@@ -1647,7 +1831,9 @@
           "parserCheckedAt": "2026-08-07"
         }
       },
-      "feedGroup": "deal"
+      "feedGroup": "deal",
+      "sourceTier": "community",
+      "operatorGroup": "ruliweb"
     },
     {
       "id": "clien-jirum",
@@ -1675,7 +1861,9 @@
           "parserCheckedAt": "2026-08-05"
         }
       },
-      "feedGroup": "deal"
+      "feedGroup": "deal",
+      "sourceTier": "community",
+      "operatorGroup": "clien"
     },
     {
       "id": "dealbada",
@@ -1703,7 +1891,8 @@
           "parserCheckedAt": "2026-08-05"
         }
       },
-      "feedGroup": "deal"
+      "feedGroup": "deal",
+      "sourceTier": "community"
     },
     {
       "id": "nowhot-deal",
@@ -1721,7 +1910,8 @@
       "adapter": {
         "type": "store",
         "note": "우리가 직접 고르고 쓴 딜(애드핏 P0-A ①). 수집하는 소스가 아니라 store에서 온다(StorePostsSource). 애드핏 4차 반려 사유가 '아웃링크 비중'이라, 커뮤니티에서 긁어 온 딜과 달리 이건 자체 콘텐츠다 — 우리가 고르고 우리가 쓴 소개이고 링크도 제휴 링크다. 가격·상품명은 David가 확인한 값만 저장한다(쿠팡 짧은 링크는 봇 차단 + JS 리다이렉트라 서버가 뽑을 수 없다, 2026-08-06 실측)."
-      }
+      },
+      "sourceTier": "community"
     },
     {
       "id": "mk-realestate",
@@ -1744,7 +1934,9 @@
         "url": "https://www.mk.co.kr/rss/50300009/",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
       },
-      "feedGroup": "mk"
+      "feedGroup": "mk",
+      "sourceTier": "specialist",
+      "operatorGroup": "maekyung"
     },
     {
       "id": "mk-stock",
@@ -1767,7 +1959,9 @@
         "url": "https://www.mk.co.kr/rss/50200011/",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
       },
-      "feedGroup": "mk"
+      "feedGroup": "mk",
+      "sourceTier": "specialist",
+      "operatorGroup": "maekyung"
     },
     {
       "id": "hankyung-realestate",
@@ -1790,7 +1984,9 @@
         "url": "https://www.hankyung.com/feed/realestate",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
       },
-      "feedGroup": "hankyung"
+      "feedGroup": "hankyung",
+      "sourceTier": "specialist",
+      "operatorGroup": "hankyung"
     },
     {
       "id": "hankyung-stock",
@@ -1813,7 +2009,9 @@
         "url": "https://www.hankyung.com/feed/finance",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
       },
-      "feedGroup": "hankyung"
+      "feedGroup": "hankyung",
+      "sourceTier": "specialist",
+      "operatorGroup": "hankyung"
     },
     {
       "id": "chosunbiz-realestate",
@@ -1836,7 +2034,9 @@
         "url": "https://biz.chosun.com/arc/outboundfeeds/rss/category/real_estate/?outputType=xml",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
       },
-      "feedGroup": "chosunbiz"
+      "feedGroup": "chosunbiz",
+      "sourceTier": "specialist",
+      "operatorGroup": "chosun"
     },
     {
       "id": "chosunbiz-stock",
@@ -1859,7 +2059,9 @@
         "url": "https://biz.chosun.com/arc/outboundfeeds/rss/category/stock/?outputType=xml",
         "note": "2026-08-06 추가. David: 부동산·주식·경제 뉴스를 신뢰도 높은 언론사에서 가져오는가. 확인해 보니 기존 경제 소스가 전부 '전체 최신 기사'(all/total) 피드라 분야가 뭉개져 있었다 — 부동산·증권 전용 소스가 하나도 없었다. 섹션 RSS는 실제로 열린다(실측 2026-08-06: 매경 부동산·증권 각 50건, 한경 각 50건, 조선비즈 부동산 25·증권 100). 랭킹 RSS를 주는 곳은 한겨레뿐이라 '핫' 판정은 우리가 교차보도·반응으로 한다 — 섹션으로 좁히면 그 판정이 정확해진다."
       },
-      "feedGroup": "chosunbiz"
+      "feedGroup": "chosunbiz",
+      "sourceTier": "specialist",
+      "operatorGroup": "chosun"
     },
     {
       "id": "ppomppu-house",
@@ -1869,6 +2071,7 @@
       "lang": "ko",
       "kind": "community",
       "category": "realestate",
+      "ownershipGroup": "ppomppu",
       "size": "large",
       "adult": false,
       "enabled": true,
@@ -1881,7 +2084,9 @@
       },
       "defaultTags": [
         "realestate"
-      ]
+      ],
+      "sourceTier": "community",
+      "operatorGroup": "ppomppu"
     },
     {
       "id": "ruliweb-interior",
@@ -1903,7 +2108,9 @@
       },
       "defaultTags": [
         "interior"
-      ]
+      ],
+      "sourceTier": "community",
+      "operatorGroup": "ruliweb"
     },
     {
       "id": "traveltimes",
@@ -1925,7 +2132,8 @@
       },
       "defaultTags": [
         "travel"
-      ]
+      ],
+      "sourceTier": "specialist"
     },
     {
       "id": "kormedi",
@@ -1947,7 +2155,8 @@
       },
       "defaultTags": [
         "health"
-      ]
+      ],
+      "sourceTier": "specialist"
     },
     {
       "id": "ibabynews",
@@ -1969,7 +2178,8 @@
       },
       "defaultTags": [
         "parenting"
-      ]
+      ],
+      "sourceTier": "specialist"
     },
     {
       "id": "hypebeast",
@@ -1979,6 +2189,35 @@
       "lang": "en",
       "kind": "news",
       "category": "fashion",
+      "ownershipGroup": "hypebeast",
+      "size": "large",
+      "adult": false,
+      "enabled": false,
+      "mainFeed": false,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://hypebeast.com/feed",
+        "note": "2026-08-11 퇴역. 종합 피드에서 음료·문화 행사가 패션으로 들어왔고, 같은 ID로 URL만 바꾸면 48시간 풀의 과거 행이 계속 대표로 승격되는 것을 비저장 재생에서 확인했다. 기존 풀 행 차단을 위해 enabled:false·mainFeed:false로 보존한다."
+      },
+      "defaultTags": [
+        "fashion",
+        "sneakers"
+      ],
+      "sourceTier": "specialist",
+      "operatorGroup": "hypebeast"
+    },
+    {
+      "id": "hypebeast-fashion",
+      "label": "하입비스트 패션",
+      "labelKo": "하입비스트 패션",
+      "country": "HK",
+      "lang": "en",
+      "kind": "news",
+      "category": "fashion",
+      "ownershipGroup": "hypebeast",
+      "sourceRole": "reported_secondary",
       "size": "large",
       "adult": false,
       "enabled": true,
@@ -1986,13 +2225,15 @@
       "httpsOk": true,
       "adapter": {
         "type": "rss",
-        "url": "https://hypebeast.com/feed",
-        "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
+        "url": "https://hypebeast.com/fashion/feed",
+        "note": "2026-08-11 분야 순도 교정. 공식 Fashion 섹션 RSS를 별도 소스 ID로 연결해 종합 피드의 과거 풀 행과 분리했다. 라이브 어댑터 실측 20건·날짜 20건·요약 20건. 제목·링크·출처만 참조하고 본문은 수집하지 않는다."
       },
       "defaultTags": [
         "fashion",
         "sneakers"
-      ]
+      ],
+      "sourceTier": "specialist",
+      "operatorGroup": "hypebeast"
     },
     {
       "id": "highsnobiety",
@@ -2015,7 +2256,8 @@
       "defaultTags": [
         "fashion",
         "sneakers"
-      ]
+      ],
+      "sourceTier": "specialist"
     },
     {
       "id": "sneakernews",
@@ -2037,7 +2279,8 @@
       },
       "defaultTags": [
         "sneakers"
-      ]
+      ],
+      "sourceTier": "specialist"
     },
     {
       "id": "designboom",
@@ -2060,7 +2303,8 @@
       "defaultTags": [
         "design",
         "art"
-      ]
+      ],
+      "sourceTier": "specialist"
     },
     {
       "id": "stereogum",
@@ -2082,7 +2326,8 @@
       },
       "defaultTags": [
         "music"
-      ]
+      ],
+      "sourceTier": "specialist"
     },
     {
       "id": "lobsters",
@@ -2104,7 +2349,8 @@
       },
       "defaultTags": [
         "programming"
-      ]
+      ],
+      "sourceTier": "community"
     },
     {
       "id": "livedoor-jp",
@@ -2123,7 +2369,8 @@
         "type": "rss",
         "url": "https://news.livedoor.com/topics/rss/int.xml",
         "note": "2026-08-06 추가. David 지시로 분야를 넓혔다(패션·부동산·예술·음악·IT·여행·건강·육아·인테리어). 병렬 조사로 robots.txt를 실제로 읽고 피드를 열어 확인한 곳만 넣었다 — 전부 200 응답에 요약(description) 포함. 본문은 수집하지 않고 제목·링크·공개 반응 수치만 쓴다. 다수 매체가 Content-Signal로 'ai-train=no, use=reference'를 명시하는데, 우리 방식이 정확히 그 reference에 해당한다."
-      }
+      },
+      "sourceTier": "aggregate"
     },
     {
       "id": "hypebae",
@@ -2145,7 +2392,9 @@
         "type": "rss",
         "url": "https://hypebae.com/feed",
         "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
-      }
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "hypebeast"
     },
     {
       "id": "fashionista",
@@ -2167,7 +2416,8 @@
         "type": "rss",
         "url": "https://fashionista.com/feed",
         "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "hyperallergic",
@@ -2189,7 +2439,8 @@
         "type": "rss",
         "url": "https://hyperallergic.com/feed/",
         "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "archdaily",
@@ -2211,7 +2462,8 @@
         "type": "rss",
         "url": "https://www.archdaily.com/rss/",
         "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "yankodesign",
@@ -2233,7 +2485,8 @@
         "type": "rss",
         "url": "https://www.yankodesign.com/feed/",
         "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
-      }
+      },
+      "sourceTier": "specialist"
     },
     {
       "id": "creativeboom",
@@ -2256,7 +2509,8 @@
         "type": "rss",
         "url": "https://www.creativeboom.com/feed/",
         "note": "2026-08-06 추가. David: 패션·예술 소스를 더 끌어올 수 있나. 조사로 robots.txt를 읽고 피드를 실제로 열어 확인한 곳만 넣었다 — 전부 200 응답·요약 포함·최신글 0~5시간 전. **월간미술(국문 유일 후보)은 뺐다**: 조사가 '당일 갱신'이라 했지만 실제로 열어 보니 pubDate가 2020-07-21에 멈춰 있었다. 살아 있지 않은 피드다. 보그·GQ·W 코리아는 robots.txt가 ClaudeBot을 이름으로 차단해 제외. Colossal·It's Nice That·PetaPixel도 피드 경로 차단. WWD는 유료 라이선스 게이트."
-      }
+      },
+      "sourceTier": "specialist"
     }
   ]
 }
