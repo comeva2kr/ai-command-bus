@@ -13,6 +13,7 @@ import {
   eventMaterialChange,
   sharedEventTokens
 } from "../src/feed/event-cluster.js";
+import { operationalSourceIdentity } from "../src/feed/editorial-source-identity.js";
 
 const article = (over) => ({
   id: over.id,
@@ -282,4 +283,43 @@ test("오병합 가드: 2자리 수치 충돌(부상 17명 vs 부상 90명)도 �
     source: "hankyung", publishedAt: new Date().toISOString() };
   const d = decideEventMerge(a, b);
   assert.equal(d.merge, false, `수치 충돌인데 병합됨: ${d.reason}`);
+});
+
+// ---------------------------------------------------------------------------
+// C4 — 같은 운영그룹 분야별 피드의 독립 계수 1회 계약 (2026-08-13 David 지시)
+// "같은 운영그룹의 분야별 피드는 수집 가능하되 독립 출처 계수에서는 한 번만 센다."
+// 근거 실코드: event-cluster.js groupsOf()가 operationalSourceIdentity().ownershipGroup
+// 의 고유 집합으로 independentReportingGroups를 계산한다.
+// ---------------------------------------------------------------------------
+
+const c4bbcBiz = article({ id: "c4-bbc-biz",
+  title: "Tottenham sponsorship deal: Arsenal rivalry boosts revenue 4-1 windfall",
+  publishedAt: "2026-08-13T10:00:00+09:00", category: "business",
+  source: "bbc-business", sourceLabel: "BBC Business", ownershipGroup: "bbc" });
+const c4bbcSport = article({ id: "c4-bbc-sport",
+  title: "Tottenham beat Arsenal 4-1 in sponsorship derby",
+  publishedAt: "2026-08-13T10:30:00+09:00", category: "sports",
+  source: "bbc-sport", sourceLabel: "BBC Sport", ownershipGroup: "bbc" });
+const c4ynaSport = article({ id: "c4-yna-sport",
+  title: "토트넘 Tottenham, Arsenal 아스널에 4-1 승리",
+  publishedAt: "2026-08-13T11:00:00+09:00", category: "sports",
+  source: "yna-sports", sourceLabel: "연합뉴스 스포츠", ownershipGroup: "yonhap" });
+
+test("C4: 같은 사건의 bbc-business+bbc-sport 기사는 독립 언론 계수 1로 센다", () => {
+  const events = buildEventClusters([c4bbcBiz, c4bbcSport]);
+  assert.equal(events.length, 1, "같은 사건이어야 한다");
+  assert.equal(events[0].counts.independentReportingGroups, 1,
+    "같은 운영그룹(bbc)의 분야별 피드 2건은 독립 계수 1이어야 한다");
+});
+
+test("C4 대조: 다른 운영그룹(bbc+yonhap) 2곳이면 독립 계수 2다", () => {
+  const events = buildEventClusters([c4bbcSport, c4ynaSport]);
+  assert.equal(events.length, 1, "같은 사건이어야 한다");
+  assert.equal(events[0].counts.independentReportingGroups, 2);
+});
+
+test("C4: 등재 레지스트리 기준으로도 bbc-sport·yna-sports가 운영그룹에 귀속된다", () => {
+  // ownershipGroup 명시 없이 소스 id·라벨만으로 communities.json 파생 별칭이 해석돼야 한다.
+  assert.equal(operationalSourceIdentity({ source: "bbc-sport", sourceLabel: "BBC Sport" }).ownershipGroup, "bbc");
+  assert.equal(operationalSourceIdentity({ source: "yna-sports", sourceLabel: "연합뉴스 스포츠" }).ownershipGroup, "yonhap");
 });

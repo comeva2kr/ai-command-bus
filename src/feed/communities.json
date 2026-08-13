@@ -2638,6 +2638,48 @@
       },
       "sourceTier": "specialist",
       "operatorGroup": "disney"
+    },
+    {
+      "id": "bbc-sport",
+      "label": "BBC Sport",
+      "labelKo": "BBC 스포츠",
+      "country": "GB",
+      "lang": "en",
+      "kind": "news",
+      "category": "sports",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://feeds.bbci.co.uk/sport/rss.xml",
+        "note": "C4 재검토 등재(David 지시 2026-08-13): 같은 운영그룹(bbc)의 분야별 피드 — 독립 출처 계수 비기여, 수집·편성 재료로만 사용. P2-C에서 운영그룹 중복으로 탈락했던 소스를 '수집 가능·계수 1회' 계약으로 재등재. 2026-08-13 기존 rssFetcher 경로 재실측: 200/77건, 최근 24h 58건, 최신 항목 당일. 표본 제목 10건 전부 스포츠(혼합 섹션 아님). 제목·요약·원문 링크만 편집 재료로 사용한다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "bbc"
+    },
+    {
+      "id": "yna-sports",
+      "label": "연합뉴스 스포츠",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "sports",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.yna.co.kr/rss/sports.xml",
+        "note": "C4 재검토 등재(David 지시 2026-08-13): 같은 운영그룹(yonhap)의 분야별 피드 — 독립 출처 계수 비기여, 수집·편성 재료로만 사용. P2-C에서 운영그룹 중복으로 탈락했던 소스를 '수집 가능·계수 1회' 계약으로 재등재. 2026-08-13 기존 rssFetcher 경로 재실측: 200/120건, 최근 24h 63건, 최신 항목 당일. 표본 제목 10건 전부 스포츠(프로야구 경기·순위 중심, 혼합 섹션 아님). 제목·요약·원문 링크만 편집 재료로 사용한다."
+      },
+      "excludeTitleRegex": "^\\s*\\[(부고|인사|동정|재판|알림|바로잡습니다|주요일정|안내)|소식\\]",
+      "sourceTier": "specialist",
+      "operatorGroup": "yonhap"
     }
   ]
 }
