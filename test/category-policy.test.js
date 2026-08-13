@@ -12,6 +12,7 @@ import { keywordCategory } from "../src/feed/classify.js";
 import {
   categoryDictionaryHits,
   specialistCorrection,
+  aggregateReclassification,
   untrainedOverrideAllowed,
   isTranslatedTitle,
   SPECIALIST_CORRECTION_MIN_HITS
@@ -217,6 +218,173 @@ test("교정 감사 기록은 매 사이클 재판정된다 — 관문을 다시
   assert.ok(item.categoryCorrection);
   // 다음 사이클: NB가 더 이상 확신하지 않으면 선언으로 복귀하고 기록도 사라진다
   engine._classifier = { trained: 1000, predict: () => ({ category: "sports", margin: 0.001, known: 0.9 }) };
+  engine._classifyItems([item]);
+  assert.equal(item.category, "business");
+  assert.equal(item.categoryCorrection, undefined);
+});
+
+// ---------------------------------------------------------------------------
+// aggregate 관문 — 약한 prior, NB 운영 임계 통과 시 재분류 (2026-08-13 P2
+// HOLD 해소). 동결 픽스처(교정 3·유지 4·완충재 2)의 제목은 실측 스냅샷
+// (.nowhot-local/feed-data-pool.json, savedAt 2026-08-13)의 실물이고, 단위
+// 관문 테스트의 가드·UNTRAINED용 2건(ETF 자문·새 컬렉션)은 경계 조건 검증용
+// 합성 제목이다. NB 예측 스텁의 margin·known은 스냅샷 풀
+// leave-one-out 학습(402행) 실측값 또는 실측과 같은 임계 관계를 재현한 값이다.
+// ---------------------------------------------------------------------------
+
+// 실물 오분류 3건 — 선언 섹션과 제목 의미가 어긋난 aggregate 기사.
+//   1) gnews-biz(business 선언)에 실린 AI 제품 출시 기사 → tech
+//      (LOO 실측: NB tech margin 0.355로 유일하게 명확 통과한 실물)
+//   2) gnews-tech(tech 선언)에 실린 우주 관측 기사 → science
+//   3) gnews-science(life 선언·구글뉴스 건강 섹션)에 실린 유전자 연구 기사 → science
+const AGG_MISCLASSIFIED = [
+  {
+    source: "gnews-biz", declared: "business",
+    title: "딥시크 ‘V4 프로’ 정식 출시…AI 에이전트 강화·가격 인상 예고",
+    to: "tech", stub: { category: "tech", margin: 0.355, known: 1.0 }
+  },
+  {
+    source: "gnews-tech", declared: "tech",
+    title: "\"초기 우주 '붉은 점', 초고밀도 가스에 둘러싸인 블랙홀\"",
+    to: "science", stub: { category: "science", margin: 0.3, known: 0.9 }
+  },
+  {
+    source: "gnews-science", declared: "life",
+    title: "기존 검사로 못 찾던 천식 핵심 유전자, 새 분석법으로 찾아낸다",
+    to: "science", stub: { category: "science", margin: 0.3, known: 0.9 }
+  }
+];
+
+test("aggregate 교정 동결: 실물 오분류 3건이 임계 통과 시 재분류되고 감사 기록이 남는다", () => {
+  for (const s of AGG_MISCLASSIFIED) {
+    const out = aggregateReclassification({
+      declaredCategory: s.declared, title: s.title, prediction: s.stub
+    });
+    assert.ok(out, `교정되어야: ${s.title}`);
+    assert.equal(out.category, s.to);
+    assert.equal(out.correction.from, s.declared);
+    assert.equal(out.correction.to, s.to);
+    assert.equal(out.correction.rule, "aggregate-semantic-reclass");
+    assert.ok(Array.isArray(out.correction.hits));
+    assert.equal(typeof out.correction.margin, "number");
+  }
+});
+
+// 실물 정분류 유지 4건 — 진짜 경제/스포츠/연예 기사가 선언에 남는다.
+// pred·margin은 LOO 실측값: 전부 임계(margin 0.08) 미달이거나 OVERRIDE 밖이라
+// 관문이 기권한다. "건일 엑디즈 탈퇴"는 David 지시에 언급된 표본의 실제 소스
+// 확인 결과 — gnews-biz가 아니라 gnews-ent(culture 선언, 정분류)였다.
+const AGG_CORRECT_KEEP = [
+  {
+    source: "gnews-biz", declared: "business",
+    title: "코스피 급등 출발… 삼성전자·SK하이닉스 동반 강세",
+    stub: { category: "business", margin: 0.5, known: 1.0 } // 선언과 일치 — 교정 아님
+  },
+  {
+    source: "gnews-biz", declared: "business",
+    title: "스타벅스, 2분기 영업손실 184억 전년비 '적자전환'…‘탱크데이’ 논란 이어 ‘써머 프리퀀시’ 중단 여파",
+    stub: { category: "culture", margin: 0.002, known: 0.42 } // LOO 실측 — 임계 미달 기권
+  },
+  {
+    source: "gnews-ent", declared: "culture",
+    title: "'언행 논란' 건일, 엑디즈 탈퇴…\"JYP 전속계약도 해지\"",
+    stub: { category: "sports", margin: 0.035, known: 0.38 } // LOO 실측 — 임계 미달 기권
+  },
+  {
+    source: "gnews-sports", declared: "sports",
+    title: "LA 레이커스, 트럼프 사위 일가에 인수…125억 달러 ‘세계 구단 최고가’",
+    stub: { category: "business", margin: 0.021, known: 0.39 } // LOO 실측 — 임계 미달 기권
+  }
+];
+
+test("aggregate 유지 동결: 실물 정분류 4건은 선언을 유지한다", () => {
+  for (const s of AGG_CORRECT_KEEP) {
+    assert.equal(aggregateReclassification({
+      declaredCategory: s.declared, title: s.title, prediction: s.stub
+    }), null, `유지되어야: ${s.title}`);
+  }
+});
+
+test("aggregate 관문 단위: OVERRIDE 밖(구어체 완충재)·가드·UNTRAINED 번역 1히트는 기권", () => {
+  // humor·gaming 예측은 재분류 금지 — 기존 커뮤글 재분류 경로와 같은 규칙.
+  // 제목은 실물(gnews-ent, LOO 실측 pred humor).
+  assert.equal(aggregateReclassification({
+    declaredCategory: "culture",
+    title: "BTS, 통산 세 번째 일본 오리콘 100만 포인트...해외 가수 최초",
+    prediction: { category: "humor", margin: 0.5, known: 0.9 }
+  }), null);
+  assert.equal(aggregateReclassification({
+    declaredCategory: "tech",
+    title: "승리의 여신: 니케, 페르소나 시리즈 3개와 콜라보레이션 진행",
+    prediction: { category: "gaming", margin: 0.5, known: 0.9 }
+  }), null);
+  // 대상 카테고리 문맥 가드(science 가드의 ETF) — specialist와 같은 방어.
+  assert.equal(aggregateReclassification({
+    declaredCategory: "business",
+    title: "노벨상 논문 발표 연구진, ETF 출시 자문",
+    prediction: { category: "science", margin: 0.3, known: 0.9 }
+  }), null);
+  // UNTRAINED 승격 관문: 번역 제목 1히트는 막힌다(표본 7 계열 — P2-A 요구 유지).
+  assert.equal(aggregateReclassification({
+    declaredCategory: "tech",
+    title: "새 컬렉션 기능을 출시했습니다",
+    prediction: { category: "fashion", margin: 0.5, known: 0.9 },
+    translated: true
+  }), null);
+  // NB 임계 미달은 기권 — 운영점(MARGIN_MIN 0.08·KNOWN_MIN 0.2) 재사용 확인.
+  assert.equal(aggregateReclassification({
+    declaredCategory: "business",
+    title: "딥시크 ‘V4 프로’ 정식 출시…AI 에이전트 강화·가격 인상 예고",
+    prediction: { category: "tech", margin: 0.01, known: 1.0 }
+  }), null);
+  assert.equal(aggregateReclassification({
+    declaredCategory: "business",
+    title: "딥시크 ‘V4 프로’ 정식 출시…AI 에이전트 강화·가격 인상 예고",
+    prediction: { category: "tech", margin: 0.355, known: 0.1 }
+  }), null);
+});
+
+test("aggregate 엔진 관통: gnews-biz 실물 오분류가 교정되고 원 선언이 보존된다", () => {
+  const engine = new FeedEngine(null, []);
+  engine._classifier = { trained: 1000, predict: () => ({ category: "tech", margin: 0.355, known: 1.0 }) };
+  const item = {
+    source: "gnews-biz", kind: "news", category: "business", topics: [],
+    title: "딥시크 ‘V4 프로’ 정식 출시…AI 에이전트 강화·가격 인상 예고",
+    url: "https://news.google.com/rss/x1"
+  };
+  engine._classifyItems([item]);
+  assert.equal(item.category, "tech");
+  assert.ok(item.categoryCorrection);
+  assert.equal(item.categoryCorrection.rule, "aggregate-semantic-reclass");
+  assert.equal(item.categoryCorrection.from, "business");
+  assert.equal(item.categoryCorrection.to, "tech");
+  assert.equal(item.registryCategory, "business", "원 선언이 보존되어야");
+});
+
+test("aggregate 엔진 관통: 임계 미달 실물(건일 엑디즈)은 culture 선언을 유지한다", () => {
+  const engine = new FeedEngine(null, []);
+  engine._classifier = { trained: 1000, predict: () => ({ category: "sports", margin: 0.035, known: 0.38 }) };
+  const item = {
+    source: "gnews-ent", kind: "news", category: "culture", topics: [],
+    title: "'언행 논란' 건일, 엑디즈 탈퇴…\"JYP 전속계약도 해지\"",
+    url: "https://news.google.com/rss/x2"
+  };
+  engine._classifyItems([item]);
+  assert.equal(item.category, "culture");
+  assert.equal(item.categoryCorrection, undefined);
+});
+
+test("aggregate 교정도 매 사이클 재판정된다 — 관문을 다시 못 넘으면 남지 않는다", () => {
+  const engine = new FeedEngine(null, []);
+  engine._classifier = { trained: 1000, predict: () => ({ category: "tech", margin: 0.355, known: 1.0 }) };
+  const item = {
+    source: "gnews-biz", kind: "news", category: "business", topics: [],
+    title: "딥시크 ‘V4 프로’ 정식 출시…AI 에이전트 강화·가격 인상 예고",
+    url: "https://news.google.com/rss/x1"
+  };
+  engine._classifyItems([item]);
+  assert.ok(item.categoryCorrection);
+  engine._classifier = { trained: 1000, predict: () => ({ category: "tech", margin: 0.001, known: 1.0 }) };
   engine._classifyItems([item]);
   assert.equal(item.category, "business");
   assert.equal(item.categoryCorrection, undefined);

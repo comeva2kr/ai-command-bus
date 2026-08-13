@@ -56,7 +56,7 @@ import {
 import { sampleSources, evaluate, summarize } from "./health.js";
 import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams, latestInterleave, diversityKey, COVERAGE_MAX } from "./ingest.js";
 import { FILTERABLE_TOPICS, NO_DEAL_TOPIC } from "./topics.js";
-import { specialistCorrection, untrainedOverrideAllowed, isTranslatedTitle } from "./category-policy.js";
+import { specialistCorrection, aggregateReclassification, untrainedOverrideAllowed, isTranslatedTitle } from "./category-policy.js";
 import { buildEditorialNote } from "./editorial.js";
 import {
   injectSlots,
@@ -848,6 +848,25 @@ export class FeedEngine {
             declaredCategory: item.category,
             title: item.title,
             prediction: this._classifier.predict(item.title)
+          });
+          if (corrected) {
+            if (item.registryCategory === undefined) item.registryCategory = item.category;
+            item.categoryCorrection = corrected.correction;
+            item.category = corrected.category;
+          }
+        }
+        // aggregate 관문(2026-08-13 P2 HOLD 해소): 전문 섹션 선언은 약한
+        // prior — NB가 운영 임계 이상 확신하면 재분류한다(전용어 2히트 요구
+        // 없음, category-policy.js aggregateReclassification). gnews 종합
+        // (선언 news)은 sectioned가 아니라서 여기 오지 않는다 — 기존 경로
+        // 무변경.
+        if (tierBySource.get(item.source) === "aggregate"
+          && this._classifier.trained >= MIN_NB_TRAINING_ROWS) {
+          const corrected = aggregateReclassification({
+            declaredCategory: item.category,
+            title: item.title,
+            prediction: this._classifier.predict(item.title),
+            translated: isTranslatedTitle(item)
           });
           if (corrected) {
             if (item.registryCategory === undefined) item.registryCategory = item.category;

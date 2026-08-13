@@ -14,9 +14,11 @@
 //             기존의 좁은 제목 확정 예외(auto·gaming·science,
 //             SECTIONED_NEWS_TITLE_OVERRIDES)는 실측으로 검증된 경로라 유지한다.
 // aggregate   소스 선언은 약한 prior — 제목 의미 분류(확정 사전·NB 임계 통과)가
-//             이기면 재분류 허용. 기존 경로 그대로: 구글뉴스 종합 섹션은
-//             news가 정답이고 학습 라벨 소스는 재분류 금지(classify.js
-//             isReclassifiable) — 이 예외들은 실측 근거가 있어 좁히지 않는다.
+//             이기면 재분류 허용. 전문 섹션 선언(gnews-biz 등)은 아래
+//             aggregateReclassification이 매 사이클 재판정한다(2026-08-13
+//             P2 HOLD 해소). 기존 예외는 그대로: 구글뉴스 종합 섹션은
+//             news가 정답(engine sectioned 판정 + classify.js
+//             isReclassifiable) — 실측 근거가 있어 좁히지 않는다.
 // community   제목 의미 분류(확정 사전 → mixed 폴백 → NB, 기존 커뮤글 경로).
 //             UNTRAINED 카테고리 보호(분류기가 못 배운 신설 카테고리 선언을
 //             덮지 않는 규칙)도 그대로.
@@ -102,6 +104,47 @@ export function untrainedOverrideAllowed({ toCategory, title, translated } = {})
   if (!UNTRAINED_CATEGORIES.has(toCategory)) return true;
   if (!translated) return true;
   return categoryDictionaryHits(toCategory, title).length >= SPECIALIST_CORRECTION_MIN_HITS;
+}
+
+// ── aggregate tier 재분류 관문 (블루프린트 v4: "약한 prior") ──────────────
+//
+// aggregate 전문 섹션(gnews-biz·gnews-ent·techmeme 등 — 선언 카테고리가 news가
+// 아닌 aggregate 소스)의 선언은 약한 prior다: NB 제목 의미 분류가 운영 임계
+// (MARGIN_MIN·KNOWN_MIN — classify.js 2026-07-29 라이브 홀드아웃 스윕 실측값
+// 재사용, 새 숫자 발명 금지) 이상 확신하면 선언을 재분류한다.
+//
+// specialist와의 차이는 조건 3(전용 사전 2히트)뿐이다 — 약한 prior라 통계
+// 임계 통과만으로 재분류를 허용한다. 나머지는 동일하게 유지한다:
+//  - OVERRIDE_CATEGORIES 제한(구어체 완충재 humor·gaming 예측으로는 재분류
+//    안 함 — 기존 커뮤글 재분류 경로와 같은 규칙)
+//  - 대상 카테고리 문맥 가드(categoryGuardReason)
+//  - UNTRAINED 승격 관문(번역 제목 2히트 요구, untrainedOverrideAllowed) —
+//    지금은 NB가 UNTRAINED를 예측하지 못하지만, 코퍼스에 라벨이 들어오는 날
+//    이 방어가 자동으로 작동해야 한다.
+//
+// gnews 종합 섹션(선언 category=news)은 이 관문의 대상이 아니다 — engine의
+// sectioned 판정(선언이 news면 비전문)이 그대로 걸러내고, 기존 경로
+// (isReclassifiable: gnews*는 news가 정답)도 무변경이다.
+export function aggregateReclassification({ declaredCategory, title, prediction, translated } = {}) {
+  if (!prediction || !prediction.category) return null;
+  const predicted = prediction.category;
+  if (!declaredCategory || predicted === declaredCategory) return null;
+  if (!OVERRIDE_CATEGORIES.has(predicted)) return null;
+  const margin = Number(prediction.margin);
+  const known = Number(prediction.known);
+  if (!(margin >= MARGIN_MIN) || !(known >= KNOWN_MIN)) return null;
+  if (categoryGuardReason(predicted, title)) return null;
+  if (!untrainedOverrideAllowed({ toCategory: predicted, title, translated })) return null;
+  return {
+    category: predicted,
+    correction: {
+      from: declaredCategory,
+      to: predicted,
+      rule: "aggregate-semantic-reclass",
+      hits: categoryDictionaryHits(predicted, title),
+      margin: Math.round(margin * 1000) / 1000
+    }
+  };
 }
 
 // engine이 번역 여부를 한 곳에서 판정하게 하는 도우미 — 필드가 소스 어댑터마다
