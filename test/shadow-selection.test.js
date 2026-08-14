@@ -1147,3 +1147,131 @@ test("R4 반례 ⓓ: 3연속 체이닝 — 슬롯1 서빙·슬롯2 부재·슬�
   assert.ok(blocked, "재등장 사유");
   assert.equal(blocked.view.lineage.lineageId, lineageId, "아침판 계보가 저녁까지 이어진다");
 });
+
+// ---------------------------------------------------------------------------
+// R7 — 경량 결정 영수증 (David 지시 수정 순서 6) + 반례 4항목 증빙 취합기
+// ---------------------------------------------------------------------------
+import {
+  shadowBriefingReceipt, shadowParamsHash, stableStringify, sha256Hex
+} from "../src/feed/shadow-selection.js";
+import {
+  checkCategoryIsolation, checkClusteringPrecedence, checkQualityGate, checkReappearance
+} from "../tools/eval-gate-evidence.mjs";
+
+const receiptRows = () => [
+  ...[0, 1, 2].flatMap((index) => catEvent("business", index, { score: 1000 })),
+  // 품질 게이트 탈락 재료 — 광고 kind.
+  article({ id: "r7-ad", title: "특가 광고글", kind: "ad", category: "business",
+    source: "ad-src", publishedAt: "2026-08-13T11:00:00+09:00" }),
+  // 게이트 탈락 재료 — 단독 출처(신뢰 자격 없음).
+  article({ id: "r7-solo", title: "단독매체 홑기사 발표 정리", category: "business",
+    source: "solo-src", publishedAt: "2026-08-13T11:00:00+09:00" })
+];
+
+test("R7 영수증: 결정성 — 같은 입력이면 바이트 동일 JSON·동일 해시", () => {
+  const options = { requestedCategories: ["business"], now: NOW };
+  const a = shadowBriefingReceipt(shadowSelectBriefing(receiptRows(), options),
+    { poolHash: "pool-abc", codeVersion: "commit-1" });
+  const b = shadowBriefingReceipt(shadowSelectBriefing(receiptRows(), options),
+    { poolHash: "pool-abc", codeVersion: "commit-1" });
+  assert.equal(a.json, b.json, "결정적 직렬화(키 정렬) — 바이트 동일");
+  assert.equal(a.hash, b.hash);
+  assert.equal(a.hash, sha256Hex(a.json), "해시는 JSON 원문의 SHA-256");
+  // 입력 해시 3요소가 그대로 담긴다.
+  assert.equal(a.receipt.input.poolHash, "pool-abc");
+  assert.equal(a.receipt.input.codeVersion, "commit-1");
+  assert.equal(a.receipt.input.paramsHash, shadowParamsHash());
+});
+
+test("R7 영수증: 경량 계약 — 제목·URL·본문 필드가 어디에도 없다", () => {
+  const out = shadowSelectBriefing(receiptRows(), { requestedCategories: ["business"], now: NOW });
+  const { receipt, json } = shadowBriefingReceipt(out, { poolHash: "p", codeVersion: "c" });
+  const walk = (value, path = "$") => {
+    if (Array.isArray(value)) value.forEach((v, i) => walk(v, `${path}[${i}]`));
+    else if (value && typeof value === "object") {
+      for (const [key, v] of Object.entries(value)) {
+        assert.ok(!["title", "url", "body", "summary", "text"].includes(key),
+          `경량 위반: ${path}.${key}`);
+        walk(v, `${path}.${key}`);
+      }
+    }
+  };
+  walk(receipt);
+  assert.ok(!json.includes("전자"), "기사 제목 텍스트가 영수증에 새지 않는다");
+});
+
+test("R7 영수증: 선택·탈락 내용 — 선택 lineageId 일치·탈락은 ID+사유 코드", () => {
+  const out = shadowSelectBriefing(receiptRows(), { requestedCategories: ["business"], now: NOW });
+  const { receipt } = shadowBriefingReceipt(out, {});
+  assert.deepEqual(receipt.selected.map((row) => row.lineageId),
+    out.briefing.map((entry) => entry.lineageId), "선택 사건 순서·ID 일치");
+  for (const row of receipt.selected) {
+    assert.ok(row.representativeArticleId, "대표기사 ID");
+    assert.ok(row.trustGrades.length >= 1, "통과 등급 기록");
+    assert.equal(typeof row.S, "number");
+  }
+  const ad = receipt.excluded.quality.find((row) => row.articleId === "r7-ad");
+  assert.equal(ad.reason, "kind_ad");
+  const solo = receipt.excluded.gate.find((row) =>
+    row.reasons.some((reason) => reason.startsWith("trust_")));
+  assert.ok(solo, "게이트 탈락은 사유 코드로 남는다");
+  assert.ok(solo.lineageId && solo.eventId);
+  // 카운트 요약·슬롯·조합·asOf.
+  assert.equal(receipt.asOf, NOW);
+  assert.deepEqual(receipt.requestedCategories, ["business"]);
+  assert.equal(receipt.counts.briefingSelected, out.briefing.length);
+});
+
+test("R7 영수증: 파라미터가 바뀌면 paramsHash가 바뀐다 (재현·감사 축)", () => {
+  const changed = overrideShadowParams({ volume: { target: 10 } });
+  assert.notEqual(shadowParamsHash(changed), shadowParamsHash(),
+    "파라미터 변경은 입력 해시에 드러나야 한다");
+  assert.equal(stableStringify({ b: 1, a: { d: 2, c: 3 } }),
+    '{"a":{"c":3,"d":2},"b":1}', "전 깊이 키 정렬");
+});
+
+test("R7 취합기 ①: business 단독 혼입 0 (R2 반례)", () => {
+  const rows = [
+    ...[0, 1].flatMap((index) => catEvent("business", index, { score: 1000 })),
+    ...[0, 1].flatMap((index) => catEvent("politics", index, { score: 90000 }))
+  ];
+  const check = checkCategoryIsolation(rows, { now: NOW, registry: [] });
+  assert.equal(check.pass, true);
+  assert.equal(check.out.briefing.length, 2, "business 사건만");
+});
+
+test("R7 취합기 ②: 클러스터링 선행 — 요청 조합을 바꿔도 사건 수 동일 (R1 반례 a)", () => {
+  const rows = [
+    ...[0, 1].flatMap((index) => catEvent("business", index, { score: 1000 })),
+    ...[0, 1].flatMap((index) => catEvent("politics", index, { score: 1000 }))
+  ];
+  const check = checkClusteringPrecedence(rows, {
+    now: NOW, registry: [], comboA: ["business"], comboB: ["business", "politics"]
+  });
+  assert.equal(check.pass, true, "전체 풀 클러스터링 1회 — 사건 수는 조합 무관");
+});
+
+test("R7 취합기 ③: 품질 게이트 ON이 광고를 차단하고 OFF는 차단 0 (R3 반례)", () => {
+  const rows = receiptRows();
+  const check = checkQualityGate(rows, {
+    now: NOW, registry: [], requestedCategories: ["business"], servedEditionDates: []
+  });
+  assert.equal(check.pass, true);
+  assert.ok(check.detail.includes("불가"), "실제판 없으면 없다고 보고(정직)");
+  const withServed = checkQualityGate(rows, {
+    now: NOW, registry: [], requestedCategories: ["business"],
+    servedEditionDates: ["2026-08-13"]
+  });
+  assert.ok(withServed.detail.includes("가능"), "실제판 있으면 대조 가능 보고");
+});
+
+test("R7 취합기 ④: 3슬롯 연속 — 판 간 같은 지문 재등장 0 (R4 반례)", () => {
+  const rows = [0, 1].flatMap((index) => catEvent("business", index, { score: 1000 }));
+  const check = checkReappearance(rows, {
+    date: "2026-08-13", categories: ["business"], registry: []
+  });
+  assert.equal(check.pass, true);
+  const blocked = check.result.slotReports.reduce(
+    (sum, report) => sum + report.counts.reappearBlocked, 0);
+  assert.ok(blocked >= 1, "재등장 차단이 실제로 동작한다(같은 풀 3판)");
+});

@@ -33,7 +33,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { shadowSelectBriefing } from "../src/feed/shadow-selection.js";
+import {
+  shadowSelectBriefing, shadowBriefingReceipt, sha256Hex
+} from "../src/feed/shadow-selection.js";
 import { SLOTS } from "../src/feed/digest.js";
 import { loadRegistry } from "../src/feed/registry.js";
 import { DEFAULT_EDITORIAL_PREVIEW } from "../src/feed/engine.js";
@@ -83,7 +85,9 @@ export function planSlots({ data, date, categories }) {
 
 // slots: [{ slotId, asOf }...] 실제 순서. articles: 공통 입력 풀.
 // 반환: 슬롯별 관찰(선별·재등장 차단·재통과·신규)과 요약.
-export function runContinuity(articles, { slots, categories, registry }) {
+// onBriefing(slot, briefingResult): R7 영수증 등 슬롯별 원본 반환이 필요한
+// 호출자용 훅 — 관찰 계산에는 관여하지 않는다(없으면 기존과 동일).
+export function runContinuity(articles, { slots, categories, registry, onBriefing = null }) {
   let previousLineage = [];
   // lineageId → 마지막 서빙 슬롯·그때 지문 (도구 관찰용 — 게이트 판정은
   // shadow-selection이 계보 레코드로 스스로 한다).
@@ -98,6 +102,7 @@ export function runContinuity(articles, { slots, categories, registry }) {
       registry,
       previousLineage
     });
+    if (onBriefing) onBriefing(slot, out);
 
     // 선별 목록.
     const selected = out.briefing.map((entry, index) => ({
@@ -268,8 +273,31 @@ function parseArgs(argv) {
     else if (argv[index] === "--cats") args.cats = String(argv[++index]).split(",").map((v) => v.trim()).filter(Boolean);
     else if (argv[index] === "--mode") args.mode = argv[++index]; // auto|real|snapshot
     else if (argv[index] === "--pool") args.pool = argv[++index];
+    // R7 — 슬롯별 경량 영수증을 이 디렉토리에 파일로 남긴다. **기본은 끔**
+    // (도구는 여전히 읽기 전용 기본 — 이 옵션을 준 경우에만 지정 디렉토리에 쓴다).
+    else if (argv[index] === "--receipts") args.receipts = argv[++index];
+    // 코드 버전 식별자(HEAD 커밋 등) — 실행 환경에서 주입. 코드가 git을 직접
+    // 호출하지 않는다(R7 계약).
+    else if (argv[index] === "--code-version") args.codeVersion = argv[++index];
   }
   return args;
+}
+
+// R7 — 영수증 기록기. 파일명: 날짜-슬롯-조합해시8.json (조합해시 = 정렬된
+// 카테고리 목록의 SHA-256 앞 8자리). 같은 입력이면 같은 영수증(결정성).
+function makeReceiptWriter({ dir, date, categories, poolHash, codeVersion, notes }) {
+  if (!dir) return { onBriefing: null, written: [] };
+  fs.mkdirSync(dir, { recursive: true });
+  const comboHash = sha256Hex([...categories].sort().join(",")).slice(0, 8);
+  const written = [];
+  const onBriefing = (slot, out) => {
+    const { json, hash } = shadowBriefingReceipt(out, { poolHash, codeVersion });
+    const file = path.join(dir, `${date}-${slot.slotId}-${comboHash}.json`);
+    fs.writeFileSync(file, `${json}\n`);
+    written.push({ slotId: slot.slotId, file, hash });
+  };
+  notes.push(`R7 영수증: ${dir} · 조합해시 ${comboHash} · poolHash ${poolHash ? poolHash.slice(0, 12) : "(없음)"}… · codeVersion ${codeVersion || "(미주입)"}`);
+  return { onBriefing, written };
 }
 
 function main() {
@@ -313,13 +341,15 @@ function main() {
 
   let articles;
   let slots;
+  let poolRaw = null; // R7 — 영수증 poolHash 재료(풀 파일 원문)
   if (mode === "real") {
     if (realSlotCount < 2) {
       console.log(`real 모드 불가 — 날짜 ${date || "(없음)"}에 이 조합의 저장 실제판 슬롯이 ${realSlotCount}개(2 미만). 모형 대체 금지.`);
       console.log("snapshot 모드로 다시 실행하거나 --date/--cats를 바꿔라.");
       return;
     }
-    const pool = JSON.parse(fs.readFileSync(LOCAL_POOL_FILE, "utf8"));
+    poolRaw = fs.readFileSync(LOCAL_POOL_FILE, "utf8");
+    const pool = JSON.parse(poolRaw);
     articles = articlesFromPool(pool);
     // asOf = 각 실제판의 generatedAt(실제 발행 시각). 없는 슬롯은 건너뛰되
     // "없음"을 정직하게 남긴다.
@@ -342,7 +372,8 @@ function main() {
       console.log(`snapshot 모드 불가 — 풀 파일 없음: ${poolPath}`);
       return;
     }
-    const pool = JSON.parse(fs.readFileSync(poolPath, "utf8"));
+    poolRaw = fs.readFileSync(poolPath, "utf8");
+    const pool = JSON.parse(poolRaw);
     articles = articlesFromPool(pool);
     if (!date) date = kstDateOf(pool.savedAt || Date.now());
     slots = SLOT_SEQUENCE.map((slot) => ({
@@ -352,9 +383,27 @@ function main() {
     notes.push("⚠ 같은 풀 3판 시뮬레이션 — 슬롯마다 새 글 유입이 없어 재등장 압력이 실제보다 높다. 차단 수를 실제 비율로 읽지 말 것.");
   }
 
+  // R7 — 영수증(옵션·기본 끔). poolHash는 풀 파일 원문 SHA-256.
+  const receiptWriter = makeReceiptWriter({
+    dir: args.receipts || null,
+    date,
+    categories,
+    poolHash: poolRaw === null ? null : sha256Hex(poolRaw),
+    codeVersion: args.codeVersion || null,
+    notes
+  });
+
   console.log(`shadow 연속 관찰 (R4) · 읽기 전용 · 서빙 무접촉 · 기사 ${articles.length}건`);
-  const result = runContinuity(articles, { slots, categories, registry });
+  const result = runContinuity(articles, {
+    slots, categories, registry, onBriefing: receiptWriter.onBriefing
+  });
   printReport(result, { mode, categories, date, notes });
+  if (receiptWriter.written.length) {
+    console.log("\nR7 영수증 기록:");
+    for (const row of receiptWriter.written) {
+      console.log(`  ${row.slotId.padEnd(8)} ${path.basename(row.file)} · 해시 ${row.hash}`);
+    }
+  }
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) main();

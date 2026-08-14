@@ -18,6 +18,7 @@
 //   가중·임계·창·미결 3건의 기본값은 전부 아래 SHADOW_PACK_PARAMS 한 테이블에
 //   있다. 3일 관찰로 조정될 값이라 하드코딩 산재 금지 — David 답이 오면
 //   overrideShadowParams()로 즉시 바꾼다.
+import { createHash } from "node:crypto";
 import { buildEventClusters, carryEventLineages, markLineageServed } from "./event-cluster.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import {
@@ -941,6 +942,139 @@ export function shadowSelectBriefing(articles, {
         new Set(briefing.map((entry) => entry.eventId)))
     }
   };
+}
+
+// ---------------------------------------------------------------------------
+// R7 — 경량 결정 영수증 (David 지시, 수정 순서 6)
+// ---------------------------------------------------------------------------
+//
+// "입력 해시·선택/탈락 ID·사유만 담은 가벼운 영수증" — 3일 관찰 기간에 판마다
+// 쌓여도 부담 없고, 나중에 어떤 입력에서 어떤 결정이 났는지 재현·감사할 수
+// 있는 최소 형태. **제목·본문·URL은 절대 넣지 않는다**(경량 계약 — 동결
+// 테스트가 필드 부재를 강제한다).
+//
+// 입력 해시 3요소:
+//  - poolHash: 풀 파일 원문 SHA-256 — 호출자(도구)가 계산해 넘긴다.
+//  - paramsHash: 파라미터 테이블의 결정적 직렬화 SHA-256 — 여기서 계산.
+//  - codeVersion: 코드 버전 식별자(HEAD 커밋 등) — **실행 환경에서 주입받는
+//    인자다. 이 코드는 git을 직접 호출하지 않는다**(순수 함수 계약).
+//
+// JSON 직렬화는 결정적(전 깊이 키 정렬) — 같은 입력이면 바이트 동일 영수증.
+
+const sortKeysDeep = (value) => {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const key of Object.keys(value).sort()) out[key] = sortKeysDeep(value[key]);
+    return out;
+  }
+  return value === undefined ? null : value;
+};
+
+export const stableStringify = (value) => JSON.stringify(sortKeysDeep(value));
+
+export const sha256Hex = (text) => createHash("sha256").update(text).digest("hex");
+
+// 파라미터 테이블 해시 — 결정적 직렬화 기준. 기본 테이블·override 사본 모두 가능.
+export function shadowParamsHash(params = SHADOW_PACK_PARAMS) {
+  return sha256Hex(stableStringify(params));
+}
+
+const lineageIdOfView = (view) => (view.lineage
+  ? view.lineage.lineageId
+  : String(view.event.eventId));
+
+// shadowSelectBriefing 반환에서 경량 영수증을 만든다. 순수 함수 — 시계·파일·
+// git 접근 없음. 반환: { receipt, json, hash } (json은 결정적 직렬화 문자열,
+// hash는 그 SHA-256).
+export function shadowBriefingReceipt(briefingResult, {
+  poolHash = null,
+  codeVersion = null,
+  params = SHADOW_PACK_PARAMS
+} = {}) {
+  if (!briefingResult || briefingResult.mode !== "briefing") {
+    throw new Error("shadowBriefingReceipt: shadowSelectBriefing 반환이 필요하다(mode=briefing)");
+  }
+
+  // ② 선택 사건: lineageId·대표기사 ID·trustGrade·S·층.
+  const selected = briefingResult.briefing.map((entry, index) => {
+    // 등급은 분야별 게이트 기록의 합집합(대개 1개) — 커뮤 팩(등급 없음)은 none.
+    const grades = [...new Set(Object.values(entry.byCategory)
+      .map((run) => run.gate.trustGrade || "none"))].sort();
+    return {
+      rank: index + 1,
+      lineageId: entry.lineageId,
+      eventId: entry.eventId,
+      representativeArticleId: entry.representative ? entry.representative.articleId : null,
+      trustGrades: grades,
+      tier: entry.tier,
+      S: entry.S,
+      categories: entry.selectedByCategories
+    };
+  });
+
+  // ③ 탈락: ID·사유 코드만(제목·본문 미포함 — 경량).
+  const excluded = {
+    quality: (briefingResult.excluded.quality || []).map((row) => ({
+      articleId: row.articleId, reason: row.reason
+    })),
+    gate: [],
+    sourceCap: [],
+    belowVolume: []
+  };
+  for (const category of briefingResult.requestedCategories) {
+    const run = briefingResult.perCategory[category];
+    for (const row of run.excluded.gate) {
+      excluded.gate.push({
+        category,
+        lineageId: lineageIdOfView(row.view),
+        eventId: row.view.event.eventId,
+        reasons: [...row.gate.failures]
+      });
+    }
+    for (const row of run.excluded.sourceCap) {
+      excluded.sourceCap.push({
+        category,
+        lineageId: lineageIdOfView(row.view),
+        eventId: row.view.event.eventId,
+        reason: row.exclusion
+      });
+    }
+    for (const row of run.excluded.belowVolume) {
+      excluded.belowVolume.push({
+        category,
+        lineageId: lineageIdOfView(row.view),
+        eventId: row.view.event.eventId,
+        reason: row.exclusion
+      });
+    }
+  }
+
+  const receipt = {
+    contract: SHADOW_SELECTION_CONTRACT.stableId,
+    receiptVersion: 1,
+    // ① 입력 해시 — 풀 파일 + 파라미터 테이블 + 코드 버전(주입 인자).
+    input: {
+      poolHash,
+      paramsHash: shadowParamsHash(params),
+      codeVersion
+    },
+    // ④ 슬롯·조합·asOf·판 카운트 요약.
+    slotId: briefingResult.slotId,
+    asOf: briefingResult.now,
+    requestedCategories: briefingResult.requestedCategories,
+    counts: {
+      inputArticles: briefingResult.counts.inputArticles,
+      qualityExcluded: briefingResult.counts.qualityExcluded,
+      events: briefingResult.counts.events,
+      briefingSelected: briefingResult.counts.briefingSelected,
+      perCategorySelected: briefingResult.counts.perCategorySelected
+    },
+    selected,
+    excluded
+  };
+  const json = stableStringify(receipt);
+  return { receipt, json, hash: sha256Hex(json) };
 }
 
 export { engagementOf };
