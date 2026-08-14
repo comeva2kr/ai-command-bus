@@ -40,15 +40,15 @@ const deepFreeze = (value) => {
 
 export const SHADOW_SELECTION_CONTRACT = deepFreeze({
   stableId: "NOWHOT-SHADOW-SELECTION-CONTRACT-001",
-  version: 1,
+  version: 2, // R5 — 신뢰 등급제(A/독립2/B)·대표기사 선정·민감 2출처 강제
   mode: "shadow_only",
   servingPathTouched: false,
   blueprintSection: "docs/01_NOWHOT_SYSTEM_BLUEPRINT.md — 2026-08-13 정책 팩별 판 자격(eligibility) 계약",
   commonPrinciples: [
-    "1. verified 분리: reported_secondary 1건 단독은 어느 팩에서도 신뢰 자격 없음",
-    "2. 뉴스 기본 계약: primary·first_party 1곳 ∨ 독립 operatorGroup 2곳",
+    "1. verified 분리: aggregate·일반 reported_secondary 1건 단독은 어느 뉴스 팩에서도 신뢰 자격 없음(원계약 유지)",
+    "2. 뉴스 등급 계약(R5, David 확정 2026-08-14): A등급 primary·first_party 1곳 ∨ 독립 operatorGroup 2곳 ∨ B등급 specialist 단독('단일 출처' 표기, 민감 판정 시 불가 — 민감한 의혹·시장 영향 뉴스만 독립 2출처 강제). 임의 eventId 예외 금지",
     "3. 같은 운영그룹 분야별 피드는 독립 계수 1회(event-cluster C4 재사용)",
-    "4. 소스캡 자동 완화 금지 — 부족하면 부분 제공(부분판)",
+    "4. 소스캡 자동 완화 금지 — 부족하면 부분 제공(부분판). 캡은 표시할 대표기사(representativeOf)의 operatorGroup 기준(R5)",
     "5. 재등장 게이트: factsFingerprint 실질 변화 없으면 제외",
     "6. 품질 게이트는 전 팩 공통 선행 — R3에서 실제 배선(옵션 qualityGate 기본 ON, 탈락은 excluded.quality에 사유와 함께 기록). 판정은 현행 코드 재사용: promotion.js lowValueReason·unpromotableReason, profanity.js hasProfanity, deals.js isDeal"
   ]
@@ -146,6 +146,28 @@ export const SHADOW_PACK_PARAMS = deepFreeze({
   // 동적 분량 계약(v4 정정 2): 게이트 통과 기준 8~12, 13~14위가 12위 S의
   // 95% 이상일 때만 14까지. 미달이면 그대로 = 부분판. 캡 자동 완화 금지.
   volume: { min: 8, target: 12, max: 14, extensionRatio: 0.95 },
+  // R5 민감 판별 사전 — David 확정("민감한 의혹·시장 영향 뉴스만 2개 독립
+  // 출처 강제")의 코드 정본. **David 검토용으로 목록은 이 한 곳에만 있다.**
+  //
+  // 어휘의 출처(발명 최소화):
+  //  - allegation·market 한국어: 블루프린트 "2026-08-14 P3-A 판정 — 정책 판단"
+  //    명시어(의혹·수사·혐의·기소·논란·폭로 / 급등·급락·상장폐지·유상증자·
+  //    공시 위반) + 2026-08-13 신선 풀 실물 표본에서 관측된 형태 2개(구속·
+  //    압수수색)만 추가.
+  //  - english: 신선 풀 실물 표본에서 관측된 단어 형태만(lawsuit·arrested·
+  //    investigation·plunge/plunged·surge/surged 계열). scandal·fraud·
+  //    allegation 등은 표본 부재로 미동결 — David 검토 대상(과잉 발명 금지).
+  //
+  // 일치 규칙: 한국어는 제목 부분 문자열, 영어는 소문자 단어 경계(따라서
+  // "surgery"는 surge에 걸리지 않는다). 구성원(보도) 기사 제목만 본다 —
+  // 반응(community_reaction) 글 제목은 사건 민감도의 근거가 아니다.
+  sensitive: {
+    basis: "David 확정 2026-08-14 P3-A 판정 — 민감(의혹·시장 영향)만 독립 2출처 강제. B등급(specialist 단독) 경로만 막고 A·독립2 경로는 그대로다.",
+    allegation: ["의혹", "수사", "혐의", "기소", "논란", "폭로", "구속", "압수수색"],
+    market: ["급등", "급락", "상장폐지", "유상증자", "공시 위반"],
+    english: ["lawsuit", "lawsuits", "arrested", "investigation", "investigations",
+      "plunge", "plunged", "plunges", "surge", "surged", "surges"]
+  },
   packs: {
     newsy: {
       label: "경제·정치",
@@ -156,7 +178,7 @@ export const SHADOW_PACK_PARAMS = deepFreeze({
       weightsBasis: "P3 설계안 초기값",
       windowHours: 12,
       morningWindowHours: 24,
-      trustGate: "news_basic",
+      trustGate: "news_graded", // R5 — A(primary·first_party) ∨ 독립2 ∨ B(specialist 단독·단일 출처 표기·민감 불가)
       sourceCap: { per: "operatorGroup", max: 2 }
     },
     science: {
@@ -168,7 +190,7 @@ export const SHADOW_PACK_PARAMS = deepFreeze({
       // 논문·보도 리듬 24~48h — 자격 창은 상한 48h, 계단은 같은 창으로 계산.
       windowHours: 48,
       windowHoursMin: 24,
-      trustGate: "news_basic", // 기관 primary(NASA 등) 1곳이 유효한 단독 통과 경로(뉴스 기본 계약에 포함)
+      trustGate: "news_graded", // 기관 primary(NASA 등)=A등급 단독 통과. specialist(livescience 등) 단독은 B등급('단일 출처')
       sourceCap: { per: "operatorGroup", max: 3 }
     },
     sports: {
@@ -178,9 +200,11 @@ export const SHADOW_PACK_PARAMS = deepFreeze({
       weights: { heat: 0.2, importance: 0.5, change: 0.3 },
       weightsBasis: "미지정 — newsy 준용 초기값(David 확인 대상)",
       windowHours: 24,
-      trustGate: "news_basic",
-      // 미결 1 추천안: v1 예외 없음(부분판 허용) — shadow 실측 후 결정.
-      soloOfficialResultException: false,
+      // R5(미결 1의 David 확정 답): 임의 eventId 예외(officialResultEventIds류)
+      // 금지 — 신뢰 등급제로 대체. 공식 리그·협회·팀 결과(primary·first_party)
+      // =A등급, 신뢰할 만한 전문매체(ESPN 등 specialist) 단독 결과=B등급
+      // ('단일 출처' 표기). soloOfficialResultException 파라미터는 제거됐다.
+      trustGate: "news_graded",
       sourceCap: { per: "operatorGroup", max: 2 }
     },
     community: {
@@ -204,15 +228,20 @@ export const SHADOW_PACK_PARAMS = deepFreeze({
       weights: { heat: 0.2, importance: 0.5, change: 0.3 },
       weightsBasis: "미지정 — newsy 준용 초기값(David 확인 대상)",
       windowHours: 24,
-      trustGate: "news_basic_or_specialist", // 보도형은 뉴스 기본 계약, 전문 섹션은 specialist 선언 존중
+      // R5 — 문화 팩의 specialist 특례(news_basic_or_specialist)는 등급제에
+      // 흡수됐다: specialist 단독=B등급('단일 출처' 표기)이 전 뉴스 팩 공통
+      // 규칙이 되면서 문서·코드 모순이 해소됐다(David 확정 정책 2).
+      trustGate: "news_graded",
       sourceCap: { per: "operatorGroup", max: 2 }
     }
   },
-  // 미결 3건(David 확인 대기)과 이 테이블에서 그 답이 바꿀 파라미터 위치.
+  // 미결(David 확인 대기)과 이 테이블에서 그 답이 바꿀 파라미터 위치.
+  // 구 미결 1(스포츠 단독 결과 예외)은 2026-08-14 David 확정으로 종결 —
+  // 신뢰 등급제(trustGate news_graded + sensitive 사전)로 대체, ID 예외 제거.
   openDecisions: {
-    "1_sports_solo_official_result": "packs.sports.soloOfficialResultException (현재 false = 예외 없음·부분판 허용)",
     "2_category_pack_assignment": "packs.newsy.appliedCategories(tech·auto) / packs.culture.categories(gaming) / packs.community.categories(life)",
-    "3_community_eng_and_windows": "packs.community.engMin(30)·packs.community.windowHours(6) 등 각 팩 windowHours"
+    "3_community_eng_and_windows": "packs.community.engMin(30)·packs.community.windowHours(6) 등 각 팩 windowHours",
+    "4_sensitive_lexicon_scope": "sensitive.english — scandal·fraud·allegation 등 표본 미관측 어휘의 추가 여부(현재 미포함·과잉 발명 금지)"
   }
 });
 
@@ -318,17 +347,104 @@ function specialistDeclared(memberArticles, pack, registryById) {
   });
 }
 
-// 사건 하나의 팩 자격 판정. 반환: { pass, failures[], passedBy, trust, window }.
+// ---------------------------------------------------------------------------
+// R5 — 민감 판별(보수적): 사전은 SHADOW_PACK_PARAMS.sensitive 한 곳에만 있다.
+// ---------------------------------------------------------------------------
+//
+// 구성원(보도) 기사 제목만 본다. 한국어는 부분 문자열, 영어는 소문자 단어
+// 경계 일치("surgery"는 surge에 안 걸린다 — 신선 풀 livescience 실물 반례).
+// 반환은 판정과 근거(어느 기사의 어느 어휘): 감사 가능성.
+export function sensitiveMatches(view, lexicon) {
+  if (!lexicon) return { sensitive: false, matches: [] };
+  const korean = [...(lexicon.allegation || []), ...(lexicon.market || [])];
+  const english = lexicon.english || [];
+  const matches = [];
+  for (const article of (view && view.memberArticles) || []) {
+    const title = String((article && article.title) || "");
+    for (const term of korean) {
+      if (term && title.includes(term)) matches.push({ articleId: article.id ?? null, term });
+    }
+    if (english.length) {
+      const lower = title.toLowerCase();
+      for (const term of english) {
+        if (term && new RegExp(`(?:^|[^a-z])${term}(?:$|[^a-z])`).test(lower)) {
+          matches.push({ articleId: article.id ?? null, term });
+        }
+      }
+    }
+  }
+  return { sensitive: matches.length > 0, matches };
+}
+
+// ---------------------------------------------------------------------------
+// R5 — 대표기사 선정(Techmeme 계약): 사건별 결정적 규칙 한 벌.
+// ---------------------------------------------------------------------------
+//
+// 우선순위(David 확정 정책 3의 전제 — "표시할 대표기사를 먼저 선정"):
+//   1) primary·first_party(1차 출처)  2) specialist(전문매체)
+//   3) 동급이면 반응(engagementOf) 큰 기사  4) 이른 발행  5) id 순(결정적).
+// 순수 함수: 네트워크·시계 접근 없음. 반환에 선정 근거(basis)를 노출한다.
+// 소스캡은 이 대표기사의 operatorGroup(커뮤 팩은 source) 기준으로 센다.
+export function representativeOf(view, { roleOf, registryById = null } = {}) {
+  const members = (((view && view.memberArticles) || []).filter(Boolean));
+  const pool = members.length ? members
+    : (((view && view.reactionArticles) || []).filter(Boolean));
+  if (!pool.length) return null;
+  const classRankOf = (article) => {
+    const role = typeof roleOf === "function" ? roleOf(article) : null;
+    if (role === "primary" || role === "first_party") return 0;
+    const entry = registryById ? registryById.get(article.source) : null;
+    if (entry && entry.sourceTier === "specialist") return 1;
+    return 2;
+  };
+  const timeOf = (article) => {
+    const t = Date.parse(String((article && article.publishedAt) || ""));
+    return Number.isFinite(t) ? t : Infinity; // 발행시각 불명은 최후순위
+  };
+  // 정렬 키: [등급, -반응, 발행시각, id] 사전식 오름차순의 최솟값이 대표.
+  const keyOf = (article) => [classRankOf(article), -engagementOf(article),
+    timeOf(article), String(article.id ?? "")];
+  const lessThan = (a, b) => {
+    for (let i = 0; i < 3; i += 1) {
+      if (a[i] !== b[i]) return a[i] < b[i];
+    }
+    return a[3].localeCompare(b[3]) < 0;
+  };
+  let best = pool[0];
+  let bestKey = keyOf(best);
+  for (const article of pool.slice(1)) {
+    const key = keyOf(article);
+    if (lessThan(key, bestKey)) { best = article; bestKey = key; }
+  }
+  const rank = bestKey[0];
+  return {
+    article: best,
+    articleId: best.id ?? null,
+    basis: {
+      rule: "primary·first_party > specialist > 반응(engagement) > 이른 발행 > id",
+      class: rank === 0 ? "primary_or_first_party" : rank === 1 ? "specialist" : "other",
+      engagement: engagementOf(best),
+      publishedAt: best.publishedAt ?? null
+    }
+  };
+}
+
+// 사건 하나의 팩 자격 판정.
+// 반환: { pass, failures[], passedBy, trustGrade, trustLabel, sensitive, trust, window }.
+// R5 — trustGrade: "A"(primary·first_party) | "independent2"(독립 2그룹) |
+// "B"(specialist 단독 — trustLabel "단일 출처", 민감 판정 시 불가) | null.
 export function shadowEligibility(view, pack, {
   now,
   slotId = null,
   registryById = null,
   previousFingerprint = null,
-  officialResult = false,
+  sensitiveLexicon = null,
   roleOf
 } = {}) {
   const failures = [];
   let passedBy = null;
+  let trustGrade = null;
+  let trustLabel = null;
 
   // 창: 팩 신선도 창(모닝 슬롯이면 팩의 morningWindowHours가 있을 때 그 값).
   const windowHours = slotId === "morning" && Number.isFinite(pack.morningWindowHours)
@@ -352,6 +468,8 @@ export function shadowEligibility(view, pack, {
 
   // trust — 팩별 계약. 축 재료는 trustMaterials가 관측만 제공한다.
   const trust = trustMaterials(view, { roleOf });
+  // R5 민감 판별 — 근거는 늘 결과에 남긴다(A·독립2 통과 사건도 관측 기록).
+  const sensitive = sensitiveMatches(view, sensitiveLexicon);
   if (pack.trustGate === "community_absolute_eng") {
     // 언론 계수 무의미(실측: 커뮤 다중 구성 사건 0건) — 절대 반응선만 본다.
     // 커뮤 팩의 구성원은 커뮤글 자체라 communityEng가 곧 사건 반응량이다.
@@ -359,15 +477,28 @@ export function shadowEligibility(view, pack, {
     if (eng >= pack.engMin) passedBy = `community_eng>=${pack.engMin}`;
     else failures.push(`community_eng_below_absolute_line(${eng}<${pack.engMin})`);
   } else {
-    // 뉴스 기본 계약: primary·first_party 1곳 ∨ 독립 operatorGroup 2곳.
-    if (trust.hasPrimaryOrFirstParty) passedBy = "primary_or_first_party";
-    else if (trust.independentReportingGroups >= 2) passedBy = "independent_groups>=2";
-    else if (pack.trustGate === "news_basic_or_specialist"
-      && specialistDeclared(view.memberArticles, pack, registryById)) {
-      passedBy = "specialist_declared";
-    } else if (pack.trustGate === "news_basic" && pack.soloOfficialResultException && officialResult) {
-      // 미결 1 파라미터가 true로 바뀔 때만 열리는 경로. 초기값 false.
-      passedBy = "solo_official_result_exception";
+    // R5 뉴스 등급 계약(news_graded — David 확정 2026-08-14, 전 뉴스 팩 공통):
+    //   A     primary·first_party 1곳(공식 리그·협회·팀·기관 1차 출처)
+    //   독립2  독립 operatorGroup 2곳(원계약 유지)
+    //   B     specialist 단독 — trustLabel "단일 출처" 표기. **민감(의혹·시장
+    //         영향) 판정 시 불가** — 그 경우 독립 2출처가 강제된다.
+    // aggregate·일반 reported_secondary 단독은 여전히 차단(원계약 유지).
+    // 임의 eventId 예외(officialResultEventIds류)는 제거됐다 — 등급으로만 판정.
+    if (trust.hasPrimaryOrFirstParty) {
+      passedBy = "primary_or_first_party";
+      trustGrade = "A";
+    } else if (trust.independentReportingGroups >= 2) {
+      passedBy = "independent_groups>=2";
+      trustGrade = "independent2";
+    } else if (specialistDeclared(view.memberArticles, pack, registryById)) {
+      if (sensitive.sensitive) {
+        const terms = [...new Set(sensitive.matches.map((match) => match.term))].join(",");
+        failures.push(`sensitive_single_specialist_needs_independent_2(${terms})`);
+      } else {
+        passedBy = "specialist_single_source";
+        trustGrade = "B";
+        trustLabel = "단일 출처";
+      }
     } else {
       failures.push(trust.roleCounts.reported_secondary
         ? "trust_reported_secondary_alone"
@@ -380,9 +511,13 @@ export function shadowEligibility(view, pack, {
     failures.push("reappear_no_material_change");
   }
 
+  const pass = failures.length === 0;
   return {
-    pass: failures.length === 0,
-    passedBy: failures.length === 0 ? passedBy : null,
+    pass,
+    passedBy: pass ? passedBy : null,
+    trustGrade: pass ? trustGrade : null,   // R5 — 통과 등급(A/independent2/B) 기록
+    trustLabel: pass ? trustLabel : null,   // R5 — B등급은 "단일 출처" 표기
+    sensitive,                              // R5 — 민감 판정과 근거(항상 관측 기록)
     failures,
     trust,
     windowHours,
@@ -416,12 +551,15 @@ export function shadowScore(view, pack, { now, params = SHADOW_PACK_PARAMS, prev
 // shadow 판 구성 — 게이트 → S 정렬 → 소스캡 → 동적 분량
 // ---------------------------------------------------------------------------
 
-const capKeyOf = (view, pack) => {
-  const rep = view.memberArticles[0] || view.reactionArticles[0] || null;
-  if (!rep) return "unknown";
+// R5(David 확정 정책 3) — 소스캡은 **표시할 대표기사** 기준이다. 구
+// capKeyOf는 memberArticles[0](클러스터 순서상 가장 앞선 기사) 기준이라
+// 화면에 안 나가는 구성원의 그룹이 캡을 소모했다(직전 검수 P2-1). 대표기사
+// (representativeOf)의 operatorGroup(커뮤 팩은 source)으로 센다.
+const capKeyForRepresentative = (representative, pack) => {
+  if (!representative || !representative.article) return "unknown";
   return pack.sourceCap.per === "source"
-    ? String(rep.source || "unknown")
-    : operationalSourceIdentity(rep).ownershipGroup;
+    ? String(representative.article.source || "unknown")
+    : operationalSourceIdentity(representative.article).ownershipGroup;
 };
 
 // ── 공유 준비 단계 (판 전체 1회 원칙)
@@ -473,43 +611,64 @@ function prepareShadowPool(articles, {
   return { rows, events, lineage, views, prevFingerprintOf };
 }
 
+// 통과 등급 분포 셈(R5 보고 재료) — 커뮤 팩(등급 없음)은 none으로 센다.
+const countByTrustGrade = (selectedRows) => {
+  const counts = {};
+  for (const row of selectedRows) {
+    const grade = row.gate.trustGrade || "none";
+    counts[grade] = (counts[grade] || 0) + 1;
+  }
+  return counts;
+};
+
 // ── 한 잣대(팩)로 후보 사건들을 선별: 게이트 → S 정렬 → 소스캡 → 동적 분량.
 // shadowSelectEdition(팩 단위)과 shadowSelectBriefing(분야 단위)이 공유한다 —
 // 잣대는 언제나 팩 계약이고, 무엇이 후보인지(candidateViews)만 다르다.
 function selectWithPackYardstick(candidateViews, pack, {
-  now, slotId, registryById, params, prevFingerprintOf, officialResultEventIds, roleOf
+  now, slotId, registryById, params, prevFingerprintOf, roleOf
 }) {
-  // 1) 팩별 자격 게이트
+  // 1) 팩별 자격 게이트(R5 — 등급제. 민감 사전은 파라미터 테이블의 것)
   const gatePassed = [];
   const gateFailed = [];
   for (const view of candidateViews) {
     const gate = shadowEligibility(view, pack, {
       now, slotId, registryById,
       previousFingerprint: prevFingerprintOf(view.event),
-      officialResult: officialResultEventIds.has(view.event.eventId),
+      sensitiveLexicon: params.sensitive,
       roleOf
     });
     if (gate.pass) gatePassed.push({ view, gate });
     else gateFailed.push({ view, gate });
   }
 
-  // 2) S 정렬(결정적 — 동점은 eventId)
-  const scored = gatePassed.map((row) => ({
-    ...row,
-    score: shadowScore(row.view, pack, {
-      now, params,
-      previousFingerprint: prevFingerprintOf(row.view.event),
-      roleOf
-    })
-  })).sort((a, b) => b.score.S - a.score.S
+  // 2) S 정렬(결정적 — 동점은 eventId) + R5 대표기사 선정(표시·캡의 기준)
+  const scored = gatePassed.map((row) => {
+    const representative = representativeOf(row.view, { roleOf, registryById });
+    return {
+      ...row,
+      representative: representative && {
+        articleId: representative.articleId,
+        source: representative.article.source ?? null,
+        basis: representative.basis,
+        capKey: capKeyForRepresentative(representative, pack)
+      },
+      score: shadowScore(row.view, pack, {
+        now, params,
+        previousFingerprint: prevFingerprintOf(row.view.event),
+        roleOf
+      })
+    };
+  }).sort((a, b) => b.score.S - a.score.S
     || String(a.view.event.eventId).localeCompare(String(b.view.event.eventId)));
 
   // 3) 소스캡 — 자동 완화 금지(공통 원칙 4). 캡에 걸린 사건은 제외로 남긴다.
+  //    R5: 키는 대표기사의 operatorGroup(커뮤 팩은 source) — 비대표 구성원의
+  //    그룹은 캡을 소모하지 않는다(David 확정 정책 3).
   const capCounts = new Map();
   const capped = [];
   const capExcluded = [];
   for (const row of scored) {
-    const key = capKeyOf(row.view, pack);
+    const key = row.representative ? row.representative.capKey : "unknown";
     if ((capCounts.get(key) || 0) >= pack.sourceCap.max) {
       capExcluded.push({ ...row, exclusion: `source_cap_${pack.sourceCap.per}:${key}` });
       continue;
@@ -558,7 +717,6 @@ export function shadowSelectEdition(articles, {
   // 지연 합류로 eventId가 바뀌어도 같은 사건으로 이어진다 — 결함 4).
   // null이면 구 eventId 키 맵(previousEditionFingerprints)으로 폴백한다.
   previousLineage = null,
-  officialResultEventIds = new Set(),
   qualityGate = true
 } = {}) {
   const pack = params.packs[packId];
@@ -578,7 +736,7 @@ export function shadowSelectEdition(articles, {
   } = selectWithPackYardstick(views, pack, {
     now, slotId, registryById, params,
     prevFingerprintOf: pool.prevFingerprintOf,
-    officialResultEventIds, roleOf
+    roleOf
   });
   const rows = pool.rows;
   const lineage = pool.lineage;
@@ -599,7 +757,9 @@ export function shadowSelectEdition(articles, {
       gatePassed: gatePassed.length,
       gateFailed: gateFailed.length,
       capExcluded: capExcluded.length,
-      selected: selected.length
+      selected: selected.length,
+      // R5 — 통과 등급 분포(A/independent2/B): 재실측 보고의 기본 재료.
+      selectedByTrustGrade: countByTrustGrade(selected)
     },
     partialEdition,
     selected,
@@ -657,7 +817,6 @@ export function shadowSelectBriefing(articles, {
   params = SHADOW_PACK_PARAMS,
   previousEditionFingerprints = new Map(),
   previousLineage = null,
-  officialResultEventIds = new Set(),
   qualityGate = true
 } = {}) {
   if (!Array.isArray(requestedCategories) || requestedCategories.length === 0) {
@@ -695,7 +854,7 @@ export function shadowSelectBriefing(articles, {
     const run = selectWithPackYardstick(candidates, pack, {
       now, slotId, registryById, params,
       prevFingerprintOf: pool.prevFingerprintOf,
-      officialResultEventIds, roleOf
+      roleOf
     });
     perCategory[category] = {
       packId,
@@ -705,7 +864,8 @@ export function shadowSelectBriefing(articles, {
         gatePassed: run.gatePassed.length,
         gateFailed: run.gateFailed.length,
         capExcluded: run.capExcluded.length,
-        selected: run.selected.length
+        selected: run.selected.length,
+        selectedByTrustGrade: countByTrustGrade(run.selected) // R5
       },
       partialEdition: run.partialEdition,
       selected: run.selected,
@@ -732,6 +892,10 @@ export function shadowSelectBriefing(articles, {
           lineageId,
           eventId: row.view.event.eventId,
           view: row.view,
+          // R5 — 표시할 대표기사(잣대 무관: 사건·레지스트리에만 의존해 분야
+          // 사이에 동일). capKey는 그 분야 팩 계약 기준이라 byCategory가 아닌
+          // 여기서는 articleId·근거만 의미가 있다.
+          representative: row.representative,
           selectedByCategories: [category],
           byCategory: { [category]: { tier, S: row.score.S, gate: row.gate, score: row.score } },
           tier,

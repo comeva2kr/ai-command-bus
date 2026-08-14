@@ -11,7 +11,8 @@ import {
 } from "../src/feed/selection-axes.js";
 import {
   SHADOW_PACK_PARAMS, SHADOW_SELECTION_CONTRACT,
-  shadowSelectEdition, shadowSelectBriefing, packIdForArticle, resolveSourceRole, overrideShadowParams
+  shadowSelectEdition, shadowSelectBriefing, packIdForArticle, resolveSourceRole, overrideShadowParams,
+  sensitiveMatches, representativeOf
 } from "../src/feed/shadow-selection.js";
 import { buildEventClusters } from "../src/feed/event-cluster.js";
 
@@ -230,18 +231,194 @@ test("게이트: 재등장 — 직전 판과 factsFingerprint가 같으면 제�
   assert.ok(out.excluded.gate[0].gate.failures.includes("reappear_no_material_change"));
 });
 
-test("게이트: 스포츠 단독 결과 예외는 초기값 false — 파라미터로 켜야만 열린다 (미결 1)", () => {
-  const solo = [article({ id: "sp1", title: "누리구단 결승 진출 확정 소식", category: "sports",
-    source: "some-sport-news", publishedAt: "2026-08-13T11:00:00+09:00" })];
-  const [event] = buildEventClusters(solo);
-  const off = shadowSelectEdition(solo, { packId: "sports", now: NOW,
-    officialResultEventIds: new Set([event.eventId]) });
-  assert.equal(off.selected.length, 0, "초기값(예외 없음)에서는 단독 결과도 차단");
-  const params = overrideShadowParams({ packs: { sports: { soloOfficialResultException: true } } });
-  const on = shadowSelectEdition(solo, { packId: "sports", now: NOW, params,
-    officialResultEventIds: new Set([event.eventId]) });
-  assert.equal(on.selected.length, 1);
-  assert.equal(on.selected[0].gate.passedBy, "solo_official_result_exception");
+// ---------------------------------------------------------------------------
+// R5 동결 ⓐ~ⓔ — 신뢰 등급제(A/독립2/B)·민감 2출처 강제·대표기사 기준 캡.
+// 픽스처는 2026-08-13 신선 풀(스크래치 수집 1,968건) 실물 표본을 그대로 옮겨
+// 적었다(제목·발행시각·소스·URL 무가공). 레지스트리 항목은 communities.json의
+// 해당 소스 선언(sourceTier·sourceRole·category)을 미러링한다.
+// ---------------------------------------------------------------------------
+
+// 신선 풀 savedAt(2026-08-13T15:11:36.097Z) — 실측 시점 재현용 고정 now.
+const POOL_NOW = Date.parse("2026-08-13T15:11:36.097Z");
+
+// communities.json 미러(테스트 로컬 사본 — 실물 선언과 동일 값).
+const R5_REGISTRY = [
+  { id: "espn", kind: "news", category: "sports", sourceTier: "specialist" },
+  { id: "mydaily", kind: "news", category: "culture", sourceTier: "specialist" },
+  { id: "hankyung-stock", kind: "news", category: "business", sourceTier: "specialist" },
+  { id: "nasa", kind: "news", category: "science", sourceTier: "specialist", sourceRole: "primary" },
+  { id: "livescience", kind: "news", category: "science", sourceTier: "specialist", sourceRole: "reported_secondary" },
+  { id: "gnews-biz", kind: "news", category: "business", sourceTier: "aggregate" }
+];
+
+test("R5 동결 ⓐ: ESPN(specialist) 단독 경기 소식 — B등급 통과 + '단일 출처' 표기, ID 예외는 제거됐다", () => {
+  const rows = [article({ id: "it_zsf606",
+    title: "NFL training camp updates: Baker Mayfield shines as Bucs handle Jets",
+    category: "sports", source: "espn", kind: "news",
+    ownershipGroup: "disney", ownershipBasis: "publisher_alias_operational",
+    url: "https://www.espn.com/nfl/story/_/id/49368181/training-camp-2026-latest-news-intel-updates-buzz-all-32-teams",
+    publishedAt: "2026-08-13T12:51:19.000Z" })];
+  const out = shadowSelectEdition(rows, { packId: "sports", now: POOL_NOW, registry: R5_REGISTRY });
+  assert.equal(out.selected.length, 1, "specialist 단독 경기 소식은 B등급으로 통과한다");
+  assert.equal(out.selected[0].gate.passedBy, "specialist_single_source");
+  assert.equal(out.selected[0].gate.trustGrade, "B");
+  assert.equal(out.selected[0].gate.trustLabel, "단일 출처", "B등급은 반드시 단일 출처 표기");
+  assert.deepEqual(out.counts.selectedByTrustGrade, { B: 1 });
+  // David 확정: 임의 eventId 예외(officialResultEventIds·soloOfficialResultException) 금지·제거.
+  assert.equal(SHADOW_PACK_PARAMS.packs.sports.soloOfficialResultException, undefined,
+    "구 예외 파라미터는 존재하지 않아야 한다");
+});
+
+test("R5 동결 ⓑ: 전문매체 단독 의혹·시장 영향 기사 — 민감 2출처 강제로 차단 (실물 표본 2건)", () => {
+  // 의혹류(혐의) — mydaily(culture specialist) 단독.
+  const alleged = [article({ id: "it_1y2xtrs",
+    title: "황색 수의 입은 김세의, '쯔양 협박' 혐의 부인…\"검사가 억지로 끼워넣어\" [MD이슈]",
+    category: "culture", source: "mydaily", kind: "news",
+    ownershipGroup: "mydaily", ownershipBasis: "source_id_fallback",
+    url: "https://www.mydaily.co.kr/page/view/2026081315215796600",
+    publishedAt: "2026-08-13T06:53:00.000Z" })];
+  const cultureOut = shadowSelectEdition(alleged, { packId: "culture", now: POOL_NOW, registry: R5_REGISTRY });
+  assert.equal(cultureOut.selected.length, 0, "민감(혐의) specialist 단독은 B등급 불가");
+  assert.ok(cultureOut.excluded.gate[0].gate.failures
+    .some((f) => f.startsWith("sensitive_single_specialist_needs_independent_2")), "차단 사유가 민감 2출처 강제여야 한다");
+  assert.ok(cultureOut.excluded.gate[0].gate.sensitive.matches.some((m) => m.term === "혐의"),
+    "어느 어휘에 걸렸는지 근거가 남는다");
+
+  // 시장 영향(급락) — hankyung-stock(business specialist) 단독.
+  const market = [article({ id: "it_1ksn1oa",
+    title: "JYP 2분기 부진에 11%급락...트와이스 ·스키즈 공백에 \"2027년부터 역성장\" 목소리도",
+    category: "business", source: "hankyung-stock", kind: "news",
+    ownershipGroup: "hankyung", ownershipBasis: "publisher_alias_operational",
+    url: "https://www.hankyung.com/article/202608139778i",
+    publishedAt: "2026-08-13T07:54:56.000Z" })];
+  const newsyOut = shadowSelectEdition(market, { packId: "newsy", now: POOL_NOW, registry: R5_REGISTRY });
+  assert.equal(newsyOut.selected.length, 0, "시장 영향(급락) specialist 단독도 차단");
+  assert.ok(newsyOut.excluded.gate[0].gate.failures
+    .some((f) => f.includes("급락")), "사유 문자열에 걸린 어휘가 남는다");
+
+  // 민감은 '차단'이 아니라 '2출처 강제'다 — 독립 2그룹이면 통과한다.
+  const second = article({ id: "it_1ksn1oa-b",
+    title: "JYP 2분기 부진에 11%급락...트와이스 ·스키즈 공백에 \"2027년부터 역성장\" 목소리도",
+    category: "business", source: "other-biz", kind: "news",
+    ownershipGroup: "other-group", ownershipBasis: "registry_explicit",
+    url: "https://other.example.com/jyp", publishedAt: "2026-08-13T08:10:00.000Z" });
+  const twoOut = shadowSelectEdition([...market, second], { packId: "newsy", now: POOL_NOW, registry: R5_REGISTRY });
+  assert.equal(twoOut.selected.length, 1, "독립 2그룹이면 민감 기사도 통과");
+  assert.equal(twoOut.selected[0].gate.trustGrade, "independent2");
+  assert.equal(twoOut.selected[0].gate.sensitive.sensitive, true, "민감 관측 기록은 통과 사건에도 남는다");
+});
+
+test("R5 동결 ⓒ: NASA(기관 primary) 단독 — A등급 (실물 표본)", () => {
+  const rows = [article({ id: "it_1kq8gxi", title: "Perseids Meteor Shower",
+    category: "science", source: "nasa", kind: "news",
+    ownershipGroup: "nasa", ownershipBasis: "publisher_alias_operational",
+    url: "https://www.nasa.gov/image-article/perseids-meteor-shower-2/",
+    publishedAt: "2026-08-13T15:08:34.000Z" })];
+  const out = shadowSelectEdition(rows, { packId: "science", now: POOL_NOW, registry: R5_REGISTRY });
+  assert.equal(out.selected.length, 1);
+  assert.equal(out.selected[0].gate.passedBy, "primary_or_first_party");
+  assert.equal(out.selected[0].gate.trustGrade, "A");
+  assert.equal(out.selected[0].gate.trustLabel, null, "A등급은 단일 출처 표기가 없다");
+  assert.deepEqual(out.counts.selectedByTrustGrade, { A: 1 });
+});
+
+test("R5 동결 ⓓ: gnews(aggregate) 단독 — 등급제 도입 후에도 여전히 차단 (원계약 유지, 실물 표본)", () => {
+  const rows = [article({ id: "it_1sfriga",
+    title: "“뭐? 한우가 반값이라고?” 홈플러스 재개장 첫날 문전성시…부활 신호탄일까",
+    category: "business", source: "gnews-biz", kind: "news",
+    ownershipGroup: "khan", ownershipBasis: "publisher_alias_operational",
+    url: "https://news.google.com/rss/articles/x?oc=5",
+    publishedAt: "2026-08-13T06:15:00.000Z" })];
+  const out = shadowSelectEdition(rows, { packId: "newsy", now: POOL_NOW, registry: R5_REGISTRY });
+  assert.equal(out.selected.length, 0, "aggregate 단독은 B등급이 아니다 — 차단 유지");
+  assert.ok(out.excluded.gate[0].gate.failures.includes("trust_reported_secondary_alone"));
+});
+
+test("R5 민감 반례 동결: 일반 경기 소식·수술(surgery) 기사는 민감이 아니다 — 과잉 차단 없음 (실물 표본)", () => {
+  // 일반 경기 소식(ⓐ 픽스처 제목) — 어느 어휘에도 안 걸린다.
+  const game = sensitiveMatches(
+    { memberArticles: [{ id: "it_zsf606", title: "NFL training camp updates: Baker Mayfield shines as Bucs handle Jets" }] },
+    SHADOW_PACK_PARAMS.sensitive);
+  assert.equal(game.sensitive, false);
+  // 영어 단어 경계: "surgery"는 surge에 걸리지 않는다(livescience 실물 제목).
+  const surgery = [article({ id: "it_1yfbrms",
+    title: "Diagnostic dilemma: Doctors performed surgery to remove a mass in a woman's gut ‪—‬ and a bug-like creature immediately jumped out",
+    category: "science", source: "livescience", kind: "news",
+    ownershipGroup: "futureplc", ownershipBasis: "publisher_alias_operational",
+    url: "https://www.livescience.com/health/diagnostic-dilemma",
+    publishedAt: "2026-08-12T10:00:00.000Z" })];
+  const out = shadowSelectEdition(surgery, { packId: "science", now: POOL_NOW, registry: R5_REGISTRY });
+  assert.equal(out.selected.length, 1, "livescience(specialist) 단독 일반 기사는 B등급 통과 — 과학 부분판 회복 경로");
+  assert.equal(out.selected[0].gate.trustGrade, "B");
+  assert.equal(out.selected[0].gate.trustLabel, "단일 출처");
+  assert.equal(out.selected[0].gate.sensitive.sensitive, false, "surgery는 surge가 아니다");
+});
+
+test("R5 민감 사전 동결: 목록은 SHADOW_PACK_PARAMS.sensitive 한 곳 — David 검토 대상 전문", () => {
+  const s = SHADOW_PACK_PARAMS.sensitive;
+  assert.deepEqual(s.allegation, ["의혹", "수사", "혐의", "기소", "논란", "폭로", "구속", "압수수색"]);
+  assert.deepEqual(s.market, ["급등", "급락", "상장폐지", "유상증자", "공시 위반"]);
+  assert.deepEqual(s.english, ["lawsuit", "lawsuits", "arrested", "investigation", "investigations",
+    "plunge", "plunged", "plunges", "surge", "surged", "surges"]);
+  assert.ok(Object.isFrozen(s.allegation), "사전은 동결 — 변경은 overrideShadowParams 경로만");
+});
+
+test("R5 동결 ⓔ: 소스캡은 대표기사 기준 — 비대표 구성원의 그룹은 캡을 소모하지 않는다 (검수 P2-1 정방향)", () => {
+  // 사건 3개: 각 사건의 **가장 앞선(이른) 구성원**은 전부 같은 그룹 grp-y지만,
+  // 대표기사(반응 우세)는 서로 다른 그룹 grp-x0·grp-x1·grp-x2다. 구 규칙
+  // (memberArticles[0] 기준)이면 grp-y 캡 2로 3번째가 탈락했다 — 새 규칙은
+  // 대표기사 그룹 기준이라 3건 모두 선다.
+  const rows = [0, 1, 2].flatMap((index) => {
+    const base = BASES[index];
+    const title = `${base}검사 ${base}공장 ${base}단지 가동`;
+    return [
+      article({ id: `rep${index}-y`, title, category: "business", score: 0,
+        source: `y-src-${index}`, ownershipGroup: "grp-y", ownershipBasis: "registry_explicit",
+        url: `https://y.example.com/${index}`, publishedAt: "2026-08-13T10:00:00+09:00" }),
+      article({ id: `rep${index}-x`, title, category: "business", score: 50,
+        source: `x-src-${index}`, ownershipGroup: `grp-x${index}`, ownershipBasis: "registry_explicit",
+        url: `https://x${index}.example.com/${index}`, publishedAt: "2026-08-13T11:00:00+09:00" })
+    ];
+  });
+  const out = shadowSelectEdition(rows, { packId: "newsy", now: NOW });
+  assert.equal(out.selected.length, 3, "대표기사 그룹이 전부 달라 캡(운영그룹 2)에 안 걸린다");
+  assert.equal(out.excluded.sourceCap.length, 0);
+  for (const row of out.selected) {
+    assert.match(String(row.representative.articleId), /^rep\d-x$/,
+      "대표는 동급에서 반응 큰 기사다");
+    assert.match(row.representative.capKey, /^grp-x\d$/,
+      "캡 키는 대표기사의 운영그룹이다 — 비대표 grp-y는 캡을 소모하지 않는다");
+    assert.equal(row.representative.basis.rule,
+      "primary·first_party > specialist > 반응(engagement) > 이른 발행 > id");
+  }
+});
+
+test("R5 대표기사 규칙: primary > specialist > 반응 > 이른 발행 > id — 결정적 tie-break", () => {
+  const registry = [
+    { id: "spec-src", kind: "news", category: "business", sourceTier: "specialist" },
+    { id: "prim-src", kind: "news", category: "business", sourceTier: "specialist", sourceRole: "primary" }
+  ];
+  const registryById = new Map(registry.map((entry) => [entry.id, entry]));
+  const role = (a) => resolveSourceRole(a, registryById.get(a && a.source));
+  const view = { memberArticles: [
+    { id: "m-late-primary", source: "prim-src", score: 0, publishedAt: "2026-08-13T11:00:00+09:00" },
+    { id: "m-early-spec", source: "spec-src", score: 999, publishedAt: "2026-08-13T09:00:00+09:00" },
+    { id: "m-hot-other", source: "no-reg", score: 99999, publishedAt: "2026-08-13T08:00:00+09:00" }
+  ], reactionArticles: [] };
+  // 1) primary가 있으면 반응·발행시각과 무관하게 대표.
+  assert.equal(representativeOf(view, { roleOf: role, registryById }).articleId, "m-late-primary");
+  // 2) primary가 없으면 specialist 우선.
+  const noPrimary = { memberArticles: view.memberArticles.slice(1), reactionArticles: [] };
+  assert.equal(representativeOf(noPrimary, { roleOf: role, registryById }).articleId, "m-early-spec");
+  // 3) 동급이면 반응 큰 기사, 반응도 같으면 이른 발행, 그다음 id 순.
+  const flat = { memberArticles: [
+    { id: "f-b", source: "no-reg", score: 10, publishedAt: "2026-08-13T10:00:00+09:00" },
+    { id: "f-a", source: "no-reg", score: 10, publishedAt: "2026-08-13T10:00:00+09:00" },
+    { id: "f-early", source: "no-reg", score: 10, publishedAt: "2026-08-13T09:00:00+09:00" }
+  ], reactionArticles: [] };
+  assert.equal(representativeOf(flat, { roleOf: role, registryById }).articleId, "f-early", "이른 발행 우선");
+  const sameTime = { memberArticles: flat.memberArticles.slice(0, 2), reactionArticles: [] };
+  assert.equal(representativeOf(sameTime, { roleOf: role, registryById }).articleId, "f-a", "id 순 결정적 tie-break");
 });
 
 // ---------------------------------------------------------------------------
