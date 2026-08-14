@@ -859,3 +859,114 @@ test("비교기 diff: 진입·탈락(사유 포함)·순위 변화를 가른다"
   assert.equal(diff.shadowOnly.length, 1);
   assert.equal(diff.shadowOnly[0].title, "shadow에만");
 });
+
+// ---------------------------------------------------------------------------
+// R4 반례 ⓐ~ⓓ — 슬롯 연속(아침→점심→저녁) 재등장 게이트 동결
+// (블루프린트 "2026-08-14 P3-A 판정" 결함 4의 관찰 계약).
+// 판정 코드는 shadow-selection/event-cluster 무수정 — 이 테스트는 도구가 하는
+// "이전 판 상태를 다음 판에 넘기는" 연속 실행 계약 자체를 슬롯 시각으로 동결한다.
+// ---------------------------------------------------------------------------
+
+// 슬롯 시각 — digest.js SLOTS publishHour(07·12·19 KST) 계약과 동일 값.
+const R4_DATE = "2026-08-13";
+const r4At = (hour) => Date.parse(`${R4_DATE}T${String(hour).padStart(2, "0")}:00:00+09:00`);
+const R4_MORNING = r4At(7);
+const R4_LUNCH = r4At(12);
+const R4_EVENING = r4At(19);
+
+// 사건 H(호르무즈형 픽스처): 독립 2그룹 보도. 각 슬롯 판에서 신선하도록 판별
+// publishedAt만 바꾸고 제목(사실 토큰 = 지문)은 유지하는 생성기.
+const r4EventH = (slotTag, publishedAt) => [
+  article({ id: `r4-h-a-${slotTag}`, title: "청라만 해협 봉쇄 위기 고조", category: "business",
+    source: "news-a", ownershipGroup: "group-a", ownershipBasis: "registry_explicit",
+    url: `https://a.example.com/r4-h-${slotTag}`, publishedAt }),
+  article({ id: `r4-h-b-${slotTag}`, title: "청라만 해협 봉쇄 위기 고조", category: "business",
+    source: "news-b", ownershipGroup: "group-b", ownershipBasis: "registry_explicit",
+    url: `https://b.example.com/r4-h-${slotTag}`, publishedAt })
+];
+const r4Run = (rows, now, slotId, previousLineage) => shadowSelectBriefing(rows, {
+  requestedCategories: ["business"], now, slotId, previousLineage
+});
+
+test("R4 반례 ⓐ: 슬롯1 서빙 사건이 변화 없이 슬롯2 후보에 오면 재등장 차단", () => {
+  const morning = r4Run(r4EventH("m", "2026-08-13T06:00:00+09:00"), R4_MORNING, "morning", []);
+  assert.equal(morning.briefing.length, 1, "아침판 서빙");
+  const lineageId = morning.briefing[0].lineageId;
+  // 점심: 같은 사실(같은 지문)의 새 게시물 — id·publishedAt만 다르다.
+  const lunch = r4Run(r4EventH("l", "2026-08-13T11:30:00+09:00"), R4_LUNCH, "lunch",
+    morning.lineage.records);
+  assert.equal(lunch.briefing.length, 0, "지문 그대로 → 점심판 재선택 금지");
+  const blocked = lunch.perCategory.business.excluded.gate.find((entry) =>
+    entry.gate.failures.includes("reappear_no_material_change"));
+  assert.ok(blocked, "재등장 사유로 차단돼야 한다");
+  assert.equal(blocked.view.lineage.lineageId, lineageId, "계보 승계로 같은 사건 판정");
+});
+
+test("R4 반례 ⓑ: 실질 변화(지문 변경)면 슬롯2에서 재통과 — 지문 변천이 관찰된다", () => {
+  const morning = r4Run(r4EventH("m", "2026-08-13T06:00:00+09:00"), R4_MORNING, "morning", []);
+  const servedFingerprint = morning.briefing[0].view.event.factsFingerprint;
+  const lineageId = morning.briefing[0].lineageId;
+  // 점심: 원 제목 재게시(계보 승계 근거 — 제목 키 겹침) + 새 사실 토큰
+  // ("해제")이 더해진 속보 — 사건 지문이 바뀐다.
+  const changed = [
+    ...r4EventH("l", "2026-08-13T11:20:00+09:00"),
+    article({ id: "r4-h-c", title: "청라만 해협 봉쇄 위기 해제 선언", category: "business",
+      source: "news-a", ownershipGroup: "group-a", ownershipBasis: "registry_explicit",
+      url: "https://a.example.com/r4-h-c", publishedAt: "2026-08-13T11:30:00+09:00" }),
+    article({ id: "r4-h-d", title: "청라만 해협 봉쇄 위기 해제 선언", category: "business",
+      source: "news-b", ownershipGroup: "group-b", ownershipBasis: "registry_explicit",
+      url: "https://b.example.com/r4-h-d", publishedAt: "2026-08-13T11:35:00+09:00" })
+  ];
+  const lunch = r4Run(changed, R4_LUNCH, "lunch", morning.lineage.records);
+  assert.equal(lunch.briefing.length, 1, "실질 변화는 재통과");
+  const entry = lunch.briefing[0];
+  assert.equal(entry.lineageId, lineageId, "같은 계보(같은 사건)의 갱신");
+  assert.equal(entry.view.lineage.inherited, true);
+  assert.equal(entry.view.lineage.previousServedFingerprint, servedFingerprint,
+    "직전 서빙 지문이 넘어와 있다");
+  assert.notEqual(entry.view.event.factsFingerprint, servedFingerprint, "지문 변천");
+});
+
+test("R4 반례 ⓒ: 슬롯1 게이트 탈락(미서빙) 사건은 슬롯2에서 재등장 차단되지 않는다", () => {
+  // 아침: 단독 출처라 신뢰 게이트 탈락 — 서빙 안 됨.
+  const solo = article({ id: "r4-u-1", title: "달빛시 노면전차 야간 운행 확대", category: "business",
+    source: "solo-news", ownershipGroup: "group-u", ownershipBasis: "registry_explicit",
+    publishedAt: "2026-08-13T06:00:00+09:00" });
+  const morning = r4Run([solo], R4_MORNING, "morning", []);
+  assert.equal(morning.briefing.length, 0, "아침판 미서빙");
+  // 점심: 독립 2번째 출처가 붙는다. 지문은 그대로(같은 사실).
+  const second = article({ id: "r4-u-2", title: "달빛시 노면전차 야간 운행 확대", category: "business",
+    source: "other-news", ownershipGroup: "group-v", ownershipBasis: "registry_explicit",
+    url: "https://v.example.com/r4-u-2", publishedAt: "2026-08-13T11:30:00+09:00" });
+  const lunch = r4Run([solo, second], R4_LUNCH, "lunch", morning.lineage.records);
+  assert.equal(lunch.briefing.length, 1, "서빙된 적 없는 사건은 차단 대상이 아니다");
+  assert.ok(!lunch.perCategory.business.excluded.gate.some((entry) =>
+    entry.gate.failures.includes("reappear_no_material_change")));
+});
+
+test("R4 반례 ⓓ: 3연속 체이닝 — 슬롯1 서빙·슬롯2 부재·슬롯3 재등장도 계보 이월로 차단", () => {
+  const morning = r4Run(r4EventH("m", "2026-08-13T06:00:00+09:00"), R4_MORNING, "morning", []);
+  assert.equal(morning.briefing.length, 1);
+  const lineageId = morning.briefing[0].lineageId;
+  // 점심: 사건 H는 풀에 없다(쉼) — 무관한 사건만 흐른다.
+  const other = [
+    article({ id: "r4-o-1", title: "금빛항만 자동화 부두 개장", category: "business",
+      source: "news-y1", ownershipGroup: "group-y1", ownershipBasis: "registry_explicit",
+      publishedAt: "2026-08-13T11:00:00+09:00" }),
+    article({ id: "r4-o-2", title: "금빛항만 자동화 부두 개장", category: "business",
+      source: "news-y2", ownershipGroup: "group-y2", ownershipBasis: "registry_explicit",
+      url: "https://y2.example.com/r4-o-2", publishedAt: "2026-08-13T11:05:00+09:00" })
+  ];
+  const lunch = r4Run(other, R4_LUNCH, "lunch", morning.lineage.records);
+  assert.ok(!lunch.briefing.some((entry) => entry.lineageId === lineageId), "점심판에 H 없음");
+  assert.ok(lunch.lineage.records.some((record) => record.lineageId === lineageId
+    && record.lastServedFactsFingerprint), "H 계보는 서빙 지문째 이월된다");
+  // 저녁: H가 같은 지문으로 재등장(id·publishedAt만 새것) — 한 판 쉬었어도 차단.
+  const evening = r4Run(r4EventH("e", "2026-08-13T18:30:00+09:00"), R4_EVENING, "evening",
+    lunch.lineage.records);
+  assert.equal(evening.briefing.length, 0, "슬롯3 재등장도 차단");
+  const blocked = evening.perCategory.business.excluded.gate.find((entry) =>
+    entry.gate.failures.includes("reappear_no_material_change"));
+  assert.ok(blocked, "재등장 사유");
+  assert.equal(blocked.view.lineage.lineageId, lineageId, "아침판 계보가 저녁까지 이어진다");
+});
