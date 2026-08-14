@@ -8,9 +8,12 @@ import assert from "node:assert/strict";
 
 import {
   buildEventClusters,
+  carryEventLineages,
   composeEventFromMembers,
   decideEventMerge,
+  eventLineageRecord,
   eventMaterialChange,
+  lineageMatchCandidates,
   sharedEventTokens
 } from "../src/feed/event-cluster.js";
 import { operationalSourceIdentity } from "../src/feed/editorial-source-identity.js";
@@ -322,4 +325,97 @@ test("C4: 등재 레지스트리 기준으로도 bbc-sport·yna-sports가 운영
   // ownershipGroup 명시 없이 소스 id·라벨만으로 communities.json 파생 별칭이 해석돼야 한다.
   assert.equal(operationalSourceIdentity({ source: "bbc-sport", sourceLabel: "BBC Sport" }).ownershipGroup, "bbc");
   assert.equal(operationalSourceIdentity({ source: "yna-sports", sourceLabel: "연합뉴스 스포츠" }).ownershipGroup, "yonhap");
+});
+
+// ---------------------------------------------------------------------------
+// R1 — 영구 사건 계보(lineage): eventId가 변천해도 판 간 같은 사건으로 잇는다
+// (블루프린트 "2026-08-14 P3-A 판정" 결함 4 · 반례 b·c의 계보 단위 고정)
+// ---------------------------------------------------------------------------
+
+// 판 N: 늦은 파편 2건. 판 N+1: 더 이른 기사가 지연 합류해 앵커가 바뀐다.
+const lnLateA = article({ id: "ln-a", title: "새빛제철 고로 재가동 발표",
+  publishedAt: "2026-08-13T10:00:00+09:00", category: "business",
+  source: "news-a", sourceLabel: "매체A" });
+const lnLateB = article({ id: "ln-b", title: "새빛제철 고로 재가동 발표",
+  publishedAt: "2026-08-13T10:05:00+09:00", category: "business",
+  source: "news-b", sourceLabel: "매체B", url: "https://b.example.com/ln-b" });
+// 이른 기사 — 제목 정규화 키가 달라 앵커 교체 시 eventId가 바뀐다.
+// 사건 토큰(새빛제철·고로·재가동)은 부분집합이라 factsFingerprint는 안 변한다
+// ("발표"는 일반어라 토큰에서 걷힌다).
+const lnEarly = article({ id: "ln-early", title: "새빛제철 고로 재가동",
+  publishedAt: "2026-08-13T08:00:00+09:00", category: "business",
+  source: "news-c", sourceLabel: "매체C", url: "https://c.example.com/ln-early" });
+
+test("계보: eventId 유지 재등장은 event_id 근거로 승계되고 aliasChain이 늘지 않는다", () => {
+  const [morning] = buildEventClusters([lnLateA, lnLateB]);
+  const records = [eventLineageRecord(morning)];
+  const [lunch] = buildEventClusters([lnLateA, lnLateB]);
+  const { assignments } = carryEventLineages(records, [lunch]);
+  const assigned = assignments.get(lunch.eventId);
+  assert.equal(assigned.inherited, true);
+  assert.equal(assigned.basis, "lineage_event_id");
+  assert.equal(assigned.lineageId, records[0].lineageId);
+  assert.equal(assigned.record.aliasChain.length, 1, "ID 변천이 없으면 별칭 체인 불변");
+});
+
+test("계보: 이른 기사 지연 합류로 eventId가 바뀌어도 구성원 겹침으로 같은 계보를 승계한다 (반례 b 구조부)", () => {
+  const [eventN] = buildEventClusters([lnLateA, lnLateB]);
+  const records = [eventLineageRecord(eventN)];
+  const [eventN1] = buildEventClusters([lnEarly, lnLateA, lnLateB]);
+  assert.notEqual(eventN1.eventId, eventN.eventId,
+    "이른 기사가 앵커가 되면 eventId가 바뀌어야 이 반례가 성립한다");
+  assert.equal(eventN1.factsFingerprint, eventN.factsFingerprint,
+    "이른 기사 토큰이 부분집합이면 사실 지문은 그대로다");
+  const { assignments, records: next } = carryEventLineages(records, [eventN1]);
+  const assigned = assignments.get(eventN1.eventId);
+  assert.equal(assigned.inherited, true, "eventId가 바뀌어도 같은 사건으로 이어져야 한다");
+  assert.equal(assigned.basis, "lineage_member_overlap");
+  assert.equal(assigned.lineageId, records[0].lineageId, "lineageId는 영구 불변");
+  assert.equal(assigned.previousFingerprint, eventN.factsFingerprint,
+    "재등장 게이트 재료: 이전 판 지문이 계보로 전달된다");
+  // eventId 변천은 aliasOf 체인으로 append-only 기록된다.
+  const record = next.find((row) => row.lineageId === records[0].lineageId);
+  assert.deepEqual(record.aliasChain.map((row) => row.eventId),
+    [eventN.eventId, eventN1.eventId]);
+  assert.equal(record.aliasChain[1].aliasOf, eventN.eventId);
+  assert.ok(record.eventIds.includes(eventN.eventId) && record.eventIds.includes(eventN1.eventId));
+  // 이전 레코드는 변형되지 않는다(append-only — 새 레코드로 확장).
+  assert.deepEqual(records[0].eventIds, [eventN.eventId]);
+});
+
+test("계보 오승계 방지 1: 무관한 사건은 구성이 그럴듯해도 계보를 가로채지 못한다 (반례 c)", () => {
+  const [eventN] = buildEventClusters([lnLateA, lnLateB]);
+  const records = [eventLineageRecord(eventN)];
+  // 다른 사건 — 같은 업종·비슷한 어형이지만 구성원·제목 키·지문 전부 다르다.
+  const other = buildEventClusters([
+    article({ id: "ln-x1", title: "한아름제철 전기로 신설 발표",
+      publishedAt: "2026-08-13T11:00:00+09:00", category: "business",
+      source: "news-x1", sourceLabel: "매체X" }),
+    article({ id: "ln-x2", title: "한아름제철 전기로 신설 발표",
+      publishedAt: "2026-08-13T11:10:00+09:00", category: "business",
+      source: "news-x2", sourceLabel: "매체Y", url: "https://y.example.com/ln-x2" })
+  ]);
+  assert.equal(other.length, 1);
+  assert.equal(lineageMatchCandidates(records, other[0]).length, 0,
+    "겹치는 근거가 없으면 승계 후보 자체가 없어야 한다");
+  const { assignments, records: next } = carryEventLineages(records, other);
+  const assigned = assignments.get(other[0].eventId);
+  assert.equal(assigned.inherited, false, "미승계 — 새 계보를 연다");
+  assert.notEqual(assigned.lineageId, records[0].lineageId);
+  // 원 계보는 사라지지 않고 다음 판으로 이월된다(한 판 쉬어도 영구).
+  assert.ok(next.some((row) => row.lineageId === records[0].lineageId));
+});
+
+test("계보 오승계 방지 2: 최상 근거가 동률인 계보 2개면 승계를 포기한다 (오병합>미병합 원칙의 계보 적용)", () => {
+  const [eventN1] = buildEventClusters([lnEarly, lnLateA, lnLateB]);
+  // 인위 동률: 서로 다른 계보 2개가 같은 구성원 기사 ID를 주장하는 손상 상태.
+  const rival = (lineageId) => ({
+    lineageId, currentEventId: `EV-${lineageId}`, eventIds: [`EV-${lineageId}`],
+    aliasChain: [{ eventId: `EV-${lineageId}`, aliasOf: null, basis: "lineage_origin" }],
+    memberArticleIds: ["ln-a"], titleKeys: [], factsFingerprint: "EVF-x", fingerprints: ["EVF-x"]
+  });
+  const { assignments } = carryEventLineages([rival("LN-r1"), rival("LN-r2")], [eventN1]);
+  const assigned = assignments.get(eventN1.eventId);
+  assert.equal(assigned.inherited, false, "동률이면 오승계 대신 미승계");
+  assert.equal(assigned.basis, "lineage_ambiguous_declined");
 });

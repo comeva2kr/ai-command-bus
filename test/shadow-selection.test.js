@@ -404,3 +404,141 @@ test("파라미터: overrideShadowParams는 원본을 두고 깊은 병합 사�
   assert.equal(tuned.packs.community.windowHours, 6, "나머지 값 유지");
   assert.equal(SHADOW_PACK_PARAMS.packs.community.engMin, 30, "원본 불변");
 });
+
+// ---------------------------------------------------------------------------
+// R1 반례 a·b·c (David 명시 — 블루프린트 "2026-08-14 P3-A 판정" 결함 2·4)
+// 이 세 테스트가 통과해야 3일 관찰 게이트가 열린다.
+// ---------------------------------------------------------------------------
+
+test("반례 a: 스포츠 매체+종합뉴스 같은 사건 — 전체 클러스터링 선행으로 스포츠 팩 게이트 통과", () => {
+  // 기존 구조(팩으로 자른 뒤 클러스터링)에서는 sports 팩에 스포츠 기사 1건,
+  // newsy 팩에 종합뉴스 기사 1건만 남아 **양쪽 다 단일 출처로 탈락**했다
+  // (P3-A 결함 2의 확인 반례). R1은 전체 풀에서 먼저 사건을 묶는다.
+  const rows = [
+    article({ id: "ca-sport", title: "한빛구단 챔피언결정전 우승 확정", category: "sports",
+      source: "sport-media", ownershipGroup: "sport-grp", ownershipBasis: "registry_explicit",
+      publishedAt: "2026-08-13T11:00:00+09:00" }),
+    article({ id: "ca-news", title: "한빛구단 챔피언결정전 우승 확정", category: "news",
+      source: "general-news", ownershipGroup: "news-grp", ownershipBasis: "registry_explicit",
+      url: "https://other.example.com/ca-news", publishedAt: "2026-08-13T11:10:00+09:00" })
+  ];
+  const sports = shadowSelectEdition(rows, { packId: "sports", now: NOW });
+  assert.equal(sports.counts.events, 1, "전체 클러스터링 후 한 사건");
+  assert.equal(sports.selected.length, 1, "스포츠 분야에서 게이트 통과");
+  assert.equal(sports.selected[0].gate.passedBy, "independent_groups>=2");
+  assert.equal(sports.selected[0].gate.trust.independentReportingGroups, 2, "독립 2");
+  // 복수 귀속: 같은 사건이 newsy 팩 후보이기도 하다(구성원 카테고리 분포 기반).
+  // 판 간 중복 제거는 R2 합집합 단계에서 한다.
+  assert.deepEqual(sports.selected[0].view.packIds, ["newsy", "sports"]);
+  assert.deepEqual(sports.selected[0].view.categoryIds, ["news", "sports"]);
+  const newsy = shadowSelectEdition(rows, { packId: "newsy", now: NOW });
+  assert.equal(newsy.selected.length, 1, "newsy 팩에서도 같은 사건이 보인다(복수 귀속)");
+});
+
+// 반례 b 픽스처 — 판 N의 늦은 파편 2건과, 판 N+1에 지연 합류하는 이른 기사.
+const cbLate = [
+  article({ id: "cb-a", title: "새빛제철 고로 재가동 발표", category: "business",
+    source: "news-a", ownershipGroup: "group-a", ownershipBasis: "registry_explicit",
+    publishedAt: "2026-08-13T10:00:00+09:00" }),
+  article({ id: "cb-b", title: "새빛제철 고로 재가동 발표", category: "business",
+    source: "news-b", ownershipGroup: "group-b", ownershipBasis: "registry_explicit",
+    url: "https://other.example.com/cb-b", publishedAt: "2026-08-13T10:05:00+09:00" })
+];
+// 이른 기사(08:00) — 정규화 제목 키가 달라 앵커 교체로 eventId가 바뀐다.
+// 사건 토큰은 부분집합("발표"는 일반어로 걷힘) → factsFingerprint 동일.
+const cbEarlySame = article({ id: "cb-early", title: "새빛제철 고로 재가동", category: "business",
+  source: "news-c", ownershipGroup: "group-c", ownershipBasis: "registry_explicit",
+  url: "https://c.example.com/cb-early", publishedAt: "2026-08-13T08:00:00+09:00" });
+// 이른 기사 변형 — 새 토큰("중단")이 더해져 지문이 바뀐다(실질 변화).
+const cbEarlyChanged = article({ id: "cb-early2", title: "새빛제철 고로 재가동 중단 번복", category: "business",
+  source: "news-c", ownershipGroup: "group-c", ownershipBasis: "registry_explicit",
+  url: "https://c.example.com/cb-early2", publishedAt: "2026-08-13T08:00:00+09:00" });
+
+test("반례 b: 이른 기사 지연 합류로 eventId가 바뀌어도 계보 승계 — 지문 동일이면 재등장 게이트 차단", () => {
+  // 판 N: 선택됨. lineage.records를 판 N+1로 넘긴다.
+  const editionN = shadowSelectEdition(cbLate, { packId: "newsy", now: NOW, previousLineage: [] });
+  assert.equal(editionN.selected.length, 1);
+  const eventIdN = editionN.selected[0].view.event.eventId;
+  const lineageIdN = editionN.selected[0].view.lineage.lineageId;
+
+  // 판 N+1: 더 이른 기사가 합류 → 앵커 교체 → eventId 변천.
+  const editionN1 = shadowSelectEdition([cbEarlySame, ...cbLate], {
+    packId: "newsy", now: NOW, previousLineage: editionN.lineage.records
+  });
+  assert.equal(editionN1.counts.events, 1);
+  const viewN1 = editionN1.excluded.gate[0] && editionN1.excluded.gate[0].view;
+  assert.ok(viewN1, "재등장 게이트에 걸려 제외돼야 한다");
+  assert.notEqual(viewN1.event.eventId, eventIdN, "eventId가 실제로 바뀌는 반례여야 한다");
+  assert.equal(viewN1.lineage.inherited, true, "계보 승계로 같은 사건 판정");
+  assert.equal(viewN1.lineage.lineageId, lineageIdN, "lineageId는 판 간 불변");
+  assert.equal(editionN1.selected.length, 0, "지문 동일 → 재선택 금지");
+  assert.ok(editionN1.excluded.gate[0].gate.failures.includes("reappear_no_material_change"));
+});
+
+test("반례 b 대조: 같은 계보라도 실질 변화(지문 변경)가 있으면 재등장 게이트를 통과한다", () => {
+  const editionN = shadowSelectEdition(cbLate, { packId: "newsy", now: NOW, previousLineage: [] });
+  const lineageIdN = editionN.selected[0].view.lineage.lineageId;
+  const editionN1 = shadowSelectEdition([cbEarlyChanged, ...cbLate], {
+    packId: "newsy", now: NOW, previousLineage: editionN.lineage.records
+  });
+  assert.equal(editionN1.selected.length, 1, "새 사실이 더해진 사건은 재선택 허용");
+  const view = editionN1.selected[0].view;
+  assert.equal(view.lineage.inherited, true, "여전히 같은 계보(같은 사건)");
+  assert.equal(view.lineage.lineageId, lineageIdN);
+  assert.notEqual(view.event.factsFingerprint, view.lineage.previousFingerprint,
+    "지문이 실제로 바뀐 픽스처여야 한다");
+});
+
+test("반례 c: 비슷한 구성의 다른 사건이 계보를 가로채 재등장 게이트를 오작동시키지 않는다", () => {
+  // 판 N: 사건 X 선택. 판 N+1: 같은 업종·같은 어형의 **다른 사건 Y** —
+  // 구성원·제목 키·지문이 전부 달라 승계 근거가 없다. Y가 X의 계보를
+  // 가로채면(오승계) X의 지문과 비교돼 부당 차단되거나, X가 실제 재등장할
+  // 때 계보를 잃는다. 오병합>미병합 원칙은 계보에도 적용된다.
+  const editionN = shadowSelectEdition(cbLate, { packId: "newsy", now: NOW, previousLineage: [] });
+  const lineageIdX = editionN.selected[0].view.lineage.lineageId;
+  const rowsY = [
+    article({ id: "cc-y1", title: "한아름제철 전기로 신설 확정", category: "business",
+      source: "news-y1", ownershipGroup: "group-y1", ownershipBasis: "registry_explicit",
+      publishedAt: "2026-08-13T11:00:00+09:00" }),
+    article({ id: "cc-y2", title: "한아름제철 전기로 신설 확정", category: "business",
+      source: "news-y2", ownershipGroup: "group-y2", ownershipBasis: "registry_explicit",
+      url: "https://other.example.com/cc-y2", publishedAt: "2026-08-13T11:10:00+09:00" })
+  ];
+  const editionN1 = shadowSelectEdition(rowsY, {
+    packId: "newsy", now: NOW, previousLineage: editionN.lineage.records
+  });
+  assert.equal(editionN1.selected.length, 1, "무관한 새 사건은 정상 선택된다");
+  const view = editionN1.selected[0].view;
+  assert.equal(view.lineage.inherited, false, "승계 없음 — 새 계보");
+  assert.notEqual(view.lineage.lineageId, lineageIdX, "X의 계보를 가로채지 않는다");
+  // X의 계보는 소멸하지 않고 이월된다 — X가 다음 판에 재등장하면 이어진다.
+  assert.ok(editionN1.lineage.records.some((row) => row.lineageId === lineageIdX));
+});
+
+test("재등장 게이트는 직전 판에 서빙(선택)된 사건만 차단한다 (검수 P1 수리)", () => {
+  // 판 N: cb 사건은 선택되고, U 사건은 단독 출처라 게이트 탈락(서빙 안 됨).
+  const u1 = article({ id: "u-solo", title: "월곡시 도서관 야간 개방 시범 운영", category: "business",
+    source: "solo-news", ownershipGroup: "group-d", ownershipBasis: "registry_explicit",
+    publishedAt: "2026-08-13T10:00:00+09:00" });
+  const editionN = shadowSelectEdition([...cbLate, u1], { packId: "newsy", now: NOW, previousLineage: [] });
+  assert.equal(editionN.selected.length, 1, "cb 사건만 선택");
+  assert.ok(editionN.excluded.gate.some((entry) =>
+    entry.gate.failures.includes("trust_reported_secondary_alone")), "U는 신뢰 게이트 탈락");
+
+  // 판 N+1: U에 독립 2번째 출처가 붙는다. 지문은 그대로(같은 제목·같은 사실).
+  // 수리 전에는 판 N의 "관찰 지문"이 U까지 차단해 영원히 못 나가는 구조였다.
+  const u2 = article({ id: "u-second", title: "월곡시 도서관 야간 개방 시범 운영", category: "business",
+    source: "other-news", ownershipGroup: "group-e", ownershipBasis: "registry_explicit",
+    url: "https://e.example.com/u-second", publishedAt: "2026-08-13T11:30:00+09:00" });
+  const editionN1 = shadowSelectEdition([...cbLate, u1, u2], {
+    packId: "newsy", now: NOW, previousLineage: editionN.lineage.records
+  });
+  const uSelected = editionN1.selected.find((entry) =>
+    entry.view.memberArticles.some((row) => row.id === "u-solo"));
+  assert.ok(uSelected, "서빙된 적 없는 U는 재등장 게이트에 걸리지 않고 독립 2로 통과해야 한다");
+  assert.ok(!uSelected.gate.failures.includes("reappear_no_material_change"));
+  // 반대로 판 N에 서빙된 cb 사건은 지문 그대로라 정확히 차단된다.
+  assert.ok(editionN1.excluded.gate.some((entry) =>
+    entry.view.memberArticles.some((row) => row.id === "cb-a")
+    && entry.gate.failures.includes("reappear_no_material_change")));
+});

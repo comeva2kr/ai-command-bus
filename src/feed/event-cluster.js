@@ -320,3 +320,221 @@ export function composeEventFromMembers(members) {
 export const eventMaterialChange = (previousEvent, nextEvent) =>
   Boolean(previousEvent && nextEvent
     && previousEvent.factsFingerprint !== nextEvent.factsFingerprint);
+
+// ---------------------------------------------------------------------------
+// 영구 사건 계보(lineage) — R1 (블루프린트 "2026-08-14 P3-A 판정" 결함 4)
+// ---------------------------------------------------------------------------
+//
+// 문제: eventId는 "가장 이른 구성 기사의 정규화 키"에서 파생된다. 판 N에서
+// 선택된 사건에 판 N+1에서 더 이른 기사가 지연 합류하면 앵커가 바뀌어
+// eventId가 달라지고, eventId 기준 재등장 게이트가 같은 사건을 신규로
+// 오판한다(호르무즈형 반례). eventId 파생 규칙 자체는 digest가 소비 중이라
+// 바꾸지 않는다 — 대신 판 사이를 잇는 **영구 계보(lineage) 계층**을 위에 얹는다.
+//
+// 설계 (기존 export 무변경 — 아래는 전부 추가 export):
+//  - lineageId: 사건이 처음 관측된 판의 eventId에서 파생. 이후 eventId가
+//    몇 번 변천해도 lineageId는 불변(영구 지문).
+//  - 계보 레코드는 사건의 전 구성원 기사 ID·정규화 제목 키 집합·
+//    factsFingerprint 이력을 append-only로 축적한다. eventId 변천은
+//    aliasChain(aliasOf 체인)으로 append-only 기록한다.
+//  - 승계 매칭은 강한 근거 순서: eventId 일치 > 구성원 기사 ID 겹침 >
+//    정규화 제목 키 겹침 > factsFingerprint 완전일치.
+//  - **오승계 방지(오병합>미병합 원칙의 계보 적용)**: 최상 근거가 서로 다른
+//    계보 2개에서 동률이면 승계하지 않고 새 계보를 연다(미승계가 오승계보다
+//    낫다). 판정은 결정적이다.
+export const EVENT_LINEAGE_RULES = Object.freeze({
+  stableId: "NOWHOT-EVENT-LINEAGE-CONTRACT-001",
+  version: 1,
+  matchBases: Object.freeze([
+    "lineage_event_id",          // rank 3 — 같은 eventId를 이미 계보가 안다
+    "lineage_member_overlap",    // rank 2 — 구성원 기사 ID 교집합 ≥ 1
+    "lineage_title_key_overlap", // rank 1 — 정규화 제목 키 교집합 ≥ 1
+    "lineage_facts_fingerprint"  // rank 0 — 사실 지문 완전일치
+  ]),
+  ambiguity: "동률 후보 2개 이상이면 미승계(새 계보) — 오승계는 미승계보다 나쁜 실패",
+  appendOnly: "eventIds·aliasChain·memberArticleIds·titleKeys·fingerprints는 append-only"
+});
+
+// 사건의 정규화 제목 키 집합 — 앵커·별칭 포함(구성원 보도 기사만, 커뮤 반응 제외).
+const lineageTitleKeysOf = (event) => {
+  const keys = new Set();
+  for (const row of (event && event.sourceEvidence) || []) {
+    if (row.evidenceRole === "community_reaction") continue;
+    const key = normalizeForDedupe(row.title);
+    if (key) keys.add(key);
+  }
+  for (const alias of (event && event.aliases) || []) keys.add(alias);
+  return [...keys].sort();
+};
+
+const uniqSorted = (values) => [...new Set(values.filter(Boolean))].sort();
+
+// 새 계보 레코드 — 사건이 계보 없이 처음 관측될 때.
+export function eventLineageRecord(event) {
+  const eventId = event && event.eventId || "EV-unknown";
+  return {
+    lineageId: `LN-${String(eventId).replace(/^EV-/, "")}`,
+    currentEventId: eventId,
+    eventIds: [eventId],
+    // eventId 변천의 append-only 기록. aliasOf: 직전 currentEventId.
+    aliasChain: [{ eventId, aliasOf: null, basis: "lineage_origin" }],
+    memberArticleIds: uniqSorted((event && event.memberArticleIds) || []),
+    titleKeys: lineageTitleKeysOf(event),
+    factsFingerprint: event && event.factsFingerprint || null,
+    fingerprints: event && event.factsFingerprint ? [event.factsFingerprint] : [],
+    // 직전 "서빙(선택)" 시점의 지문 — 재등장 게이트는 이 값만 본다.
+    // 관찰만 되고 서빙된 적 없는 사건(미선택·게이트 탈락)은 null 유지라
+    // 다음 판에서 차단되지 않는다(검수 P1: 전 사건 지문을 게이트에 쓰면
+    // 직전 판에 서빙된 적 없는 사건까지 전부 차단 — 450/450 실측).
+    lastServedFactsFingerprint: null
+  };
+}
+
+// 서빙(선택) 표시 — 이번 판에 실제 선택된 사건의 레코드에만 현재 지문을
+// 찍는다. 비변형(새 배열·새 객체 반환). 블루프린트 공통 원칙 5의 "직전 판
+// 동일 사건"에서 판 = 서빙판이라는 계약의 구현부다.
+export function markLineageServed(records, servedEventIds) {
+  const served = servedEventIds instanceof Set ? servedEventIds : new Set(servedEventIds || []);
+  return (records || []).map((record) => {
+    if (!record || !served.has(record.currentEventId)) return record;
+    return { ...record, lastServedFactsFingerprint: record.factsFingerprint || null };
+  });
+}
+
+// 이전 판 계보 레코드 목록 대 사건 하나의 매칭 후보 산출(순수·결정적).
+// 반환: { record, basis, rank, score } 배열 — rank·score 내림차순 정렬.
+export function lineageMatchCandidates(previousRecords, event) {
+  const members = new Set((event && event.memberArticleIds) || []);
+  const titleKeys = new Set(lineageTitleKeysOf(event));
+  const candidates = [];
+  for (const record of previousRecords || []) {
+    if (!record) continue;
+    const memberOverlap = (record.memberArticleIds || [])
+      .filter((id) => members.has(id)).length;
+    const titleOverlap = (record.titleKeys || [])
+      .filter((key) => titleKeys.has(key)).length;
+    let basis = null; let rank = -1; let score = 0;
+    if ((record.eventIds || []).includes(event && event.eventId)) {
+      basis = "lineage_event_id"; rank = 3; score = 1;
+    } else if (memberOverlap >= 1) {
+      basis = "lineage_member_overlap"; rank = 2; score = memberOverlap;
+    } else if (titleOverlap >= 1) {
+      basis = "lineage_title_key_overlap"; rank = 1; score = titleOverlap;
+    } else if (record.factsFingerprint && event
+      && record.factsFingerprint === event.factsFingerprint) {
+      basis = "lineage_facts_fingerprint"; rank = 0; score = 1;
+    }
+    if (basis) candidates.push({ record, basis, rank, score });
+  }
+  return candidates.sort((a, b) => b.rank - a.rank || b.score - a.score
+    || String(a.record.lineageId).localeCompare(String(b.record.lineageId)));
+}
+
+// 승계 후 레코드 — append-only 확장(이전 레코드는 절대 변형하지 않는다).
+function extendLineageRecord(previous, event, basis) {
+  const eventId = event.eventId;
+  const changedId = previous.currentEventId !== eventId;
+  return {
+    lineageId: previous.lineageId,
+    currentEventId: eventId,
+    eventIds: uniqSorted([...previous.eventIds, eventId]),
+    aliasChain: changedId
+      ? [...previous.aliasChain, { eventId, aliasOf: previous.currentEventId, basis }]
+      : [...previous.aliasChain],
+    memberArticleIds: uniqSorted([...previous.memberArticleIds, ...(event.memberArticleIds || [])]),
+    titleKeys: uniqSorted([...previous.titleKeys, ...lineageTitleKeysOf(event)]),
+    factsFingerprint: event.factsFingerprint || previous.factsFingerprint,
+    fingerprints: event.factsFingerprint && !previous.fingerprints.includes(event.factsFingerprint)
+      ? [...previous.fingerprints, event.factsFingerprint]
+      : [...previous.fingerprints],
+    // 서빙 지문은 승계 시 그대로 이어진다 — markLineageServed만 갱신한다.
+    lastServedFactsFingerprint: previous.lastServedFactsFingerprint ?? null
+  };
+}
+
+// 판 N 계보 레코드들 + 판 N+1 사건들 → 승계 배정과 다음 판 계보 레코드.
+//
+// 반환:
+//   assignments: Map(eventId → { lineageId, inherited, basis,
+//     previousFingerprint,  // 승계됐다면 이전 판 마지막 지문(재등장 게이트 재료)
+//     record })             // 이 사건의 다음 판 계보 레코드
+//   records: 다음 판에 넘길 전체 계보 레코드(승계 확장분 + 신규 + 이번 판에
+//     안 나타난 이전 계보 그대로 — 사건이 한 판 쉬었다 재등장해도 이어진다)
+//
+// 결정성: 후보를 (rank, score, eventId, lineageId)로 전역 정렬해 그리디 배정.
+// 한 계보는 한 사건에만 승계된다(가장 강한 근거의 사건이 가져간다).
+// 오승계 방지: 어떤 사건의 최상 후보가 서로 다른 계보 2개에서 동률이면 그
+// 사건은 승계 포기(새 계보) — 대조 픽스처로 고정한다.
+export function carryEventLineages(previousRecords, events) {
+  const prev = (previousRecords || []).filter(Boolean);
+  const sortedEvents = [...(events || [])].filter(Boolean)
+    .sort((a, b) => String(a.eventId).localeCompare(String(b.eventId)));
+
+  // 사건별 후보 목록(정렬 완료) 준비.
+  const candidatesByEvent = new Map(sortedEvents.map((event) =>
+    [event.eventId, lineageMatchCandidates(prev, event)]));
+
+  // 전역 그리디: 강한 근거부터 배정. 계보·사건 모두 1회만 소비.
+  const flat = [];
+  for (const event of sortedEvents) {
+    for (const candidate of candidatesByEvent.get(event.eventId)) {
+      flat.push({ event, ...candidate });
+    }
+  }
+  flat.sort((a, b) => b.rank - a.rank || b.score - a.score
+    || String(a.event.eventId).localeCompare(String(b.event.eventId))
+    || String(a.record.lineageId).localeCompare(String(b.record.lineageId)));
+
+  const usedLineages = new Set();
+  const decidedEvents = new Map(); // eventId → { record: prevRecord, basis } | { declined }
+  for (const row of flat) {
+    if (decidedEvents.has(row.event.eventId)) continue;
+    if (usedLineages.has(row.record.lineageId)) continue;
+    // 동률 검사: 같은 사건에 같은 (rank, score)의 미소비 계보가 또 있으면 포기.
+    const rivals = candidatesByEvent.get(row.event.eventId).filter((candidate) =>
+      candidate.record.lineageId !== row.record.lineageId
+      && !usedLineages.has(candidate.record.lineageId)
+      && candidate.rank === row.rank && candidate.score === row.score);
+    if (rivals.length) {
+      decidedEvents.set(row.event.eventId, { declined: true, basis: "lineage_ambiguous_declined" });
+      continue;
+    }
+    decidedEvents.set(row.event.eventId, { record: row.record, basis: row.basis });
+    usedLineages.add(row.record.lineageId);
+  }
+
+  const assignments = new Map();
+  const records = [];
+  for (const event of sortedEvents) {
+    const decided = decidedEvents.get(event.eventId);
+    if (decided && decided.record) {
+      const next = extendLineageRecord(decided.record, event, decided.basis);
+      assignments.set(event.eventId, {
+        lineageId: next.lineageId,
+        inherited: true,
+        basis: decided.basis,
+        previousFingerprint: decided.record.factsFingerprint || null,
+        // 재등장 게이트 재료 — 직전 서빙 시점 지문(서빙된 적 없으면 null).
+        previousServedFingerprint: decided.record.lastServedFactsFingerprint || null,
+        record: next
+      });
+      records.push(next);
+    } else {
+      const fresh = eventLineageRecord(event);
+      assignments.set(event.eventId, {
+        lineageId: fresh.lineageId,
+        inherited: false,
+        basis: decided && decided.basis || "lineage_new",
+        previousFingerprint: null,
+        previousServedFingerprint: null,
+        record: fresh
+      });
+      records.push(fresh);
+    }
+  }
+  // 이번 판에 안 나타난 이전 계보는 그대로 이월(영구 계보 — 한 판 쉬어도 유지).
+  for (const record of prev) {
+    if (!usedLineages.has(record.lineageId)) records.push(record);
+  }
+  return { assignments, records };
+}

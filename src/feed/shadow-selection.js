@@ -18,7 +18,7 @@
 //   가중·임계·창·미결 3건의 기본값은 전부 아래 SHADOW_PACK_PARAMS 한 테이블에
 //   있다. 3일 관찰로 조정될 값이라 하드코딩 산재 금지 — David 답이 오면
 //   overrideShadowParams()로 즉시 바꾼다.
-import { buildEventClusters } from "./event-cluster.js";
+import { buildEventClusters, carryEventLineages, markLineageServed } from "./event-cluster.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import {
   heatAxis, importanceAxis, changeAxis, trustMaterials, engagementOf
@@ -182,6 +182,25 @@ export function packIdForArticle(article, params = SHADOW_PACK_PARAMS) {
   return categoryPackIndex(params).get(article.category || "news") || null;
 }
 
+// R1 — 사건의 분야(팩) 귀속 규칙(블루프린트 "2026-08-14 P3-A 판정" 결함 2).
+//
+// 전체 풀 클러스터링이 선행되므로 한 사건이 여러 카테고리의 기사로 구성될 수
+// 있다(스포츠 매체 + 종합뉴스). 귀속은 **구성원(보도) 기사들의 카테고리 분포
+// 기반 복수 귀속**이다: 구성원 기사 하나라도 그 팩에 속하면 사건은 그 팩의
+// 판 후보다. 대표 1팩·다수결이 아니라 복수 귀속을 택한 이유 — 사건 클러스터
+// 계약이 categoryIds 복수를 허용하고, 단일 귀속은 소수 카테고리 판(스포츠 등)
+// 에서 사건을 다시 잃는다(결함 2의 재발). 판 간 중복(같은 사건이 두 팩 판에
+// 모두 선택)은 R2의 합집합·중복 제거 단계에서 처리 예정이다.
+// 반응(community_reaction) 기사는 귀속에 계수하지 않는다 — 구성원만 본다.
+export function packIdsForEvent(memberArticles, params = SHADOW_PACK_PARAMS) {
+  const ids = new Set();
+  for (const article of memberArticles || []) {
+    const packId = packIdForArticle(article, params);
+    if (packId) ids.add(packId);
+  }
+  return [...ids].sort();
+}
+
 // ---------------------------------------------------------------------------
 // sourceRole 판정 — edition-candidates.js:35 sourceRole()과 같은 규칙
 // (그 함수는 비공개 export라 규칙을 옮겨 적는다 — 현행 파일 무수정 경계).
@@ -342,6 +361,11 @@ export function shadowSelectEdition(articles, {
   registry = [],
   params = SHADOW_PACK_PARAMS,
   previousEditionFingerprints = new Map(),
+  // R1 — 영구 사건 계보. 이전 판 shadowSelectEdition 반환의 lineage.records를
+  // 그대로 넘기면 재등장 게이트가 eventId가 아니라 **계보** 기준으로 판정된다
+  // (이른 기사 지연 합류로 eventId가 바뀌어도 같은 사건으로 이어진다 — 결함 4).
+  // null이면 구 eventId 키 맵(previousEditionFingerprints)으로 폴백한다.
+  previousLineage = null,
   officialResultEventIds = new Set()
 } = {}) {
   const pack = params.packs[packId];
@@ -349,24 +373,44 @@ export function shadowSelectEdition(articles, {
   const registryById = new Map((registry || []).filter(Boolean).map((entry) => [entry.id, entry]));
   const roleOf = (article) => resolveSourceRole(article, registryById.get(article && article.source));
 
-  // 팩 소속 기사 + (뉴스 팩이면) 커뮤 반응 후보를 함께 클러스터해 반응을
-  // 사건에 붙인다 — 커뮤 반응은 heat 축에만 계수된다(정정 3).
+  // R1 클러스터링 순서 교정(블루프린트 "2026-08-14 P3-A 판정" 결함 2):
+  // 팩으로 기사를 자른 뒤 사건을 묶던 구조를 폐기하고, **전체 풀(전 카테고리·
+  // 전 kind)에서 먼저 사건을 묶는다.** 그 다음 사건을 팩으로 라우팅한다.
+  // 기존 구조에서는 같은 사건의 스포츠 매체 1곳+종합뉴스 1곳이 각 팩에서
+  // '단일 출처'로 탈락했다(반례 a). 커뮤 반응은 클러스터링이 사건에 자동으로
+  // 붙인다(evidenceRole=community_reaction — heat 축에만 계수, 정정 3).
   const rows = (articles || []).filter(Boolean);
   const base = rows.filter((article) => packIdForArticle(article, params) === packId);
-  const reactionPool = packId === "community" ? []
-    : rows.filter((article) => article.kind === "community"
-      && packIdForArticle(article, params) !== packId);
-  const baseIds = new Set(base.map((article) => article.id));
-  const events = buildEventClusters([...base, ...reactionPool]);
+  const events = buildEventClusters(rows);
+
+  // R1 영구 계보 — 전체 사건 대상(팩 라우팅 전). 판 사이 승계는 전 사건
+  // 공통이어야 하므로 팩별로 자르기 전에 계산한다.
+  const lineage = carryEventLineages(previousLineage || [], events);
+  const prevFingerprintOf = (event) => {
+    if (previousLineage !== null) {
+      // 검수 P1 수리: 재등장 게이트는 직전 판에 **서빙(선택)된** 사건의 지문만
+      // 본다. 관찰만 된 사건(미선택·게이트 탈락)의 지문으로 차단하면 직전 판에
+      // 나간 적도 없는 사건이 전부 재탕 판정된다(실측 450/450 차단).
+      const assigned = lineage.assignments.get(event.eventId);
+      return assigned && assigned.inherited ? assigned.previousServedFingerprint : null;
+    }
+    return previousEditionFingerprints.get(event.eventId) || null;
+  };
 
   const byId = new Map(rows.map((article) => [article.id, article]));
   const views = [];
   for (const event of events) {
     const memberArticles = event.memberArticleIds.map((id) => byId.get(id)).filter(Boolean);
-    // 팩 구성원이 하나도 없는 사건(반응 풀 전용 등)은 이 팩 판이 아니다.
-    if (!memberArticles.some((article) => baseIds.has(article.id))) continue;
+    // 사건의 팩 귀속 — 구성원 카테고리 분포 기반 복수 귀속(packIdsForEvent 주석).
+    const packIds = packIdsForEvent(memberArticles, params);
+    if (!packIds.includes(packId)) continue;
     const reactionArticles = event.reactionArticleIds.map((id) => byId.get(id)).filter(Boolean);
-    views.push({ event, memberArticles, reactionArticles });
+    views.push({
+      event, memberArticles, reactionArticles,
+      packIds, // 복수 귀속 — 판 간 중복 제거는 R2 합집합 단계 예정
+      categoryIds: [...new Set(memberArticles.map((article) => article.category || "news"))].sort(),
+      lineage: lineage.assignments.get(event.eventId) || null
+    });
   }
 
   // 1) 팩별 자격 게이트
@@ -375,7 +419,7 @@ export function shadowSelectEdition(articles, {
   for (const view of views) {
     const gate = shadowEligibility(view, pack, {
       now, slotId, registryById,
-      previousFingerprint: previousEditionFingerprints.get(view.event.eventId) || null,
+      previousFingerprint: prevFingerprintOf(view.event),
       officialResult: officialResultEventIds.has(view.event.eventId),
       roleOf
     });
@@ -388,7 +432,7 @@ export function shadowSelectEdition(articles, {
     ...row,
     score: shadowScore(row.view, pack, {
       now, params,
-      previousFingerprint: previousEditionFingerprints.get(row.view.event.eventId) || null,
+      previousFingerprint: prevFingerprintOf(row.view.event),
       roleOf
     })
   })).sort((a, b) => b.score.S - a.score.S
@@ -446,6 +490,14 @@ export function shadowSelectEdition(articles, {
       gate: gateFailed,
       sourceCap: capExcluded,
       belowVolume
+    },
+    // R1 — 다음 판에 previousLineage로 그대로 넘길 계보 레코드(전 사건 대상,
+    // 이번 판에 안 나타난 이전 계보 포함). R4(이전 판 상태 연속 관찰)의 재료.
+    // 이번 판에 실제 선택(서빙)된 사건에만 서빙 지문을 찍는다 — 재등장 게이트는
+    // 이 서빙 지문만 보므로, 미선택 사건은 다음 판에서 차단되지 않는다.
+    lineage: {
+      records: markLineageServed(lineage.records,
+        new Set(selected.map((entry) => entry.view.event.eventId)))
     }
   };
 }

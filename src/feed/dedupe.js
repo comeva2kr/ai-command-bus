@@ -55,6 +55,25 @@ export function isSameEvent(a, b) {
   return ka !== null && ka === eventKey(b);
 }
 
+// 콘텐츠 URL의 정규 식별자. 추적 파라미터만 걷고 글의 정체가 될 수 있는
+// 쿼리는 보존한다. 게시판 URL은 `id`·`no` 같은 쿼리가 글 자체이므로 pathname만
+// 남기면 게시판 전체가 한 건으로 합쳐진다.
+export function canonicalContentUrl(value) {
+  try {
+    const url = new URL(value);
+    if (!/^https?:$/.test(url.protocol)) return null;
+    const params = [...url.searchParams]
+      .filter(([key]) => !/^(utm_|fbclid|gclid|igshid|ref$)/i.test(key))
+      .sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
+    const query = params.length
+      ? "?" + params.map(([key, val]) => `${encodeURIComponent(key)}=${encodeURIComponent(val)}`).join("&")
+      : "";
+    return url.origin + url.pathname + query;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // 근접 중복(브리핑 이슈 간) — 어순·수식어가 달라 완전일치는 아니지만 같은 사건.
 //
@@ -65,6 +84,22 @@ export function isSameEvent(a, b) {
 // 만들지 않는다 — 같은 전처리(말머리·매체명 꼬리·개정 표기 제거)를 그대로
 // 쓰고, 비교만 낱말 단위로 한다.
 const WORD_RE = /[0-9a-z가-힣]{2,}/g;
+const ENGLISH_STOP_WORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "for", "from",
+  "had", "has", "have", "he", "her", "him", "his", "how", "i", "if", "in", "into",
+  "is", "it", "its", "me", "more", "most", "my", "no", "not", "of", "on", "once",
+  "or", "our", "she", "so", "than", "that", "the", "their", "them", "then", "there",
+  "these", "they", "this", "those", "to", "too", "up", "us", "was", "we", "were",
+  "what", "when", "where", "which", "who", "why", "will", "with", "you", "your"
+]);
+const GENERIC_NEWS_WORDS = new Set([
+  "관련", "기사", "뉴스", "보도", "소식", "오늘", "현재", "이번", "대한", "통해",
+  "예정", "공개", "진행", "시작", "주장", "사건", "출처", "관측",
+  // 분류 라벨은 같은 사건의 근거가 아니다. 테스트 픽스처뿐 아니라 번역되지
+  // 않은 영문 제목에 카테고리명이 반복돼도 중복 점수를 부풀리지 않게 한다.
+  "art", "auto", "business", "culture", "fashion", "gaming", "humor", "life",
+  "news", "politics", "realestate", "science", "sports", "tech"
+]);
 
 export function titleWords(title) {
   let t = String(title || "");
@@ -84,3 +119,57 @@ export function sharedTitleWordCount(a, b) {
   for (const w of wa) if (wb.has(w)) n++;
   return n;
 }
+
+// 최종 지면의 제목 변주는 조사·활용형 때문에 같은 사건이어도 공통 낱말이 1개로
+// 보일 수 있다. 반대로 영문 장문은 the/for/with 같은 불용어만 4개 이상 겹쳐
+// 무관한 게임 기사까지 중복으로 사라졌다. 문단을 합치는 키에는 쓰지 않고,
+// 최종 대표 이슈를 하나만 남기는 보수적 근접중복 단계에서만 사용한다.
+export function titleConcepts(title) {
+  const concepts = titleWords(title).map((word) => {
+    if (GENERIC_NEWS_WORDS.has(word)) return null;
+    if (/^[a-z]+$/.test(word)) return ENGLISH_STOP_WORDS.has(word) ? null : word;
+    const compactNumber = word.replace(/(?:명|건|원)$/u, "");
+    const koreanUnit = compactNumber.match(/^(\d+)만(?:(\d+)(천)?)?$/u);
+    if (koreanUnit) {
+      const tail = Number(koreanUnit[2] || 0) * (koreanUnit[3] ? 1000 : 1);
+      return `num:${Number(koreanUnit[1]) * 10000 + tail}`;
+    }
+    if (/^\d{3,}$/.test(compactNumber)) return `num:${Number(compactNumber)}`;
+    if (!/^[가-힣]+$/.test(word)) return word;
+    let normalized = word;
+    if (normalized.length >= 3) {
+      normalized = normalized
+        .replace(/(?:으로|에서|에게|까지|부터|처럼|보다|마다|이나|에|가|이|은|는|을|를|의|와|과|도|만)$/u, "")
+        .replace(/(?:하라|해야)$/u, "");
+    }
+    if (normalized.length < 2) normalized = word;
+    if (normalized === "강진" || normalized === "대지진") normalized = "지진";
+    return GENERIC_NEWS_WORDS.has(normalized) ? null : normalized;
+  }).filter(Boolean);
+  return [...new Set(concepts)];
+}
+
+function sameTitleConcept(a, b) {
+  if (a === b) return true;
+  const korean = /^[가-힣]+$/.test(a) && /^[가-힣]+$/.test(b);
+  const minLength = Math.min(a.length, b.length);
+  if (minLength < (korean ? 2 : 3)) return false;
+  return a.startsWith(b) || b.startsWith(a) || a.endsWith(b) || b.endsWith(a);
+}
+
+export function sharedTitleConcepts(a, b) {
+  const left = titleConcepts(a);
+  const right = titleConcepts(b);
+  const used = new Set();
+  const shared = [];
+  for (const concept of left) {
+    const match = right.findIndex((candidate, index) =>
+      !used.has(index) && sameTitleConcept(concept, candidate));
+    if (match < 0) continue;
+    used.add(match);
+    shared.push(concept.length <= right[match].length ? concept : right[match]);
+  }
+  return shared;
+}
+
+export const sharedTitleConceptCount = (a, b) => sharedTitleConcepts(a, b).length;
