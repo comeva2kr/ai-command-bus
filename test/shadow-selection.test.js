@@ -11,7 +11,7 @@ import {
 } from "../src/feed/selection-axes.js";
 import {
   SHADOW_PACK_PARAMS, SHADOW_SELECTION_CONTRACT,
-  shadowSelectEdition, packIdForArticle, resolveSourceRole, overrideShadowParams
+  shadowSelectEdition, shadowSelectBriefing, packIdForArticle, resolveSourceRole, overrideShadowParams
 } from "../src/feed/shadow-selection.js";
 import { buildEventClusters } from "../src/feed/event-cluster.js";
 
@@ -513,6 +513,163 @@ test("반례 c: 비슷한 구성의 다른 사건이 계보를 가로채 재등�
   assert.notEqual(view.lineage.lineageId, lineageIdX, "X의 계보를 가로채지 않는다");
   // X의 계보는 소멸하지 않고 이월된다 — X가 다음 판에 재등장하면 이어진다.
   assert.ok(editionN1.lineage.records.some((row) => row.lineageId === lineageIdX));
+});
+
+// ---------------------------------------------------------------------------
+// R2 반례 a~d (블루프린트 "2026-08-14 P3-A 판정" 결함 1 — 재발 방지 동결)
+// 판 조립의 정본 진입점 shadowSelectBriefing: 선택 분야별 최대 14건 →
+// 합집합(lineageId 기준 동일 사건 1회) → 분야별 중요도 층 교차 배치.
+// ---------------------------------------------------------------------------
+
+// 분야별로 병합되지 않는 독립 사건(독립 그룹 2로 게이트 통과) 생성기.
+// 사건 토큰이 분야·인덱스마다 달라 서로 병합되지 않는다(합성어 토큰이라
+// 접두/접미 포함 매칭에도 걸리지 않음).
+const CAT_EVENT_WORDS = {
+  business: ["전자", "칩", "공정"],
+  politics: ["의회", "법안", "표결"],
+  tech: ["플랫폼", "모델", "베타"],
+  humor: ["웃긴", "짤방", "모음"]
+};
+const catEvent = (category, index, { score = 0 } = {}) => {
+  const base = BASES[index];
+  const [w1, w2, w3] = CAT_EVENT_WORDS[category];
+  const title = `${base}${w1} ${base}${w2} ${base}${w3} 확대`;
+  return [
+    article({ id: `${category}-${index}a`, title, category, score,
+      source: `${category}-src-${index}a`, ownershipGroup: `${category}-grp-${index}a`,
+      ownershipBasis: "registry_explicit",
+      url: `https://a.example.com/${category}/${index}`, publishedAt: "2026-08-13T11:00:00+09:00" }),
+    article({ id: `${category}-${index}b`, title, category,
+      source: `${category}-src-${index}b`, ownershipGroup: `${category}-grp-${index}b`,
+      ownershipBasis: "registry_explicit",
+      url: `https://b.example.com/${category}/${index}`, publishedAt: "2026-08-13T11:10:00+09:00" })
+  ];
+};
+
+test("반례 a: business 단독 선택 — politics·tech 전용 사건은 같은 newsy 팩이어도 0건", () => {
+  const rows = [
+    ...[0, 1, 2].flatMap((index) => catEvent("business", index, { score: 1000 })),
+    ...[0, 1].flatMap((index) => catEvent("politics", index, { score: 90000 })), // 반응이 커도 못 들어와야 한다
+    ...[0, 1].flatMap((index) => catEvent("tech", index, { score: 90000 }))
+  ];
+  const out = shadowSelectBriefing(rows, { requestedCategories: ["business"], now: NOW });
+  assert.equal(out.counts.perCategorySelected.business, 3);
+  assert.equal(out.briefing.length, 3, "business 귀속 사건만");
+  for (const entry of out.briefing) {
+    assert.ok(entry.view.categoryIds.includes("business"),
+      "briefing의 모든 사건은 business 귀속이 있어야 한다");
+    assert.deepEqual(entry.selectedByCategories, ["business"]);
+  }
+  // 후보 단계부터 차단: politics·tech 전용 사건은 business 후보가 아니다.
+  assert.equal(out.perCategory.business.counts.candidates, 3);
+});
+
+test("반례 b: business+politics — 각 분야가 각자 최대 14건씩 선별된 뒤 합쳐진다 (16건 재발 방지)", () => {
+  // 두 분야 모두 공급 15건(동일 S) — 팩 전체 선별이면 newsy 한 판 14건으로
+  // 잘리지만, 분야 단위 선별이면 14+14=28건이어야 한다.
+  const rows = [
+    ...Array.from({ length: 15 }, (_, index) => catEvent("business", index, { score: 10000 })).flat(),
+    ...Array.from({ length: 15 }, (_, index) => catEvent("politics", index, { score: 10000 })).flat()
+  ];
+  const out = shadowSelectBriefing(rows, {
+    requestedCategories: ["business", "politics"], now: NOW
+  });
+  // 분야별 카운트를 **각각** assert — 한쪽 공급이 다른 쪽을 밀어내지 않는다.
+  assert.equal(out.counts.perCategorySelected.business, 14, "business 단독 최대 14건");
+  assert.equal(out.counts.perCategorySelected.politics, 14, "politics 단독 최대 14건");
+  assert.equal(out.briefing.length, 28, "합집합 28건 — 팩 전체 14건 아님");
+  const unique = new Set(out.briefing.map((entry) => entry.lineageId));
+  assert.equal(unique.size, 28, "동일 사건 중복 0");
+});
+
+test("반례 b 비대칭: 한쪽 공급이 많아도 다른 쪽 분야 몫을 밀어내지 않는다", () => {
+  const rows = [
+    ...Array.from({ length: 15 }, (_, index) => catEvent("business", index, { score: 10000 })).flat(),
+    ...Array.from({ length: 4 }, (_, index) => catEvent("politics", index, { score: 10 })).flat()
+  ];
+  const out = shadowSelectBriefing(rows, {
+    requestedCategories: ["business", "politics"], now: NOW
+  });
+  assert.equal(out.counts.perCategorySelected.business, 14);
+  assert.equal(out.counts.perCategorySelected.politics, 4, "공급이 적은 분야는 그만큼만 — 부분");
+  assert.equal(out.perCategory.politics.partialEdition, true, "무관 글로 채우지 않는다");
+  assert.equal(out.briefing.length, 18);
+});
+
+test("반례 c: 두 분야에 다 귀속된 사건은 1회만 — 층·전체 S 규칙대로 배치된다", () => {
+  // 교차 귀속 사건 X: business 기사 + politics 기사가 같은 사건(같은 제목).
+  const crossTitle = "한빛세제 개편안 국무회의 통과";
+  const cross = [
+    article({ id: "x-biz", title: crossTitle, category: "business", score: 50000,
+      source: "biz-news", ownershipGroup: "grp-x1", ownershipBasis: "registry_explicit",
+      publishedAt: "2026-08-13T11:00:00+09:00" }),
+    article({ id: "x-pol", title: crossTitle, category: "politics",
+      source: "pol-news", ownershipGroup: "grp-x2", ownershipBasis: "registry_explicit",
+      url: "https://other.example.com/x-pol", publishedAt: "2026-08-13T11:10:00+09:00" })
+  ];
+  const rows = [
+    ...cross,
+    ...catEvent("business", 0, { score: 300 }), // business 2위층
+    ...catEvent("politics", 0, { score: 500 })  // politics 2위층
+  ];
+  const out = shadowSelectBriefing(rows, {
+    requestedCategories: ["business", "politics"], now: NOW
+  });
+  assert.equal(out.counts.perCategorySelected.business, 2);
+  assert.equal(out.counts.perCategorySelected.politics, 2);
+  assert.equal(out.briefing.length, 3, "교차 귀속 사건은 합집합에서 1회만");
+  const crossEntry = out.briefing.find((entry) =>
+    entry.view.memberArticles.some((row) => row.id === "x-biz"));
+  assert.ok(crossEntry);
+  assert.deepEqual(crossEntry.selectedByCategories, ["business", "politics"],
+    "어느 분야들에서 뽑혔는지 기록(whyForYou 재료)");
+  assert.equal(crossEntry.tier, 1, "양쪽 1위층 → 층 1");
+  assert.equal(out.briefing[0], crossEntry, "1위층에서 전체 S 최고 — 맨 앞");
+  // 교차 배치: 각 분야의 1위층이 2위층보다 앞선다.
+  const tiers = out.briefing.map((entry) => entry.tier);
+  assert.deepEqual(tiers, [...tiers].sort((a, b) => a - b), "층 오름차순 배치");
+  assert.equal(out.briefing[1].tier, 2);
+  assert.ok(out.briefing[1].S >= out.briefing[2].S, "같은 층은 전체 S 내림차순");
+});
+
+test("반례 d: 미선택 분야 사건은 일반 지면(briefing)에 자동 혼합되지 않는다", () => {
+  const rows = [
+    ...[0, 1].flatMap((index) => catEvent("business", index, { score: 100 })),
+    // 미선택 분야: 반응이 아무리 커도 briefing에 못 들어온다.
+    ...[0, 1].flatMap((index) => catEvent("tech", index, { score: 99999 })),
+    article({ id: "d-humor", title: "웃긴짤 오늘자 레전드 모음", kind: "community",
+      category: "humor", source: "theqoo", score: 90000, commentCount: 500,
+      publishedAt: "2026-08-13T11:30:00+09:00" })
+  ];
+  const out = shadowSelectBriefing(rows, {
+    requestedCategories: ["business", "politics"], now: NOW
+  });
+  assert.equal(out.briefing.length, 2, "business 사건만");
+  for (const entry of out.briefing) {
+    const requested = entry.view.categoryIds.some((category) =>
+      ["business", "politics"].includes(category));
+    assert.ok(requested, "선택 분야 귀속 없는 사건 혼입 0");
+  }
+  assert.equal(out.counts.perCategorySelected.politics, 0, "공급 없는 선택 분야는 0건 — 채우지 않는다");
+});
+
+test("shadowSelectBriefing: 알 수 없는 카테고리·빈 선택은 즉시 오류 (침묵 혼입 방지)", () => {
+  assert.throws(() => shadowSelectBriefing([], { requestedCategories: [], now: NOW }));
+  assert.throws(() => shadowSelectBriefing([], { requestedCategories: ["nope"], now: NOW }));
+});
+
+test("shadowSelectBriefing: 계보 연속 — briefing에 배치된 사건만 다음 판 재등장 게이트 대상", () => {
+  const rows = [0, 1].flatMap((index) => catEvent("business", index, { score: 100 }));
+  const n0 = shadowSelectBriefing(rows, {
+    requestedCategories: ["business"], now: NOW, previousLineage: []
+  });
+  assert.equal(n0.briefing.length, 2);
+  const n1 = shadowSelectBriefing(rows, {
+    requestedCategories: ["business"], now: NOW, previousLineage: n0.lineage.records
+  });
+  assert.equal(n1.briefing.length, 0, "지문 변화 없는 재등장은 전건 차단");
+  assert.ok(n1.perCategory.business.excluded.gate.every((entry) =>
+    entry.gate.failures.includes("reappear_no_material_change")));
 });
 
 test("재등장 게이트는 직전 판에 서빙(선택)된 사건만 차단한다 (검수 P1 수리)", () => {

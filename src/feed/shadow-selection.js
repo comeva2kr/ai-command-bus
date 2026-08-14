@@ -352,39 +352,25 @@ const capKeyOf = (view, pack) => {
     : operationalSourceIdentity(rep).ownershipGroup;
 };
 
-// articles: 원시 기사 배열(품질 게이트 등 선행 필터는 호출부 책임 — 공통 원칙 6).
-// 반환은 계산·비교용 산출물이다. 서빙에 쓰지 않는다.
-export function shadowSelectEdition(articles, {
-  packId,
-  now = Date.now(),
-  slotId = null,
-  registry = [],
-  params = SHADOW_PACK_PARAMS,
-  previousEditionFingerprints = new Map(),
-  // R1 — 영구 사건 계보. 이전 판 shadowSelectEdition 반환의 lineage.records를
-  // 그대로 넘기면 재등장 게이트가 eventId가 아니라 **계보** 기준으로 판정된다
-  // (이른 기사 지연 합류로 eventId가 바뀌어도 같은 사건으로 이어진다 — 결함 4).
-  // null이면 구 eventId 키 맵(previousEditionFingerprints)으로 폴백한다.
-  previousLineage = null,
-  officialResultEventIds = new Set()
-} = {}) {
-  const pack = params.packs[packId];
-  if (!pack) throw new Error(`shadowSelectEdition: 알 수 없는 팩 ${packId}`);
-  const registryById = new Map((registry || []).filter(Boolean).map((entry) => [entry.id, entry]));
-  const roleOf = (article) => resolveSourceRole(article, registryById.get(article && article.source));
-
-  // R1 클러스터링 순서 교정(블루프린트 "2026-08-14 P3-A 판정" 결함 2):
-  // 팩으로 기사를 자른 뒤 사건을 묶던 구조를 폐기하고, **전체 풀(전 카테고리·
-  // 전 kind)에서 먼저 사건을 묶는다.** 그 다음 사건을 팩으로 라우팅한다.
-  // 기존 구조에서는 같은 사건의 스포츠 매체 1곳+종합뉴스 1곳이 각 팩에서
-  // '단일 출처'로 탈락했다(반례 a). 커뮤 반응은 클러스터링이 사건에 자동으로
-  // 붙인다(evidenceRole=community_reaction — heat 축에만 계수, 정정 3).
+// ── 공유 준비 단계 (판 전체 1회 원칙)
+// R1 클러스터링 순서 교정(블루프린트 "2026-08-14 P3-A 판정" 결함 2):
+// 팩/분야로 기사를 자른 뒤 사건을 묶던 구조를 폐기하고, **전체 풀(전 카테고리·
+// 전 kind)에서 먼저 사건을 묶는다.** 그 다음 사건을 팩·분야로 라우팅한다.
+// 기존 구조에서는 같은 사건의 스포츠 매체 1곳+종합뉴스 1곳이 각 팩에서
+// '단일 출처'로 탈락했다(반례 a). 커뮤 반응은 클러스터링이 사건에 자동으로
+// 붙인다(evidenceRole=community_reaction — heat 축에만 계수, 정정 3).
+//
+// 클러스터링·계보는 **판(브리핑) 전체에서 정확히 1회만** 계산한다 — 분야·팩당
+// 재계산 금지(직전 검수 P3-b). shadowSelectBriefing이 여러 분야를 선별할 때도
+// 이 함수의 반환을 공유한다.
+function prepareShadowPool(articles, {
+  params, previousLineage, previousEditionFingerprints
+}) {
   const rows = (articles || []).filter(Boolean);
-  const base = rows.filter((article) => packIdForArticle(article, params) === packId);
   const events = buildEventClusters(rows);
 
-  // R1 영구 계보 — 전체 사건 대상(팩 라우팅 전). 판 사이 승계는 전 사건
-  // 공통이어야 하므로 팩별로 자르기 전에 계산한다.
+  // R1 영구 계보 — 전체 사건 대상(팩·분야 라우팅 전). 판 사이 승계는 전 사건
+  // 공통이어야 하므로 분야별로 자르기 전에 계산한다.
   const lineage = carryEventLineages(previousLineage || [], events);
   const prevFingerprintOf = (event) => {
     if (previousLineage !== null) {
@@ -401,22 +387,30 @@ export function shadowSelectEdition(articles, {
   const views = [];
   for (const event of events) {
     const memberArticles = event.memberArticleIds.map((id) => byId.get(id)).filter(Boolean);
-    // 사건의 팩 귀속 — 구성원 카테고리 분포 기반 복수 귀속(packIdsForEvent 주석).
-    const packIds = packIdsForEvent(memberArticles, params);
-    if (!packIds.includes(packId)) continue;
     const reactionArticles = event.reactionArticleIds.map((id) => byId.get(id)).filter(Boolean);
     views.push({
       event, memberArticles, reactionArticles,
-      packIds, // 복수 귀속 — 판 간 중복 제거는 R2 합집합 단계 예정
+      // 사건의 팩 귀속 — 구성원 카테고리 분포 기반 복수 귀속(packIdsForEvent 주석).
+      packIds: packIdsForEvent(memberArticles, params),
+      // 사건의 분야(카테고리) 귀속 — 구성원(보도) 기사들의 카테고리 집합.
+      // 반응(community_reaction) 기사는 귀속에 계수하지 않는다.
       categoryIds: [...new Set(memberArticles.map((article) => article.category || "news"))].sort(),
       lineage: lineage.assignments.get(event.eventId) || null
     });
   }
+  return { rows, events, lineage, views, prevFingerprintOf };
+}
 
+// ── 한 잣대(팩)로 후보 사건들을 선별: 게이트 → S 정렬 → 소스캡 → 동적 분량.
+// shadowSelectEdition(팩 단위)과 shadowSelectBriefing(분야 단위)이 공유한다 —
+// 잣대는 언제나 팩 계약이고, 무엇이 후보인지(candidateViews)만 다르다.
+function selectWithPackYardstick(candidateViews, pack, {
+  now, slotId, registryById, params, prevFingerprintOf, officialResultEventIds, roleOf
+}) {
   // 1) 팩별 자격 게이트
   const gatePassed = [];
   const gateFailed = [];
-  for (const view of views) {
+  for (const view of candidateViews) {
     const gate = shadowEligibility(view, pack, {
       now, slotId, registryById,
       previousFingerprint: prevFingerprintOf(view.event),
@@ -468,6 +462,51 @@ export function shadowSelectEdition(articles, {
   const belowVolume = capped.slice(cut).map((row) => ({ ...row, exclusion: "below_dynamic_volume" }));
   const partialEdition = selected.length < volume.min;
 
+  return { gatePassed, gateFailed, capExcluded, selected, belowVolume, partialEdition };
+}
+
+// articles: 원시 기사 배열(품질 게이트 등 선행 필터는 호출부 책임 — 공통 원칙 6).
+// 반환은 계산·비교용 산출물이다. 서빙에 쓰지 않는다.
+//
+// **주의 — 이 함수는 팩 단위 선별이다(하위 호환·팩 잣대 단위 관찰용).**
+// 정책 팩 전체에서 뽑으므로 "business만 선택했는데 politics가 섞이는" 판
+// 조립에는 쓰면 안 된다(블루프린트 "2026-08-14 P3-A 판정" 결함 1).
+// **판(브리핑) 조립의 정본 진입점은 shadowSelectBriefing이다** — 선택 분야별
+// 최대 14건 → 합집합(동일 사건 1회) → 분야별 중요도 층 교차 배치.
+export function shadowSelectEdition(articles, {
+  packId,
+  now = Date.now(),
+  slotId = null,
+  registry = [],
+  params = SHADOW_PACK_PARAMS,
+  previousEditionFingerprints = new Map(),
+  // R1 — 영구 사건 계보. 이전 판 반환의 lineage.records를 그대로 넘기면
+  // 재등장 게이트가 eventId가 아니라 **계보** 기준으로 판정된다(이른 기사
+  // 지연 합류로 eventId가 바뀌어도 같은 사건으로 이어진다 — 결함 4).
+  // null이면 구 eventId 키 맵(previousEditionFingerprints)으로 폴백한다.
+  previousLineage = null,
+  officialResultEventIds = new Set()
+} = {}) {
+  const pack = params.packs[packId];
+  if (!pack) throw new Error(`shadowSelectEdition: 알 수 없는 팩 ${packId}`);
+  const registryById = new Map((registry || []).filter(Boolean).map((entry) => [entry.id, entry]));
+  const roleOf = (article) => resolveSourceRole(article, registryById.get(article && article.source));
+
+  const pool = prepareShadowPool(articles, { params, previousLineage, previousEditionFingerprints });
+  const base = pool.rows.filter((article) => packIdForArticle(article, params) === packId);
+  const views = pool.views.filter((view) => view.packIds.includes(packId));
+
+  const {
+    gatePassed, gateFailed, capExcluded, selected, belowVolume, partialEdition
+  } = selectWithPackYardstick(views, pack, {
+    now, slotId, registryById, params,
+    prevFingerprintOf: pool.prevFingerprintOf,
+    officialResultEventIds, roleOf
+  });
+  const rows = pool.rows;
+  const lineage = pool.lineage;
+  const volume = params.volume;
+
   return {
     contract: SHADOW_SELECTION_CONTRACT.stableId,
     packId,
@@ -498,6 +537,157 @@ export function shadowSelectEdition(articles, {
     lineage: {
       records: markLineageServed(lineage.records,
         new Set(selected.map((entry) => entry.view.event.eventId)))
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// R2 — 판(브리핑) 조립의 정본 진입점: 분야(카테고리) 단위 선별 → 합집합 →
+// 중요도 층 교차 배치
+// ---------------------------------------------------------------------------
+//
+// 블루프린트 01 "동적 분량 계약" + "2026-08-14 P3-A 판정" 결함 1의 수리.
+//
+// **선별 단위는 팩이 아니라 카테고리다.** business만 선택하면 politics·
+// realestate·tech 사건은 (같은 newsy 팩이어도) 후보에 들어오지 못한다.
+// 분야별로 각자 최대 14건(동적 분량 계약)을 선별한 뒤 합치므로, 한 분야의
+// 공급이 많아도 다른 분야를 밀어내지 않는다("두 분야 16건" 재발 방지).
+//
+// ── 규칙
+//  1. 전체 풀 클러스터링·계보는 판 전체 1회만 계산(prepareShadowPool 공유 —
+//     분야당 재계산 금지, 직전 검수 P3-b).
+//  2. 사건의 분야 귀속 = 구성원(보도) 기사들의 카테고리 집합(view.categoryIds).
+//     반응 기사는 귀속에 계수하지 않는다. 잣대는 그 카테고리가 속한 팩의
+//     계약(게이트·가중·창·캡)이다. kind=community 글의 커뮤 팩 특례는 팩
+//     귀속(packIdForArticle)의 규칙이고, 분야 귀속은 카테고리를 따른다 —
+//     커뮤글이 tech로 분류돼 있으면 tech 선택의 후보가 되고 tech의 잣대
+//     (newsy 준용)로 판정된다(대개 게이트에서 정직하게 탈락한다).
+//  3. 합집합: 복수 분야 선택 시 분야별 선별 목록을 합치고 동일 사건은
+//     lineageId 기준으로 한 번만 남긴다. 어느 분야들에서 뽑혔는지는
+//     selectedByCategories에 기록한다(whyForYou 재료).
+//  4. 교차 배치: 각 분야의 1위층, 2위층 순으로 합치며 같은 층에서는 전체 S가
+//     높은 사건 먼저. 결정적 tie-break: 층(tier) 오름차순 → S 내림차순 →
+//     lineageId 문자열 비교. 양쪽 분야에 다 귀속된 사건의 층은 분야별 순위 중
+//     최상위(min), S는 분야별 S 중 최댓값을 쓴다.
+//  5. 미선택 분야 사건은 어떤 경로로도 briefing에 혼합되지 않는다.
+export function shadowSelectBriefing(articles, {
+  requestedCategories,
+  now = Date.now(),
+  slotId = null,
+  registry = [],
+  params = SHADOW_PACK_PARAMS,
+  previousEditionFingerprints = new Map(),
+  previousLineage = null,
+  officialResultEventIds = new Set()
+} = {}) {
+  if (!Array.isArray(requestedCategories) || requestedCategories.length === 0) {
+    throw new Error("shadowSelectBriefing: requestedCategories 필요(비어 있지 않은 배열)");
+  }
+  const catIndex = new Map();
+  for (const [packId, pack] of Object.entries(params.packs)) {
+    for (const category of [...pack.categories, ...(pack.appliedCategories || [])]) {
+      catIndex.set(category, packId);
+    }
+  }
+  const categories = [...new Set(requestedCategories)];
+  for (const category of categories) {
+    if (!catIndex.has(category)) {
+      throw new Error(`shadowSelectBriefing: 알 수 없는 카테고리 ${category}`);
+    }
+  }
+
+  const registryById = new Map((registry || []).filter(Boolean).map((entry) => [entry.id, entry]));
+  const roleOf = (article) => resolveSourceRole(article, registryById.get(article && article.source));
+
+  // 판 전체 1회: 클러스터링·계보·뷰.
+  const pool = prepareShadowPool(articles, { params, previousLineage, previousEditionFingerprints });
+
+  // 분야별 선별 — 각 분야가 **각자** 동적 분량(최대 14건)으로 선별된다.
+  const perCategory = {};
+  for (const category of categories) {
+    const packId = catIndex.get(category);
+    const pack = params.packs[packId];
+    const candidates = pool.views.filter((view) => view.categoryIds.includes(category));
+    const run = selectWithPackYardstick(candidates, pack, {
+      now, slotId, registryById, params,
+      prevFingerprintOf: pool.prevFingerprintOf,
+      officialResultEventIds, roleOf
+    });
+    perCategory[category] = {
+      packId,
+      packLabel: pack.label,
+      counts: {
+        candidates: candidates.length,
+        gatePassed: run.gatePassed.length,
+        gateFailed: run.gateFailed.length,
+        capExcluded: run.capExcluded.length,
+        selected: run.selected.length
+      },
+      partialEdition: run.partialEdition,
+      selected: run.selected,
+      excluded: {
+        gate: run.gateFailed,
+        sourceCap: run.capExcluded,
+        belowVolume: run.belowVolume
+      }
+    };
+  }
+
+  // 합집합 — lineageId 기준 동일 사건 1회. 분야별 층(그 분야 선별 목록의
+  // 순위)과 S를 함께 기록한다.
+  const unionByLineage = new Map();
+  for (const category of categories) {
+    perCategory[category].selected.forEach((row, index) => {
+      const lineageId = row.view.lineage
+        ? row.view.lineage.lineageId
+        : String(row.view.event.eventId); // 방어 — 계보는 항상 배정되지만 키 부재로 합집합이 깨지지 않게
+      const tier = index + 1; // 그 분야 안의 중요도 순위 층(1위층=1)
+      const existing = unionByLineage.get(lineageId);
+      if (!existing) {
+        unionByLineage.set(lineageId, {
+          lineageId,
+          eventId: row.view.event.eventId,
+          view: row.view,
+          selectedByCategories: [category],
+          byCategory: { [category]: { tier, S: row.score.S, gate: row.gate, score: row.score } },
+          tier,
+          S: row.score.S
+        });
+      } else {
+        existing.selectedByCategories.push(category);
+        existing.byCategory[category] = { tier, S: row.score.S, gate: row.gate, score: row.score };
+        existing.tier = Math.min(existing.tier, tier);
+        existing.S = Math.max(existing.S, row.score.S);
+      }
+    });
+  }
+  for (const entry of unionByLineage.values()) entry.selectedByCategories.sort();
+
+  // 교차 배치 — 층 오름차순 → 같은 층은 전체 S 내림차순 → lineageId(결정적).
+  const briefing = [...unionByLineage.values()].sort((a, b) => a.tier - b.tier
+    || b.S - a.S
+    || String(a.lineageId).localeCompare(String(b.lineageId)));
+
+  return {
+    contract: SHADOW_SELECTION_CONTRACT.stableId,
+    mode: "briefing",
+    requestedCategories: categories,
+    slotId,
+    now,
+    perCategory,
+    briefing,
+    counts: {
+      inputArticles: pool.rows.length,
+      events: pool.views.length,
+      briefingSelected: briefing.length,
+      perCategorySelected: Object.fromEntries(categories.map((category) =>
+        [category, perCategory[category].counts.selected]))
+    },
+    // 이번 브리핑에 실제 배치(서빙)된 사건에만 서빙 지문을 찍는다 — 다음 판의
+    // previousLineage 재료(shadowSelectEdition과 같은 계약).
+    lineage: {
+      records: markLineageServed(pool.lineage.records,
+        new Set(briefing.map((entry) => entry.eventId)))
     }
   };
 }
