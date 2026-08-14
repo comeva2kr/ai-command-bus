@@ -1275,3 +1275,68 @@ test("R7 취합기 ④: 3슬롯 연속 — 판 간 같은 지문 재등장 0 (R4
     (sum, report) => sum + report.counts.reappearBlocked, 0);
   assert.ok(blocked >= 1, "재등장 차단이 실제로 동작한다(같은 풀 3판)");
 });
+
+// ---------------------------------------------------------------------------
+// G2 — 관찰 슬롯 도구: 슬롯 자동 판정·멱등 스킵·직전 lineage 파일 선택.
+// 수집(네트워크)은 여기서 돌리지 않는다 — 판정 함수만 분리 테스트.
+// ---------------------------------------------------------------------------
+import {
+  resolveObservationSlot, slotAlreadyDone, findPreviousLineageFile, obsPaths, OBSERVE_COMBOS
+} from "../tools/observe-shadow-slot.mjs";
+import { DEFAULT_EDITORIAL_PREVIEW } from "../src/feed/engine.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+test("G2 슬롯 판정: 가장 최근 지난 publishHour (07/12/19 KST)", () => {
+  const at = (s) => resolveObservationSlot(Date.parse(s));
+  // 07:05 → 오늘 모닝
+  assert.deepEqual(
+    (({ date, slotId }) => ({ date, slotId }))(at("2026-08-14T07:05:00+09:00")),
+    { date: "2026-08-14", slotId: "morning" });
+  // 11:59 → 아직 모닝
+  assert.equal(at("2026-08-14T11:59:00+09:00").slotId, "morning");
+  // 12:00 → 런치
+  assert.equal(at("2026-08-14T12:00:00+09:00").slotId, "lunch");
+  // 19:30 → 이브닝
+  assert.equal(at("2026-08-14T19:30:00+09:00").slotId, "evening");
+  // 06:00 → 전날 이브닝 (오늘 첫 슬롯 이전)
+  assert.deepEqual(
+    (({ date, slotId }) => ({ date, slotId }))(at("2026-08-14T06:00:00+09:00")),
+    { date: "2026-08-13", slotId: "evening" });
+  // asOf는 그 슬롯 publishHour 정각 KST
+  assert.equal(at("2026-08-14T13:40:00+09:00").asOf, Date.parse("2026-08-14T12:00:00+09:00"));
+});
+
+test("G2 멱등: 요약 파일 존재 = 완료, 없으면 미완료", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "obs-"));
+  assert.equal(slotAlreadyDone(dir, "2026-08-14", "morning"), false);
+  fs.writeFileSync(obsPaths(dir, "2026-08-14", "morning").summary, "{}");
+  assert.equal(slotAlreadyDone(dir, "2026-08-14", "morning"), true);
+  assert.equal(slotAlreadyDone(dir, "2026-08-14", "lunch"), false);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("G2 직전 lineage 파일: 같은 날 직전 슬롯 → 전날 이브닝 → 없으면 null", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "obs-"));
+  // 아무것도 없으면 null (첫 실행 — 빈 previousLineage)
+  assert.equal(findPreviousLineageFile(dir, "2026-08-14", "lunch"), null);
+  // 전날 이브닝만 있으면 그것이 모닝의 직전
+  fs.writeFileSync(path.join(dir, "lineage-2026-08-13-evening.json"), "{}");
+  assert.equal(path.basename(findPreviousLineageFile(dir, "2026-08-14", "morning")),
+    "lineage-2026-08-13-evening.json");
+  // 같은 날 모닝이 생기면 런치의 직전은 모닝
+  fs.writeFileSync(path.join(dir, "lineage-2026-08-14-morning.json"), "{}");
+  assert.equal(path.basename(findPreviousLineageFile(dir, "2026-08-14", "lunch")),
+    "lineage-2026-08-14-morning.json");
+  // 자기 자신·미래 슬롯은 제외 — 모닝의 직전은 여전히 전날 이브닝
+  assert.equal(path.basename(findPreviousLineageFile(dir, "2026-08-14", "morning")),
+    "lineage-2026-08-13-evening.json");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("G2 조합 계약: 기본 조합은 4100 실서빙 기본과 동일 + 관찰 2조합", () => {
+  assert.deepEqual(OBSERVE_COMBOS[0].categories, DEFAULT_EDITORIAL_PREVIEW);
+  assert.deepEqual(OBSERVE_COMBOS.map((c) => c.key),
+    ["default", "business-only", "science-sports"]);
+});
