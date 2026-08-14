@@ -139,6 +139,64 @@ export class TitleClassifier {
     return { category: scores[0].c, margin, known: knownCount / feats.length };
   }
 
+  // 자기 기여 제외 예측 (R6, 2026-08-14 David HOLD 결함 6) — leave-one-out.
+  //
+  // 이 제목이 category 라벨로 학습 코퍼스에 들어가 있다면, learn()이 더한 것과
+  // 정확히 같은 양(자질별 weight×출현수, 총량 feats.length×weight)을 뺀 상태로
+  // 예측한다. 비파괴 — counts·totals·vocab은 건드리지 않는다.
+  //
+  // 왜: aggregate 재분류 관문이 "gnews-biz 제목을 business로 학습한 직후 같은
+  // 제목을 분류"하면 자기 라벨을 암기해 관문이 0건이 된다(신선 풀 1,968건 실측
+  // 0/112 — 관문 무효). 자기 기여만 빼면 나머지 코퍼스는 그대로라 specialist
+  // 교정·커뮤글 재분류 경로에 파급이 없다(대안이었던 '전문 섹션 학습 제외'는
+  // 같은 풀에서 관문 밖 12건의 카테고리를 흔들어 기각 — 실측 2026-08-14).
+  //
+  // known도 같은 원칙으로 센다: 자기 기여를 빼고 코퍼스에 남는 자질만 '아는
+  // 자질'이다 — 자기 문서에서만 온 자질로 known을 부풀리면 기권 관문이 뚫린다.
+  predictExcluding(title, category, weight = 1) {
+    const feats = features(title);
+    // learn()은 자질 2개 미만이면 학습하지 않았다 — 뺄 기여가 없다. 학습된 적
+    // 없는 카테고리도 마찬가지다(뺄 대상이 코퍼스에 없다).
+    if (feats.length < 2 || !this.counts.has(category)) return this.predict(title);
+    const cats = [...this.counts.keys()];
+    if (cats.length < 2) return { category: null, margin: 0, known: 0 };
+
+    const removedPerFeat = new Map();
+    for (const f of feats) removedPerFeat.set(f, (removedPerFeat.get(f) || 0) + weight);
+
+    const V = this.vocab.size || 1;
+    let knownCount = 0;
+    for (const f of feats) {
+      if (!this.vocab.has(f)) continue;
+      let remaining = 0;
+      for (const c of cats) {
+        const m = this.counts.get(c);
+        let v = m.get(f) || 0;
+        // 이 제목이 실제로 학습되지 않았을 수 있어(learnedIds 정리 후 재기동 등)
+        // 0 밑으로 빼지 않는다 — 과제거보다 잔존 암기가 덜 위험하다.
+        if (c === category) v = Math.max(0, v - removedPerFeat.get(f));
+        remaining += v;
+      }
+      if (remaining > 0) knownCount++;
+    }
+
+    const scores = cats.map((c) => {
+      const m = this.counts.get(c);
+      let total = this.totals.get(c) || 1;
+      if (c === category) total = Math.max(1, total - feats.length * weight);
+      let logp = 0; // 균등 사전확률 — predict()와 동일
+      for (const f of feats) {
+        let v = m.get(f) || 0;
+        if (c === category) v = Math.max(0, v - removedPerFeat.get(f));
+        logp += Math.log((v + 1) / (total + V));
+      }
+      return { c, logp };
+    });
+    scores.sort((a, b) => b.logp - a.logp);
+    const margin = (scores[0].logp - scores[1].logp) / feats.length;
+    return { category: scores[0].c, margin, known: knownCount / feats.length };
+  }
+
   // 직렬화 — 서버 재시작에도 코퍼스 누적을 잃지 않게 store 쪽에서 저장한다.
   toJSON() {
     return {

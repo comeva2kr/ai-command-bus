@@ -862,10 +862,20 @@ export class FeedEngine {
         // 무변경.
         if (tierBySource.get(item.source) === "aggregate"
           && this._classifier.trained >= MIN_NB_TRAINING_ROWS) {
+          // R6(2026-08-14 David HOLD 결함 6): gnews 전문 섹션은 학습 소스이기도
+          // 하다 — 이 행을 그대로 predict하면 방금 학습한 자기 라벨을 암기해
+          // 관문이 0건이 된다(신선 풀 실측 0/112 = 관문 무효). 학습 라벨 소스면
+          // 자기 기여를 뺀 leave-one-out 예측으로 판정한다. 코퍼스는 그대로라
+          // specialist·커뮤글 경로 무파급(대안 '학습 제외'는 관문 밖 12건이
+          // 흔들려 기각 — R6 실측).
+          const trainLabel = TRAIN_LABELS.get(item.source);
+          const prediction = trainLabel && typeof this._classifier.predictExcluding === "function"
+            ? this._classifier.predictExcluding(item.title, trainLabel.category, trainLabel.weight)
+            : this._classifier.predict(item.title);
           const corrected = aggregateReclassification({
             declaredCategory: item.category,
             title: item.title,
-            prediction: this._classifier.predict(item.title),
+            prediction,
             translated: isTranslatedTitle(item)
           });
           if (corrected) {
@@ -1180,8 +1190,15 @@ export class FeedEngine {
       this._classifier.learn(item.title, label.category, label.weight);
       this._learnedIds.add(item.id);
     }
-    // 장부가 무한히 크지 않게 — 분류기 카운트는 이미 흡수됐으므로 id만 비운다.
-    if (this._learnedIds.size > 20000) this._learnedIds.clear();
+    // 장부가 무한히 크지 않게 — 단, 통째로 비우면 풀에 살아있는 학습소스 행이
+    // 다음 사이클에 재학습돼 카운트가 2배가 되고, LOO(자기학습 제거)는 1회분만
+    // 빼서 관문이 조용히 다시 무효화된다(검수 실측: 이중 학습 행의 63%가 자기
+    // 라벨 회귀). 그래서 현재 풀에 없는 id만 걷어낸다 — 장부 상한은 풀 크기로
+    // 자연 수렴한다. 잔여 구멍(풀을 떠났다 같은 id로 복귀하는 행)은 별건.
+    if (this._learnedIds.size > 20000) {
+      const alive = new Set(capped.map((it) => it.id));
+      this._learnedIds = new Set([...this._learnedIds].filter((id) => alive.has(id)));
+    }
 
     // 2) 현재 노출 상한과 늦은 백필이 같은 분류 파이프라인을 공유한다.
     this._classifyItems(capped);

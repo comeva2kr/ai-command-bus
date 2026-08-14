@@ -8,7 +8,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { classifyTopics } from "../src/feed/topics.js";
-import { keywordCategory } from "../src/feed/classify.js";
+import { keywordCategory, TitleClassifier } from "../src/feed/classify.js";
 import {
   categoryDictionaryHits,
   specialistCorrection,
@@ -344,9 +344,28 @@ test("aggregate 관문 단위: OVERRIDE 밖(구어체 완충재)·가드·UNTRAI
   }), null);
 });
 
-test("aggregate 엔진 관통: gnews-biz 실물 오분류가 교정되고 원 선언이 보존된다", () => {
+// ---------------------------------------------------------------------------
+// R6 (2026-08-14 David HOLD 결함 6) — 운영 조건은 이제 "자기학습 없는 판정"이다.
+// 엔진은 학습 라벨 소스(gnews 전문 섹션)의 aggregate 관문 판정에 자기 기여를
+// 뺀 leave-one-out 예측(predictExcluding)을 쓴다. 아래 엔진 관통 스텁은 그
+// 운영 조건을 그대로 동결한다: predict(자기암기 경로)는 관문과 반대 답을 주게
+// 두고, predictExcluding(LOO 경로)만 기대 판정을 준다 — 엔진이 잘못된 경로를
+// 쓰면 테스트가 즉시 깨진다.
+// ---------------------------------------------------------------------------
+
+test("aggregate 엔진 관통: gnews-biz 실물 오분류가 LOO 예측으로 교정되고 원 선언이 보존된다", () => {
   const engine = new FeedEngine(null, []);
-  engine._classifier = { trained: 1000, predict: () => ({ category: "tech", margin: 0.355, known: 1.0 }) };
+  engine._classifier = {
+    trained: 1000,
+    // 자기암기 경로: 학습 라벨(business)을 그대로 되뱉는다 — 이 경로를 쓰면 교정 0건.
+    predict: () => ({ category: "business", margin: 0.5, known: 1.0 }),
+    // 운영 경로(LOO): 자기 기여 제거 후 실측값(신선 풀 2026-08-14, margin 0.378).
+    predictExcluding: (title, category, weight) => {
+      assert.equal(category, "business", "학습 라벨 카테고리로 자기 기여를 빼야");
+      assert.equal(weight, 1.0, "gnews 섹션 학습 가중치 1.0으로 빼야");
+      return { category: "tech", margin: 0.378, known: 1.0 };
+    }
+  };
   const item = {
     source: "gnews-biz", kind: "news", category: "business", topics: [],
     title: "딥시크 ‘V4 프로’ 정식 출시…AI 에이전트 강화·가격 인상 예고",
@@ -363,7 +382,13 @@ test("aggregate 엔진 관통: gnews-biz 실물 오분류가 교정되고 원 �
 
 test("aggregate 엔진 관통: 임계 미달 실물(건일 엑디즈)은 culture 선언을 유지한다", () => {
   const engine = new FeedEngine(null, []);
-  engine._classifier = { trained: 1000, predict: () => ({ category: "sports", margin: 0.035, known: 0.38 }) };
+  engine._classifier = {
+    trained: 1000,
+    // 잘못된 경로(자기암기 predict)가 쓰이면 sports로 교정돼 테스트가 깨진다.
+    predict: () => ({ category: "sports", margin: 0.5, known: 0.9 }),
+    // 운영 경로(LOO) 실측: 임계 미달 기권.
+    predictExcluding: () => ({ category: "sports", margin: 0.035, known: 0.38 })
+  };
   const item = {
     source: "gnews-ent", kind: "news", category: "culture", topics: [],
     title: "'언행 논란' 건일, 엑디즈 탈퇴…\"JYP 전속계약도 해지\"",
@@ -374,9 +399,34 @@ test("aggregate 엔진 관통: 임계 미달 실물(건일 엑디즈)은 culture
   assert.equal(item.categoryCorrection, undefined);
 });
 
+test("aggregate 엔진 관통: 학습 라벨 밖 aggregate 소스(techmeme)는 기존 predict 경로를 쓴다", () => {
+  // techmeme은 TRAIN_LABELS에 없다 — 자기학습이 없으므로 LOO를 강제하지 않는다.
+  const engine = new FeedEngine(null, []);
+  engine._classifier = {
+    trained: 1000,
+    predict: () => ({ category: "science", margin: 0.3, known: 0.9 }),
+    predictExcluding: () => { throw new Error("학습 라벨 없는 소스에 LOO를 쓰면 안 된다"); }
+  };
+  // 제목은 확정 사전 무히트로 고른다("블랙홀"은 science 사전 히트라 관문 전에
+  // 사전 확정 경로로 빠져 predict가 아예 호출되지 않는다).
+  const item = {
+    source: "techmeme", kind: "news", category: "tech", topics: [],
+    title: "초기 우주 붉은 점의 정체에 대한 새로운 해석",
+    url: "https://techmeme.com/x1"
+  };
+  engine._classifyItems([item]);
+  assert.equal(item.category, "science");
+  assert.equal(item.categoryCorrection.rule, "aggregate-semantic-reclass");
+});
+
 test("aggregate 교정도 매 사이클 재판정된다 — 관문을 다시 못 넘으면 남지 않는다", () => {
   const engine = new FeedEngine(null, []);
-  engine._classifier = { trained: 1000, predict: () => ({ category: "tech", margin: 0.355, known: 1.0 }) };
+  const stub = (pred) => ({
+    trained: 1000,
+    predict: () => ({ category: "business", margin: 0.5, known: 1.0 }),
+    predictExcluding: () => pred
+  });
+  engine._classifier = stub({ category: "tech", margin: 0.378, known: 1.0 });
   const item = {
     source: "gnews-biz", kind: "news", category: "business", topics: [],
     title: "딥시크 ‘V4 프로’ 정식 출시…AI 에이전트 강화·가격 인상 예고",
@@ -384,8 +434,52 @@ test("aggregate 교정도 매 사이클 재판정된다 — 관문을 다시 못
   };
   engine._classifyItems([item]);
   assert.ok(item.categoryCorrection);
-  engine._classifier = { trained: 1000, predict: () => ({ category: "tech", margin: 0.001, known: 1.0 }) };
+  engine._classifier = stub({ category: "tech", margin: 0.001, known: 1.0 });
   engine._classifyItems([item]);
   assert.equal(item.category, "business");
   assert.equal(item.categoryCorrection, undefined);
+});
+
+// ---------------------------------------------------------------------------
+// R6 단위 — TitleClassifier.predictExcluding: 자기 라벨 암기가 실제로 제거되는가
+// ---------------------------------------------------------------------------
+
+test("predictExcluding: 자기 라벨로 암기된 제목이 자기 기여 제거 후 의미 분류로 돌아온다", () => {
+  // 소형 결정적 코퍼스 — 운영 결함의 축소 재현: tech 어휘 코퍼스가 있는데도
+  // 대상 제목이 business로 학습돼 있으면 plain predict는 business를 암기한다.
+  const cl = new TitleClassifier();
+  const target = "딥시크 신형 AI 에이전트 모델 정식 출시와 가격 정책";
+  for (const t of [
+    "오픈AI 새 인공지능 모델 발표", "구글 제미나이 모델 업데이트 공개",
+    "앤스로픽 클로드 AI 기능 강화", "메타 라마 모델 성능 개선",
+    "마이크로소프트 코파일럿 AI 출시"
+  ]) cl.learn(t, "tech", 1.0);
+  for (const t of [
+    "코스피 사상 최고치 경신에 증시 환호", "한국은행 기준금리 동결 결정",
+    "환율 급등에 수출 기업 실적 비상", "뉴욕증시 3대 지수 동반 상승 마감",
+    "공모주 청약 경쟁률 역대 최고"
+  ]) cl.learn(t, "business", 1.0);
+  cl.learn(target, "business", 1.0); // 운영과 동일: gnews-biz 행이 business로 학습됨
+
+  assert.equal(cl.predict(target).category, "business", "plain predict는 자기 라벨을 암기해야(결함 재현)");
+  const loo = cl.predictExcluding(target, "business", 1.0);
+  assert.equal(loo.category, "tech", "자기 기여를 빼면 의미(tech)로 분류되어야");
+});
+
+test("predictExcluding: 비파괴 — 호출 후 코퍼스 카운트·총량이 그대로다", () => {
+  const cl = new TitleClassifier();
+  cl.learn("코스피 급등 마감", "business", 1.0);
+  cl.learn("오픈AI 신형 모델 공개", "tech", 1.0);
+  cl.learn("딥시크 AI 모델 출시", "business", 1.0);
+  const before = JSON.stringify(cl.toJSON());
+  cl.predictExcluding("딥시크 AI 모델 출시", "business", 1.0);
+  assert.equal(JSON.stringify(cl.toJSON()), before);
+});
+
+test("predictExcluding: 학습된 적 없는 카테고리·짧은 제목은 plain predict와 같다", () => {
+  const cl = new TitleClassifier();
+  cl.learn("코스피 급등 마감 증시 환호", "business", 1.0);
+  cl.learn("오픈AI 신형 모델 공개 출시", "tech", 1.0);
+  const title = "코스피 상한가 종목 속출";
+  assert.deepEqual(cl.predictExcluding(title, "sports", 1.0), cl.predict(title));
 });
