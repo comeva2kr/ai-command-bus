@@ -419,3 +419,89 @@ test("계보 오승계 방지 2: 최상 근거가 동률인 계보 2개면 승�
   assert.equal(assigned.inherited, false, "동률이면 오승계 대신 미승계");
   assert.equal(assigned.basis, "lineage_ambiguous_declined");
 });
+
+// ---------------------------------------------------------------------------
+// G1 (2026-08-14 동결) — 영문 일반어 오병합 6건: 신선·저장 풀 전수 실측의
+// 실물 제목 재현 픽스처. 한글 일반어만 걷고 영문 일반어(announces·new·can·
+// says·hear·million·year 등)를 안 걷어서 동일문자 임계 3이 무관 기사를
+// 병합했다. 수리는 EVENT_GENERIC_TOKENS 영문 구획(사전 한 곳) — 아래 6건은
+// 전부 "미병합"으로 동결한다.
+// ---------------------------------------------------------------------------
+
+test("G1-1: 무관한 앨범 발표 기사들은 announces/new/album/hear로 병합되지 않는다 (실측 EV-83c3f0dcdddf6157)", () => {
+  const rows = [
+    ["g1a-oston", "OSTON Announces Debut Album Isn’t That Sweet?: Hear Four Songs"],
+    ["g1a-claud", "Claud Announces New Album Me And The Music: Hear “She Doesn’t Love Me”"],
+    ["g1a-egerton", "Descendents’ Stephen Egerton Announces Debut Solo Album I Think You’re Overthinking This: Hear “Stripped Screw”"],
+    ["g1a-pollard", "Robert Pollard’s Band Rip Van Winkle Changes Name To The U.S. Rip Van Winkle, Announces New Self-Titled Album"],
+    ["g1a-dummy", "Dummy Announce New Album do you love the color of the sky?: Hear “Full Spectrum Dominance”"],
+    ["g1a-godflesh", "Godflesh Announce New Album Decay: Hear “Living/Ending”"]
+  ].map(([id, title], i) => article({ id, title, category: "culture",
+    publishedAt: `2026-08-13T0${i}:00:00+09:00`, source: "stereogum", sourceLabel: "Stereogum" }));
+  assert.equal(buildEventClusters(rows).length, 6, "서로 다른 앨범 발표 6건은 6개 사건이어야 한다");
+  for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++) {
+    assert.equal(decideEventMerge(rows[i], rows[j]).merge, false, `${rows[i].id}·${rows[j].id} 미병합`);
+  }
+});
+
+test("G1-2: 무관한 과학 기사들은 scientists/brain/can으로 병합되지 않는다 (실측 EV-606ccd6127cef311)", () => {
+  const rows = [
+    ["g1b-mit", "MIT neuroscientists discover the brain can reason without words"],
+    ["g1b-dogs", "Dogs can tell fear from sadness — and scientists saw it in their brains"],
+    ["g1b-adult", "The adult brain can repair itself better than scientists thought"]
+  ].map(([id, title], i) => article({ id, title, category: "science",
+    publishedAt: `2026-08-13T0${i}:00:00+09:00`, source: "sciencedaily", sourceLabel: "ScienceDaily" }));
+  assert.equal(buildEventClusters(rows).length, 3);
+  for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++) {
+    assert.equal(decideEventMerge(rows[i], rows[j]).merge, false, `${rows[i].id}·${rows[j].id} 미병합`);
+  }
+});
+
+test("G1-3: 무관한 AI 기사들은 fire/ai/says로 병합되지 않는다 (실측 EV-9fcaf3253767a5a0)", () => {
+  const twitch = article({ id: "g1c-twitch", category: "gaming", source: "pcgamer", sourceLabel: "PC Gamer",
+    publishedAt: "2026-08-13T01:00:00+09:00",
+    title: "Twitch under fire for new gen AI training system that harvests streamer data for Amazon, says it's opt-out" });
+  const saber = article({ id: "g1c-saber", category: "gaming", source: "pcgamer", sourceLabel: "PC Gamer",
+    publishedAt: "2026-08-13T02:00:00+09:00",
+    title: "Saber CEO scorns writer who says she was fired in favor of AI with confusing, combative statement" });
+  assert.equal(decideEventMerge(twitch, saber).merge, false);
+  assert.equal(buildEventClusters([twitch, saber]).length, 2);
+  // 대조(정당 병합 유지): 같은 트위치 사건의 타 매체 보도는 계속 병합된다.
+  const bbc = article({ id: "g1c-bbc", category: "business", source: "bbc-business", sourceLabel: "BBC",
+    publishedAt: "2026-08-13T03:00:00+09:00",
+    title: "Twitch users outraged as Amazon uses their content to train AI in opt-out feature" });
+  assert.equal(decideEventMerge(twitch, bbc).merge, true, "트위치 실사건 병합은 유지돼야 한다");
+});
+
+test("G1-4: 무관한 구인 공고는 hiring/new/york로 병합되지 않는다 (실측 EV-8626d45bf101265f)", () => {
+  const a = article({ id: "g1d-walker", category: "fashion", source: "fashionista", sourceLabel: "Fashionista",
+    publishedAt: "2026-08-13T01:00:00+09:00",
+    title: "WALKER DRAWAS Is Hiring A Press Account Director — Beauty, Wellness & Lifestyle In New York, NY" });
+  const b = article({ id: "g1d-lulla", category: "fashion", source: "fashionista", sourceLabel: "Fashionista",
+    publishedAt: "2026-08-13T02:00:00+09:00",
+    title: "Lulla Collection & Bindya Accessories Is Hiring An Assistant Sales & Logistics Coordinator In New York, NY" });
+  assert.equal(decideEventMerge(a, b).merge, false);
+  assert.equal(buildEventClusters([a, b]).length, 2);
+});
+
+test("G1-5: 무관한 화석 기사들은 million/year/fossil로 병합되지 않는다 (실측 EV-a26325700b4c7ab5)", () => {
+  const a = article({ id: "g1e-grass", category: "science", source: "physorg", sourceLabel: "Phys.org",
+    publishedAt: "2026-08-13T01:00:00+09:00",
+    title: "African grasslands expanded 5 million year earlier than previously thought, molecular fossils suggest" });
+  const b = article({ id: "g1e-mammal", category: "science", source: "physorg", sourceLabel: "Phys.org",
+    publishedAt: "2026-08-13T02:00:00+09:00",
+    title: "A 236-million-year-old fossil challenges the story of mammalian live birth" });
+  assert.equal(decideEventMerge(a, b).merge, false);
+  assert.equal(buildEventClusters([a, b]).length, 2);
+});
+
+test("G1-6: 브랜드 접미어 jo/malone/london만 겹치는 무관 기사는 병합되지 않는다 (실측 EV-148276d6fe6422c7)", () => {
+  const a = article({ id: "g1f-fortnite", category: "fashion", source: "hypebae", sourceLabel: "Hypebae",
+    publishedAt: "2026-08-13T01:00:00+09:00",
+    title: "Jo Malone London Steps Into the Fortnite Universe" });
+  const b = article({ id: "g1f-combo", category: "fashion", source: "hypebae", sourceLabel: "Hypebae",
+    publishedAt: "2026-08-13T02:00:00+09:00",
+    title: "India Amarteifio on the Jo Malone London Combo She Can't Stop Wearing This Summer" });
+  assert.equal(decideEventMerge(a, b).merge, false);
+  assert.equal(buildEventClusters([a, b]).length, 2);
+});

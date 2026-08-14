@@ -61,7 +61,29 @@ export const EVENT_MERGE_RULES = Object.freeze({
 const EVENT_GENERIC_TOKENS = new Set([
   "대통령", "정부", "국회", "의원", "장관", "총리", "여야", "당국",
   "발표", "발언", "출시", "정식", "공식", "확정", "예고", "전망",
-  "논란", "화제", "네티즌", "누리꾼", "프로"
+  "논란", "화제", "네티즌", "누리꾼", "프로",
+  // ── 영문 일반어 (G1, 2026-08-14 신선·저장 풀 전수 실측 오병합 6건 근거)
+  // 한글 일반어만 걷고 영문 일반어를 안 걷어서, 동일문자 임계 3이 무관 기사를
+  // 병합했다. dedupe.js ENGLISH_STOP_WORDS는 digest 소비 경로(titleConcepts)라
+  // 건드리지 않고, 사건 계층 전용인 이 사전 한 곳에만 더한다(보수 방향 —
+  // 병합이 줄기만 하고 늘지 않는다). 각 어휘의 근거 사건 ID를 병기한다.
+  //
+  // 보도 상투어 announce/say 활용형 — EV-83c3f0dcdddf6157(무관 앨범 발표
+  // 6건 병합, "announces/new/album/hear"), EV-9fcaf3253767a5a0("fire/ai/says").
+  "announce", "announces", "announced", "say", "says", "said",
+  // 기능어 — "new": EV-83c3f0dcdddf6157·EV-8626d45bf101265f("hiring/new/york"),
+  // "can"(조동사): EV-606ccd6127cef311("scientists/brain/can").
+  "new", "can",
+  // 매체 상투어 — "hear"(스테레오검 "Hear ..." 정형구): EV-83c3f0dcdddf6157,
+  // "hiring"(구인 공고 정형구): EV-8626d45bf101265f.
+  "hear", "hiring",
+  // 수량 일반어 — "million/year": EV-a26325700b4c7ab5("million/year/fossil",
+  // 무관 화석 기사 2건). years는 같은 낱말의 복수형.
+  "million", "year", "years",
+  // 지명 상투어 — "london": EV-148276d6fe6422c7(브랜드 접미어 "Jo Malone
+  // London"이 3토큰을 채워 무관 기사 병합). 전/후 전수 대조에서 정당 병합
+  // 손실 0 확인 후 유지.
+  "london"
 ]);
 
 // 한/영 동일 표기 별칭 — 고정 표본으로 증명된 항목만 넣는다(표본 1: 딥시크).
