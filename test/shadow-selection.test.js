@@ -699,3 +699,163 @@ test("재등장 게이트는 직전 판에 서빙(선택)된 사건만 차단한
     entry.view.memberArticles.some((row) => row.id === "cb-a")
     && entry.gate.failures.includes("reappear_no_material_change")));
 });
+
+// ---------------------------------------------------------------------------
+// R3 — 품질 게이트 배선 (블루프린트 "2026-08-14 P3-A 판정" 결함 3)
+// 판정은 현행 코드 재사용: promotion.js lowValueReason(:100)·unpromotableReason
+// (:91), profanity.js hasProfanity, deals.js isDeal(:34). 동결 표본은 실제 수집
+// 풀(.nowhot-local/feed-data-pool.json, savedAt 2026-08-13T06:59:54Z)의 실물이다.
+// ---------------------------------------------------------------------------
+import { shadowQualityReason } from "../src/feed/shadow-selection.js";
+
+// 실물 동결: 뽐뿌 커뮤 풀에 들어온 상품권 딜 글 — 가격 표기라 isDeal이 잡는다.
+const frozenDealAd = article({
+  id: "ad-cultureland", title: "컬쳐랜드 46310원 (쿠폰소진)", kind: "community",
+  category: "humor", source: "ppomppu", score: 40, commentCount: 20,
+  publishedAt: "2026-08-13T15:30:00+09:00"
+});
+// 실물 동결: etoland 공인인증점(HIT 랭킹 혼입) 하루특가 광고 — 커뮤 절대선
+// (eng 25+2·30=85 ≥ 30)을 통과하는 광고성 글. David HOLD 결함 3의 표본.
+const frozenEtolandAd = article({
+  id: "ad-etoland", title: "하루특가) 온작 이영자의 뼈없는 갈비탕, 특사이즈, 24인분, 900g, 8개",
+  kind: "community", category: "humor", source: "etoland", score: 25, commentCount: 30,
+  publishedAt: "2026-08-13T15:57:00+09:00"
+});
+const QUALITY_NOW = Date.parse("2026-08-13T16:00:00+09:00");
+
+test("품질 게이트 기본 ON: 가격 표기 딜 광고(실물)는 커뮤 절대선 이전에 excluded.quality로 빠진다", () => {
+  const out = shadowSelectBriefing([frozenDealAd, frozenEtolandAd], {
+    requestedCategories: ["humor"], now: QUALITY_NOW
+  });
+  const row = out.excluded.quality.find((entry) => entry.articleId === "ad-cultureland");
+  assert.ok(row, "딜 광고는 품질 게이트 탈락 기록에 남는다");
+  assert.equal(row.reason, "deal_price_or_mall_format");
+  assert.equal(row.source, "ppomppu", "감사 가능: 소스·제목·사유 동반");
+  assert.ok(!out.briefing.some((entry) =>
+    entry.view.memberArticles.some((article_) => article_.id === "ad-cultureland")),
+  "탈락 글은 어떤 경로로도 briefing에 오르지 않는다");
+  assert.equal(out.counts.qualityExcluded, 1);
+});
+
+test("정직 동결 — 알려진 구멍: etoland 하루특가류는 현행 게이트 어느 판정에도 안 걸린다", () => {
+  // lowValueReason의 "가격형 특가 광고" 패턴은 제목 첫머리 "특가"만 보고,
+  // isDeal은 가격 표기를 요구한다. "하루특가) ..."는 둘 다 비켜 간다.
+  // 수리는 promotion.js(현행 코드) 사전 보강이라 이 계층의 범위 밖 — David
+  // 게이트 보고 대상이다. promotion.js가 보강되면 이 동결을 갱신하라(그때
+  // 이 테스트가 깨지는 것이 의도된 신호다).
+  assert.equal(shadowQualityReason(frozenEtolandAd), null);
+  const out = shadowSelectBriefing([frozenEtolandAd], {
+    requestedCategories: ["humor"], now: QUALITY_NOW
+  });
+  assert.equal(out.excluded.quality.length, 0, "품질 게이트는 이 광고를 못 잡는다(현행 구멍 — 정직 기록)");
+  assert.ok(out.briefing.some((entry) =>
+    entry.view.memberArticles.some((article_) => article_.id === "ad-etoland")),
+  "커뮤 절대선(eng 85≥30)까지 통과해 판에 오른다 — 결함 3에서 David가 본 표본 오염 그대로");
+});
+
+test("품질 게이트 OFF 경계: qualityGate:false면 배선 전과 동일하게 딜 광고도 후보가 된다", () => {
+  const on = shadowSelectBriefing([frozenDealAd], { requestedCategories: ["humor"], now: QUALITY_NOW });
+  const off = shadowSelectBriefing([frozenDealAd], {
+    requestedCategories: ["humor"], now: QUALITY_NOW, qualityGate: false
+  });
+  assert.equal(on.counts.events, 0, "ON: 클러스터링 전에 빠져 사건 자체가 없다");
+  assert.equal(off.counts.events, 1, "OFF: 배선 전 행동 보존(관찰·회귀 대조용)");
+  assert.equal(off.excluded.quality.length, 0);
+});
+
+test("품질 게이트 사유 사전: 현행 판정별 대표 사례가 각자의 사유로 기록된다", () => {
+  // 각 판정의 출처: kind/source 구조 규칙(engine.js 대표 지면 풀 필터),
+  // profanity.js, promotion.js:91·100, deals.js:34(커뮤글 한정).
+  assert.equal(shadowQualityReason(article({ id: "q1", title: "정상", kind: "ad" })), "kind_ad");
+  assert.equal(shadowQualityReason(article({ id: "q2", title: "정상", source: "seed" })), "source_seed");
+  assert.equal(shadowQualityReason(
+    article({ id: "q3", title: "정상 글", source: "inven_hot" }),
+    { offMainSources: new Set(["inven_hot"]) }
+  ), "off_main_source");
+  assert.equal(shadowQualityReason(article({ id: "q4", title: "300추 가능한가요?" })),
+    "low_value:추천 구걸");
+  assert.equal(shadowQualityReason(article({ id: "q5", title: "실시간 세르카 나메 2관 파티모집창" })),
+    "low_value:모집 공고");
+  // 뉴스 보도의 금액 표기는 광고가 아니다 — isDeal은 커뮤글에만 적용(과잉방어
+  // 금지: 첫 실측에서 "Nvidia $500 billion 투자" 기사가 걸렸던 오탐의 회귀).
+  assert.equal(shadowQualityReason(article({
+    id: "q6", title: "Nvidia reckons new $500 billion investment", kind: "news", category: "tech"
+  })), null);
+  assert.equal(shadowQualityReason(article({ id: "q7", title: "정상 제목의 커뮤 글", kind: "community" })), null);
+});
+
+test("shadowSelectEdition(팩 단위)도 같은 품질 게이트를 공유한다", () => {
+  const out = shadowSelectEdition([frozenDealAd], { packId: "community", now: QUALITY_NOW });
+  assert.equal(out.counts.qualityExcluded, 1);
+  assert.equal(out.excluded.quality[0].reason, "deal_price_or_mall_format");
+  assert.equal(out.selected.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// R3 — 실제 todayEdition 비교기 단위 (tools/eval-shadow-vs-today.mjs, 결함 5)
+// ---------------------------------------------------------------------------
+import {
+  servedSegmentKey, loadServedEdition, listServedEditions, articlesFromPool, diffServedVsShadow
+} from "../tools/eval-shadow-vs-today.mjs";
+
+test("비교기 로딩: 저장 키는 서버 저장 규칙(editorialInventorySegmentKey) 그대로", () => {
+  // server.js:762가 쓰는 키 규칙 — 정렬·중복 제거·스냅샷 버전 접두.
+  assert.equal(servedSegmentKey(["news", "business", "tech", "humor"]),
+    servedSegmentKey(["humor", "tech", "business", "news"]), "순서 무관 동일 키");
+  assert.match(servedSegmentKey(["business"]), /^v\d+:business$/);
+});
+
+test("비교기 로딩: 저장된 판은 그대로, 없으면 found:false — 모형 대체 금지(그게 결함 5였다)", () => {
+  const key = servedSegmentKey(["business"]);
+  const data = {
+    editorialEditions: {
+      "2026-08-13": { lunch: { [key]: { generatedAt: "2026-08-13T07:00:00Z", issues: [{ headline: "h", refs: [{ id: "a1" }] }] } } }
+    }
+  };
+  const hit = loadServedEdition(data, { date: "2026-08-13", slotId: "lunch", categories: ["business"] });
+  assert.equal(hit.found, true);
+  assert.equal(hit.edition.issues.length, 1);
+  const missSlot = loadServedEdition(data, { date: "2026-08-13", slotId: "evening", categories: ["business"] });
+  assert.equal(missSlot.found, false);
+  assert.equal(missSlot.edition, null, "없는 판을 지어내지 않는다");
+  const missCombo = loadServedEdition(data, { date: "2026-08-13", slotId: "lunch", categories: ["science"] });
+  assert.equal(missCombo.found, false);
+  // 빈 판(issues 0)도 서빙판으로 치지 않는다 — 비교할 실물이 없다.
+  data.editorialEditions["2026-08-13"].lunch[key].issues = [];
+  assert.equal(loadServedEdition(data, { date: "2026-08-13", slotId: "lunch", categories: ["business"] }).found, false);
+  assert.equal(listServedEditions(data).length, 0);
+});
+
+test("비교기 로딩: 풀 스냅샷은 rows[].item(서버 저장 구조)을 그대로 편다", () => {
+  const pool = { savedAt: 1, rows: [{ item: { id: "a" } }, { item: null }, null, { id: "bare" }] };
+  assert.deepEqual(articlesFromPool(pool).map((row) => row.id), ["a", "bare"]);
+  assert.deepEqual(articlesFromPool(null), []);
+});
+
+test("비교기 diff: 진입·탈락(사유 포함)·순위 변화를 가른다", () => {
+  // 실제 판 2건: i1은 shadow에도 있고, i2는 shadow 품질 게이트 탈락.
+  const edition = {
+    issues: [
+      { headline: "양쪽 다", refs: [{ id: "n1" }] },
+      { headline: "실제에만", refs: [{ id: "ad1" }] }
+    ]
+  };
+  const shadow = {
+    briefing: [
+      { lineageId: "L1", tier: 1, S: 0.9, selectedByCategories: ["business"],
+        view: { memberArticles: [{ id: "n2", title: "shadow에만" }], reactionArticles: [] } },
+      { lineageId: "L2", tier: 2, S: 0.8, selectedByCategories: ["business"],
+        view: { memberArticles: [{ id: "n1", title: "양쪽 다" }], reactionArticles: [] } }
+    ],
+    excluded: { quality: [{ articleId: "ad1", reason: "deal_price_or_mall_format" }] },
+    perCategory: {}
+  };
+  const diff = diffServedVsShadow(edition, shadow);
+  assert.equal(diff.both.length, 1);
+  assert.equal(diff.both[0].served.rank, 1);
+  assert.equal(diff.both[0].shadow.rank, 2, "순위 변화 추적(실제 1위→shadow 2위)");
+  assert.equal(diff.servedOnly.length, 1);
+  assert.match(diff.servedOnly[0].reason, /품질 게이트: deal_price_or_mall_format/);
+  assert.equal(diff.shadowOnly.length, 1);
+  assert.equal(diff.shadowOnly[0].title, "shadow에만");
+});

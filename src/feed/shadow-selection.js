@@ -23,6 +23,14 @@ import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import {
   heatAxis, importanceAxis, changeAxis, trustMaterials, engagementOf
 } from "./selection-axes.js";
+// R3 품질 게이트 배선(블루프린트 "2026-08-14 P3-A 판정" 결함 3) — 현행 판정
+// 함수를 그대로 재사용한다(재발명 금지). 어디서 온 규칙인지: engine.js의
+// 대표 지면 풀 필터(briefing 2180-2192·categoryTop 2273-2284·판 후보
+// eligiblePool 2441-2452)가 쓰는 promotable()의 구성 요소와, digest 앵커가
+// 피하는 딜 판정이다.
+import { lowValueReason, unpromotableReason } from "./promotion.js"; // promotion.js:100·91
+import { hasProfanity } from "./profanity.js";                       // promotable(promotion.js:129)의 첫 검사
+import { isDeal } from "./deals.js";                                 // deals.js:34 — 가격·쇼핑몰 형식 광고 판정
 
 const deepFreeze = (value) => {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
@@ -42,9 +50,73 @@ export const SHADOW_SELECTION_CONTRACT = deepFreeze({
     "3. 같은 운영그룹 분야별 피드는 독립 계수 1회(event-cluster C4 재사용)",
     "4. 소스캡 자동 완화 금지 — 부족하면 부분 제공(부분판)",
     "5. 재등장 게이트: factsFingerprint 실질 변화 없으면 제외",
-    "6. 품질 게이트(editorial-quality)는 전 팩 공통 선행 — 이 계층의 선행 조건(호출부 책임)"
+    "6. 품질 게이트는 전 팩 공통 선행 — R3에서 실제 배선(옵션 qualityGate 기본 ON, 탈락은 excluded.quality에 사유와 함께 기록). 판정은 현행 코드 재사용: promotion.js lowValueReason·unpromotableReason, profanity.js hasProfanity, deals.js isDeal"
   ]
 });
+
+// ---------------------------------------------------------------------------
+// R3 — 품질 게이트(결함 3): 광고성·저품질 글이 커뮤 절대선(eng)을 통과해
+// 표본 수치를 오염시키는 경로의 선행 차단. **판정 규칙은 전부 현행 코드
+// 재사용이다** — 여기서 새 패턴을 발명하지 않는다(오탐 하나가 진짜 화제를
+// 죽인다는 promotion.js의 원칙을 그대로 존중).
+//
+// 재사용한 판정(파일:줄):
+//  - engine.js 대표 지면 풀 필터의 구조 규칙(kind ad/affiliate·source seed/me·
+//    offMain 제외 — engine.js:2185-2192, 2278-2284, 2444-2451)
+//  - promotable() 분해(promotion.js:129): hasProfanity(profanity.js) →
+//    unpromotableReason(promotion.js:91) → lowValueReason(promotion.js:100).
+//    분해해 쓰는 이유: 탈락 사유를 감사 가능하게 남기기 위해서다(promotable은
+//    boolean만 돌려준다).
+//  - isDeal(deals.js:34): 가격·쇼핑몰 형식 상품 광고 판정의 현행 정본.
+//    피드에서 딜은 삭제가 아니라 지분 규칙(capDeals·DEAL_MAX_SHARE)으로 따로
+//    관리되는 상품 광고다 — "오늘의 대표" 판 후보에는 넣지 않는다(engine.js
+//    getFeed의 딜 칸 분리·1785 avoid와 같은 취지).
+//
+// **알려진 구멍(정직 기록):** etoland 공인인증점류 "하루특가) ..." 광고는 위
+// 어느 판정에도 걸리지 않는다 — lowValueReason의 "가격형 특가 광고" 패턴이
+// 제목 첫머리 "특가"만 보고, isDeal은 가격 표기를 요구해서다. 수리는
+// promotion.js(현행 코드) 사전 보강이 필요하므로 이 계층의 범위 밖이고,
+// David 게이트 대상으로 보고한다. 동결 테스트가 이 구멍을 그대로 문서화한다.
+export function shadowQualityReason(article, { offMainSources = new Set() } = {}) {
+  if (!article) return "empty_article";
+  if (article.kind === "ad" || article.kind === "affiliate") return `kind_${article.kind}`;
+  if (article.source === "seed" || article.source === "me") return `source_${article.source}`;
+  if (offMainSources.has(article.source)) return "off_main_source";
+  if (hasProfanity(article.title)) return "profanity";
+  const unpromotable = unpromotableReason(article.title);
+  if (unpromotable) return `unpromotable:${unpromotable}`;
+  const lowValue = lowValueReason(article.title);
+  if (lowValue) return `low_value:${lowValue}`;
+  // 딜 판정은 커뮤글에만 적용한다. 딜은 커뮤 게시판(뽐뿌 등)에서 오는 형식이고,
+  // 뉴스 보도의 금액 표기("$500 billion 투자")를 가격 패턴으로 걸면 정상 기사가
+  // 죽는다 — 첫 실행 실측에서 pcgamer 투자 기사가 실제로 걸렸다(과잉방어 금지).
+  if (article.kind === "community" && isDeal(article)) return "deal_price_or_mall_format";
+  return null;
+}
+
+// 게이트 적용 — 통과분과 탈락 기록(감사 가능: 글 ID·제목·소스·사유)을 나눈다.
+function applyQualityGate(articles, { enabled, registry }) {
+  const rows = (articles || []).filter(Boolean);
+  if (!enabled) return { kept: rows, excluded: [] };
+  const offMainSources = new Set((registry || [])
+    .filter((entry) => entry && entry.mainFeed === false)
+    .map((entry) => entry.id));
+  const kept = [];
+  const excluded = [];
+  for (const article of rows) {
+    const reason = shadowQualityReason(article, { offMainSources });
+    if (reason) {
+      excluded.push({
+        articleId: article.id ?? null,
+        title: article.title ?? null,
+        source: article.source ?? null,
+        category: article.category ?? null,
+        reason
+      });
+    } else kept.push(article);
+  }
+  return { kept, excluded };
+}
 
 // ---------------------------------------------------------------------------
 // 팩 파라미터 테이블 — 모든 초기값의 유일한 위치
@@ -465,8 +537,9 @@ function selectWithPackYardstick(candidateViews, pack, {
   return { gatePassed, gateFailed, capExcluded, selected, belowVolume, partialEdition };
 }
 
-// articles: 원시 기사 배열(품질 게이트 등 선행 필터는 호출부 책임 — 공통 원칙 6).
-// 반환은 계산·비교용 산출물이다. 서빙에 쓰지 않는다.
+// articles: 원시 기사 배열. 품질 게이트(공통 원칙 6)는 R3에서 실제 배선됐다 —
+// 기본 ON(qualityGate: false로만 끔), 탈락은 excluded.quality에 사유와 함께
+// 남는다. 반환은 계산·비교용 산출물이다. 서빙에 쓰지 않는다.
 //
 // **주의 — 이 함수는 팩 단위 선별이다(하위 호환·팩 잣대 단위 관찰용).**
 // 정책 팩 전체에서 뽑으므로 "business만 선택했는데 politics가 섞이는" 판
@@ -485,14 +558,18 @@ export function shadowSelectEdition(articles, {
   // 지연 합류로 eventId가 바뀌어도 같은 사건으로 이어진다 — 결함 4).
   // null이면 구 eventId 키 맵(previousEditionFingerprints)으로 폴백한다.
   previousLineage = null,
-  officialResultEventIds = new Set()
+  officialResultEventIds = new Set(),
+  qualityGate = true
 } = {}) {
   const pack = params.packs[packId];
   if (!pack) throw new Error(`shadowSelectEdition: 알 수 없는 팩 ${packId}`);
   const registryById = new Map((registry || []).filter(Boolean).map((entry) => [entry.id, entry]));
   const roleOf = (article) => resolveSourceRole(article, registryById.get(article && article.source));
 
-  const pool = prepareShadowPool(articles, { params, previousLineage, previousEditionFingerprints });
+  // R3 — 품질 게이트 선행(클러스터링보다 먼저): 광고성·저품질 글이 사건을
+  // 이루거나 커뮤 절대선을 통과하기 전에 뺀다. 탈락 기록은 결과에 남긴다.
+  const quality = applyQualityGate(articles, { enabled: qualityGate !== false, registry });
+  const pool = prepareShadowPool(quality.kept, { params, previousLineage, previousEditionFingerprints });
   const base = pool.rows.filter((article) => packIdForArticle(article, params) === packId);
   const views = pool.views.filter((view) => view.packIds.includes(packId));
 
@@ -516,6 +593,7 @@ export function shadowSelectEdition(articles, {
     params: { pack, volume: { ...volume }, axis: { ...params.axis } },
     counts: {
       inputArticles: rows.length,
+      qualityExcluded: quality.excluded.length,
       packArticles: base.length,
       events: views.length,
       gatePassed: gatePassed.length,
@@ -526,6 +604,7 @@ export function shadowSelectEdition(articles, {
     partialEdition,
     selected,
     excluded: {
+      quality: quality.excluded,
       gate: gateFailed,
       sourceCap: capExcluded,
       belowVolume
@@ -578,7 +657,8 @@ export function shadowSelectBriefing(articles, {
   params = SHADOW_PACK_PARAMS,
   previousEditionFingerprints = new Map(),
   previousLineage = null,
-  officialResultEventIds = new Set()
+  officialResultEventIds = new Set(),
+  qualityGate = true
 } = {}) {
   if (!Array.isArray(requestedCategories) || requestedCategories.length === 0) {
     throw new Error("shadowSelectBriefing: requestedCategories 필요(비어 있지 않은 배열)");
@@ -599,8 +679,12 @@ export function shadowSelectBriefing(articles, {
   const registryById = new Map((registry || []).filter(Boolean).map((entry) => [entry.id, entry]));
   const roleOf = (article) => resolveSourceRole(article, registryById.get(article && article.source));
 
+  // R3 — 품질 게이트 선행(판 전체 1회, 클러스터링보다 먼저). 결함 3의 배선:
+  // 광고성 글이 커뮤 절대선(eng)을 통과해 표본을 오염시키기 전에 뺀다.
+  const quality = applyQualityGate(articles, { enabled: qualityGate !== false, registry });
+
   // 판 전체 1회: 클러스터링·계보·뷰.
-  const pool = prepareShadowPool(articles, { params, previousLineage, previousEditionFingerprints });
+  const pool = prepareShadowPool(quality.kept, { params, previousLineage, previousEditionFingerprints });
 
   // 분야별 선별 — 각 분야가 **각자** 동적 분량(최대 14건)으로 선별된다.
   const perCategory = {};
@@ -676,8 +760,11 @@ export function shadowSelectBriefing(articles, {
     now,
     perCategory,
     briefing,
+    // R3 — 품질 게이트 탈락 기록(분야 라우팅 전, 판 전체 공통이라 최상위에 둔다).
+    excluded: { quality: quality.excluded },
     counts: {
       inputArticles: pool.rows.length,
+      qualityExcluded: quality.excluded.length,
       events: pool.views.length,
       briefingSelected: briefing.length,
       perCategorySelected: Object.fromEntries(categories.map((category) =>
