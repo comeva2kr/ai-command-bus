@@ -1,0 +1,197 @@
+// tools/build-editions.mjs — 신문형 판 2벌(v1 기존 편성·v2 새 선별) 생성기.
+//
+// 검증 대상:
+//  - 오늘판(/api/today) 스키마 자가 검증기(validateTodayEdition)
+//  - 수집 풀 → 인프로세스 소스 변환(캡 회피 청크·kind 보존)
+//  - v1 생성 경로: 기존 편성 파이프라인을 리슨 없이 디스패치해 200 + 스키마 통과
+//  - v2 생성 경로: shadowSelectBriefing 선별 → 같은 편집 계층 → 200 + 스키마 통과
+//  - v1/v2 diff 계산
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+import { JsonSource } from "../src/feed/content.js";
+import { shadowSelectBriefing } from "../src/feed/shadow-selection.js";
+import {
+  validateTodayEdition,
+  groupArticlesAsSources,
+  collectShadowArticles,
+  editionIssueDiff,
+  buildTodayEditionInProcess
+} from "../tools/build-editions.mjs";
+
+const NOW_MS = Date.parse("2026-08-11T12:05:00+09:00");
+
+function tmpDir() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-build-editions-"));
+}
+
+// 검증된 제공 가능 픽스처(editorial-serving.test.js와 같은 결)의 원자료.
+const V1_SUBJECTS = [
+  "호르무즈 해협 통항 협상 재개",
+  "산업단지 공장 투자 착공 일정",
+  "S&P 500 목표치 상향 발표",
+  "보유세 과세 기준 개편 발표"
+];
+
+async function normalizedV1Articles() {
+  const articles = [];
+  for (const [index, subject] of V1_SUBJECTS.entries()) {
+    const source = new JsonSource(`editions-src-${index}`, async () => [{
+      id: `editions-item-${index}`,
+      title: `${subject}: 공식 자료 공개`,
+      url: `https://editions-${index}.example.com/article`,
+      category: "business",
+      sourceLabel: `검증 매체 ${index + 1}`,
+      score: 120 - index,
+      commentCount: 24 - index,
+      coverage: 1,
+      publishedAt: "2026-08-11T06:40:00+09:00"
+    }], "news");
+    articles.push(...await source.fetch());
+  }
+  return articles;
+}
+
+// 새 선별(shadow) 게이트를 지나는 원자료 — 사건당 독립 소유 그룹 2곳(같은 제목).
+async function normalizedV2Articles() {
+  const articles = [];
+  for (const [index, subject] of V1_SUBJECTS.entries()) {
+    for (const side of ["a", "b"]) {
+      const sourceId = `editions-v2-${index}${side}`;
+      const source = new JsonSource(sourceId, async () => [{
+        id: `editions-v2-item-${index}${side}`,
+        title: `${subject}: 공식 자료 공개`,
+        url: `https://${side}.editions-v2-${index}.example.com/article`,
+        category: "business",
+        sourceLabel: `독립 매체 ${index + 1}${side}`,
+        score: 90 - index,
+        commentCount: 12,
+        coverage: 1,
+        publishedAt: "2026-08-11T11:00:00+09:00"
+      }], "news");
+      const [row] = await source.fetch();
+      // 독립 보도 판정 근거 — 등록부 명시 소유 그룹(shadow-selection.test.js와 동일).
+      row.ownershipGroup = `editions-grp-${index}${side}`;
+      row.ownershipBasis = "registry_explicit";
+      articles.push(row);
+    }
+  }
+  return articles;
+}
+
+test("groupArticlesAsSources: 소스별 청크(기본 20)로 쪼개고 id·kind를 보존한다", () => {
+  const articles = [
+    ...Array.from({ length: 45 }, (_, index) => ({
+      id: `news-${index}`, source: "big-news", kind: "news", title: `n${index}`
+    })),
+    { id: "comm-0", source: "board", kind: "community", title: "c0" }
+  ];
+  const sources = groupArticlesAsSources(articles);
+  const newsChunks = sources.filter((source) => source.id === "big-news");
+  assert.equal(newsChunks.length, 3, "45건 = 20+20+5 세 청크");
+  for (const chunk of newsChunks) assert.equal(chunk.kind, "news");
+  const board = sources.find((source) => source.id === "board");
+  assert.equal(board.kind, "community");
+  return Promise.all(sources.map((source) => source.fetch())).then((lists) => {
+    const total = lists.reduce((sum, list) => sum + list.length, 0);
+    assert.equal(total, 46, "기사 유실 0");
+  });
+});
+
+test("validateTodayEdition: 필수 필드 누락을 잡는다", () => {
+  const issue = {
+    headline: "제목", paragraph: "요약", whyImportant: "중요", whyHot: "지금",
+    watchNext: "다음 확인",
+    reader: {
+      headline: "제목", summary: "요약", whyImportant: "중요", whyNow: "지금",
+      change: "달라진 점", watchNext: "다음 확인", confidenceLabel: "확인"
+    },
+    categoryIds: ["business"],
+    refs: [{ id: "r1", title: "원문", sourceLabel: "매체" }],
+    evidence: { sources: [{ label: "매체" }] }
+  };
+  const edition = {
+    editionDate: "2026-08-11",
+    generatedAt: "2026-08-11T03:05:00.000Z",
+    slot: { id: "lunch", label: "점심" },
+    issues: [issue],
+    selection: { mode: "preview", categories: [{ id: "business", label: "경제" }] },
+    availableCategories: [{ id: "business", label: "경제" }],
+    categoryFulfillment: { rows: [], metCount: 1, selectedCount: 1 },
+    sourceCount: 4, overseasShare: 0, llmCalls: 0,
+    serving: { state: "current_machine_verified" }
+  };
+  assert.equal(validateTodayEdition(edition).ok, true);
+
+  const noDate = structuredClone(edition);
+  delete noDate.editionDate;
+  assert.equal(validateTodayEdition(noDate).ok, false);
+
+  const emptyCopy = structuredClone(edition);
+  emptyCopy.issues[0].reader.whyImportant = "";
+  emptyCopy.issues[0].whyImportant = "";
+  const copyCheck = validateTodayEdition(emptyCopy);
+  assert.equal(copyCheck.ok, false);
+  assert.ok(copyCheck.errors.some((error) => error.includes("whyImportant")));
+
+  const noRefs = structuredClone(edition);
+  noRefs.issues[0].refs = [];
+  assert.equal(validateTodayEdition(noRefs).ok, false);
+});
+
+test("editionIssueDiff: refs 겹침으로 같은 이슈를 세고 나머지를 각자 몫으로 나눈다", () => {
+  const issueWith = (ids) => ({ refs: ids.map((id) => ({ id, canonicalUrl: `https://x.example.com/${id}` })) });
+  const a = { issues: [issueWith(["1"]), issueWith(["2"]), issueWith(["3"])] };
+  const b = { issues: [issueWith(["2"]), issueWith(["9"])] };
+  const diff = editionIssueDiff(a, b);
+  assert.deepEqual(diff, { v1Issues: 3, v2Issues: 2, shared: 1, v1Only: 2, v2Only: 1 });
+});
+
+test("v1 생성 경로: 기존 편성 파이프라인을 리슨 없이 통과해 오늘판 스키마 200을 낸다", async () => {
+  const dir = tmpDir();
+  const articles = await normalizedV1Articles();
+  const run = await buildTodayEditionInProcess({
+    sources: groupArticlesAsSources(articles),
+    nowMs: NOW_MS,
+    storeFile: path.join(dir, "v1-store.json"),
+    poolFile: path.join(dir, "v1-pool.json"),
+    query: "/api/today?categories=business&slot=lunch"
+  });
+  assert.equal(run.status, 200, JSON.stringify(run.body && (run.body.error || run.body.code)));
+  const check = validateTodayEdition(run.edition);
+  assert.deepEqual(check.errors, [], "오늘판 스키마 통과");
+  assert.equal(Number(run.edition.llmCalls), 0, "LLM 호출 0");
+  assert.ok(run.edition.issues.length >= 1);
+  assert.equal(run.edition.slot.id, "lunch");
+});
+
+test("v2 생성 경로: shadow 선별 → 같은 편집 문장 계층 → 오늘판 스키마 200", async () => {
+  const dir = tmpDir();
+  const articles = await normalizedV2Articles();
+  const out = shadowSelectBriefing(articles, {
+    requestedCategories: ["business"],
+    now: NOW_MS,
+    slotId: "lunch",
+    previousLineage: []
+  });
+  const selected = collectShadowArticles(out);
+  assert.ok(selected.length >= 2, `shadow 선별이 기사를 골라야 한다 (실제 ${selected.length})`);
+  const ids = new Set(selected.map((article) => article.id));
+  assert.equal(ids.size, selected.length, "중복 기사 없음");
+
+  const run = await buildTodayEditionInProcess({
+    sources: groupArticlesAsSources(selected),
+    nowMs: NOW_MS,
+    storeFile: path.join(dir, "v2-store.json"),
+    poolFile: path.join(dir, "v2-pool.json"),
+    query: "/api/today?categories=business&slot=lunch"
+  });
+  assert.equal(run.status, 200, JSON.stringify(run.body && (run.body.error || run.body.code)));
+  const check = validateTodayEdition(run.edition);
+  assert.deepEqual(check.errors, [], "오늘판 스키마 통과");
+  assert.equal(Number(run.edition.llmCalls), 0, "LLM 호출 0");
+  assert.ok(run.edition.issues.length >= 1);
+});
