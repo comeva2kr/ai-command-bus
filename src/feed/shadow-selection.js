@@ -182,7 +182,20 @@ export const SHADOW_PACK_PARAMS = deepFreeze({
       windowHours: 12,
       morningWindowHours: 24,
       trustGate: "news_graded", // R5 — A(primary·first_party) ∨ 독립2 ∨ B(specialist 단독·단일 출처 표기·민감 불가)
-      sourceCap: { per: "operatorGroup", max: 2 }
+      sourceCap: { per: "operatorGroup", max: 2 },
+      // 해외발 최소 노출(David #과업3, 2026-08-17 — "해외 주요뉴스가 핵심").
+      // 원인 실측(2026-08-17 evening 슬롯, 신선 풀 1917건): CNBC 15건 후보 전량이
+      // freshness_window_12h(위 windowHours)에서 탈락 — 미국 동부 업무시간
+      // 발행분이 KST 저녁 기준 12h를 넘긴다(아침 슬롯 morningWindowHours=24는
+      // 이미 보정돼 있다 — 그 창은 이 변경 대상이 아니다). BBC Business는
+      // 게이트를 통과(B등급)하고도 S 점수가 낮아(반응 0·독립보도 그룹 부재)
+      // sourceCap·동적 분량 컷 아래로 밀렸다 — gate-passed 해외 공급이 있어도
+      // 노출 0이었던 원인은 "게이트 미통과"가 아니라 "순위 밀림"이었다.
+      // 팩별 gate-passed 해외 공급 실측(같은 슬롯): business 7 · news 1 ·
+      // tech 1 · auto 0 · politics 0(후보 자체 없음) — 공급이 있는 레인 중
+      // 가장 얇은 값(1)을 기본값으로 삼는다(공급 없는 레인까지 강제하면
+      // "부분 표시 원칙"을 어긴다 — 과잉 설정 금지). David 확인 대상.
+      overseasMinPerCategory: 1
     },
     science: {
       label: "과학",
@@ -347,6 +360,17 @@ function specialistDeclared(memberArticles, pack, registryById) {
   return memberArticles.every((article) => {
     const entry = registryById.get(article && article.source);
     return entry && entry.sourceTier === "specialist" && packCategories.has(entry.category);
+  });
+}
+
+// 해외발 판정 — 소스 레지스트리 country 실코드만 본다(David #과업3, 2026-08-17
+// 지시: "판별은 소스 레지스트리 country 필드 실코드 확인"). 구성원 기사 **전부**가
+// 해외 소스일 때만 해외발이다 — 국내 매체가 하나라도 섞이면 이미 국내 보도다.
+export function allMembersOverseas(memberArticles, registryById) {
+  if (!registryById || !memberArticles || !memberArticles.length) return false;
+  return memberArticles.every((article) => {
+    const entry = registryById.get(article && article.source);
+    return Boolean(entry && entry.country && entry.country !== "KR");
   });
 }
 
@@ -693,8 +717,44 @@ function selectWithPackYardstick(candidateViews, pack, {
       else break;
     }
   }
-  const selected = capped.slice(0, cut);
-  const belowVolume = capped.slice(cut).map((row) => ({ ...row, exclusion: "below_dynamic_volume" }));
+  let selected = capped.slice(0, cut);
+  let belowVolume = capped.slice(cut).map((row) => ({ ...row, exclusion: "below_dynamic_volume" }));
+
+  // 해외발 최소 노출 보장(David #과업3, newsy 팩 한정 — pack.overseasMinPerCategory
+  // 있을 때만 동작). 소스캡(공통 원칙 4 — 자동 완화 금지)은 그대로 두고
+  // capExcluded에서는 절대 끌어오지 않는다 — 게이트·캡을 모두 통과했지만
+  // 동적 분량 컷 아래로 밀린 belowVolume에서만 채운다. 채울 만큼의 공급이
+  // 없으면 그대로 둔다(부분 표시 원칙 — 억지로 채우지 않는다). 총 selected
+  // 개수(동적 분량 계약)는 바꾸지 않는다 — 가장 낮은 국내 S를 해외로 맞바꾼다.
+  const overseasMin = Math.max(0, Number(pack.overseasMinPerCategory) || 0);
+  if (overseasMin > 0 && registryById) {
+    const isOverseasRow = (row) => allMembersOverseas(row.view.memberArticles, registryById);
+    const have = selected.filter(isOverseasRow).length;
+    const need = overseasMin - have;
+    if (need > 0) {
+      const reserve = belowVolume
+        .filter(isOverseasRow)
+        .sort((a, b) => b.score.S - a.score.S);
+      const domesticByAscendingS = selected
+        .map((row, index) => ({ row, index }))
+        .filter(({ row }) => !isOverseasRow(row))
+        .sort((a, b) => a.row.score.S - b.row.score.S);
+      const swapCount = Math.min(need, reserve.length, domesticByAscendingS.length);
+      const used = new Set();
+      for (let i = 0; i < swapCount; i += 1) {
+        selected[domesticByAscendingS[i].index] = reserve[i];
+        used.add(reserve[i]);
+      }
+      if (swapCount > 0) {
+        selected = [...selected].sort((a, b) => b.score.S - a.score.S
+          || String(a.view.event.eventId).localeCompare(String(b.view.event.eventId)));
+        // 선택으로 옮긴 행은 제외 목록에서 뺀다 — 감사 로그에서 같은 사건이
+        // selected와 excluded.belowVolume 양쪽에 동시에 잡히지 않게 한다.
+        belowVolume = belowVolume.filter((row) => !used.has(row));
+      }
+    }
+  }
+
   const partialEdition = selected.length < volume.min;
 
   return { gatePassed, gateFailed, capExcluded, selected, belowVolume, partialEdition };

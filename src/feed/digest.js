@@ -35,6 +35,27 @@ import {
 import { buildSourceEvidence } from "./editorial-lineage.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import { composeEventFromMembers, decideEventMerge } from "./event-cluster.js";
+import { loadRegistry } from "./registry.js";
+
+// 해외발(국내 미보도) 판정 — David #과업3, 2026-08-17: "판별은 소스 레지스트리
+// country 필드 실코드 확인". 구성원(보도) 기사 **전부**가 해외 소스일 때만
+// 해외발이다 — 국내 매체가 하나라도 섞이면 이미 국내 보도다. 레지스트리는
+// 정적 communities.json이라 1회만 읽어 재사용한다(테스트 픽스처의 가상 소스
+// id는 등록부에 없으므로 조용히 "해외 아님"으로 떨어진다 — 회귀 없음).
+let overseasSourceIdsCache = null;
+function overseasSourceIds() {
+  if (!overseasSourceIdsCache) {
+    overseasSourceIdsCache = new Set(
+      loadRegistry().filter((entry) => entry && entry.country && entry.country !== "KR").map((entry) => entry.id)
+    );
+  }
+  return overseasSourceIdsCache;
+}
+function membersAllOverseas(members) {
+  if (!members || !members.length) return false;
+  const overseas = overseasSourceIds();
+  return members.every((item) => overseas.has(item && item.source));
+}
 
 // ---------------------------------------------------------------------------
 // 이슈 묶기 — 같은 사건을 다룬 글들을 한 덩어리로
@@ -467,6 +488,33 @@ export function issueTone(shape, evidence = null) {
   return { debate: "논쟁", applause: "호응", single: "단독" }[shape] || "단독";
 }
 
+// refs 투영 — 이슈(사건)에 속한 기사 전체를 대표 우선 순서 그대로 노출한다
+// (David #6, 2026-08-17). members는 이미 대표가 0번인 배열(clusterIssues가
+// 화제성순 items를 순서대로 채우고, 병합 시에도 대표 클러스터 members 뒤에
+// 병합분을 붙인다) — 여기서 순서를 새로 정하지 않는다. 상한(과거 perIssueRefs)
+// 없이 전량 투영한다: 선별·병합이 이미 "이 기사들이 한 사건"이라고 판정했으므로
+// 그 판정 결과를 자르지 않는 것이 투영 계층의 책임이다.
+function projectIssueRefs(members) {
+  return members.map((item) => {
+    const identity = operationalSourceIdentity(item);
+    return {
+      id: item.id, title: item.title, sourceLabel: item.sourceLabel || item.source,
+      category: item.category || "news", score: item.score || 0,
+      commentCount: item.commentCount || 0, coverage: item.coverage || 0,
+      canonicalUrl: item.editorialCandidate && item.editorialCandidate.canonicalUrl || null,
+      publishedAt: item.publishedAt || null,
+      sourceRole: item.editorialCandidate && item.editorialCandidate.sourceRole || "unknown",
+      ownershipGroup: identity.ownershipGroup,
+      ownershipBasis: identity.ownershipBasis,
+      syndicationGroup: item.editorialCandidate && item.editorialCandidate.syndicationGroup || null,
+      carryover: item.editorialCarryover ? { ...item.editorialCarryover } : null
+    };
+  });
+}
+
+// eslint-disable-next-line no-unused-vars -- perIssueRefs는 buildDigest 공개
+// 시그니처 호환을 위해 유지한다(외부 호출부 없음, 2026-08-17 확인). refs는
+// 더 이상 이 값으로 자르지 않는다 — projectIssueRefs가 전량 투영한다.
 function buildIssueDraft(members, perIssueRefs, requireKoreanAudience = false) {
   const shape = issueShape(members);
   const evidence = coverageEvidence(members);
@@ -524,21 +572,10 @@ function buildIssueDraft(members, perIssueRefs, requireKoreanAudience = false) {
     },
     sourceEvidence,
     editorialGate,
-    refs: members.slice(0, perIssueRefs).map((item) => {
-      const identity = operationalSourceIdentity(item);
-      return {
-        id: item.id, title: item.title, sourceLabel: item.sourceLabel || item.source,
-        category: item.category || "news", score: item.score || 0,
-        commentCount: item.commentCount || 0, coverage: item.coverage || 0,
-        canonicalUrl: item.editorialCandidate && item.editorialCandidate.canonicalUrl || null,
-        publishedAt: item.publishedAt || null,
-        sourceRole: item.editorialCandidate && item.editorialCandidate.sourceRole || "unknown",
-        ownershipGroup: identity.ownershipGroup,
-        ownershipBasis: identity.ownershipBasis,
-        syndicationGroup: item.editorialCandidate && item.editorialCandidate.syndicationGroup || null,
-        carryover: item.editorialCarryover ? { ...item.editorialCarryover } : null
-      };
-    })
+    refs: projectIssueRefs(members),
+    // 해외발(국내 미보도) 플래그 — David #과업3. 병합이 있으면 아래
+    // issues 조립 단계에서 allMembers 기준으로 재계산한다(refs와 같은 패턴).
+    overseasOnly: membersAllOverseas(members)
   };
 }
 
@@ -803,6 +840,16 @@ export function buildDigest(items, {
       // 대표의 측정값·게이트는 그대로 둔다: 병합 근거로 교차 계수를 부풀리지
       // 않는다(합산 금지, 커뮤 반응은 별도 축 — event.counts가 축별 정본).
       draft.sourceEvidence = buildSourceEvidence(allMembers);
+      // refs도 같은 근거로 재투영한다 (David #6) — 병합 전 refs는 대표
+      // 클러스터 members만 봤다. allMembers는 대표 클러스터 members가 먼저,
+      // 병합분이 뒤라 대표 우선 순서가 유지된다. 선별·병합 판정 자체는
+      // 위(mergeGroupsByEventDecision)에서 이미 끝났고 여기는 그 결과를
+      // 그대로 펼치기만 한다.
+      draft.refs = projectIssueRefs(allMembers);
+      // 해외발 플래그도 전체 구성원 기준으로 재계산한다 — 대표 클러스터는
+      // 해외 단독이었어도 병합분에 국내 매체가 섞이면 더 이상 "국내 미보도"가
+      // 아니다.
+      draft.overseasOnly = membersAllOverseas(allMembers);
     }
     // 사건 투영: 안정 사건 ID를 기존 소비처 필드명 clusterId로 노출한다
     // (edition-change 등 소비처 무변경 호환 — 없으면 종전대로 스냅샷 키 사용).

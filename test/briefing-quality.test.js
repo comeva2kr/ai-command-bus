@@ -3,8 +3,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { eventKey, normalizeForDedupe, isSameEvent, MIN_KEY_LEN,
-  sharedTitleWordCount } from "../src/feed/dedupe.js";
+  sharedTitleConceptCount, sharedTitleWordCount } from "../src/feed/dedupe.js";
 import { hasProfanity, maskProfanity } from "../src/feed/profanity.js";
+import { loadRegistry } from "../src/feed/registry.js";
+
+// refs가 이제 사건(병합 포함) 구성원 전체를 투영한다(David #6, 2026-08-17) —
+// 근접 중복 변주는 더 이상 "그중 하나만 refs에 남는다"가 아니라 "한 이슈의
+// refs 안에 전부 근거로 모인다". 아래 헬퍼는 원래 이 테스트들이 지키려던
+// 계약(변주가 이슈 자리를 여러 개 차지하면 안 된다 — 오병합 방지와는 반대 방향의
+// "중복 노출" 방지)을 refs 전량 투영과 함께 검증한다.
+function issuesContainingAnyId(issues, ids) {
+  const idSet = new Set(ids);
+  return issues.filter((issue) => issue.refs.some((ref) => idSet.has(ref.id)));
+}
 
 // ---------------------------------------------------------------------------
 // ② 제목 정규화 중복제거
@@ -66,6 +77,23 @@ test("dedupe: 근접 중복 — 완전일치는 아니어도 내용어가 크게
   for (const other of ["삼성전자 3분기 실적 발표, 영업이익 급증", "손흥민 시즌 첫 골, 토트넘 승리 이끌어"]) {
     assert.ok(sharedTitleWordCount(variants[0], other) <= 1, `무관한 제목과 과하게 겹친다: ${other}`);
   }
+
+  assert.ok(sharedTitleConceptCount(
+    "트럼프 대통령, 이란에 ‘배상’ 요구",
+    '트럼프 "이란, 과거 폭탄테러·시위대 살해 배상하라"'
+  ) >= 3, "조사·활용형이 달라도 같은 배상 사건을 잡아야 한다");
+  assert.ok(sharedTitleConceptCount(
+    "‘축구협회 성접대 의혹’ 아직 수사 착수 안한 경찰",
+    '韓 심판 성접대 논란, 일본축구협회가 조사 착수'
+  ) >= 3, "발행사 표현이 달라도 같은 심판 성접대 사건을 잡아야 한다");
+  assert.ok(sharedTitleConceptCount(
+    "news 독립 사건 1-1",
+    "news 독립 사건 1-2"
+  ) < 3, "일반어만 같은 별개 사건은 중복으로 접으면 안 된다");
+  assert.ok(sharedTitleConceptCount(
+    "Grand Theft Auto 5 averages more copies sold per year than most megahits manage in their entire lifetime",
+    "Square Enix financial report gives me hope for FF14, suggesting the MMO is finally not having to carry the company"
+  ) < 3, "영문 불용어만 겹친 무관한 게임 기사를 합치면 안 된다");
 });
 
 // ---------------------------------------------------------------------------
@@ -144,7 +172,7 @@ test("브리핑: 이슈가 부족하면 발행하지 않는다 (빈 글 방지)"
 test("브리핑: 수치가 자기모순이면 안 된다", async () => {
   const { issueParagraph, issueShape } = await import("../src/feed/digest.js");
   // 실측 사고: coverage=5인데 우리 풀엔 1건이라 "1곳이 함께 다뤘다"가 나왔다.
-  const items = [{ id: "a", title: "여러 매체가 다루는 사안입니다 제목", sourceLabel: "한국방송뉴스",
+  const items = [{ id: "a", title: "주택 공급 일정 발표 관련 소식", sourceLabel: "한국방송뉴스",
     score: 0, commentCount: 0, coverage: 5, tags: [] }];
   const para = issueParagraph(items, issueShape(items));
   assert.doesNotMatch(para, /1곳이 함께 다뤘다/, "자기모순 문장이 나오면 안 된다");
@@ -157,19 +185,23 @@ test("브리핑: 수치가 자기모순이면 안 된다", async () => {
   // 나간 이슈 6건이 전부 "5개 매체가 다룬"이었고 그중에는 우리 피드에 한 곳
   // 에서만 들어온 것도 있었다.
   assert.doesNotMatch(para, /\d+개 매체/, "상한에 걸린 값을 정확한 수치처럼 쓰면 안 된다");
-  assert.match(para, /여러 매체/, "교차보도 사실 자체는 전해야 한다");
-  // 우리가 실제로 센 것(우리 피드에 들어온 출처)은 이름으로 밝힌다.
-  assert.match(para, /한국방송뉴스/, "우리 피드에 들어온 출처는 밝혀야 한다");
+  assert.doesNotMatch(para, /여러 매체|복수 피드|교차 관측|기사들이 함께/, "관련기사 묶음을 직접 복수 확인처럼 말하면 안 된다");
+  assert.match(para, /관련 보도 묶음 신호/, "관련기사 묶음 신호 자체는 전해야 한다");
+  // 우리가 실제로 센 것(우리 피드에 들어온 출처)은 이름과 직접 확인 건수로 밝힌다.
+  assert.match(para, /직접 확인한 원문은 한국방송뉴스 기사 한 건/, "우리 피드에서 직접 확인한 범위를 밝혀야 한다");
 });
 
 test("브리핑: 같은 사건 중복과 한 매체 독식을 막는다", async () => {
   const src = (await import("node:fs")).readFileSync(
     new URL("../src/feed/engine.js", import.meta.url), "utf8");
   // 2026-08-04: 시그니처가 briefing({ slotId })로 바뀌었다 — 슬롯마다 창과
-  // 해외 가중이 달라진다. 문자열로 자를 때 괄호까지 박아 두면 이렇게 깨진다.
+  // 해외 가중이 달라진다. 고정 글자 수로 자르면 구현이 자랄 때 정상 코드가
+  // 검사 창 밖으로 밀리므로 다음 메서드 경계까지 읽는다.
   const at = src.indexOf("async briefing(");
   assert.ok(at > 0, "briefing 함수를 찾을 수 없다");
-  const fn = src.slice(at, at + 9000);
+  const end = src.indexOf("\n  async todayEdition(", at);
+  assert.ok(end > at, "briefing 함수 끝을 찾을 수 없다");
+  const fn = src.slice(at, end);
   assert.match(fn, /eventKey\(i\.title\)/, "이벤트 키로 중복을 걸러야 한다");
   assert.match(fn, /perOutlet/, "한 매체가 섹션을 독식하지 않아야 한다");
   // 2026-08-04: 비속어만 보던 것을 promotable()로 넓혔다. 비속어에 더해
@@ -239,6 +271,7 @@ test("태그: 제목에서 내용 특징을 뽑는다 (어댑터가 tags를 안 
   // ["lj"]를 만들었다. 사람 이니셜이 취향 벡터에 영구히 쌓이면 안 된다.
   assert.deepEqual(extractTags("'LJ와 이혼' 이선정 전남편에 나쁜 감정 없어"), []);
   assert.deepEqual(extractTags("AI 로봇 기반 기술 혁신"), ["ai"], "진짜 신호는 살린다");
+  assert.ok(!extractTags("we lost access").includes("OST"), "영문 사전어를 단어 안에서 오탐하면 안 된다");
 });
 
 test("좋아요 한 번은 카테고리 선언이 아니다 — 내용 쪽이 훨씬 크게 움직인다", async () => {
@@ -295,7 +328,7 @@ test("HEAD 요청이 GET과 같은 상태코드를 준다 (sitemap '가져올 �
   }
 });
 
-test("sitemap.xml이 유효한 XML이고 자체 콘텐츠 페이지를 담는다", async () => {
+test("sitemap.xml은 자체 편집 페이지만 담고 실시간·유틸리티 지면은 제외한다", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const server = createServer({ dev: true });
   await new Promise((r) => server.listen(0, r));
@@ -312,8 +345,11 @@ test("sitemap.xml이 유효한 XML이고 자체 콘텐츠 페이지를 담는다
     // 오리진은 요청 호스트에서 만든다(originOf) — 테스트 서버는 127.0.0.1이다.
     // 도메인을 하드코딩하면 스테이징·로컬에서 틀린 sitemap이 나가는 것을 놓친다.
     const origin = `http://127.0.0.1:${port}`;
-    for (const must of ["/briefing", "/ranking/daily", "/trends"]) {
+    for (const must of ["/", "/briefing", "/report"]) {
       assert.ok(xml.includes(`<loc>${origin}${must}</loc>`), `sitemap에 ${must}가 없다`);
+    }
+    for (const excluded of ["/live", "/ranking/daily", "/trends", "/communities", "/keywords"]) {
+      assert.ok(!xml.includes(`<loc>${origin}${excluded}</loc>`), `유틸리티 지면 ${excluded}가 sitemap에 들어갔다`);
     }
     // 개인화 API는 색인 대상이 아니다
     assert.ok(!xml.includes("/api/"), "API 경로가 sitemap에 들어가면 안 된다");
@@ -339,40 +375,77 @@ test("robots.txt가 sitemap을 가리키고 개인화·관리 경로를 막는�
   }
 });
 
-test("자체 콘텐츠 페이지에 광고 지면이 있고, 광고 설정이 없으면 아무것도 안 나온다", async () => {
-  // 2026-08-03 실측: /briefing·/ranking·/trends에 광고 코드가 0개였다.
-  // sitemap에 올린 URL 대부분이 이 페이지들이고 검색 유입이 실제로 닿는
-  // 화면인데 수익 지면이 없어 유입이 통째로 샜다.
+test("루트는 자체 편집 홈이고 기존 개인화 앱은 /live noindex로 분리된다", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const server = createServer({ dev: true });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const root = await (await fetch(`${base}/`)).text();
+    assert.match(root, /<link rel="canonical" href="https:\/\/nowhot\.kr\/">/);
+    assert.doesNotMatch(root, /<meta name="robots" content="noindex,follow">/);
+    assert.match(root, /<h1>지금핫<\/h1>/);
+    assert.match(root, /어떻게 고르나/);
+    assert.match(root, /href="\/live"/);
+    const body = root.slice(root.indexOf("<body"));
+    assert.doesNotMatch(body, /<a[^>]+href="https?:\/\//,
+      "편집 홈 본문은 외부 링크 모음이어서는 안 된다");
+
+    const live = await (await fetch(`${base}/live`)).text();
+    assert.match(live, /<link rel="canonical" href="https:\/\/nowhot\.kr\/live">/);
+    assert.match(live, /<meta name="robots" content="noindex,follow">/);
+    assert.match(live, /id="feedSkel"/, "기존 실시간 앱 셸이 /live에 있어야 한다");
+
+    const redirect = await fetch(`${base}/index.html`, { redirect: "manual" });
+    assert.equal(redirect.status, 308);
+    assert.equal(redirect.headers.get("location"), "/live");
+  } finally {
+    server.closeAllConnections?.(); await new Promise((r) => server.close(r));
+  }
+});
+
+test("AdFit 심사 모드는 자체 편집 홈에 한 단위만 두고 다른 광고와 /live를 비운다", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const prev = { a: process.env.ADSENSE_CLIENT, f: process.env.ADFIT_UNIT_MOBILE, e: process.env.ADFIT_ENABLED };
   try {
-    // (1) 광고 설정이 있으면 지면이 붙는다
+    // (1) AdFit 심사 모드: 검색·심사용 편집 홈에만 정확히 한 단위.
     process.env.ADSENSE_CLIENT = "ca-pub-TEST";
     process.env.ADFIT_UNIT_MOBILE = "DAN-TEST";
-    // 2026-08-04: 애드핏은 승인 플래그가 켜져야만 지면을 차지한다. 심사 보류
-    // 상태에서는 onfail도 안 부르면서 아무것도 안 보여줘 빈 칸만 남기 때문이다.
     process.env.ADFIT_ENABLED = "1";
     let server = createServer({ dev: true });
     await new Promise((r) => server.listen(0, r));
     let port = server.address().port;
-    let html = await (await fetch(`http://127.0.0.1:${port}/briefing`)).text();
-    assert.match(html, /adsbygoogle/, "애드센스 지면이 있어야 한다");
-    assert.match(html, /kakao_ad_area/, "애드핏 지면이 있어야 한다");
-    // 광고를 콘텐츠로 오인시키면 애드센스 정책 위반이자 신뢰 손실이다
+    let html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
+    assert.equal((html.match(/class="kakao_ad_area"/g) || []).length, 1,
+      "편집 홈의 AdFit 지면은 정확히 한 단위여야 한다");
+    assert.match(html, /t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/, "AdFit SDK가 있어야 한다");
+    assert.doesNotMatch(html, /pagead2\.googlesyndication\.com|class="adsbygoogle"/,
+      "심사 모드에서 AdSense를 함께 로드하면 안 된다");
+    assert.doesNotMatch(html, /link\.coupang\.com|쿠팡 파트너스/,
+      "심사 모드 편집 지면에 제휴 광고를 섞으면 안 된다");
     assert.match(html, /class="ad-mark"/, "AD 표기가 있어야 한다");
-    // 본문보다 광고가 앞서면 안 된다 — 읽는 흐름을 끊으면 체류가 죽는다
     assert.ok(html.indexOf("<h1>") < html.indexOf('<div class="ad-slot">'),
       "본문이 광고보다 앞서야 한다");
+
+    const live = await (await fetch(`http://127.0.0.1:${port}/live`)).text();
+    assert.match(live, /<meta name="robots" content="noindex,follow">/);
+    assert.doesNotMatch(live, /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i,
+      "자동 갱신되는 실시간 피드는 광고 네트워크 SDK를 로드하지 않는다");
+    const cfg = await (await fetch(`http://127.0.0.1:${port}/api/config`)).json();
+    assert.equal(cfg.adfit.mobileUnit, null, "실시간 클라이언트로 AdFit 단위를 내려보내면 안 된다");
+    assert.equal(cfg.adfit.reviewMode, true);
+    assert.equal(cfg.monetization.enabled, false);
+    assert.equal(cfg.coupang, null);
     server.closeAllConnections?.(); await new Promise((r) => server.close(r));
 
-    // (2) 설정이 없으면 완전 무광고 — 광고 없는 배포에 빈 박스가 생기면 안 된다
+    // (2) 설정이 없으면 편집 홈도 완전 무광고.
     delete process.env.ADSENSE_CLIENT;
     delete process.env.ADFIT_UNIT_MOBILE;
     delete process.env.ADFIT_ENABLED;
     server = createServer({ dev: true });
     await new Promise((r) => server.listen(0, r));
     port = server.address().port;
-    html = await (await fetch(`http://127.0.0.1:${port}/briefing`)).text();
+    html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
     assert.doesNotMatch(html, /adsbygoogle/);
     assert.doesNotMatch(html, /kakao_ad_area/);
     // CSS 규칙(.ad-slot{})은 항상 있어도 무해하다 — 실제 지면 div만 없으면 된다
@@ -523,10 +596,32 @@ test("편성: mainFeed:false 소스는 브리핑·랭킹에서도 빠진다", as
   // 걸려 있었기 때문이다 — 우리 이름으로 "오늘의 대표"라고 붙이는 자리야말로
   // 이 설정이 가장 필요하다.
   assert.match(src, /_offMainSet\(\)/, "공용 게터로 한 곳에서 판단해야 한다");
-  const brief = src.slice(src.indexOf("async briefing("), src.indexOf("async briefing(") + 2000);
+  const briefingStart = src.indexOf("async briefing(");
+  const briefingEnd = src.indexOf("async todayEdition(", briefingStart);
+  const brief = src.slice(briefingStart, briefingEnd);
   assert.match(brief, /_offMainSet\(\)\.has\(i\.source\)/, "브리핑에서 제외");
   const rank = src.slice(src.indexOf("async rankingTop("), src.indexOf("async rankingTop(") + 2500);
   assert.match(rank, /_offMainSet\(\)\.has\(i\.source\)/, "랭킹에서 제외");
+});
+
+test("편성: 게임은 유머판·매니악 커뮤니티가 아닌 국내외 일반 뉴스 공급원을 갖는다", () => {
+  const byId = new Map(loadRegistry().map((source) => [source.id, source]));
+  const gamemeca = byId.get("gamemeca");
+  const pcgamer = byId.get("pcgamer");
+
+  for (const source of [gamemeca, pcgamer]) {
+    assert.ok(source, "일반 게임 뉴스 소스가 레지스트리에 있어야 한다");
+    assert.equal(source.enabled, true);
+    assert.equal(source.kind, "news");
+    assert.equal(source.category, "gaming");
+    assert.notEqual(source.mainFeed, false, "개인 오늘판 공급원에서 빠지면 안 된다");
+    assert.equal(source.adapter.type, "rss");
+    assert.match(source.adapter.url, /^https:\/\//);
+  }
+  assert.equal(byId.get("inven_hot").mainFeed, false,
+    "매니악한 인게임 커뮤니티를 일반 뉴스 대신 메인에 되돌리면 안 된다");
+  assert.equal(byId.get("ruliweb").mixed, true,
+    "루리웹 유머판을 게임 전문 뉴스로 다시 오인하면 안 된다");
 });
 
 test("편성 화면: 슬롯이 무엇인지 알 수 있고 발행된 편은 눌러 갈 수 있다", async () => {
@@ -603,6 +698,84 @@ test("브리핑: 검색 급상승으로 올라온 글은 그 사실을 화면에
   assert.match(block, /\+`/, "500+ 처럼 대략값 표기를 유지해야 한다");
 });
 
+test("브리핑 이슈: 같은 검색 급상승어는 한 판에서 한 사건만 대표한다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const interest = { term: "어린이", traffic: 1000, strength: 1, how: "term" };
+  const items = [
+    { id: "a", title: "외할머니에게 맞았다 경찰서 찾아간 11살", source: "one", sourceLabel: "한겨레", category: "news", interest },
+    { id: "b", title: "안전벨트 안 맨 아이 고집에", source: "two", sourceLabel: "매일경제", category: "business", interest },
+    { id: "c", title: "반도체 신규 공정 투자 확대", source: "three", sourceLabel: "전자신문", category: "tech", score: 120 }
+  ];
+  const { issues } = buildDigest(items, { maxIssues: 3, selectedCategories: ["news", "business", "tech"], minIssuesPerCategory: 1 });
+  assert.equal(issues.filter((issue) => /“어린이” 검색/.test(issue.headline)).length, 1);
+  assert.ok(issues.some((issue) => /반도체 신규 공정 투자 확대/.test(issue.headline)), "중복 자리는 다음 품질 후보로 채워야 한다");
+});
+
+test("개인판 최소 깊이: 앞 분야가 소스 상한을 써도 후보가 있는 뒤 분야를 굶기지 않는다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const categories = ["news", "tech", "fashion"];
+  const items = categories.flatMap((category, categoryIndex) => [0, 1].map((index) => ({
+    id: `${category}-${index}`,
+    title: `${category} 독립 사건 ${categoryIndex + 1}-${index + 1}`,
+    source: "shared-outlet",
+    sourceLabel: "공통매체",
+    category,
+    score: 100 - categoryIndex * 10 - index,
+    tags: []
+  })));
+  const { issues } = buildDigest(items, {
+    maxIssues: 6,
+    maxPerSource: 3,
+    selectedCategories: categories,
+    minIssuesPerCategory: 2
+  });
+  const counts = Object.fromEntries(categories.map((category) => [category, 0]));
+  for (const issue of issues) {
+    for (const category of issue.categoryIds) if (category in counts) counts[category] += 1;
+  }
+
+  assert.deepEqual(counts, { news: 2, tech: 2, fashion: 2 });
+});
+
+test("개인판 출처 균형: 지면을 채우려고 상한을 풀어도 한 매체부터 몰아 넣지 않는다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const subjects = [
+    "붉은사막 콘솔시연", "고스트리콘 할인순위", "드래곤퀘스트 리메이크", "오버워치 배틀패스", "팰월드 정식출시",
+    "스타폭스 스위치판", "메이플 여름축제", "발로란트 국제대회", "산나비 전시회", "던그리드 후속작",
+    "배틀필드 환불논쟁", "퀘이크콘 개발진", "엘든링 신규직업", "헤일로 캠페인", "폴아웃 제작소식",
+    "사이버펑크 보드게임", "어쌔신크리드 확장", "로블록스 팝업", "포켓몬 기념행사", "마인크래프트 보안",
+    "젠레스 상시가챠", "리그오브레전드 결승", "닌텐도 판매기록", "플레이스테이션 디스크", "스팀덱 휴대기기",
+    "인디게임 음악협업", "게임소통학교 종료", "크래프톤 블루존", "SOOP 채팅번역", "아서왕 전략신작"
+  ];
+  const items = ["게임메카", "PC 게이머", "게임 커뮤니티"].flatMap((sourceLabel, sourceIndex) =>
+    Array.from({ length: 10 }, (_, index) => ({
+      id: `${sourceIndex}-${index}`,
+      title: `${sourceLabel} ${subjects[sourceIndex * 10 + index]}`,
+      source: `source-${sourceIndex}`,
+      sourceLabel,
+      category: "gaming",
+      score: sourceIndex === 0 ? 1000 - index : 100 - sourceIndex * 10 - index,
+      tags: []
+    }))
+  );
+  const { issues } = buildDigest(items, {
+    maxIssues: 14,
+    maxPerSource: 3,
+    selectedCategories: ["gaming"],
+    minIssuesPerCategory: 3
+  });
+  const counts = new Map();
+  for (const issue of issues) {
+    const source = issue.refs[0].sourceLabel;
+    counts.set(source, (counts.get(source) || 0) + 1);
+  }
+  const spread = [...counts.values()];
+
+  assert.equal(issues.length, 14);
+  assert.equal(counts.size, 3);
+  assert.ok(Math.max(...spread) - Math.min(...spread) <= 1, JSON.stringify(Object.fromEntries(counts)));
+});
+
 test("브리핑 이슈: 중요한 사건이 반응 큰 잡담보다 앞선다", async () => {
   // 실측(2026-08-05 라이브 모닝 브리핑)에서 대표 이슈가 이랬다:
   //   1. 해커뉴스 · 추천 907건   2. 해커뉴스 · 댓글 357건
@@ -631,7 +804,94 @@ test("브리핑 이슈: 중요한 사건이 반응 큰 잡담보다 앞선다", 
   assert.ok(order.includes("hn"), "반응 큰 글을 브리핑에서 지우면 안 된다");
   // 검색이 이유인 이슈는 그렇게 말한다
   const chipIssue = issues.find((i) => i.refs[0].id === "chip");
-  assert.match(chipIssue.headline, /검색이 몰리는/, `헤드라인이 이유를 안 밝힌다: ${chipIssue.headline}`);
+  assert.match(chipIssue.headline, /검색과 함께 뜬/, `헤드라인이 이유를 안 밝힌다: ${chipIssue.headline}`);
+  assert.match(chipIssue.headline, /SK하이닉스 반도체 증설/, `헤드라인에서 사건 주제가 빠졌다: ${chipIssue.headline}`);
+});
+
+test("개인판 중요 분야: 보도 근거가 커뮤니티 단일 반응보다 먼저 온다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const items = [
+    {
+      id: "community",
+      title: "비트코인 조만간 폭발각",
+      source: "slrclub",
+      sourceLabel: "SLR클럽",
+      kind: "community",
+      category: "business",
+      score: 100,
+      commentCount: 0,
+      tags: [],
+      editorialCandidate: { sourceRole: "community_signal" }
+    },
+    {
+      id: "reported",
+      title: "금융당국 가상자산 공시 기준 발표",
+      source: "news",
+      sourceLabel: "경제신문",
+      kind: "news",
+      category: "business",
+      score: 0,
+      commentCount: 0,
+      tags: [],
+      editorialCandidate: { sourceRole: "reported_secondary" }
+    }
+  ];
+
+  const { issues } = buildDigest(items, { maxIssues: 2, selectedCategories: ["business"] });
+  assert.deepEqual(issues.map((issue) => issue.refs[0].id), ["reported", "community"]);
+  assert.equal(issues[1].metrics.communityOnly, true);
+  assert.equal(issues[0].metrics.verifiedSourceCount, 1);
+});
+
+test("과학 개인판: 보도 근거를 커뮤니티 화제보다 먼저 편집한다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const items = [
+    {
+      id: "science-community",
+      title: "세탁기처럼 생긴 우주선 이야기",
+      source: "community",
+      sourceLabel: "커뮤니티",
+      kind: "community",
+      category: "science",
+      score: 100,
+      commentCount: 0,
+      tags: [],
+      editorialCandidate: { sourceRole: "community_signal" }
+    },
+    {
+      id: "science-reported-a",
+      title: "은 나노 촉매 반응 효율 연구 발표",
+      source: "science-daily",
+      sourceLabel: "ScienceDaily",
+      kind: "news",
+      category: "science",
+      score: 0,
+      commentCount: 0,
+      tags: [],
+      editorialCandidate: { sourceRole: "reported_secondary" }
+    },
+    {
+      id: "science-reported-b",
+      title: "초기 생명체 화석 분석 결과 공개",
+      source: "physorg",
+      sourceLabel: "Phys.org",
+      kind: "news",
+      category: "science",
+      score: 0,
+      commentCount: 0,
+      tags: [],
+      editorialCandidate: { sourceRole: "reported_secondary" }
+    }
+  ];
+
+  const { issues } = buildDigest(items, { maxIssues: 3, selectedCategories: ["science"] });
+  assert.deepEqual(issues.map((issue) => issue.refs[0].id), [
+    "science-reported-a",
+    "science-reported-b",
+    "science-community"
+  ]);
+  assert.equal(issues[0].metrics.verifiedSourceCount, 1);
+  assert.equal(issues[2].metrics.communityOnly, true);
 });
 
 test("브리핑 이슈: 헤드라인이 서로 구분된다", async () => {
@@ -669,11 +929,144 @@ test("브리핑 이슈: 우리 풀에 한 편뿐인 사건도 이름을 갖는�
   assert.equal(issueSubject([{ title: "정부 주택 공급 대책 발표" }]), "정부 주택 공급 대책 발표");
   // 부제가 붙은 제목은 앞 구절만
   assert.equal(leadPhrase("부동산 여론 심상치 않자…이 대통령 “주택 공급 최대한 빨리”"), "부동산 여론 심상치 않자");
-  assert.equal(leadPhrase("“100억 벌어도 세금은 몇억밖에”…이 대통령, 부동산 세제 손본다"), "100억 벌어도 세금은 몇억밖에");
+  assert.equal(leadPhrase("“100억 벌어도 세금은 몇억밖에”…이 대통령, 부동산 세제 손본다"), "100억 벌어도 세금은 몇억밖에 이 대통령, 부동산 세제 손본다");
+  assert.equal(leadPhrase("李·與 서울 지지율 뚝…40%선 무너져"), "李·與 서울 지지율 뚝");
+  assert.equal(
+    leadPhrase("전월세난·임차인 불안 우려에…정부, 실거주 의무 유예 확대 방침"),
+    "전월세난·임차인 불안 우려에 정부, 실거주 의무 유예 확대 방침"
+  );
+  assert.equal(leadPhrase("기아 PV7 위장막 실물.."), "기아 PV7 위장막 실물");
+  assert.equal(
+    leadPhrase('"세제개편안 불확실해"…8월 전국 아파트 입주전망 하락'),
+    "8월 전국 아파트 입주전망 하락"
+  );
+  assert.equal(
+    leadPhrase('"세제개편안 불확실해"…전문가 의견 엇갈려'),
+    "세제개편안 불확실해",
+    "사건 구절이 없는 뒷말로 임의 교체하면 안 된다"
+  );
+  assert.equal(
+    leadPhrase("반도체가 다 했다...관세청 ‘8월 초순 수출 역대 최대’"),
+    "관세청 8월 초순 수출 역대 최대"
+  );
+  assert.equal(
+    leadPhrase('"85초 만에 화염에 휩싸여"…中 창정 7A호 발사 실패'),
+    "中 창정 7A호 발사 실패"
+  );
+  assert.equal(
+    leadPhrase("You’ll Only Find This Scrumptious New Balance Dad Shoe in Japan"),
+    "Youll Only Find This Scrumptious New Balance Dad Shoe in Japan"
+  );
+  assert.equal(
+    leadPhrase("Magnitude 7.4 quake rocks western Colombia, killing at least 111 people"),
+    "Magnitude 7.4 quake rocks western Colombia, killing at least 111 people",
+    "72자 안의 영문 제목을 64자에서 잘라 문장을 망가뜨리면 안 된다"
+  );
+  assert.equal(
+    leadPhrase("The Whitaker Group’s PUMA Era Starts With an Echo (& New-Old Sneaker)"),
+    "The Whitaker Groups PUMA Era Starts With an Echo (& New-Old Sneaker)"
+  );
+  assert.equal(
+    leadPhrase('"공격 지역 다 뛸 수 있는데..." 시메오네, 이강인 활용법 고민 시작 "좌 우 2선 가능"'),
+    "공격 지역 다 뛸 수 있는데 시메오네, 이강인 활용법 고민 시작 좌 우 2선 가능"
+  );
+  assert.equal(
+    leadPhrase('"나 반포 살지롱, 버스하우스 01"…2030 분노, \'폐버스 풍자 밈\' 확산'),
+    "2030 분노, 폐버스 풍자 밈 확산"
+  );
+  assert.equal(
+    leadPhrase('[현장] "해 뜬 줄 알았다"…밤새 불길 뒤덮인 평택 물류센터 화재 현장'),
+    "밤새 불길 뒤덮인 평택 물류센터 화재 현장"
+  );
+  assert.equal(
+    leadPhrase("죽어서 건지느니 살려서 보낸다…고수온에 양식장 치어 긴급방류"),
+    "고수온에 양식장 치어 긴급방류"
+  );
+  assert.equal(
+    leadPhrase('"국민의힘 의원 맞나"…윤상현 "득표 조작은 비약" 발언에 선관위 국조서 국힘끼리 언쟁'),
+    "윤상현 득표 조작은 비약 발언에 선관위 국조서 국힘끼리 언쟁"
+  );
+  assert.equal(
+    leadPhrase("'네가 사는 그 집'…부동산 세제의 새로운 방향"),
+    "부동산 세제의 새로운 방향"
+  );
+  assert.equal(
+    leadPhrase("55세에 이 3가지 없었더니…치매 없이 13년 더 살았다"),
+    "치매 없이 13년 더 살았다"
+  );
+  assert.equal(
+    leadPhrase("[헬스&라이프] 혈압·혈당·금연…노년 치매 13년 늦추는 세가지 핵심 키"),
+    "노년 치매 13년 늦추는 세가지 핵심 키"
+  );
+  assert.equal(
+    leadPhrase("논란 일자 결국 멈춘 SH…재개발임대 입주자 모집 연기"),
+    "재개발임대 입주자 모집 연기"
+  );
+  assert.equal(
+    leadPhrase("전세계 7월 극한폭염 이유 있었네...7월 해수면 온도 역대 최고"),
+    "7월 해수면 온도 역대 최고"
+  );
+  assert.equal(
+    leadPhrase('"상승률 32.5%"…\'삼전·닉스\' 레버리지 자금 빠지자 코스닥 급반등'),
+    "삼전·닉스 레버리지 자금 빠지자 코스닥 급반등"
+  );
+  assert.equal(
+    leadPhrase("순풍에 돛 단 반도체 덕…2분기 수출 2천755억달러로 역대 최대"),
+    "2분기 수출 2천755억달러로 역대 최대"
+  );
+  assert.equal(
+    leadPhrase("요즘 인디 게임들 핫하네…협동 파티 게임 빅 워크, 출시 6일 만에 100만 장 돌파"),
+    "협동 파티 게임 빅 워크, 출시 6일 만에 100만 장 돌파"
+  );
+  assert.equal(
+    leadPhrase("사후 치료 넘어 조기 개입…치매 치료 공식 바뀐다"),
+    "치매 치료 공식 바뀐다"
+  );
+  assert.equal(
+    leadPhrase("계속 웃기면 드라마예요…짝퉁 샀다는 김건희 왜 나만 수사하냐"),
+    "짝퉁 샀다는 김건희 왜 나만 수사하냐"
+  );
+  assert.equal(
+    issueSubject([
+      { title: "\"55세에 '이 3가지' 없었더니\"…치매 없이 13년 더 살았다" },
+      { title: "“55세에 ‘이 3가지’ 없었더니”…치매 없이 13년 더 살았다" },
+      { title: "55세에 이 3가지 없었더니…치매 없이 13년 더 살았다" }
+    ]),
+    "치매 없이 13년 더 살았다",
+    "중계 피드 공통어가 클릭 유도 앞구절을 사건명으로 굳히면 안 된다"
+  );
+  assert.equal(
+    leadPhrase("긴 휴식 끝 전력대결···KIA, 가을야구 위한 스퍼트 낼까"),
+    "KIA, 가을야구 위한 스퍼트 낼까"
+  );
+  assert.equal(
+    leadPhrase("새벽 5시부터 ‘대출런’…5년 만에 부활한 대출총량제 공포"),
+    "5년 만에 부활한 대출총량제 공포"
+  );
+  assert.equal(
+    leadPhrase("폭탄 터진 듯 건물 와르르…지진 덮친 콜롬비아 '아비규환'(종합)"),
+    "지진 덮친 콜롬비아 아비규환"
+  );
+  assert.equal(
+    leadPhrase("시력이 얼마나 좋아질 지 감도 안 오네…지상 초정밀 촬영 신개념 인공위성 내년에 뜬다"),
+    "지상 초정밀 촬영 신개념 인공위성 내년에 뜬다"
+  );
+  assert.equal(
+    leadPhrase("“죽을 때까지 매년 3억”…추신수, 상상초월 메이저리그 연금"),
+    "추신수, 상상초월 메이저리그 연금"
+  );
+  assert.equal(
+    issueSubject([{ title: "삼성 갤럭시 S23 FE의 엑시노스 버전은 다른 갤럭시 S23 시리즈와 마찬가지로 안드로이드 17 업데이트를 더 이상 받지 못하게 됩니다." }]),
+    ""
+  );
   assert.equal(leadPhrase(""), "");
   assert.equal(leadPhrase(null), "");
   // 여러 편이 있으면 공통어가 우선이다 — 한 매체의 표현보다 낫다
   assert.equal(issueSubject([{ title: "주택 공급 대책" }, { title: "주택 공급 보고" }]), "주택 공급");
+  assert.equal(issueSubject([
+    { title: "[뉴욕증시] 유가 급등에 숨 고르며 CPI 경계…약세 마감" },
+    { title: "[뉴욕증시] 유가 급등에 숨 고르며 CPI 경계…약세 마감" }
+  ]), "유가 급등에 숨 고르며 CPI 경계", "같은 제목을 공통어 두 개로 다시 부수면 안 된다");
 
   // 단독 이슈들끼리도 헤드라인이 겹치지 않는다
   const mk = (id, title) => ({ id, title, sourceLabel: id, source: id, score: 0,
@@ -685,9 +1078,76 @@ test("브리핑 이슈: 우리 풀에 한 편뿐인 사건도 이름을 갖는�
   assert.equal(new Set(heads).size, 2, `헤드라인이 겹친다: ${heads.join(" | ")}`);
 });
 
+test("오늘판 판단가치: 제목 단어보다 사용자가 고른 분야가 설명의 주어다", async () => {
+  const { editorialValue } = await import("../src/feed/engine.js");
+  const value = (category, title) => editorialValue({
+    categoryIds: [category],
+    headline: title,
+    refs: [{ title }]
+  });
+
+  assert.equal(value("sports", "폭염이 만든 KBO 선발 매치업").lens, "경기·선수");
+  assert.equal(value("sports", "축구협회 심판 성접대 의혹 조사 착수").lens, "운영·신뢰");
+  assert.equal(value("sports", "K리그 구장 낙하 사고").lens, "안전·운영");
+  assert.equal(value("business", "JP모간 S&P500 목표치 8000 상향, AI 기대").lens, "시장·실적");
+  assert.equal(value("politics", "젤렌스키 러시아 북한군 추가 배치 준비").lens, "외교·안보");
+  assert.equal(value("life", "임신부 백신이 만드는 모체 항체").lens, "건강·근거");
+  assert.equal(value("life", "레켐비 치료, 림프 부스팅이 함께 필요한 이유").lens, "건강·근거");
+  assert.equal(value("news", "콜롬비아 강진으로 건물 붕괴").lens, "재난·안전");
+  assert.equal(value("news", "한일 미군기지, 북중 공격에 취약").lens, "국제정세");
+});
+
+test("오늘판 분야 게이트: 잘못 라벨된 금융·관광·사내행사는 대표 후보에서 제외한다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const mk = (id, category, title, coverage = 5) => ({
+    id,
+    category,
+    title,
+    source: id,
+    sourceLabel: id,
+    coverage,
+    score: 0,
+    commentCount: 0,
+    tags: [id]
+  });
+  const badIds = new Set([
+    "travel-gacha", "science-etf", "tech-market", "corporate-event", "fashion-movie", "tech-game",
+    "tech-fortnite", "culture-history", "humor-massacre", "realestate-incident", "tech-culture-event"
+  ]);
+  const { issues, quality } = buildDigest([
+    mk("travel-gacha", "gaming", "강원관광재단 감탄로드 여행가챠 서울서 팝업스토어"),
+    mk("science-etf", "science", "KB운용 미국우주위성통신 ETF 출시 스페이스X 등 투자"),
+    mk("tech-market", "tech", "뉴욕증시 유가 5%대 급등 3대 지수 하락 반도체주 약세"),
+    mk("corporate-event", "business", "대우건설 임직원 초청 행사 진행"),
+    mk("fashion-movie", "fashion", "악마는 프라다를 입는다 명장면.JPG"),
+    mk("tech-game", "tech", "Pokémon Pokopia 가이드 Totodile 위치와 Outfit 잠금 해제"),
+    mk("tech-fortnite", "tech", "포트나이트 챕터 7 에픽게임즈 향후 계획"),
+    mk("culture-history", "culture", "이완용은 명함도 못 내밀 최악의 친일 매국노"),
+    mk("humor-massacre", "humor", "조선인 8천여 명 대학살한 일본"),
+    { ...mk("realestate-incident", "realestate", "[속보]‘제주항공 여객기 참사’ 경찰 특수단, 한국공항공사·국토부 압수수색"), registryCategory: "news" },
+    mk("tech-culture-event", "tech", "뮤즈엠, 글로벌 아티스트 IP 전시 사업 본격화…엔하이픈 전시 서울 개최"),
+    mk("real-game", "gaming", "메이플 신규 직업 업데이트와 밸런스 패치 공개"),
+    mk("real-science", "science", "연구진 은 나노촉매 내부 반응 스위치 발견"),
+    mk("real-tech", "tech", "안드로이드 17 업데이트 지원 기기 공개"),
+    mk("real-business", "business", "코스피 상승과 원달러 환율 하락"),
+    mk("real-realestate", "realestate", "서울 아파트 분양과 청약 일정 발표"),
+    mk("real-news", "news", "평택 위험물 창고 화재 진화 완료")
+  ], {
+    maxIssues: 10,
+    selectedCategories: ["gaming", "science", "tech", "business", "realestate", "news"],
+    minIssuesPerCategory: 1
+  });
+  const selectedIds = new Set(issues.flatMap((issue) => issue.refs.map((ref) => ref.id)));
+  for (const id of badIds) assert.ok(!selectedIds.has(id), `${id}가 분야 대표로 남았다`);
+  for (const id of ["real-game", "real-science", "real-tech", "real-business", "real-realestate", "real-news"]) {
+    assert.ok(selectedIds.has(id), `${id} 정상 후보가 사라졌다`);
+  }
+  assert.ok((quality.failuresByRule.categoryFitSupported || 0) >= badIds.size);
+});
+
 test("브리핑 이슈: 근접 중복 헤드라인은 최대 1건만 뽑고 빈 자리는 다음 이슈로 채운다", async () => {
   // 실측(2026-08-09): /api/briefing 이슈 6건 중 4건이 "채상병 순직 책임
-  // 임성근" 변주였다. clusterIssues는 완전일치·태그로만 묶는데(문단에 서로
+  // 임성근" 변주였다. clusterIssues는 완전일치 제목·원문 URL만 묶는데(문단에 서로
   // 다른 사실이 섞이면 안 되므로 그대로 둔다), 인명은 태그 사전에 없어서
   // 어순만 다른 4건이 각각 다른 클러스터가 됐고 전부 이슈 자리를 차지했다.
   const { buildDigest } = await import("../src/feed/digest.js");
@@ -703,15 +1163,190 @@ test("브리핑 이슈: 근접 중복 헤드라인은 최대 1건만 뽑고 빈 
     mk("e", "삼성전자 3분기 실적 발표, 영업이익 급증", { category: "business", coverage: 2 }),
     mk("f", "서울 아파트값 상승세 지속...정부 대책 검토", { category: "business", coverage: 2 })
   ];
-  const { issues } = buildDigest(items, { maxIssues: 6 });
-  const chaeIds = issues.flatMap((i) => i.refs.map((r) => r.id)).filter((id) => ["a", "b", "c", "d"].includes(id));
-  assert.equal(chaeIds.length, 1, `변주 4건 중 최대 1건만 이슈가 돼야 한다: ${chaeIds.join(",")}`);
+  const { issues, quality } = buildDigest(items, {
+    maxIssues: 6,
+    selectedCategories: ["politics", "business"]
+  });
+  const chaeIssues = issuesContainingAnyId(issues, ["a", "b", "c", "d"]);
+  assert.equal(chaeIssues.length, 1,
+    `변주 4건은 이슈 자리 하나만 차지해야 한다: ${chaeIssues.map((i) => i.refs.map((r) => r.id)).join("|")}`);
   // 빈 자리는 지워지는 게 아니라 다음 순위의 서로 다른 사건이 채운다
   const ids = new Set(issues.flatMap((i) => i.refs.map((r) => r.id)));
   assert.ok(ids.has("e") && ids.has("f"), "빈 자리는 다음 순위 이슈로 채워져야 한다");
   // 이 픽스처는 서로 다른 사건이 3건뿐이다(채상병 그룹 1 + e + f) — 재료가
   // 그만큼밖에 없으면 이슈도 그만큼만 나와야 한다(억지로 6건을 채우지 않는다)
   assert.equal(issues.length, 3, "서로 다른 사건 수만큼만 이슈가 나와야 한다");
+  const politics = quality.categoryFunnel.find((row) => row.categoryId === "politics");
+  assert.deepEqual(
+    [politics.inputItemCount, politics.clusterCount, politics.machinePassClusterCount,
+      politics.qualifiedClusterCount, politics.draftSelectedCount],
+    [4, 4, 4, 1, 1],
+    "수집 아이템과 근접중복 제거 뒤 유효 이슈를 같은 수로 표시하면 안 된다"
+  );
+  for (const row of quality.categoryFunnel) {
+    assert.ok(row.inputItemCount >= row.clusterCount);
+    assert.ok(row.clusterCount >= row.machinePassClusterCount);
+    assert.ok(row.machinePassClusterCount >= row.qualifiedClusterCount);
+    assert.ok(row.qualifiedClusterCount >= row.draftSelectedCount);
+  }
+
+  const observed = [
+    mk("trump-a", "트럼프 대통령, 이란에 배상 요구"),
+    mk("trump-b", "트럼프 이란, 과거 폭탄테러·시위대 살해 배상하라"),
+    mk("visa", "트럼프 취임 후 비자 17만5000건 취소"),
+    mk("referee-a", "축구협회 성접대 의혹 아직 수사 착수 안한 경찰", { category: "sports" }),
+    mk("referee-b", "한국 심판 성접대 논란, 일본축구협회가 조사 착수", { category: "sports" }),
+    mk("baseball", "KT 힐리어드 KBO 7월 월간 MVP 선정", { category: "sports" }),
+    mk("pc-a", "Grand Theft Auto averages more copies sold per year than most megahits manage in their entire lifetime", { category: "gaming" }),
+    mk("pc-b", "Square Enix financial report gives me hope for FF14, suggesting the MMO is finally not having to carry the company", { category: "gaming" }),
+    mk("mojtaba-a", "이란 은둔 지도자 모즈타바 권력강화 박차, 군 지휘부 강경파 등용", { category: "news" }),
+    mk("mojtaba-b", "위독설 모즈타바 대통령 7시간 면담, 강경 일색 군 인사 단행", { category: "news" }),
+    mk("long-name-a", "오픈스트리트맵 지도 데이터 업데이트", { category: "tech" }),
+    mk("long-name-b", "오픈스트리트맵 재단 운영 정책 발표", { category: "tech" })
+  ];
+  const observedDigest = buildDigest(observed, {
+    maxIssues: observed.length,
+    selectedCategories: ["politics", "sports", "gaming"]
+  });
+  const observedIds = new Set(observedDigest.issues.flatMap((issue) => issue.refs.map((ref) => ref.id)));
+  assert.equal(issuesContainingAnyId(observedDigest.issues, ["trump-a", "trump-b"]).length, 1);
+  assert.ok(observedIds.has("visa"), "같은 인물이 등장해도 다른 비자 사건은 남겨야 한다");
+  assert.equal(issuesContainingAnyId(observedDigest.issues, ["referee-a", "referee-b"]).length, 1);
+  assert.ok(observedIds.has("baseball"));
+  assert.ok(observedIds.has("pc-a") && observedIds.has("pc-b"), "영문 불용어가 겹친 두 게임 기사는 모두 남아야 한다");
+  assert.equal(issuesContainingAnyId(observedDigest.issues, ["mojtaba-a", "mojtaba-b"]).length, 1,
+    "같은 긴 인물명과 같은 흐름어가 겹친 보도는 한 판에서 하나만 대표해야 한다");
+  assert.ok(observedIds.has("long-name-a") && observedIds.has("long-name-b"),
+    "긴 이름 하나만 같은 별개 사건까지 합치면 안 된다");
+
+  const samePublisherTopic = buildDigest([
+    mk("chip-a", "김정관 호남 반도체 클러스터 2029년까지 팹 1차 완공 목표", {
+      category: "tech", source: "gnews-tech", sourceLabel: "hani.co.kr"
+    }),
+    mk("chip-b", "이 대통령 호남 반도체 전격전 광주 군공항 기능 이전", {
+      category: "tech", source: "gnews-tech", sourceLabel: "hani.co.kr"
+    }),
+    mk("windows", "메모리 덜 쓰는 윈도우 세팅 공개", {
+      category: "tech", source: "pc", sourceLabel: "아이러브PC방"
+    })
+  ], { maxIssues: 3, selectedCategories: ["tech"] });
+  const topicIds = new Set(samePublisherTopic.issues.flatMap((issue) => issue.refs.map((ref) => ref.id)));
+  assert.equal(issuesContainingAnyId(samePublisherTopic.issues, ["chip-a", "chip-b"]).length, 1,
+    "같은 매체의 같은 분야 후속 각도가 한 판의 여러 자리를 차지하면 안 된다");
+  assert.ok(topicIds.has("windows"), "주제 중복을 접은 자리는 다른 기술 이슈가 채워야 한다");
+
+  const actualEventVariants = buildDigest([
+    mk("visa-news", "미국, 비자 규정 위반·범죄 등으로 외국인 비자 17만5천 건 이상 취소", {
+      category: "news", coverage: 5
+    }),
+    mk("visa-politics", "美국무부 원정 출산, 트럼프 위협 등 외국인 17만5000명 비자 취소", {
+      category: "politics", coverage: 5
+    }),
+    mk("quake-a", "또다시 불의 고리, 콜롬비아 강진 깊은 진원에도 대참사 공포", {
+      category: "news", coverage: 5
+    }),
+    mk("quake-b", "콜롬비아 지진으로 최소 132명 사망, 수년래 최대 규모", {
+      category: "news", coverage: 5
+    }),
+    mk("other-quake", "일본 홋카이도 지진으로 철도 운행 중단", {
+      category: "news", coverage: 5
+    }),
+    mk("other-trump", "트럼프 행정부 수입품 관세 인상안 발표", {
+      category: "politics", coverage: 5
+    })
+  ], { maxIssues: 6, selectedCategories: ["news", "politics"] });
+  const actualIds = new Set(actualEventVariants.issues.flatMap((issue) => issue.refs.map((ref) => ref.id)));
+  assert.equal(issuesContainingAnyId(actualEventVariants.issues, ["visa-news", "visa-politics"]).length, 1,
+    "같은 17만5000건 비자 취소가 news와 politics 자리를 각각 차지하면 안 된다");
+  assert.equal(issuesContainingAnyId(actualEventVariants.issues, ["quake-a", "quake-b"]).length, 1,
+    "콜롬비아 강진과 지진 표기 변주는 한 사건이어야 한다");
+  assert.ok(actualIds.has("other-quake"), "다른 나라의 별개 지진은 남아야 한다");
+  assert.ok(actualIds.has("other-trump"), "같은 인물의 별개 정책은 남아야 한다");
+});
+
+test("브리핑 이슈: 같은 판의 커뮤니티 말바꿈과 같은 발표의 후속 각도를 한 자리로 접는다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const mk = (id, title, extra = {}) => ({
+    id,
+    title,
+    source: extra.source || "ppomppu",
+    sourceLabel: extra.sourceLabel || "뽐뿌",
+    kind: extra.kind || "community",
+    category: extra.category || "auto",
+    score: extra.score || 0,
+    commentCount: extra.commentCount || 0,
+    coverage: extra.coverage || 0,
+    tags: []
+  });
+  const community = buildDigest([
+    mk("car-a", "아반떼 승차감 좋다는 후기", { commentCount: 129 }),
+    mk("car-b", "아반떼 승차감 별로라는 반론", { commentCount: 183 }),
+    mk("car-c", "전기차 겨울철 주행거리 비교", { source: "other", sourceLabel: "자동차 매체", kind: "news" })
+  ], { maxIssues: 3, selectedCategories: ["auto"] });
+  const communityIds = new Set(community.issues.flatMap((issue) => issue.refs.map((ref) => ref.id)));
+  assert.equal(issuesContainingAnyId(community.issues, ["car-a", "car-b"]).length, 1);
+  assert.ok(communityIds.has("car-c"), "중복을 접은 자리는 다른 자동차 이슈가 채워야 한다");
+
+  const housing = buildDigest([
+    mk("house-a", "오세훈, 8만7천가구 순증 제시…재개발·재건축 효과 강조", {
+      source: "hani", sourceLabel: "한겨레", kind: "news", category: "politics", coverage: 5
+    }),
+    mk("house-b", "오세훈 용산 1,695세대 순증...정비사업, 유일한 공급 해법", {
+      source: "yna", sourceLabel: "연합뉴스TV", kind: "news", category: "politics", coverage: 5
+    }),
+    mk("policy", "국회 연금개혁 특별위원회 협상 재개", {
+      source: "news", sourceLabel: "뉴스", kind: "news", category: "politics", coverage: 5
+    })
+  ], { maxIssues: 3, selectedCategories: ["politics"] });
+  const housingIds = new Set(housing.issues.flatMap((issue) => issue.refs.map((ref) => ref.id)));
+  assert.equal(issuesContainingAnyId(housing.issues, ["house-a", "house-b"]).length, 1);
+  assert.ok(housingIds.has("policy"));
+});
+
+test("브리핑 사건 결합: 넓은 태그나 우연한 공통어로 서로 다른 글을 한 문단에 섞지 않는다", async () => {
+  const { clusterIssues } = await import("../src/feed/digest.js");
+  const rows = [
+    {
+      id: "hn",
+      title: "New Zealand lost its music media, and what we're building to replace it",
+      url: "https://propelmusic.co.nz/articles/the-sound-went-quiet-nz-music-media",
+      tags: ["lost", "media"]
+    },
+    {
+      id: "ti",
+      title: "What we lost when we quit using crappy old web forums",
+      url: "https://tedium.co/2026/07/01/online-web-forums-retrospective/",
+      tags: ["lost", "media"]
+    },
+    {
+      id: "hb1",
+      title: "Suicoke Updates Its Footwear Collection",
+      url: "https://hypebeast.com/2026/8/suicoke-footwear",
+      tags: ["fashion", "sneakers"]
+    },
+    {
+      id: "hb2",
+      title: "A Rare Ferrari Heads to Auction",
+      url: "https://hypebeast.com/2026/8/ferrari-auction",
+      tags: ["fashion", "sneakers"]
+    }
+  ];
+  assert.deepEqual(clusterIssues(rows).map((cluster) => cluster.map((item) => item.id)), [
+    ["hn"], ["ti"], ["hb1"], ["hb2"]
+  ]);
+});
+
+test("브리핑 사건 결합: 같은 정규 제목 또는 같은 원문 URL은 계속 한 사건으로 묶는다", async () => {
+  const { clusterIssues } = await import("../src/feed/digest.js");
+  const rows = [
+    { id: "title-a", title: "[속보] 정부 주택 공급 대책 발표", url: "https://a.example/1" },
+    { id: "title-b", title: "정부 주택 공급 대책 발표 - 연합뉴스", url: "https://b.example/2" },
+    { id: "url-a", title: "첫 번째 소개 제목", url: "https://source.example/story?id=7&utm_source=rss" },
+    { id: "url-b", title: "완전히 다른 소개 제목", url: "https://source.example/story?utm_medium=feed&id=7" }
+  ];
+  assert.deepEqual(clusterIssues(rows).map((cluster) => cluster.map((item) => item.id)), [
+    ["title-a", "title-b"], ["url-a", "url-b"]
+  ]);
 });
 
 test("브리핑 이슈: 잘라 온 구절에 부호 흔적이 남지 않는다", async () => {
@@ -741,8 +1376,8 @@ test("브리핑 문단이 셀 수 없는 것을 세지 않는다 (2026-08-06 라
   const { issueParagraph, issueShape, distinctOutlets } = await import("../src/feed/digest.js");
   // 라이브에서 나온 문장: "우리 피드에는 donga.com·동아일보 등 2곳에서 들어왔다."
   // 같은 신문사인데 한쪽은 도메인, 한쪽은 한글 사명이라 한 곳을 2곳으로 셌다.
-  // 로마자와 한글은 문자열로 합칠 수 없고, 억지로 합치면 서로 다른 매체를
-  // 하나로 묶는 더 나쁜 거짓말이 된다 — 그래서 수를 안 쓴다.
+  // 024 이전에는 수를 아예 쓰지 않는 것으로 막았다. 현재는 감사된 발행사 별칭만
+  // 운영그룹으로 접고, 법적 독립성은 주장하지 않으며 대표 표시명 하나만 보여 준다.
   const items = [
     { id: "a", title: "여야, 부동산 세제 개편안 논의 착수", sourceLabel: "donga.com", coverage: 5, score: 0, commentCount: 0, tags: [] },
     { id: "b", title: "여야, 부동산 세제 개편안 논의 착수", sourceLabel: "동아일보", coverage: 5, score: 0, commentCount: 0, tags: [] },
@@ -751,8 +1386,8 @@ test("브리핑 문단이 셀 수 없는 것을 세지 않는다 (2026-08-06 라
   const para = issueParagraph(items, issueShape(items));
   assert.doesNotMatch(para, /\d+곳/, "합칠 수 없는 매체 이름을 세고 있다");
   assert.doesNotMatch(para, /\d+개 매체/, "상한에 걸린 값을 수치처럼 쓰고 있다");
-  // 도메인 꼬리는 읽기 좋게 다듬되, 서로 다른 표기를 임의로 합치지는 않는다.
-  assert.match(para, /donga·동아일보/, "출처 이름을 그대로 밝혀야 한다");
+  assert.match(para, /동아일보·한겨레/, "운영그룹마다 읽기 좋은 대표 이름을 밝혀야 한다");
+  assert.doesNotMatch(para, /donga/, "같은 발행사의 로마자 별칭을 별도 출처처럼 반복하면 안 된다");
   assert.ok(!distinctOutlets(items).some((o) => /\.(com|co\.kr|kr|net|org)$/i.test(o)),
     "도메인 꼬리가 그대로 노출된다");
 });
@@ -771,4 +1406,19 @@ test("브리핑 문단이 대표 글을 두 번 소개하지 않는다", async (
   const hits = para.split(same).length - 1;
   assert.equal(hits, 1, `대표 글 제목이 ${hits}번 나온다`);
   assert.doesNotMatch(para, /같은 흐름에서\s*도/, "빈 목록으로 문장이 남았다");
+});
+
+test("브리핑 문단은 제목 끝글자와 무관하게 자연스러운 조사를 쓴다", async () => {
+  const { issueParagraph } = await import("../src/feed/digest.js");
+  const base = { id: "particle", sourceLabel: "게임메카", coverage: 0, tags: [] };
+  const debate = issueParagraph([{ ...base, title: "신작 상시가챠", score: 0, commentCount: 120 }], "debate");
+  const applause = issueParagraph([{ ...base, title: "시장 급등", score: 120, commentCount: 0 }], "applause");
+  const single = issueParagraph([{ ...base, title: "업데이트 공개", score: 0, commentCount: 0 }], "single");
+
+  assert.doesNotMatch(debate, /”을 두고/);
+  assert.doesNotMatch(applause, /”이\s+게임메카에서/);
+  assert.doesNotMatch(single, /”이 올라/);
+  assert.match(debate, /게시물에 댓글 120건/);
+  assert.match(applause, /게시물이 추천 120건/);
+  assert.match(single, /제목이 올라 있다/);
 });
