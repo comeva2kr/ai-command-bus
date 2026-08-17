@@ -1489,3 +1489,103 @@ test("S2-3 마지막 서빙 슬롯 유도: 지문이 새 값으로 바뀐 슬롯
   assert.equal(deriveLastServedSlots([]).size, 0);
   assert.equal(deriveLastServedSlots(null).size, 0);
 });
+
+// ---------------------------------------------------------------------------
+// B2 — v2 판 생성기(tools/build-v2-edition.mjs) 스키마 단위.
+// 판정 코드는 shadow-selection 무수정 — 여기서는 도구의 계약(카테고리 유도·
+// 판 조립·JSON 계약 자가 검증·슬롯 판정 재사용)만 동결한다.
+// ---------------------------------------------------------------------------
+import {
+  listV2Categories, buildV2Edition, validateV2Edition, V2_SLOT_IDS
+} from "../tools/build-v2-edition.mjs";
+import { CATEGORIES } from "../src/feed/taxonomy.js";
+
+test("v2: 지원 카테고리는 팩 테이블에서 유도 — taxonomy 부분집합·중복 없음", () => {
+  const cats = listV2Categories();
+  const taxonomyIds = new Set(CATEGORIES.map((c) => c.id));
+  assert.ok(cats.length > 0);
+  assert.equal(new Set(cats).size, cats.length, "중복 없음");
+  for (const id of cats) assert.ok(taxonomyIds.has(id), `${id}는 taxonomy에 있어야`);
+  // 팩의 categories+appliedCategories 전부 포함
+  for (const pack of Object.values(SHADOW_PACK_PARAMS.packs)) {
+    for (const id of [...pack.categories, ...(pack.appliedCategories || [])]) {
+      assert.ok(cats.includes(id), `팩 카테고리 ${id} 포함`);
+    }
+  }
+});
+
+test("v2: 판 조립 → 계약 자가 검증 통과(뉴스 B등급 trustLabel·커뮤 community 등급)", () => {
+  const now = Date.parse("2026-08-13T12:00:00+09:00");
+  const rows = [
+    // business: 독립 2그룹(independent2)
+    article({ id: "v2-b1", title: "금리 동결 결정 발표", category: "business",
+      source: "news-a", ownershipGroup: "group-a", ownershipBasis: "registry_explicit",
+      url: "https://a.example.com/v2-b1", publishedAt: "2026-08-13T10:00:00+09:00" }),
+    article({ id: "v2-b2", title: "금리 동결 결정 발표", category: "business",
+      source: "news-b", ownershipGroup: "group-b", ownershipBasis: "registry_explicit",
+      url: "https://b.example.com/v2-b2", publishedAt: "2026-08-13T10:30:00+09:00" }),
+    // humor: 커뮤 절대선 통과(engMin 30)
+    article({ id: "v2-h1", title: "고양이가 회의에 난입한 썰", category: "humor",
+      kind: "community", source: "community-x", score: 500,
+      url: "https://c.example.com/v2-h1", publishedAt: "2026-08-13T11:00:00+09:00" })
+  ];
+  const out = shadowSelectBriefing(rows, {
+    requestedCategories: ["business", "humor"], now, slotId: "lunch", previousLineage: []
+  });
+  const edition = buildV2Edition(out, {
+    date: "2026-08-13", slotId: "lunch",
+    generatedAt: new Date(now).toISOString(), codeVersion: "testsha"
+  });
+  const check = validateV2Edition(edition);
+  assert.deepEqual(check.errors, []);
+  assert.ok(check.ok);
+  assert.equal(edition.version, 1);
+  const biz = edition.categories.business;
+  assert.equal(biz.items.length, 1);
+  assert.equal(biz.items[0].rank, 1);
+  assert.equal(biz.items[0].trustGrade, "independent2");
+  assert.equal(biz.items[0].trustLabel, null);
+  assert.equal(biz.items[0].evidenceCount, 2, "사건 근거 기사 수");
+  assert.equal(biz.partial, true, "min(8) 미만이면 부분판 정직 표기");
+  const humor = edition.categories.humor;
+  assert.equal(humor.items[0].trustGrade, "community", "커뮤 팩 등급 매핑");
+  assert.equal(humor.items[0].trustLabel, null);
+});
+
+test("v2: 계약 자가 검증 — 위반을 잡아낸다", () => {
+  const base = () => ({
+    version: 1, date: "2026-08-13", slotId: "lunch",
+    generatedAt: "2026-08-13T12:00:00+09:00", codeVersion: null,
+    categories: { business: { partial: false, items: [{
+      rank: 1, title: "t", url: "https://x/1", source: "s", sourceLabel: "S",
+      categoryIds: ["business"], trustGrade: "A", trustLabel: null,
+      publishedAt: null, evidenceCount: 1
+    }] } }
+  });
+  assert.ok(validateV2Edition(base()).ok);
+  const badSlot = base(); badSlot.slotId = "midnight";
+  assert.equal(validateV2Edition(badSlot).ok, false, "slotId enum");
+  const badRank = base(); badRank.categories.business.items[0].rank = 3;
+  assert.equal(validateV2Edition(badRank).ok, false, "rank 연속성");
+  const badGrade = base(); badGrade.categories.business.items[0].trustGrade = "S";
+  assert.equal(validateV2Edition(badGrade).ok, false, "trustGrade enum");
+  const bNoLabel = base();
+  bNoLabel.categories.business.items[0].trustGrade = "B";
+  assert.equal(validateV2Edition(bNoLabel).ok, false, "B등급은 '단일 출처' 필수");
+  const aWithLabel = base();
+  aWithLabel.categories.business.items[0].trustLabel = "단일 출처";
+  assert.equal(validateV2Edition(aWithLabel).ok, false, "비B trustLabel은 null");
+  const dupUrl = base();
+  dupUrl.categories.business.items.push({ ...base().categories.business.items[0], rank: 2 });
+  assert.equal(validateV2Edition(dupUrl).ok, false, "같은 분야 내 url 중복 금지");
+});
+
+test("v2: 슬롯 자동 판정은 관찰 도구 함수 재사용 — 07/12/19 KST 계약 동일", () => {
+  assert.deepEqual(V2_SLOT_IDS, ["morning", "lunch", "evening"]);
+  const at = (s) => resolveObservationSlot(Date.parse(s));
+  assert.deepEqual(
+    [at("2026-08-13T12:05:00+09:00").slotId, at("2026-08-13T12:05:00+09:00").date],
+    ["lunch", "2026-08-13"]);
+  const beforeMorning = at("2026-08-13T06:00:00+09:00");
+  assert.deepEqual([beforeMorning.slotId, beforeMorning.date], ["evening", "2026-08-12"]);
+});
