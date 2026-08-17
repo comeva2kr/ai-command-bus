@@ -2575,6 +2575,27 @@
       "operatorGroup": "fnnews"
     },
     {
+      "id": "marketwatch-top",
+      "label": "MarketWatch Top Stories",
+      "labelKo": "마켓워치 톱스토리즈",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "business",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://feeds.content.dowjones.io/public/rss/mw_topstories",
+        "note": "David 승인. Dow Jones 공식 MarketWatch Top Stories RSS. 2026-08-17 10:44 UTC 실측: 200/10건, 최신 항목 2026-08-17 10:16 UTC(28분 전), 전체 10건이 최근 24h 내(가장 오래된 항목 2026-08-16 16:22 UTC). feeds.content.dowjones.io 자체 robots.txt는 403(S3 버킷에 파일 없음)이지만 피드 본체는 UA 무관 200 — CNBC/Akamai 사례와 동일하게 피드 접근 자체는 막혀 있지 않다. 표본 제목 전부 시장·투자·기업 실적(혼합 섹션 아님). 기존 등재 해외 경제지(cnbc-economy=nbcuniversal, bbc-business=bbc)와 운영그룹 미중복 — 해외 경제 독립 운영그룹 2→3. 제목·요약·원문 링크만 편집 재료로 사용한다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "dowjones"
+    },
+    {
       "id": "nasa",
       "label": "NASA",
       "labelKo": "NASA",

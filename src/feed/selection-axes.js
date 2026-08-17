@@ -65,11 +65,17 @@ export function heatAxis({ memberArticles = [], reactionArticles = [] } = {}, { 
 //   운영그룹 목록 그 자체다 — 이진 신호(relatedCoverage)로 부풀리지 않는다.
 // - weighty: 구성원 카테고리가 weightyCategories에 속하는가.
 // - primary: primary/first_party 근거가 하나라도 있는가(roleOf로 판정).
+// - marketSignal(해외 전용, David 채택 옵션 1 2026-08-17): componentWeights에
+//   marketSignal 키가 있을 때만 계산한다 — 국내 사건(componentWeights에 그
+//   키가 없는 기존 호출)은 이 분기를 타지 않아 셈법이 바이트 그대로다.
+//   구성원(보도) 기사 제목이 marketSignalLexicon(한국어 부분 문자열·영어
+//   소문자 단어 경계)에 하나라도 걸리면 이진 1이다.
 export function importanceAxis({ event, memberArticles = [] } = {}, {
   groupSaturation,
   weightyCategories,
   componentWeights,
-  roleOf
+  roleOf,
+  marketSignalLexicon = null
 } = {}) {
   const sat = Number(groupSaturation);
   if (!Number.isFinite(sat) || sat <= 0) throw new Error("importanceAxis: groupSaturation 파라미터 필요");
@@ -83,9 +89,30 @@ export function importanceAxis({ event, memberArticles = [] } = {}, {
   const roles = memberArticles.map((article) => roleOf(article));
   const primaryHit = roles.some((role) => role === "primary" || role === "first_party");
   const w = componentWeights;
+  let marketSignalHit = false;
+  let marketSignalMatches = [];
+  if (w.marketSignal) {
+    if (!marketSignalLexicon) throw new Error("importanceAxis: marketSignal 성분 사용 시 marketSignalLexicon 필요");
+    const korean = marketSignalLexicon.korean || [];
+    const english = marketSignalLexicon.english || [];
+    for (const article of memberArticles) {
+      const title = String((article && article.title) || "");
+      const lower = title.toLowerCase();
+      for (const term of korean) {
+        if (term && title.includes(term)) marketSignalMatches.push({ articleId: article.id ?? null, term });
+      }
+      for (const term of english) {
+        if (term && new RegExp(`(?:^|[^a-z])${term.toLowerCase()}(?:$|[^a-z])`).test(lower)) {
+          marketSignalMatches.push({ articleId: article.id ?? null, term });
+        }
+      }
+    }
+    marketSignalHit = marketSignalMatches.length > 0;
+  }
   const value = (w.groups || 0) * groupsRatio
     + (w.weighty || 0) * (weightyHit ? 1 : 0)
-    + (w.primary || 0) * (primaryHit ? 1 : 0);
+    + (w.primary || 0) * (primaryHit ? 1 : 0)
+    + (w.marketSignal || 0) * (marketSignalHit ? 1 : 0);
   return {
     value,
     evidence: {
@@ -96,7 +123,8 @@ export function importanceAxis({ event, memberArticles = [] } = {}, {
       weightyCategories: [...weighty],
       primary: primaryHit,
       memberRoles: roles,
-      componentWeights: { ...w }
+      componentWeights: { ...w },
+      ...(w.marketSignal ? { marketSignal: marketSignalHit, marketSignalMatches } : {})
     }
   };
 }

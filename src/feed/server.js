@@ -584,6 +584,11 @@ export function createServer(opts = {}) {
   }
   sources.push(new StorePostsSource(store));
   const engine = new FeedEngine(store, opts.sources || sources);
+  // v2 전용(David 승인, 2026-08-17 — "골라놓은 순서 그대로"). opts에 없으면
+  // null이라 engine.briefing()의 buildDigest 호출이 기존 weight 정렬 그대로다
+  // — 운영 서버는 이 옵션을 절대 주지 않는다(build-editions.mjs v2 인프로세스
+  // 인스턴스 전용).
+  if (opts.editorialExternalRank) engine.editorialExternalRank = opts.editorialExternalRank;
   // 새 편집 홈은 로컬 스테이징에서만 연다. 플래그가 없으면 운영 `/`와
   // 기존 API 동작은 그대로라, 로컬 고도화 중인 화면이 실사용자에게 새지 않는다.
   const localEditorial = opts.localEditorial != null

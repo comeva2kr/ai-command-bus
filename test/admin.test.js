@@ -93,7 +93,7 @@ test("admin: product-blueprint는 인증 뒤 구조화된 로컬 설계만 제�
     assert.equal(blueprint.adversarialReview.beachhead.category, "시장·정책");
     assert.match(blueprint.adversarialReview.beachhead.eligibility.politicalRule, /정치 일반은 제외/);
     const sourceAudit = blueprint.adversarialReview.beachhead.sourceAudit;
-    assert.equal(sourceAudit.current.relevantSourceCount, 26); // P2-B 경제 소스 3개 추가(cnbc-economy·bbc-business·fnnews-economy, DEVCHG-NOWHOT-20260813-084)
+    assert.equal(sourceAudit.current.relevantSourceCount, 27); // marketwatch-top 추가(해외 경제 독립 운영그룹 2->3: nbcuniversal·bbc·dowjones, DEVCHG-NOWHOT-20260817-110)
     assert.equal(sourceAudit.current.primarySourceCount, 0);
     assert.equal(sourceAudit.current.byCategory.politics, 0);
     assert.equal(sourceAudit.state, "hold");

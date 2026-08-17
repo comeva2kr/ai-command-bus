@@ -538,6 +538,11 @@ export class FeedEngine {
     // og:image URL만 핫링크로 채운다. 테스트/미주입 시 null = 기존 동작.
     this._enricher = null;
     this._learnedIds = new Set(); // 같은 제목을 중복 학습하지 않기 위한 장부
+    // v2 전용(David 승인, 2026-08-17) — server.js가 opts.editorialExternalRank로
+    // 주입. Map<itemId, rank>이면 briefing()의 buildDigest 호출에 그대로
+    // 전달돼 이슈 순위를 shadow 선별 순서로 고정한다. null이면(운영 서버·
+    // v1 인프로세스 인스턴스) briefing() 동작이 기존과 바이트 그대로다.
+    this.editorialExternalRank = null;
   }
 
   _ensureCategoryIntegrityMetadata() {
@@ -2683,7 +2688,11 @@ export class FeedEngine {
       selectedCategories,
       minIssuesPerCategory,
       additiveCategoryUnion,
-      requireKoreanAudience: personalized
+      requireKoreanAudience: personalized,
+      // v2 전용(David 승인, 2026-08-17) — 엔진 인스턴스에 주입됐을 때만 동작.
+      // 운영 서버·v1 인프로세스 인스턴스는 null이라 이 인자가 undefined와
+      // 같은 기본값으로 buildDigest에 전달돼 기존 동작이 바이트 그대로다.
+      externalRank: this.editorialExternalRank || null
     });
     const issues = personalized
       ? digest.issues.map((issue) => enrichDigestIssue(issue, selectedCategories))

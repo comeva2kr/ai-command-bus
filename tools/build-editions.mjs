@@ -163,6 +163,26 @@ export function collectShadowArticles(briefingOut) {
   return [...byId.values()];
 }
 
+// v2 2차 재랭킹 제거(David 승인, 2026-08-17 — "골라놓은 순서 그대로"). shadow
+// 선별은 이미 `briefingOut.briefing`에 판 전체 정본 순서(분야별 중요도 층
+// 오름차순 → 전체 S 내림차순)를 계산해 뒀다 — digest.js의 편집 문장 계층이
+// 반응량으로 다시 정렬하지 못하게, 그 순서를 사건별 기사 id → 순위 맵으로
+// 펴서 engine.editorialExternalRank(→ buildDigest externalRank)에 그대로
+// 넘긴다. 사건의 대표·구성원·반응 기사 전부에 같은 순위를 매긴다 — digest.js가
+// 자체 클러스터링(clusterIssues)에서 어느 멤버로 그 사건을 다시 묶어도 순위를
+// 찾을 수 있게 하기 위해서다(재계산 금지 — 매핑만 찾는다).
+export function shadowBriefingRankMap(briefingOut) {
+  const rank = new Map();
+  (briefingOut.briefing || []).forEach((entry, index) => {
+    const view = entry && entry.view;
+    if (!view) return;
+    for (const article of [...(view.memberArticles || []), ...(view.reactionArticles || [])]) {
+      if (article && article.id && !rank.has(article.id)) rank.set(article.id, index);
+    }
+  });
+  return rank;
+}
+
 // ---------------------------------------------------------------------------
 // 인프로세스 /api/today 호출 — createServer의 요청 핸들러를 리슨 없이 디스패치.
 // ---------------------------------------------------------------------------
@@ -198,8 +218,12 @@ export async function buildTodayEditionInProcess({
   nowMs,
   storeFile = null,
   poolFile = null,
-  query = "/api/today"
-}) {
+  query = "/api/today",
+  // v2 전용(David 승인, 2026-08-17). v1 호출은 이 인자를 절대 넘기지 않는다 —
+  // undefined → createServer의 opts.editorialExternalRank도 undefined라 v1
+  // 동작은 바이트 그대로다.
+  editorialExternalRank = null
+} = {}) {
   const previousPoolFile = process.env.FEED_POOL_FILE;
   // 웜캐시로 이전 실행의 (제한된) 풀이 새 판에 새어 들지 않게 비운다.
   if (poolFile) {
@@ -218,7 +242,8 @@ export async function buildTodayEditionInProcess({
       file: storeFile,
       clock: () => nowMs,
       translate: { targetLang: "ko", translateFn: null },
-      vapid: null
+      vapid: null,
+      ...(editorialExternalRank ? { editorialExternalRank } : {})
     });
     const response = await dispatchGet(server, query);
     let parsed = null;
@@ -384,13 +409,16 @@ async function main() {
       poolFile: path.join(V2_DIR, "v1-inproc-pool.json")
     });
 
-    // ── ④ v2 판 — 새 선별이 고른 클러스터 기사만 같은 편집 계층에 태운다 ──
+    // ── ④ v2 판 — 새 선별이 고른 클러스터 기사만 같은 편집 계층에 태운다.
+    //        순위는 shadow S 정본(shadowBriefingRankMap)으로 고정 — 편집
+    //        문장 계층(digest.js)은 문장만 만들고 다시 정렬하지 않는다.
     const shadowArticles = collectShadowArticles(shadowOut);
     const v2Run = await buildTodayEditionInProcess({
       sources: groupArticlesAsSources(shadowArticles),
       nowMs,
       storeFile: path.join(V2_DIR, "v2-editorial-store.json"),
-      poolFile: path.join(V2_DIR, "v2-inproc-pool.json")
+      poolFile: path.join(V2_DIR, "v2-inproc-pool.json"),
+      editorialExternalRank: shadowBriefingRankMap(shadowOut)
     });
 
     // ── ⑤ 자가 검증 + 기록 (불합격·비200은 파일을 쓰지 않는다 — 정직 실패) ──

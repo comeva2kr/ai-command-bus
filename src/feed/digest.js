@@ -107,6 +107,17 @@ const NEAR_DUP_CONCEPTS = 3; // 실제 새 판의 트럼프·이란 배상과 �
 const STRONG_EVENT_CONCEPTS = new Set(["지진"]);
 const DISTINCTIVE_ENTITY_MIN_LENGTH = 3;
 
+// 숫자 충돌 가드(event-cluster.js decideEventMerge의 guard_numbers_only_overlap
+// 원리 재사용, David 승인 2026-08-17 — "오병합 가드"). 서로 다른 분야 병합은
+// 숫자 하나와 통계 서술어(사건을 특정하지 못하는 범용 수식어)만 겹쳐도 되면
+// 안 된다 — 오병합 사례("에볼라 사망자 2,300명" vs "호우 피해신고 2,300건")는
+// 핵심 주제어 없이 이 서술어들과 숫자만 우연히 같아 병합됐다. 목록은
+// STRONG_EVENT_CONCEPTS와 같은 원칙으로 최소·보수적으로만 둔다(넓히는
+// 방향이 아니라 병합을 줄이는 방향).
+const STATISTICAL_FILLER_CONCEPTS = new Set([
+  "기록적", "증가", "감소", "급증", "급감", "발생", "넘어서", "이상", "이하", "달해", "기록", "집계"
+]);
+
 export function nearIssueGroups(scored) {
   const groups = [];
   for (const c of scored) {
@@ -143,8 +154,15 @@ export function nearIssueGroups(scored) {
 
       // 서로 다른 지면 라벨(news/politics)로 들어온 동일 사건은 핵심 내용어와
       // 같은 큰 수치가 함께 맞을 때만 접는다. 인물만 같은 별개 후속 보도는 남긴다.
+      // 숫자 충돌 가드: 숫자·통계 서술어를 뺀 실제 주제어가 최소 1개는 겹쳐야
+      // 한다 — 그렇지 않으면 서로 다른 사건이 숫자만 우연히 같아 병합된다
+      // (guard_numbers_only_overlap 원리, 강결합 canonicalUrl·eventKey가 아닌
+      // 이 휴리스틱 병합은 이 조건 없이는 숫자 우연 일치를 막지 못한다).
+      const topicalBridge = sharedConcepts.filter((concept) =>
+        !concept.startsWith("num:") && !STATISTICAL_FILLER_CONCEPTS.has(concept));
       return !sameCategory && bothRelated && sharedConcepts.length >= NEAR_DUP_CONCEPTS
-        && sharedConcepts.some((concept) => concept.startsWith("num:"));
+        && sharedConcepts.some((concept) => concept.startsWith("num:"))
+        && topicalBridge.length > 0;
     }));
     if (hit) hit.push(c); else groups.push([c]);
   }
@@ -654,7 +672,14 @@ export function buildDigest(items, {
   selectedCategories = [],
   minIssuesPerCategory = 0,
   additiveCategoryUnion = false,
-  requireKoreanAudience = false
+  requireKoreanAudience = false,
+  // v2 전용(David 승인, 2026-08-17 — "골라놓은 순서 그대로"). Map<itemId,
+  // rank:number>(작을수록 우선). 있으면 클러스터 중요도 정렬을 이 순위로
+  // 고정한다 — 반응·교차보도로 다시 계산하지 않는다(순위 재계산 금지).
+  // 매핑이 없는 클러스터는 매핑된 클러스터들 뒤로 밀리고, 그들끼리는 기존
+  // weight로 정렬한다(부분 공급 시 안전망). null(기본, v1 전 경로)이면 이
+  // 함수의 나머지 동작은 바이트 그대로다.
+  externalRank = null
 } = {}) {
   const clusters = clusterIssues(items);
 
@@ -685,6 +710,17 @@ export function buildDigest(items, {
   const RELATED_COVERAGE_K = 40;
   const INTEREST_MAX = 250;
   const WEIGHTY_BONUS = 105;
+  // v2 externalRank — 클러스터의 순위는 구성원 중 매핑된 항목의 최솟값(가장
+  // 우선순위 높은 기사)으로 정한다. 매핑이 하나도 없으면 null(뒤로 밀림).
+  const externalRankOf = (members) => {
+    if (!externalRank) return null;
+    let best = null;
+    for (const item of members) {
+      const r = externalRank.get(item && item.id);
+      if (r != null && (best === null || r < best)) best = r;
+    }
+    return best;
+  };
   const scored = clusters.map((members) => {
     const eng = members.reduce((s, i) => s + (i.score || 0) + (i.commentCount || 0) * 2, 0);
     const evidence = coverageEvidence(members);
@@ -710,13 +746,23 @@ export function buildDigest(items, {
       members,
       draft: buildIssueDraft(members, perIssueRefs, requireKoreanAudience),
       carryoverOnly: members.every((item) => Boolean(item.editorialCarryover)),
+      externalRank: externalRankOf(members),
       weight: Math.log10(1 + Math.max(0, eng)) * REACTION_K
         + coveragePoints
         + INTEREST_MAX * Math.min(1, best / 1000)
         + weighty
         + sourceTrust
     };
-  }).sort((a, b) => Number(a.carryoverOnly) - Number(b.carryoverOnly) || b.weight - a.weight);
+  }).sort((a, b) => {
+    if (Number(a.carryoverOnly) !== Number(b.carryoverOnly)) {
+      return Number(a.carryoverOnly) - Number(b.carryoverOnly);
+    }
+    if (!externalRank) return b.weight - a.weight;
+    if (a.externalRank !== null && b.externalRank !== null) return a.externalRank - b.externalRank;
+    if (a.externalRank !== null) return -1;
+    if (b.externalRank !== null) return 1;
+    return b.weight - a.weight;
+  });
 
   // 문장·근거 계약을 먼저 통과시킨 뒤 근접 중복을 접는다. 실패 클러스터를 먼저
   // 대표로 정하면, 같은 사건의 다음 정상 클러스터까지 중복으로 사라져 빈자리가

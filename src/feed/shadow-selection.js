@@ -171,6 +171,18 @@ export const SHADOW_PACK_PARAMS = deepFreeze({
     english: ["lawsuit", "lawsuits", "arrested", "investigation", "investigations",
       "plunge", "plunged", "plunges", "surge", "surged", "surges"]
   },
+  // 해외 뉴스 중요도 공식(David 채택 옵션 1, 2026-08-17) — newsy 팩 overseas
+  // 서브테이블(componentWeights.marketSignal)이 소비하는 이진 매칭 사전. 조사
+  // 실측 어휘만(과잉 발명 금지) — 한국어는 제목 부분 문자열, 영어는 소문자
+  // 단어 경계. 구성원(보도) 기사 제목만 본다. **David 검토용으로 사전은 이
+  // 한 곳에만 있다.**
+  marketSignal: {
+    basis: "David 채택 옵션 1(2026-08-17) — allMembersOverseas 사건 한정 importance 성분. 어휘는 조사 실측만(발명 금지).",
+    korean: ["연준", "금리", "환율", "성장률", "실적", "반도체", "중국", "일본"],
+    english: ["Fed", "rate", "CPI", "GDP", "jobs", "payrolls", "China", "Japan", "dollar",
+      "yen", "oil", "earnings", "Nvidia", "Apple", "Microsoft", "Amazon", "Meta", "Tesla",
+      "SoftBank", "Anthropic", "OpenAI"]
+  },
   packs: {
     newsy: {
       label: "경제·정치",
@@ -183,19 +195,21 @@ export const SHADOW_PACK_PARAMS = deepFreeze({
       morningWindowHours: 24,
       trustGate: "news_graded", // R5 — A(primary·first_party) ∨ 독립2 ∨ B(specialist 단독·단일 출처 표기·민감 불가)
       sourceCap: { per: "operatorGroup", max: 2 },
-      // 해외발 최소 노출(David #과업3, 2026-08-17 — "해외 주요뉴스가 핵심").
-      // 원인 실측(2026-08-17 evening 슬롯, 신선 풀 1917건): CNBC 15건 후보 전량이
-      // freshness_window_12h(위 windowHours)에서 탈락 — 미국 동부 업무시간
-      // 발행분이 KST 저녁 기준 12h를 넘긴다(아침 슬롯 morningWindowHours=24는
-      // 이미 보정돼 있다 — 그 창은 이 변경 대상이 아니다). BBC Business는
-      // 게이트를 통과(B등급)하고도 S 점수가 낮아(반응 0·독립보도 그룹 부재)
-      // sourceCap·동적 분량 컷 아래로 밀렸다 — gate-passed 해외 공급이 있어도
-      // 노출 0이었던 원인은 "게이트 미통과"가 아니라 "순위 밀림"이었다.
-      // 팩별 gate-passed 해외 공급 실측(같은 슬롯): business 7 · news 1 ·
-      // tech 1 · auto 0 · politics 0(후보 자체 없음) — 공급이 있는 레인 중
-      // 가장 얇은 값(1)을 기본값으로 삼는다(공급 없는 레인까지 강제하면
-      // "부분 표시 원칙"을 어긴다 — 과잉 설정 금지). David 확인 대상.
-      overseasMinPerCategory: 1
+      // 해외 뉴스 중요도 공식(David 채택 옵션 1, 2026-08-17) — 구
+      // overseasMinPerCategory 강제 스왑(2026-08-17 이전 값 1)은 완전
+      // 폐기했다. 대신 allMembersOverseas 사건에 한해 이 서브테이블로
+      // shadowScore를 다시 계산한다 — 국내 사건과 같은 S 정렬 안에서
+      // marketSignal 성분이 실제 실적·거시 신호가 있는 해외발 경제 사건의
+      // importance를 끌어올려 순위 자체로 노출을 얻는다(땜질 스왑 불필요).
+      // groupSaturation 2: 해외 사건은 독립 운영그룹 자체가 국내보다 얇다
+      // (같은 슬롯 실측에서 사건당 1~2곳) — 5로 두면 groupsRatio가 항상
+      // 바닥에 붙는다. componentWeights 합 1.0(0.30/0.15/0.15/0.40) —
+      // marketSignal에 가장 큰 비중을 준다(David 채택 옵션 1 그대로).
+      overseas: {
+        weights: { heat: 0.05, importance: 0.65, change: 0.30 },
+        groupSaturation: 2,
+        componentWeights: { groups: 0.30, weighty: 0.15, primary: 0.15, marketSignal: 0.40 }
+      }
     },
     science: {
       label: "과학",
@@ -556,22 +570,37 @@ export function shadowEligibility(view, pack, {
 // 점수 S = w_h·heat + w_i·importance + w_c·change
 // ---------------------------------------------------------------------------
 
-export function shadowScore(view, pack, { now, params = SHADOW_PACK_PARAMS, previousFingerprint = null, roleOf } = {}) {
+// 해외 뉴스 중요도 공식(David 채택 옵션 1, 2026-08-17): allMembersOverseas
+// (구성원 전부 country≠KR)인 사건에 한해, pack.overseas가 있는 팩(newsy)만
+// overseas 서브테이블로 가중·groupSaturation·componentWeights를 바꿔 쓴다.
+// 국내 사건과 overseas 서브테이블이 없는 팩(science 등)은 이 분기를 타지
+// 않는다 — 기존 산식 그대로(무변경).
+export function shadowScore(view, pack, {
+  now, params = SHADOW_PACK_PARAMS, previousFingerprint = null, roleOf, registryById = null
+} = {}) {
   const axis = params.axis;
+  const overseasFormula = Boolean(pack.overseas)
+    && allMembersOverseas(view.memberArticles, registryById);
   const heat = heatAxis(view, { saturationEng: axis.heatSaturationEng });
   const importance = importanceAxis(view, {
-    groupSaturation: axis.importanceGroupSaturation,
+    groupSaturation: overseasFormula ? pack.overseas.groupSaturation : axis.importanceGroupSaturation,
     weightyCategories: axis.weightyCategories,
-    componentWeights: axis.importanceComponents,
+    componentWeights: overseasFormula ? pack.overseas.componentWeights : axis.importanceComponents,
+    marketSignalLexicon: overseasFormula ? params.marketSignal : null,
     roleOf
   });
   const windowHours = pack.windowHours;
   const change = changeAxis(view, {
     now, windowHours, stair: axis.freshnessStair, previousFingerprint
   });
-  const w = pack.weights;
+  const w = overseasFormula ? pack.overseas.weights : pack.weights;
   const S = w.heat * heat.value + w.importance * importance.value + w.change * change.value;
-  return { S: Math.round(S * 10000) / 10000, weights: { ...w }, axes: { heat, importance, change } };
+  return {
+    S: Math.round(S * 10000) / 10000,
+    weights: { ...w },
+    axes: { heat, importance, change },
+    overseasFormula
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -683,7 +712,7 @@ function selectWithPackYardstick(candidateViews, pack, {
       score: shadowScore(row.view, pack, {
         now, params,
         previousFingerprint: prevFingerprintOf(row.view.event),
-        roleOf
+        roleOf, registryById
       })
     };
   }).sort((a, b) => b.score.S - a.score.S
@@ -717,43 +746,14 @@ function selectWithPackYardstick(candidateViews, pack, {
       else break;
     }
   }
-  let selected = capped.slice(0, cut);
-  let belowVolume = capped.slice(cut).map((row) => ({ ...row, exclusion: "below_dynamic_volume" }));
+  const selected = capped.slice(0, cut);
+  const belowVolume = capped.slice(cut).map((row) => ({ ...row, exclusion: "below_dynamic_volume" }));
 
-  // 해외발 최소 노출 보장(David #과업3, newsy 팩 한정 — pack.overseasMinPerCategory
-  // 있을 때만 동작). 소스캡(공통 원칙 4 — 자동 완화 금지)은 그대로 두고
-  // capExcluded에서는 절대 끌어오지 않는다 — 게이트·캡을 모두 통과했지만
-  // 동적 분량 컷 아래로 밀린 belowVolume에서만 채운다. 채울 만큼의 공급이
-  // 없으면 그대로 둔다(부분 표시 원칙 — 억지로 채우지 않는다). 총 selected
-  // 개수(동적 분량 계약)는 바꾸지 않는다 — 가장 낮은 국내 S를 해외로 맞바꾼다.
-  const overseasMin = Math.max(0, Number(pack.overseasMinPerCategory) || 0);
-  if (overseasMin > 0 && registryById) {
-    const isOverseasRow = (row) => allMembersOverseas(row.view.memberArticles, registryById);
-    const have = selected.filter(isOverseasRow).length;
-    const need = overseasMin - have;
-    if (need > 0) {
-      const reserve = belowVolume
-        .filter(isOverseasRow)
-        .sort((a, b) => b.score.S - a.score.S);
-      const domesticByAscendingS = selected
-        .map((row, index) => ({ row, index }))
-        .filter(({ row }) => !isOverseasRow(row))
-        .sort((a, b) => a.row.score.S - b.row.score.S);
-      const swapCount = Math.min(need, reserve.length, domesticByAscendingS.length);
-      const used = new Set();
-      for (let i = 0; i < swapCount; i += 1) {
-        selected[domesticByAscendingS[i].index] = reserve[i];
-        used.add(reserve[i]);
-      }
-      if (swapCount > 0) {
-        selected = [...selected].sort((a, b) => b.score.S - a.score.S
-          || String(a.view.event.eventId).localeCompare(String(b.view.event.eventId)));
-        // 선택으로 옮긴 행은 제외 목록에서 뺀다 — 감사 로그에서 같은 사건이
-        // selected와 excluded.belowVolume 양쪽에 동시에 잡히지 않게 한다.
-        belowVolume = belowVolume.filter((row) => !used.has(row));
-      }
-    }
-  }
+  // 구 "해외발 최소 노출 보장" 강제 스왑(pack.overseasMinPerCategory, David
+  // #과업3 2026-08-17)은 David 승인으로 완전 폐기했다(2026-08-17 해외 뉴스
+  // 중요도 공식 옵션 1 채택). 골라놓은 S 순위를 사후에 다시 바꾸지 않는다 —
+  // 대신 shadowScore가 allMembersOverseas 사건에 overseas 서브테이블
+  // (marketSignal 포함)을 적용해 S 자체로 노출을 얻는다.
 
   const partialEdition = selected.length < volume.min;
 

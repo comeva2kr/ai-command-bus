@@ -711,6 +711,47 @@ test("브리핑 이슈: 같은 검색 급상승어는 한 판에서 한 사건�
   assert.ok(issues.some((issue) => /반도체 신규 공정 투자 확대/.test(issue.headline)), "중복 자리는 다음 품질 후보로 채워야 한다");
 });
 
+// ---------------------------------------------------------------------------
+// v2 2차 재랭킹 제거(David 승인, 2026-08-17 — "골라놓은 순서 그대로").
+// buildDigest의 externalRank 옵션: 없으면(v1) 기존 weight 정렬 그대로,
+// 있으면(v2) 반응량과 무관하게 그 순위를 정본으로 고정한다.
+// ---------------------------------------------------------------------------
+
+test("동결 — v1 바이트 무변경: externalRank 없으면 기존 반응량 weight 정렬 그대로", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const items = [
+    { id: "hot", title: "국내 커뮤니티 반응 폭발 이슈", source: "src-a", sourceLabel: "매체A", category: "news", score: 900 },
+    { id: "quiet", title: "해외 경제 조용한 단신 이슈", source: "src-b", sourceLabel: "매체B", category: "business", score: 0 }
+  ];
+  const { issues } = buildDigest(items, { maxIssues: 2 });
+  assert.equal(issues[0].refs[0].id, "hot", "externalRank 없으면 반응량이 큰 쪽이 그대로 앞선다(무변경)");
+});
+
+test("동결 — v2: externalRank가 있으면 shadow S 순위를 그대로 따른다(반응량 재랭킹 없음)", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const items = [
+    { id: "hot", title: "국내 커뮤니티 반응 폭발 이슈", source: "src-a", sourceLabel: "매체A", category: "news", score: 900 },
+    { id: "quiet", title: "해외 경제 조용한 단신 이슈", source: "src-b", sourceLabel: "매체B", category: "business", score: 0 }
+  ];
+  // shadow S 내림차순으로는 quiet가 먼저(랭크 0), hot이 다음(랭크 1) — 반응량과 반대.
+  const externalRank = new Map([["quiet", 0], ["hot", 1]]);
+  const { issues } = buildDigest(items, { maxIssues: 2, externalRank });
+  assert.equal(issues[0].refs[0].id, "quiet",
+    "externalRank가 있으면 반응량이 커도 순위가 밀린다 — 재계산 금지");
+});
+
+test("v2: externalRank 매핑이 없는 클러스터는 매핑된 클러스터 뒤로 밀린다(부분 공급 안전망)", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const items = [
+    { id: "ranked-low", title: "shadow가 낮은 순위로 고른 이슈", source: "src-a", sourceLabel: "매체A", category: "news", score: 0 },
+    { id: "unranked", title: "shadow 밖에서 섞여 들어온 이슈", source: "src-b", sourceLabel: "매체B", category: "business", score: 900 }
+  ];
+  const externalRank = new Map([["ranked-low", 0]]); // unranked는 매핑 없음
+  const { issues } = buildDigest(items, { maxIssues: 2, externalRank });
+  assert.equal(issues[0].refs[0].id, "ranked-low", "매핑된 클러스터가 반응량과 무관하게 앞선다");
+  assert.equal(issues[1].refs[0].id, "unranked");
+});
+
 test("개인판 최소 깊이: 앞 분야가 소스 상한을 써도 후보가 있는 뒤 분야를 굶기지 않는다", async () => {
   const { buildDigest } = await import("../src/feed/digest.js");
   const categories = ["news", "tech", "fashion"];
@@ -1262,6 +1303,58 @@ test("브리핑 이슈: 근접 중복 헤드라인은 최대 1건만 뽑고 빈 
     "콜롬비아 강진과 지진 표기 변주는 한 사건이어야 한다");
   assert.ok(actualIds.has("other-quake"), "다른 나라의 별개 지진은 남아야 한다");
   assert.ok(actualIds.has("other-trump"), "같은 인물의 별개 정책은 남아야 한다");
+});
+
+// ---------------------------------------------------------------------------
+// 오병합 가드(David 승인, 2026-08-17) — nearIssueGroups의 서로 다른 분야
+// 병합 휴리스틱은 숫자 하나만 우연히 같아도 통계 서술어("기록적", "증가" 등)
+// 까지 겹치면 sharedConcepts가 문턱(3)을 넘어 병합됐다(오병합 사례: 사망자
+// 수치와 피해신고 건수가 우연히 같은 값). event-cluster.js의
+// guard_numbers_only_overlap 원리(숫자 겹침만으로 병합 금지)를 적용해,
+// 숫자·통계 서술어를 뺀 실제 주제어가 최소 1개는 겹쳐야만 병합한다.
+// ---------------------------------------------------------------------------
+
+test("오병합 가드 동결: 서로 다른 분야에서 통계 수치만 우연히 같으면 병합하지 않는다 (에볼라/호우 재현)", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const mk = (id, title, extra) => ({
+    id, title, sourceLabel: id, source: id, score: 0, commentCount: 0,
+    coverage: 3, tags: [], ...extra
+  });
+  const items = [
+    // 재현 픽스처(실제 오병합 관측 패턴을 구성 재현): "2300"이라는 숫자값이
+    // 우연히 같고, 남은 겹침이 사건을 특정하지 못하는 통계 서술어뿐이다.
+    mk("ebola", "에볼라 확산에 사망자 2300명 기록적 증가", { category: "news" }),
+    mk("flood", "호우 피해신고 2300건 기록적 증가", { category: "society" }),
+    // 대조군: 같은 판에 정말 여러 매체가 다룬 별개 사건도 하나씩 있어야
+    // "우연히 둘 다 컷됐다"가 아니라 "병합만 안 됐다"임을 보증한다.
+    mk("other-a", "반도체 수출 역대 최대 실적 경신", { category: "business", coverage: 2 }),
+    mk("other-b", "야구 국가대표 평가전 승리", { category: "sports", coverage: 2 })
+  ];
+  const { issues } = buildDigest(items, {
+    maxIssues: 4, selectedCategories: ["news", "society", "business", "sports"]
+  });
+  const ids = new Set(issues.flatMap((issue) => issue.refs.map((ref) => ref.id)));
+  assert.ok(ids.has("ebola"), "에볼라 사건은 독립 이슈로 남아야 한다");
+  assert.ok(ids.has("flood"), "호우 사건은 독립 이슈로 남아야 한다");
+  assert.equal(issuesContainingAnyId(issues, ["ebola", "flood"]).length, 2,
+    "숫자만 우연히 같은 두 사건이 한 이슈로 합쳐지면 안 된다");
+});
+
+test("오병합 가드 동결: 정당 병합(같은 사건 다매체 — 숫자+실제 주제어 함께 겹침)은 그대로 유지한다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const mk = (id, title, extra) => ({
+    id, title, sourceLabel: id, source: id, score: 0, commentCount: 0,
+    coverage: 5, tags: [], ...extra
+  });
+  const items = [
+    mk("visa-news", "미국, 비자 규정 위반·범죄 등으로 외국인 비자 17만5천 건 이상 취소",
+      { category: "news" }),
+    mk("visa-politics", "美국무부 원정 출산, 트럼프 위협 등 외국인 17만5000명 비자 취소",
+      { category: "politics" })
+  ];
+  const { issues } = buildDigest(items, { maxIssues: 2, selectedCategories: ["news", "politics"] });
+  assert.equal(issuesContainingAnyId(issues, ["visa-news", "visa-politics"]).length, 1,
+    "숫자와 함께 '비자·외국인·취소' 같은 실제 주제어가 겹치는 정당 병합은 계속 되어야 한다");
 });
 
 test("브리핑 이슈: 같은 판의 커뮤니티 말바꿈과 같은 발표의 후속 각도를 한 자리로 접는다", async () => {

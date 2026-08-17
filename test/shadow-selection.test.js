@@ -12,7 +12,7 @@ import {
 import {
   SHADOW_PACK_PARAMS, SHADOW_SELECTION_CONTRACT,
   shadowSelectEdition, shadowSelectBriefing, packIdForArticle, resolveSourceRole, overrideShadowParams,
-  sensitiveMatches, representativeOf
+  sensitiveMatches, representativeOf, shadowScore, allMembersOverseas
 } from "../src/feed/shadow-selection.js";
 import { buildEventClusters } from "../src/feed/event-cluster.js";
 
@@ -87,6 +87,82 @@ test("importance: 독립 그룹 포화(5)·weighty·primary 구성 요소와 근
   assert.ok(at(1, "business").value > at(1, "life").value, "weighty 분야 가산");
   assert.ok(at(1, "life", "primary").value > at(1, "life").value, "primary 근거 가산");
   assert.equal(at(1, "business").evidence.weighty, true);
+});
+
+// ---------------------------------------------------------------------------
+// 해외 뉴스 중요도 공식(David 채택 옵션 1, 2026-08-17) — newsy 팩 overseas
+// 서브테이블. 구 overseasMinPerCategory 강제 스왑은 완전 폐기했다.
+// ---------------------------------------------------------------------------
+
+test("동결: 해외 경제 사건 — marketSignal로 importance 역전 (David 채택 옵션 1, 2026-08-17)", () => {
+  const registry = [
+    { id: "cnbc-economy", kind: "news", category: "business", sourceTier: "specialist", country: "US" },
+    { id: "yna", kind: "news", category: "business", sourceTier: "specialist", country: "KR" }
+  ];
+  const registryById = new Map(registry.map((entry) => [entry.id, entry]));
+  const roleOf = (a) => resolveSourceRole(a, registryById.get(a && a.source));
+  const pack = SHADOW_PACK_PARAMS.packs.newsy;
+
+  // 해외 경제 사건 — 독립그룹 1곳(사건 자체가 얇다), 제목에 marketSignal 어휘(Fed).
+  const overseasArticle = article({ id: "ov1", title: "Fed officials signal rate path unchanged",
+    category: "business", source: "cnbc-economy" });
+  const overseasView = {
+    event: { counts: { independentReportingGroups: 1 } },
+    memberArticles: [overseasArticle], reactionArticles: []
+  };
+  assert.equal(allMembersOverseas(overseasView.memberArticles, registryById), true);
+
+  // 국내 경제 사건 — 독립그룹 2곳(취재가 더 두껍다), marketSignal 어휘 없음.
+  const domesticArticle = article({ id: "dm1", title: "국내 기업 실적 발표 이어져",
+    category: "business", source: "yna" });
+  const domesticView = {
+    event: { counts: { independentReportingGroups: 2 } },
+    memberArticles: [domesticArticle], reactionArticles: []
+  };
+
+  const opts = { now: NOW, roleOf, registryById };
+  // "역전 전" 재현 — 구 코드는 overseas 서브테이블이 없어 해외 사건도 국내와
+  // 같은 기본 componentWeights(groups 0.5)를 썼다. pack.overseas만 지운 사본으로
+  // 그 셈법을 재현한다(다른 파라미터는 실 pack 그대로).
+  const before = shadowScore(overseasView, { ...pack, overseas: undefined }, opts);
+  const after = shadowScore(overseasView, pack, opts);
+  const domestic = shadowScore(domesticView, pack, opts);
+
+  assert.ok(before.axes.importance.value < domestic.axes.importance.value,
+    "역전 전: 독립그룹이 얇은 해외 사건은 국내보다 importance가 낮았다");
+  assert.ok(after.axes.importance.value > domestic.axes.importance.value,
+    "역전 후: marketSignal 성분으로 해외 경제 사건의 importance가 국내를 앞선다");
+  assert.equal(after.overseasFormula, true);
+  assert.equal(before.overseasFormula, false, "서브테이블이 없으면 overseas 판정이 아니다");
+  assert.equal(domestic.overseasFormula, false, "국내 사건은 overseas 서브테이블을 타지 않는다");
+  assert.equal(after.axes.importance.evidence.marketSignal, true);
+  assert.deepEqual(after.axes.importance.evidence.marketSignalMatches,
+    [{ articleId: "ov1", term: "Fed" }, { articleId: "ov1", term: "rate" }]);
+});
+
+test("동결: 국내 사건은 marketSignal 분기를 타지 않는다 — 기존 3성분 산식 무변경", () => {
+  const registry = [{ id: "yna", kind: "news", category: "business", sourceTier: "specialist", country: "KR" }];
+  const registryById = new Map(registry.map((entry) => [entry.id, entry]));
+  const roleOf = (a) => resolveSourceRole(a, registryById.get(a && a.source));
+  const pack = SHADOW_PACK_PARAMS.packs.newsy;
+  // 제목에 marketSignal 어휘(Fed)가 있어도 구성원 소스가 국내(country=KR)를
+  // 포함하면 allMembersOverseas가 거짓이라 overseas 서브테이블을 타지 않는다.
+  const mixedArticle = article({ id: "mx1", title: "Fed 발언에 국내 증시 소폭 반응",
+    category: "business", source: "yna" });
+  const view = {
+    event: { counts: { independentReportingGroups: 2 } },
+    memberArticles: [mixedArticle], reactionArticles: []
+  };
+  const score = shadowScore(view, pack, { now: NOW, roleOf, registryById });
+  assert.equal(score.overseasFormula, false);
+  assert.equal(score.axes.importance.evidence.marketSignal, undefined,
+    "componentWeights에 marketSignal 키가 없으면 계산 자체를 하지 않는다");
+  const axis = SHADOW_PACK_PARAMS.axis;
+  const groupsRatio = Math.min(1, 2 / axis.importanceGroupSaturation);
+  const manual = axis.importanceComponents.groups * groupsRatio
+    + axis.importanceComponents.weighty * 1
+    + axis.importanceComponents.primary * 0;
+  assert.equal(score.axes.importance.value, manual, "기존 국내 3성분 셈법과 바이트 그대로 같다");
 });
 
 test("change: 신선도 계단 — 창 4등분·창 밖 0", () => {
