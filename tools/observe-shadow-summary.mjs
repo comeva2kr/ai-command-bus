@@ -23,15 +23,19 @@ if (!summaries.length) {
   console.log("완료된 슬롯 요약 없음.");
 } else {
   const comboKeys = [...new Set(summaries.flatMap((s) => Object.keys(s.combos)))];
-  const header = ["날짜", "슬롯", "수집", ...comboKeys.flatMap((k) => [`${k} 선별`, `${k} 부분판`, `${k} 재등장차단`, `${k} 품질차단`, `${k} B등급`])];
+  const header = ["날짜", "슬롯", "수집", "결측", ...comboKeys.flatMap((k) => [`${k} 선별`, `${k} 부분판`, `${k} 재등장차단`, `${k} 품질차단`, `${k} B등급`, `${k} 계보`])];
   const rows = summaries.map((s) => [
     s.date, s.slotId, String(s.collected.articles),
+    // S2-3 ① — 결측 소스(구 요약 파일엔 필드가 없다 — 미계측은 "?"로 정직 표기)
+    s.missingSources ? (s.missingSources.length ? s.missingSources.map((m) => m.id).join("/") : "-") : "?",
     ...comboKeys.flatMap((k) => {
       const c = s.combos[k];
       return c
         ? [String(c.selected), c.partialEditionCategories.length ? c.partialEditionCategories.join("/") : "-",
-           String(c.reappearBlocked), String(c.qualityExcluded), String(c.bGradeSelected)]
-        : ["-", "-", "-", "-", "-"];
+           String(c.reappearBlocked), String(c.qualityExcluded), String(c.bGradeSelected),
+           // S2-3 ③ — 계보 레코드 수(+증분). 구 요약은 미계측 "?".
+           c.lineage ? `${c.lineage.records}(${c.lineage.delta >= 0 ? "+" : ""}${c.lineage.delta})` : "?"]
+        : ["-", "-", "-", "-", "-", "-"];
     })
   ]);
   const widths = header.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
@@ -48,6 +52,9 @@ if (fs.existsSync(runlog)) {
   for (const l of fs.readFileSync(runlog, "utf8").trim().split("\n")) {
     if (!l) continue;
     const r = JSON.parse(l);
-    console.log(`${r.at}  ${r.event.padEnd(4)}  ${r.date || ""} ${r.slotId || ""}  ${r.reason || r.error || (r.articles != null ? `articles=${r.articles}` : "")}`);
+    const tail = r.event === "warn" && r.type === "missing_sources"
+      ? `missing=${(r.missing || []).map((m) => `${m.id}${m.inPreviousSlot === null ? "" : m.inPreviousSlot ? "(직전O)" : "(직전X)"}`).join(",")}`
+      : r.reason || r.error || (r.articles != null ? `articles=${r.articles}` : "");
+    console.log(`${r.at}  ${r.event.padEnd(4)}  ${r.date || ""} ${r.slotId || ""}  ${tail}`);
   }
 }

@@ -452,8 +452,19 @@ export function lineageMatchCandidates(previousRecords, event) {
     || String(a.record.lineageId).localeCompare(String(b.record.lineageId)));
 }
 
+// 관측 시각 필드(additive) — S2-2 프루닝 재료. nowMs가 없으면(구 호출)
+// 이전 값을 보존하고, 둘 다 없으면 필드를 만들지 않는다(기존 산출물과
+// 바이트 동일 — append-only 원칙).
+const observedAtField = (nowMs, previous) => {
+  if (Number.isFinite(nowMs)) return { lastObservedAt: nowMs };
+  if (previous && Number.isFinite(previous.lastObservedAt)) {
+    return { lastObservedAt: previous.lastObservedAt };
+  }
+  return {};
+};
+
 // 승계 후 레코드 — append-only 확장(이전 레코드는 절대 변형하지 않는다).
-function extendLineageRecord(previous, event, basis) {
+function extendLineageRecord(previous, event, basis, nowMs = null) {
   const eventId = event.eventId;
   const changedId = previous.currentEventId !== eventId;
   return {
@@ -470,7 +481,9 @@ function extendLineageRecord(previous, event, basis) {
       ? [...previous.fingerprints, event.factsFingerprint]
       : [...previous.fingerprints],
     // 서빙 지문은 승계 시 그대로 이어진다 — markLineageServed만 갱신한다.
-    lastServedFactsFingerprint: previous.lastServedFactsFingerprint ?? null
+    lastServedFactsFingerprint: previous.lastServedFactsFingerprint ?? null,
+    // 이번 판에 실제 관측(승계 확장)됐으므로 관측 시각을 갱신한다.
+    ...observedAtField(nowMs, previous)
   };
 }
 
@@ -487,7 +500,11 @@ function extendLineageRecord(previous, event, basis) {
 // 한 계보는 한 사건에만 승계된다(가장 강한 근거의 사건이 가져간다).
 // 오승계 방지: 어떤 사건의 최상 후보가 서로 다른 계보 2개에서 동률이면 그
 // 사건은 승계 포기(새 계보) — 대조 픽스처로 고정한다.
-export function carryEventLineages(previousRecords, events) {
+//
+// nowMs(선택, S2-2 additive): 이 판의 시각. 주면 이번 판에 관측된(승계·신규)
+// 레코드에 lastObservedAt을 찍는다 — 프루닝(pruneEventLineages)의 재료.
+// 시계 직접 접근 없음(순수·결정적 유지). 안 주면 기존 산출물과 동일.
+export function carryEventLineages(previousRecords, events, { nowMs = null } = {}) {
   const prev = (previousRecords || []).filter(Boolean);
   const sortedEvents = [...(events || [])].filter(Boolean)
     .sort((a, b) => String(a.eventId).localeCompare(String(b.eventId)));
@@ -530,7 +547,7 @@ export function carryEventLineages(previousRecords, events) {
   for (const event of sortedEvents) {
     const decided = decidedEvents.get(event.eventId);
     if (decided && decided.record) {
-      const next = extendLineageRecord(decided.record, event, decided.basis);
+      const next = extendLineageRecord(decided.record, event, decided.basis, nowMs);
       assignments.set(event.eventId, {
         lineageId: next.lineageId,
         inherited: true,
@@ -542,7 +559,7 @@ export function carryEventLineages(previousRecords, events) {
       });
       records.push(next);
     } else {
-      const fresh = eventLineageRecord(event);
+      const fresh = { ...eventLineageRecord(event), ...observedAtField(nowMs, null) };
       assignments.set(event.eventId, {
         lineageId: fresh.lineageId,
         inherited: false,
@@ -554,9 +571,57 @@ export function carryEventLineages(previousRecords, events) {
       records.push(fresh);
     }
   }
-  // 이번 판에 안 나타난 이전 계보는 그대로 이월(영구 계보 — 한 판 쉬어도 유지).
+  // 이번 판에 안 나타난 이전 계보는 그대로 이월(한 판 쉬어도 유지).
+  // 관측 시각 갱신 없음 — 이월은 관측이 아니다(안 그러면 미서빙 계보의 72h
+  // 만료 시계가 판마다 리셋돼 프루닝이 영원히 작동하지 않는다).
+  // 예외 하나: 관측 시각이 아예 없는 구 형식 레코드는 처음 만나는 판의
+  // 시각으로 초기화한다(마이그레이션 — 이 시점부터 72h 시계가 돈다. 없으면
+  // 구 레코드 8천여 건이 영구 보존돼 프루닝 도입 의미가 없다).
   for (const record of prev) {
-    if (!usedLineages.has(record.lineageId)) records.push(record);
+    if (usedLineages.has(record.lineageId)) continue;
+    records.push(Number.isFinite(nowMs) && !Number.isFinite(record.lastObservedAt)
+      ? { ...record, lastObservedAt: nowMs }
+      : record);
   }
   return { assignments, records };
+}
+
+// ---------------------------------------------------------------------------
+// S2-2 — 계보 프루닝(옵션 B, David 승인 2026-08-17)
+// ---------------------------------------------------------------------------
+//
+// 배경(S0 분석 확정): 재등장 차단 574건 전수 감사 과잉 0 — 프루닝은 정확성이
+// 아니라 **위생**(레코드 무한 누적 방지) 사유다. 재등장 의미론("실질 변화까지
+// 차단")은 현 구현 그대로다 — 이 함수는 게이트 판정에 관여하지 않는다.
+//
+// 규칙(옵션 B):
+//  - 서빙 이력 있는 계보(lastServedFactsFingerprint 有) = 보존, 만료 없음.
+//    재등장 게이트가 보는 것이 정확히 이 지문이라, 지우면 차단이 풀린다.
+//  - 미서빙 계보 = 마지막 관측(lastObservedAt)에서 72시간 경과 시 제거.
+//    미서빙 계보는 게이트 재료가 아니므로(previousServedFingerprint=null)
+//    제거해도 차단·통과 판정이 바뀌지 않는다 — 위생 전용.
+//  - lastObservedAt이 없는 레코드(구 형식)는 만료를 증명할 수 없어 보존.
+//    carryEventLineages(nowMs)가 처음 만나는 판에 시각을 초기화하므로
+//    한 판 뒤부터는 정상적으로 시계가 돈다.
+// 순수·결정적: nowMs 인자 필수 — 시계 직접 접근 금지.
+export const EVENT_LINEAGE_PRUNE_RULES = Object.freeze({
+  stableId: "NOWHOT-EVENT-LINEAGE-PRUNE-CONTRACT-001",
+  version: 1,
+  policy: "옵션 B — 서빙 이력 계보 영구 보존, 미서빙 계보 72h 만료",
+  unservedTtlHours: 72,
+  boundary: "경과 시간 ≥ 72h면 제거(72h 미만은 보존)",
+  servingSemantics: "재등장 의미론 무변경 — 프루닝은 위생 전용, 게이트 판정 불관여"
+});
+
+export function pruneEventLineages(records, { nowMs } = {}) {
+  if (!Number.isFinite(nowMs)) {
+    throw new Error("pruneEventLineages: nowMs 필요(숫자) — 시계 직접 접근 금지");
+  }
+  const ttlMs = EVENT_LINEAGE_PRUNE_RULES.unservedTtlHours * 3600000;
+  return (records || []).filter((record) => {
+    if (!record) return false;
+    if (record.lastServedFactsFingerprint) return true;      // 서빙 이력 = 영구 보존
+    if (!Number.isFinite(record.lastObservedAt)) return true; // 구 형식 — 만료 증명 불가
+    return nowMs - record.lastObservedAt < ttlMs;             // 72h 경과 시 제거
+  });
 }

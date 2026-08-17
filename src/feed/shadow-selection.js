@@ -19,7 +19,9 @@
 //   있다. 3일 관찰로 조정될 값이라 하드코딩 산재 금지 — David 답이 오면
 //   overrideShadowParams()로 즉시 바꾼다.
 import { createHash } from "node:crypto";
-import { buildEventClusters, carryEventLineages, markLineageServed } from "./event-cluster.js";
+import {
+  buildEventClusters, carryEventLineages, markLineageServed, pruneEventLineages
+} from "./event-cluster.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import {
   heatAxis, importanceAxis, changeAxis, trustMaterials, engagementOf
@@ -575,14 +577,15 @@ const capKeyForRepresentative = (representative, pack) => {
 // 재계산 금지(직전 검수 P3-b). shadowSelectBriefing이 여러 분야를 선별할 때도
 // 이 함수의 반환을 공유한다.
 function prepareShadowPool(articles, {
-  params, previousLineage, previousEditionFingerprints
+  params, previousLineage, previousEditionFingerprints, now
 }) {
   const rows = (articles || []).filter(Boolean);
   const events = buildEventClusters(rows);
 
   // R1 영구 계보 — 전체 사건 대상(팩·분야 라우팅 전). 판 사이 승계는 전 사건
-  // 공통이어야 하므로 분야별로 자르기 전에 계산한다.
-  const lineage = carryEventLineages(previousLineage || [], events);
+  // 공통이어야 하므로 분야별로 자르기 전에 계산한다. nowMs는 S2-2 프루닝의
+  // 관측 시각 재료(판 시각 주입 — 시계 직접 접근 없음).
+  const lineage = carryEventLineages(previousLineage || [], events, { nowMs: now });
   const prevFingerprintOf = (event) => {
     if (previousLineage !== null) {
       // 검수 P1 수리: 재등장 게이트는 직전 판에 **서빙(선택)된** 사건의 지문만
@@ -728,7 +731,7 @@ export function shadowSelectEdition(articles, {
   // R3 — 품질 게이트 선행(클러스터링보다 먼저): 광고성·저품질 글이 사건을
   // 이루거나 커뮤 절대선을 통과하기 전에 뺀다. 탈락 기록은 결과에 남긴다.
   const quality = applyQualityGate(articles, { enabled: qualityGate !== false, registry });
-  const pool = prepareShadowPool(quality.kept, { params, previousLineage, previousEditionFingerprints });
+  const pool = prepareShadowPool(quality.kept, { params, previousLineage, previousEditionFingerprints, now });
   const base = pool.rows.filter((article) => packIdForArticle(article, params) === packId);
   const views = pool.views.filter((view) => view.packIds.includes(packId));
 
@@ -818,7 +821,10 @@ export function shadowSelectBriefing(articles, {
   params = SHADOW_PACK_PARAMS,
   previousEditionFingerprints = new Map(),
   previousLineage = null,
-  qualityGate = true
+  qualityGate = true,
+  // S2-2 계보 프루닝(옵션 B, David 승인) — 기본 ON. 끄는 스위치는 여기 한 곳.
+  // 서빙 이력 계보는 영구 보존이라 재등장 게이트 판정은 ON/OFF와 무관하게 같다.
+  lineagePruning = true
 } = {}) {
   if (!Array.isArray(requestedCategories) || requestedCategories.length === 0) {
     throw new Error("shadowSelectBriefing: requestedCategories 필요(비어 있지 않은 배열)");
@@ -844,7 +850,7 @@ export function shadowSelectBriefing(articles, {
   const quality = applyQualityGate(articles, { enabled: qualityGate !== false, registry });
 
   // 판 전체 1회: 클러스터링·계보·뷰.
-  const pool = prepareShadowPool(quality.kept, { params, previousLineage, previousEditionFingerprints });
+  const pool = prepareShadowPool(quality.kept, { params, previousLineage, previousEditionFingerprints, now });
 
   // 분야별 선별 — 각 분야가 **각자** 동적 분량(최대 14건)으로 선별된다.
   const perCategory = {};
@@ -936,11 +942,18 @@ export function shadowSelectBriefing(articles, {
         [category, perCategory[category].counts.selected]))
     },
     // 이번 브리핑에 실제 배치(서빙)된 사건에만 서빙 지문을 찍는다 — 다음 판의
-    // previousLineage 재료(shadowSelectEdition과 같은 계약).
-    lineage: {
-      records: markLineageServed(pool.lineage.records,
-        new Set(briefing.map((entry) => entry.eventId)))
-    }
+    // previousLineage 재료(shadowSelectEdition과 같은 계약). S2-2: 서빙 표시
+    // **후** 프루닝(옵션 B — 서빙 계보 보존, 미서빙 계보 72h 만료). 순서가
+    // 반대면 이번 판 서빙 계보가 미서빙으로 오판돼 지워질 수 있다.
+    lineage: (() => {
+      const marked = markLineageServed(pool.lineage.records,
+        new Set(briefing.map((entry) => entry.eventId)));
+      const records = lineagePruning !== false
+        ? pruneEventLineages(marked, { nowMs: now })
+        : marked;
+      // prunedCount — 관찰 계측(S2-3 ③)용. 프루닝 OFF면 0.
+      return { records, prunedCount: marked.length - records.length };
+    })()
   };
 }
 

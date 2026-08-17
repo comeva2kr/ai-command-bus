@@ -76,24 +76,70 @@ export function slotAlreadyDone(dir, date, slotId) {
   return fs.existsSync(obsPaths(dir, date, slotId).summary);
 }
 
-// 직전 슬롯 lineage 파일 탐색 — 관찰 디렉토리의 lineage-*.json 중 현재
-// 날짜·슬롯보다 앞선 가장 최근 것. 슬롯 순서는 publishHour 오름차순.
-export function findPreviousLineageFile(dir, date, slotId, slots = SLOTS) {
+// 현재 날짜·슬롯보다 앞선 관찰 산출물 파일 목록 — 시간 오름차순.
+// 슬롯 순서는 publishHour 오름차순. prefix: "lineage" | "summary" 등.
+export function listPriorObservationFiles(dir, date, slotId, prefix = "lineage", slots = SLOTS) {
   const order = new Map([...slots].sort((a, b) => a.publishHour - b.publishHour)
     .map((s, i) => [s.id, i]));
   let entries = [];
   try {
+    const re = new RegExp(`^${prefix}-(\\d{4}-\\d{2}-\\d{2})-([a-z]+)\\.json$`);
     entries = fs.readdirSync(dir)
       .map((name) => {
-        const m = /^lineage-(\d{4}-\d{2}-\d{2})-([a-z]+)\.json$/.exec(name);
+        const m = re.exec(name);
         return m && order.has(m[2]) ? { name, date: m[1], slotId: m[2] } : null;
       })
       .filter(Boolean);
-  } catch { return null; }
+  } catch { return []; }
   const key = (e) => `${e.date}#${order.get(e.slotId)}`;
   const self = key({ date, slotId });
-  const prior = entries.filter((e) => key(e) < self).sort((a, b) => key(a) < key(b) ? 1 : -1);
-  return prior.length ? path.join(dir, prior[0].name) : null;
+  return entries.filter((e) => key(e) < self)
+    .sort((a, b) => key(a) < key(b) ? -1 : 1);
+}
+
+// 직전 슬롯 lineage 파일 탐색 — 앞선 파일 중 가장 최근 것.
+export function findPreviousLineageFile(dir, date, slotId, slots = SLOTS) {
+  const prior = listPriorObservationFiles(dir, date, slotId, "lineage", slots);
+  return prior.length ? path.join(dir, prior[prior.length - 1].name) : null;
+}
+
+// ---------------------------------------------------------------------------
+// S2-3 계측 — 순수 판정 함수(단위 테스트 대상). 엔진 무수정, 도구 레벨.
+// ---------------------------------------------------------------------------
+
+// ① 소스 결측 대조 — 레지스트리의 enabled 비시드 소스 대비 수집 bySource 결측.
+// prevBySource(직전 슬롯 summary의 bySource)가 있으면 직전 슬롯 존재 여부를
+// 같이 기록한다(instiz류 간헐 결측 추적). 없으면 null(첫 슬롯 — 정직 기록).
+export function computeMissingSources(registry, bySource, prevBySource = null) {
+  const expected = (registry || [])
+    .filter((c) => c && c.enabled && !(c.adapter && c.adapter.type === "seed"))
+    .map((c) => c.id);
+  return expected
+    .filter((id) => !((bySource || {})[id] > 0))
+    .map((id) => ({
+      id,
+      inPreviousSlot: prevBySource ? (prevBySource[id] > 0) : null
+    }));
+}
+
+// ② 마지막 서빙 슬롯 유도 — 계보 히스토리(시간 오름차순 [{date, slotId,
+// records}])에서 lineageId별로 lastServedFactsFingerprint가 **새 값으로 바뀐**
+// 슬롯을 찾는다. markLineageServed는 서빙된 판에서만 이 지문을 갱신하므로
+// 값이 바뀐 슬롯이 곧 그 사건이 마지막으로 서빙된 슬롯이다(레코드에서 유도
+// 가능한 범위 — 엔진에 서빙 슬롯 필드를 추가하지 않는다).
+export function deriveLastServedSlots(history) {
+  const current = new Map();    // lineageId → 지문
+  const lastServed = new Map(); // lineageId → "date-slotId"
+  for (const h of history || []) {
+    for (const record of (h && h.records) || []) {
+      if (!record || record.lastServedFactsFingerprint == null) continue;
+      if (current.get(record.lineageId) !== record.lastServedFactsFingerprint) {
+        current.set(record.lineageId, record.lastServedFactsFingerprint);
+        lastServed.set(record.lineageId, `${h.date}-${h.slotId}`);
+      }
+    }
+  }
+  return lastServed;
 }
 
 const appendRunlog = (dir, row) => {
@@ -151,9 +197,36 @@ async function main() {
     const poolHash = fs.existsSync(paths.pool)
       ? sha256Hex(fs.readFileSync(paths.pool, "utf8")) : null;
 
+    // S2-3 ① — 소스 결측 대조(runlog warn + summary.missingSources).
+    const prevSummaries = listPriorObservationFiles(OBS_DIR, date, slotId, "summary");
+    let prevBySource = null;
+    if (prevSummaries.length) {
+      try {
+        const prev = JSON.parse(fs.readFileSync(
+          path.join(OBS_DIR, prevSummaries[prevSummaries.length - 1].name), "utf8"));
+        prevBySource = prev.collected && prev.collected.bySource ? prev.collected.bySource : null;
+      } catch { prevBySource = null; }
+    }
+    const missingSources = computeMissingSources(registry, bySource, prevBySource);
+    if (missingSources.length) {
+      appendRunlog(OBS_DIR, {
+        event: "warn", type: "missing_sources", date, slotId, missing: missingSources
+      });
+    }
+
     // ② shadow — 조합별. previousLineage는 직전 슬롯 lineage 파일에서 조합별 로드.
     const prevFile = findPreviousLineageFile(OBS_DIR, date, slotId);
     const prevAll = prevFile ? JSON.parse(fs.readFileSync(prevFile, "utf8")) : null;
+
+    // S2-3 ② — 계보 히스토리(앞선 lineage 파일 전부, 시간 오름차순) 로드.
+    // 조합별 lastServed 유도에 쓴다. 파싱 실패 파일은 건너뛴다(정직: 유도 불가 → null).
+    const lineageHistoryFiles = listPriorObservationFiles(OBS_DIR, date, slotId, "lineage")
+      .map((e) => {
+        try {
+          return { ...e, parsed: JSON.parse(fs.readFileSync(path.join(OBS_DIR, e.name), "utf8")) };
+        } catch { return null; }
+      })
+      .filter(Boolean);
 
     const receipts = {};
     const lineageOut = { date, slotId, byCombo: {} };
@@ -172,15 +245,31 @@ async function main() {
       receipts[combo.key] = { receiptHash: hash, receipt };
       lineageOut.byCombo[combo.key] = out.lineage.records;
 
+      // S2-3 ② — 이 조합의 계보 히스토리에서 lineageId별 마지막 서빙 슬롯 유도.
+      const lastServedMap = deriveLastServedSlots(lineageHistoryFiles.map((e) => ({
+        date: e.date, slotId: e.slotId,
+        records: e.parsed && e.parsed.byCombo && e.parsed.byCombo[combo.key]
+          ? e.parsed.byCombo[combo.key] : []
+      })));
+
       // 요약 카운트 — 게이트 기록에서 재등장 차단·B등급을 센다.
       let reappearBlocked = 0;
       let bGrade = 0;
       const partial = [];
+      const reappearBlockedDetails = []; // S2-3 ② — 차단 영수증 보강
       for (const category of out.requestedCategories) {
         const run = out.perCategory[category];
         if (run.partialEdition) partial.push(category);
         for (const row of run.excluded.gate) {
-          if ((row.gate.failures || []).some((f) => String(f).includes("reappear"))) reappearBlocked += 1;
+          if ((row.gate.failures || []).some((f) => String(f).includes("reappear"))) {
+            reappearBlocked += 1;
+            const lineageId = row.view.lineage
+              ? row.view.lineage.lineageId : `event:${row.view.event.eventId}`;
+            reappearBlockedDetails.push({
+              category, lineageId,
+              lastServedSlot: lastServedMap.get(lineageId) || null
+            });
+          }
         }
         for (const row of run.selected) {
           if (row.gate && row.gate.trustGrade === "B") bGrade += 1;
@@ -192,6 +281,15 @@ async function main() {
         perCategorySelected: out.counts.perCategorySelected,
         partialEditionCategories: partial,
         reappearBlocked,
+        reappearBlockedDetails,   // S2-3 ② — [{category, lineageId, lastServedSlot|null}]
+        // S2-3 ③ — 계보 계측. pruned는 S2-2 프루닝(서빙 보존·미서빙 72h 만료)이
+        // 이번 판에서 제거한 레코드 수(briefing 반환의 prunedCount).
+        lineage: {
+          records: out.lineage.records.length,
+          previousRecords: previousLineage.length,
+          delta: out.lineage.records.length - previousLineage.length,
+          pruned: out.lineage.prunedCount ?? null
+        },
         qualityExcluded: out.counts.qualityExcluded,
         bGradeSelected: bGrade,
         receiptHash: hash,
@@ -207,6 +305,7 @@ async function main() {
       date, slotId, publishHour, asOf: new Date(asOf).toISOString(),
       codeVersion, poolHash,
       collected: { articles: articles.length, sources: Object.keys(bySource).length, bySource },
+      missingSources, // S2-3 ① — [{id, inPreviousSlot|null}] (enabled 비시드 대비 결측)
       combos: comboSummaries
     };
     fs.writeFileSync(paths.summary, JSON.stringify(summary, null, 1));

@@ -911,23 +911,24 @@ test("품질 게이트 기본 ON: 가격 표기 딜 광고(실물)는 커뮤 절
   assert.ok(!out.briefing.some((entry) =>
     entry.view.memberArticles.some((article_) => article_.id === "ad-cultureland")),
   "탈락 글은 어떤 경로로도 briefing에 오르지 않는다");
-  assert.equal(out.counts.qualityExcluded, 1);
+  // S2-1(2026-08-17) 이후: 하루특가 광고도 잡히므로 두 실물 모두 탈락한다.
+  assert.equal(out.counts.qualityExcluded, 2);
 });
 
-test("정직 동결 — 알려진 구멍: etoland 하루특가류는 현행 게이트 어느 판정에도 안 걸린다", () => {
-  // lowValueReason의 "가격형 특가 광고" 패턴은 제목 첫머리 "특가"만 보고,
-  // isDeal은 가격 표기를 요구한다. "하루특가) ..."는 둘 다 비켜 간다.
-  // 수리는 promotion.js(현행 코드) 사전 보강이라 이 계층의 범위 밖 — David
-  // 게이트 보고 대상이다. promotion.js가 보강되면 이 동결을 갱신하라(그때
-  // 이 테스트가 깨지는 것이 의도된 신호다).
-  assert.equal(shadowQualityReason(frozenEtolandAd), null);
+test("구멍 봉합(S2-1): etoland 하루특가류는 저가치 사전이 잡아 판에 오르지 못한다", () => {
+  // 이전 동결(정직 기록): "하루특가) ..."는 가격형 특가 패턴(첫머리 '특가'만
+  // 봄)과 isDeal(가격 표기 요구)을 둘 다 비켜 가 briefing까지 올라갔다.
+  // 2026-08-17 S2-1에서 promotion.js에 "특가 라벨 광고" 패턴을 보강해 봉합
+  // (3일 관찰 실선별 3건 실측 근거 — test/promotion.test.js 동결 참조).
+  assert.equal(shadowQualityReason(frozenEtolandAd), "low_value:특가 라벨 광고");
   const out = shadowSelectBriefing([frozenEtolandAd], {
     requestedCategories: ["humor"], now: QUALITY_NOW
   });
-  assert.equal(out.excluded.quality.length, 0, "품질 게이트는 이 광고를 못 잡는다(현행 구멍 — 정직 기록)");
-  assert.ok(out.briefing.some((entry) =>
+  assert.equal(out.excluded.quality.length, 1, "품질 게이트가 이 광고를 잡는다");
+  assert.equal(out.excluded.quality[0].reason, "low_value:특가 라벨 광고");
+  assert.ok(!out.briefing.some((entry) =>
     entry.view.memberArticles.some((article_) => article_.id === "ad-etoland")),
-  "커뮤 절대선(eng 85≥30)까지 통과해 판에 오른다 — 결함 3에서 David가 본 표본 오염 그대로");
+  "커뮤 절대선(eng 85≥30)을 넘어도 판에 오르지 않는다 — 결함 3의 표본 오염 봉합");
 });
 
 test("품질 게이트 OFF 경계: qualityGate:false면 배선 전과 동일하게 딜 광고도 후보가 된다", () => {
@@ -1149,6 +1150,72 @@ test("R4 반례 ⓓ: 3연속 체이닝 — 슬롯1 서빙·슬롯2 부재·슬�
 });
 
 // ---------------------------------------------------------------------------
+// S2-2 — 계보 프루닝(옵션 B) 배선: shadowSelectBriefing 반환 lineage.records.
+// 기본 ON, 스위치는 lineagePruning 한 곳. 서빙 계보 영구 보존이라 재등장
+// 게이트 판정(R4 반례 ⓐ~ⓓ)은 ON/OFF와 무관하게 동일하다.
+// ---------------------------------------------------------------------------
+
+// 미서빙 계보 픽스처 — 단독 출처라 게이트 탈락(서빙 안 됨).
+const s22Solo = article({ id: "s22-u-1", title: "달빛시 노면전차 야간 운행 확대",
+  category: "business", source: "solo-news", ownershipGroup: "group-u",
+  ownershipBasis: "registry_explicit", publishedAt: "2026-08-13T06:00:00+09:00" });
+
+test("S2-2: 미서빙 계보는 72h 경과 후 브리핑 계보에서 제거되고, 서빙 계보는 남는다 (기본 ON)", () => {
+  const morning = r4Run([...r4EventH("m", "2026-08-13T06:00:00+09:00"), s22Solo],
+    R4_MORNING, "morning", []);
+  assert.equal(morning.briefing.length, 1, "H만 서빙, solo는 미서빙");
+  const servedLineageId = morning.briefing[0].lineageId;
+  const unserved = morning.lineage.records.find((record) =>
+    !record.lastServedFactsFingerprint);
+  assert.ok(unserved, "미서빙 계보가 기록돼 있어야 한다");
+  assert.equal(unserved.lastObservedAt, R4_MORNING, "관측 시각이 판 시각으로 찍힌다");
+
+  // 72h+1h 뒤 판 — 무관한 사건만 흐른다(둘 다 재관측 없음).
+  const later = shadowSelectBriefing([
+    article({ id: "s22-o-1", title: "금빛항만 자동화 부두 개장", category: "business",
+      source: "news-y1", ownershipGroup: "group-y1", ownershipBasis: "registry_explicit",
+      publishedAt: "2026-08-16T07:30:00+09:00" }),
+    article({ id: "s22-o-2", title: "금빛항만 자동화 부두 개장", category: "business",
+      source: "news-y2", ownershipGroup: "group-y2", ownershipBasis: "registry_explicit",
+      url: "https://y2.example.com/s22-o-2", publishedAt: "2026-08-16T07:35:00+09:00" })
+  ], {
+    requestedCategories: ["business"], now: R4_MORNING + 73 * 3600000,
+    slotId: "morning", previousLineage: morning.lineage.records
+  });
+  assert.ok(!later.lineage.records.some((record) => record.lineageId === unserved.lineageId),
+    "미서빙 계보는 72h 경과로 제거된다(위생)");
+  assert.ok(later.lineage.records.some((record) => record.lineageId === servedLineageId
+    && record.lastServedFactsFingerprint),
+    "서빙 계보는 영구 보존 — 재등장 게이트 재료가 지워지면 안 된다");
+});
+
+test("S2-2: lineagePruning:false면 미서빙 계보도 72h 뒤까지 그대로 이월된다 (스위치 한 곳)", () => {
+  const morning = r4Run([s22Solo], R4_MORNING, "morning", []);
+  assert.equal(morning.briefing.length, 0, "미서빙 픽스처");
+  const later = shadowSelectBriefing([], {
+    requestedCategories: ["business"], now: R4_MORNING + 73 * 3600000,
+    slotId: "morning", previousLineage: morning.lineage.records,
+    lineagePruning: false
+  });
+  assert.ok(later.lineage.records.some((record) =>
+    record.lineageId === morning.lineage.records[0].lineageId), "OFF면 보존");
+});
+
+test("S2-2: 72h 이내 미서빙 계보는 프루닝 ON에서도 살아 지연 합류 승계가 깨지지 않는다 (반례 b·ⓒ 무파괴)", () => {
+  const morning = r4Run([s22Solo], R4_MORNING, "morning", []);
+  const lineageId = morning.lineage.records[0].lineageId;
+  // 점심(+5h): 독립 2번째 출처 합류 — 미서빙 계보가 살아 있어야 승계된다.
+  const second = article({ id: "s22-u-2", title: "달빛시 노면전차 야간 운행 확대",
+    category: "business", source: "other-news", ownershipGroup: "group-v",
+    ownershipBasis: "registry_explicit", url: "https://v.example.com/s22-u-2",
+    publishedAt: "2026-08-13T11:30:00+09:00" });
+  const lunch = r4Run([s22Solo, second], R4_LUNCH, "lunch", morning.lineage.records);
+  assert.equal(lunch.briefing.length, 1, "합류 후 서빙");
+  assert.equal(lunch.briefing[0].lineageId, lineageId, "미서빙 계보 승계 유지");
+  assert.equal(lunch.briefing[0].view.lineage.inherited, true);
+});
+
+// ---------------------------------------------------------------------------
 // R7 — 경량 결정 영수증 (David 지시 수정 순서 6) + 반례 4항목 증빙 취합기
 // ---------------------------------------------------------------------------
 import {
@@ -1281,7 +1348,8 @@ test("R7 취합기 ④: 3슬롯 연속 — 판 간 같은 지문 재등장 0 (R4
 // 수집(네트워크)은 여기서 돌리지 않는다 — 판정 함수만 분리 테스트.
 // ---------------------------------------------------------------------------
 import {
-  resolveObservationSlot, slotAlreadyDone, findPreviousLineageFile, obsPaths, OBSERVE_COMBOS
+  resolveObservationSlot, slotAlreadyDone, findPreviousLineageFile, obsPaths, OBSERVE_COMBOS,
+  listPriorObservationFiles, computeMissingSources, deriveLastServedSlots
 } from "../tools/observe-shadow-slot.mjs";
 import { DEFAULT_EDITORIAL_PREVIEW } from "../src/feed/engine.js";
 import fs from "node:fs";
@@ -1339,4 +1407,85 @@ test("G2 조합 계약: 기본 조합은 4100 실서빙 기본과 동일 + 관�
   assert.deepEqual(OBSERVE_COMBOS[0].categories, DEFAULT_EDITORIAL_PREVIEW);
   assert.deepEqual(OBSERVE_COMBOS.map((c) => c.key),
     ["default", "business-only", "science-sports"]);
+});
+
+// ---------------------------------------------------------------------------
+// S2-3 — 관찰 도구 계측: 소스 결측 대조·마지막 서빙 슬롯 유도·앞선 파일 목록.
+// 순수 판정 함수만 단위 테스트(수집·네트워크 없음).
+// ---------------------------------------------------------------------------
+
+test("S2-3 소스 결측: enabled 비시드 대비 결측만, 직전 슬롯 존재 여부 병기", () => {
+  const registry = [
+    { id: "a", enabled: true, adapter: { type: "rss" } },
+    { id: "b", enabled: true, adapter: { type: "rss" } },
+    { id: "seedy", enabled: false, adapter: { type: "seed" } }, // 시드는 대상 아님
+    { id: "off", enabled: false, adapter: { type: "rss" } }     // 비활성도 대상 아님
+  ];
+  // b 결측 — 직전 슬롯에는 있었다(간헐 결측 패턴)
+  assert.deepEqual(
+    computeMissingSources(registry, { a: 5 }, { a: 4, b: 3 }),
+    [{ id: "b", inPreviousSlot: true }]);
+  // 직전 슬롯에도 없었다
+  assert.deepEqual(
+    computeMissingSources(registry, { a: 5 }, { a: 4 }),
+    [{ id: "b", inPreviousSlot: false }]);
+  // 직전 summary 없음(첫 슬롯) → null (정직 기록)
+  assert.deepEqual(
+    computeMissingSources(registry, { a: 5 }, null),
+    [{ id: "b", inPreviousSlot: null }]);
+  // 결측 없음 → 빈 배열. 0건 수집도 결측으로 판정.
+  assert.deepEqual(computeMissingSources(registry, { a: 1, b: 1 }, null), []);
+  assert.deepEqual(
+    computeMissingSources(registry, { a: 1, b: 0 }, null),
+    [{ id: "b", inPreviousSlot: null }]);
+});
+
+test("S2-3 앞선 파일 목록: prefix별, 시간 오름차순, 자기 자신·미래 제외", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "obs-"));
+  for (const n of [
+    "summary-2026-08-13-evening.json", "summary-2026-08-14-morning.json",
+    "summary-2026-08-14-lunch.json", "lineage-2026-08-14-morning.json"
+  ]) fs.writeFileSync(path.join(dir, n), "{}");
+  assert.deepEqual(
+    listPriorObservationFiles(dir, "2026-08-14", "lunch", "summary").map((e) => e.name),
+    ["summary-2026-08-13-evening.json", "summary-2026-08-14-morning.json"]);
+  // lunch summary는 미래·자기 자신 아님이지만 evening 기준으로는 포함
+  assert.deepEqual(
+    listPriorObservationFiles(dir, "2026-08-14", "evening", "summary").map((e) => e.name),
+    ["summary-2026-08-13-evening.json", "summary-2026-08-14-morning.json", "summary-2026-08-14-lunch.json"]);
+  assert.deepEqual(
+    listPriorObservationFiles(dir, "2026-08-14", "lunch", "lineage").map((e) => e.name),
+    ["lineage-2026-08-14-morning.json"]);
+  // 디렉토리 없음 → 빈 배열
+  assert.deepEqual(listPriorObservationFiles(path.join(dir, "none"), "2026-08-14", "lunch", "summary"), []);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("S2-3 마지막 서빙 슬롯 유도: 지문이 새 값으로 바뀐 슬롯 = 서빙 슬롯", () => {
+  // L1: 모닝에 서빙(지문 f1 설정) → 런치에 승계만(지문 유지) → 마지막 서빙 = 모닝.
+  // L2: 런치에 서빙. L3: 한 번도 서빙 안 됨(지문 null) → 미기록.
+  // L1이 이브닝에 재서빙(지문 f2) → 마지막 서빙 = 이브닝.
+  const history = [
+    { date: "2026-08-14", slotId: "morning", records: [
+      { lineageId: "L1", lastServedFactsFingerprint: "f1" },
+      { lineageId: "L3", lastServedFactsFingerprint: null }
+    ] },
+    { date: "2026-08-14", slotId: "lunch", records: [
+      { lineageId: "L1", lastServedFactsFingerprint: "f1" }, // 승계 — 갱신 아님
+      { lineageId: "L2", lastServedFactsFingerprint: "g1" },
+      { lineageId: "L3", lastServedFactsFingerprint: null }
+    ] },
+    { date: "2026-08-14", slotId: "evening", records: [
+      { lineageId: "L1", lastServedFactsFingerprint: "f2" } // 재서빙
+    ] }
+  ];
+  const m = deriveLastServedSlots(history);
+  assert.equal(m.get("L1"), "2026-08-14-evening");
+  assert.equal(m.get("L2"), "2026-08-14-lunch");
+  assert.equal(m.has("L3"), false);
+  // 중간까지의 히스토리로는 모닝이 답이다(런치 시점 유도 재현)
+  assert.equal(deriveLastServedSlots(history.slice(0, 2)).get("L1"), "2026-08-14-morning");
+  // 빈 히스토리 안전
+  assert.equal(deriveLastServedSlots([]).size, 0);
+  assert.equal(deriveLastServedSlots(null).size, 0);
 });

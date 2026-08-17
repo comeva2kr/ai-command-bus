@@ -7,6 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  EVENT_LINEAGE_PRUNE_RULES,
   buildEventClusters,
   carryEventLineages,
   composeEventFromMembers,
@@ -14,6 +15,7 @@ import {
   eventLineageRecord,
   eventMaterialChange,
   lineageMatchCandidates,
+  pruneEventLineages,
   sharedEventTokens
 } from "../src/feed/event-cluster.js";
 import { operationalSourceIdentity } from "../src/feed/editorial-source-identity.js";
@@ -418,6 +420,97 @@ test("계보 오승계 방지 2: 최상 근거가 동률인 계보 2개면 승�
   const assigned = assignments.get(eventN1.eventId);
   assert.equal(assigned.inherited, false, "동률이면 오승계 대신 미승계");
   assert.equal(assigned.basis, "lineage_ambiguous_declined");
+});
+
+// ---------------------------------------------------------------------------
+// S2-2 — 계보 프루닝(옵션 B, David 승인 2026-08-17): 서빙 이력 계보 영구 보존,
+// 미서빙 계보는 마지막 관측에서 72h 경과 시 제거. 위생 전용 — 재등장 의미론
+// 무변경(게이트 판정 불관여).
+// ---------------------------------------------------------------------------
+
+const HOUR = 3600000;
+const T0 = Date.parse("2026-08-14T07:00:00+09:00");
+const unservedRecordAt = (observedAt) => ({
+  ...eventLineageRecord(buildEventClusters([lnLateA, lnLateB])[0]),
+  lastObservedAt: observedAt
+});
+
+test("프루닝 계약값: 미서빙 TTL 72h, 서빙 계보 영구 보존", () => {
+  assert.equal(EVENT_LINEAGE_PRUNE_RULES.unservedTtlHours, 72);
+  assert.equal(EVENT_LINEAGE_PRUNE_RULES.policy,
+    "옵션 B — 서빙 이력 계보 영구 보존, 미서빙 계보 72h 만료");
+});
+
+test("프루닝 경계: 미서빙 계보는 72h 직전 보존, 72h 정각·직후 제거", () => {
+  const record = unservedRecordAt(T0);
+  assert.equal(record.lastServedFactsFingerprint, null, "미서빙 픽스처여야 한다");
+  assert.equal(pruneEventLineages([record], { nowMs: T0 + 72 * HOUR - 1 }).length, 1,
+    "72h 직전(경과 71:59:59.999)은 보존");
+  assert.equal(pruneEventLineages([record], { nowMs: T0 + 72 * HOUR }).length, 0,
+    "72h 정각 경과는 제거");
+  assert.equal(pruneEventLineages([record], { nowMs: T0 + 72 * HOUR + 1 }).length, 0,
+    "72h 직후는 제거");
+});
+
+test("프루닝: 서빙 이력 계보는 아무리 오래돼도 보존된다(재등장 게이트 재료)", () => {
+  const served = { ...unservedRecordAt(T0), lastServedFactsFingerprint: "EVF-served" };
+  const out = pruneEventLineages([served], { nowMs: T0 + 1000 * 24 * HOUR });
+  assert.equal(out.length, 1, "1000일이 지나도 서빙 계보는 만료 없음");
+  assert.equal(out[0].lastServedFactsFingerprint, "EVF-served");
+});
+
+test("프루닝: 관측 시각 없는 구 형식 레코드는 만료를 증명할 수 없어 보존한다", () => {
+  const legacy = eventLineageRecord(buildEventClusters([lnLateA, lnLateB])[0]);
+  assert.equal(legacy.lastObservedAt, undefined, "구 형식 픽스처여야 한다");
+  assert.equal(pruneEventLineages([legacy], { nowMs: T0 + 1000 * 24 * HOUR }).length, 1);
+});
+
+test("프루닝: nowMs 없이 부르면 던진다(시계 직접 접근 금지 — 순수·결정적)", () => {
+  assert.throws(() => pruneEventLineages([], {}), /nowMs 필요/);
+});
+
+test("관측 시각: 이번 판에 관측(승계·신규)된 레코드에 nowMs가 찍힌다", () => {
+  const [eventN] = buildEventClusters([lnLateA, lnLateB]);
+  const records = [eventLineageRecord(eventN)];
+  const [eventN1] = buildEventClusters([lnEarly, lnLateA, lnLateB]);
+  const { records: next } = carryEventLineages(records, [eventN1], { nowMs: T0 });
+  const extended = next.find((row) => row.lineageId === records[0].lineageId);
+  assert.equal(extended.lastObservedAt, T0, "승계 확장 레코드에 관측 시각 갱신");
+  const fresh = carryEventLineages([], [eventN], { nowMs: T0 }).records[0];
+  assert.equal(fresh.lastObservedAt, T0, "신규 계보에도 관측 시각");
+  // 이전 레코드는 변형되지 않는다(append-only).
+  assert.equal(records[0].lastObservedAt, undefined);
+});
+
+test("관측 시각: 이월(미관측)은 갱신하지 않는다 — 갱신하면 72h 시계가 판마다 리셋된다", () => {
+  const record = unservedRecordAt(T0);
+  const [unrelated] = buildEventClusters([
+    article({ id: "pr-x1", title: "한아름제철 전기로 신설 발표",
+      publishedAt: "2026-08-14T10:00:00+09:00", category: "business",
+      source: "news-x1", sourceLabel: "매체X" })
+  ]);
+  const { records: next } = carryEventLineages([record], [unrelated], { nowMs: T0 + 12 * HOUR });
+  const carried = next.find((row) => row.lineageId === record.lineageId);
+  assert.equal(carried.lastObservedAt, T0, "이월은 관측이 아니다 — 시각 유지");
+});
+
+test("관측 시각: 시각 없는 구 형식 이월 레코드는 처음 만나는 판 시각으로 초기화된다(마이그레이션)", () => {
+  const legacy = eventLineageRecord(buildEventClusters([lnLateA, lnLateB])[0]);
+  const [unrelated] = buildEventClusters([
+    article({ id: "pr-x2", title: "한아름제철 전기로 신설 발표",
+      publishedAt: "2026-08-14T10:00:00+09:00", category: "business",
+      source: "news-x2", sourceLabel: "매체Y" })
+  ]);
+  const { records: next } = carryEventLineages([legacy], [unrelated], { nowMs: T0 });
+  const carried = next.find((row) => row.lineageId === legacy.lineageId);
+  assert.equal(carried.lastObservedAt, T0, "이 시점부터 72h 시계가 돈다");
+  assert.equal(legacy.lastObservedAt, undefined, "원본 레코드 무변형(append-only)");
+});
+
+test("관측 시각: nowMs를 안 주면 필드를 만들지 않는다(구 호출 하위 호환)", () => {
+  const [eventN] = buildEventClusters([lnLateA, lnLateB]);
+  const { records } = carryEventLineages([], [eventN]);
+  assert.equal(records[0].lastObservedAt, undefined);
 });
 
 // ---------------------------------------------------------------------------
