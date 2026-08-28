@@ -1048,7 +1048,7 @@
       "lean": 1,
       "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: Blue Roof Politics '보수'(경제지·시장친화, blueroofpolitics.com/post/starter-kit-south-koreas-media-landscape/)",
       "feedGroup": "mk",
-      "sourceTier": "specialist",
+      "sourceTier": "aggregate",
       "operatorGroup": "maekyung"
     },
     {
@@ -1068,7 +1068,7 @@
         "url": "https://rss.etnews.com/Section901.xml",
         "note": "David 2026-07-29 뉴스 소스 다변화. IT/과학 분야 보강(구글뉴스 과학·기술 섹션과 다른 시각). 서울 서버 실측: robots 전면차단 없음, 200/30건."
       },
-      "sourceTier": "specialist",
+      "sourceTier": "aggregate",
       "operatorGroup": "etnews"
     },
     {
@@ -1139,6 +1139,143 @@
       "operatorGroup": "donga"
     },
     {
+      "id": "yna-politics",
+      "label": "연합뉴스 정치",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "politics",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.yna.co.kr/rss/politics.xml",
+        "note": "NH89 정치 공급 복구. 2026-08-27 rssFetcher 실측 200/120건. 연합뉴스 전체 피드와 같은 operatorGroup으로 중복 가산하지 않는다."
+      },
+      "excludeTitleRegex": "^\\s*\\[(부고|인사|동정|재판|알림|바로잡습니다|주요일정|안내)|소식\\]",
+      "lean": 0,
+      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: 국가기간뉴스통신사. 참고: MBFC는 Right-Center로 평가(mediabiasfactcheck.com/yonhap-news-agency-bias/) — 내부 병기",
+      "sourceTier": "specialist",
+      "operatorGroup": "yonhap"
+    },
+    {
+      "id": "khan-politics",
+      "label": "경향신문 정치",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "politics",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.khan.co.kr/rss/rssdata/politic_news.xml",
+        "note": "NH89 정치 공급 복구. 2026-08-27 rssFetcher 실측 200/50건. 경향신문 전체 피드와 같은 operatorGroup으로 중복 가산하지 않는다."
+      },
+      "lean": -1,
+      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: KCI ART001057406 '한겨레 다음 진보', 위키피디아 centre~centre-left",
+      "sourceTier": "specialist",
+      "operatorGroup": "khan"
+    },
+    {
+      "id": "donga-politics",
+      "label": "동아일보 정치",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "politics",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "http://rss.donga.com/politics.xml",
+        "note": "NH89 정치 공급 복구. 2026-08-27 rssFetcher 실측 200/50건. 동아일보 전체 피드와 같은 operatorGroup으로 중복 가산하지 않는다."
+      },
+      "lean": 2,
+      "leanNote": "진보(-2)~보수(+2). 근거: KCI ART001057406 '조선 다음 보수', 조중동 학술 관행, 로이터 2024 불신 32%",
+      "sourceTier": "specialist",
+      "operatorGroup": "donga"
+    },
+    {
+      "id": "yna-society",
+      "label": "연합뉴스 사회",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "news",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.yna.co.kr/rss/society.xml",
+        "note": "NH89 국내 뉴스 공급 복구. 2026-08-27 공개 사회 섹션 RSS 확인. 연합뉴스 전체 피드와 같은 operatorGroup으로 중복 가산하지 않는다."
+      },
+      "excludeTitleRegex": "^\\s*\\[(부고|인사|동정|재판|알림|바로잡습니다|주요일정|안내)|소식\\]",
+      "lean": 0,
+      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: 국가기간뉴스통신사. 참고: MBFC는 Right-Center로 평가(mediabiasfactcheck.com/yonhap-news-agency-bias/) — 내부 병기",
+      "sourceTier": "specialist",
+      "operatorGroup": "yonhap",
+      "categoryRouting": "declared_section"
+    },
+    {
+      "id": "khan-society",
+      "label": "경향신문 사회",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "news",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.khan.co.kr/rss/rssdata/society_news.xml",
+        "note": "NH89 국내 뉴스 공급 복구. 2026-08-27 공개 사회 섹션 RSS 확인. 경향신문 전체 피드와 같은 operatorGroup으로 중복 가산하지 않는다."
+      },
+      "lean": -1,
+      "leanNote": "진보(-2)~보수(+2), 수용자 인식·학술 근거 기반(2026-07-31 조사). 근거: KCI ART001057406 '한겨레 다음 진보', 위키피디아 centre~centre-left",
+      "sourceTier": "specialist",
+      "operatorGroup": "khan",
+      "categoryRouting": "declared_section"
+    },
+    {
+      "id": "donga-national",
+      "label": "동아일보 사회",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "news",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://rss.donga.com/national.xml",
+        "note": "NH89 국내 뉴스 공급 복구. 2026-08-27 공개 국내·사회 섹션 RSS 확인. 동아일보 전체 피드와 같은 operatorGroup으로 중복 가산하지 않는다."
+      },
+      "lean": 2,
+      "leanNote": "진보(-2)~보수(+2). 근거: KCI ART001057406 '조선 다음 보수', 조중동 학술 관행, 로이터 2024 불신 32%",
+      "sourceTier": "specialist",
+      "operatorGroup": "donga",
+      "categoryRouting": "declared_section"
+    },
+    {
       "id": "hankyung",
       "label": "한국경제",
       "country": "KR",
@@ -1158,7 +1295,7 @@
         "note": "David 2026-07-31 성향 균형('좌/중/우 같은 비율') 지시로 추가. 서울 서버 실측: 200/50건, robots 전면차단 없음. 전체기사 피드라 랭킹성은 약함 — hotScore 정렬로 보완. 조선일보 RSS는 4건뿐이라 보류, 중앙일보 RSS는 사망 확인."
       },
       "feedGroup": "hankyung",
-      "sourceTier": "specialist",
+      "sourceTier": "aggregate",
       "operatorGroup": "hankyung"
     },
     {
@@ -1558,7 +1695,7 @@
         "url": "https://www.mydaily.co.kr/ent_rss.xml",
         "note": "2026-07-31 culture 공급 확충(적대적 검수: 연예 랭킹 2건 vs tech 10건). 연예 전문매체 공식 RSS. 실측 200/UTF-8/100건, description+content:encoded 이미지 확보, pubDate RFC822 정상. robots 무관. 전체기사 피드라 랭킹성 약함 — 뉴스 수집 상한 20건 + hotScore로 보완(donga/hankyung 패턴)."
       },
-      "sourceTier": "specialist"
+      "sourceTier": "aggregate"
     },
     {
       "id": "tenasia",
@@ -1637,6 +1774,46 @@
       "sourceTier": "specialist"
     },
     {
+      "id": "autodaily",
+      "label": "엠투데이",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "auto",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.autodaily.co.kr/rss/allArticle.xml",
+        "note": "2026-08-27 NH89 런치 자동차 공급 보강. 자동차 전문지 직접 RSS를 rssFetcher로 실측: HTTP 200/UTF-8/50건, 당일 오전 기사 확인."
+      },
+      "sourceTier": "aggregate",
+      "operatorGroup": "autodaily"
+    },
+    {
+      "id": "carguy",
+      "label": "카가이",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "auto",
+      "size": "medium",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.carguy.kr/rss/allArticle.xml",
+        "note": "2026-08-27 NH89 런치 자동차 공급 보강. 자동차 전문지 직접 RSS를 rssFetcher로 실측: HTTP 200/UTF-8/50건, 당일 오전 기사 확인."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "carguy"
+    },
+    {
       "id": "chosunbiz",
       "label": "조선비즈",
       "country": "KR",
@@ -1654,7 +1831,7 @@
         "note": "2026-08-01 실측: UTF-8/200/100건/오늘자. robots 일반(*)는 일부 경로만 차단. pubDate 표준 RFC822. media:content(type=image/jpeg) 썸네일 명시 — 이미지 추출 안정적."
       },
       "feedGroup": "chosunbiz",
-      "sourceTier": "specialist",
+      "sourceTier": "aggregate",
       "operatorGroup": "chosun"
     },
     {
@@ -1674,7 +1851,7 @@
         "url": "https://rss.mt.co.kr/mt_news.xml",
         "note": "2026-08-01 실측: UTF-8/200/100건/오늘자. mt.co.kr robots 일반(*) Allow:/ (뉴스플래시·api만 차단), rss 서브도메인 robots 없음. pubDate 표준. description 내 img 임베드로 썸네일 확보."
       },
-      "sourceTier": "specialist",
+      "sourceTier": "aggregate",
       "operatorGroup": "moneytoday"
     },
     {
@@ -1694,7 +1871,7 @@
         "url": "https://biz.heraldcorp.com/rss/google/newsAll",
         "note": "2026-08-01 실측: UTF-8/200/300건/오늘자. biz.heraldcorp.com robots는 /_TP/ /_CP/ /_CT/ /search/ /test/만 차단. 주의: pubDate가 YYYY-MM-DD HH:MM:SS 비표준(타임존 없음) — 서버 TZ가 KST여야 정확(현 VM은 KST). media:content 썸네일 있음."
       },
-      "sourceTier": "specialist",
+      "sourceTier": "aggregate",
       "operatorGroup": "herald"
     },
     {
@@ -1714,7 +1891,7 @@
         "url": "https://rss.etoday.co.kr/eto/etoday_news_all.xml",
         "note": "2026-08-01 실측: UTF-8/200/25건/오늘자. robots 전면허용. pubDate 표준(+dc:date 병기). description은 짧으나 content:encoded의 img로 썸네일 추출."
       },
-      "sourceTier": "specialist",
+      "sourceTier": "aggregate",
       "operatorGroup": "etoday"
     },
     {
@@ -1734,7 +1911,7 @@
         "url": "https://cdn.bloter.net/rss/gns_allArticle.xml",
         "note": "2026-08-01 실측: UTF-8/200/50건. robots는 /admin/만 차단. pubDate 표준. description이 매우 풍부(본문 수준)하고 img 임베드로 썸네일 확보. 실측 콘텐츠가 IT/스타트업 중심이라 business가 아닌 tech로 분류."
       },
-      "sourceTier": "specialist"
+      "sourceTier": "aggregate"
     },
     {
       "id": "ppomppu-deal",
@@ -2353,6 +2530,193 @@
       "sourceTier": "community"
     },
     {
+      "id": "bbc-technology",
+      "label": "BBC Technology",
+      "labelKo": "BBC 테크놀로지",
+      "country": "GB",
+      "lang": "en",
+      "kind": "news",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://feeds.bbci.co.uk/news/technology/rss.xml",
+        "note": "2026-08-27 NH89 기술 분야 직접 원문 보강. BBC 공식 Technology RSS의 제목·요약·원문 링크를 기존 RSS 경로로 수집한다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "bbc",
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
+    },
+    {
+      "id": "techcrunch",
+      "label": "TechCrunch",
+      "labelKo": "테크크런치",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://techcrunch.com/feed/",
+        "note": "2026-08-27 NH89 기술 분야 직접 원문 보강. TechCrunch 공식 RSS의 제목·요약·원문 링크를 기존 RSS 경로로 수집한다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "techcrunch",
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
+    },
+    {
+      "id": "the-verge",
+      "label": "The Verge",
+      "labelKo": "더 버지",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.theverge.com/rss/index.xml",
+        "note": "2026-08-27 NH89 기술 분야 직접 원문 보강. The Verge 공식 RSS의 제목·요약·원문 링크를 기존 RSS 경로로 수집한다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "voxmedia",
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
+    },
+    {
+      "id": "engadget",
+      "label": "Engadget",
+      "labelKo": "엔가젯",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "tech",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.engadget.com/rss.xml",
+        "note": "2026-08-27 NH89 기술 분야 직접 원문 다양성 보강. Engadget 공식 Technology News RSS의 제목·요약·원문 링크를 기존 RSS 경로로 수집한다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "engadget",
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
+    },
+    {
+      "id": "ars-technica",
+      "label": "Ars Technica",
+      "labelKo": "아스테크니카",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "tech",
+      "enabled": true,
+      "frameable": false,
+      "home": "https://arstechnica.com/",
+      "adapter": {
+        "type": "rss",
+        "url": "https://arstechnica.com/gadgets/feed/",
+        "note": "2026-08-27 NH89 기술 분야 14건을 출처당 3건 상한 안에서 순수 기술 원문으로 채우기 위한 Ars Technica 공식 Tech Category RSS."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "ars-technica",
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
+    },
+    {
+      "id": "bbc-world",
+      "label": "BBC World",
+      "labelKo": "BBC 월드",
+      "country": "GB",
+      "lang": "en",
+      "kind": "news",
+      "category": "news",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "note": "2026-08-24 해외 주요 뉴스 직접 원문 보강. BBC 공식 World RSS를 기존 RSS 수집 경로로 사용하며 제목·요약·원문 링크만 편집 재료로 쓴다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "bbc",
+      "aliases": [
+        "BBC",
+        "BBC News",
+        "BBC.com"
+      ],
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
+    },
+    {
+      "id": "guardian-world",
+      "label": "The Guardian World",
+      "labelKo": "가디언 월드",
+      "country": "GB",
+      "lang": "en",
+      "kind": "news",
+      "category": "news",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.theguardian.com/world/rss",
+        "note": "2026-08-24 해외 주요 뉴스 직접 원문 보강. Guardian 공식 World RSS를 기존 RSS 수집 경로로 사용하며 제목·요약·원문 링크만 편집 재료로 쓴다. 피드 200 응답과 robots.txt 일반 허용을 확인했다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "guardian",
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
+    },
+    {
+      "id": "nyt-world",
+      "label": "The New York Times World",
+      "labelKo": "뉴욕타임스 월드",
+      "country": "US",
+      "lang": "en",
+      "kind": "news",
+      "category": "news",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "adapter": {
+        "type": "rss",
+        "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+        "note": "2026-08-24 해외 주요 뉴스 직접 원문 보강. New York Times 공식 World RSS를 기존 RSS 수집 경로로 사용하며 제목·요약·원문 링크만 편집 재료로 쓴다. 피드 200 응답과 최신 항목을 확인했다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "nytimes",
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
+    },
+    {
       "id": "livedoor-jp",
       "label": "라이브도어 뉴스",
       "labelKo": "라이브도어 뉴스",
@@ -2531,7 +2895,9 @@
         "note": "P2-B 경제 전문 소스 보강(DEVCHG-NOWHOT-20260813-084). CNBC 공식 RSS 목록의 Economy 섹션 피드. 2026-08-13 기존 rssFetcher 경로 실측: 200/30건, 최근 24h 8건, 최신 항목 당일. 표본 제목 전부 경제·물가·재정(혼합 섹션 아님). robots.txt 자체는 Akamai가 비브라우저 UA에 403을 주지만 피드 본체는 우리 UA로 정상 200 — CNBC가 공개 안내하는 공식 RSS다. 제목·요약·원문 링크만 편집 재료로 사용한다."
       },
       "sourceTier": "specialist",
-      "operatorGroup": "nbcuniversal"
+      "operatorGroup": "nbcuniversal",
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
     },
     {
       "id": "bbc-business",
@@ -2552,7 +2918,9 @@
         "note": "P2-B 경제 전문 소스 보강(DEVCHG-NOWHOT-20260813-084). BBC 공식 뉴스 RSS의 Business 섹션. 2026-08-13 기존 rssFetcher 경로 실측: 200/52건, 최근 24h 16건, 최신 항목 당일. feeds.bbci.co.uk robots.txt는 피드 경로 허용. 표본 제목 전부 기업·경제(혼합 섹션 아님). 제목·요약·원문 링크만 편집 재료로 사용한다."
       },
       "sourceTier": "specialist",
-      "operatorGroup": "bbc"
+      "operatorGroup": "bbc",
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
     },
     {
       "id": "fnnews-economy",
@@ -2593,7 +2961,9 @@
         "note": "David 승인. Dow Jones 공식 MarketWatch Top Stories RSS. 2026-08-17 10:44 UTC 실측: 200/10건, 최신 항목 2026-08-17 10:16 UTC(28분 전), 전체 10건이 최근 24h 내(가장 오래된 항목 2026-08-16 16:22 UTC). feeds.content.dowjones.io 자체 robots.txt는 403(S3 버킷에 파일 없음)이지만 피드 본체는 UA 무관 200 — CNBC/Akamai 사례와 동일하게 피드 접근 자체는 막혀 있지 않다. 표본 제목 전부 시장·투자·기업 실적(혼합 섹션 아님). 기존 등재 해외 경제지(cnbc-economy=nbcuniversal, bbc-business=bbc)와 운영그룹 미중복 — 해외 경제 독립 운영그룹 2→3. 제목·요약·원문 링크만 편집 재료로 사용한다."
       },
       "sourceTier": "specialist",
-      "operatorGroup": "dowjones"
+      "operatorGroup": "dowjones",
+      "editorialAuthority": "global_major",
+      "categoryRouting": "declared_section"
     },
     {
       "id": "nasa",

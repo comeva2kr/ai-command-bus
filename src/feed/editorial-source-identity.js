@@ -32,6 +32,7 @@ const aliasRows = {
   etoday: ["이투데이", "etoday"],
   herald: ["헤럴드경제", "heraldbiz"],
   moneytoday: ["머니투데이", "mt"],
+  kbs: ["KBS", "KBS 뉴스", "KBS뉴스", "kbs", "kbs-news"],
   ppomppu: ["뽐뿌", "뽐뿌 부동산", "ppomppu", "ppomppu-house"],
   hypebeast: ["하입비스트", "hypebeast", "hypebeast.com"]
 };
@@ -56,7 +57,7 @@ function loadRegistryIdentityRows() {
         (target && (target.operatorGroup || target.id)) || c.operatorGroup
       );
       if (!group) continue;
-      for (const key of [c.id, c.label]) {
+      for (const key of [c.id, c.label, c.labelKo, ...(Array.isArray(c.aliases) ? c.aliases : [])]) {
         const token = identityToken(key);
         if (token) rows.push([token, group]);
       }

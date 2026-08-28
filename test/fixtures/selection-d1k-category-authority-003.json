@@ -1,0 +1,34 @@
+{
+  "contract": "NOWHOT-SELECTION-D1K-CATEGORY-AUTHORITY-003",
+  "schemaVersion": 1,
+  "createdAt": "2026-08-21",
+  "supersedesContract": "NOWHOT-SELECTION-D1G-ADVERSARIAL-AUTHORITY-002",
+  "baseAuthoritySha256": "c61782b8d581c2a60d9761b1be8ffdd64cced07b95b0a2d8bb16b51517dbed8f",
+  "policy": {
+    "contract": "NOWHOT-CATEGORY-ADMISSION-POLICY-001",
+    "version": 1,
+    "sha256": "7b46444ed96f1af12bc1ffef0baa7625a329bea0eef103e24b0b86156566f357"
+  },
+  "review": {
+    "model": "claude-fable-5",
+    "verdict": "PASS_WITH_LIMITATION",
+    "phaseABlindness": "prior_exposure_disclosed_not_fully_blind",
+    "receiptSha256": "8d74c6e2cc2812ea426dd01eedccd605436591f215bae5f926973896a2bc32bc"
+  },
+  "changes": [
+    {
+      "blindItemId": "d1a-03-community-as-news",
+      "evidenceHash": "e510e6c6a4dc2f19b0b0920df33d895e9b328ae25e428b23b0702d68cbd2b3ab",
+      "from": {
+        "acceptedCategories": ["tech"],
+        "secondaryCategories": ["gaming"]
+      },
+      "to": {
+        "acceptedCategories": ["tech", "gaming"],
+        "secondaryCategories": []
+      },
+      "policyDecisionId": "gaming-pc-tech-gaming",
+      "basis": "David explicit product decision plus independent D1-K policy readjudication"
+    }
+  ]
+}

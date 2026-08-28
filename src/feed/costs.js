@@ -24,6 +24,7 @@ export const MODEL_PRICING = {
   "claude-sonnet-5": { in: 3.0, out: 15.0 },
   "claude-sonnet-4-6": { in: 3.0, out: 15.0 },
   "claude-haiku-4-5": { in: 1.0, out: 5.0 },
+  "claude-haiku-4-5-20251001": { in: 1.0, out: 5.0 },
   "claude-fable-5": { in: 10.0, out: 50.0 }
 };
 

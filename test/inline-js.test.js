@@ -6,7 +6,12 @@ import { execFileSync } from "node:child_process";
 // 앱이 통째로 죽는다. 실제로 2026-08-04에 API 객체 한가운데에 코드를 끼워 넣어
 // 뒤쪽 메서드가 전부 사라진 적이 있다 — 테스트가 없으면 배포 후에야 안다.
 // (메뉴 버튼이 두 번 재발한 것과 같은 계열의 사고다.)
-for (const file of ["src/feed/public/index.html", "src/feed/public/admin.html"]) {
+for (const file of [
+  "src/feed/public/index.html",
+  "src/feed/public/admin.html",
+  "src/feed/public/editorial-desk.html",
+  "src/feed/public/today.html"
+]) {
   test(`인라인 자바스크립트 문법: ${file}`, () => {
     const out = execFileSync(process.execPath, ["tools/check-inline-js.cjs", file], { encoding: "utf8" });
     assert.match(out, /문법 OK/, out);
@@ -56,16 +61,19 @@ test("광고: 클라이언트가 끼운 카드도 노출이 기록된다", async
   assert.match(html, /observeAdImpression\(alt, "feed-passback"\)/, "폴백 카드 추적 누락");
 });
 
-test("광고: 애드핏은 승인 플래그가 켜져야만 지면을 차지한다", async () => {
+test("광고: 애드핏 심사 모드는 한 함수에서 판정하고 실시간 피드 단위를 비운다", async () => {
   const { readFileSync } = await import("node:fs");
   const src = readFileSync("src/feed/server.js", "utf8");
   // 실측 2026-08-04: 심사 보류 상태의 애드핏은 onfail을 부르지 않으면서
   // 아무것도 안 보여준다. 크로스오리진이라 채워졌는지 알 수 없어 패스백으로도
   // 못 잡는다 — 유일하게 확실한 건 "승인 전에는 그리지 않는 것"이다.
   assert.match(src, /ADFIT_ENABLED === "1"/, "승인 플래그 게이트 누락");
-  // 게이트가 두 지면(피드 config·발행 페이지 서버 렌더) 모두에 걸려야 한다.
+  assert.match(src, /const adfitReviewMode = \(\) =>/,
+    "심사 모드 판정을 한 곳에서 공유해야 한다");
   const gates = src.match(/ADFIT_ENABLED === "1"/g) || [];
-  assert.ok(gates.length >= 2, `게이트가 ${gates.length}곳뿐 — 지면 하나가 새고 있다`);
+  assert.equal(gates.length, 1, `심사 플래그 판정이 ${gates.length}곳으로 갈라졌다`);
+  assert.match(src, /const adfit = \{ mobileUnit: null, reviewMode \}/,
+    "자동 갱신되는 실시간 피드로 광고단위를 내려보내면 안 된다");
 });
 
 test("광고: 배너 이미지는 지연 로딩하지 않는다", async () => {
@@ -126,18 +134,19 @@ test("발견 경로: 구글 Discover·카톡 공유 자격을 갖췄다", async 
   assert.ok(statSync("src/feed/public/og.png").size < 300_000, "공유 이미지가 너무 무거우면 미리보기가 안 뜬다");
 });
 
-test("색인: 알맹이가 얇은 페이지는 색인만 막고 페이지는 살려 둔다", async () => {
+test("색인: 실시간·집계 유틸리티는 열어 두되 noindex이고 sitemap에서 제외한다", async () => {
   const { readFileSync } = await import("node:fs");
   const src = readFileSync("src/feed/server.js", "utf8");
-  // 검수 지적: 키워드 43개 중 28개(65%)가 수록 글 4건 이하.
-  // 그런 페이지를 대량 색인시키면 사이트 전체 품질 평가가 그쪽으로 끌려간다.
-  assert.match(src, /INDEXABLE_MIN_ITEMS = 8/);
   assert.match(src, /noindex,follow/, "색인만 막고 링크는 따라가게 둔다");
-  // 사이트맵에는 실재하는 페이지가 올라가야 한다(24개 vs 107개였다)
-  assert.match(src, /loc: `\/keyword\/\$\{encodeURIComponent\(k\.tag\)\}`/);
-  assert.match(src, /loc: `\/community\/\$\{encodeURIComponent\(c\.source\)\}`/);
-  // 404를 주면 안 된다 — 목록에서 눌러 들어온 사람에게는 열려야 한다
-  assert.match(src, /const thin = b\.items\.length < 8;/);
+  const sitemap = src.slice(src.indexOf('if (p === "/sitemap.xml"'), src.indexOf('if (p === "/briefing"'));
+  for (const path of ["/live", "/ranking/daily", "/trends", "/communities", "/keywords", "/keyword/", "/community/"]) {
+    assert.ok(!sitemap.includes(`loc: "${path}"`) && !sitemap.includes(`loc: \`${path}`),
+      `${path}가 sitemap 생성부에 남았다`);
+  }
+  assert.match(src, /inner, "\/communities", ownContentNav\("\/communities"\), "", true/);
+  assert.match(src, /inner, "\/keywords", ownContentNav\("\/keywords"\), "", true/);
+  assert.match(src, /inner, `\/community\/\$\{encodeURIComponent\(seg\)\}`, ownContentNav\(\), "", true/);
+  assert.match(src, /inner, `\/keyword\/\$\{encodeURIComponent\(tag\)\}`, ownContentNav\(\), "", true/);
 });
 
 test("문장: 조사를 괄호로 얼버무리지 않는다", async () => {

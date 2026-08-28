@@ -15,7 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { JsonSource, SeedSource, normalizeItem } from "./content.js";
+import { JsonSource, SeedSource, normalizeItem, resolveCap } from "./content.js";
 import { SEED_ITEMS } from "./seed-data.js";
 import { TranslatingSource } from "./translate.js";
 
@@ -134,7 +134,10 @@ export function buildSources(registry, opts = {}) {
             httpsOk,
             sourceRank: idx,
             ...r,
-            source: entry.id
+            source: entry.id,
+            feedGroup: entry.feedGroup || r.feedGroup || null,
+            ownershipGroup: entry.ownershipGroup || r.ownershipGroup || null,
+            ownershipBasis: entry.ownershipGroup ? "registry_explicit" : r.ownershipBasis || null
           }));
         },
         entry.kind,
@@ -158,7 +161,15 @@ export function buildSources(registry, opts = {}) {
     // 그래서 전부 감싸고, 판정은 안쪽(translate.js)에서 글자로 한다 —
     // 이미 한글인 글은 번역기를 부르지 않으므로 비용이 늘지 않는다.
     if (targetLang) {
-      source = new TranslatingSource(source, translateFn, targetLang);
+      const sourceTranslateFn = entry.editorialAuthority === "global_major"
+        ? opts.translate.authoritativeTranslateFn || translateFn
+        : translateFn;
+      source = new TranslatingSource(
+        source,
+        sourceTranslateFn,
+        targetLang,
+        entry.editorialAuthority === "global_major" ? resolveCap(entry.kind, {}) : null
+      );
     }
     sources.push(source);
   }

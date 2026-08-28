@@ -1,0 +1,2116 @@
+{
+  "contract": "NOWHOT-SELECTION-D1-EVAL-SCENARIOS-001",
+  "phase": "D1-A",
+  "note": "v4 — canonical authority 정합. 모든 item에 origin, adversarial엔 contractGold. gold hash/digest는 canonical 재계산과 일치(공격은 test에서 변형). eval gold는 evaluator 단위 검증용 합성(실 corpus gold pending과 별개).",
+  "identities": {
+    "productionModelIdentity": "prod-classifier-v0",
+    "corpusGeneratorIdentity": "build-selection-d1-corpus"
+  },
+  "versions": {
+    "modelVersion": "m1",
+    "promptVersion": "p1",
+    "taxonomyVersion": "t1"
+  },
+  "eval": {
+    "admissionPrecisionBasic": {
+      "mode": "candidate",
+      "versions": {
+        "modelVersion": "m1",
+        "promptVersion": "p1",
+        "taxonomyVersion": "t1"
+      },
+      "items": [
+        {
+          "itemId": "e-cross",
+          "origin": "real_local_snapshot",
+          "title": "국회 반도체 특별법 통과",
+          "excerpt": "여야 합의로 반도체 세제 지원 특별법 통과",
+          "contentKindHint": "news"
+        },
+        {
+          "itemId": "e-secondary",
+          "origin": "real_local_snapshot",
+          "title": "대기업 실적에 정치권 촉각",
+          "excerpt": "영업이익이 기대를 웃돌자 여야 공방",
+          "contentKindHint": "news"
+        },
+        {
+          "itemId": "e-primary-reject",
+          "origin": "real_local_snapshot",
+          "title": "중소기업 대출 연체율 상승",
+          "excerpt": "고금리로 연체율 다섯 달째 상승",
+          "contentKindHint": "news"
+        }
+      ],
+      "gold": [
+        {
+          "itemId": "e-cross",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "news",
+          "goldAcceptedCategories": [
+            "business",
+            "politics"
+          ],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "d9b9c4add3e7c936bc9dc8f08582fd111dc626a2a19a3b9faf63c710bc1e2f7a",
+          "blindPacketHash": "02ffc0476ebf3a861e0a19a5d432e8644d715b7ea8f05cb09da7695db351b2f2",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "02ffc0476ebf3a861e0a19a5d432e8644d715b7ea8f05cb09da7695db351b2f2",
+            "decisionDigest": "cbe9659480bcee065151d92b7def80f825063a06a209cb78cf026ba1c32a0678"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "02ffc0476ebf3a861e0a19a5d432e8644d715b7ea8f05cb09da7695db351b2f2",
+            "decisionDigest": "cbe9659480bcee065151d92b7def80f825063a06a209cb78cf026ba1c32a0678"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "cbe9659480bcee065151d92b7def80f825063a06a209cb78cf026ba1c32a0678",
+          "decidedAt": "2026-08-18"
+        },
+        {
+          "itemId": "e-secondary",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "news",
+          "goldAcceptedCategories": [
+            "business"
+          ],
+          "goldRejectedCategories": [
+            "politics"
+          ],
+          "descriptiveSecondaryCategories": [
+            "politics"
+          ],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "cf855b329cd2e2af2148357ac37c59d5de99153e34cee93a7c3d70df3640ebf4",
+          "blindPacketHash": "b513ca22ffa70ec3ed51c20e04a4132bd48bd433ad81eafa9aca1f475369ed0b",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "b513ca22ffa70ec3ed51c20e04a4132bd48bd433ad81eafa9aca1f475369ed0b",
+            "decisionDigest": "8e7c4f516d5502a28d453868b44db93e9644351ab8b5459306fb4df4309939bb"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "b513ca22ffa70ec3ed51c20e04a4132bd48bd433ad81eafa9aca1f475369ed0b",
+            "decisionDigest": "8e7c4f516d5502a28d453868b44db93e9644351ab8b5459306fb4df4309939bb"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "8e7c4f516d5502a28d453868b44db93e9644351ab8b5459306fb4df4309939bb",
+          "decidedAt": "2026-08-18"
+        },
+        {
+          "itemId": "e-primary-reject",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "news",
+          "goldAcceptedCategories": [
+            "business"
+          ],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "fd10e6ab6f4710ab62499369819764a51a7b09985c44b1d0d22fd4ac63db645a",
+          "blindPacketHash": "888987faa8287e7e938e01f0c711539d5c750a682f5dcac53a4c517cbf99b9bb",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "888987faa8287e7e938e01f0c711539d5c750a682f5dcac53a4c517cbf99b9bb",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "888987faa8287e7e938e01f0c711539d5c750a682f5dcac53a4c517cbf99b9bb",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+          "decidedAt": "2026-08-18"
+        }
+      ],
+      "predictions": [
+        {
+          "itemId": "e-cross",
+          "status": "classified",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "decision": "accept",
+                "confidence": 0.9,
+                "evidenceSpans": [
+                  "국회 반도체"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "politics",
+                "decision": "accept",
+                "confidence": 0.9,
+                "evidenceSpans": [
+                  "국회 반도체"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m1",
+            "promptVersion": "p1",
+            "taxonomyVersion": "t1",
+            "evidenceHash": "d9b9c4add3e7c936bc9dc8f08582fd111dc626a2a19a3b9faf63c710bc1e2f7a",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "국회 반도체"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "itemId": "e-secondary",
+          "status": "classified",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "decision": "accept",
+                "confidence": 0.9,
+                "evidenceSpans": [
+                  "대기업 실적"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "politics",
+                "decision": "accept",
+                "confidence": 0.9,
+                "evidenceSpans": [
+                  "대기업 실적"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m1",
+            "promptVersion": "p1",
+            "taxonomyVersion": "t1",
+            "evidenceHash": "cf855b329cd2e2af2148357ac37c59d5de99153e34cee93a7c3d70df3640ebf4",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "대기업 실적"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "itemId": "e-primary-reject",
+          "status": "classified",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m1",
+            "promptVersion": "p1",
+            "taxonomyVersion": "t1",
+            "evidenceHash": "fd10e6ab6f4710ab62499369819764a51a7b09985c44b1d0d22fd4ac63db645a",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "중소기업 대"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        }
+      ],
+      "expect": {
+        "business": {
+          "tp": 2,
+          "fn": 1
+        },
+        "politics": {
+          "tp": 1,
+          "fp": 1
+        }
+      }
+    },
+    "thirteenEmpty": {
+      "mode": "candidate",
+      "versions": {
+        "modelVersion": "m1",
+        "promptVersion": "p1",
+        "taxonomyVersion": "t1"
+      },
+      "items": [
+        {
+          "itemId": "t13",
+          "origin": "real_local_snapshot",
+          "title": "기업 실적",
+          "excerpt": "영업이익",
+          "contentKindHint": "news"
+        }
+      ],
+      "gold": [
+        {
+          "itemId": "t13",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "news",
+          "goldAcceptedCategories": [
+            "business"
+          ],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "d62576f6de0962981c18e7a663b5b28a9192005be96e9984ae790907868745d7",
+          "blindPacketHash": "68f3774b1a54c67735254c8e6350adb1443ffce4532695b5c144815c51e12ada",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "68f3774b1a54c67735254c8e6350adb1443ffce4532695b5c144815c51e12ada",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "68f3774b1a54c67735254c8e6350adb1443ffce4532695b5c144815c51e12ada",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+          "decidedAt": "2026-08-18"
+        }
+      ],
+      "predictions": [
+        {
+          "itemId": "t13",
+          "status": "classified",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "decision": "accept",
+                "confidence": 0.9,
+                "evidenceSpans": [
+                  "기업 실적"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m1",
+            "promptVersion": "p1",
+            "taxonomyVersion": "t1",
+            "evidenceHash": "d62576f6de0962981c18e7a663b5b28a9192005be96e9984ae790907868745d7",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "기업 실적"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        }
+      ]
+    },
+    "contentTypePerType": {
+      "mode": "candidate",
+      "versions": {
+        "modelVersion": "m1",
+        "promptVersion": "p1",
+        "taxonomyVersion": "t1"
+      },
+      "items": [
+        {
+          "itemId": "ct1",
+          "origin": "real_local_snapshot",
+          "title": "조립 견적 봐주세요",
+          "excerpt": "게임 PC 견적",
+          "contentKindHint": "community"
+        },
+        {
+          "itemId": "ct2",
+          "origin": "real_local_snapshot",
+          "title": "SSD 최저가 특가",
+          "excerpt": "역대 최저가",
+          "contentKindHint": "deal"
+        }
+      ],
+      "gold": [
+        {
+          "itemId": "ct1",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "community",
+          "goldAcceptedCategories": [
+            "tech"
+          ],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "9928878ea815f03af34ac0111f852b5c48ede372e8d25d86108f98ccf0b518d2",
+          "blindPacketHash": "71d309053f4012d9f3e87f53f05609953d3280ee7221f3c5ac1897f840c5f340",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "71d309053f4012d9f3e87f53f05609953d3280ee7221f3c5ac1897f840c5f340",
+            "decisionDigest": "6e9507447650ce1117b7bbdd02540c368138d018898bfc7d58f71b65bb5d1eaa"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "71d309053f4012d9f3e87f53f05609953d3280ee7221f3c5ac1897f840c5f340",
+            "decisionDigest": "6e9507447650ce1117b7bbdd02540c368138d018898bfc7d58f71b65bb5d1eaa"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "6e9507447650ce1117b7bbdd02540c368138d018898bfc7d58f71b65bb5d1eaa",
+          "decidedAt": "2026-08-18"
+        },
+        {
+          "itemId": "ct2",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "deal",
+          "goldAcceptedCategories": [
+            "tech"
+          ],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "7fe2159730ccc593b952c3ca03a3e782b9eba313be4b6e949b220810307c3d1a",
+          "blindPacketHash": "042449aeee3e12f5a26c2c2d6996ce84197ec26731fc011347c1cae6dcd4c0fd",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "042449aeee3e12f5a26c2c2d6996ce84197ec26731fc011347c1cae6dcd4c0fd",
+            "decisionDigest": "cbf2df83d238f5f3dfa89bbf1d3b553db9754563b7c90ed41db5a5da60bc86fe"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "042449aeee3e12f5a26c2c2d6996ce84197ec26731fc011347c1cae6dcd4c0fd",
+            "decisionDigest": "cbf2df83d238f5f3dfa89bbf1d3b553db9754563b7c90ed41db5a5da60bc86fe"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "cbf2df83d238f5f3dfa89bbf1d3b553db9754563b7c90ed41db5a5da60bc86fe",
+          "decidedAt": "2026-08-18"
+        }
+      ],
+      "predictions": [
+        {
+          "itemId": "ct1",
+          "status": "classified",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "tech",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "tech",
+                "decision": "accept",
+                "confidence": 0.9,
+                "evidenceSpans": [
+                  "조립 견적 "
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "business",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m1",
+            "promptVersion": "p1",
+            "taxonomyVersion": "t1",
+            "evidenceHash": "9928878ea815f03af34ac0111f852b5c48ede372e8d25d86108f98ccf0b518d2",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "조립 견적 "
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "itemId": "ct2",
+          "status": "classified",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "tech",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "tech",
+                "decision": "accept",
+                "confidence": 0.9,
+                "evidenceSpans": [
+                  "SSD 최저"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "business",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m1",
+            "promptVersion": "p1",
+            "taxonomyVersion": "t1",
+            "evidenceHash": "7fe2159730ccc593b952c3ca03a3e782b9eba313be4b6e949b220810307c3d1a",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "SSD 최저"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        }
+      ]
+    },
+    "determinism": {
+      "mode": "candidate",
+      "versions": {
+        "modelVersion": "m1",
+        "promptVersion": "p1",
+        "taxonomyVersion": "t1"
+      },
+      "items": [
+        {
+          "itemId": "dd1",
+          "origin": "real_local_snapshot",
+          "title": "기업 실적",
+          "excerpt": "영업이익",
+          "contentKindHint": "news"
+        },
+        {
+          "itemId": "dd2",
+          "origin": "real_local_snapshot",
+          "title": "게임 신작 공개",
+          "excerpt": "신작 게임 공개",
+          "contentKindHint": "news"
+        }
+      ],
+      "gold": [
+        {
+          "itemId": "dd1",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "news",
+          "goldAcceptedCategories": [
+            "business"
+          ],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "d62576f6de0962981c18e7a663b5b28a9192005be96e9984ae790907868745d7",
+          "blindPacketHash": "21858b2754333d0ee20f5f6e2840dbfa66a06f1fd6f60793c3fbd835ae761a79",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "21858b2754333d0ee20f5f6e2840dbfa66a06f1fd6f60793c3fbd835ae761a79",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "21858b2754333d0ee20f5f6e2840dbfa66a06f1fd6f60793c3fbd835ae761a79",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+          "decidedAt": "2026-08-18"
+        },
+        {
+          "itemId": "dd2",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "news",
+          "goldAcceptedCategories": [
+            "gaming"
+          ],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "7562d37116c077367a8955f3414434a75ce02e292c18362298eb51ccd7e74870",
+          "blindPacketHash": "eaf393339a3bbf2a1b057f4a7d875f81a00575ae99056e973fc3f0dacaef1c06",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "eaf393339a3bbf2a1b057f4a7d875f81a00575ae99056e973fc3f0dacaef1c06",
+            "decisionDigest": "5cfd8b7dbf61c71c8472007d4ca405c44002d250888e3e601605692c8d228bdb"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "eaf393339a3bbf2a1b057f4a7d875f81a00575ae99056e973fc3f0dacaef1c06",
+            "decisionDigest": "5cfd8b7dbf61c71c8472007d4ca405c44002d250888e3e601605692c8d228bdb"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "5cfd8b7dbf61c71c8472007d4ca405c44002d250888e3e601605692c8d228bdb",
+          "decidedAt": "2026-08-18"
+        }
+      ],
+      "predictions": [
+        {
+          "itemId": "dd1",
+          "status": "classified",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "decision": "accept",
+                "confidence": 0.9,
+                "evidenceSpans": [
+                  "기업 실적"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m1",
+            "promptVersion": "p1",
+            "taxonomyVersion": "t1",
+            "evidenceHash": "d62576f6de0962981c18e7a663b5b28a9192005be96e9984ae790907868745d7",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "기업 실적"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "itemId": "dd2",
+          "status": "classified",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "gaming",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "gaming",
+                "decision": "accept",
+                "confidence": 0.9,
+                "evidenceSpans": [
+                  "게임 신작 "
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "business",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m1",
+            "promptVersion": "p1",
+            "taxonomyVersion": "t1",
+            "evidenceHash": "7562d37116c077367a8955f3414434a75ce02e292c18362298eb51ccd7e74870",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "게임 신작 "
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        }
+      ]
+    },
+    "abstain": {
+      "mode": "candidate",
+      "versions": {
+        "modelVersion": "m1",
+        "promptVersion": "p1",
+        "taxonomyVersion": "t1"
+      },
+      "items": [
+        {
+          "itemId": "ab1",
+          "origin": "real_local_snapshot",
+          "title": "기업 실적",
+          "excerpt": "영업이익",
+          "contentKindHint": "news"
+        }
+      ],
+      "gold": [
+        {
+          "itemId": "ab1",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "news",
+          "goldAcceptedCategories": [
+            "business"
+          ],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "d62576f6de0962981c18e7a663b5b28a9192005be96e9984ae790907868745d7",
+          "blindPacketHash": "9b2cb3e3eedad27a6d780df8265d459fe93f80d0c7e518761acfafd14e4f9ace",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "9b2cb3e3eedad27a6d780df8265d459fe93f80d0c7e518761acfafd14e4f9ace",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "9b2cb3e3eedad27a6d780df8265d459fe93f80d0c7e518761acfafd14e4f9ace",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+          "decidedAt": "2026-08-18"
+        }
+      ],
+      "predictions": [
+        {
+          "itemId": "ab1",
+          "status": "classified",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "news",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "abstain",
+                "confidence": 0.4,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m1",
+            "promptVersion": "p1",
+            "taxonomyVersion": "t1",
+            "evidenceHash": "d62576f6de0962981c18e7a663b5b28a9192005be96e9984ae790907868745d7",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "기업 실적"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        }
+      ]
+    }
+  },
+  "goldContract": {
+    "validItems": [
+      {
+        "itemId": "gv",
+        "origin": "real_local_snapshot",
+        "title": "기업 실적",
+        "excerpt": "영업이익",
+        "contentKindHint": "news"
+      }
+    ],
+    "validGold": [
+      {
+        "itemId": "gv",
+        "origin": "real_local_snapshot",
+        "state": "agreed",
+        "goldContentType": "news",
+        "goldAcceptedCategories": [
+          "business"
+        ],
+        "goldRejectedCategories": [],
+        "descriptiveSecondaryCategories": [],
+        "humanValid": true,
+        "inScope": true,
+        "evidenceHash": "d62576f6de0962981c18e7a663b5b28a9192005be96e9984ae790907868745d7",
+        "blindPacketHash": "c8de8a1e027cdc32ec586b6a5c88720c3f95b8ac4f72daa213cf131f91340055",
+        "labelerA": {
+          "identity": "labelerA",
+          "blindPacketHash": "c8de8a1e027cdc32ec586b6a5c88720c3f95b8ac4f72daa213cf131f91340055",
+          "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+        },
+        "labelerB": {
+          "identity": "labelerB",
+          "blindPacketHash": "c8de8a1e027cdc32ec586b6a5c88720c3f95b8ac4f72daa213cf131f91340055",
+          "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+        },
+        "adjudicator": null,
+        "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+        "decidedAt": "2026-08-18"
+      }
+    ],
+    "adjItems": [
+      {
+        "itemId": "gadj",
+        "origin": "real_local_snapshot",
+        "title": "기업 실적",
+        "excerpt": "영업이익",
+        "contentKindHint": "news"
+      }
+    ],
+    "adjGold": [
+      {
+        "itemId": "gadj",
+        "origin": "real_local_snapshot",
+        "state": "adjudicated",
+        "goldContentType": "news",
+        "goldAcceptedCategories": [
+          "business"
+        ],
+        "goldRejectedCategories": [],
+        "descriptiveSecondaryCategories": [],
+        "humanValid": true,
+        "inScope": true,
+        "evidenceHash": "d62576f6de0962981c18e7a663b5b28a9192005be96e9984ae790907868745d7",
+        "blindPacketHash": "f82559198201978951216db13eb91f4fcc4d908a2af8b10e27f88c237d5b6e33",
+        "labelerA": {
+          "identity": "labelerA",
+          "blindPacketHash": "f82559198201978951216db13eb91f4fcc4d908a2af8b10e27f88c237d5b6e33",
+          "decisionDigest": "aaa"
+        },
+        "labelerB": {
+          "identity": "labelerB",
+          "blindPacketHash": "f82559198201978951216db13eb91f4fcc4d908a2af8b10e27f88c237d5b6e33",
+          "decisionDigest": "bbb"
+        },
+        "adjudicator": {
+          "identity": "adjudicatorX",
+          "blindPacketHash": "f82559198201978951216db13eb91f4fcc4d908a2af8b10e27f88c237d5b6e33",
+          "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+        },
+        "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+        "decidedAt": "2026-08-18"
+      }
+    ]
+  },
+  "releaseState": {
+    "sufficientOne": {
+      "items": [
+        {
+          "itemId": "r-only",
+          "origin": "real_local_snapshot",
+          "title": "기업 실적",
+          "excerpt": "영업이익",
+          "contentKindHint": "news"
+        }
+      ],
+      "gold": [
+        {
+          "itemId": "r-only",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "news",
+          "goldAcceptedCategories": [
+            "business"
+          ],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "d62576f6de0962981c18e7a663b5b28a9192005be96e9984ae790907868745d7",
+          "blindPacketHash": "b99b1a351b9cd55340e4e07bb62bb1a2cd43f9aa968a4b18c64cf71fee3946d4",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "b99b1a351b9cd55340e4e07bb62bb1a2cd43f9aa968a4b18c64cf71fee3946d4",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "b99b1a351b9cd55340e4e07bb62bb1a2cd43f9aa968a4b18c64cf71fee3946d4",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+          "decidedAt": "2026-08-18"
+        }
+      ],
+      "expectedRealItemIds": [
+        "r-only"
+      ],
+      "expect": "sufficient_independent_gold"
+    },
+    "partial": {
+      "items": [
+        {
+          "itemId": "r-only",
+          "origin": "real_local_snapshot",
+          "title": "기업 실적",
+          "excerpt": "영업이익",
+          "contentKindHint": "news"
+        },
+        {
+          "itemId": "r-two",
+          "origin": "real_local_snapshot",
+          "title": "게임 신작",
+          "excerpt": "신작",
+          "contentKindHint": "news"
+        }
+      ],
+      "gold": [
+        {
+          "itemId": "r-only",
+          "origin": "real_local_snapshot",
+          "state": "agreed",
+          "goldContentType": "news",
+          "goldAcceptedCategories": [
+            "business"
+          ],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": true,
+          "inScope": true,
+          "evidenceHash": "d62576f6de0962981c18e7a663b5b28a9192005be96e9984ae790907868745d7",
+          "blindPacketHash": "b99b1a351b9cd55340e4e07bb62bb1a2cd43f9aa968a4b18c64cf71fee3946d4",
+          "labelerA": {
+            "identity": "labelerA",
+            "blindPacketHash": "b99b1a351b9cd55340e4e07bb62bb1a2cd43f9aa968a4b18c64cf71fee3946d4",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "labelerB": {
+            "identity": "labelerB",
+            "blindPacketHash": "b99b1a351b9cd55340e4e07bb62bb1a2cd43f9aa968a4b18c64cf71fee3946d4",
+            "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+          },
+          "adjudicator": null,
+          "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+          "decidedAt": "2026-08-18"
+        },
+        {
+          "itemId": "r-two",
+          "origin": "real_local_snapshot",
+          "state": "pending",
+          "goldContentType": null,
+          "goldAcceptedCategories": [],
+          "goldRejectedCategories": [],
+          "descriptiveSecondaryCategories": [],
+          "humanValid": null,
+          "inScope": null,
+          "evidenceHash": "3c88bda79658f652d4e80cc38cbac71b7887b32fd296ae63c707f2714f10d40a",
+          "blindPacketHash": "59e1ce8c0741c60a7521fa14f4cbdf14073a3e2f9473130f653d46237eba3bb9",
+          "labelerA": null,
+          "labelerB": null,
+          "adjudicator": null,
+          "finalDecisionDigest": null,
+          "decidedAt": null
+        }
+      ],
+      "expectedRealItemIds": [
+        "r-only",
+        "r-two"
+      ],
+      "expect": "insufficient_independent_gold"
+    }
+  },
+  "dataset": {
+    "baseItems": [
+      {
+        "itemId": "e-cross",
+        "origin": "real_local_snapshot",
+        "title": "국회 반도체 특별법 통과",
+        "excerpt": "여야 합의로 반도체 세제 지원 특별법 통과",
+        "contentKindHint": "news"
+      },
+      {
+        "itemId": "e-secondary",
+        "origin": "real_local_snapshot",
+        "title": "대기업 실적에 정치권 촉각",
+        "excerpt": "영업이익이 기대를 웃돌자 여야 공방",
+        "contentKindHint": "news"
+      }
+    ],
+    "baseGold": [
+      {
+        "itemId": "e-cross",
+        "origin": "real_local_snapshot",
+        "state": "agreed",
+        "goldContentType": "news",
+        "goldAcceptedCategories": [
+          "business"
+        ],
+        "goldRejectedCategories": [],
+        "descriptiveSecondaryCategories": [],
+        "humanValid": true,
+        "inScope": true,
+        "evidenceHash": "d9b9c4add3e7c936bc9dc8f08582fd111dc626a2a19a3b9faf63c710bc1e2f7a",
+        "blindPacketHash": "02ffc0476ebf3a861e0a19a5d432e8644d715b7ea8f05cb09da7695db351b2f2",
+        "labelerA": {
+          "identity": "labelerA",
+          "blindPacketHash": "02ffc0476ebf3a861e0a19a5d432e8644d715b7ea8f05cb09da7695db351b2f2",
+          "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+        },
+        "labelerB": {
+          "identity": "labelerB",
+          "blindPacketHash": "02ffc0476ebf3a861e0a19a5d432e8644d715b7ea8f05cb09da7695db351b2f2",
+          "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+        },
+        "adjudicator": null,
+        "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+        "decidedAt": "2026-08-18"
+      },
+      {
+        "itemId": "e-secondary",
+        "origin": "real_local_snapshot",
+        "state": "agreed",
+        "goldContentType": "news",
+        "goldAcceptedCategories": [
+          "business"
+        ],
+        "goldRejectedCategories": [],
+        "descriptiveSecondaryCategories": [],
+        "humanValid": true,
+        "inScope": true,
+        "evidenceHash": "cf855b329cd2e2af2148357ac37c59d5de99153e34cee93a7c3d70df3640ebf4",
+        "blindPacketHash": "b513ca22ffa70ec3ed51c20e04a4132bd48bd433ad81eafa9aca1f475369ed0b",
+        "labelerA": {
+          "identity": "labelerA",
+          "blindPacketHash": "b513ca22ffa70ec3ed51c20e04a4132bd48bd433ad81eafa9aca1f475369ed0b",
+          "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+        },
+        "labelerB": {
+          "identity": "labelerB",
+          "blindPacketHash": "b513ca22ffa70ec3ed51c20e04a4132bd48bd433ad81eafa9aca1f475369ed0b",
+          "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+        },
+        "adjudicator": null,
+        "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+        "decidedAt": "2026-08-18"
+      }
+    ],
+    "basePred": [
+      {
+        "itemId": "e-cross",
+        "status": "classified",
+        "classification": {
+          "contentType": "news",
+          "primaryCategory": "business",
+          "descriptiveSecondaryCategories": [],
+          "admissionCategories": [
+            {
+              "category": "business",
+              "decision": "accept",
+              "confidence": 0.9,
+              "evidenceSpans": [
+                "국회 반도체"
+              ],
+              "reasonCodes": [
+                "semantic-topic"
+              ]
+            }
+          ],
+          "modelVersion": "m1",
+          "promptVersion": "p1",
+          "taxonomyVersion": "t1",
+          "evidenceHash": "d9b9c4add3e7c936bc9dc8f08582fd111dc626a2a19a3b9faf63c710bc1e2f7a",
+          "sourceCountry": "KR",
+          "language": "ko",
+          "eventJurisdictions": [
+            "KR"
+          ],
+          "relevanceCountries": [
+            "KR"
+          ],
+          "scopeClass": "domestic",
+          "geoConfidence": 0.7,
+          "geoEvidenceSpans": [
+            "국회 반도체"
+          ],
+          "operatorGroup": "o",
+          "originDocumentId": "d",
+          "claimOriginGroup": "o"
+        }
+      },
+      {
+        "itemId": "e-secondary",
+        "status": "classified",
+        "classification": {
+          "contentType": "news",
+          "primaryCategory": "business",
+          "descriptiveSecondaryCategories": [],
+          "admissionCategories": [
+            {
+              "category": "business",
+              "decision": "accept",
+              "confidence": 0.9,
+              "evidenceSpans": [
+                "대기업 실적"
+              ],
+              "reasonCodes": [
+                "semantic-topic"
+              ]
+            }
+          ],
+          "modelVersion": "m1",
+          "promptVersion": "p1",
+          "taxonomyVersion": "t1",
+          "evidenceHash": "cf855b329cd2e2af2148357ac37c59d5de99153e34cee93a7c3d70df3640ebf4",
+          "sourceCountry": "KR",
+          "language": "ko",
+          "eventJurisdictions": [
+            "KR"
+          ],
+          "relevanceCountries": [
+            "KR"
+          ],
+          "scopeClass": "domestic",
+          "geoConfidence": 0.7,
+          "geoEvidenceSpans": [
+            "대기업 실적"
+          ],
+          "operatorGroup": "o",
+          "originDocumentId": "d",
+          "claimOriginGroup": "o"
+        }
+      }
+    ]
+  },
+  "budget": {
+    "versions": {
+      "modelVersion": "m1",
+      "promptVersion": "p1",
+      "taxonomyVersion": "t1"
+    },
+    "costZero": {
+      "budget": {
+        "maxCalls": 10,
+        "maxInputTokens": 1000000,
+        "maxOutputTokens": 1000000,
+        "maxEstimatedCost": 0,
+        "timeoutMs": 1000000
+      },
+      "items": [
+        {
+          "itemId": "cz1",
+          "title": "기업 실적 발표 큰 입력",
+          "excerpt": "영업이익 발표 큰 입력 본문"
+        }
+      ]
+    },
+    "timeout": {
+      "budget": {
+        "maxCalls": 10,
+        "maxInputTokens": 1000000,
+        "maxOutputTokens": 1000000,
+        "maxEstimatedCost": 100,
+        "timeoutMs": 100
+      },
+      "items": [
+        {
+          "itemId": "to1",
+          "title": "글1",
+          "excerpt": "본문1"
+        }
+      ],
+      "clockSeq": [
+        0,
+        0,
+        1000
+      ]
+    },
+    "overrun": {
+      "budget": {
+        "maxCalls": 10,
+        "maxInputTokens": 1000000,
+        "maxOutputTokens": 1,
+        "maxEstimatedCost": 100,
+        "timeoutMs": 1000000
+      },
+      "items": [
+        {
+          "itemId": "ov1",
+          "title": "글1",
+          "excerpt": "본문1"
+        }
+      ]
+    },
+    "fullBudget": {
+      "maxCalls": 10,
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 1000000,
+      "maxEstimatedCost": 100,
+      "timeoutMs": 1000000
+    }
+  },
+  "receipt": {
+    "versions": {
+      "modelVersion": "m1",
+      "promptVersion": "p1",
+      "taxonomyVersion": "t1"
+    },
+    "budget": {
+      "maxCalls": 10,
+      "maxInputTokens": 1000000,
+      "maxOutputTokens": 1000000,
+      "maxEstimatedCost": 100,
+      "timeoutMs": 1000000
+    },
+    "items": [
+      {
+        "itemId": "rc1",
+        "title": "SECRET_TITLE_TOKEN",
+        "excerpt": "SECRET_EXCERPT_TOKEN"
+      }
+    ],
+    "forbiddenSubstrings": [
+      "SECRET_TITLE_TOKEN",
+      "SECRET_EXCERPT_TOKEN",
+      "http",
+      "apikey"
+    ],
+    "shas": {
+      "corpusSha": "corpusSHA",
+      "goldSha": "goldSHA",
+      "gatesSha": "gatesSHA"
+    }
+  },
+  "cacheRequest": {
+    "versions": {
+      "modelVersion": "m1",
+      "promptVersion": "p1",
+      "taxonomyVersion": "t1"
+    },
+    "requestFieldItem": {
+      "blindItemId": "req1",
+      "title": "기업 실적 발표",
+      "excerpt": "영업이익 발표",
+      "sourceId": "hankyung",
+      "sourceTier": "specialist",
+      "declaredSection": "business",
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "business"
+        ],
+        "scopeClass": "domestic"
+      }
+    },
+    "requiredRequestFields": [
+      "itemId",
+      "title",
+      "excerpt",
+      "sourceId",
+      "sourceTier",
+      "declaredSection",
+      "contentKindHint",
+      "sourceCountry",
+      "language",
+      "evidenceHash",
+      "versions",
+      "taxonomy",
+      "cacheKey"
+    ]
+  }
+}

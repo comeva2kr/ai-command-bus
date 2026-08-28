@@ -1,0 +1,5006 @@
+{
+  "contract": "NOWHOT-SELECTION-ADMISSION-CONTRACT-001",
+  "phase": "D0-freeze",
+  "note": "계약 공격용 합성 반례(정본 §7 + Codex D0 HOLD 반례). 실제 정확도 측정 표본 아님. accept 행만·스키마 통과·contentType≠other·primary≠unknown 일 때만 노출 자격.",
+  "classificationTemplate": {
+    "required": [
+      "contentType",
+      "primaryCategory",
+      "descriptiveSecondaryCategories",
+      "admissionCategories",
+      "modelVersion",
+      "promptVersion",
+      "taxonomyVersion",
+      "evidenceHash",
+      "sourceCountry",
+      "language",
+      "eventJurisdictions",
+      "relevanceCountries",
+      "scopeClass",
+      "geoConfidence",
+      "geoEvidenceSpans",
+      "operatorGroup",
+      "originDocumentId",
+      "claimOriginGroup"
+    ]
+  },
+  "fixtureRegistry": {
+    "unit": "test/selection-contract.test.js",
+    "frozenCounterexample": "이 파일",
+    "baselineLock": "test/fixtures/selection-baseline.lock.json (tools/freeze-selection-baseline.mjs --check가 drift 시 exit 1)",
+    "apiPayload": {
+      "status": "RUNTIME_NOT_WIRED",
+      "targetPredicate": "GET /api/today, GET /api/feed 응답 각 노출 항목에 exposureViolations(items, selectedCategories).length===0",
+      "note": "semantic admission 미연결 — D0에서 거짓 PASS 금지(정본 §8)."
+    },
+    "browserPath": {
+      "status": "RUNTIME_NOT_WIRED",
+      "targetPredicate": "오늘·실시간 렌더 카드가 선택 카테고리 승인 행을 갖는다",
+      "note": "D2 이후 활성화"
+    }
+  },
+  "cases": [
+    {
+      "id": 1,
+      "title": "business가 secondary에만 있고 admission 행 없음 → business 노출 0",
+      "selectedCategories": [
+        "business"
+      ],
+      "exposedItems": [
+        {
+          "id": "c1",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "politics",
+            "descriptiveSecondaryCategories": [
+              "business"
+            ],
+            "admissionCategories": [
+              {
+                "category": "politics",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "전당대회"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "business",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "h1",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "여의도"
+            ],
+            "operatorGroup": "outletA",
+            "originDocumentId": "d1",
+            "claimOriginGroup": "outletA"
+          }
+        }
+      ],
+      "expect": {
+        "exposureViolations": 1,
+        "invariantHolds": false
+      }
+    },
+    {
+      "id": 2,
+      "title": "politics accept만 있는데 사용자는 business 선택 → 노출 0",
+      "selectedCategories": [
+        "business"
+      ],
+      "exposedItems": [
+        {
+          "id": "c2",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "politics",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "politics",
+                "confidence": 0.95,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "국회"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "business",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "h2",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "국회"
+            ],
+            "operatorGroup": "outletA",
+            "originDocumentId": "d2",
+            "claimOriginGroup": "outletA"
+          }
+        }
+      ],
+      "expect": {
+        "exposureViolations": 1,
+        "invariantHolds": false
+      }
+    },
+    {
+      "id": 3,
+      "title": "business·politics 각각 accept, 사용자가 둘 다 선택 → 카드 1개, selectedBy 2개, fulfillment 1회",
+      "selectedCategories": [
+        "business",
+        "politics"
+      ],
+      "exposedItems": [
+        {
+          "id": "ev3",
+          "byCategory": {
+            "business": {
+              "tier": 1,
+              "S": 0.9
+            },
+            "politics": {
+              "tier": 1,
+              "S": 0.85
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "세제"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "politics",
+                "confidence": 0.85,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "여야"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "h3",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "국회"
+            ],
+            "operatorGroup": "outletA",
+            "originDocumentId": "d3",
+            "claimOriginGroup": "outletA"
+          }
+        },
+        {
+          "id": "ev3",
+          "byCategory": {
+            "business": {
+              "tier": 1,
+              "S": 0.9
+            },
+            "politics": {
+              "tier": 1,
+              "S": 0.85
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "세제"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "politics",
+                "confidence": 0.85,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "여야"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "h3",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "국회"
+            ],
+            "operatorGroup": "outletA",
+            "originDocumentId": "d3",
+            "claimOriginGroup": "outletA"
+          }
+        }
+      ],
+      "note": "같은 사건 id ev3가 두 번 들어와도 assembleUnion은 화면에 1회만 표시한다. 실제로 승인된 business·politics 소속은 둘 다 충족하며, 표시 중복과 분야 소속을 분리한다.",
+      "expect": {
+        "invariantHolds": true,
+        "displayCount": 1,
+        "selectedByCategories": [
+          "business",
+          "politics"
+        ],
+        "fulfillmentTotal": 2,
+        "fulfillmentByCategory": {
+          "business": 1,
+          "politics": 1
+        },
+        "placementCategory": null
+      }
+    },
+    {
+      "id": 4,
+      "title": "unselected globalMustKnow 항목 → 일반 지면 노출 0 (자동 혼합 금지)",
+      "selectedCategories": [
+        "business"
+      ],
+      "exposedItems": [
+        {
+          "id": "c4",
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "science",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "science",
+                "confidence": 0.99,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "소행성"
+                ],
+                "reasonCodes": [
+                  "semantic-topic"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "business",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "h4",
+            "sourceCountry": "US",
+            "language": "en",
+            "eventJurisdictions": [
+              "US"
+            ],
+            "relevanceCountries": [
+              "KR",
+              "US"
+            ],
+            "scopeClass": "international",
+            "geoConfidence": 0.6,
+            "geoEvidenceSpans": [
+              "NASA"
+            ],
+            "operatorGroup": "nasa",
+            "originDocumentId": "d4",
+            "claimOriginGroup": "nasa"
+          }
+        }
+      ],
+      "expect": {
+        "exposureViolations": 1,
+        "invariantHolds": false
+      }
+    },
+    {
+      "id": 5,
+      "title": "서로 다른 언론사 두 곳이 같은 보도자료 사용 → claimOriginGroup 1개",
+      "evidence": [
+        {
+          "operatorGroup": "outletA",
+          "claimOriginGroup": "press-release-xyz",
+          "sourceRole": "reported_secondary"
+        },
+        {
+          "operatorGroup": "outletB",
+          "claimOriginGroup": "press-release-xyz",
+          "sourceRole": "reported_secondary"
+        }
+      ],
+      "expect": {
+        "distinctClaimOriginGroups": 1,
+        "sharedFactQualifies": false
+      }
+    },
+    {
+      "id": 6,
+      "title": "한국 언론의 미국 연준 보도 → event US, relevance KR+US → international",
+      "scope": {
+        "eventJurisdictions": [
+          "US"
+        ],
+        "relevanceCountries": [
+          "KR",
+          "US"
+        ]
+      },
+      "expect": {
+        "scopeClass": "international",
+        "overseasWeightAllowed": true
+      }
+    },
+    {
+      "id": 7,
+      "title": "해외 언론의 한국 선거 보도 → event KR, 소스 국적만으로 해외 가중 금지",
+      "scope": {
+        "eventJurisdictions": [
+          "KR"
+        ],
+        "relevanceCountries": [
+          "KR"
+        ]
+      },
+      "expect": {
+        "scopeClass": "domestic",
+        "overseasWeightAllowed": false
+      }
+    },
+    {
+      "id": 8,
+      "title": "한국 언론의 손흥민 EPL 보도 → event GB, relevance KR+GB, category sports",
+      "scope": {
+        "eventJurisdictions": [
+          "GB"
+        ],
+        "relevanceCountries": [
+          "KR",
+          "GB"
+        ]
+      },
+      "classification": {
+        "contentType": "news",
+        "primaryCategory": "sports",
+        "descriptiveSecondaryCategories": [],
+        "admissionCategories": [
+          {
+            "category": "sports",
+            "confidence": 0.95,
+            "decision": "accept",
+            "evidenceSpans": [
+              "EPL"
+            ],
+            "reasonCodes": [
+              "semantic-topic"
+            ]
+          },
+          {
+            "category": "news",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "tech",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "auto",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "science",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "business",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "gaming",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "culture",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "life",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "humor",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "politics",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "realestate",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "fashion",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "art",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          }
+        ],
+        "modelVersion": "m",
+        "promptVersion": "p",
+        "taxonomyVersion": "t",
+        "evidenceHash": "h8",
+        "sourceCountry": "KR",
+        "language": "ko",
+        "eventJurisdictions": [
+          "GB"
+        ],
+        "relevanceCountries": [
+          "KR",
+          "GB"
+        ],
+        "scopeClass": "international",
+        "geoConfidence": 0.6,
+        "geoEvidenceSpans": [
+          "토트넘"
+        ],
+        "operatorGroup": "gnews",
+        "originDocumentId": "d8",
+        "claimOriginGroup": "gnews"
+      },
+      "expect": {
+        "scopeClass": "international",
+        "overseasWeightAllowed": true,
+        "isAdmittedToSports": true
+      }
+    },
+    {
+      "id": 9,
+      "title": "국제유가·전쟁처럼 단일 발생국이 없는 사건 → cross_border",
+      "scope": {
+        "eventJurisdictions": [
+          "US",
+          "IR"
+        ],
+        "relevanceCountries": [
+          "KR",
+          "US",
+          "IR"
+        ]
+      },
+      "expect": {
+        "scopeClass": "cross_border",
+        "overseasWeightAllowed": true
+      }
+    },
+    {
+      "id": 10,
+      "title": "지역 근거가 모호한 사건 → unknown, 해외 가중 금지",
+      "scope": {
+        "eventJurisdictions": [],
+        "relevanceCountries": []
+      },
+      "expect": {
+        "scopeClass": "unknown",
+        "overseasWeightAllowed": false
+      }
+    },
+    {
+      "id": 11,
+      "title": "cache 없음 + classifier 장애 → live 준비 상태, unclassified withheld",
+      "degraded": {
+        "surface": "live",
+        "classifierAvailable": false,
+        "hasVerifiedCache": false,
+        "hasVerifiedItem": false
+      },
+      "expect": {
+        "state": "live_preparing",
+        "withholdUnclassified": true,
+        "useKeywordFallback": false
+      }
+    },
+    {
+      "id": 12,
+      "title": "지원되는 편집 주장이 하나도 없으면 event withheld (순수 함수)",
+      "editorial": {
+        "supportedClaimFields": []
+      },
+      "expect": {
+        "withheld": true
+      }
+    },
+    {
+      "id": 13,
+      "title": "앞단 reject를 뒷단이 되살리면 verifier 실패",
+      "stageResults": {
+        "source_item_eligibility": "fail",
+        "event_category_admission": "pass",
+        "editorial_claim_grounding": "pass"
+      },
+      "expect": {
+        "precedenceRespected": false
+      }
+    },
+    {
+      "id": 14,
+      "title": "admissionCategories 중복·충돌 accept/reject 행 → schema reject → 비승인",
+      "classification": {
+        "contentType": "news",
+        "primaryCategory": "business",
+        "descriptiveSecondaryCategories": [],
+        "admissionCategories": [
+          {
+            "category": "business",
+            "confidence": 0.9,
+            "decision": "accept",
+            "evidenceSpans": [
+              "x"
+            ],
+            "reasonCodes": [
+              "y"
+            ]
+          },
+          {
+            "category": "business",
+            "confidence": 0.2,
+            "decision": "reject",
+            "evidenceSpans": [
+              "x"
+            ],
+            "reasonCodes": [
+              "y"
+            ]
+          }
+        ],
+        "modelVersion": "m",
+        "promptVersion": "p",
+        "taxonomyVersion": "t",
+        "evidenceHash": "h14",
+        "sourceCountry": "KR",
+        "language": "ko",
+        "eventJurisdictions": [
+          "KR"
+        ],
+        "relevanceCountries": [
+          "KR"
+        ],
+        "scopeClass": "domestic",
+        "geoConfidence": 0.7,
+        "geoEvidenceSpans": [
+          "x"
+        ],
+        "operatorGroup": "outletA",
+        "originDocumentId": "d14",
+        "claimOriginGroup": "outletA"
+      },
+      "selectedCategories": [
+        "business"
+      ],
+      "expect": {
+        "schemaOk": false,
+        "admissionBlocked": "schema_invalid"
+      }
+    },
+    {
+      "id": 15,
+      "title": "contentType=other는 accept 행이 있어도 비승인 (Codex 수리 2)",
+      "selectedCategories": [
+        "business"
+      ],
+      "classification": {
+        "contentType": "other",
+        "primaryCategory": "business",
+        "descriptiveSecondaryCategories": [],
+        "admissionCategories": [
+          {
+            "category": "business",
+            "confidence": 0.9,
+            "decision": "accept",
+            "evidenceSpans": [
+              "x"
+            ],
+            "reasonCodes": [
+              "y"
+            ]
+          },
+          {
+            "category": "news",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "tech",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "auto",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "science",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "gaming",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "sports",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "culture",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "life",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "humor",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "politics",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "realestate",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "fashion",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "art",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          }
+        ],
+        "modelVersion": "m",
+        "promptVersion": "p",
+        "taxonomyVersion": "t",
+        "evidenceHash": "h15",
+        "sourceCountry": "KR",
+        "language": "ko",
+        "eventJurisdictions": [
+          "KR"
+        ],
+        "relevanceCountries": [
+          "KR"
+        ],
+        "scopeClass": "domestic",
+        "geoConfidence": 0.7,
+        "geoEvidenceSpans": [
+          "x"
+        ],
+        "operatorGroup": "outletA",
+        "originDocumentId": "d15",
+        "claimOriginGroup": "outletA"
+      },
+      "expect": {
+        "admittedCount": 0,
+        "admissionBlocked": "content_type_other"
+      }
+    },
+    {
+      "id": 16,
+      "title": "primaryCategory=unknown은 accept 행이 있어도 비승인 (Codex 수리 2)",
+      "selectedCategories": [
+        "business"
+      ],
+      "classification": {
+        "contentType": "news",
+        "primaryCategory": "unknown",
+        "descriptiveSecondaryCategories": [],
+        "admissionCategories": [
+          {
+            "category": "business",
+            "confidence": 0.9,
+            "decision": "accept",
+            "evidenceSpans": [
+              "x"
+            ],
+            "reasonCodes": [
+              "y"
+            ]
+          },
+          {
+            "category": "news",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "tech",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "auto",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "science",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "gaming",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "sports",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "culture",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "life",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "humor",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "politics",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "realestate",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "fashion",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "art",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          }
+        ],
+        "modelVersion": "m",
+        "promptVersion": "p",
+        "taxonomyVersion": "t",
+        "evidenceHash": "h16",
+        "sourceCountry": "KR",
+        "language": "ko",
+        "eventJurisdictions": [
+          "KR"
+        ],
+        "relevanceCountries": [
+          "KR"
+        ],
+        "scopeClass": "domestic",
+        "geoConfidence": 0.7,
+        "geoEvidenceSpans": [
+          "x"
+        ],
+        "operatorGroup": "outletA",
+        "originDocumentId": "d16",
+        "claimOriginGroup": "outletA"
+      },
+      "expect": {
+        "admittedCount": 0,
+        "admissionBlocked": "primary_unknown"
+      }
+    },
+    {
+      "id": 17,
+      "title": "accept인데 evidenceSpans/reasonCodes 비어 있음 → schema reject → 비승인 (Codex 수리 3)",
+      "selectedCategories": [
+        "business"
+      ],
+      "classification": {
+        "contentType": "news",
+        "primaryCategory": "business",
+        "descriptiveSecondaryCategories": [],
+        "admissionCategories": [
+          {
+            "category": "business",
+            "confidence": 0.9,
+            "decision": "accept",
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "news",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "tech",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "auto",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "science",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "gaming",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "sports",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "culture",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "life",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "humor",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "politics",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "realestate",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "fashion",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "art",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          }
+        ],
+        "modelVersion": "m",
+        "promptVersion": "p",
+        "taxonomyVersion": "t",
+        "evidenceHash": "h17",
+        "sourceCountry": "KR",
+        "language": "ko",
+        "eventJurisdictions": [
+          "KR"
+        ],
+        "relevanceCountries": [
+          "KR"
+        ],
+        "scopeClass": "domestic",
+        "geoConfidence": 0.7,
+        "geoEvidenceSpans": [
+          "x"
+        ],
+        "operatorGroup": "outletA",
+        "originDocumentId": "d17",
+        "claimOriginGroup": "outletA"
+      },
+      "expect": {
+        "schemaOk": false,
+        "admissionBlocked": "schema_invalid"
+      }
+    },
+    {
+      "id": 18,
+      "title": "지역성·근거 기원 필수 필드 누락 → schema reject (Codex 수리 4)",
+      "classification": {
+        "contentType": "news",
+        "primaryCategory": "business",
+        "descriptiveSecondaryCategories": [],
+        "admissionCategories": [
+          {
+            "category": "business",
+            "confidence": 0.9,
+            "decision": "accept",
+            "evidenceSpans": [
+              "x"
+            ],
+            "reasonCodes": [
+              "y"
+            ]
+          },
+          {
+            "category": "news",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "tech",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "auto",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "science",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "gaming",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "sports",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "culture",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "life",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "humor",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "politics",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "realestate",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "fashion",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "art",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          }
+        ],
+        "modelVersion": "m",
+        "promptVersion": "p",
+        "taxonomyVersion": "t",
+        "evidenceHash": "h18"
+      },
+      "expect": {
+        "schemaOk": false
+      }
+    },
+    {
+      "id": 19,
+      "title": "앞단 fail 뒤 narrow도 위반 (Codex 수리 5 — fail 외 금지)",
+      "stageResults": {
+        "source_item_eligibility": "fail",
+        "event_category_admission": "narrow",
+        "editorial_claim_grounding": "fail"
+      },
+      "expect": {
+        "precedenceRespected": false
+      }
+    },
+    {
+      "id": 20,
+      "title": "정상 상태에서도 unclassified는 항상 withheld (Codex 수리 6)",
+      "degraded": {
+        "surface": "live",
+        "classifierAvailable": true,
+        "hasVerifiedCache": true,
+        "hasVerifiedItem": true
+      },
+      "expect": {
+        "state": "normal",
+        "withholdUnclassified": true
+      }
+    },
+    {
+      "id": 21,
+      "title": "공백 관할 [\" \"] + 빈 geoEvidenceSpans → schema reject (재검수 수리 3 fail-open)",
+      "classification": {
+        "contentType": "news",
+        "primaryCategory": "business",
+        "descriptiveSecondaryCategories": [],
+        "admissionCategories": [
+          {
+            "category": "business",
+            "confidence": 0.9,
+            "decision": "accept",
+            "evidenceSpans": [
+              "x"
+            ],
+            "reasonCodes": [
+              "y"
+            ]
+          },
+          {
+            "category": "news",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "tech",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "auto",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "science",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "gaming",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "sports",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "culture",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "life",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "humor",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "politics",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "realestate",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "fashion",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "art",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          }
+        ],
+        "modelVersion": "m",
+        "promptVersion": "p",
+        "taxonomyVersion": "t",
+        "evidenceHash": "h21",
+        "sourceCountry": "KR",
+        "language": "ko",
+        "eventJurisdictions": [
+          " "
+        ],
+        "relevanceCountries": [
+          "KR"
+        ],
+        "scopeClass": "domestic",
+        "geoConfidence": 0.7,
+        "geoEvidenceSpans": [],
+        "operatorGroup": "outletA",
+        "originDocumentId": "d21",
+        "claimOriginGroup": "outletA"
+      },
+      "expect": {
+        "schemaOk": false
+      }
+    },
+    {
+      "id": 22,
+      "title": "eventJurisdictions=[\"KR\"]인데 scopeClass=\"global\" → 불일치 reject (재검수 수리 3)",
+      "classification": {
+        "contentType": "news",
+        "primaryCategory": "business",
+        "descriptiveSecondaryCategories": [],
+        "admissionCategories": [
+          {
+            "category": "business",
+            "confidence": 0.9,
+            "decision": "accept",
+            "evidenceSpans": [
+              "x"
+            ],
+            "reasonCodes": [
+              "y"
+            ]
+          },
+          {
+            "category": "news",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "tech",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "auto",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "science",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "gaming",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "sports",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "culture",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "life",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "humor",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "politics",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "realestate",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "fashion",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          },
+          {
+            "category": "art",
+            "decision": "reject",
+            "confidence": 0.1,
+            "evidenceSpans": [],
+            "reasonCodes": []
+          }
+        ],
+        "modelVersion": "m",
+        "promptVersion": "p",
+        "taxonomyVersion": "t",
+        "evidenceHash": "h22",
+        "sourceCountry": "KR",
+        "language": "ko",
+        "eventJurisdictions": [
+          "KR"
+        ],
+        "relevanceCountries": [
+          "KR"
+        ],
+        "scopeClass": "global",
+        "geoConfidence": 0.7,
+        "geoEvidenceSpans": [
+          "여의도"
+        ],
+        "operatorGroup": "outletA",
+        "originDocumentId": "d22",
+        "claimOriginGroup": "outletA"
+      },
+      "expect": {
+        "schemaOk": false
+      }
+    },
+    {
+      "id": 23,
+      "title": "{sourceRole:primary}만(claimOriginGroup 없음) → 공유 사실 자격 없음 (재검수 수리 3)",
+      "evidence": [
+        {
+          "sourceRole": "primary"
+        }
+      ],
+      "expect": {
+        "hasPrimaryEvidence": false,
+        "sharedFactQualifies": false
+      }
+    },
+    {
+      "id": 24,
+      "title": "{contentType:news}만(스키마 미충족) → 뉴스 신뢰 자격 없음 (재검수 수리 3)",
+      "classification": {
+        "contentType": "news"
+      },
+      "expect": {
+        "isNewsTrustEligible": false
+      }
+    },
+    {
+      "id": 25,
+      "title": "같은 사건이 분류 행 분리(business 항목 + politics 항목)로 와도 카테고리 병합·1회 표시·1 크레딧 (재검수 수리 2)",
+      "selectedCategories": [
+        "business",
+        "politics"
+      ],
+      "exposedItems": [
+        {
+          "id": "ev25",
+          "byCategory": {
+            "business": {
+              "tier": 1,
+              "S": 0.8
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "세제"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "eh25",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "국회"
+            ],
+            "operatorGroup": "outletA",
+            "originDocumentId": "d25",
+            "claimOriginGroup": "outletA"
+          }
+        },
+        {
+          "id": "ev25",
+          "byCategory": {
+            "politics": {
+              "tier": 1,
+              "S": 0.75
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "politics",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "politics",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "여야"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "business",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "eh25b",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "국회"
+            ],
+            "operatorGroup": "outletA",
+            "originDocumentId": "d25",
+            "claimOriginGroup": "outletA"
+          }
+        }
+      ],
+      "expect": {
+        "displayCount": 1,
+        "selectedByCategories": [
+          "business",
+          "politics"
+        ]
+      }
+    },
+    {
+      "id": 26,
+      "title": "복수 소속 보존: 사건A(biz+pol)·사건B(biz) → business 2·politics 1",
+      "selectedCategories": [
+        "business",
+        "politics"
+      ],
+      "candidateCounts": {
+        "business": 2,
+        "politics": 1
+      },
+      "events": [
+        {
+          "id": "A",
+          "categoryIds": [
+            "business",
+            "politics"
+          ]
+        },
+        {
+          "id": "B",
+          "categoryIds": [
+            "business"
+          ]
+        }
+      ],
+      "expect": {
+        "issueCountByCategory": {
+          "business": 2,
+          "politics": 1
+        }
+      }
+    },
+    {
+      "id": 27,
+      "title": "rank-layer 정렬: 늦게 입력된 politics(tier2) 사건보다 이른 business(tier1) 사건이 앞에 온다 (재검수 P1-2)",
+      "selectedCategories": [
+        "business",
+        "politics"
+      ],
+      "events": [
+        {
+          "id": "late-pol",
+          "byCategory": {
+            "politics": {
+              "tier": 2,
+              "S": 0.9
+            }
+          },
+          "cats": [
+            "politics"
+          ]
+        },
+        {
+          "id": "early-biz",
+          "byCategory": {
+            "business": {
+              "tier": 1,
+              "S": 0.4
+            }
+          },
+          "cats": [
+            "business"
+          ]
+        }
+      ],
+      "expect": {
+        "firstDisplayId": "early-biz"
+      }
+    },
+    {
+      "id": 28,
+      "title": "공백 사건 ID는 서로 다른 evidenceHash 사건을 합치지 않는다 (재검수 P2)",
+      "selectedCategories": [
+        "business"
+      ],
+      "note": "id가 공백 \" \"이고 evidenceHash가 다르면 별개 사건으로 2장 표시.",
+      "expect": {
+        "displayCount": 2
+      }
+    },
+    {
+      "id": 29,
+      "title": "F1: assembleUnion→fulfillmentFromDisplay 전체 결합 + 복수 분야 소속 보존",
+      "selectedCategories": [
+        "business",
+        "politics"
+      ],
+      "candidateCounts": {
+        "business": 2,
+        "politics": 1
+      },
+      "minimumIssuesPerCategory": 1,
+      "note": "assembleUnion의 display를 그대로 fulfillmentFromDisplay에 전달. A(biz+pol)·B(biz) → business 2·politics 1. A는 한 번 표시되지만 실제 속한 두 선택 분야 모두를 충족한다.",
+      "events": [
+        {
+          "id": "A",
+          "byCategory": {
+            "business": {
+              "tier": 1,
+              "S": 0.8
+            },
+            "politics": {
+              "tier": 1,
+              "S": 0.7
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "politics",
+                "confidence": 0.85,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "f1a",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "x"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "id": "B",
+          "byCategory": {
+            "business": {
+              "tier": 1,
+              "S": 0.6
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "f1b",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "x"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        }
+      ],
+      "expect": {
+        "displayCount": 2,
+        "issueCountByCategory": {
+          "business": 2,
+          "politics": 1
+        },
+        "candidateCountByCategory": {
+          "business": 2,
+          "politics": 1
+        },
+        "rowState": "met",
+        "state": "fulfillment_complete",
+        "goalSatisfied": true,
+        "metCount": 2,
+        "selectedCount": 2,
+        "uniqueCreditedIssueCount": 2
+      }
+    },
+    {
+      "id": 30,
+      "title": "R1: rank metadata 계약 — 유효 정렬·역순 결정성, 누락/무효 tier·S는 폴백 없이 사건 전체 withheld",
+      "selectedCategories": [
+        "business",
+        "politics"
+      ],
+      "note": "tier는 1 이상 정수, S는 0..1 유한수. 누락·tier0·음수·소수·S 음수·1 초과는 taxonomy/0 폴백 금지 → 사건 전체 missing_or_invalid_rank_metadata withheld(key/id·실패 category 기록).",
+      "validEvents": [
+        {
+          "id": "biz-early",
+          "byCategory": {
+            "business": {
+              "tier": 1,
+              "S": 0.4
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "r1a",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "x"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "id": "pol-late",
+          "byCategory": {
+            "politics": {
+              "tier": 2,
+              "S": 0.9
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "politics",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "politics",
+                "confidence": 0.85,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "business",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "r1b",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "x"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        }
+      ],
+      "expectValidOrder": [
+        "biz-early",
+        "pol-late"
+      ],
+      "invalidEvents": [
+        {
+          "id": "miss",
+          "failCategory": "business",
+          "byCategory": {},
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "r1miss",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "x"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "id": "tier0",
+          "failCategory": "business",
+          "byCategory": {
+            "business": {
+              "tier": 0,
+              "S": 0.5
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "r1t0",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "x"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "id": "tierNeg",
+          "failCategory": "business",
+          "byCategory": {
+            "business": {
+              "tier": -1,
+              "S": 0.5
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "r1tn",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "x"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "id": "tierFrac",
+          "failCategory": "business",
+          "byCategory": {
+            "business": {
+              "tier": 1.5,
+              "S": 0.5
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "r1tf",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "x"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "id": "sNeg",
+          "failCategory": "business",
+          "byCategory": {
+            "business": {
+              "tier": 1,
+              "S": -0.1
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "r1sn",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "x"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        },
+        {
+          "id": "sOver",
+          "failCategory": "business",
+          "byCategory": {
+            "business": {
+              "tier": 1,
+              "S": 1.1
+            }
+          },
+          "classification": {
+            "contentType": "news",
+            "primaryCategory": "business",
+            "descriptiveSecondaryCategories": [],
+            "admissionCategories": [
+              {
+                "category": "business",
+                "confidence": 0.9,
+                "decision": "accept",
+                "evidenceSpans": [
+                  "x"
+                ],
+                "reasonCodes": [
+                  "y"
+                ]
+              },
+              {
+                "category": "news",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "tech",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "auto",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "science",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "gaming",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "sports",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "culture",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "life",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "humor",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "politics",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "realestate",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "fashion",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              },
+              {
+                "category": "art",
+                "decision": "reject",
+                "confidence": 0.1,
+                "evidenceSpans": [],
+                "reasonCodes": []
+              }
+            ],
+            "modelVersion": "m",
+            "promptVersion": "p",
+            "taxonomyVersion": "t",
+            "evidenceHash": "r1so",
+            "sourceCountry": "KR",
+            "language": "ko",
+            "eventJurisdictions": [
+              "KR"
+            ],
+            "relevanceCountries": [
+              "KR"
+            ],
+            "scopeClass": "domestic",
+            "geoConfidence": 0.7,
+            "geoEvidenceSpans": [
+              "x"
+            ],
+            "operatorGroup": "o",
+            "originDocumentId": "d",
+            "claimOriginGroup": "o"
+          }
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "title": "I1: 사건 ID namespace — id:<x> 와 eh:<x>는 다른 namespace, 공백 id는 evidenceHash 폴백",
+      "selectedCategories": [
+        "business"
+      ],
+      "determinismScenarioIndex": 1,
+      "scenarios": [
+        {
+          "label": "id=same 와 hash=same는 별개 namespace → 2장",
+          "expectCount": 2,
+          "events": [
+            {
+              "id": "same",
+              "byCategory": {
+                "business": {
+                  "tier": 1,
+                  "S": 0.5
+                }
+              },
+              "classification": {
+                "contentType": "news",
+                "primaryCategory": "business",
+                "descriptiveSecondaryCategories": [],
+                "admissionCategories": [
+                  {
+                    "category": "business",
+                    "confidence": 0.9,
+                    "decision": "accept",
+                    "evidenceSpans": [
+                      "x"
+                    ],
+                    "reasonCodes": [
+                      "y"
+                    ]
+                  },
+                  {
+                    "category": "news",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "tech",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "auto",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "science",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "gaming",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "sports",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "culture",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "life",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "humor",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "politics",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "realestate",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "fashion",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "art",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  }
+                ],
+                "modelVersion": "m",
+                "promptVersion": "p",
+                "taxonomyVersion": "t",
+                "evidenceHash": "other-hash",
+                "sourceCountry": "KR",
+                "language": "ko",
+                "eventJurisdictions": [
+                  "KR"
+                ],
+                "relevanceCountries": [
+                  "KR"
+                ],
+                "scopeClass": "domestic",
+                "geoConfidence": 0.7,
+                "geoEvidenceSpans": [
+                  "x"
+                ],
+                "operatorGroup": "o",
+                "originDocumentId": "d",
+                "claimOriginGroup": "o"
+              }
+            },
+            {
+              "byCategory": {
+                "business": {
+                  "tier": 1,
+                  "S": 0.5
+                }
+              },
+              "classification": {
+                "contentType": "news",
+                "primaryCategory": "business",
+                "descriptiveSecondaryCategories": [],
+                "admissionCategories": [
+                  {
+                    "category": "business",
+                    "confidence": 0.9,
+                    "decision": "accept",
+                    "evidenceSpans": [
+                      "x"
+                    ],
+                    "reasonCodes": [
+                      "y"
+                    ]
+                  },
+                  {
+                    "category": "news",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "tech",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "auto",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "science",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "gaming",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "sports",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "culture",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "life",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "humor",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "politics",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "realestate",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "fashion",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "art",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  }
+                ],
+                "modelVersion": "m",
+                "promptVersion": "p",
+                "taxonomyVersion": "t",
+                "evidenceHash": "same",
+                "sourceCountry": "KR",
+                "language": "ko",
+                "eventJurisdictions": [
+                  "KR"
+                ],
+                "relevanceCountries": [
+                  "KR"
+                ],
+                "scopeClass": "domestic",
+                "geoConfidence": 0.7,
+                "geoEvidenceSpans": [
+                  "x"
+                ],
+                "operatorGroup": "o",
+                "originDocumentId": "d",
+                "claimOriginGroup": "o"
+              }
+            }
+          ]
+        },
+        {
+          "label": "공백 id + 다른 hash → 2장",
+          "expectCount": 2,
+          "events": [
+            {
+              "id": " ",
+              "byCategory": {
+                "business": {
+                  "tier": 1,
+                  "S": 0.5
+                }
+              },
+              "classification": {
+                "contentType": "news",
+                "primaryCategory": "business",
+                "descriptiveSecondaryCategories": [],
+                "admissionCategories": [
+                  {
+                    "category": "business",
+                    "confidence": 0.9,
+                    "decision": "accept",
+                    "evidenceSpans": [
+                      "x"
+                    ],
+                    "reasonCodes": [
+                      "y"
+                    ]
+                  },
+                  {
+                    "category": "news",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "tech",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "auto",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "science",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "gaming",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "sports",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "culture",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "life",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "humor",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "politics",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "realestate",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "fashion",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "art",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  }
+                ],
+                "modelVersion": "m",
+                "promptVersion": "p",
+                "taxonomyVersion": "t",
+                "evidenceHash": "h1",
+                "sourceCountry": "KR",
+                "language": "ko",
+                "eventJurisdictions": [
+                  "KR"
+                ],
+                "relevanceCountries": [
+                  "KR"
+                ],
+                "scopeClass": "domestic",
+                "geoConfidence": 0.7,
+                "geoEvidenceSpans": [
+                  "x"
+                ],
+                "operatorGroup": "o",
+                "originDocumentId": "d",
+                "claimOriginGroup": "o"
+              }
+            },
+            {
+              "id": " ",
+              "byCategory": {
+                "business": {
+                  "tier": 1,
+                  "S": 0.5
+                }
+              },
+              "classification": {
+                "contentType": "news",
+                "primaryCategory": "business",
+                "descriptiveSecondaryCategories": [],
+                "admissionCategories": [
+                  {
+                    "category": "business",
+                    "confidence": 0.9,
+                    "decision": "accept",
+                    "evidenceSpans": [
+                      "x"
+                    ],
+                    "reasonCodes": [
+                      "y"
+                    ]
+                  },
+                  {
+                    "category": "news",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "tech",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "auto",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "science",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "gaming",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "sports",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "culture",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "life",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "humor",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "politics",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "realestate",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "fashion",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "art",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  }
+                ],
+                "modelVersion": "m",
+                "promptVersion": "p",
+                "taxonomyVersion": "t",
+                "evidenceHash": "h2",
+                "sourceCountry": "KR",
+                "language": "ko",
+                "eventJurisdictions": [
+                  "KR"
+                ],
+                "relevanceCountries": [
+                  "KR"
+                ],
+                "scopeClass": "domestic",
+                "geoConfidence": 0.7,
+                "geoEvidenceSpans": [
+                  "x"
+                ],
+                "operatorGroup": "o",
+                "originDocumentId": "d",
+                "claimOriginGroup": "o"
+              }
+            }
+          ]
+        },
+        {
+          "label": "공백 id + 같은 hash → 1장",
+          "expectCount": 1,
+          "events": [
+            {
+              "id": " ",
+              "byCategory": {
+                "business": {
+                  "tier": 1,
+                  "S": 0.5
+                }
+              },
+              "classification": {
+                "contentType": "news",
+                "primaryCategory": "business",
+                "descriptiveSecondaryCategories": [],
+                "admissionCategories": [
+                  {
+                    "category": "business",
+                    "confidence": 0.9,
+                    "decision": "accept",
+                    "evidenceSpans": [
+                      "x"
+                    ],
+                    "reasonCodes": [
+                      "y"
+                    ]
+                  },
+                  {
+                    "category": "news",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "tech",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "auto",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "science",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "gaming",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "sports",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "culture",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "life",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "humor",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "politics",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "realestate",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "fashion",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "art",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  }
+                ],
+                "modelVersion": "m",
+                "promptVersion": "p",
+                "taxonomyVersion": "t",
+                "evidenceHash": "hs",
+                "sourceCountry": "KR",
+                "language": "ko",
+                "eventJurisdictions": [
+                  "KR"
+                ],
+                "relevanceCountries": [
+                  "KR"
+                ],
+                "scopeClass": "domestic",
+                "geoConfidence": 0.7,
+                "geoEvidenceSpans": [
+                  "x"
+                ],
+                "operatorGroup": "o",
+                "originDocumentId": "d",
+                "claimOriginGroup": "o"
+              }
+            },
+            {
+              "id": " ",
+              "byCategory": {
+                "business": {
+                  "tier": 1,
+                  "S": 0.5
+                }
+              },
+              "classification": {
+                "contentType": "news",
+                "primaryCategory": "business",
+                "descriptiveSecondaryCategories": [],
+                "admissionCategories": [
+                  {
+                    "category": "business",
+                    "confidence": 0.9,
+                    "decision": "accept",
+                    "evidenceSpans": [
+                      "x"
+                    ],
+                    "reasonCodes": [
+                      "y"
+                    ]
+                  },
+                  {
+                    "category": "news",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "tech",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "auto",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "science",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "gaming",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "sports",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "culture",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "life",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "humor",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "politics",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "realestate",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "fashion",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "art",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  }
+                ],
+                "modelVersion": "m",
+                "promptVersion": "p",
+                "taxonomyVersion": "t",
+                "evidenceHash": "hs",
+                "sourceCountry": "KR",
+                "language": "ko",
+                "eventJurisdictions": [
+                  "KR"
+                ],
+                "relevanceCountries": [
+                  "KR"
+                ],
+                "scopeClass": "domestic",
+                "geoConfidence": 0.7,
+                "geoEvidenceSpans": [
+                  "x"
+                ],
+                "operatorGroup": "o",
+                "originDocumentId": "d",
+                "claimOriginGroup": "o"
+              }
+            }
+          ]
+        },
+        {
+          "label": "같은 유효 id + 다른 hash → 1장",
+          "expectCount": 1,
+          "events": [
+            {
+              "id": "X",
+              "byCategory": {
+                "business": {
+                  "tier": 1,
+                  "S": 0.5
+                }
+              },
+              "classification": {
+                "contentType": "news",
+                "primaryCategory": "business",
+                "descriptiveSecondaryCategories": [],
+                "admissionCategories": [
+                  {
+                    "category": "business",
+                    "confidence": 0.9,
+                    "decision": "accept",
+                    "evidenceSpans": [
+                      "x"
+                    ],
+                    "reasonCodes": [
+                      "y"
+                    ]
+                  },
+                  {
+                    "category": "news",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "tech",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "auto",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "science",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "gaming",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "sports",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "culture",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "life",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "humor",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "politics",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "realestate",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "fashion",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "art",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  }
+                ],
+                "modelVersion": "m",
+                "promptVersion": "p",
+                "taxonomyVersion": "t",
+                "evidenceHash": "a",
+                "sourceCountry": "KR",
+                "language": "ko",
+                "eventJurisdictions": [
+                  "KR"
+                ],
+                "relevanceCountries": [
+                  "KR"
+                ],
+                "scopeClass": "domestic",
+                "geoConfidence": 0.7,
+                "geoEvidenceSpans": [
+                  "x"
+                ],
+                "operatorGroup": "o",
+                "originDocumentId": "d",
+                "claimOriginGroup": "o"
+              }
+            },
+            {
+              "id": "X",
+              "byCategory": {
+                "business": {
+                  "tier": 1,
+                  "S": 0.5
+                }
+              },
+              "classification": {
+                "contentType": "news",
+                "primaryCategory": "business",
+                "descriptiveSecondaryCategories": [],
+                "admissionCategories": [
+                  {
+                    "category": "business",
+                    "confidence": 0.9,
+                    "decision": "accept",
+                    "evidenceSpans": [
+                      "x"
+                    ],
+                    "reasonCodes": [
+                      "y"
+                    ]
+                  },
+                  {
+                    "category": "news",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "tech",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "auto",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "science",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "gaming",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "sports",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "culture",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "life",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "humor",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "politics",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "realestate",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "fashion",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  },
+                  {
+                    "category": "art",
+                    "decision": "reject",
+                    "confidence": 0.1,
+                    "evidenceSpans": [],
+                    "reasonCodes": []
+                  }
+                ],
+                "modelVersion": "m",
+                "promptVersion": "p",
+                "taxonomyVersion": "t",
+                "evidenceHash": "b",
+                "sourceCountry": "KR",
+                "language": "ko",
+                "eventJurisdictions": [
+                  "KR"
+                ],
+                "relevanceCountries": [
+                  "KR"
+                ],
+                "scopeClass": "domestic",
+                "geoConfidence": 0.7,
+                "geoEvidenceSpans": [
+                  "x"
+                ],
+                "operatorGroup": "o",
+                "originDocumentId": "d",
+                "claimOriginGroup": "o"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "title": "F2: fulfillment 입력 진실성 — 공급 메타 필수·fail-closed, 명시 0은 no_supply, qualified 0은 no_qualified, availableCategories 경로",
+      "selectedCategories": [
+        "business"
+      ],
+      "note": "candidateCounts own-property 또는 availableCategories 공급행이 없으면 TypeError. 음수·NaN(테스트 인라인)·비수치도 TypeError. 명시 0은 정상 no_supply. candidateCount>0+qualifiedClusterCount=0은 no_qualified_supply. availableCategories만으로도 동작. 후보 수를 display에서 추정하지 않음.",
+      "display": [
+        {
+          "selectedByCategories": [
+            "business"
+          ]
+        },
+        {
+          "selectedByCategories": [
+            "business"
+          ]
+        }
+      ],
+      "scenarios": {
+        "missing": {
+          "opts": {}
+        },
+        "negative": {
+          "opts": {
+            "candidateCounts": {
+              "business": -1
+            }
+          }
+        },
+        "nonNumeric": {
+          "opts": {
+            "candidateCounts": {
+              "business": "5"
+            }
+          }
+        },
+        "explicitZero": {
+          "opts": {
+            "candidateCounts": {
+              "business": 0
+            }
+          },
+          "expectRowState": "no_supply"
+        },
+        "noQualified": {
+          "opts": {
+            "candidateCounts": {
+              "business": 2
+            },
+            "qualificationRows": [
+              {
+                "categoryId": "business",
+                "qualifiedClusterCount": 0
+              }
+            ]
+          },
+          "expectRowState": "no_qualified_supply"
+        },
+        "availableOnly": {
+          "opts": {
+            "availableCategories": [
+              {
+                "id": "business",
+                "supply": 3
+              }
+            ]
+          },
+          "expectRowState": "met",
+          "expectCandidateCount": 3
+        }
+      }
+    }
+  ]
+}

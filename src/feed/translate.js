@@ -12,26 +12,34 @@ import { classifyTopics } from "./topics.js";
 // `needsTranslation`, so the UI can label them instead of silently showing a
 // foreign-language post as if it were native.
 
-// 한글이 한 자라도 있으면 우리 독자가 읽을 수 있는 글로 본다.
-// 숫자·기호만 있는 짧은 제목은 옮길 것이 없으므로 한글로 치지 않는다.
 function hasKorean(text) {
   return /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(String(text || ""));  // ㅋㅋㅋ·ㅎㄷㄷ 같은 자모 반응도 한글이다 — 없으면 번역기로 보낸다(2026-08-07 감사)
+}
+
+function titleNeedsTranslation(text) {
+  const value = String(text || "");
+  const korean = (value.match(/[가-힣ㄱ-ㅎㅏ-ㅣ]/g) || []).length;
+  if (!korean) return true;
+  const foreign = (value.match(/[A-Za-z\u3040-\u30ff]/g) || []).length;
+  return foreign >= 18 && foreign > korean * 2;
 }
 
 export class TranslatingSource {
   // inner: a Source ({ id, kind, fetch() })
   // translateFn: async (text, { from, to }) => translatedText   (optional)
   // targetLang: e.g. "ko"
-  constructor(inner, translateFn, targetLang = "ko") {
+  constructor(inner, translateFn, targetLang = "ko", maxItems = null) {
     this.id = inner.id;
     this.kind = inner.kind;
     this._inner = inner;
     this._translate = typeof translateFn === "function" ? translateFn : null;
     this._target = targetLang;
+    this._maxItems = Number.isInteger(maxItems) && maxItems > 0 ? maxItems : null;
   }
 
   async fetch() {
-    const items = await this._inner.fetch();
+    const fetched = await this._inner.fetch();
+    const items = this._maxItems ? fetched.slice(0, this._maxItems) : fetched;
     const out = [];
     for (const item of items) {
       out.push(await this._localize(item));
@@ -50,8 +58,7 @@ export class TranslatingSource {
     // 그래서 제목에 한글이 있는지를 본다. 있으면 우리 글이므로 번역기를 부르지
     // 않고 그대로 통과한다 — 국내 글이 대부분이라 비용이 늘지 않는다.
     // 없으면 소스가 뭐라고 선언했든 옮긴다. 우리 독자는 한국 사람이다.
-    if (hasKorean(item.title)) return item;
-    if (lang === this._target && hasKorean(item.summary)) return item;
+    if (!titleNeedsTranslation(item.title)) return item;
 
     if (!this._translate) {
       // no translator wired — keep original, flag for the UI
@@ -70,9 +77,10 @@ export class TranslatingSource {
       // 적어 돌려준다 — 인라인 리터럴로 넘기면 그 값을 읽을 수 없다.
       const titleOpts = { from: "auto", to: this._target };
       const sumOpts = { from: "auto", to: this._target };
+      const readableSummary = hasKorean(item.summary);
       const [title, summary] = await Promise.all([
         this._translate(item.title, titleOpts),
-        item.summary ? this._translate(item.summary, sumOpts) : Promise.resolve(item.summary)
+        item.summary && !readableSummary ? this._translate(item.summary, sumOpts) : Promise.resolve(item.summary)
       ]);
       // 제목 쪽 판별을 우선한다 — 목록에서 사람이 먼저 읽는 것이 제목이고,
       // 발췌는 없을 수도 있다. 둘 다 없으면 예전처럼 소스 선언값으로 떨어진다.
@@ -143,7 +151,7 @@ export class TranslatingSource {
         ...item,
         title,
         topics,
-        summary: summaryTranslated ? summary : "",
+        summary: readableSummary ? item.summary : summaryTranslated ? summary : "",
         summaryTranslated,
         lang: this._target,
         translated: true,

@@ -1,7 +1,7 @@
 # Aggregation compliance model (Korea)
 
-This feed is an **out-link aggregator**, not a scraper-republisher. The design
-keeps it inside the legal safe zone established by Korean case law.
+This feed is an **out-link aggregator with original Korean editorial summaries**,
+not a scraper-republisher. The original article remains at the publisher URL.
 
 ## What the law says (why this model)
 
@@ -20,16 +20,22 @@ keeps it inside the legal safe zone established by Korean case law.
 
 ## The rules we follow
 
-1. **Store/show only**: title + a short excerpt (≤200 chars) + source name +
-   **required out-link**. Never the full article body. (`ingest.js` enforces the
-   excerpt cap; the content model requires `url` for aggregated items.)
+1. **Stored source material**: title + a short excerpt (≤200 chars) + source name +
+   **required out-link**. `ingest.js` enforces the excerpt cap. For an issue that
+   has already passed the final Today serving gate, the server may read a public
+   article page once in memory and store only a verified Korean derivative
+   summary. Capped plain article text is sent transiently to the configured LLM
+   provider for summary generation and verification. Raw HTML and article body
+   text are never written to the feed DB, cache, logs, public product API, or
+   client; provider-side handling follows the configured API account terms.
 2. **Out-link, never frame**: opening an aggregated item leaves to the original
    (`item.url`). The detail view for aggregated items links out.
 3. **Intake priority**:
    - **Official RSS / open APIs** first — syndicated title/summary/link (implied
      license). Reddit and Hacker News have public APIs; many outlets have RSS.
-   - **robots.txt- and ToS-permitted** fetches only, done politely (rate-limited,
-     identifying User-Agent). No login/paywall bypass.
+   - **robots.txt- and ToS-permitted** public fetches only, done politely with an
+     identifying User-Agent, one request, a timeout, and a byte cap. No login,
+     cookie, paywall, bot-block, proxy, or rate-limit bypass and no retry.
    - **No bulk DB copying** of sites that don't permit it.
 4. **User submissions** (`via: "submit"`): for communities without a feed, users
    submit a link; we read only the page's own Open Graph tags for a title +
@@ -39,8 +45,14 @@ keeps it inside the legal safe zone established by Korean case law.
    ordering plus publicly shown recommends/comments/score — no body scraping
    needed to know what's hot (`ingest.hotness`).
 6. **Attribution**: every item shows its source; the link goes to that source.
-7. **News**: use licensed news APIs (e.g. Naver Search, NewsAPI) rather than
-   scraping outlets.
+7. **News**: prefer licensed APIs and official RSS. Public article reads are
+   limited to the final displayed issue set and exist only to create the
+   NowHot-authored summary; they are not a bulk source database crawl.
+8. **Unavailable sources**: when the public page cannot be read, use an
+   accessible report about the same event as the explicit summary basis. If no
+   such report exists, show the stored short excerpt, original links, and the
+   factual access reason. A generic 403 is never labelled a paywall without
+   evidence.
 
 ## Images: hotlink only, never stored or re-hosted
 
@@ -66,9 +78,9 @@ Twitter link preview: only the source itself the pixels leave.
    image URL is resolved to an absolute one, and `http://` is upgraded to
    `https://` only for sources with a verified `httpsOk`. Still just a URL
    string; nothing is downloaded to do this.
-4. **Graceful, silent fallback** — a dead/blocked hotlink hides its own
-   thumbnail slot (`onerror` removal) and the card falls back to the existing
-   text-only layout. No broken-image icon, no retry, no extra request.
+4. **Graceful fallback** — a dead/blocked hotlink hides its broken image and the
+   detail view says that the representative photo could not be loaded. There is
+   no retry, proxy, rehosting, or extra image search.
 5. **Conservative extraction, not "images"** — most list-page communities
    (theqoo/bobae/ppomppu/todayhumor/etoland/inven 등) only ever render a
    file-type or "HOT" badge icon next to a title, not a real per-post
@@ -106,7 +118,9 @@ in "내 공간") are added.
 
 Every item carries `via`: `seed` (offline dev data only), `rss`, `api`,
 `submit`, or `me` (a user's own post). Only `me` posts store a full body; all
-aggregated provenances are out-links with capped excerpts.
+aggregated provenances remain out-links with capped source excerpts. A final
+issue may additionally store its own verified Korean summary, never the source
+body used to produce it.
 
 ## Not legal advice
 

@@ -1,0 +1,66 @@
+{
+  "contract": "NOWHOT-SELECTION-D1I-HOLDOUT-001",
+  "schemaVersion": 1,
+  "status": "SEALED_UNRUN",
+  "sealedAt": "2026-08-21",
+  "candidate": {
+    "candidateId": "p5-compact-category-haiku",
+    "task": "category_admission_only",
+    "requestedModel": "claude-haiku-4-5-20251001",
+    "promptSha256": "788fd7f246ac0ab4bf91f34bbab414616c2a81e088d4760efb4cd7b00a41b548"
+  },
+  "sources": {
+    "corpusSha256": "b8f2d45842fa94d5ddd5630fc35660ccd8b13986fd3f1a0291ab6e52def07b8b",
+    "goldSha256": "9a82b0920e56606a8553b39616c6736ee7011699266b2f2d67958fc40f07fdeb",
+    "authoritySha256": "c61782b8d581c2a60d9761b1be8ffdd64cced07b95b0a2d8bb16b51517dbed8f"
+  },
+  "derivation": {
+    "algorithm": "d1gEvaluationSet.restItems",
+    "canaryCount": 12,
+    "auditExcludedCount": 2,
+    "holdoutCount": 84,
+    "orderedItemIdsSha256": "acaecded402093a72032a82d096664d2fb4e4b81ba68a5a1f6e394e27f0320ac",
+    "orderedEvidenceRowsSha256": "b15ff52b8e35fdd86ce16a0156471d79e484bb15101a560babe4846d829472c9",
+    "orderedGoldProjectionSha256": "3cb4a2bf66a0097a08a75e35ec188316d6065a3a3d3bd9724c138dbb058912d0"
+  },
+  "independence": {
+    "selection": "mechanical_remainder_after_fixed_canary_and_audit_exclusions",
+    "candidateFreezePrecedesHoldoutExecution": true,
+    "goldExcludedFromModelInput": true,
+    "holdoutPredictionsAtSeal": 0,
+    "holdoutRowsMayNotReviseCandidateAfterFirstPrediction": true
+  },
+  "coverage": {
+    "acceptedItemCounts": {
+      "news": 0,
+      "tech": 5,
+      "auto": 5,
+      "science": 6,
+      "business": 9,
+      "gaming": 4,
+      "sports": 11,
+      "culture": 5,
+      "life": 8,
+      "humor": 0,
+      "politics": 6,
+      "realestate": 7,
+      "fashion": 9,
+      "art": 4
+    },
+    "uncoveredCategories": [
+      "humor",
+      "news"
+    ],
+    "allCategoriesCovered": false,
+    "use": "aggregate screening only; fresh independent category coverage is required before any product accuracy claim"
+  },
+  "gate": {
+    "purpose": "screening_before_d2_shadow_only",
+    "exactCategoryAdmissionMinRate": 0.98,
+    "maxWholeItemCategoryErrors": 1,
+    "unexpectedAdmissionMax": 0,
+    "criticalContentTypeConfusionsMax": 0,
+    "productPromotionAllowed": false,
+    "claimLimit": "84-item aggregate point estimate only; news and humor are uncovered and this is not statistical proof of a 0.98 lower confidence bound"
+  }
+}

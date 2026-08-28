@@ -12,7 +12,16 @@ import { buildReport } from "./datastory.js";
 import { barsSvg, lineSvg, CHART_CSS } from "./chart.js";
 import { adCopy, AD_DISCLOSURE, withSubId } from "./ad-copy.js";
 import { makeWriter } from "./llm.js";
-import { EDITORIAL_LLM_CANARY_CONTRACT, makeEvidenceEditorialPipeline } from "./editorial-llm.js";
+import {
+  EDITORIAL_LLM_CANARY_CONTRACT,
+  EDITORIAL_LLM_CONTRACT,
+  makeEvidenceEditorialPipeline
+} from "./editorial-llm.js";
+import {
+  articleContentId,
+  isCurrentArticleSummary,
+  makeArticleSummaryPipeline
+} from "./article-summary.js";
 import { verifyEditorialLineage } from "./editorial-lineage.js";
 import { attachEditorialFulfillment } from "./editorial-fulfillment.js";
 import { SLOTS, slotById } from "./digest.js";
@@ -28,14 +37,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { FeedStore } from "./store.js";
-import { FeedEngine, DEFAULT_EDITORIAL_PREVIEW } from "./engine.js";
+import { FeedEngine, DEFAULT_EDITORIAL_PREVIEW, resolveEditorialSelection } from "./engine.js";
 import { SeedSource, StorePostsSource } from "./content.js";
 import { SURVEY, validateAnswers } from "./survey.js";
 import { CATEGORIES, SOURCE_CATALOG } from "./taxonomy.js";
 import { loadRegistry, buildSources, summarize } from "./registry.js";
 import { makeFetcher } from "./fetchers.js";
 import { memoizedTranslator } from "./translate.js";
-import { googleFreeTranslator } from "./translator.js";
+import { anthropicTranslator, fallbackTranslator, googleFreeTranslator } from "./translator.js";
 import { TOPIC_CATALOG, FILTERABLE_TOPICS, FILTER_KEYS } from "./topics.js";
 import { latestRelease } from "./release-notes.js";
 import { DEFAULT_RULES } from "./rules.js";
@@ -86,10 +95,16 @@ import { projectEditorialPersonalization } from "./editorial-personalization.js"
 import { projectEditorialReaderCopy } from "./editorial-reader-copy.js";
 import { buildEditorialReviewDesk } from "./editorial-review-desk.js";
 import {
+  createCategoryRouter,
+  createReloadingCategoryRouter
+} from "./category-routing.js";
+import {
   EDITORIAL_SERVING_CONTRACT,
   assessEditorialServeability,
+  omitHeldEditorialIssues,
   sameEditorialCategorySet
 } from "./editorial-serving.js";
+import { makeSlotCanonicalEditionReader } from "./slot-canonical-edition.js";
 
 // 상품군 사전을 걸지 않는 분류. engine.js의 AD_MATCH_OFF와 같은 원칙이다 —
 // 사건·시사 글 옆에 "문맥이 맞아 보이는" 광고가 붙으면 무관한 광고보다 나쁘다.
@@ -561,10 +576,21 @@ export function createServer(opts = {}) {
   // wraps overseas sources but with no translateFn -> items pass through
   // untouched, flagged `needsTranslation`, exactly like before this feature
   // existed. On: the same wrapping now actually translates title+excerpt.
-  const translate =
-    opts.translate !== undefined
-      ? opts.translate
-      : { targetLang: "ko", translateFn: process.env.FEED_TRANSLATE ? memoizedTranslator(googleFreeTranslator()) : null };
+  const translate = opts.translate !== undefined ? opts.translate : (() => {
+    if (!process.env.FEED_TRANSLATE) return { targetLang: "ko", translateFn: null };
+    const free = memoizedTranslator(googleFreeTranslator());
+    const paid = process.env.ANTHROPIC_API_KEY
+      ? memoizedTranslator(anthropicTranslator({
+          apiKey: process.env.ANTHROPIC_API_KEY,
+          onUsage: (usage) => { try { store.recordLlmCall(usage); } catch {} }
+        }))
+      : null;
+    return {
+      targetLang: "ko",
+      translateFn: free,
+      authoritativeTranslateFn: paid ? fallbackTranslator(free, paid) : free
+    };
+  })();
   // 같은 번역기를 엔진에도 넘긴다. 수집 뒤에 enricher가 원문 페이지에서 발췌를
   // 새로 채우는데, 그건 번역이 끝난 **다음**이라 영어 그대로 들어왔다
   // (David 2026-08-05: "지금도 한글요약 만들어서 상세화면에 나오고 있지 않니?"
@@ -584,29 +610,53 @@ export function createServer(opts = {}) {
   }
   sources.push(new StorePostsSource(store));
   const engine = new FeedEngine(store, opts.sources || sources);
+  const localEditorial = opts.localEditorial != null
+    ? Boolean(opts.localEditorial)
+    : process.env.NOWHOT_LOCAL_EDITORIAL === "1";
+  const slotCanonicalEditionEnabled = localEditorial && (opts.slotCanonicalEditionEnabled != null
+    ? Boolean(opts.slotCanonicalEditionEnabled)
+    : process.env.NOWHOT_SLOT_CANONICAL_EDITION === "1");
+  const slotCanonicalEditionReader = slotCanonicalEditionEnabled
+    ? makeSlotCanonicalEditionReader({
+        pointerFile: opts.slotCanonicalPointerFile || process.env.NOWHOT_SLOT_CANONICAL_POINTER ||
+          path.resolve(process.cwd(), ".nowhot-local/slot-editions/active.json")
+      })
+    : null;
   // v2 전용(David 승인, 2026-08-17 — "골라놓은 순서 그대로"). opts에 없으면
   // null이라 engine.briefing()의 buildDigest 호출이 기존 weight 정렬 그대로다
   // — 운영 서버는 이 옵션을 절대 주지 않는다(build-editions.mjs v2 인프로세스
   // 인스턴스 전용).
   if (opts.editorialExternalRank) engine.editorialExternalRank = opts.editorialExternalRank;
+  const requestedRoutingMode = opts.categoryRoutingMode
+    || process.env.NOWHOT_CATEGORY_ROUTING || "v1";
+  if (requestedRoutingMode === "v2") {
+    const file = opts.categoryRoutingFile || process.env.NOWHOT_CATEGORY_ROUTING_FILE
+      || path.join(__dirname, "category-routing.snapshot.json");
+    const router = opts.categoryRoutingSnapshot
+      ? createCategoryRouter(opts.categoryRoutingSnapshot, registry || [])
+      : createReloadingCategoryRouter(file, registry || []);
+    engine.editorialCategoryRouter = (items, referenceNow) => router.project(items, referenceNow);
+    engine.editorialCategoryRoutingStatus = router.status;
+  }
+  if (opts.editorialPreselectedPool) engine.editorialPreselectedPool = true;
+  if (typeof opts.onEngineReady === "function") opts.onEngineReady(engine);
   // 새 편집 홈은 로컬 스테이징에서만 연다. 플래그가 없으면 운영 `/`와
   // 기존 API 동작은 그대로라, 로컬 고도화 중인 화면이 실사용자에게 새지 않는다.
-  const localEditorial = opts.localEditorial != null
-    ? Boolean(opts.localEditorial)
-    : process.env.NOWHOT_LOCAL_EDITORIAL === "1";
   const localEditorialCanaryReceiptFile = opts.editorialLlmCanaryReceiptFile !== undefined
     ? opts.editorialLlmCanaryReceiptFile
     : process.env.NOWHOT_EDITORIAL_CANARY_RECEIPT || null;
   const localEditorialLlmEnabled = localEditorial && (opts.localEditorialLlmEnabled != null
     ? Boolean(opts.localEditorialLlmEnabled)
     : process.env.NOWHOT_LOCAL_EDITORIAL_LLM === "1");
+  const localEditorialLlmModel = process.env.NOWHOT_EDITORIAL_MODEL || process.env.LLM_MODEL || "claude-sonnet-5";
+  const localEditorialVerifierModel = process.env.NOWHOT_EDITORIAL_VERIFIER_MODEL || "claude-haiku-4-5";
   const localEditorialLlm = opts.localEditorialLlm || makeEvidenceEditorialPipeline({
     enabled: localEditorialLlmEnabled,
     apiKey: opts.editorialLlmApiKey !== undefined
       ? opts.editorialLlmApiKey
       : process.env.ANTHROPIC_API_KEY || null,
-    model: process.env.NOWHOT_EDITORIAL_MODEL || process.env.LLM_MODEL || "claude-sonnet-5",
-    verifierModel: process.env.NOWHOT_EDITORIAL_VERIFIER_MODEL || "claude-haiku-4-5",
+    model: localEditorialLlmModel,
+    verifierModel: localEditorialVerifierModel,
     maxIssues: process.env.NOWHOT_EDITORIAL_LLM_MAX_ISSUES || 24,
     fetchImpl: opts.editorialLlmFetch || fetch,
     invoke: opts.editorialLlmInvoke,
@@ -618,8 +668,41 @@ export function createServer(opts = {}) {
     log: (message) => console.log(message),
     clock: serverNowMs
   });
+  const localArticleSummaryEnabled = localEditorial && (opts.articleSummaryEnabled != null
+    ? Boolean(opts.articleSummaryEnabled)
+    : process.env.NOWHOT_ARTICLE_SUMMARY === "1");
+  const localArticleSummary = opts.articleSummaryPipeline || makeArticleSummaryPipeline({
+    enabled: localArticleSummaryEnabled,
+    apiKey: opts.articleSummaryApiKey !== undefined
+      ? opts.articleSummaryApiKey
+      : process.env.ANTHROPIC_API_KEY || null,
+    model: process.env.NOWHOT_ARTICLE_SUMMARY_MODEL || process.env.LLM_MODEL || "claude-sonnet-5",
+    verifierModel: process.env.NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL || "claude-sonnet-5",
+    fallbackModel: process.env.NOWHOT_ARTICLE_SUMMARY_FALLBACK_MODEL || null,
+    allowRecovery: false,
+    batchSize: opts.articleSummaryBatchSize ?? Number(process.env.NOWHOT_ARTICLE_SUMMARY_BATCH_SIZE || 8),
+    fetchImpl: opts.articleSummaryFetch || fetch,
+    fetchArticle: opts.articleSummaryFetchArticle,
+    invoke: opts.articleSummaryInvoke,
+    cache: {
+      get: (key) => store.getEditorialLlmEdit(key),
+      set: (key, value) => store.saveEditorialLlmEdit(key, value)
+    },
+    onUsage: (usage) => { try { store.recordLlmCall(usage); } catch {} },
+    log: (message) => console.log(message),
+    clock: serverNowMs
+  });
+  const shouldWarmArticleSummaries = Boolean(opts.articleSummaryPipeline) || localArticleSummaryEnabled;
   const LOCAL_SLOT_ORDER = SLOTS.map((slot) => slot.id);
   const localEditionInFlight = new Map();
+  const hasCurrentArticleSummary = (issue) =>
+    isCurrentArticleSummary(issue?.articleSummary, issue, serverNowMs());
+
+  async function ensureArticleSummaries(edition) {
+    const issues = edition && edition.issues || [];
+    if (!issues.length || issues.every(hasCurrentArticleSummary)) return edition;
+    return localArticleSummary(edition);
+  }
 
   function validEditorialDate(value) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
@@ -642,7 +725,17 @@ export function createServer(opts = {}) {
   }
 
   function normalizedEditorialLlmReceipt(receipt) {
-    if (!receipt) return null;
+    if (!receipt) return {
+      contractId: EDITORIAL_LLM_CONTRACT.stableId,
+      state: localEditorialLlmEnabled ? "not_observed" : "disabled",
+      enabled: localEditorialLlmEnabled,
+      calls: 0,
+      cacheHits: 0,
+      configuredModel: localEditorialLlmModel,
+      configuredVerifierModel: localEditorialVerifierModel,
+      model: null,
+      verifierModel: null
+    };
     const usedModel = Number(receipt.calls || 0) > 0 || Number(receipt.cacheHits || 0) > 0;
     return {
       ...receipt,
@@ -664,10 +757,15 @@ export function createServer(opts = {}) {
     );
   }
 
-  function servedEditorialCanonicalUrls(editions) {
+  function servedEditorialCanonicalUrls(editions, categories = []) {
+    const selected = new Set(categories || []);
     const urls = new Set();
     for (const edition of editions || []) {
       for (const issue of edition && edition.issues || []) {
+        const issueCategories = issue?.selectedByCategories?.length
+          ? issue.selectedByCategories
+          : [...(issue?.categoryIds || []), issue?.category].filter(Boolean);
+        if (selected.size && !issueCategories.some((category) => selected.has(category))) continue;
         for (const row of issue && issue.sourceEvidence || []) {
           if (row && row.canonicalUrl) urls.add(row.canonicalUrl);
         }
@@ -679,7 +777,7 @@ export function createServer(opts = {}) {
     return [...urls];
   }
 
-  function editionForRequest(snapshot, preview, includeCandidates, editionDate, user = null) {
+  async function editionForRequest(snapshot, preview, includeCandidates, editionDate, user = null) {
     const segmentKey = snapshot && snapshot.editionSegment && snapshot.editionSegment.key ||
       editorialInventorySegmentKey(preview.selectedCategories);
     const baseKey = snapshot && snapshot.editionSegment && snapshot.editionSegment.baseKey ||
@@ -697,9 +795,35 @@ export function createServer(opts = {}) {
       enforceRepeatRule: false,
       historyEditions: olderEditions
     });
+    const storedAnchor = store.getEditorialEvidenceAnchor(
+      editionDate,
+      snapshot?.slot?.id || preview.slot.id
+    );
+    const segmentAnchor = Date.parse(snapshot?.editionSegment?.evidenceAsOf || "");
+    const slotAnchor = Date.parse(snapshot?.editionSegment?.slotAsOf || "");
+    const evidenceAsOf = Number.isFinite(segmentAnchor) ? segmentAnchor
+      : Number.isFinite(storedAnchor) ? storedAnchor
+      : Number.isFinite(slotAnchor) ? slotAnchor
+      : null;
+    // 저장 조합은 어떤 분야 조합으로 열어도 같은 사건 정본을 다시 투영한다.
+    // eventSources가 이미 있다는 이유로 오래된 조합별 제목·출처를 신뢰하면 같은
+    // 사건이 선택 분야에 따라 다른 기사처럼 보인다.
+    const canonicalIssues = await engine.canonicalEventSources(continuity.issues, {
+      asOfMs: evidenceAsOf,
+      slotId: preview.slot.id
+    });
     const canonical = attachEditorialFulfillment({
       ...snapshot,
-      issues: continuity.issues,
+      issues: canonicalIssues.map((issue) => {
+        const sharedSummary = store.getArticleSummary(articleContentId(issue));
+        if (isCurrentArticleSummary(sharedSummary, issue, serverNowMs())) {
+          return { ...issue, articleSummary: sharedSummary };
+        }
+        if (hasCurrentArticleSummary(issue)) return issue;
+        if (!issue.articleSummary) return issue;
+        const { articleSummary, ...currentIssue } = issue;
+        return currentIssue;
+      }),
       continuityProjection: {
         ...continuity.editionChange,
         responseOnly: true,
@@ -727,7 +851,8 @@ export function createServer(opts = {}) {
     includeCandidates = false,
     targetDate = null,
     asOfMs = null,
-    generationMode = "on_demand"
+    generationMode = "on_demand",
+    fixedEvidenceAsOfMs = null
   } = {}) {
     const target = localEditionTarget({ slotId, targetDate, asOfMs });
     if (!target.available) {
@@ -735,39 +860,142 @@ export function createServer(opts = {}) {
       error.code = "EDITORIAL_SLOT_NOT_DUE";
       throw error;
     }
-    let evidenceAsOfMs = target.asOfMs;
-    let preview = await engine.todayEdition({
-      userId,
-      categories,
-      slotId: target.slot.id,
-      asOfMs: evidenceAsOfMs,
-      includeCandidates,
-      sharedCanonical: true
-    });
     const currentTarget = resolveEditorialTarget(serverNowMs());
     const isCurrentTarget = target.date === currentTarget.date &&
       target.slot.id === currentTarget.slot.id;
-    const delayedCurrentSlotRecovery = isCurrentTarget &&
-      !(preview.categoryFulfillment && preview.categoryFulfillment.goalSatisfied) &&
-      serverNowMs() > target.asOfMs;
-    if (delayedCurrentSlotRecovery) {
-      evidenceAsOfMs = serverNowMs();
+    const requestUser = userId ? store.getUser(userId) : null;
+    const resolvedSelection = resolveEditorialSelection(categories, requestUser);
+    const selectedCategories = resolvedSelection.selectedCategories;
+    const date = target.date;
+    const compatibility = assertEditorialSnapshotCompatibility();
+    const baseKey = editionSegmentKey(selectedCategories);
+    const segmentKey = editorialInventorySegmentKey(selectedCategories);
+    const categoryLaneUnion = selectedCategories.length > 1;
+    const storedExisting = store.getEditorialEdition(date, target.slot.id, segmentKey);
+    const previewForRequest = (snapshot) => ({
+      ...snapshot,
+      slot: snapshot?.slot || target.slot,
+      selectedCategories,
+      selection: {
+        ...(snapshot?.selection || {}),
+        mode: resolvedSelection.mode,
+        explicit: resolvedSelection.explicit
+      }
+    });
+
+    // 단독 분야판은 이미 확정된 상품 재고다. 생성 엔진을 먼저 호출하면 수집
+    // 순간의 공급 부족이 저장된 정상판까지 가로막고, 클릭 요청에서 요약 생성도
+    // 다시 시작한다. 일반 조회는 읽기만 하고 백그라운드 준비 작업만 보강한다.
+    if (!categoryLaneUnion && storedExisting) {
+      const preview = previewForRequest(storedExisting);
+      let response = await editionForRequest(storedExisting, preview, includeCandidates, date, requestUser);
+      if (generationMode === "inventory_summary_warmup" && shouldWarmArticleSummaries &&
+          assessEditorialServeability(response).pass && !response.issues.every(hasCurrentArticleSummary)) {
+        const detailed = await ensureArticleSummaries(response);
+        store.enrichEditorialEdition(date, target.slot.id, segmentKey, detailed);
+        response = await editionForRequest(
+          store.getEditorialEdition(date, target.slot.id, segmentKey) || storedExisting,
+          preview,
+          includeCandidates,
+          date,
+          requestUser
+        );
+      }
+      return response;
+    }
+
+    let evidenceAsOfMs = fixedEvidenceAsOfMs == null ? Number.NaN : Number(fixedEvidenceAsOfMs);
+    const hasFixedEvidenceAsOf = Number.isFinite(evidenceAsOfMs);
+    if (!Number.isFinite(evidenceAsOfMs)) {
+      evidenceAsOfMs = store.getEditorialEvidenceAnchor(date, target.slot.id);
+    }
+    const hasAllCurrentLanes = selectedCategories.every((category) =>
+      store.getEditorialEdition(date, target.slot.id, editorialInventorySegmentKey([category])));
+    if (!Number.isFinite(evidenceAsOfMs)) {
+      if (isCurrentTarget) await engine.refresh();
+      evidenceAsOfMs = store.saveEditorialEvidenceAnchor(
+        date,
+        target.slot.id,
+        isCurrentTarget ? serverNowMs() : target.asOfMs
+      );
+    } else if (isCurrentTarget && !hasAllCurrentLanes &&
+        (!Number.isFinite(engine.lastRefreshedAt) || serverNowMs() - engine.lastRefreshedAt >= 5 * 60 * 1000)) {
+      await engine.refresh();
+      if (!hasFixedEvidenceAsOf) evidenceAsOfMs = serverNowMs();
+    }
+    const delayedCurrentSlotRecovery = isCurrentTarget && evidenceAsOfMs > target.asOfMs;
+    let preview;
+    if (categoryLaneUnion) {
+      const categoryEditions = await Promise.all(selectedCategories.map(async (category) => {
+        const laneSegmentKey = editorialInventorySegmentKey([category]);
+        let edition = store.getEditorialEdition(date, target.slot.id, laneSegmentKey);
+        if (!edition) {
+          const laneEvidenceAsOfMs = isCurrentTarget ? serverNowMs() : evidenceAsOfMs;
+          const generated = await buildLocalTodayEdition({
+            categories: [category],
+            slotId: target.slot.id,
+            includeCandidates,
+            targetDate: target.date,
+            asOfMs: target.asOfMs,
+            generationMode: generationMode === "inventory_summary_warmup"
+              ? generationMode
+              : "category_lane",
+            fixedEvidenceAsOfMs: laneEvidenceAsOfMs
+          });
+          edition = store.getEditorialEdition(date, target.slot.id, laneSegmentKey) || generated;
+        }
+        const laneAnchor = Date.parse(edition?.editionSegment?.evidenceAsOf || "");
+        const canonicalIssues = await engine.canonicalEventSources(edition?.issues || [], {
+          asOfMs: Number.isFinite(laneAnchor) ? laneAnchor : evidenceAsOfMs,
+          slotId: target.slot.id
+        });
+        return {
+          category,
+          edition: {
+            ...edition,
+            issues: canonicalIssues.map((issue) => {
+              const sharedSummary = store.getArticleSummary(articleContentId(issue));
+              if (isCurrentArticleSummary(sharedSummary, issue, serverNowMs())) {
+                return { ...issue, articleSummary: sharedSummary };
+              }
+              const { articleSummary, ...withoutLaneSummary } = issue;
+              return withoutLaneSummary;
+            })
+          }
+        };
+      }));
+      evidenceAsOfMs = Math.max(evidenceAsOfMs, ...categoryEditions.map(({ edition }) =>
+        Date.parse(edition?.editionSegment?.evidenceAsOf || "")).filter(Number.isFinite));
       preview = await engine.todayEdition({
-        userId,
-        categories,
+        categories: selectedCategories,
         slotId: target.slot.id,
         asOfMs: evidenceAsOfMs,
         includeCandidates,
-        sharedCanonical: true
+        sharedCanonical: true,
+        allowCarryover: true,
+        categoryEditions
       });
+      preview.selection = {
+        ...preview.selection,
+        mode: resolvedSelection.mode,
+        explicit: resolvedSelection.explicit
+      };
+    } else {
+      preview = await engine.todayEdition({
+        userId,
+        categories: selectedCategories,
+        slotId: target.slot.id,
+        asOfMs: evidenceAsOfMs,
+        includeCandidates,
+        sharedCanonical: true,
+        allowCarryover: true
+      });
+      preview.selection = {
+        ...preview.selection,
+        mode: resolvedSelection.mode,
+        explicit: resolvedSelection.explicit
+      };
     }
-    const date = target.date;
-    const compatibility = assertEditorialSnapshotCompatibility();
-    const baseKey = editionSegmentKey(preview.selectedCategories);
-    const segmentKey = editorialInventorySegmentKey(preview.selectedCategories);
-    const existing = store.getEditorialEdition(date, preview.slot.id, segmentKey);
-    const requestUser = userId ? store.getUser(userId) : null;
-    if (existing) return editionForRequest(existing, preview, includeCandidates, date, requestUser);
 
     const buildKey = `${date}|${preview.slot.id}|${segmentKey}`;
     let running = localEditionInFlight.get(buildKey);
@@ -775,10 +1003,11 @@ export function createServer(opts = {}) {
       running = (async () => {
         const history = priorEditorialHistory(date, preview.slot.id, segmentKey, baseKey);
         const [prior = null, ...olderEditions] = history;
-        const candidate = prior
+        const candidate = categoryLaneUnion
+          ? preview
+          : prior
           ? await engine.todayEdition({
-            userId,
-            categories,
+            categories: selectedCategories,
             slotId: target.slot.id,
             asOfMs: evidenceAsOfMs,
             includeCandidates,
@@ -788,18 +1017,22 @@ export function createServer(opts = {}) {
             ),
             sharedCanonical: true,
             allowCarryover: true,
-            servedCanonicalUrls: servedEditorialCanonicalUrls(history)
+            servedCanonicalUrls: servedEditorialCanonicalUrls(history, preview.selectedCategories)
           })
           : preview;
-        const finalized = attachEditorialFulfillment(applyEditionChanges(candidate, prior, {
-          targetLimit: preview.selection.maxIssues,
-          minIssuesPerCategory: preview.selection.minIssuesPerCategory,
-          additiveCategoryUnion: preview.selection.additiveCategoryUnion,
-          categoryIssueLimit: preview.selection.categoryIssueLimit,
-          enforceRepeatRule: true,
-          historyEditions: olderEditions
-        }));
-        const edited = await localEditorialLlm(finalized);
+        const finalized = categoryLaneUnion
+          ? attachEditorialFulfillment(candidate)
+          : attachEditorialFulfillment(applyEditionChanges(candidate, prior, {
+            targetLimit: preview.selection.maxIssues,
+            minIssuesPerCategory: preview.selection.minIssuesPerCategory,
+            additiveCategoryUnion: preview.selection.additiveCategoryUnion,
+            categoryIssueLimit: preview.selection.categoryIssueLimit,
+            enforceRepeatRule: true,
+            historyEditions: olderEditions
+          }));
+        const edited = categoryLaneUnion || !generationMode.startsWith("inventory_")
+          ? finalized
+          : await localEditorialLlm(finalized);
         const snapshot = {
           ...edited,
           editionSegment: {
@@ -807,15 +1040,16 @@ export function createServer(opts = {}) {
             baseKey,
             snapshotVersion: EDITORIAL_INVENTORY_CONTRACT.snapshotVersion,
             compatibility,
-            categories: preview.selectedCategories.slice().sort(),
+            categories: selectedCategories,
             previousEditionId: prior && prior.editionId || null,
             slotAsOf: new Date(target.asOfMs).toISOString(),
             evidenceAsOf: new Date(evidenceAsOfMs).toISOString(),
             generationMode,
+            compositionMode: categoryLaneUnion ? "stored_category_lane_union_v1" : "category_lane_v1",
             delayedRecovery: {
               applied: delayedCurrentSlotRecovery,
               reason: delayedCurrentSlotRecovery
-                ? "current_slot_was_not_fulfilled_at_scheduled_time"
+                ? "slot_canonical_anchor_after_scheduled_time"
                 : null,
               delayedByMs: delayedCurrentSlotRecovery
                 ? Math.max(0, evidenceAsOfMs - target.asOfMs)
@@ -829,11 +1063,28 @@ export function createServer(opts = {}) {
         // 회복돼도 inventory가 기존 판으로 오인해 영구 409가 된다. 보류 후보는
         // 응답·관측에는 쓰되 저장하지 않아 다음 점검이 다시 만들게 하고,
         // 기계 서빙 관문을 통과한 판만 불변 스냅샷으로 고정한다.
+        const serveableSnapshot = omitHeldEditorialIssues(snapshot);
         const snapshotAssessment = assessEditorialServeability(
-          projectEditorialReaderCopy(snapshot)
+          projectEditorialReaderCopy(serveableSnapshot)
         );
-        if (isCurrentTarget && !snapshotAssessment.pass) return snapshot;
-        return store.saveEditorialEdition(date, preview.slot.id, segmentKey, snapshot);
+        if (!snapshotAssessment.pass) {
+          if (isCurrentTarget) return snapshot;
+          return store.saveEditorialEdition(date, preview.slot.id, segmentKey, snapshot);
+        }
+        const storedSnapshot = store.saveEditorialEdition(
+          date,
+          preview.slot.id,
+          segmentKey,
+          serveableSnapshot,
+          { replace: categoryLaneUnion || Boolean(storedExisting) }
+        );
+        // 요약은 판 생성의 부가 재고다. 사용자 조회에서 모델을 호출하지 않고,
+        // 기존 inventory 작업만 검증 요약을 준비해 공유 저장소에 보강한다.
+        if (shouldWarmArticleSummaries && generationMode.startsWith("inventory_")) {
+          const preparedSnapshot = await ensureArticleSummaries(storedSnapshot);
+          store.enrichEditorialEdition(date, preview.slot.id, segmentKey, preparedSnapshot);
+        }
+        return storedSnapshot;
       })().finally(() => localEditionInFlight.delete(buildKey));
       localEditionInFlight.set(buildKey, running);
     }
@@ -874,7 +1125,7 @@ export function createServer(opts = {}) {
     });
   }
 
-  function verifiedEditorialFallback(currentEdition, currentAssessment, userId) {
+  async function verifiedEditorialFallback(currentEdition, currentAssessment, userId) {
     const segmentKey = currentEdition && currentEdition.editionSegment && currentEdition.editionSegment.key ||
       editorialInventorySegmentKey(currentAssessment.selectedCategories);
     const currentAsOf = Date.parse(
@@ -894,7 +1145,7 @@ export function createServer(opts = {}) {
       if (!Number.isFinite(fallbackAsOf) || ageMs < 0 || ageMs > EDITORIAL_SERVING_CONTRACT.maxFallbackAgeMs) continue;
       const snapshot = store.getEditorialEdition(receipt.date, receipt.slotId, receipt.segmentKey);
       if (!snapshot || snapshot.editionId !== receipt.editionId) continue;
-      const fallback = editionForRequest(snapshot, currentEdition, false, receipt.date, requestUser);
+      const fallback = await editionForRequest(snapshot, currentEdition, false, receipt.date, requestUser);
       const assessment = assessEditorialServeability(fallback);
       if (!assessment.pass || assessment.packetId !== receipt.packetId ||
           !sameEditorialCategorySet(assessment.selectedCategories, currentAssessment.selectedCategories)) continue;
@@ -906,14 +1157,6 @@ export function createServer(opts = {}) {
       };
     }
     return null;
-  }
-
-  // S3b A안 부분 서빙 (David 확정 지시 2026-08-13) — 미달 분야의 제외 사유
-  // 문구. 미래를 보장하는 표현("다음 판에" 등)은 쓰지 않는다.
-  function withheldCategoryNotice(row) {
-    if (row.state === "no_supply") return `${row.label} 분야는 이번 판에 수집된 후보가 없어 제외했습니다.`;
-    if (row.state === "no_qualified_supply") return `${row.label} 분야는 이번 판 후보가 검증 기준을 통과하지 못해 제외했습니다.`;
-    return `${row.label} 분야는 이번 판에 확인된 소식이 부족해 제외했습니다.`;
   }
 
   async function buildServeableTodayEdition(options = {}) {
@@ -936,53 +1179,7 @@ export function createServer(opts = {}) {
       };
     }
 
-    // ── S3b A안: 실패 사유가 분야 충족뿐이고 충족(met) 분야가 하나라도 있으면,
-    // **충족 분야만의 조합 판**을 서빙한다. 그 판은 자기 세그먼트의 1급
-    // 판이라 모든 기계 관문·검수 지문·중복 제거·중요도 혼합이 실제 제공
-    // 콘텐츠 기준으로 성립한다 — 기본판이나 다른 분야의 낡은 판을 몰래 섞는
-    // 경로가 구조적으로 없다. 미달 분야는 사유·확인 시각·공급 수량과 함께
-    // 명시적으로 고지한다. 전 분야 미달이면 아래 기존 폴백→409로 떨어진다.
-    const onlyFulfillmentHold = assessment.failures.length > 0 &&
-      assessment.failures.every((code) => code === "category_fulfillment_hold");
-    const fulfillRows = current && current.categoryFulfillment &&
-      Array.isArray(current.categoryFulfillment.rows) ? current.categoryFulfillment.rows : [];
-    const metIds = fulfillRows.filter((row) => row.state === "met").map((row) => row.categoryId);
-    const requestedIds = (assessment.selectedCategories || []).slice();
-    if (onlyFulfillmentHold && metIds.length > 0 && metIds.length < requestedIds.length) {
-      try {
-        const served = await buildServeableTodayEdition({ ...options, categories: metIds });
-        const checkedAt = new Date(serverNowMs()).toISOString();
-        const servedSet = new Set(served.servedCategories || metIds);
-        const withheld = fulfillRows
-          .filter((row) => requestedIds.includes(row.categoryId) && !servedSet.has(row.categoryId))
-          .map((row) => ({
-            id: row.categoryId,
-            label: row.label,
-            reason: withheldCategoryNotice(row),
-            state: row.state,
-            checkedAt,
-            supply: {
-              candidateCount: row.candidateCount ?? null,
-              qualifiedClusterCount: row.qualifiedClusterCount ?? null,
-              issueCount: row.issueCount ?? null
-            }
-          }));
-        return {
-          ...served,
-          partial: true,
-          requestedCategories: requestedIds,
-          servedCategories: [...servedSet],
-          withheldCategories: withheld
-        };
-      } catch (err) {
-        // 축소 조합도 성립하지 않으면 기존 폴백·409 경로를 그대로 탄다.
-        // 단, 계약 오류만 삼킨다 — 프로그래밍 결함까지 409로 위장하면
-        // 탐지가 늦어진다(검수 P2).
-        if (!err || !["EDITORIAL_SLOT_NOT_DUE", "EDITORIAL_EDITION_NOT_SERVEABLE"].includes(err.code)) throw err;
-      }
-    }
-
-    const fallback = verifiedEditorialFallback(current, assessment, options.userId || null);
+    const fallback = await verifiedEditorialFallback(current, assessment, options.userId || null);
     if (fallback) {
       return {
         ...fallback.edition,
@@ -1023,7 +1220,7 @@ export function createServer(opts = {}) {
         reserveIssues: Math.min(Math.max(8, categories.length * 3), history.length * 8),
         sharedCanonical: true,
         allowCarryover: history.length > 0,
-        servedCanonicalUrls: servedEditorialCanonicalUrls(history)
+        servedCanonicalUrls: servedEditorialCanonicalUrls(history, categories)
       });
       const [previous = null, ...olderEditions] = history;
       const edition = attachEditorialFulfillment(applyEditionChanges(candidate, previous, {
@@ -1098,7 +1295,7 @@ export function createServer(opts = {}) {
     Number(process.env.NOWHOT_EDITORIAL_INVENTORY_CHECK_MS || 5 * 60 * 1000)
   );
   const LOCAL_EDITORIAL_CLOCK_SOURCE = opts.clock ? "injected" : "system";
-  const LOCAL_INVENTORY_SCHEDULE_ENABLED = localEditorial &&
+  const LOCAL_INVENTORY_SCHEDULE_ENABLED = localEditorial && !slotCanonicalEditionEnabled &&
     !process.env.NODE_TEST_CONTEXT && opts.localEditorialInventorySchedule !== false;
   let localInventoryPending = null;
   let localInventoryReceipt = null;
@@ -1266,7 +1463,13 @@ export function createServer(opts = {}) {
       clock: serverNowMs,
       defaultCategories: DEFAULT_EDITORIAL_PREVIEW,
       knownCategoryIds: CATEGORIES.map((category) => category.id),
-      batchLimit: LOCAL_INVENTORY_BATCH_LIMIT
+      batchLimit: LOCAL_INVENTORY_BATCH_LIMIT,
+      needsRefresh: shouldWarmArticleSummaries
+        ? (edition) => (edition?.issues || []).some((issue) => {
+          const shared = store.getArticleSummary(articleContentId(issue));
+          return !isCurrentArticleSummary(shared, issue, serverNowMs()) && !hasCurrentArticleSummary(issue);
+        })
+        : null
     }).then((receipt) => {
       localInventoryReceipt = receipt;
       localQualityReviewSamplingReceipt = freezeInventoryQualityReviewPackets(receipt);
@@ -1573,7 +1776,7 @@ export function createServer(opts = {}) {
             doesNotProve: "원문 사실의 진실성·사람 검수 PASS·운영 배포"
           };
         })(),
-        editorialLlm: edition.editorialLlm || null,
+        editorialLlm: normalizedEditorialLlmReceipt(edition.editorialLlm),
         llmCanary: readLocalEditorialCanaryReceipt(),
         editionChange: edition.editionChange || null,
         inventory: inventory || localInventoryReceipt,
@@ -2690,7 +2893,10 @@ const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) 
         return true;
       };
 
-      if (p === "/api/health") return send(res, 200, { ok: true });
+      if (p === "/api/health") return send(res, 200, {
+        ok: true,
+        categoryRouting: engine.editorialCategoryRoutingStatus
+      });
 
       // "오늘의 브리핑" — 실측 데이터로 서버가 직접 작성하는 일일 편집 페이지.
       // 애드핏 보류 사유("대부분 아웃링크, 자체 콘텐츠 부족") 대응이자 애드센스
@@ -2933,9 +3139,30 @@ ${archiveHtml}`;
           return send(res, 400, { error: "invalid editorial date", code: "INVALID_EDITORIAL_DATE" });
         }
         try {
+          if (slotCanonicalEditionReader) {
+            const target = localEditionTarget({ slotId, targetDate });
+            if (!target.available) {
+              const error = new Error(`${target.slot.label}판은 아직 발행 시각 전입니다.`);
+              error.code = "EDITORIAL_SLOT_NOT_DUE";
+              throw error;
+            }
+            const requestUser = userId ? store.getUser(userId) : null;
+            const resolvedSelection = resolveEditorialSelection(categories, requestUser);
+            return send(res, 200, slotCanonicalEditionReader.read({
+              date: target.date,
+              slotId: target.slot.id,
+              categories: resolvedSelection.selectedCategories,
+              selectionMode: resolvedSelection.mode,
+              explicit: resolvedSelection.explicit
+            }));
+          }
           return send(res, 200, await buildServeableTodayEdition({ userId, categories, slotId, targetDate }));
         } catch (error) {
-          if (error && ["EDITORIAL_SLOT_NOT_DUE", "EDITORIAL_EDITION_NOT_SERVEABLE"].includes(error.code)) {
+          if (error && [
+            "EDITORIAL_SLOT_NOT_DUE",
+            "EDITORIAL_EDITION_NOT_SERVEABLE",
+            "SLOT_CANONICAL_EDITION_UNAVAILABLE"
+          ].includes(error.code)) {
             return send(res, 409, {
               error: error.message,
               code: error.code,
@@ -2944,6 +3171,13 @@ ${archiveHtml}`;
           }
           throw error;
         }
+      }
+
+      if (p === "/api/today/summary" && req.method === "POST" && localEditorial) {
+        return send(res, 410, {
+          error: "기사 요약은 오늘판 응답에 미리 포함됩니다.",
+          code: "ARTICLE_SUMMARY_IN_EDITION"
+        });
       }
 
       if (p === "/api/today/categories" && req.method === "POST" && localEditorial) {
@@ -2958,8 +3192,10 @@ ${archiveHtml}`;
         if (!categories.length) return send(res, 400, { error: "select at least one category" });
         const savedCategories = store.setBriefingCategories(body.userId, categories);
         localEditorialEvidenceCache.at = 0;
-        const queued = setTimeout(() => runLocalEditorialInventory().catch(() => {}), 0);
-        queued.unref?.();
+        if (!slotCanonicalEditionReader) {
+          const queued = setTimeout(() => runLocalEditorialInventory().catch(() => {}), 0);
+          queued.unref?.();
+        }
         return send(res, 200, {
           ok: true,
           categories: savedCategories

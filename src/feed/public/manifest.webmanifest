@@ -3,7 +3,7 @@
   "short_name": "지금핫",
   "description": "여러 커뮤니티·뉴스에서 지금 가장 화제인 글만 취향에 맞게 모아 보는 실시간 핫 피드",
   "lang": "ko",
-  "start_url": "/",
+  "start_url": "/live",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",

@@ -1192,7 +1192,7 @@ test("privacy.html: 개인정보처리방침이 존재하고 실수집 항목·�
   assert.match(html, /comeva2kr@gmail\.com/, "문의처");
 });
 
-test("adfit: 광고단위는 env + 승인 플래그가 모두 있을 때만 노출되고, 애드핏은 페이지당 1회만 쓴다", async () => {
+test("adfit: env + 심사 플래그는 편집 지면 모드를 켜지만 실시간 피드에는 단위를 주지 않는다", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const prevUnit = process.env.ADFIT_UNIT_MOBILE;
   const prevOn = process.env.ADFIT_ENABLED;
@@ -1211,16 +1211,19 @@ test("adfit: 광고단위는 env + 승인 플래그가 모두 있을 때만 노�
     process.env.ADFIT_UNIT_MOBILE = "DAN-testunit";
     process.env.ADFIT_ENABLED = "1";
     let cfg = await withServer(async (port) => (await fetch(`http://localhost:${port}/api/config`)).json());
-    assert.equal(cfg.adfit.mobileUnit, "DAN-testunit");
+    assert.equal(cfg.adfit.mobileUnit, null, "자동 갱신 피드에는 AdFit 단위를 내려보내지 않는다");
+    assert.equal(cfg.adfit.reviewMode, true);
 
     delete process.env.ADFIT_ENABLED;
     cfg = await withServer(async (port) => (await fetch(`http://localhost:${port}/api/config`)).json());
-    assert.equal(cfg.adfit.mobileUnit, null, "승인 전에는 빈 지면을 만들지 않는다");
+    assert.equal(cfg.adfit.mobileUnit, null);
+    assert.equal(cfg.adfit.reviewMode, false);
 
     process.env.ADFIT_ENABLED = "1";
     delete process.env.ADFIT_UNIT_MOBILE;
     cfg = await withServer(async (port) => (await fetch(`http://localhost:${port}/api/config`)).json());
     assert.equal(cfg.adfit.mobileUnit, null, "광고단위 미설정 배포는 배너 없음");
+    assert.equal(cfg.adfit.reviewMode, false);
   } finally {
     if (prevUnit === undefined) delete process.env.ADFIT_UNIT_MOBILE;
     else process.env.ADFIT_UNIT_MOBILE = prevUnit;

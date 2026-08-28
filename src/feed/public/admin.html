@@ -86,6 +86,126 @@
   .srcline { display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px; }
   .srcline:last-child { border-bottom:none; }
   .srcline .cnt { margin-left:auto; font-variant-numeric:tabular-nums; }
+  /* --- 개발관리: 제품헌장과 시스템 블루프린트의 읽기 전용 투영 --- */
+  .dev-head { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:18px; align-items:start;
+    padding:2px 0 20px; border-bottom:1px solid var(--line); }
+  .dev-head h2 { margin:3px 0 8px; font-size:22px; line-height:1.25; }
+  .dev-kicker { color:var(--accent); font-size:11px; font-weight:800; text-transform:uppercase; }
+  .dev-summary { color:var(--muted); font-size:13px; line-height:1.65; max-width:760px; }
+  .dev-state { min-width:210px; background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .dev-state strong { display:block; font-size:14px; margin-bottom:5px; }
+  .dev-state span { display:block; color:var(--muted); font-size:11.5px; line-height:1.5; }
+  .dev-alert { display:flex; flex-wrap:wrap; gap:9px; align-items:center; margin:14px 0 0; padding:10px 12px;
+    border-left:3px solid var(--warn); background:color-mix(in srgb,var(--warn) 9%,var(--card)); font-size:12.5px; }
+  .dev-alert b { color:var(--warn); }
+  .dev-jump { display:flex; flex-wrap:wrap; gap:4px; margin:14px 0 0; padding-bottom:14px; border-bottom:1px solid var(--line); }
+  .dev-jump a { color:var(--muted); text-decoration:none; padding:6px 10px; font-size:12px; border-bottom:2px solid transparent; }
+  .dev-jump a:hover,.dev-jump a:focus-visible { color:var(--text); border-color:var(--accent); }
+  .dev-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px; margin:16px 0 0;
+    background:var(--line); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .dev-metrics.metric-six { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .dev-metric { background:var(--card); padding:12px 14px; min-width:0; }
+  .dev-metric .k { color:var(--muted); font-size:11px; }
+  .dev-metric .v { margin-top:4px; font-size:19px; line-height:1.2; font-weight:800; overflow-wrap:anywhere; }
+  .dev-metric .n { margin-top:4px; color:var(--muted); font-size:10.5px; line-height:1.45; }
+  .dev-section { scroll-margin-top:88px; padding:24px 0; border-bottom:1px solid var(--line); }
+  .dev-section-head[id] { scroll-margin-top:88px; }
+  .dev-section:last-child { border-bottom:none; }
+  .dev-section-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .dev-section h3 { margin:0; font-size:16px; }
+  .dev-section-head span { color:var(--muted); font-size:11.5px; }
+  .dev-mission { padding:16px 18px; border-left:4px solid var(--accent); background:var(--card); border-radius:0 8px 8px 0;
+    font-size:16px; line-height:1.75; font-weight:700; }
+  .dev-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-top:12px; }
+  .dev-block { min-width:0; padding:12px 0; border-top:1px solid var(--line); }
+  .dev-block .k { color:var(--muted); font-size:11px; font-weight:700; margin-bottom:5px; }
+  .dev-block p { margin:0; font-size:13px; line-height:1.65; }
+  .dev-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:8px; margin-top:12px; }
+  .dev-list-item { border:1px solid var(--line); background:var(--card); border-radius:8px; padding:11px 12px; }
+  .dev-list-item b { display:block; font-size:12.5px; margin-bottom:4px; }
+  .dev-list-item p { margin:0; color:var(--muted); font-size:11.5px; line-height:1.55; }
+  .dev-id { display:inline-block; color:var(--accent); font-size:10px; font-weight:800; margin-bottom:5px; }
+  .dev-flow { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+  .dev-flow-step { position:relative; min-width:0; border:1px solid var(--line); border-radius:8px; padding:11px 12px; background:var(--card); }
+  .dev-flow-step::after { content:""; position:absolute; width:8px; height:8px; right:-5px; top:50%; transform:translateY(-50%) rotate(45deg);
+    border-top:2px solid var(--accent); border-right:2px solid var(--accent); background:var(--bg); z-index:2; }
+  .dev-flow-step:nth-child(4n)::after,.dev-flow-step:last-child::after { display:none; }
+  .dev-flow-step b { display:block; font-size:12px; }
+  .dev-flow-step span { display:block; color:var(--muted); font-size:10.5px; line-height:1.45; margin-top:4px; }
+  .dev-chip { display:inline-flex; align-items:center; min-height:22px; padding:2px 7px; border:1px solid var(--line); border-radius:4px;
+    font-size:10.5px; font-weight:750; white-space:nowrap; }
+  .dev-chip.complete,.dev-chip.draft_complete,.dev-chip.machine_gate_pass,.dev-chip.inventory_complete,.dev-chip.met,.dev-chip.fulfillment_complete,
+  .dev-chip.actual_elapsed_evidence_complete,.dev-chip.segment_elapsed_complete,.dev-chip.human_quality_pass,.dev-chip.human_adjudicated_pass,.dev-chip.active_current_packet,.dev-chip.slot_observed_complete,
+  .dev-chip.healthy_so_far,.dev-chip.daily_evidence_complete,.dev-chip.reliability_history_complete,.dev-chip.quality_human_pass,.dev-chip.quality_history_human_pass,.dev-chip.personalization_integrity_pass { color:var(--ok); border-color:color-mix(in srgb,var(--ok) 55%,var(--line)); }
+  .dev-chip.current,.dev-chip.in_progress,.dev-chip.next,.dev-chip.complete_with_limits,
+  .dev-chip.local_candidate,.dev-chip.implemented_local_candidate,.dev-chip.local_candidate_ready,
+  .dev-chip.local_candidate_with_limits,.dev-chip.local_qa_pending,.dev-chip.local_qa_pass_with_limits,.dev-chip.machine_fixture_ready,
+  .dev-chip.machine_observation_ready,.dev-chip.local_machine_fixture,
+  .dev-chip.local_machine_observation,.dev-chip.same_pool_replay_complete,.dev-chip.inventory_backlog,.dev-chip.inventory_complete_with_holds,.dev-chip.human_annotation_ready,
+  .dev-chip.human_annotation_in_progress,.dev-chip.human_annotation_complete,.dev-chip.active_packet_pinned,.dev-chip.elapsed_evidence_collecting,
+  .dev-chip.elapsed_evidence_complete_with_limits,.dev-chip.actual_elapsed_evidence_complete_with_segment_holds,.dev-chip.slot_observed_with_holds,.dev-chip.underfilled,.dev-chip.fulfillment_partial,
+  .dev-chip.reliability_collecting,.dev-chip.quality_history_collecting,.dev-chip.quality_review_not_sampled,.dev-chip.quality_lineage_unavailable,.dev-chip.quality_human_pending,.dev-chip.quality_review_packets_frozen,.dev-chip.quality_review_packet_waiting,.dev-chip.local_code_qa_pass_actual_slot_pending,.dev-chip.local_code_qa_pass_actual_history_pending { color:var(--warn); border-color:color-mix(in srgb,var(--warn) 55%,var(--line)); }
+  .dev-chip.waiting,.dev-chip.not_observed,.dev-chip.waiting_for_first_slot,.dev-chip.slot_not_observed { color:var(--muted); }
+  .dev-chip.blocked,.dev-chip.hold,.dev-chip.blocked_by_review,.dev-chip.machine_gate_hold,
+  .dev-chip.human_adjudication_required,.dev-chip.human_quality_hold,.dev-chip.segment_elapsed_hold,.dev-chip.slot_observed_with_missing,.dev-chip.no_supply,.dev-chip.no_qualified_supply,.dev-chip.fulfillment_insufficient,
+  .dev-chip.reliability_attention_required,.dev-chip.quality_history_attention_required,.dev-chip.quality_machine_attention,.dev-chip.quality_publish_hold,.dev-chip.quality_supply_hold,.dev-chip.quality_human_adjudication_required,.dev-chip.quality_human_hold,.dev-chip.attention_missing_slot,.dev-chip.attention_late_capture,.dev-chip.attention_inventory_hold,.dev-chip.attention_category_hold,.dev-chip.attention_repeated_content,.dev-chip.attention_evidence_limit,.dev-chip.actual_slot_observed_quality_hold,.dev-chip.personalization_integrity_hold { color:var(--danger); border-color:color-mix(in srgb,var(--danger) 55%,var(--line)); }
+  .dev-table { width:100%; display:table; overflow:visible; }
+  .dev-table-wrap { overflow-x:auto; max-width:100%; border:1px solid var(--line); border-radius:8px; }
+  .dev-table th,.dev-table td { min-width:105px; }
+  .dev-table th:first-child,.dev-table td:first-child { min-width:84px; }
+  .dev-table tr:last-child td { border-bottom:none; }
+  .dev-score { display:inline-flex; min-width:34px; justify-content:center; font-weight:800; color:var(--accent); }
+  .dev-code { display:inline-block; max-width:100%; overflow-wrap:anywhere; color:var(--text); background:var(--card2); border:1px solid var(--line);
+    border-radius:4px; padding:2px 6px; font:11px/1.5 ui-monospace,"SFMono-Regular",Consolas,monospace; }
+  .review-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 12px; margin-top:12px;
+    border:1px solid var(--line); border-radius:8px; background:var(--card); }
+  .review-toolbar select,.review-field select,.review-field textarea { min-height:34px; border:1px solid var(--line); border-radius:6px;
+    background:var(--card2); color:var(--text); padding:6px 8px; font:12px/1.4 inherit; }
+  .review-toolbar button,.review-toolbar a { min-height:34px; display:inline-flex; align-items:center; border:0; border-radius:6px; background:var(--accent); color:#fff; padding:6px 12px; font-weight:750; text-decoration:none; }
+  .review-status { color:var(--muted); font-size:11.5px; }
+  .review-input summary { color:var(--accent); cursor:pointer; font-size:11.5px; white-space:nowrap; }
+  .review-grid { display:grid; grid-template-columns:repeat(2,minmax(150px,1fr)); gap:8px; width:min(520px,78vw); padding:10px 0 4px; }
+  .review-material summary { color:var(--accent); cursor:pointer; font-size:11.5px; }
+  .review-material-body { width:min(620px,76vw); padding:10px 0 2px; }
+  .review-material-body b { display:block; margin-top:8px; font-size:11px; color:var(--muted); }
+  .review-material-body p { margin:3px 0; line-height:1.55; font-size:12px; }
+  .review-material-body ul { margin:5px 0 0; padding-left:18px; }
+  .review-material-body li { margin:4px 0; line-height:1.45; font-size:11.5px; }
+  .review-field { display:grid; gap:4px; color:var(--muted); font-size:10.5px; }
+  .review-field.notes { grid-column:1/-1; }
+  .review-field textarea { width:100%; min-height:64px; resize:vertical; }
+  @media(max-width:760px){
+    .wrap { padding-left:14px; padding-right:14px; }
+    .dev-section,.dev-section-head[id] { scroll-margin-top:120px; }
+    .dev-head { grid-template-columns:1fr; }
+    .dev-section-head { align-items:flex-start; flex-direction:column; gap:5px; }
+    .dev-section-head > span { max-width:100%; overflow-wrap:anywhere; }
+    .dev-state { min-width:0; }
+    .dev-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .dev-metrics.metric-six { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .dev-flow { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .dev-flow-step:nth-child(4n)::after { display:block; }
+    .dev-flow-step:nth-child(2n)::after,.dev-flow-step:last-child::after { display:none; }
+    .review-grid { width:72vw; grid-template-columns:1fr; }
+    .review-field.notes { grid-column:auto; }
+    .review-table-wrap { overflow:visible; border:0; }
+    .review-table,.review-table tbody,.review-table tr { display:block; width:100%; }
+    .review-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+    .review-table tbody { display:grid; gap:10px; }
+    .review-table tr { border:1px solid var(--line); border-radius:8px; background:var(--card); overflow:hidden; }
+    .review-table td { display:grid; grid-template-columns:88px minmax(0,1fr); gap:10px; min-width:0; padding:9px 10px; border-bottom:1px solid var(--line); }
+    .review-table td::before { content:attr(data-label); color:var(--muted); font-size:10.5px; font-weight:750; }
+    .review-table td:last-child { border-bottom:0; }
+    .review-table details,.review-table summary { min-width:0; }
+    .review-table .review-grid,.review-table .review-material-body { width:100%; }
+    .review-table .review-grid { grid-template-columns:1fr; }
+    .review-table .review-field.notes { grid-column:auto; }
+  }
+  @media(max-width:420px){
+    .dev-metrics,.dev-metrics.metric-six,.dev-flow { grid-template-columns:1fr; }
+    .dev-flow-step::after { display:none !important; }
+    .dev-mission { font-size:14.5px; padding:14px; }
+  }
 </style>
 </head>
 <body>
@@ -118,9 +238,8 @@ const TABS = [
   ["ads","광고"], ["ourdeals","우리 딜"],
   ["comments","댓글"], ["words","금지어"], ["users","사용자"], ["blueprint","개발관리"]
 ];
-// 개발관리 페이지 — David 고정법칙(2026-08-04): 블루프린트를 일회성 문서가
-// 아니라 살아 있는 개발관리 페이지로 쓰고, 관리자에서 바로 열 수 있어야 한다.
-const BLUEPRINT_URL = "https://claude.ai/code/artifact/8b9e7c06-306c-4dc6-ae70-0022db898419";
+// 개발관리 페이지는 관리자 전용 구조화 API의 읽기 전용 투영이다. 화면에 보이는
+// 상태를 승인·구현·배포 완료로 오해하지 않도록 각 경계를 함께 표시한다.
 let token = localStorage.getItem("admin_token") || "";
 let active = "dashboard";
 
@@ -529,21 +648,989 @@ async function renderAds(panel){
 }
 
 // ── 개발관리 ────────────────────────────────────────────────────────────────
-function renderBlueprint(panel){
+function devChip(state, label){
+  return `<span class="dev-chip ${esc(state)}">${esc(label)}</span>`;
+}
+function devStateLabel(state){
+  return ({
+    blueprint:"설계안", existing_to_migrate:"이전 대상", planned:"계획",
+    role_change:"역할 변경", existing_to_upgrade:"보강 대상",
+    blocked_by_review:"적대 검수 HOLD", complete:"완료",
+    complete_with_limits:"완료·한계", next:"다음",
+    local_candidate:"로컬 후보", local_machine_fixture:"기계 fixture",
+    existing_partial:"기존 경로·부분", local_qa_pending:"검수 중",
+    local_qa_pass_with_limits:"기계 QA 통과·한계",
+    local_code_qa_pass_with_limits:"코드 QA 통과·한계",
+    local_offline_proxy_pass_with_limits:"오프라인 대리 효용 통과·한계",
+    implemented_local_candidate:"로컬 후보 구현",
+    machine_fixture_ready:"기계 fixture 준비",
+    machine_observation_ready:"기계 후보 관측",
+    local_machine_observation:"기계 관측",
+    local_candidate_ready:"로컬 후보 준비",
+    local_candidate_with_limits:"로컬 후보·한계",
+    machine_gate_pass:"기계 게이트 통과",
+    machine_gate_hold:"기계 게이트 보류",
+    human_annotation_ready:"사람 표기 준비",
+    human_annotation_in_progress:"사람 표기 진행",
+    human_annotation_complete:"2인 표기 완료·판정 전",
+    human_adjudication_required:"2인 불일치·조정 필요",
+    human_quality_hold:"2인 일치·품질 보류",
+    human_quality_pass:"2인 만장일치 품질 통과",
+    human_adjudicated_pass:"불일치 조정 뒤 품질 통과",
+    active_current_packet:"현재 판 고정",
+    active_packet_pinned:"이전 판 검수 유지",
+    baseline_saved:"첫 판 저장",
+    compared:"이전 판 대조",
+    same_pool_replay_complete:"동일 풀 경로 리플레이",
+    inventory_complete:"판본 재고 완료",
+    inventory_complete_with_holds:"저장 완료·발행 보류 있음",
+    inventory_backlog:"판본 재고 백필 중",
+    elapsed_evidence_collecting:"실제 슬롯 증거 수집 중",
+    elapsed_evidence_complete_with_limits:"세 슬롯 관측·한계 있음",
+    actual_elapsed_evidence_complete:"실제 시간차 세 판 증명",
+    actual_elapsed_evidence_complete_with_segment_holds:"기본판 세 판 증명·일부 조합 보류",
+    segment_elapsed_complete:"조합별 세 판 충족",
+    segment_elapsed_hold:"조합별 세 판 보류",
+    slot_scheduler_armed:"자동 감시 대기",
+    slot_capture_window_open:"정시 수집창 열림",
+    slot_capture_overdue:"정시 수집 누락",
+    manual_only:"수동 점검만",
+    machine_lineage_pass:"주장 계보 통과",
+    machine_lineage_hold:"주장 계보 보류",
+    fulfillment_complete:"선택 분야 충족",
+    fulfillment_partial:"선택 분야 부분 충족",
+    fulfillment_insufficient:"선택 분야 미충족",
+    met:"충족",
+    underfilled:"보강 중",
+    no_supply:"공급 없음",
+    no_qualified_supply:"기계 유효 후보 없음",
+    disabled:"기본 OFF",
+    key_unavailable:"키 없음",
+    no_eligible_issues:"적격 이슈 없음",
+    unpublished_fallback:"발행 보류·결정론 유지",
+    cache_only:"검증 캐시만 사용",
+    verified_edits_applied:"검증 편집 적용",
+    verification_hold:"검증 거부·결정론 유지",
+    editor_error_fallback:"편집 오류·결정론 유지",
+    verifier_error_fallback:"검증 오류·결정론 유지",
+    slot_not_observed:"미관측",
+    slot_observed_complete:"완결 관측",
+    slot_observed_with_holds:"발행 보류 포함",
+    slot_observed_with_missing:"누락 포함",
+    waiting_for_first_slot:"첫 슬롯 대기",
+    local_code_qa_pass_actual_slot_pending:"코드 QA 통과·실제 슬롯 대기",
+    local_code_qa_pass_actual_history_pending:"코드 QA 통과·다일 이력 대기",
+    actual_slot_observed_quality_hold:"실제 슬롯 관측·사람 품질 HOLD",
+    reliability_attention_required:"신뢰도 확인 필요",
+    reliability_history_complete:"신뢰도 이력 완결",
+    reliability_collecting:"신뢰도 이력 수집 중",
+    quality_history_attention_required:"판본 품질 확인 필요",
+    quality_history_human_pass:"사람 품질 이력 통과",
+    quality_history_collecting:"판본 품질 이력 수집 중",
+    quality_review_not_sampled:"사람 검수 표본 없음",
+    quality_lineage_unavailable:"구형 판 계보 미지원",
+    quality_machine_attention:"기계 품질·계보 확인 필요",
+    quality_publish_hold:"발행 보류 판 포함",
+    quality_supply_hold:"분야 공급 보류",
+    quality_human_adjudication_required:"2인 불일치 조정 필요",
+    quality_human_pending:"사람 검수 대기",
+    quality_human_hold:"사람 품질 보류",
+    quality_human_pass:"사람 품질 통과",
+    quality_review_packets_frozen:"슬롯 검수 패킷 동결",
+    quality_review_packet_waiting:"검수 패킷 대기",
+    personalization_integrity_pass:"개인화 무결성 통과",
+    personalization_integrity_hold:"개인화 무결성 보류",
+    healthy_so_far:"현재까지 정상",
+    attention_missing_slot:"도래 슬롯 누락",
+    attention_late_capture:"정시창 이후 저장",
+    attention_inventory_hold:"판본 완결 보류",
+    attention_category_hold:"분야 공급 보류",
+    attention_repeated_content:"슬롯 내용 반복",
+    attention_evidence_limit:"증거 요건 미충족",
+    daily_evidence_complete:"일일 증거 완결",
+    not_observed:"런타임 미관측"
+  })[state] || state;
+}
+const EDITORIAL_REVIEW_FIELDS = [
+  ["include","포함 적합"],
+  ["clusterCorrect","클러스터 정확"],
+  ["headlineFaithful","헤드라인 충실"],
+  ["evidenceSufficient","근거 충분"],
+  ["categoryFit","분야 적합"]
+];
+function editorialReviewInput(row){
+  const fields = EDITORIAL_REVIEW_FIELDS.map(([field,label])=>{
+    const controlId=`review-${row.blindId}-${field}`;
+    return `<label class="review-field" for="${esc(controlId)}">${esc(label)}<select id="${esc(controlId)}" name="${esc(controlId)}" data-review-row="${esc(row.blindId)}" data-review-field="${esc(field)}"><option value="">대기</option><option value="true">예</option><option value="false">아니오</option></select></label>`;
+  }).join("");
+  const notesId=`review-${row.blindId}-notes`;
+  return `<details class="review-input"><summary>검수 입력</summary><div class="review-grid">${fields}<label class="review-field notes" for="${esc(notesId)}">메모<textarea id="${esc(notesId)}" name="${esc(notesId)}" maxlength="500" data-review-row="${esc(row.blindId)}" data-review-field="notes"></textarea></label></div></details>`;
+}
+function editorialReviewMaterial(row){
+  const refs=(row.refs||[]).map(ref=>`<li><b>${esc(ref.sourceLabel||"출처")}</b> ${esc(ref.title||"")}<br><span class="sub">추천 ${esc(ref.score||0)} · 댓글 ${esc(ref.commentCount||0)} · 관련 묶음 ${esc(ref.coverage||0)}</span></li>`).join("");
+  const evidence=(row.sourceEvidence||[]).map(ref=>`<li><span class="dev-code">${esc(ref.evidenceId||"—")}</span> <b>${esc(ref.sourceLabel||"출처")}</b> · ${esc(ref.sourceRole||"unknown")} · ${esc(ref.evidenceRole||"observation")}<br>${/^https?:\/\//i.test(ref.canonicalUrl||"")?`<a href="${esc(ref.canonicalUrl)}" target="_blank" rel="noopener noreferrer">${esc(ref.title||"원문 근거")}</a>`:esc(ref.title||"")}</li>`).join("");
+  return `<details class="review-material"><summary>편집문·근거 보기</summary><div class="review-material-body"><b>주제</b><p>${esc(row.subject||"—")}</p><b>편집 헤드라인</b><p>${esc(row.headline||"—")}</p><b>편집 문단</b><p>${esc(row.paragraph||"—")}</p><b>왜 중요</b><p>${esc(row.whyImportant||"—")}</p><b>왜 지금</b><p>${esc(row.whyHot||"—")}</p><b>근거 해시</b><p><span class="dev-code">${esc(row.evidenceHash||"—")}</span></p><b>출처 계보</b><ul>${evidence||"<li>계보 행 없음</li>"}</ul><b>측정 근거</b><ul>${refs||"<li>근거 행 없음</li>"}</ul></div></details>`;
+}
+function humanReviewProgress(summary){
+  if(!summary) return "집계 없음";
+  const a=summary.completedByReviewer&&summary.completedByReviewer["reviewer-a"];
+  const b=summary.completedByReviewer&&summary.completedByReviewer["reviewer-b"];
+  const agreement=summary.agreement&&summary.agreement.rate!=null?` · 일치 ${summary.agreement.rate}%`:"";
+  return `A ${a?a.completed:0}/${summary.requiredRows} · B ${b?b.completed:0}/${summary.requiredRows} · 2인 ${summary.doubleReviewed}/${summary.requiredRows}${agreement}`;
+}
+function reviewFieldLabel(field){
+  const found=EDITORIAL_REVIEW_FIELDS.find(([id])=>id===field);
+  return found?found[1]:field;
+}
+function reviewStatus(message, error=false){
+  const el=document.getElementById("editorialReviewStatus");
+  if(!el) return;
+  el.textContent=message;
+  el.style.color=error?"var(--danger)":"var(--muted)";
+}
+async function loadEditorialReview(packet){
+  if(!packet) return;
+  const reviewerId=document.getElementById("editorialReviewer").value;
+  reviewStatus("불러오는 중");
+  try{
+    const data=await api(`/api/admin/editorial-review?reviewerId=${encodeURIComponent(reviewerId)}`);
+    const byId=new Map((data.annotations||[]).map(row=>[row.blindId,row]));
+    document.querySelectorAll("[data-review-row][data-review-field]").forEach(control=>{
+      const row=byId.get(control.dataset.reviewRow)||{};
+      const value=row[control.dataset.reviewField];
+      if(control.tagName==="TEXTAREA") control.value=value||"";
+      else control.value=value===true?"true":value===false?"false":"";
+    });
+    reviewStatus(`${data.savedAt?`마지막 로컬 저장 ${when(data.savedAt)}`:"이 검수자의 저장 내역 없음"} · ${humanReviewProgress(data.humanReview)}`);
+  }catch(error){ reviewStatus(error.message,true); }
+}
+async function saveEditorialReview(packet, panel){
+  if(!packet) return;
+  const reviewerId=document.getElementById("editorialReviewer").value;
+  const button=document.getElementById("editorialReviewSave");
+  button.disabled=true;
+  reviewStatus("저장 중");
+  try{
+    const controls=[...document.querySelectorAll("[data-review-row][data-review-field]")];
+    const annotations=packet.rows.map(row=>{
+      const out={blindId:row.blindId};
+      for(const [field] of EDITORIAL_REVIEW_FIELDS){
+        const control=controls.find(el=>el.dataset.reviewRow===row.blindId&&el.dataset.reviewField===field);
+        out[field]=control.value==="true"?true:control.value==="false"?false:null;
+      }
+      const notes=controls.find(el=>el.dataset.reviewRow===row.blindId&&el.dataset.reviewField==="notes");
+      out.notes=notes?notes.value.trim():"";
+      return out;
+    });
+    const data=await api("/api/admin/editorial-review",{
+      method:"POST",
+      body:JSON.stringify({packetId:packet.packetId,editionId:packet.editionId,reviewerId,annotations})
+    });
+    reviewStatus(`로컬 저장 완료 ${when(data.savedAt)} · ${humanReviewProgress(data.humanReview)}`);
+    if(data.humanReview&&data.humanReview.comparisonReady) await renderBlueprint(panel);
+  }catch(error){ reviewStatus(error.message,true); }
+  finally{ button.disabled=false; }
+}
+function reviewQueueStatus(message, error=false){
+  const el=document.getElementById("editorialReviewPacketStatus");
+  if(!el) return;
+  el.textContent=message;
+  el.style.color=error?"var(--danger)":"var(--muted)";
+}
+async function activateEditorialReviewPacket(panel){
+  const select=document.getElementById("editorialReviewPacket");
+  const button=document.getElementById("editorialReviewPacketActivate");
+  if(!select||!button) return;
+  const option=select.options[select.selectedIndex];
+  button.disabled=true;
+  reviewQueueStatus("고정 중");
+  try{
+    await api("/api/admin/editorial-review-packet",{
+      method:"POST",
+      body:JSON.stringify({packetId:option.value,editionId:option.dataset.editionId})
+    });
+    await renderBlueprint(panel);
+  }catch(error){ reviewQueueStatus(error.message,true); }
+  finally{ button.disabled=false; }
+}
+function adjudicationStatus(message, error=false){
+  const el=document.getElementById("editorialAdjudicationStatus");
+  if(!el) return;
+  el.textContent=message;
+  el.style.color=error?"var(--danger)":"var(--muted)";
+}
+async function saveEditorialAdjudication(packet, panel){
+  const button=document.getElementById("editorialAdjudicationSave");
+  if(!button) return;
+  button.disabled=true;
+  adjudicationStatus("저장 중");
+  try{
+    const resolutions=[...document.querySelectorAll("[data-adjudication-value]")].map(control=>{
+      const notes=document.querySelector(`[data-adjudication-notes="${CSS.escape(control.dataset.adjudicationKey)}"]`);
+      return {
+        blindId:control.dataset.blindId,
+        field:control.dataset.field,
+        value:control.value==="true"?true:control.value==="false"?false:null,
+        notes:notes?notes.value.trim():""
+      };
+    });
+    const data=await api("/api/admin/editorial-review-adjudication",{
+      method:"POST",
+      body:JSON.stringify({packetId:packet.packetId,editionId:packet.editionId,resolutions})
+    });
+    adjudicationStatus(`조정 원장 저장 ${when(data.savedAt)} · ${devStateLabel(data.humanReview.state)}`);
+    await renderBlueprint(panel);
+  }catch(error){ adjudicationStatus(error.message,true); }
+  finally{ button.disabled=false; }
+}
+function wireEditorialReview(packet, panel){
+  if(!packet||!document.getElementById("editorialReviewer")) return;
+  document.getElementById("editorialReviewer").onchange=()=>loadEditorialReview(packet);
+  document.getElementById("editorialReviewSave").onclick=()=>saveEditorialReview(packet,panel);
+  const activate=document.getElementById("editorialReviewPacketActivate");
+  if(activate) activate.onclick=()=>activateEditorialReviewPacket(panel);
+  const adjudicate=document.getElementById("editorialAdjudicationSave");
+  if(adjudicate) adjudicate.onclick=()=>saveEditorialAdjudication(packet,panel);
+  loadEditorialReview(packet);
+}
+async function renderBlueprint(panel){
+  const { blueprint:b } = await api("/api/admin/product-blueprint");
+  const review = b.adversarialReview;
+  const alignmentReview = b.localEditorialEdition.purposeAlignmentAdversarialReviewReceipt;
+  const categoryArchitecture = b.categoryArchitecture;
+  const promises = b.promises.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)}</span><b>${esc(x.title)}</b><p>${esc(x.text)}</p></div>`).join("");
+  const principles = b.principles.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td><b>${esc(x.title)}</b></td><td>${esc(x.test)}</td></tr>`).join("");
+  const categoryLayers = categoryArchitecture.layers.map(x=>`<div class="dev-flow-step"><b>${esc(x.label)}</b><span>${esc(x.detail)}</span></div>`).join("");
+  const categoryPacks = categoryArchitecture.examplePacks.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)}</span><b>${esc(x.label)}</b><p>${x.state==="first_evidence_pack"?"현재 첫 증거 실험":"카테고리 정책 팩 예정"}</p></div>`).join("");
+  const categoryPackContract = categoryArchitecture.packContract.map(x=>`<span class="dev-code">${esc(x)}</span>`).join(" ");
+  const categoryBoundaries = categoryArchitecture.boundaries.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>범용 제품 경계</p></div>`).join("");
+  const flow = b.loop.map(x=>`<div class="dev-flow-step"><b>${esc(x.label)}</b><span>${esc(x.detail)}</span></div>`).join("");
+  const routes = b.routes.map(x=>`<tr><td><span class="dev-code">${esc(x.path)}</span></td><td><b>${esc(x.role)}</b></td><td>${esc(x.acceptance)}</td><td>${esc(x.index)}</td><td>${devChip(x.state,devStateLabel(x.state))}</td></tr>`).join("");
+  const fields = b.contentContract.map(x=>`<tr><td><span class="dev-code">${esc(x.field)}</span></td><td>${esc(x.role)}</td><td>${x.required?'<b style="color:var(--ok)">필수</b>':'조건부'}</td></tr>`).join("");
+  const benchmark = b.benchmarks.map(x=>`<tr><td>${esc(x.rank)}</td><td><b>${esc(x.name)}</b></td><td><span class="dev-score">${esc(x.score)}</span></td><td>${esc(x.adopt)}</td></tr>`).join("");
+  const selectionFlow = b.selectionEngine.stages.map(x=>`<div class="dev-flow-step"><b>${esc(x.id)} · ${esc(x.title)}</b><span>${esc(x.detail)}</span></div>`).join("");
+  const clusterContract = b.selectionEngine.clusterContract;
+  const clusterReceipt = b.localEditorialEdition.clusterQaReceipt;
+  const supplyReceipt = b.localEditorialEdition.categorySupplyQaReceipt;
+  const wordingReceipt = b.localEditorialEdition.evidenceWordingQaReceipt;
+  const funnelReceipt = b.localEditorialEdition.candidateFunnelQaReceipt;
+  const sourceRepairReceipt = b.localEditorialEdition.sourceRepairQaReceipt;
+  const eventDiversityReceipt = b.localEditorialEdition.eventDiversityQaReceipt;
+  const categoryFitReceipt = b.localEditorialEdition.categoryFitQaReceipt;
+  const categorySemanticLeakReceipt = b.localEditorialEdition.categorySemanticLeakQaReceipt;
+  const actualLunchSemanticReceipt = b.localEditorialEdition.actualLunchSemanticQaReceipt;
+  const actualLunchFullAuditReceipt = b.localEditorialEdition.actualLunchFullAuditQaReceipt;
+  const projectedPreflightReceipt = b.localEditorialEdition.projectedEditionPreflightQaReceipt;
+  const projectedReauditReceipt = b.localEditorialEdition.projectedQualityReauditQaReceipt;
+  const slotCaptureReceipt = b.localEditorialEdition.slotCaptureIntegrityQaReceipt;
+  const reliabilityReceipt = b.localEditorialEdition.reliabilityHistoryQaReceipt;
+  const qualityHistoryReceipt = b.localEditorialEdition.editorialQualityHistoryQaReceipt;
+  const personalizationProjectionReceipt = b.localEditorialEdition.personalizationProjectionQaReceipt;
+  const personalizationUtilityReceipt = b.localEditorialEdition.personalizationUtilityEvidenceReceipt;
+  const humanPilotReceipt = b.localEditorialEdition.humanBlindEditorialPilotReadyReceipt;
+  const continuityReaderReceipt = b.localEditorialEdition.continuityReaderShellQaReceipt;
+  const scoreAxes = b.selectionEngine.scoreAxes.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td><b>${esc(x.label)}</b></td><td>${esc(x.question)}</td><td>${esc(x.evidence)}</td></tr>`).join("");
+  const lanes = b.selectionEngine.lanes.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)}</span><b>${esc(x.label)}</b><p>${esc(x.rule)}</p></div>`).join("");
+  const llmRoles = b.selectionEngine.llmRoles.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td><b>${esc(x.role)}</b></td><td>${esc(x.modelClass)}</td></tr>`).join("");
+  const categoryPolicies = b.selectionEngine.categoryPolicies.map(x=>`<tr><td><b>${esc(x.category)}</b></td><td>${esc(x.priority)}</td><td>${esc(x.caution)}</td></tr>`).join("");
+  const trustFields = b.selectionEngine.sourceTrustFields.map(x=>`<span class="dev-code">${esc(x)}</span>`).join(" ");
+  const llmStops = b.selectionEngine.llmProhibitions.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>모델 단독 판단 금지</p></div>`).join("");
+  const qualityGates = b.selectionEngine.qualityGates.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)}</span><b>${esc(x.label)}</b><p>대표 평가 코퍼스와 현재 기준선 뒤 목표치 확정</p></div>`).join("");
+  const costControls = b.selectionEngine.costControls.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>비용·지연·실패율을 판본 영수증에 기록</p></div>`).join("");
+  const editions = b.editionPolicy.editions.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)}</span><b>${esc(x.label)}</b><p>${esc(x.role)}</p></div>`).join("");
+  const phases = b.phases.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td><b>${esc(x.title)}</b></td><td>${esc(x.gate)}</td><td>${devChip(x.state,x.label)}</td></tr>`).join("");
+  const requirements = b.requirements.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td>${esc(x.title)}</td><td>${devChip(x.state,x.label)}</td></tr>`).join("");
+  const sources = b.sourceFiles.map(x=>`<div class="dev-block"><div class="k">${esc(x.kind)}</div><span class="dev-code">${esc(x.path)}</span></div>`).join("");
+  const changes = b.changeLog.slice().reverse().map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${x.external?"있음":"없음"}</td></tr>`).join("");
+  const notNow = b.notNow.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>별도 설계와 승인 전에는 진행하지 않음</p></div>`).join("");
+  const reviewSeats = review.reviewers.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td><b>${esc(x.label)}</b>${x.independent?'':'<br><span class="sub">보충 렌즈</span>'}</td><td>${x.score==null?'—':esc(x.score)+"/"+esc(review.score.scale)}</td><td>${devChip("hold",x.verdict)}</td><td>${esc(x.focus)}</td></tr>`).join("");
+  const reviewFindings = review.commonFindings.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)} · ${esc(x.agreement)}</span><b>${esc(x.title)}</b><p>${esc(x.detail)}</p></div>`).join("");
+  const reviewExperiments = review.experiments.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)} · ${esc(x.proves)}</span><b>${esc(x.title)}</b><p>${esc(x.detail)}</p></div>`).join("");
+  const reviewKeep = review.keep.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>유지</p></div>`).join("");
+  const reviewSimplify = review.simplify.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>증거 전까지 단순화</p></div>`).join("");
+  const reviewGates = review.candidateGates.map(x=>`<span class="dev-code">${esc(x)}</span>`).join(" ");
+  const reviewFacts = review.hardFacts.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>현재 확인된 범위</p></div>`).join("");
+  const alignmentReviewSeats = alignmentReview.reviewers.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td><b>${esc(x.label)}</b></td><td>${esc(x.score)}/${esc(alignmentReview.score.scale)}</td><td>${devChip("hold",x.verdict)}</td><td>${esc(x.focus)}</td></tr>`).join("");
+  const alignmentReviewFindings = alignmentReview.commonFindings.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)} · 동의 ${esc(x.agreement)}</span><b>${esc(x.title)}</b><p>${esc(x.detail)}</p></div>`).join("");
+  const alignmentReviewNext = alignmentReview.nextAllowed.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>다음 허용 범위</p></div>`).join("");
+  const alignmentReviewStops = alignmentReview.stopUntilClosed.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>현재 HOLD</p></div>`).join("");
+  const beachhead = review.beachhead;
+  const beachheadDesks = beachhead.desks.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)}</span><b>${esc(x.label)}</b><p>${esc(x.includes)}</p></div>`).join("");
+  const beachheadChannels = beachhead.impactChannels.map(x=>`<span class="dev-code">${esc(x)}</span>`).join(" ");
+  const beachheadExcludes = beachhead.exclude.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>일반 브리핑 제외</p></div>`).join("");
+  const beachheadOutputs = beachhead.outputs.map(x=>`<span class="dev-code">${esc(x)}</span>`).join(" ");
+  const sourceAudit = beachhead.sourceAudit;
+  const sourceCategoryRows = Object.entries(sourceAudit.current.byCategory).map(([category,count])=>`<tr><td><span class="dev-code">${esc(category)}</span></td><td>${esc(count)}</td></tr>`).join("");
+  const sourceCandidates = sourceAudit.candidates.map(x=>`<tr><td>${esc(x.priority)}</td><td><b>${esc(x.desk)}</b></td><td><a href="${esc(x.officialUrl)}" target="_blank" rel="noopener noreferrer">${esc(x.source)}</a></td><td>${esc(x.access)}</td><td>${esc(x.credential)}</td><td>${x.enabled?devChip("complete","등록·활성"):x.registered?devChip("waiting","등록·비활성"):devChip("waiting",x.verification)}</td></tr>`).join("");
+  const sourceGaps = sourceAudit.gaps.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>E1 입력 HOLD 근거</p></div>`).join("");
+  const sourceQueue = sourceAudit.nextQueue.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.order)}</span><b>${esc(x.title)}</b> ${devChip(x.state,devStateLabel(x.state))}<p>${esc(x.detail)}</p></div>`).join("");
+  const sourceSample = beachhead.sourceSample;
+  const e1Boundary = b.editorialQualityContract.evaluationBoundary;
+  const deskLabels = Object.fromEntries(beachhead.desks.map(x=>[x.id,x.label]));
+  const sampleReportsById = Object.fromEntries(sourceSample.reports.map(x=>[x.id,x]));
+  const sampleDeskRows = Object.entries(sourceSample.metrics.deskCounts).map(([desk,count])=>`<tr><td><span class="dev-code">${esc(desk)}</span></td><td><b>${esc(deskLabels[desk]||desk)}</b></td><td>${esc(count)}</td></tr>`).join("");
+  const sampleReportRows = sourceSample.reports.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td><b>${esc(deskLabels[x.desk]||x.desk)}</b></td><td>${esc(x.publisher)}<br><span class="sub">${esc(x.ownershipGroup)}</span></td><td><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a><br><span class="sub">${esc(x.publishedAt)}</span></td><td>${x.poolMatchCount>1?devChip("complete_with_limits",`${x.poolMatchCount}행 → 1 URL`):"1"}</td></tr>`).join("");
+  const sampleCheckRows = sourceSample.officialChecks.map(x=>{
+    const report = sampleReportsById[x.reportId];
+    const links = x.urls.map((url,index)=>`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">공식 ${index+1}</a>`).join(" · ");
+    const verdict = x.status==="matched"?devChip("complete","일치"):devChip("complete_with_limits","부분 일치");
+    return `<tr><td><span class="dev-code">${esc(x.id)}</span><br>${verdict}</td><td><b>${esc(x.reportId)}</b><br><span class="sub">${esc(report?report.title:"")}</span></td><td>${esc(x.trigger)}</td><td><b>${esc(x.source)}</b><br>${links}</td><td>${esc(x.result)}<br><span class="sub">한계: ${esc(x.limit)}</span></td></tr>`;
+  }).join("");
+  const sampleFindings = sourceSample.findings.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>표본 관측</p></div>`).join("");
+  const localEvidence = b.localEditorialEvidence || {state:"not_observed"};
+  const localPreview = localEvidence.preview || null;
+  const localFixture = localEvidence.fixture || null;
+  const localMetrics = localFixture ? localFixture.metrics : null;
+  const localQuality = localEvidence.editorialQuality || null;
+  const localFulfillment = localEvidence.categoryFulfillment || null;
+  const localServing = localEvidence.servingGate || null;
+  const localLineage = localEvidence.editorialLineage || null;
+  const localLlm = localEvidence.editorialLlm || null;
+  const localLlmCanary = localEvidence.llmCanary||(b.localEditorialEdition&&b.localEditorialEdition.editorialLineageReceipt&&b.localEditorialEdition.editorialLineageReceipt.canary)||null;
+  const localLlmCanarySummary = !localLlmCanary ? "준비 영수증 없음"
+    : localLlmCanary.actualReceipt
+      ? `실행 ${esc(localLlmCanary.externalCalls)}/${esc(localLlmCanary.maxCalls)}회 · 적용 ${esc(localLlmCanary.edited)} · 거부 ${esc(localLlmCanary.rejected)} · 토큰 ${esc(localLlmCanary.inputTokens)}/${esc(localLlmCanary.outputTokens)}`
+      : `dry-run ${esc(localLlmCanary.requestedIssueCount)}개 이슈 통과 · 최대 ${esc(localLlmCanary.maxCalls)}회 · 실제 호출 ${esc(localLlmCanary.externalCalls)}회 · 키와 명시 승인 대기`;
+  const localChange = localEvidence.editionChange || null;
+  const localInventory = localEvidence.inventory || null;
+  const localElapsed = localEvidence.elapsedEvidence || null;
+  const localReliability = localEvidence.reliabilityHistory || null;
+  const localQualityHistory = localEvidence.qualityHistory || null;
+  const localQualitySampling = localEvidence.qualityReviewSampling || null;
+  const localPersonalization = localEvidence.personalization || null;
+  const localScheduler = localEvidence.scheduler || null;
+  const localSchedulerNext = localScheduler && localScheduler.nextAction || null;
+  const localReplay = localEvidence.editionReplay || null;
+  const localReview = localEvidence.reviewPacket || null;
+  const readerFreezeReceipt = b.localEditorialEdition.readerPayloadFreezeQaReceipt;
+  const readerEventFrameReceipt = b.localEditorialEdition.readerEventFrameQaReceipt;
+  const readerEventReview = readerEventFrameReceipt.adversarialReview;
+  const readerEventReviewRows = readerEventReview.reviewers.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td><b>${esc(x.lens)}</b></td><td>${esc(x.score)}/100</td><td>${devChip("hold",x.verdict)}</td><td>${esc(x.finding)}</td></tr>`).join("");
+  const independentAudit = b.localEditorialEdition.independentAdversarialAuditReceipt;
+  const independentAuditRows = independentAudit.reviewers.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td><b>${esc(x.lens)}</b></td><td>${esc(x.score)}/100</td><td>${devChip(x.verdict==="BLOCK"?"blocked":"hold",x.verdict)}</td><td>${esc(x.finding)}</td></tr>`).join("");
+  const independentAuditFindings = independentAudit.confirmedFindings.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)} · ${esc(x.severity)} · ${esc(x.state)}</span><b>${esc(x.title)}</b><p>운영 승격 전 폐쇄</p></div>`).join("");
+  const independentAuditReproductions = independentAudit.directReproductions.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)} · 직접 재현</span><b>${esc(x.path)}</b><p>${esc(x.cause)}</p></div>`).join("");
+  const repairReceipt = b.localEditorialEdition.counterexampleRepairReceipt;
+  const repairRows = repairReceipt.repairs.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td>${devChip("complete_with_limits","PASS")}</td><td>${esc(x.repair)}</td></tr>`).join("");
+  const reauditReceipt = b.localEditorialEdition.independentReauditReceipt;
+  const reauditRows = reauditReceipt.reviewers.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td><b>${esc(x.lens)}</b></td><td>${esc(x.score)}/100</td><td>${devChip(x.verdict==="BLOCK"?"blocked":"hold",x.verdict)}</td><td>${esc(x.finding)}</td></tr>`).join("");
+  const reauditReproductions = reauditReceipt.directReproductions.map(x=>`<div class="dev-list-item"><span class="dev-id">${esc(x.id)} · ${esc(x.severity)} · ${esc(x.result)}</span><b>${esc(x.title)}</b><p>${esc(x.detail)}</p></div>`).join("");
+  const reauditAcceptance = reauditReceipt.nextRequired.acceptance.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b></div>`).join("");
+  const servingRepairReceipt = b.localEditorialEdition.serveableEditionRepairReceipt;
+  const servingRepairRows = servingRepairReceipt.repairs.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td>${devChip("complete_with_limits","PASS")}</td><td>${esc(x.repair)}</td></tr>`).join("");
+  const readerLineageReceipt = b.localEditorialEdition.readerLineageGroundingRepairReceipt;
+  const readerLineageRows = readerLineageReceipt.repairs.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td>${devChip("complete_with_limits","PASS")}</td><td>${esc(x.repair)}</td></tr>`).join("");
+  const eventContinuityReceipt = b.localEditorialEdition.eventContinuityFrameRepairReceipt;
+  const eventContinuityRows = eventContinuityReceipt.repairs.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td>${devChip("complete_with_limits","PASS")}</td><td>${esc(x.repair)}</td></tr>`).join("");
+  const categoryUniqueReceipt = b.localEditorialEdition.categoryUniqueFulfillmentRepairReceipt;
+  const categoryUniqueRows = categoryUniqueReceipt.repairs.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td>${devChip("complete_with_limits","PASS")}</td><td>${esc(x.repair)}</td></tr>`).join("");
+  const feedbackRollbackReceipt = b.localEditorialEdition.feedbackRollbackRepairReceipt;
+  const feedbackRollbackRows = feedbackRollbackReceipt.repairs.map(x=>`<tr><td><span class="dev-code">${esc(x.id)}</span></td><td>${devChip("complete_with_limits","PASS")}</td><td>${esc(x.repair)}</td></tr>`).join("");
+  const localReaderRows = localReview && Array.isArray(localReview.rows) ? localReview.rows : [];
+  const localReaderFrozen = localReaderRows.filter(x=>x.reader).length;
+  const localReaderIssuePass = localReaderRows.filter(x=>x.readerGate&&x.readerGate.pass).length;
+  const localReaderIssueHold = localReaderRows.length-localReaderIssuePass;
+  const localReaderFailures = [...new Set(localReaderRows.flatMap(x=>x.readerGate&&x.readerGate.failures||[]))];
+  const localReaderDiversity = localReview&&localReview.readerDiversity || null;
+  const localReaderDiversityRows = localReaderDiversity ? Object.entries(localReaderDiversity.fields||{}).map(([field,row])=>`<tr><td data-label="독자 필드"><span class="dev-code">${esc(field)}</span></td><td data-label="고유 문장">${esc(row.distinctCount)}</td><td data-label="최다 동일 반복">${esc(row.maxExactRepeat)}</td><td data-label="허용">${esc(row.allowedExactRepeat)}</td><td data-label="판정">${devChip(row.pass?"complete_with_limits":"hold",row.pass?"PASS":"HOLD")}</td></tr>`).join("") : "";
+  const readerPacketMachineState = localReview&&localReview.machineState || readerFreezeReceipt.actualRuntime.machineState;
+  const readerPacketHumanState = localReview&&localReview.humanState || readerFreezeReceipt.actualRuntime.humanState;
+  const readerCanonicalPass = localReview&&localReview.metrics&&localReview.metrics.canonicalMachinePass || 0;
+  const humanReview = localReview && localReview.humanReview || null;
+  const localReviewQueue = localReview && localReview.queue || null;
+  const localCandidateRows = localFixture ? localFixture.candidates.slice(0,12).map(x=>`<tr><td><span class="dev-code">${esc(x.candidateId)}</span></td><td><b>${esc(x.categoryLabel)}</b></td><td>${esc(x.sourceLabel)}<br><span class="sub">${esc(x.sourceRole)} · ${esc(x.ownershipGroup)}</span></td><td>${esc(x.title)}</td><td>${esc(x.signals.score)} · ${esc(x.signals.comments)} · ${esc(x.signals.coverage)}</td></tr>`).join("") : "";
+  const localReplayRows = localReplay ? localReplay.slots.map(x=>{
+    const fulfillment=x.categoryFulfillment||null;
+    const held=fulfillment?[...(fulfillment.missingCategoryIds||[]),...(fulfillment.noQualifiedCategoryIds||[]),...(fulfillment.underfilledCategoryIds||[])]:[];
+    const fulfillmentCell=!fulfillment?"—":`${devChip(fulfillment.goalSatisfied?"complete_with_limits":"hold",`${esc(fulfillment.metCount)}/${esc(fulfillment.selectedCount)}`)}${held.length?`<br><span class="sub">보류 ${esc([...new Set(held)].join(" · "))}</span>`:""}`;
+    return `<tr><td><b>${esc(x.label)}</b><br><span class="dev-code">${esc(x.id)}</span></td><td>${esc(x.candidateIssueCount)}</td><td>${esc(x.selectedIssueCount)}</td><td>${fulfillmentCell}</td><td>${esc(x.counts.baseline)} · ${esc(x.counts.new)} · ${esc(x.counts.material_update)}</td><td>${esc(x.counts.reaction_update)} · ${esc(x.counts.unchanged)} · ${esc(x.heldRepeatCount)}</td><td>${x.publishable?devChip("complete_with_limits","3건 이상"):devChip("hold","3건 미만")}</td></tr>`;
+  }).join("") : "";
+  const localPreflightSlot = localReplay && localReplay.slots.find(x=>localSchedulerNext&&x.id===localSchedulerNext.slotId)
+    || localReplay && localReplay.slots[localReplay.slots.length-1] || null;
+  const localPreflight = localPreflightSlot && localPreflightSlot.preflightReview || null;
+  const localPreflightRows = localPreflight ? localPreflight.rows.map(x=>`<tr><td data-label="블라인드 ID"><span class="dev-code">${esc(x.blindId)}</span></td><td data-label="분야">${esc((x.categoryIds||[]).join(" · "))}</td><td data-label="사전검수 자료">${editorialReviewMaterial(x)}</td><td data-label="기계 판정">${x.machineGate&&x.machineGate.pass?devChip("machine_gate_pass","통과"):devChip("machine_gate_hold","보류")}</td></tr>`).join("") : "";
+  const localInventoryRows = localInventory ? localInventory.slots.map(x=>`<tr><td><b>${esc(x.label)}</b><br><span class="dev-code">${esc(x.id)}</span></td><td>${esc(when(x.asOf))}</td><td>${esc(x.expected)}</td><td>${esc(x.stored)}</td><td>${esc(x.publishable)}</td><td>${x.missing?devChip("inventory_backlog",`${x.missing} 누락`):devChip("inventory_complete","완료")}</td></tr>`).join("") : "";
+  const localSegmentRows = localInventory ? localInventory.segments.map(x=>`<tr><td><span class="dev-code">${esc(x.key)}</span>${x.isDefault?`<br>${devChip("complete_with_limits","기본판")}`:""}</td><td>${esc(x.categories.join(" · "))}</td><td>${esc(x.audienceCount)}</td><td>슬롯당 1판 공유</td></tr>`).join("") : "";
+  const localElapsedRows = localElapsed ? localElapsed.slots.map(x=>`<tr><td><b>${esc(x.slotLabel)}</b><br><span class="dev-code">${esc(x.slotId)}</span></td><td>${x.asOf?esc(when(x.asOf)):"—"}</td><td>${x.proofObservedAt||x.observedAt?esc(when(x.proofObservedAt||x.observedAt)):"—"}<br><span class="sub">${esc(x.timingBasis||"—")}</span></td><td>${Number.isFinite(x.delayMs)?esc(Math.round(x.delayMs/60000))+"분":"—"}</td><td>${devChip(x.state,devStateLabel(x.state))}<br><span class="sub">${esc(x.captureMode)}</span></td><td>${x.expected==null?"—":`${esc(x.stored)}/${esc(x.expected)} · 발행 ${esc(x.publishable)}`}</td><td><span class="dev-code">${esc(x.contentFingerprint||"—")}</span></td></tr>`).join("") : "";
+  const localElapsedSegmentRows = localElapsed&&localElapsed.segmentProofs ? localElapsed.segmentProofs.map(x=>`<tr><td><span class="dev-code">${esc(x.segmentKey)}</span>${x.isDefault?`<br>${devChip("complete_with_limits","기본판")}`:""}</td><td>${esc((x.categories||[]).join(" · "))}</td><td>${esc(x.onTimeCount)}/${esc(x.observedCount)}</td><td>${esc(x.publishableCount)}/${esc(x.storedCount)}</td><td>${esc(x.fulfillmentCount)}/${esc(x.observedCount)}</td><td>${esc(x.distinctContentCount)}</td><td>${devChip(x.actualElapsedTimeProof?"segment_elapsed_complete":"segment_elapsed_hold",x.actualElapsedTimeProof?"PASS":"HOLD")}</td></tr>`).join("") : "";
+  const localReliabilityRows = localReliability ? localReliability.rows.map(x=>`<tr><td><b>${esc(x.date)}</b></td><td>${devChip(x.state,devStateLabel(x.state))}</td><td>${esc(x.capturedCount)}/${esc(x.expectedSlotCount)}</td><td>${esc(x.onTimeCount)}</td><td>${esc(x.readyCount)}</td><td>${esc(x.distinctContentCount)}</td><td>${x.heldCategoryIds.length?esc(x.heldCategoryIds.join(" · ")):"없음"}</td></tr>`).join("") : "";
+  const localQualityRows = localQualityHistory ? localQualityHistory.rows.map(x=>{
+    const evidenceModes=Object.entries(x.evidenceModes||{}).map(([mode,count])=>`${mode} ${count}`).join(" · ")||"없음";
+    const humanProgress=x.reviewPacketCount?`${x.humanDoubleReviewed}/${x.humanRequiredRows}행 · PASS ${x.humanQualityPassEditions}/${x.reviewPacketCount}판`:"미표본";
+    return `<tr><td><b>${esc(x.date)} · ${esc(x.slotLabel)}</b><br><span class="dev-code">${esc(x.slotId)}</span></td><td>${devChip(x.state,devStateLabel(x.state))}</td><td>${esc(x.publishableCount)}/${esc(x.editionCount)} · 분야 ${esc(x.fulfillmentCount)}/${esc(x.editionCount)}</td><td>${esc(x.issueCount)} · 기계 ${esc(x.machineHold)} · 계보 실패 ${esc(x.lineageHold)}<br><span class="sub">구형 미지원 ${esc(x.lineageUnavailable)}</span></td><td>${esc(x.sourceEvidenceCount)}건<br><span class="sub">${esc(evidenceModes)}</span></td><td>${esc(x.overseasSharePct)}%</td><td>${esc(humanProgress)}</td></tr>`;
+  }).join("") : "";
+  const localReviewRows = localReview ? localReview.rows.map(x=>`<tr><td data-label="블라인드 ID"><span class="dev-code">${esc(x.blindId)}</span></td><td data-label="분야">${esc((x.categoryIds||[]).join(" · "))}</td><td data-label="판단 자료">${editorialReviewMaterial(x)}</td><td data-label="근거 모드">${esc(x.evidence&&x.evidence.mode||"—")}</td><td data-label="사람 입력">${editorialReviewInput(x)}</td></tr>`).join("") : "";
+  const localReviewQueueOptions = localReviewQueue ? localReviewQueue.items.map(x=>`<option value="${esc(x.packetId)}" data-edition-id="${esc(x.editionId)}"${x.isActive?" selected":""}>${esc(`${x.date||"날짜 미상"} · ${x.slotId||"슬롯 미상"} · ${x.issueCount}건 · ${devStateLabel(x.state)}`)}</option>`).join("") : "";
+  const localAdjudicationRows = humanReview&&humanReview.adjudication&&humanReview.adjudication.rows ? humanReview.adjudication.rows.map(x=>{
+    const key=`${x.blindId}|${x.field}`;
+    const a=x.reviewerValues&&x.reviewerValues["reviewer-a"];
+    const b=x.reviewerValues&&x.reviewerValues["reviewer-b"];
+    const value=x.value===true?"true":x.value===false?"false":"";
+    return `<tr><td><span class="dev-code">${esc(x.blindId)}</span></td><td>${esc(reviewFieldLabel(x.field))}</td><td>A ${a?"예":"아니오"} · B ${b?"예":"아니오"}</td><td><label class="review-field" for="adjudication-${esc(x.blindId)}-${esc(x.field)}">최종 판정<select id="adjudication-${esc(x.blindId)}-${esc(x.field)}" data-adjudication-value data-adjudication-key="${esc(key)}" data-blind-id="${esc(x.blindId)}" data-field="${esc(x.field)}"><option value=""${value===""?" selected":""}>미결</option><option value="true"${value==="true"?" selected":""}>예</option><option value="false"${value==="false"?" selected":""}>아니오</option></select></label></td><td><label class="review-field" for="adjudication-note-${esc(x.blindId)}-${esc(x.field)}">근거 메모<textarea id="adjudication-note-${esc(x.blindId)}-${esc(x.field)}" maxlength="500" data-adjudication-notes="${esc(key)}">${esc(x.notes||"")}</textarea></label></td></tr>`;
+  }).join("") : "";
+  const localLineageRoleRows = localLineage ? Object.entries(localLineage.sourceRoles||{}).map(([role,count])=>`<tr><td><span class="dev-code">${esc(role)}</span></td><td>${esc(count)}</td></tr>`).join("") : "";
+  const localFulfillmentRows = localFulfillment ? localFulfillment.rows.map(x=>`<tr><td><b>${esc(x.label)}</b><br><span class="dev-code">${esc(x.categoryId)}</span></td><td>${esc(x.candidateCount)}</td><td>${x.machinePassClusterCount==null?"—":esc(x.machinePassClusterCount)}</td><td>${x.qualifiedClusterCount==null?"—":esc(x.qualifiedClusterCount)}</td><td>${x.draftSelectedCount==null?"—":esc(x.draftSelectedCount)}</td><td>${x.eligibleIssueCount==null?esc(x.issueCount):esc(x.eligibleIssueCount)}</td><td>${esc(x.issueCount)}</td><td>${esc(x.target)}</td><td>${devChip(x.state,devStateLabel(x.state))}</td></tr>`).join("") : "";
+  const localLimits = localFixture ? localFixture.limits.map(x=>`<div class="dev-list-item"><b>${esc(x)}</b><p>통과로 올리지 않은 한계</p></div>`).join("") : '<div class="dev-list-item"><b>이 서버에서는 로컬 편집 플래그가 꺼져 있습니다.</b><p>런타임 관측 없음</p></div>';
+
   panel.innerHTML = `
-    <div class="panel-h">🗺 개발관리 — 업그레이드 블루프린트</div>
-    <p class="empty" style="text-align:left">지금 무엇을 왜 만들고 있고 다음이 뭔지, 실측 기준선과 완료 판정이 전부 여기 있습니다. 새 결정과 측정이 나올 때마다 갱신됩니다.</p>
-    <p style="margin:12px 0"><a href="${BLUEPRINT_URL}" target="_blank" rel="noopener"
-      style="display:inline-block;background:var(--accent);color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;font-weight:600">
-      블루프린트 열기 ↗</a></p>
-    <div class="panel-h">현재 단계</div>
-    <table><thead><tr><th>단계</th><th>내용</th><th>상태</th></tr></thead><tbody>
-      <tr><td>P0</td><td>수익 파이프라인 측정 복구</td><td><span class="pill">진행 중</span></td></tr>
-      <tr><td>P1</td><td>딜 섹션 독립 (구매 의도 트래픽)</td><td>대기</td></tr>
-      <tr><td>P2</td><td>우리 클릭을 랭킹에 반영</td><td>대기</td></tr>
-      <tr><td>P3</td><td>품질 게이트 (2단 승급)</td><td>대기</td></tr>
-      <tr><td>P4</td><td>차별점 — 언론 대 여론</td><td>대기</td></tr>
-    </tbody></table>`;
+    <div class="dev-head">
+      <div>
+        <div class="dev-kicker">${esc(b.stableId)} · ${esc(b.updatedAt)}</div>
+        <h2>개발관리</h2>
+        <div class="dev-summary">영구 제품헌장을 기준으로 개인화 하루 세 판, 선별·편집·LLM 엔진, 서비스 구조, 개발 단계와 금지선을 한 화면에서 대조합니다. 이 화면은 로컬 정본의 읽기 전용 투영이며 보이는 상태만으로 승인·구현·배포가 완료되지는 않습니다.</div>
+      </div>
+      <div class="dev-state">
+        <strong>${esc(b.status.label)}</strong>
+        <span>${esc(b.status.detail)}</span>
+        <span style="margin-top:7px">로컬 고도화 ${b.status.localExperimentAllowed?"허용":"보류"} · 운영 전환 ${b.status.deploymentAllowed?"허용":"금지"}</span>
+      </div>
+    </div>
+    <div class="dev-alert"><b>LOCAL ONLY</b><span>운영 main·실사용자·광고 계정에는 반영되지 않았습니다.</span><span class="dev-code">${esc(b.changeId)}</span></div>
+    <div class="dev-metrics">
+      <div class="dev-metric"><div class="k">제품 목표 · ${esc(b.productGoal.label)}</div><div class="v">${esc(b.productGoal.value)}</div><div class="n">${esc(b.productGoal.detail)}</div></div>
+      <div class="dev-metric"><div class="k">독립 적대적 검수</div><div class="v">${esc(review.label)}</div><div class="n">${esc(review.execution.independentSeats)}/${esc(review.execution.independentSeats)} · 평균 ${esc(review.score.mean)}/${esc(review.score.scale)} · 진단용</div></div>
+      <div class="dev-metric"><div class="k">현재 설계 게이트</div><div class="v">${esc(b.currentGate.id)}</div><div class="n">${esc(b.currentGate.title)}</div></div>
+      <div class="dev-metric"><div class="k">다음 허용 작업</div><div class="v">${esc(b.nextPhase.id)}</div><div class="n">${esc(b.nextPhase.title)} · ${esc(b.nextPhase.gate)}</div></div>
+    </div>
+    <nav class="dev-jump" aria-label="개발관리 섹션">
+      <a href="#dev-charter">영구 목표</a><a href="#dev-categories">카테고리 구조</a><a href="#dev-loop">제품 순환</a><a href="#dev-structure">서비스 도면</a>
+      <a href="#dev-contract">콘텐츠 계약</a><a href="#dev-selection">선별·편집</a><a href="#dev-review">적대 검수</a><a href="#dev-source-sample">20+5 표본</a><a href="#dev-local-edition">로컬 오늘판</a><a href="#dev-roadmap">개발 단계</a><a href="#dev-evidence">근거·기록</a>
+    </nav>
+
+    <section class="dev-section" id="dev-charter">
+      <div class="dev-section-head"><h3>00. 영구 제품헌장</h3><span>${esc(b.charterId)}</span></div>
+      <div class="dev-mission"><span class="dev-kicker">${esc(b.tagline)} ${esc(b.operatingPromise)}</span><br>${esc(b.mission)}</div>
+      <div class="dev-grid">
+        <div class="dev-block"><div class="k">핵심 사용자</div><p>${esc(b.audience)}</p></div>
+        <div class="dev-block"><div class="k">핵심 사용 순간</div><p>${esc(b.primaryUse)}</p></div>
+        <div class="dev-block"><div class="k">북극성 지표 후보</div><p><b>${esc(b.northStar.name)}</b><br>${esc(b.northStar.definition)}<br>${devChip("waiting",b.northStar.label)}</p></div>
+      </div>
+      <div class="dev-list">${promises}</div>
+    </section>
+
+    <section class="dev-section" id="dev-categories">
+      <div class="dev-section-head"><h3>00-A. 범용 카테고리 구조</h3><span>${esc(categoryArchitecture.stableId)} · ${devChip("complete","범위 교정")}</span></div>
+      <div class="dev-mission"><span class="dev-kicker">${esc(categoryArchitecture.label)}</span><br>${esc(categoryArchitecture.doctrine)}</div>
+      <div class="dev-flow" style="margin-top:14px">${categoryLayers}</div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>카테고리 정책 팩</h3><span>예시 목록 · 계속 확장 가능</span></div>
+      <div class="dev-list">${categoryPacks}</div>
+      <div class="dev-block"><div class="k">모든 팩의 공통 계약</div><p>${categoryPackContract}</p></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>파일럿 경계</h3><span>경제 전문 서비스로 오해하지 않음</span></div>
+      <div class="dev-list">${categoryBoundaries}</div>
+    </section>
+
+    <section class="dev-section" id="dev-loop">
+      <div class="dev-section-head"><h3>01. 제품 순환과 불변 원칙</h3><span>수집량이 아니라 이해·검증·재방문</span></div>
+      <div class="dev-flow">${flow}</div>
+      <div class="dev-table-wrap" style="margin-top:14px"><table class="dev-table"><thead><tr><th>ID</th><th>원칙</th><th>판정 질문</th></tr></thead><tbody>${principles}</tbody></table></div>
+    </section>
+
+    <section class="dev-section" id="dev-structure">
+      <div class="dev-section-head"><h3>02. 서비스 구조 도면</h3><span>최신 개인판이 홈, 실시간은 같은 서비스의 모드</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>경로</th><th>역할</th><th>수용 조건</th><th>색인</th><th>상태</th></tr></thead><tbody>${routes}</tbody></table></div>
+      <div class="dev-grid">
+        <div class="dev-block"><div class="k">데스크톱 첫 화면</div><p>고정 상위 개수 없이 자세한 핵심 행과 실시간 상승을 함께 보여주고 다음 섹션 시작을 노출합니다. 대형 히어로는 두지 않습니다.</p></div>
+        <div class="dev-block"><div class="k">모바일 첫 화면</div><p>첫 핵심 사건과 이어지는 요약 행을 밀도 있게 보여주며 나머지 선택 분야 사건이 같은 페이지로 계속 이어집니다.</p></div>
+        <div class="dev-block"><div class="k">동적 분량</div><p>${esc(b.personalizationPolicy.manyCategoryRule)}. 품질 미달 후보로 분량을 채우지 않습니다.</p></div>
+        <div class="dev-block"><div class="k">선택 밖 사건</div><p>일반 지면 자동 혼합은 ${esc(b.personalizationPolicy.automaticUnselectedMixShare)}이며, 영향 문턱이 높은 사건만 전체 필수 레인에 분리합니다.</p></div>
+        <div class="dev-block"><div class="k">이동 법칙</div><p>브랜드는 항상 홈으로, 뒤로가기는 직전 필터와 스크롤 위치로 돌아갑니다.</p></div>
+      </div>
+    </section>
+
+    <section class="dev-section" id="dev-contract">
+      <div class="dev-section-head"><h3>03. 사건 클러스터 콘텐츠 계약</h3><span>홈·실시간·상세·아카이브가 같은 원본 사용</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>필드</th><th>역할</th><th>조건</th></tr></thead><tbody>${fields}</tbody></table></div>
+      <div class="dev-grid">
+        <div class="dev-block"><div class="k">무슨 일</div><p>교차 확인된 현재 사실 한 문장</p></div>
+        <div class="dev-block"><div class="k">왜 중요·왜 뜨나</div><p>놓치면 잃는 가치와 평소 대비 반응량·속도·독립 출처 확산 근거</p></div>
+        <div class="dev-block"><div class="k">왜 내게·달라진 점</div><p>명시적 선택과의 연결, 이전 판 이후 새 사실·수치·상태</p></div>
+        <div class="dev-block"><div class="k">관전</div><p>아직 일어나지 않았거나 확인되지 않은 다음 체크포인트</p></div>
+      </div>
+    </section>
+
+    <section class="dev-section" id="dev-selection">
+      <div class="dev-section-head"><h3>04. 선별·정리·LLM 편집 엔진</h3><span>${esc(b.selectionEngine.stableId)} · ${esc(b.selectionEngine.label)}</span></div>
+      <div class="dev-mission">${esc(b.selectionEngine.doctrine)}</div>
+      <div class="dev-flow" style="margin-top:14px">${selectionFlow}</div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>사건 결합 계약</h3><span>v${esc(clusterContract.version)} · 오병합 우선 차단</span></div>
+      <div class="dev-grid">
+        <div class="dev-block"><div class="k">문단 결합</div><p>${esc(clusterContract.mergeRule)}</p></div>
+        <div class="dev-block"><div class="k">결합 금지 신호</div><p>${clusterContract.forbiddenMergeSignals.map(x=>`<span class="dev-code">${esc(x)}</span>`).join(" ")}</p></div>
+        <div class="dev-block"><div class="k">변주 제목</div><p>${esc(clusterContract.nearDuplicateRule)}</p></div>
+        <div class="dev-block"><div class="k">확장 조건</div><p>${esc(clusterContract.expansionGate)}</p></div>
+      </div>
+      <div class="dev-alert"><b>${esc(clusterReceipt.snapshotVersion)} 실데이터 재생</b><span>후보 ${esc(clusterReceipt.fixture.candidateCount)}건 → 사건 ${esc(clusterReceipt.fixture.clusterCount)}건 · 잘못 합쳐졌던 ${esc(clusterReceipt.fixture.removedFalseMergeCount)}개 묶음 제거 · 발행 ${esc(clusterReceipt.fixture.selectedIssueCount)}건 중 복수 URL 문단 ${esc(clusterReceipt.fixture.selectedMultiUrlIssueCount)}건 · ${esc(clusterReceipt.boundary)}</span></div>
+      <div class="dev-alert"><b>${esc(supplyReceipt.snapshotVersion)} 분야 공급 재생</b><span>게임 단독 ${esc(supplyReceipt.gamingOnlyReplay.candidateCount)}후보 → ${esc(supplyReceipt.gamingOnlyReplay.issueCount)}이슈 · 게임메카 ${esc(supplyReceipt.gamingOnlyReplay.sourceIssueCounts.gamemeca)} / PC 게이머 ${esc(supplyReceipt.gamingOnlyReplay.sourceIssueCounts.pcgamer)} / 커뮤니티 ${esc(supplyReceipt.gamingOnlyReplay.sourceIssueCounts.ruliweb)} · 전 분야 ${esc(supplyReceipt.allCategoryReplay.fulfilledCategoryCount)}/${esc(supplyReceipt.allCategoryReplay.selectedCategoryCount)} 충족 · ${esc(supplyReceipt.boundary)}</span></div>
+      <div class="dev-alert"><b>직접 확인 범위 문구</b><span>관련 보도 묶음 신호와 직접 확인 원문을 같은 뜻으로 쓰지 않습니다. 직접 원문이 ${esc(wordingReceipt.example.directlyObservedOriginals)}건이면 문장에도 한 건이라고 밝히고, 사건명을 헤드라인 앞에 둡니다. · ${esc(wordingReceipt.boundary)}</span></div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>다섯 선별 축</h3><span>한 인기 점수로 뭉개지 않음</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>축</th><th>의미</th><th>판정 질문</th><th>근거</th></tr></thead><tbody>${scoreAxes}</tbody></table></div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>편성 레인</h3><span>자격 게이트 뒤 목적별 편성</span></div>
+      <div class="dev-list">${lanes}</div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>하루 세 판과 개인 조립</h3><span>공용 검증 재고를 사용자별로 결정론적 조립</span></div>
+      <div class="dev-list">${editions}</div>
+      <div class="dev-grid">
+        <div class="dev-block"><div class="k">선택 분야 소유</div><p>선택 분야가 일반 지면을 소유하며 행동만으로 안 고른 분야를 추가하지 않습니다.</p></div>
+        <div class="dev-block"><div class="k">분량</div><p>${esc(b.personalizationPolicy.oneCategoryRule)}. ${esc(b.personalizationPolicy.manyCategoryRule)}.</p></div>
+        <div class="dev-block"><div class="k">반복</div><p>${esc(b.editionPolicy.repeatRule)}.</p></div>
+        <div class="dev-block"><div class="k">페이지</div><p>${esc(b.personalizationPolicy.pageRule)}.</p></div>
+      </div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>LLM 역할과 금지선</h3><span>편집자이지 측정기·단독 발행자가 아님</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>역할</th><th>출력</th><th>모델 등급</th></tr></thead><tbody>${llmRoles}</tbody></table></div>
+      <div class="dev-list">${llmStops}</div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>출처 신뢰 레지스트리</h3><span>모델 인상이 아니라 관측 근거</span></div>
+      <div class="dev-block"><p>${trustFields}</p></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>분야</th><th>우선 근거</th><th>주의 신호</th></tr></thead><tbody>${categoryPolicies}</tbody></table></div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>품질·비용 게이트</h3><span>CTR보다 누락·근거·중복·변화 우선</span></div>
+      <div class="dev-list">${qualityGates}</div>
+      <div class="dev-list">${costControls}</div>
+    </section>
+
+    <section class="dev-section" id="dev-review">
+      <div class="dev-section-head"><h3>05. 현재 목적 적합성 독립 재검수</h3><span>${esc(alignmentReview.stableId)} · ${devChip(alignmentReview.state,alignmentReview.label)}</span></div>
+      <div class="dev-mission">${esc(alignmentReview.decision)}</div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">독립 판정</div><div class="v">5/5 HOLD</div><div class="n">서로의 결론을 보지 않은 분리 모의 직무 렌즈</div></div>
+        <div class="dev-metric"><div class="k">목적 적합 평균</div><div class="v">${esc(alignmentReview.score.mean)}/${esc(alignmentReview.score.scale)}</div><div class="n">중앙값 ${esc(alignmentReview.score.median)} · 진단값, 제품 KPI 아님</div></div>
+        <div class="dev-metric"><div class="k">직전 검수 당시 실제 시간차 판</div><div class="v">${esc(alignmentReview.verifiedFacts.actualElapsedSlots)}</div><div class="n">${esc(alignmentReview.observedAt)} 시점의 불변 영수증</div></div>
+        <div class="dev-metric"><div class="k">2인 독립 검수</div><div class="v">${esc(alignmentReview.verifiedFacts.humanDoubleReviewedRows)}</div><div class="n">기계 42/42와 사람 품질은 별개</div></div>
+      </div>
+      <div class="dev-alert"><b>공통 결론</b><span>수집·저장·분야 충족의 방향은 유지합니다. 신규 기능 확장은 멈추고 독자에게 실제로 보이는 편집문과 사람 정답표를 먼저 닫습니다.</span></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>독자 문장 동결 게이트</h3><span>${esc(readerFreezeReceipt.stableId)} · ${devChip(readerPacketMachineState,readerPacketMachineState==="reader_copy_hold"?"HOLD":"PASS")}</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">독자 payload 동결</div><div class="v">${localReview?esc(localReaderFrozen)+"/"+esc(localReaderRows.length):esc(readerFreezeReceipt.actualRuntime.readerFrozen)}</div><div class="n">화면의 일곱 필드와 행별 판정을 같은 패킷에 고정</div></div>
+        <div class="dev-metric"><div class="k">정본 구조 검사</div><div class="v">${localReview?esc(readerCanonicalPass)+"/"+esc(localReaderRows.length):esc(readerFreezeReceipt.actualRuntime.canonicalMachinePass)}</div><div class="n">독자 문장 품질과 별도 수치</div></div>
+        <div class="dev-metric"><div class="k">독자 문장 행 검사</div><div class="v">${localReview?esc(localReaderIssuePass)+"/"+esc(localReaderRows.length):esc(readerFreezeReceipt.actualRuntime.readerIssuePass)}</div><div class="n">보류 ${localReview?esc(localReaderIssueHold):esc(readerFreezeReceipt.actualRuntime.readerIssueHold)} · ${localReaderFailures.length?esc(localReaderFailures.join(" · ")):"기록 영수증 참조"}</div></div>
+        <div class="dev-metric"><div class="k">사람 검수 상태</div><div class="v">${esc(devStateLabel(readerPacketHumanState))}</div><div class="n">준비 상태일 뿐 최종 품질 PASS가 아님 · 완료 ${esc(readerFreezeReceipt.actualRuntime.humanDoubleReviewedRows)}</div></div>
+      </div>
+      <div class="dev-alert"><b>거짓 42/42 PASS 차단</b><span>행 검사를 통과해도 판 전체 상용구 반복이 15%를 넘으면 전체 기계 판정을 HOLD합니다. 현재 판 반복은 ${localReaderDiversity&&localReaderDiversity.pass?"PASS":"HOLD"}지만 한국어 독자용 제목이 없는 영문 기사 1건 때문에 ${esc(readerPacketMachineState)}입니다.</span></div>
+      ${localReaderDiversity?`<div class="dev-table-wrap review-table-wrap"><table class="dev-table review-table"><thead><tr><th>독자 필드</th><th>고유 문장</th><th>최다 동일 반복</th><th>허용</th><th>판정</th></tr></thead><tbody>${localReaderDiversityRows}</tbody></table></div>`:""}
+      <div class="dev-section-head" style="margin-top:22px"><h3>사건별 독자 문안 재검수</h3><span>${esc(readerEventFrameReceipt.stableId)} · ${devChip(readerEventReview.state,"5/5 HOLD")}</span></div>
+      <div class="dev-alert"><b>판 반복 PASS · 목적 적합성 HOLD</b><span>왜 중요한가 최다 동일 반복 ${esc(readerEventFrameReceipt.packetDiversity.whyImportant.beforeMaxExactRepeat)}→${esc(readerEventFrameReceipt.packetDiversity.whyImportant.maxExactRepeat)}, 다음 확인 ${esc(readerEventFrameReceipt.packetDiversity.watchNext.beforeMaxExactRepeat)}→${esc(readerEventFrameReceipt.packetDiversity.watchNext.maxExactRepeat)}. 하지만 ${esc(readerEventReview.verdict)}</span></div>
+      <div class="dev-alert"><b>실제 세 슬롯 정시·서로 다른 내용 3/3 · 전체 증거 HOLD</b><span>19시 이브닝은 기준 시각 뒤 ${esc(Math.round(readerEventFrameReceipt.elapsedRuntime.eveningDelayMs/1000))}초에 저장됐습니다. 세 슬롯의 내용 지문은 모두 달랐지만 전체 조합은 부동산, 기본 조합은 유머 공급이 부족해 overall actualElapsedTimeProof는 HOLD입니다. ${esc(readerEventFrameReceipt.elapsedRuntime.triggerBoundary)}</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>ID</th><th>모의 독립 렌즈</th><th>점수</th><th>판정</th><th>적대적 반론</th></tr></thead><tbody>${readerEventReviewRows}</tbody></table></div>
+      <div class="dev-list"><div class="dev-list-item"><b>다음 허용 작업</b><p>${esc(readerEventFrameReceipt.nextAllowed.join(" · "))}</p></div><div class="dev-list-item"><b>증명하지 않음</b><p>${esc(readerEventFrameReceipt.doesNotProve.join(" · "))}</p></div></div>
+      <div class="dev-section-head" style="margin-top:24px"><h3>독립 Codex 적대검수 최종 판정</h3><span>${esc(independentAudit.stableId)} · ${devChip(independentAudit.state,"운영 승격 BLOCK")}</span></div>
+      <div class="dev-alert"><b>1 BLOCK · 2 HOLD · GO 0</b><span>평균 ${esc(independentAudit.score.mean)}/${esc(independentAudit.score.scale)}. 주장 텍스트 변조와 verifier 없는 캐시가 모두 신뢰 PASS로 남는 반례를 직접 재현했습니다. 로컬 최소 수리는 허용하지만 실제 이용자·운영 승격은 금지합니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">독립 검수자</div><div class="v">3</div><div class="n">서로 결론을 보지 않은 분리 Codex 문맥</div></div>
+        <div class="dev-metric"><div class="k">직접 재현 P0</div><div class="v">2</div><div class="n">계보 변조 · 검증 없는 캐시</div></div>
+        <div class="dev-metric"><div class="k">새 핵심 반례 회귀</div><div class="v">${esc(independentAudit.regressionBoundary.newlyFoundCounterexamplesCovered)}</div><div class="n">기존 ${esc(independentAudit.regressionBoundary.fullSuite)}와 별도</div></div>
+        <div class="dev-metric"><div class="k">사람·회사 참여</div><div class="v">0</div><div class="n">실제 임직원 검수로 표시하지 않음</div></div>
+      </div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>ID</th><th>분리 검수 렌즈</th><th>점수</th><th>판정</th><th>핵심 반론</th></tr></thead><tbody>${independentAuditRows}</tbody></table></div>
+      <div class="dev-section-head" style="margin-top:18px"><h3>직접 재현과 확인 결함</h3><span>테스트 PASS와 제품 신뢰를 분리</span></div>
+      <div class="dev-list">${independentAuditReproductions}${independentAuditFindings}</div>
+      <div class="dev-grid">
+        <div><div class="dev-kicker">NEXT ALLOWED</div><div class="dev-list"><div class="dev-list-item"><b>반례 RED 회귀와 최소 수리</b><p>${esc(independentAudit.nextAllowed.join(" · "))}</p></div></div></div>
+        <div><div class="dev-kicker">STOP UNTIL CLOSED</div><div class="dev-list"><div class="dev-list-item"><b>운영 승격 금지</b><p>${esc(independentAudit.stopUntilClosed.join(" · "))}</p></div></div></div>
+      </div>
+      <div class="dev-alert"><b>독립성 경계</b><span>${esc(independentAudit.boundary)}</span></div>
+      <div class="dev-section-head" style="margin-top:24px"><h3>핵심 반례 최소 수리</h3><span>${esc(repairReceipt.stableId)} · ${devChip("complete_with_limits","4/4 PASS")}</span></div>
+      <div class="dev-alert"><b>RED ${esc(repairReceipt.red.counterexamplesCovered)} → GREEN ${esc(repairReceipt.green.counterexamplesCovered)}</b><span>집중 ${esc(repairReceipt.green.focusedRegression)} · 전체 ${esc(repairReceipt.green.fullRegression)}. 과거 독립 BLOCK 영수증은 보존하며 재검수 전 운영 승격은 계속 금지합니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">계보 지문</div><div class="v">v${esc(repairReceipt.contracts.lineageFingerprintVersion)}</div><div class="n">현재 주장 문장·근거·계약 재계산</div></div>
+        <div class="dev-metric"><div class="k">LLM 캐시 계약</div><div class="v">v${esc(repairReceipt.contracts.llmVersion)}</div><div class="n">verifier·prompt v${esc(repairReceipt.contracts.llmPromptVersion)}·두 모델 필수</div></div>
+        <div class="dev-metric"><div class="k">독자 문장 계약</div><div class="v">v${esc(repairReceipt.contracts.readerCopyVersion)}</div><div class="n">변화 원자료 누락 시 HOLD</div></div>
+        <div class="dev-metric"><div class="k">다음 상태</div><div class="v">재검수</div><div class="n">이번 단계에서는 실행하지 않음</div></div>
+      </div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>반례</th><th>회귀</th><th>수리</th></tr></thead><tbody>${repairRows}</tbody></table></div>
+      <div class="dev-list"><div class="dev-list-item"><b>남은 HOLD</b><p>${esc(repairReceipt.remainingHold.join(" · "))}</p></div><div class="dev-list-item"><b>증명하지 않음</b><p>${esc(repairReceipt.doesNotProve.join(" · "))}</p></div></div>
+      <div class="dev-alert"><b>수리 경계</b><span>${esc(repairReceipt.boundary)}</span></div>
+      <div class="dev-section-head" style="margin-top:24px"><h3>핵심 반례 수리 후 독립 재검수</h3><span>${esc(reauditReceipt.stableId)} · ${devChip("blocked","운영 승격 BLOCK")}</span></div>
+      <div class="dev-alert"><b>2 BLOCK · 1 HOLD · GO 0</b><span>평균 ${esc(reauditReceipt.score.mean)}/${esc(reauditReceipt.score.scale)}. 앞 수리 4/4는 유지되지만, 실제 응답에서 reader HOLD와 분야 부족 판이 HTTP 200으로 제공되는 공통 최우선 결함을 확인했습니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">실제 이브닝 응답</div><div class="v">${esc(reauditReceipt.actualRuntime.allCategoryEvening.issueCount)}건</div><div class="n">HTTP ${esc(reauditReceipt.actualRuntime.allCategoryEvening.statusCode)} · publishable ${esc(reauditReceipt.actualRuntime.allCategoryEvening.publishable)}</div></div>
+        <div class="dev-metric"><div class="k">reader HOLD 서빙</div><div class="v">${esc(reauditReceipt.actualRuntime.allCategoryEvening.readerHoldRows)}건</div><div class="n">품질 판정이 응답을 차단하지 않음</div></div>
+        <div class="dev-metric"><div class="k">분야 충족</div><div class="v">${esc(reauditReceipt.actualRuntime.allCategoryEvening.fulfillment)}</div><div class="n">부족 ${esc(reauditReceipt.actualRuntime.allCategoryEvening.underfilledCategoryIds.join(", "))}</div></div>
+        <div class="dev-metric"><div class="k">응답·패킷 불일치</div><div class="v">${esc(reauditReceipt.actualRuntime.responsePacketDrift.mismatchedRows)}</div><div class="n">모닝 change 필드</div></div>
+      </div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>ID</th><th>분리 검수 렌즈</th><th>점수</th><th>판정</th><th>핵심 반론</th></tr></thead><tbody>${reauditRows}</tbody></table></div>
+      <div class="dev-section-head" style="margin-top:18px"><h3>직접 재현</h3><span>테스트 PASS와 제품 서빙 판정을 분리</span></div>
+      <div class="dev-list">${reauditReproductions}</div>
+      <div class="dev-grid">
+        <div><div class="dev-kicker">NEXT ONE STEP</div><div class="dev-list"><div class="dev-list-item"><span class="dev-id">${esc(reauditReceipt.nextRequired.id)}</span><b>${esc(reauditReceipt.nextRequired.title)}</b></div>${reauditAcceptance}</div></div>
+        <div><div class="dev-kicker">STILL HOLD AFTER THAT</div><div class="dev-list"><div class="dev-list-item"><b>후속 수리</b><p>${esc(reauditReceipt.remainingAfterServingGate.join(" · "))}</p></div><div class="dev-list-item"><b>증명하지 않음</b><p>${esc(reauditReceipt.doesNotProve.join(" · "))}</p></div></div></div>
+      </div>
+      <div class="dev-alert"><b>독립성·운영 경계</b><span>${esc(reauditReceipt.boundary)} ${esc(reauditReceipt.independence.limitation)}</span></div>
+      <div class="dev-section-head" style="margin-top:24px"><h3>실제 응답 제공 게이트 수리</h3><span>${esc(servingRepairReceipt.stableId)} · ${devChip("complete_with_limits","4/4 PASS")}</span></div>
+      <div class="dev-alert"><b>품질 미달판 HTTP 200 경로 폐쇄</b><span>독자에게 반환할 정확한 응답을 다시 검수합니다. 현재판이 실패하면 같은 분야 조합의 24시간 이내 검증판만 제공하고, 그것도 없으면 품질 미달 본문 대신 HTTP 409로 닫습니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">서빙 계약</div><div class="v">v${esc(servingRepairReceipt.contract.version)}</div><div class="n">${esc(servingRepairReceipt.contract.stableId)}</div></div>
+        <div class="dev-metric"><div class="k">현재 정확 응답</div><div class="v">${localServing?esc(localServing.pass?"PASS":"HOLD"):"미관측"}</div><div class="n">${localServing&&localServing.failures&&localServing.failures.length?esc(localServing.failures.join(" · ")):"현재 응답 패킷 기준"}</div></div>
+        <div class="dev-metric"><div class="k">불변 검증 영수증</div><div class="v">${localServing?esc(localServing.verificationCount):"0"}</div><div class="n">packetId·editionId·분야 조합·계약 버전 결박</div></div>
+        <div class="dev-metric"><div class="k">검증판 없음</div><div class="v">HTTP ${esc(servingRepairReceipt.green.holdResponseStatus)}</div><div class="n">독자 화면에 검수 중 상태와 재시도 제공</div></div>
+      </div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>반례</th><th>회귀</th><th>수리</th></tr></thead><tbody>${servingRepairRows}</tbody></table></div>
+      <div class="dev-grid">
+        <div><div class="dev-kicker">NEXT ONE STEP</div><div class="dev-list"><div class="dev-list-item"><span class="dev-id">${esc(servingRepairReceipt.nextRequired.id)}</span><b>${esc(servingRepairReceipt.nextRequired.title)}</b><p>${esc(servingRepairReceipt.nextRequired.acceptance)}</p></div></div></div>
+        <div><div class="dev-kicker">STILL HOLD</div><div class="dev-list"><div class="dev-list-item"><b>후속 P1</b><p>${esc(servingRepairReceipt.remainingHold.join(" · "))}</p></div><div class="dev-list-item"><b>증명하지 않음</b><p>${esc(servingRepairReceipt.doesNotProve.join(" · "))}</p></div></div></div>
+      </div>
+      <div class="dev-alert"><b>자동 서빙과 사람 검수 분리</b><span>${esc(servingRepairReceipt.boundary)}</span></div>
+      <div class="dev-section-head" style="margin-top:24px"><h3>독자 문장·paragraph 근거 결박</h3><span>${esc(readerLineageReceipt.stableId)} · ${devChip("complete_with_limits","4/4 PASS")}</span></div>
+      <div class="dev-alert"><b>문장만 바꾸는 우회 폐쇄</b><span>paragraph와 독자 7필드를 현재 정본 근거·편집 정책·변화 근거와 같은 SHA-256 지문으로 묶었습니다. 임의 중요성·변화 문장이나 오래된 검수 판정은 현재 응답 게이트를 통과하지 못합니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">정본 계보</div><div class="v">v${esc(readerLineageReceipt.contracts.lineageVersion)} / fp${esc(readerLineageReceipt.contracts.lineageFingerprintVersion)}</div><div class="n">paragraph·whatHappened 독립 claim</div></div>
+        <div class="dev-metric"><div class="k">독자 계약</div><div class="v">v${esc(readerLineageReceipt.contracts.readerVersion)} / fp${esc(readerLineageReceipt.contracts.readerFingerprintVersion)}</div><div class="n">7필드·근거·변화 SHA-256 결박</div></div>
+        <div class="dev-metric"><div class="k">검수 패킷</div><div class="v">v${esc(readerLineageReceipt.contracts.packetVersion)}</div><div class="n">quality v${esc(readerLineageReceipt.contracts.qualityVersion)} · 구형 판정 자동 재사용 차단</div></div>
+        <div class="dev-metric"><div class="k">반례 결과</div><div class="v">${esc(readerLineageReceipt.green.readerFieldTamperHeld)} HOLD</div><div class="n">paragraph·근거 없는 중요성/변화도 HOLD</div></div>
+      </div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>반례</th><th>회귀</th><th>수리</th></tr></thead><tbody>${readerLineageRows}</tbody></table></div>
+      <div class="dev-grid">
+        <div><div class="dev-kicker">GREEN EVIDENCE</div><div class="dev-list"><div class="dev-list-item"><b>핵심 ${esc(readerLineageReceipt.green.coreRegression)} · 통합 ${esc(readerLineageReceipt.green.integrationRegression)} · 전체 ${esc(readerLineageReceipt.green.fullRegression)}</b><p>외부 LLM 호출 ${esc(readerLineageReceipt.green.externalLlmCalls)}회 · 운영 반영 없음</p></div></div></div>
+        <div><div class="dev-kicker">NEXT ONE STEP</div><div class="dev-list"><div class="dev-list-item"><span class="dev-id">${esc(readerLineageReceipt.nextRequired.id)}</span><b>${esc(readerLineageReceipt.nextRequired.title)}</b><p>${esc(readerLineageReceipt.nextRequired.acceptance)}</p></div></div></div>
+      </div>
+      <div class="dev-alert"><b>남은 경계</b><span>${esc(readerLineageReceipt.boundary)} ${esc(readerLineageReceipt.remainingHold.join(" · "))}</span></div>
+      <div class="dev-section-head" style="margin-top:24px"><h3>사건 연속성·관련기사 프레임 수리</h3><span>${esc(eventContinuityReceipt.stableId)} · ${devChip("complete_with_limits","4/4 PASS")}</span></div>
+      <div class="dev-alert"><b>확인된 오판 폐쇄</b><span>호르무즈 후속 보도는 같은 사건으로 이어가고, 삼성·갤럭시·공개 일반어만 같은 폴드8과 워치8 발표는 별개 사건으로 분리합니다. 관련기사는 주 사건의 제목·중요성·다음 확인 프레임을 바꾸지 못합니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">사건 연속성</div><div class="v">v${esc(eventContinuityReceipt.contracts.editionChangeVersion)}</div><div class="n">일반어 제거 개념 3개·비율 0.5</div></div>
+        <div class="dev-metric"><div class="k">주장 계보</div><div class="v">v${esc(eventContinuityReceipt.contracts.lineageVersion)} / fp${esc(eventContinuityReceipt.contracts.lineageFingerprintVersion)}</div><div class="n">주 사건 claim과 관련기사 관측 역할 분리</div></div>
+        <div class="dev-metric"><div class="k">독자 프레임</div><div class="v">v${esc(eventContinuityReceipt.contracts.readerVersion)} / frame v${esc(eventContinuityReceipt.contracts.eventFrameVersion)}</div><div class="n">주 사건 필드만 프레임 입력으로 사용</div></div>
+        <div class="dev-metric"><div class="k">검수 패킷</div><div class="v">v${esc(eventContinuityReceipt.contracts.packetVersion)}</div><div class="n">quality v${esc(eventContinuityReceipt.contracts.qualityVersion)} · 구형 판정 재사용 차단</div></div>
+      </div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>반례</th><th>회귀</th><th>수리</th></tr></thead><tbody>${eventContinuityRows}</tbody></table></div>
+      <div class="dev-grid">
+        <div><div class="dev-kicker">GREEN EVIDENCE</div><div class="dev-list"><div class="dev-list-item"><b>핵심 ${esc(eventContinuityReceipt.green.coreRegression)} · 통합 ${esc(eventContinuityReceipt.green.integrationRegression)} · 전체 ${esc(eventContinuityReceipt.green.fullRegression)}</b><p>RED ${esc(eventContinuityReceipt.red.focusedRegression)} · 외부 LLM 호출 ${esc(eventContinuityReceipt.green.externalLlmCalls)}회 · 운영 반영 없음</p></div></div></div>
+        <div><div class="dev-kicker">NEXT ONE STEP</div><div class="dev-list"><div class="dev-list-item"><span class="dev-id">${esc(eventContinuityReceipt.nextRequired.id)}</span><b>${esc(eventContinuityReceipt.nextRequired.title)}</b><p>${esc(eventContinuityReceipt.nextRequired.acceptance)}</p></div></div></div>
+      </div>
+      <div class="dev-alert"><b>전체 제품 PASS 아님</b><span>${esc(eventContinuityReceipt.boundary)} ${esc(eventContinuityReceipt.remainingHold.join(" · "))}</span></div>
+      <div class="dev-section-head" style="margin-top:24px"><h3>선택 분야별 고유 사건 충족 수리</h3><span>${esc(categoryUniqueReceipt.stableId)} · ${devChip("complete_with_limits","4/4 PASS")}</span></div>
+      <div class="dev-alert"><b>다중 분야 이슈 중복 가산 폐쇄</b><span>business·realestate처럼 여러 분야가 붙은 이슈도 선택 분야 최소치에는 한 번만 반영합니다. 공급이 적은 분야부터 깊이별로 배정해 전용 이슈와 공유 이슈의 가능한 조합을 놓치지 않고, 부족하면 기존 정확 응답 게이트에서 닫습니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">충족 계약</div><div class="v">v${esc(categoryUniqueReceipt.contracts.fulfillmentVersion)}</div><div class="n">이슈당 최대 ${esc(categoryUniqueReceipt.contracts.maxSelectedCategoryCreditsPerIssue)}개 분야 크레딧</div></div>
+        <div class="dev-metric"><div class="k">RED</div><div class="v">${esc(categoryUniqueReceipt.red.focusedRegression)}</div><div class="n">중복 충족 반례 3개 직접 재현</div></div>
+        <div class="dev-metric"><div class="k">서빙 회귀</div><div class="v">${esc(categoryUniqueReceipt.green.servingRegression)}</div><div class="n">미충족 응답 category_fulfillment_hold</div></div>
+        <div class="dev-metric"><div class="k">외부 호출·반영</div><div class="v">${esc(categoryUniqueReceipt.green.externalLlmCalls)} / 0</div><div class="n">LLM 호출 / 운영 반영</div></div>
+      </div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>반례</th><th>회귀</th><th>수리</th></tr></thead><tbody>${categoryUniqueRows}</tbody></table></div>
+      <div class="dev-grid">
+        <div><div class="dev-kicker">GREEN EVIDENCE</div><div class="dev-list"><div class="dev-list-item"><b>핵심 ${esc(categoryUniqueReceipt.green.coreRegression)} · 판본 통합 ${esc(categoryUniqueReceipt.green.editionIntegrationRegression)} · 전체 ${esc(categoryUniqueReceipt.green.fullRegression)}</b><p>기존 판본 경로 보존 · 적합 건수와 고유 배정 건수 분리</p></div></div></div>
+        <div><div class="dev-kicker">NEXT ONE STEP</div><div class="dev-list"><div class="dev-list-item"><span class="dev-id">${esc(categoryUniqueReceipt.nextRequired.id)}</span><b>${esc(categoryUniqueReceipt.nextRequired.title)}</b><p>${esc(categoryUniqueReceipt.nextRequired.acceptance)}</p></div></div></div>
+      </div>
+      <div class="dev-alert"><b>전체 제품 PASS 아님</b><span>${esc(categoryUniqueReceipt.boundary)} ${esc(categoryUniqueReceipt.remainingHold.join(" · "))}</span></div>
+      <div class="dev-section-head" style="margin-top:24px"><h3>중간 신호 뒤 평가 삭제 정확 원복</h3><span>${esc(feedbackRollbackReceipt.stableId)} · ${devChip("complete_with_limits","4/4 PASS")}</span></div>
+      <div class="dev-alert"><b>기본 취향과 명시 평가를 분리</b><span>설문·이력·열람·완독은 기본 취향에 남기고, 현재 좋아요·싫어요만 그 위에 다시 투영합니다. 따라서 평가를 지워도 사이에 쌓인 행동 신호는 그대로이며 특징 벡터와 확신 수가 평가하지 않은 대조 사용자와 같아집니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">원복 계약</div><div class="v">v${esc(feedbackRollbackReceipt.contract.version)}</div><div class="n">${esc(feedbackRollbackReceipt.contract.baseField)} → ${esc(feedbackRollbackReceipt.contract.projectionField)}</div></div>
+        <div class="dev-metric"><div class="k">RED</div><div class="v">${esc(feedbackRollbackReceipt.red.focusedRegression)}</div><div class="n">벡터 차이·feedbackCount 잔류·재시작 지속</div></div>
+        <div class="dev-metric"><div class="k">로컬 이행 대조</div><div class="v">${esc(feedbackRollbackReceipt.green.stagingUsersMigratableWithoutInference)}/${esc(feedbackRollbackReceipt.green.stagingUsersObserved)}</div><div class="n">활성 레거시 평가 ${esc(feedbackRollbackReceipt.green.stagingUsersWithLegacyActiveRatings)}명 · 추정 없음</div></div>
+        <div class="dev-metric"><div class="k">이벤트 원장·외부 호출</div><div class="v">${esc(feedbackRollbackReceipt.contract.eventJournalEntriesPerUser)} / ${esc(feedbackRollbackReceipt.green.externalLlmCalls)}</div><div class="n">무한 행동 로그 추가 없음 / LLM 호출 없음</div></div>
+      </div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>반례</th><th>회귀</th><th>수리</th></tr></thead><tbody>${feedbackRollbackRows}</tbody></table></div>
+      <div class="dev-grid">
+        <div><div class="dev-kicker">GREEN EVIDENCE</div><div class="dev-list"><div class="dev-list-item"><b>집중 ${esc(feedbackRollbackReceipt.green.focusedRegression)} · 피드 ${esc(feedbackRollbackReceipt.green.feedRegression)} · 전체 ${esc(feedbackRollbackReceipt.green.fullRegression)}</b><p>즉시·중간 신호·JSON 재시작 뒤 대조 상태 일치 · 운영 반영 ${esc(feedbackRollbackReceipt.green.productionChanges)}건</p></div></div></div>
+        <div><div class="dev-kicker">NEXT ONE STEP</div><div class="dev-list"><div class="dev-list-item"><span class="dev-id">${esc(feedbackRollbackReceipt.nextRequired.id)}</span><b>${esc(feedbackRollbackReceipt.nextRequired.title)}</b><p>${esc(feedbackRollbackReceipt.nextRequired.acceptance)}</p></div></div></div>
+      </div>
+      <div class="dev-alert"><b>정확 원복은 효용 증명이 아님</b><span>${esc(feedbackRollbackReceipt.boundary)} ${esc(feedbackRollbackReceipt.remainingHold.join(" · "))}</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>ID</th><th>검수 렌즈</th><th>점수</th><th>판정</th><th>집중 범위</th></tr></thead><tbody>${alignmentReviewSeats}</tbody></table></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>공통 P1</h3><span>기능 추가보다 먼저 폐쇄</span></div>
+      <div class="dev-list">${alignmentReviewFindings}</div>
+      <div class="dev-grid">
+        <div><div class="dev-kicker">NEXT ALLOWED</div><div class="dev-list">${alignmentReviewNext}</div></div>
+        <div><div class="dev-kicker">STOP UNTIL CLOSED</div><div class="dev-list">${alignmentReviewStops}</div></div>
+      </div>
+      <div class="dev-alert"><b>비소속 고지</b><span>${esc(alignmentReview.boundary)}</span></div>
+
+      <div class="dev-section-head" style="margin-top:26px"><h3>초기 설계 적대검수 기록</h3><span>${esc(review.stableId)} · ${devChip(review.state,review.label)}</span></div>
+      <div class="dev-mission">${esc(review.decision)}</div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">독립 판정</div><div class="v">${esc(review.execution.independentSeats)}/${esc(review.execution.independentSeats)} HOLD</div><div class="n">보충 렌즈는 독립 평균에서 제외</div></div>
+        <div class="dev-metric"><div class="k">보존 렌즈</div><div class="v">${esc(review.execution.preservedLenses)}</div><div class="n">실제 회사 참여가 아닌 모의 직무 관점</div></div>
+        <div class="dev-metric"><div class="k">진단 평균</div><div class="v">${esc(review.score.mean)}/${esc(review.score.scale)}</div><div class="n">중앙값 ${esc(review.score.median)} · 제품 KPI 아님</div></div>
+        <div class="dev-metric"><div class="k">절약 지시 뒤 신규 좌석</div><div class="v">${esc(review.execution.newSeatsAfterCostInstruction)}</div><div class="n">기존 결과와 좌석을 재사용</div></div>
+      </div>
+      <div class="dev-table-wrap" style="margin-top:14px"><table class="dev-table"><thead><tr><th>ID</th><th>검수 렌즈</th><th>점수</th><th>판정</th><th>가장 큰 결함</th></tr></thead><tbody>${reviewSeats}</tbody></table></div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>첫 검증 카테고리 팩</h3><span>${esc(beachhead.stableId)} · ${devChip("current","시장·정책 파일럿")}</span></div>
+      <div class="dev-alert"><b>제품 전체 아님</b><span>${esc(beachhead.scopeNotice)}</span></div>
+      <div class="dev-mission"><span class="dev-kicker">${esc(beachhead.audience)} · ${esc(beachhead.category)}</span><br>${esc(beachhead.promise)}<br><br>${esc(beachhead.coreBoundary)}</div>
+      <div class="dev-list">${beachheadDesks}</div>
+      <div class="dev-grid">
+        <div class="dev-block"><div class="k">시장 영향 자격 게이트</div><p>${esc(beachhead.eligibility.rule)}<br><br>${beachheadChannels}</p></div>
+        <div class="dev-block"><div class="k">출처 조건</div><p>${esc(beachhead.eligibility.sourceRule)}</p></div>
+        <div class="dev-block"><div class="k">정치 일반 제외</div><p>${esc(beachhead.eligibility.politicalRule)}</p></div>
+        <div class="dev-block"><div class="k">사건 출력 계약</div><p>${beachheadOutputs}</p></div>
+      </div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>제외선</h3><span>화제성만으로 투자자 지면에 넣지 않음</span></div>
+      <div class="dev-list">${beachheadExcludes}</div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>E1-0 소스 커버리지 감사</h3><span>${esc(sourceAudit.stableId)} · ${devChip(sourceAudit.state,sourceAudit.label)}</span></div>
+      <div class="dev-mission">${esc(sourceAudit.decision)}</div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">관련 활성 소스</div><div class="v">${esc(sourceAudit.current.relevantSourceCount)}</div><div class="n">경제·뉴스·정치 레지스트리</div></div>
+        <div class="dev-metric"><div class="k">명시된 1차 소스</div><div class="v">${esc(sourceAudit.current.primarySourceCount)}</div><div class="n">sourceRole: primary</div></div>
+        <div class="dev-metric"><div class="k">정치 분류 소스</div><div class="v">${esc(sourceAudit.current.byCategory.politics)}</div><div class="n">정책 원문 공급 계약 없음</div></div>
+        <div class="dev-metric"><div class="k">공식 검증 앵커</div><div class="v">${esc(sourceAudit.candidates.length)}</div><div class="n">중요 사실에만 선택 사용</div></div>
+      </div>
+      <div class="dev-grid">
+        <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>현재 분류</th><th>활성 소스</th></tr></thead><tbody>${sourceCategoryRows}</tbody></table></div>
+        <div><div class="dev-kicker">확인된 공백</div><div class="dev-list">${sourceGaps}</div></div>
+      </div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>선택적 공식 검증 앵커</h3><span>기본 콘텐츠 풀이 아님 · 등록·연결·런타임 증명과 분리</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>우선</th><th>데스크</th><th>후보군</th><th>접근</th><th>자격증명</th><th>현재</th></tr></thead><tbody>${sourceCandidates}</tbody></table></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>다음 연결 순서</h3><span>E1 고정 평가 표본과 제품 동적 후보를 분리</span></div>
+      <div class="dev-list">${sourceQueue}</div>
+
+      <div class="dev-section-head" id="dev-source-sample" style="margin-top:22px"><h3>E1-0B 양질 보도 20건·공식 확인 5건</h3><span>${esc(sourceSample.stableId)} · ${devChip(sourceSample.state,sourceSample.label)}</span></div>
+      <div class="dev-alert"><b>100건 절대 규칙 없음</b><span>100은 외부 기준이 아니라 폐기된 초기 개발 fixture <span class="dev-code">...-010</span>이었습니다. <span class="dev-code">...-011</span>에서 제품 목표 표현을 철회했고 <span class="dev-code">...-019</span>·<span class="dev-code">...-029</span>에서 평가표본까지 고정하지 않도록 재확인했습니다. 여기의 20+5도 소스 공급과 공식 확인 경로를 시험한 감사 표본일 뿐입니다. E1 목표 건수: ${e1Boundary.e1TargetSize==null?"미정":esc(e1Boundary.e1TargetSize)} · ${esc(e1Boundary.e1SizeRule)}</span></div>
+      <div class="dev-alert"><b>첫 카테고리 팩만 증명</b><span>${esc(sourceSample.scopeNotice)}</span></div>
+      <div class="dev-mission">${esc(sourceSample.decision)}</div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">보도 표본</div><div class="v">${esc(sourceSample.metrics.reportCount)}</div><div class="n">네 데스크 각 5건</div></div>
+        <div class="dev-metric"><div class="k">공식 확인</div><div class="v">${esc(sourceSample.metrics.officialCheckCount)}</div><div class="n">일치 ${esc(sourceSample.metrics.matchedCheckCount)} · 부분 ${esc(sourceSample.metrics.partialCheckCount)}</div></div>
+        <div class="dev-metric"><div class="k">매체 운영 그룹</div><div class="v">${esc(sourceSample.metrics.sourceFamilyCount)}</div><div class="n">법적 소유권 확정값 아님</div></div>
+        <div class="dev-metric"><div class="k">풀 정규화 URL</div><div class="v">${esc(sourceSample.poolSnapshot.uniqueUrlCount)}</div><div class="n">${esc(sourceSample.poolSnapshot.rowCount)}행 · 중복 ${esc(sourceSample.poolSnapshot.duplicateRows)}행</div></div>
+        <div class="dev-metric"><div class="k">신규 키·수집기</div><div class="v">${esc(sourceSample.method.newKeys)} · ${esc(sourceSample.method.newCollectors)}</div><div class="n">기존 레지스트리 어댑터 재사용</div></div>
+        <div class="dev-metric"><div class="k">LLM 호출</div><div class="v">${esc(sourceSample.method.llmCalls)}</div><div class="n">표본·대조는 결정론적 기록</div></div>
+      </div>
+      <div class="dev-grid">
+        <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>데스크</th><th>이름</th><th>표본</th></tr></thead><tbody>${sampleDeskRows}</tbody></table></div>
+        <div><div class="dev-kicker">표본에서 확인된 것</div><div class="dev-list">${sampleFindings}</div></div>
+      </div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>보도 20건 영수증</h3><span>메타데이터·링크만 보존 · 원문 전문 저장 안 함</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>ID</th><th>데스크</th><th>매체·그룹</th><th>제목·발행 시각</th><th>풀 일치</th></tr></thead><tbody>${sampleReportRows}</tbody></table></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>선택적 공식 확인 5건</h3><span>부분 확인은 PASS로 올리지 않음</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>검수</th><th>대상 보도</th><th>트리거</th><th>공식 근거</th><th>결과·한계</th></tr></thead><tbody>${sampleCheckRows}</tbody></table></div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>공통 P0</h3><span>동의 수는 독립 좌석만 계산</span></div>
+      <div class="dev-list">${reviewFindings}</div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>유지와 단순화</h3><span>가치 제안은 유지하고 검증 범위를 축소</span></div>
+      <div class="dev-grid">
+        <div><div class="dev-kicker">KEEP</div><div class="dev-list">${reviewKeep}</div></div>
+        <div><div class="dev-kicker">SIMPLIFY</div><div class="dev-list">${reviewSimplify}</div></div>
+      </div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>세 저비용 증거 실험</h3><span>E1에서 동결한 같은 층화 manifest 재사용 · 제품 전체 범위 아님</span></div>
+      <div class="dev-list">${reviewExperiments}</div>
+      <div class="dev-block"><div class="k">후보 문턱 · 실측 뒤 승인</div><p>${reviewGates}</p></div>
+
+      <div class="dev-section-head" style="margin-top:22px"><h3>사실 경계</h3><span>설계·런타임·독립성 구분</span></div>
+      <div class="dev-list">${reviewFacts}</div>
+      <div class="dev-alert"><b>비소속 고지</b><span>Techmeme, Ground News, Particle, 뉴닉, 네이버 이름은 공개 제품과 직무 관점을 적용한 모의 렌즈이며 실제 회사·재직자의 참여나 승인이 아닙니다.</span></div>
+    </section>
+
+    <section class="dev-section" id="dev-local-edition">
+      <div class="dev-section-head"><h3>06. 기존 제품 자체 편집 고도화</h3><span>${esc(b.localEditorialEdition.stableId)} · ${devChip(localEvidence.state,devStateLabel(localEvidence.state))}</span></div>
+      <div class="dev-alert"><b>새 제품 아님</b><span>${esc(b.localEditorialEdition.purpose)}</span><a href="/" target="_blank" rel="noopener noreferrer">로컬 오늘판 열기</a></div>
+      <div class="dev-mission">기존 <span class="dev-code">FeedEngine.briefing</span>·<span class="dev-code">buildDigest</span>·사용자 설문·실시간 피드를 재사용합니다. 새 수집 어댑터를 만들지 않고 기존 RSS 경로에서 부족 분야의 원료만 보강했으며, 선택형 LLM은 판본 배치·독립 검증·근거 해시 캐시로 분리했고 기본값은 OFF입니다. 아래 수치는 전체 카테고리를 넣은 개발 샘플이며 개인 오늘판 수치는 선택 분야에 따라 달라집니다.</div>
+      <div class="dev-metrics metric-six">
+        <div class="dev-metric"><div class="k">개발 샘플 편집 후보</div><div class="v">${localMetrics?esc(localMetrics.candidateCount):"—"}</div><div class="n">유효 공급 ${localMetrics?esc(localMetrics.eligibleCount):"—"}건 · 이번 샘플 안전 상한 ${localMetrics?esc(localMetrics.candidateCap):"—"}건 · 제품 목표 아님</div></div>
+        <div class="dev-metric"><div class="k">개발 샘플 편집 이슈</div><div class="v">${localEvidence.preview?esc(localEvidence.preview.issueCount):"—"}</div><div class="n">왜 중요한가·지금 나온 이유·지난 브리핑과 비교·근거</div></div>
+        <div class="dev-metric"><div class="k">관측 출처</div><div class="v">${localEvidence.preview?esc(localEvidence.preview.sourceCount):"—"}</div><div class="n">운영 그룹 ${localMetrics?esc(localMetrics.uniqueOwnershipGroupCount):"—"} · 법적 소유 확정 아님</div></div>
+        <div class="dev-metric"><div class="k">개발 샘플 카테고리</div><div class="v">${localMetrics?esc(localMetrics.categoryCount):"—"}</div><div class="n">경제 전문이 아닌 범용 개인판</div></div>
+        <div class="dev-metric"><div class="k">새 LLM 호출</div><div class="v">${localEvidence.llmCalls==null?"—":esc(localEvidence.llmCalls)}</div><div class="n">현재 판 실호출 · OFF면 결정론적 편집 유지</div></div>
+        <div class="dev-metric"><div class="k">외부 반영</div><div class="v">0</div><div class="n">${esc(b.localEditorialEdition.featureFlag)} 로컬 전용</div></div>
+      </div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>선택 분야 충족도·분류 무결성</h3><span>${localFulfillment?esc(localFulfillment.contractId):"NOWHOT-EDITORIAL-FULFILLMENT-CONTRACT-001"} · ${localFulfillment?devChip(localFulfillment.state,devStateLabel(localFulfillment.state)):devChip("not_observed","미관측")}</span></div>
+      <div class="dev-alert"><b>분야별 판정</b><span>전체 이슈 합계나 미리 정한 표본 수로 통과시키지 않습니다. 핫딜은 등록된 생활 레인에 고정하고, 캐시된 분류는 매 판 등록 분류에서 다시 계산하며, 선택 분야마다 동적 최소 이슈 수를 따로 확인합니다.</span></div>
+      <div class="dev-alert"><b>한 사건은 한 번 표시, 실제 분야는 모두 충족</b><span>여러 분야에 실제로 속한 최종 이슈는 각 분야의 상위 목록에 모두 반영하되, 합쳐진 오늘판 화면에서는 같은 사건 카드를 한 번만 보여줍니다.</span></div>
+      <div class="dev-alert"><b>후보 수와 쓸 수 있는 이슈를 분리</b><span>수집 후보는 원문 아이템 수이고, 문장 게이트 뒤에는 같은 사건을 묶은 클러스터 수입니다. 기계 유효는 문장·근거와 근접중복만 통과했다는 뜻이며 의미 품질·분야 적합성은 사람 검수 전까지 PASS가 아닙니다. 변화 전과 최종의 차이는 반복 사건·판본 한도 보류입니다.</span></div>
+      <div class="dev-alert"><b>${esc(funnelReceipt.stableId)}</b><span>고정 후보 수 없이 분야별 손실 구간을 기록합니다. 직전 판 반복 제거가 예상될 때만 분야마다 대체 후보 1건을 생성 예산 안에서 확보하고, 경품 참여·명시 판촉물은 대표 이슈에서 제외합니다. 저장된 07시 판은 소급 수정하지 않습니다.</span></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>공유 원본·개인 응답 분리</h3><span>${esc(personalizationProjectionReceipt.stableId)} · ${localPersonalization?devChip(localPersonalization.state,devStateLabel(localPersonalization.state)):devChip(personalizationProjectionReceipt.state,devStateLabel(personalizationProjectionReceipt.state))}</span></div>
+      <div class="dev-alert"><b>카테고리 조합당 저장 판본 1개</b><span>공유 원본은 첫 요청자의 정치·종교 토픽 설정과 학습 취향을 읽지 않습니다. 같은 카테고리 조합의 이슈·문장·근거·계보를 사용자마다 다시 만들거나 저장하지 않습니다.</span></div>
+      <div class="dev-alert"><b>응답 순서만 제한 개인화</b><span>여러 분야를 고르고 실제 취향 신호가 다를 때만 가까운 편집 중요도 묶음 안에서 순서를 조정합니다. 선택 밖 분야 추가·이슈 삭제·문장 수정은 0건이며 사용자별 LLM 호출도 0회입니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">공유 원본</div><div class="v">${localPersonalization&&localPersonalization.sharedCanonical?"중립":"—"}</div><div class="n">슬롯·정렬된 선택 카테고리 조합</div></div>
+        <div class="dev-metric"><div class="k">현재 응답 순서</div><div class="v">${localPersonalization?esc(localPersonalization.mode==="bounded_category_affinity_reorder"?"개인 순서":"공유 순서"):"—"}</div><div class="n">순서 변화 ${localPersonalization&&localPersonalization.orderChanged?"있음":"없음"} · 최대 이동 ${localPersonalization?esc(localPersonalization.maxRankShift):"—"}</div></div>
+        <div class="dev-metric"><div class="k">선택 밖 이슈</div><div class="v">${localPersonalization?esc(localPersonalization.unselectedIssueCount):"—"}</div><div class="n">추가 ${localPersonalization?esc(localPersonalization.addedIssueCount):"—"} · 삭제 ${localPersonalization?esc(localPersonalization.removedIssueCount):"—"}</div></div>
+        <div class="dev-metric"><div class="k">사용자별 LLM</div><div class="v">${localPersonalization?esc(localPersonalization.llmCalls):"0"}</div><div class="n">응답 투영은 로컬 계산만 사용</div></div>
+      </div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>동일 판본 개인화 효용·다양성 가드</h3><span>${esc(personalizationUtilityReceipt.stableId)} · ${devChip(personalizationUtilityReceipt.state,devStateLabel(personalizationUtilityReceipt.state))}</span></div>
+      <div class="dev-alert"><b>실제 저장판 상위 ${esc(personalizationUtilityReceipt.replay.topK)}건 짝지은 재생</b><span>같은 ${esc(personalizationUtilityReceipt.replay.issueCount)}건 판본에서 공유 순서와 합성 학습 프로필 순서를 비교했습니다. 할인 선호 점수는 ${esc(personalizationUtilityReceipt.replay.affinity.baselineDiscounted.toFixed(4))} → ${esc(personalizationUtilityReceipt.replay.affinity.projectedDiscounted.toFixed(4))}로 개선됐고, 이슈·문장·근거·계보는 바꾸지 않았습니다.</span></div>
+      <div class="dev-alert"><b>다양성 손실이면 공유 순서로 복귀</b><span>선호 적중이 늘어도 상단 출처 수가 줄거나 한 출처·한 분야가 과도하게 몰리면 개인화 후보를 제공하지 않습니다. 적대 반례의 출처 ${esc(personalizationUtilityReceipt.counterexample.sourceDistinctBefore)}→${esc(personalizationUtilityReceipt.counterexample.sourceDistinctCandidate)} 손실은 실제 응답 전에 차단했습니다.</span></div>
+      <div class="dev-alert"><b>실제 만족도는 아직 HOLD</b><span>이 수치는 저장 판본과 합성 프로필의 오프라인 대리 효용입니다. 실제 사용자의 클릭·완독 인과, 장기 취향 변화, 사람 편집 품질과 운영 배포를 증명하지 않습니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">할인 선호 개선</div><div class="v">+${esc(personalizationUtilityReceipt.replay.affinity.discountedGain.toFixed(4))}</div><div class="n">같은 판본·상위 ${esc(personalizationUtilityReceipt.replay.topK)}건</div></div>
+        <div class="dev-metric"><div class="k">고유 출처</div><div class="v">${esc(personalizationUtilityReceipt.replay.sourceDiversity.projectedDistinctCount)}</div><div class="n">기준 ${esc(personalizationUtilityReceipt.replay.sourceDiversity.baselineDistinctCount)} · 최대 점유 ${esc(personalizationUtilityReceipt.replay.sourceDiversity.projectedMaxShare)}</div></div>
+        <div class="dev-metric"><div class="k">상단 고유 분야</div><div class="v">${esc(personalizationUtilityReceipt.replay.categoryConcentration.projectedDistinctCount)}</div><div class="n">기준 ${esc(personalizationUtilityReceipt.replay.categoryConcentration.baselineDistinctCount)} · 선택 밖 ${esc(personalizationUtilityReceipt.replay.categorySelection.unselectedIssueCount)}건</div></div>
+        <div class="dev-metric"><div class="k">외부 호출</div><div class="v">${esc(personalizationUtilityReceipt.green.externalLlmCalls)}</div><div class="n">개인화 HOLD 시 공유 중요도 순서</div></div>
+      </div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>2인 블라인드 편집 파일럿 준비</h3><span>${esc(humanPilotReceipt.stableId)} · ${devChip(humanPilotReceipt.state,devStateLabel(humanPilotReceipt.state))}</span></div>
+      <div class="dev-alert"><b>과거 패킷 영수증 ≠ 현재 검수 가능 상태</b><span><span class="dev-code">${esc(humanPilotReceipt.machinePacket.packetId)}</span>의 ${esc(humanPilotReceipt.machinePacket.issueCount)}행 기록은 보존돼 있지만 현재 런타임에는 복원되지 않았습니다. 새 동일 42행의 영구 고정과 재시작 복원을 확인한 뒤 A·B 검수를 시작합니다.</span></div>
+      <div class="dev-alert"><b>문장 준비와 분야 공급을 분리</b><span>전체 분야 충족은 ${esc(humanPilotReceipt.supplyBoundary.allCategoryFulfillment)}, 기본 조합은 ${esc(humanPilotReceipt.supplyBoundary.defaultCombinationFulfillment)}입니다. 기본 오늘판은 유머 부족으로 HTTP ${esc(humanPilotReceipt.supplyBoundary.defaultTodayHttpStatus)}를 유지합니다. 공급 HOLD를 기계 문장 PASS로 덮지 않습니다.</span></div>
+      <div class="dev-metrics metric-six">
+        <div class="dev-metric"><div class="k">현재 스냅샷</div><div class="v">${esc(humanPilotReceipt.inventoryRenewal.currentSnapshotVersion)}</div><div class="n">호환성 ${humanPilotReceipt.inventoryRenewal.compatibility.pass?"PASS":"HOLD"} · append-only</div></div>
+        <div class="dev-metric"><div class="k">기계 정본·독자</div><div class="v">${esc(humanPilotReceipt.machinePacket.canonicalMachinePass)} · ${esc(humanPilotReceipt.machinePacket.readerIssuePass)}</div><div class="n">보류 ${esc(humanPilotReceipt.machinePacket.machineHold)} · 영문 단독 리드 ${esc(humanPilotReceipt.machinePacket.englishOnlyLeadCount)}</div></div>
+        <div class="dev-metric"><div class="k">문장 다양성</div><div class="v">${esc(humanPilotReceipt.machinePacket.whyImportantDistinct)} · ${esc(humanPilotReceipt.machinePacket.whyNowDistinct)} · ${esc(humanPilotReceipt.machinePacket.watchNextDistinct)}</div><div class="n">중요성 · 지금 이유 · 다음 확인</div></div>
+        <div class="dev-metric"><div class="k">사람 판정</div><div class="v">${esc(humanPilotReceipt.humanReview.completedRows)}/${esc(humanPilotReceipt.humanReview.totalRequiredJudgments)}</div><div class="n">비교 ${humanPilotReceipt.humanReview.comparisonReady?"준비":"대기"} · 조정 ${humanPilotReceipt.humanReview.adjudicationComplete?"완료":"대기"}</div></div>
+        <div class="dev-metric"><div class="k">전체 분야 공급</div><div class="v">${esc(humanPilotReceipt.supplyBoundary.allCategoryFulfillment)}</div><div class="n">없음 ${esc(humanPilotReceipt.supplyBoundary.noQualifiedCategoryIds.join(" · "))} · 부족 ${esc(humanPilotReceipt.supplyBoundary.underfilledCategoryIds.join(" · "))}</div></div>
+        <div class="dev-metric"><div class="k">기본 오늘판</div><div class="v">HTTP ${esc(humanPilotReceipt.supplyBoundary.defaultTodayHttpStatus)}</div><div class="n">${esc(humanPilotReceipt.supplyBoundary.defaultServingFailure)} · ${esc(humanPilotReceipt.supplyBoundary.defaultUnderfilledCategoryIds.join(" · "))} 부족</div></div>
+      </div>
+      <div class="review-toolbar"><a href="/admin/editorial-desk?reviewer=reviewer-a">검수자 A 데스크</a><a href="/admin/editorial-desk?reviewer=reviewer-b">검수자 B 데스크</a><span class="review-status">각 좌석은 상대 답 없이 같은 42행을 판정합니다.</span></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>판본 연속성·독자 문체·고정 상단 전환</h3><span>${esc(continuityReaderReceipt.stableId)} · ${devChip(continuityReaderReceipt.state,devStateLabel(continuityReaderReceipt.state))}</span></div>
+      <div class="dev-alert"><b>호르무즈 모닝 → 런치: 같은 사건의 후속 보도</b><span><span class="dev-code">${esc(continuityReaderReceipt.actualStoredRegression.previousSubject)}</span>와 <span class="dev-code">${esc(continuityReaderReceipt.actualStoredRegression.currentSubject)}</span>는 기사·출처·초기 clusterId가 달라도 ${esc(continuityReaderReceipt.actualStoredRegression.matchedTerms.join(" · "))} 핵심 사건어로 이어집니다. 런치에서는 새 사건이 아니라 지난 브리핑에서 다룬 사안의 업데이트로 표시합니다.</span></div>
+      <div class="dev-alert"><b>고유명사 한 단어만 같으면 합치지 않음</b><span>호르무즈 기뢰 제거와 호르무즈 협상 난항처럼 장소만 같은 별개 사건은 분리합니다. 저장된 모닝·런치 판과 주장 계보는 수정하지 않고 응답에서만 연속성 판정을 바로잡습니다.</span></div>
+      <div class="dev-alert"><b>독자 화면은 기자식 문장만</b><span><span class="dev-code">관련 보도 묶음 포착</span>·<span class="dev-code">수집 풀</span>·<span class="dev-code">이전 판</span> 같은 내부 용어를 제목과 리드에서 제거했습니다. <span class="dev-code">왜 내게</span>는 내부 선택 감사 근거로 보존하지만 독자 화면에는 내보내지 않습니다.</span></div>
+      <div class="dev-alert"><b>오늘 · 실시간은 같은 자리</b><span>두 화면 모두 브랜드 오른쪽에 오늘·실시간 순서를 고정하고, 다른 화면을 누르면 빨간 표시선이 ${esc(continuityReaderReceipt.rules.indicatorMotionMs)}ms 먼저 이동한 뒤 전환됩니다. 모션 축소 설정에서는 지연 없이 이동합니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">사건 연결 방식</div><div class="v">핵심 사건어</div><div class="n">${esc(continuityReaderReceipt.actualStoredRegression.matchMethod)} · 최소 ${esc(continuityReaderReceipt.rules.minimumSharedMeaningfulTerms)}개</div></div>
+        <div class="dev-metric"><div class="k">저장 원본 수정</div><div class="v">0</div><div class="n">응답 전용 투영 · 계보 보존</div></div>
+        <div class="dev-metric"><div class="k">독자 화면 왜 내게</div><div class="v">0</div><div class="n">내부 감사 필드는 유지</div></div>
+        <div class="dev-metric"><div class="k">추가 LLM 호출</div><div class="v">${esc(continuityReaderReceipt.rules.llmCalls)}</div><div class="n">결정론적 연속성·문장 투영</div></div>
+      </div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>실제 판 사건 다양성</h3><span>${esc(eventDiversityReceipt.stableId)} · ${devChip(eventDiversityReceipt.state,devStateLabel(eventDiversityReceipt.state))}</span></div>
+      <div class="dev-alert"><b>${esc(eventDiversityReceipt.audit.uniqueLeadTitleCount)}개 제목 감사 · 중복 ${esc(eventDiversityReceipt.audit.nearDuplicatePairCount)}쌍</b><span>같은 분야에서 고유 주체·행위가 겹친 실제 사건 변주만 대표 1건으로 접습니다. 영문 불용어와 카테고리·출처·관측 메타어는 중복 근거에서 빼고, 별개 사건의 지면 깊이는 보존합니다. 이 수치는 제품 목표나 고정 표본이 아니며 사람 검수는 아직 HOLD입니다.</span></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>분야 적합성·제목 완결 모사</h3><span>${esc(categoryFitReceipt.stableId)} · ${devChip(categoryFitReceipt.state,devStateLabel(categoryFitReceipt.state))}</span></div>
+      <div class="dev-alert"><b>주입 12시 모사 ${esc(categoryFitReceipt.simulation.fulfilledCategoryCount)}/${esc(categoryFitReceipt.simulation.selectedCategoryCount)} 분야 · ${esc(categoryFitReceipt.simulation.issueCount)}건 · 감사 오분류 선택 ${esc(categoryFitReceipt.simulation.guardedBadSelectedCount)}</b><span>분류기와 편집 게이트가 같은 분야 가드를 쓰고, 모호한 도입부 대신 확인 가능한 사건 구절을 우선하며, 길이 제한으로 문장이 끊기면 다음 후보로 넘깁니다. 사건 중심 제목 ${esc(categoryFitReceipt.simulation.improvedHeadlineCount)}건을 확인했지만 주입 시계 모사이므로 실제 12시 판·사람 품질·운영 반영 증거는 아닙니다.</span></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>실측 분야 의미 누수 재검수</h3><span>${esc(categorySemanticLeakReceipt.stableId)} · ${devChip(categorySemanticLeakReceipt.state,devStateLabel(categorySemanticLeakReceipt.state))}</span></div>
+      <div class="dev-alert"><b>현재 풀 누수 ${esc(categorySemanticLeakReceipt.simulation.observedLeakCountBefore)}→${esc(categorySemanticLeakReceipt.simulation.selectedLeakCountAfter)} · ${esc(categorySemanticLeakReceipt.simulation.metCategoryCount)}/${esc(categorySemanticLeakReceipt.simulation.selectedCategoryCount)} 분야 · ${esc(categorySemanticLeakReceipt.simulation.selectedIssueCount)}건 유지</b><span>제주항공 참사 수사가 부동산, 아티스트 전시가 기술, 기업 음료 협찬이 스포츠 대표가 된 실제 후보를 다음 후보로 교체했습니다. 추신수 연금 제목과 치료·국제정세 판단 축도 함께 교정했습니다. 현재 풀의 비저장 주입 시계 재검수이므로 실제 정시 판과 사람 품질 증거는 아닙니다.</span></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>실제 12시 판본·추가 사람 품질 HOLD</h3><span>${esc(actualLunchSemanticReceipt.stableId)} · ${devChip(actualLunchSemanticReceipt.state,devStateLabel(actualLunchSemanticReceipt.state))}</span></div>
+      <div class="dev-alert"><b>정시 ${esc(Math.round(actualLunchSemanticReceipt.capture.delayMs/1000))}초 · ${esc(actualLunchSemanticReceipt.capture.storedSegmentCount)}/${esc(actualLunchSemanticReceipt.capture.expectedSegmentCount)} 저장 · ${esc(actualLunchSemanticReceipt.allCategorySegment.metCategoryCount)}/${esc(actualLunchSemanticReceipt.allCategorySegment.selectedCategoryCount)} 분야 · ${esc(actualLunchSemanticReceipt.allCategorySegment.issueCount)}건</b><span>총량을 맞춘 것이 아니라 선택 분야별 동적 최소를 충족했고 기본 조합의 아침·낮 내용 지문도 달랐습니다. 그러나 실제 낮 판에서 문화·유머 의미 부적합 ${esc(actualLunchSemanticReceipt.audit.classificationHoldCount)}건과 모호한 제목 ${esc(actualLunchSemanticReceipt.audit.headlineHoldCount)}건을 발견해 사람 품질은 HOLD입니다.</span></div>
+      <div class="dev-alert"><b>저장된 낮 판 불변 · 저녁 이후 새 판만 교정</b><span>강제 낙태·한센인 피해를 유머로, 국가 간 적대 글을 문화로 대표시키지 않습니다. <span class="dev-code">55세에 없었더니</span>·<span class="dev-code">긴 휴식 끝 전력대결</span>·<span class="dev-code">새벽 5시부터 대출런</span>·한자 성씨만 있는 제목도 보류하거나 사건이 드러나는 구절로 바꿉니다. 기계 회귀 ${esc(actualLunchSemanticReceipt.tests.fullRegression.passed)}/${esc(actualLunchSemanticReceipt.tests.fullRegression.total)}은 미래 경로만 증명하며 실제 19시·2인 검수는 아직 남았습니다.</span></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>실제 낮 판 42건 전수 필드 감사</h3><span>${esc(actualLunchFullAuditReceipt.stableId)} · ${devChip(actualLunchFullAuditReceipt.state,devStateLabel(actualLunchFullAuditReceipt.state))}</span></div>
+      <div class="dev-alert"><b>${esc(actualLunchFullAuditReceipt.audit.auditedIssueCount)}/${esc(actualLunchFullAuditReceipt.audit.auditedIssueCount)} 감사 · 영향 행 ${esc(actualLunchFullAuditReceipt.audit.totalAffectedIssueCount)} · 남은 행 PASS 아님</b><span>42는 목표량이나 절대 규칙이 아니라 실제 낮 판의 관측 크기입니다. 앞서 확인한 ${esc(actualLunchFullAuditReceipt.audit.priorKnownAffectedIssueCount)}행에 더해 ${esc(actualLunchFullAuditReceipt.audit.additionalDefectFieldCount)}개 결함 필드가 ${esc(actualLunchFullAuditReceipt.audit.additionalAffectedIssueCount)}행에서 발견됐습니다. 영향 행을 찾았다는 결과만으로 나머지 행의 사람 품질을 통과 처리하지 않습니다.</span></div>
+      <div class="dev-alert"><b>분야 누수 ${esc(actualLunchFullAuditReceipt.audit.categoryLeakCount)} · 저문맥 ${esc(actualLunchFullAuditReceipt.audit.lowContextHeadlineCount)} · 모호한 사건 ${esc(actualLunchFullAuditReceipt.audit.vagueEventHookCount)} · 같은 발행사 주제 밀집 ${esc(actualLunchFullAuditReceipt.audit.samePublisherTopicCrowdingCount)} · 조사 ${esc(actualLunchFullAuditReceipt.audit.particleErrorCount)}</b><span>문맥을 지어내지 않고 저문맥 후보는 보류하며, 같은 발행사의 관련 후속 보도가 지면을 겹쳐 차지하지 않게 하고, 한국어 목적격 조사를 명사에 맞춥니다. 저장된 낮 판은 불변이고 이 규칙은 미래 판에만 적용됩니다.</span></div>
+      <div class="dev-alert"><b>미래 경로 ${esc(actualLunchFullAuditReceipt.futureRuleProjection.currentPreviewMetCategoryCount)}/${esc(actualLunchFullAuditReceipt.futureRuleProjection.currentPreviewSelectedCategoryCount)} 분야 · 현재 미리보기 ${esc(actualLunchFullAuditReceipt.futureRuleProjection.currentPreviewIssueCount)}건</b><span>이 미리보기 수치도 목표가 아니라 현재 공급에서 나온 투영입니다. 집중 회귀 ${esc(actualLunchFullAuditReceipt.tests.focusedRegression.passed)}/${esc(actualLunchFullAuditReceipt.tests.focusedRegression.total)} · 전체 회귀 ${esc(actualLunchFullAuditReceipt.tests.fullRegression.passed)}/${esc(actualLunchFullAuditReceipt.tests.fullRegression.total)}을 통과했지만 실제 19시 판과 2인 독립 검수는 아직 미관측입니다.</span></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>정시 판본 우선순위·완료시각 증거</h3><span>${esc(slotCaptureReceipt.stableId)} · ${devChip(slotCaptureReceipt.state,devStateLabel(slotCaptureReceipt.state))}</span></div>
+      <div class="dev-alert"><b>기본·다수 조합 우선 · 조합 안 07→12→19 · 저장 완료시각 판정</b><span>낮은 우선순위 조합의 과거 누락이 지금 보여줄 기본판을 밀지 않게 하면서, 같은 조합은 직전 판 변화가 이어지도록 시간순 선행판을 먼저 만듭니다. 정시 여부는 큐 시작이 아니라 저장 완료시각으로 재계산하며 실제 12·19시 관측 전에는 코드 QA 상태입니다.</span></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>부족 분야 원료·편성 복구 · 후속 비저장 재생</h3><span>${esc(sourceRepairReceipt.stableId)} · ${devChip(sourceRepairReceipt.state,devStateLabel(sourceRepairReceipt.state))}</span></div>
+      <div class="dev-alert"><b>외부 원료 ≠ 자체 콘텐츠</b><span>${esc(sourceRepairReceipt.purpose)}. RSS 원문 수를 자체 콘텐츠 수로 세지 않으며, NowHot이 사건을 묶고 근거를 비교해 만든 최종 이슈만 별도로 기록합니다. 아래 14개 분야 표는 복구 전 저장된 실제 07시 역사판이라 과학 0건을 그대로 보존합니다.</span></div>
+      <div class="dev-metrics metric-six">
+        <div class="dev-metric"><div class="k">과학 입력</div><div class="v">${esc(sourceRepairReceipt.replay.science.inputItemCount)}</div><div class="n">기계 유효 ${esc(sourceRepairReceipt.replay.science.qualifiedClusterCount)} · 고정 목표 아님</div></div>
+        <div class="dev-metric"><div class="k">과학 편집 이슈</div><div class="v">${esc(sourceRepairReceipt.replay.science.finalIssueCount)}</div><div class="n">상위 보도 근거 ${esc(sourceRepairReceipt.replay.science.verifiedSourceLeadCount)}건 · 커뮤니티 ${esc(sourceRepairReceipt.replay.science.communitySignalFirstRank)}번째</div></div>
+        <div class="dev-metric"><div class="k">패션 입력</div><div class="v">${esc(sourceRepairReceipt.replay.fashion.inputItemCount)}</div><div class="n">기계 유효 ${esc(sourceRepairReceipt.replay.fashion.qualifiedClusterCount)}</div></div>
+        <div class="dev-metric"><div class="k">패션 편집 이슈</div><div class="v">${esc(sourceRepairReceipt.replay.fashion.finalIssueCount)}</div><div class="n">종합 Hypebeast 대표 ${esc(sourceRepairReceipt.replay.retiredBroadHypebeastIssueCount)}건</div></div>
+        <div class="dev-metric"><div class="k">과학·패션 목표</div><div class="v">${esc(sourceRepairReceipt.replay.science.state)} · ${esc(sourceRepairReceipt.replay.fashion.state)}</div><div class="n">각 동적 최소 ${esc(sourceRepairReceipt.replay.science.target)}건 충족</div></div>
+        <div class="dev-metric"><div class="k">사람 품질</div><div class="v">HOLD</div><div class="n">문장·사실성·분야 적합성 독립 검수 전</div></div>
+      </div>
+      <div class="dev-alert"><b>현재 지면 안전 상한 · 제품 목표 아님</b><span>한 분야 14건, 두 분야 16건, 다분야 최대 42건은 현재 화면과 반복 노출을 보호하는 편성 상한입니다. 수집 할당량이나 품질 통과 숫자가 아닙니다. 현재 관측은 ${localPreview?`${esc(localPreview.selectedCategoryCount)}개 분야 · 상한 ${esc(localPreview.maxIssues)}건 · 공급 분야당 동적 최소 ${esc(localPreview.minIssuesPerCategory)}건`:`런타임 대기`}이며, 공급 없는 분야는 다른 내용으로 위장해 채우지 않습니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">선택 분야</div><div class="v">${localFulfillment?esc(localFulfillment.selectedCount):"—"}</div><div class="n">전체 카테고리 개발 샘플</div></div>
+        <div class="dev-metric"><div class="k">충족 분야</div><div class="v">${localFulfillment?`${esc(localFulfillment.metCount)}/${esc(localFulfillment.selectedCount)}`:"—"}</div><div class="n">분야별 목표 ${localFulfillment?esc(localFulfillment.targetPerCategory):"—"}개 · 공급에 따라 동적</div></div>
+        <div class="dev-metric"><div class="k">공급 없음</div><div class="v">${localFulfillment?esc(localFulfillment.missingCategoryIds.length):"—"}</div><div class="n">${localFulfillment&&localFulfillment.missingCategoryIds.length?esc(localFulfillment.missingCategoryIds.join(" · ")):"없음"}</div></div>
+        <div class="dev-metric"><div class="k">기계 유효 없음</div><div class="v">${localFulfillment?esc((localFulfillment.noQualifiedCategoryIds||[]).length):"—"}</div><div class="n">${localFulfillment&&(localFulfillment.noQualifiedCategoryIds||[]).length?esc(localFulfillment.noQualifiedCategoryIds.join(" · ")):"없음"}</div></div>
+        <div class="dev-metric"><div class="k">보강 중</div><div class="v">${localFulfillment?esc(localFulfillment.underfilledCategoryIds.length):"—"}</div><div class="n">${localFulfillment&&localFulfillment.underfilledCategoryIds.length?esc(localFulfillment.underfilledCategoryIds.join(" · ")):"없음"}</div></div>
+      </div>
+      ${localFulfillmentRows?`<div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>선택 분야</th><th>수집 후보</th><th>문장 통과</th><th>기계 유효</th><th>변화 전</th><th>적합 최종</th><th>고유 배정</th><th>동적 목표</th><th>상태</th></tr></thead><tbody>${localFulfillmentRows}</tbody></table></div>`:""}
+      <div class="dev-section-head" style="margin-top:22px"><h3>주장 계보·선택형 LLM 영수증</h3><span>${localLineage?esc(localLineage.contractId):"NOWHOT-EDITORIAL-LINEAGE-CONTRACT-001"} · ${localLlm?esc(localLlm.contractId):"NOWHOT-EDITORIAL-LLM-RUNTIME-001"}</span></div>
+      <div class="dev-alert"><b>${localLlm&&localLlm.enabled?"로컬 플래그 ON":"기본 OFF"}</b><span>편집 모델은 제목과 근거 ID만 받고, 별도 검증자가 세 필드를 각각 승인한 경우에만 적용합니다. 실패·거부·키 없음은 현재 결정론적 문장으로 복귀합니다.</span></div>
+      <div class="dev-alert"><b>단발 LLM canary</b><span>${localLlmCanarySummary}</span><span class="dev-code">${localLlmCanary?esc(localLlmCanary.contractId):"NOWHOT-EDITORIAL-LLM-CANARY-001"}</span></div>
+      <div class="dev-metrics metric-six">
+        <div class="dev-metric"><div class="k">계보 통과</div><div class="v">${localLineage?`${esc(localLineage.passCount)}/${esc(localLineage.issueCount)}`:"—"}</div><div class="n">보류 ${localLineage?esc(localLineage.holdCount):"—"} · 문장 근거 유형 분리</div></div>
+        <div class="dev-metric"><div class="k">출처 근거 행</div><div class="v">${localLineage?esc(localLineage.sourceEvidenceCount):"—"}</div><div class="n">원문·보강·관련 관측의 안정 ID</div></div>
+        <div class="dev-metric"><div class="k">LLM 상태</div><div class="v">${localLlm?esc(devStateLabel(localLlm.state)):"—"}</div><div class="n">${localLlm?esc(localLlm.model||`모델 미호출 · 설정 ${localLlm.configuredModel||"없음"}`):"런타임 미관측"}</div></div>
+        <div class="dev-metric"><div class="k">편집·검증 호출</div><div class="v">${localLlm?esc(localLlm.calls):"—"}</div><div class="n">요청 ${localLlm?esc(localLlm.requested):"—"} · 적용 ${localLlm?esc(localLlm.edited):"—"} · 거부 ${localLlm?esc(localLlm.rejected):"—"}</div></div>
+        <div class="dev-metric"><div class="k">캐시 적중</div><div class="v">${localLlm?esc(localLlm.cacheHits):"—"}</div><div class="n">evidenceHash 재사용 · 사용자별 호출 아님</div></div>
+        <div class="dev-metric"><div class="k">실측 토큰</div><div class="v">${localLlm?`${esc(localLlm.inputTokens)} / ${esc(localLlm.outputTokens)}`:"—"}</div><div class="n">입력 / 출력 · 호출 없으면 0</div></div>
+      </div>
+      <div class="dev-alert"><b>증명 한계</b><span>${localLlm?esc(localLlm.doesNotProve):"실제 모델 품질·사람 검수 PASS·운영 배포는 아직 증명하지 않음"}</span></div>
+      ${localLineageRoleRows?`<div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>출처 역할</th><th>근거 행</th></tr></thead><tbody>${localLineageRoleRows}</tbody></table></div>`:""}
+      <div class="dev-section-head" style="margin-top:22px"><h3>아침·낮·저녁 판본 변화 영수증</h3><span>${esc(b.editionChangeContractId||"NOWHOT-EDITION-CHANGE-CONTRACT-001")} · ${localChange?devChip(localChange.state,devStateLabel(localChange.state)):devChip("not_observed","미관측")}</span></div>
+      <div class="dev-alert"><b>반복 자격</b><span>새 사건과 새 근거·출처 변화만 다음 판에 다시 실을 수 있습니다. 추천·댓글 변화는 기록하지만 새로운 사실로 간주하지 않으며 고정 후보 수나 고정 반응량 문턱을 두지 않습니다.</span></div>
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">이전 판</div><div class="v">${localChange&&localChange.previousEditionId?esc(localChange.previousEditionId):"없음"}</div><div class="n">같은 선택 분야 조합의 직전 저장 슬롯</div></div>
+        <div class="dev-metric"><div class="k">새 사건</div><div class="v">${localChange?esc(localChange.counts.new):"—"}</div><div class="n">첫 판 기준선 ${localChange?esc(localChange.counts.baseline):"—"}건</div></div>
+        <div class="dev-metric"><div class="k">실질 변화</div><div class="v">${localChange?esc(localChange.counts.material_update):"—"}</div><div class="n">근거 상태·관측 피드·새 출처·관련 묶음 증가</div></div>
+        <div class="dev-metric"><div class="k">반복 보류</div><div class="v">${localChange?esc(localChange.heldRepeatCount):"—"}</div><div class="n">반응만 변화 ${localChange?esc(localChange.counts.reaction_update):"—"} · 무변화 ${localChange?esc(localChange.counts.unchanged):"—"}</div></div>
+      </div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>개인판 슬롯 재고</h3><span>${localInventory?esc(localInventory.stableId):esc(b.editorialInventoryContractId||"NOWHOT-EDITORIAL-INVENTORY-CONTRACT-001")} · ${localInventory?devChip(localInventory.state,devStateLabel(localInventory.state)):devChip("not_observed","미관측")}</span></div>
+      <div class="dev-alert"><b>사용자별 생성 아님</b><span>같은 선택 카테고리 조합은 같은 저장 판을 공유합니다. 키는 <span class="dev-code">${esc(localInventory&&localInventory.snapshotVersion||"v21")}:정렬된 카테고리</span>만 사용하고 사용자 ID를 포함하지 않습니다. 제한 큐는 기본·대표 인원이 큰 조합부터 잡고, 각 조합 안에서는 변화 계보가 이어지도록 필요한 슬롯을 시간순으로 채웁니다.</span></div>
+      <div class="dev-metrics metric-six">
+        <div class="dev-metric"><div class="k">선택 조합</div><div class="v">${localInventory?esc(localInventory.segmentCount):"—"}</div><div class="n">대표 이용자 ${localInventory?esc(localInventory.representedUserCount):"—"}명 · 조합 중복 제거</div></div>
+        <div class="dev-metric"><div class="k">예정 판본</div><div class="v">${localInventory?esc(localInventory.expectedCount):"—"}</div><div class="n">도래 슬롯 × 조합 · 07시 전에는 전날 복구</div></div>
+        <div class="dev-metric"><div class="k">저장 완료</div><div class="v">${localInventory?esc(localInventory.storedCount):"—"}</div><div class="n">발행 가능 ${localInventory?esc(localInventory.publishableCount):"—"} · 보류 ${localInventory?esc(localInventory.heldCount):"—"}</div></div>
+        <div class="dev-metric"><div class="k">남은 백필</div><div class="v">${localInventory?esc(localInventory.backlogCount):"—"}</div><div class="n">이번 점검 생성 ${localInventory?esc(localInventory.builtCount):"—"}</div></div>
+        <div class="dev-metric"><div class="k">회당 상한</div><div class="v">${localInventory?esc(localInventory.batchLimit):"—"}</div><div class="n">과부하 방지 · 다음 점검에서 이어서 처리</div></div>
+        <div class="dev-metric"><div class="k">새 LLM 호출</div><div class="v">${localInventory?esc(localInventory.llmCalls):"—"}</div><div class="n">캐시 적중 ${localInventory?esc(localInventory.llmCacheHits):"—"} · 명시적 플래그에서만</div></div>
+      </div>
+      ${localInventory?`<div class="dev-alert"><b>재고 처리 ${esc(Math.round((localInventory.durationMs||0)/1000))}초</b><span>시작 ${esc(when(localInventory.startedAt))} · 완료 ${esc(when(localInventory.completedAt))} · 정시 판정은 완료시각 기준</span></div>`:""}
+      ${localInventoryRows?`<div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>슬롯</th><th>기준 시각</th><th>예정</th><th>저장</th><th>발행 가능</th><th>누락</th></tr></thead><tbody>${localInventoryRows}</tbody></table></div>`:'<p class="empty">오늘 첫 발행 슬롯 전이거나 재고 영수증이 아직 없습니다.</p>'}
+      ${localSegmentRows?`<div class="dev-section-head" style="margin-top:16px"><h3>공유 선택 조합</h3><span>사용자 식별자 비포함</span></div><div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>판본 키</th><th>카테고리</th><th>대표 인원</th><th>생성 단위</th></tr></thead><tbody>${localSegmentRows}</tbody></table></div>`:""}
+      <div class="dev-section-head" style="margin-top:22px"><h3>실제 슬롯 실행 영수증</h3><span>${localElapsed?esc(localElapsed.stableId):"NOWHOT-ELAPSED-EDITION-EVIDENCE-001"} · ${localElapsed?devChip(localElapsed.state,devStateLabel(localElapsed.state)):devChip("not_observed","미관측")}</span></div>
+      <div class="dev-alert"><b>자동 슬롯 감시 ${localScheduler?devChip(localScheduler.state,devStateLabel(localScheduler.state)):devChip("not_observed","미관측")}</b><span>${localScheduler?`서버 시각 ${esc(when(localScheduler.serverNow))} · ${esc(Math.round(localScheduler.checkIntervalMs/60000))}분마다 점검 · ${esc(localScheduler.clockSource)} 시계 · 도래 후 미관측 ${esc((localScheduler.pendingDueSlotIds||[]).length)}개${localSchedulerNext?` · 다음 동작 ${esc(localSchedulerNext.slotLabel)} ${esc(when(localSchedulerNext.scheduledAt))} · 정시 인정 마감 ${esc(when(localSchedulerNext.captureWindowEndsAt))}`:""}`:"자동 실행 상태를 읽지 못했습니다."}</span></div>
+      <div class="dev-alert"><b>백필과 실제 실행 분리</b><span>날짜·슬롯별 최초 관측을 덮어쓰지 않습니다. 시스템 시계 기준 발행 후 10분 안에 저장까지 끝난 실행만 정시로 인정하며, 주입 시계·늦은 백필·보류·누락은 실제 시간차 증거로 승격하지 않습니다. 기존 행도 사후 저장시각을 우선해 재판정하고, 전체 합계와 별도로 같은 공유 카테고리 조합의 발행·분야 충족·내용 지문을 세 슬롯에 걸쳐 대조합니다.</span></div>
+      <div class="dev-metrics metric-six">
+        <div class="dev-metric"><div class="k">관측 슬롯</div><div class="v">${localElapsed?esc(localElapsed.capturedCount):"—"}/3</div><div class="n">날짜 ${localElapsed?esc(localElapsed.date||"—"):"—"}</div></div>
+        <div class="dev-metric"><div class="k">정시 관측</div><div class="v">${localElapsed?esc(localElapsed.onTimeCount):"—"}</div><div class="n">시스템 시계·발행 후 10분 이내</div></div>
+        <div class="dev-metric"><div class="k">완결 슬롯</div><div class="v">${localElapsed?esc(localElapsed.readyCount):"—"}</div><div class="n">보류·누락 슬롯 ${localElapsed?esc(localElapsed.heldOrMissingCount):"—"}</div></div>
+        <div class="dev-metric"><div class="k">서로 다른 내용</div><div class="v">${localElapsed?esc(localElapsed.distinctContentCount):"—"}</div><div class="n">콘텐츠 지문 기준</div></div>
+        <div class="dev-metric"><div class="k">시간 순서</div><div class="v">${localElapsed?(localElapsed.chronological?"정상":"미완료"):"—"}</div><div class="n">모닝→런치→이브닝 관측</div></div>
+        <div class="dev-metric"><div class="k">실제 세 판 증명</div><div class="v">${localElapsed&&localElapsed.actualElapsedTimeProof?"PASS":"HOLD"}</div><div class="n">기본 공유 조합 · 조합별 ${localElapsed?esc(localElapsed.segmentProofCount||0):"—"}/${localElapsed&&localElapsed.segmentProofs?esc(localElapsed.segmentProofs.length):"—"} · 사람 품질 별도</div></div>
+      </div>
+      ${localElapsedRows?`<div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>슬롯</th><th>기준</th><th>완료 관측·근거</th><th>지연</th><th>상태</th><th>재고</th><th>내용 지문</th></tr></thead><tbody>${localElapsedRows}</tbody></table></div>`:'<p class="empty">실제 슬롯 실행 영수증이 아직 없습니다.</p>'}
+      <div class="dev-section-head" style="margin-top:16px"><h3>공유 조합별 세 슬롯 증거</h3><span>정시·발행·선택 분야 충족·서로 다른 내용</span></div>
+      ${localElapsedSegmentRows?`<div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>공유 조합</th><th>카테고리</th><th>정시/관측</th><th>발행/저장</th><th>분야 충족</th><th>내용 지문</th><th>판정</th></tr></thead><tbody>${localElapsedSegmentRows}</tbody></table></div>`:'<p class="empty">과거 슬롯 합계는 그대로 보존합니다. 다음 실제 슬롯의 최초 관측부터 공유 조합별 증거가 쌓입니다.</p>'}
+      <div class="dev-section-head" style="margin-top:22px"><h3>최근 ${localReliability?esc(localReliability.windowDays):"30"}일 판본 신뢰도 원장</h3><span>${esc(reliabilityReceipt.stableId)} · ${localReliability?devChip(localReliability.state,devStateLabel(localReliability.state)):devChip(reliabilityReceipt.state,devStateLabel(reliabilityReceipt.state))}</span></div>
+      <div class="dev-alert"><b>건수가 아니라 판본 충족을 측정</b><span>100건 같은 총량 목표는 없습니다. ${localReliability?esc(localReliability.windowDays):"30"}일은 수집 할당량이 아니라 관측 창입니다. 첫 실제 정시창 관측부터 평가하며 그 이전 복원 백필과 주입 시계 모사는 분모에서 제외합니다. 감시 시작 뒤의 늦은 저장은 그대로 실패로 남기고, 오늘은 현재까지 도래한 슬롯만 평가합니다.</span></div>
+      <div class="dev-metrics metric-six">
+        <div class="dev-metric"><div class="k">원장 날짜</div><div class="v">${localReliability?esc(localReliability.rows.length):"—"}</div><div class="n">감시 시작 ${localReliability&&localReliability.monitoringStart?`${esc(localReliability.monitoringStart.date)} ${esc(localReliability.monitoringStart.slotId)}`:"대기"} · 주입 ${localReliability?esc(localReliability.excludedNonSystemObservationCount):"—"}/이전 백필 ${localReliability?esc(localReliability.excludedPreMonitoringObservationCount):"—"} 제외</div></div>
+        <div class="dev-metric"><div class="k">도래 슬롯</div><div class="v">${localReliability?esc(localReliability.totals.expectedSlots):"—"}</div><div class="n">관측 ${localReliability?esc(localReliability.totals.capturedSlots):"—"} · 완결 ${localReliability?esc(localReliability.totals.readySlots):"—"}</div></div>
+        <div class="dev-metric"><div class="k">정시율</div><div class="v">${localReliability&&localReliability.totals.onTimeRatePct!=null?esc(localReliability.totals.onTimeRatePct)+"%":"—"}</div><div class="n">저장 완료시각 기준</div></div>
+        <div class="dev-metric"><div class="k">누락·지연</div><div class="v">${localReliability?`${esc(localReliability.totals.missingDueSlots)} · ${esc(localReliability.totals.lateSlots)}`:"—"}</div><div class="n">도래 뒤 미관측 · 정시창 이후</div></div>
+        <div class="dev-metric"><div class="k">분야 보류 날짜</div><div class="v">${localReliability?esc(localReliability.totals.categoryHoldDays):"—"}</div><div class="n">다른 분야로 위장 충족하지 않음</div></div>
+        <div class="dev-metric"><div class="k">일일 증거 완결</div><div class="v">${localReliability?esc(localReliability.totals.completeDays):"—"}</div><div class="n">주의 날짜 ${localReliability?esc(localReliability.totals.attentionDays):"—"} · 사람 품질 별도</div></div>
+      </div>
+      ${localReliabilityRows?`<div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>날짜</th><th>판정</th><th>관측/도래</th><th>정시</th><th>완결</th><th>서로 다른 내용</th><th>분야 보류</th></tr></thead><tbody>${localReliabilityRows}</tbody></table></div>`:'<p class="empty">실제 슬롯 관측이 시작되면 날짜별 원장이 생성됩니다.</p>'}
+      <div class="dev-section-head" style="margin-top:22px"><h3>판본 품질 누적 원장</h3><span>${esc(qualityHistoryReceipt.stableId)} · ${localQualityHistory?devChip(localQualityHistory.state,devStateLabel(localQualityHistory.state)):devChip(qualityHistoryReceipt.state,devStateLabel(qualityHistoryReceipt.state))}</span></div>
+      <div class="dev-alert"><b>불변 저장 판을 다시 만들지 않고 감사</b><span>${localQualityHistory?esc(localQualityHistory.windowDays):"30"}일은 관측 창이지 수집 건수 목표가 아닙니다. 날짜·슬롯별 발행·분야 충족, 최종 기계 게이트, 주장 계보, 근거 유형, 해외 비중을 누적하고 사람 검수 진행률은 별도 열로 둡니다. 패킷이 동결됐다는 사실만으로 사람 품질 PASS가 되지 않습니다.</span></div>
+      ${localQualitySampling?`<div class="dev-alert"><b>슬롯별 자동 검수 패킷 ${devChip(localQualitySampling.state,devStateLabel(localQualitySampling.state))}</b><span>도래 슬롯마다 가장 넓은 공유 카테고리 조합 1판을 고정 건수 없이 동결합니다. 현재 ${esc(localQualitySampling.frozenPacketCount)}개 패킷 · 분야 ${esc((localQualitySampling.selectedCategories||[]).join(" · ")||"대기")} · 활성 검수 대상 변경 ${localQualitySampling.activationChanged?"있음":"없음"}. 이는 검수 입력 대상을 보존할 뿐 사람 검수 완료·신원을 증명하지 않습니다.</span></div>`:'<div class="dev-alert"><b>슬롯별 자동 검수 패킷 대기</b><span>다음 재고 완성 때 가장 넓은 공유 카테고리 조합의 검수 대상이 자동 동결됩니다. 기존 활성 패킷은 바꾸지 않습니다.</span></div>'}
+      <div class="dev-metrics metric-six">
+        <div class="dev-metric"><div class="k">슬롯 행</div><div class="v">${localQualityHistory?esc(localQualityHistory.rows.length):"—"}</div><div class="n">첫 저장 판 ${localQualityHistory?esc(localQualityHistory.firstEditionDate||"대기"):"—"}</div></div>
+        <div class="dev-metric"><div class="k">불변 저장 판</div><div class="v">${localQualityHistory?esc(localQualityHistory.totals.editions):"—"}</div><div class="n">발행 가능 ${localQualityHistory?esc(localQualityHistory.totals.publishableEditions):"—"} · 분야 충족 ${localQualityHistory?esc(localQualityHistory.totals.fulfilledEditions):"—"}</div></div>
+        <div class="dev-metric"><div class="k">최종 편집 이슈</div><div class="v">${localQualityHistory?esc(localQualityHistory.totals.issues):"—"}</div><div class="n">기계 보류 ${localQualityHistory?esc(localQualityHistory.totals.machineHolds):"—"} · 계보 실패 ${localQualityHistory?esc(localQualityHistory.totals.lineageHolds):"—"} · 구형 미지원 ${localQualityHistory?esc(localQualityHistory.totals.lineageUnavailable):"—"}</div></div>
+        <div class="dev-metric"><div class="k">원문 근거 행</div><div class="v">${localQualityHistory?esc(localQualityHistory.totals.sourceEvidence):"—"}</div><div class="n">판본 문장의 추적 가능한 입력</div></div>
+        <div class="dev-metric"><div class="k">검수 패킷</div><div class="v">${localQualityHistory?esc(localQualityHistory.totals.reviewPackets):"—"}</div><div class="n">슬롯별 넓은 공유판 표본</div></div>
+        <div class="dev-metric"><div class="k">2인 검수 진척</div><div class="v">${localQualityHistory&&localQualityHistory.totals.humanReviewCoveragePct!=null?esc(localQualityHistory.totals.humanReviewCoveragePct)+"%":"—"}</div><div class="n">사람 품질 PASS 판 ${localQualityHistory?esc(localQualityHistory.totals.humanQualityPassEditions):"—"}</div></div>
+      </div>
+      ${localQualityRows?`<div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>날짜·슬롯</th><th>품질 상태</th><th>발행·분야</th><th>이슈·보류</th><th>근거</th><th>해외 비중</th><th>사람 검수</th></tr></thead><tbody>${localQualityRows}</tbody></table></div>`:'<p class="empty">불변 저장 판이 생기면 슬롯별 품질 원장이 생성됩니다.</p>'}
+      <div class="dev-section-head" style="margin-top:22px"><h3>세 슬롯 코드 경로 리플레이</h3><span>${localReplay?esc(localReplay.stableId):"NOWHOT-THREE-SLOT-REPLAY-001"} · ${localReplay?devChip(localReplay.state,devStateLabel(localReplay.state)):devChip("not_observed","미관측")}</span></div>
+      <div class="dev-alert"><b>실제 하루 증거 아님 · 분야 충족 사전점검</b><span>같은 현재 풀을 시간 경과 없이 모닝→런치→이브닝 규칙에 통과시킨 비저장 기계 시험입니다. 고정 건수 목표 대신 현재 풀이 선택 분야의 동적 최소 깊이를 채울 수 있는지 미리 보지만, 실제 정시 저장·시간차 수집·사람 품질을 증명하지는 않습니다.</span></div>
+      ${localReplayRows?`<div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>슬롯</th><th>비교 후보</th><th>선택</th><th>예측 분야 충족</th><th>기준선·새 사건·실질 변화</th><th>반응만·무변화·보류</th><th>최소 발행</th></tr></thead><tbody>${localReplayRows}</tbody></table></div>`:'<p class="empty">세 슬롯 경로 리플레이가 아직 관측되지 않았습니다.</p>'}
+      <div class="dev-section-head" style="margin-top:22px"><h3>다음 판 비저장 사전검수</h3><span>${localPreflight?esc(localPreflight.stableId):"NOWHOT-PROJECTED-EDITION-PREFLIGHT-001"} · ${localPreflight?devChip(localPreflight.state,devStateLabel(localPreflight.state)):devChip("not_observed","미관측")}</span></div>
+      ${projectedPreflightReceipt?`<div class="dev-alert"><b>비저장 다음 판 교정 영수증 · ${esc(projectedPreflightReceipt.stableId)}</b><span>${esc(when(projectedPreflightReceipt.observedAt))} 관측 시점의 이브닝 투영은 ${esc(projectedPreflightReceipt.runtime.metCategoryCount)}/${esc(projectedPreflightReceipt.runtime.selectedCategoryCount)}개 분야 충족입니다. 패션은 공급 없음, 과학·예술은 부족으로 남겼고, 열거한 표적 결함은 ${esc(projectedPreflightReceipt.runtime.enumeratedTargetedDefectsRemaining)}건입니다. 관측 ${esc(projectedPreflightReceipt.runtime.issueCount)}행은 목표가 아니며 실제 19시판·사람 품질 PASS가 아닙니다. 바로 아래 표는 갱신된 현재 풀을 다시 계산한 읽기 전용 값입니다.</span>${devChip(projectedPreflightReceipt.state,"비저장 투영 QA")}</div>`:""}
+      ${projectedReauditReceipt?`<div class="dev-alert"><b>동적 대체행 재감사 · ${esc(projectedReauditReceipt.stableId)}</b><span>${esc(when(projectedReauditReceipt.observedAt))} 재감사에서도 관측 ${esc(projectedReauditReceipt.runtime.issueCount)}행은 목표가 아닙니다. 품질 보류 뒤 다음 유효 후보가 빈자리를 채우므로 대체행까지 다시 검사했고 열거 표적 결함은 ${esc(projectedReauditReceipt.runtime.enumeratedTargetedDefectsRemaining)}건입니다. 분야 충족은 ${esc(projectedReauditReceipt.runtime.priorMetCategoryCount)}/${esc(projectedReauditReceipt.runtime.selectedCategoryCount)}에서 ${esc(projectedReauditReceipt.runtime.metCategoryCount)}/${esc(projectedReauditReceipt.runtime.selectedCategoryCount)}로 낮아졌습니다. 패션은 공급 없음, 자동차·과학·예술은 부족입니다. 건수를 지키기 위해 저품질 행을 되살리지 않았으며 실제 19시판·사람 품질 PASS는 아직 아닙니다.</span>${devChip(projectedReauditReceipt.state,"대체행 재감사 QA")}</div>`:""}
+      <div class="dev-alert"><b>${localPreflightSlot?`${esc(localPreflightSlot.label)} 동일 풀 후보 · ${esc(localPreflight.metrics.issueCount)}행 · 기계 통과 ${esc(localPreflight.metrics.machinePass)}`:"사전검수 대기"}</b><span>운영 저장 없이 현재 풀을 ${localPreflightSlot?esc(localPreflightSlot.label):"다음"} 규칙에 통과시킨 읽기 전용 자료입니다. 새로 들어올 사건을 예측하지 않으며 실제 슬롯 수집·정시 저장·사람 품질 PASS로 승격하지 않습니다.</span></div>
+      ${localPreflightRows?`<details class="review-material"><summary>사전검수 후보 ${esc(localPreflight.metrics.issueCount)}행 펼치기</summary><div class="dev-table-wrap review-table"><table class="dev-table"><thead><tr><th>블라인드 ID</th><th>분야</th><th>편집문·근거</th><th>기계 판정</th></tr></thead><tbody>${localPreflightRows}</tbody></table></div></details>`:'<p class="empty">다음 판 사전검수 행이 아직 없습니다.</p>'}
+      <div class="dev-section-head" style="margin-top:22px"><h3>불변 활성 판 편집 품질검수</h3><span>${esc(b.editorialQualityContractId)} · ${esc(localReview?localReview.stableId:b.blindReviewPacketId)} · ${localReview?devChip(localReview.state,devStateLabel(localReview.state)):devChip("not_observed","미관측")}</span></div>
+      <div class="dev-alert"><b>고정 표본 수는 제품 법칙이 아님</b><span>각 판의 후보 수는 선택 분야와 유효 공급에 따라 동적으로 정합니다. 다만 사람 검수를 시작한 뒤에는 두 사람이 같은 행과 근거를 보도록 활성 패킷을 불변 고정합니다. E1 규모는 파일럿 불일치율·목표 정밀도·검수 예산을 본 뒤 manifest와 함께 정하며 현재 목표 건수는 없습니다.</span></div>
+      ${localReviewQueue?`<div class="dev-alert"><b>검수 패킷 원장 ${devChip(localReviewQueue.state,devStateLabel(localReviewQueue.state))}</b><span>활성 ${esc(localReviewQueue.activePacketId)} · 후보 ${esc(localReviewQueue.currentCandidatePacketId)} · 대기 ${esc(localReviewQueue.pendingCount)}개 · ${esc(localReviewQueue.packetRule)}</span></div><div class="review-toolbar"><label for="editorialReviewPacket">고정 검수 대상</label><select id="editorialReviewPacket">${localReviewQueueOptions}</select><button id="editorialReviewPacketActivate" type="button">선택 판 고정</button><span class="review-status" id="editorialReviewPacketStatus">진행 중 표기·조정이 있으면 교체하지 않습니다.</span></div>`:""}
+      <div class="dev-metrics">
+        <div class="dev-metric"><div class="k">활성 검수 대상</div><div class="v">${localReview?esc(localReview.metrics.issueCount):"—"}</div><div class="n">${localReview?`${esc(localReview.sourceDate||"—")} · ${esc(localReview.sourceSlotId||"—")} · ${esc(localReview.packetId)}`:"고정 패킷 대기"}</div></div>
+        <div class="dev-metric"><div class="k">기계 통과</div><div class="v">${localReview?esc(localReview.metrics.machinePass):"—"}</div><div class="n">보류 ${localReview?esc(localReview.metrics.machineHold):"—"} · 실패 후보는 다음 순위로 교체</div></div>
+        <div class="dev-metric"><div class="k">후보 클러스터 검사</div><div class="v">${localQuality?esc(localQuality.evaluatedClusters):"—"}</div><div class="n">통과 ${localQuality?esc(localQuality.machinePass):"—"} · 보류 ${localQuality?esc(localQuality.machineHold):"—"}</div></div>
+        <div class="dev-metric"><div class="k">2인 표기 완료 행</div><div class="v">${localReview?esc(localReview.metrics.humanCompleted):"—"}</div><div class="n">A ${humanReview?esc(humanReview.completedByReviewer["reviewer-a"].completed):"—"} · B ${humanReview?esc(humanReview.completedByReviewer["reviewer-b"].completed):"—"} · 완료돼도 품질 PASS는 별도</div></div>
+        <div class="dev-metric"><div class="k">필드 일치율</div><div class="v">${humanReview&&humanReview.agreement.rate!=null?esc(humanReview.agreement.rate)+"%":"—"}</div><div class="n">불일치 행 ${humanReview?esc(humanReview.agreement.disagreementRows):"—"}</div></div>
+        <div class="dev-metric"><div class="k">최종 사람 품질</div><div class="v">${humanReview&&humanReview.qualityPass?"PASS":"HOLD"}</div><div class="n">엄격 만장일치 ${humanReview&&humanReview.strictConsensusPass?"PASS":"HOLD"} · 조정 미결 ${humanReview&&humanReview.adjudication?esc(humanReview.adjudication.unresolvedFields):"—"}</div></div>
+      </div>
+      <div class="dev-alert"><b>독립성 한계</b><span>검수자 A·B는 서로의 개별 답을 읽지 않는 분리 원장이며 두 원장이 전 행을 끝내기 전에는 일치율과 답을 공개하지 않습니다. 계정 본인확인 수단은 아니므로 실제 사람 배정 영수증은 별도입니다. 기계의 행별 통과 판정도 입력표에서 숨깁니다.</span></div>
+      <div class="dev-alert"><b>독자 화면 편집 데스크 · ${esc(b.editorialReviewDeskContractId)}</b><span>독자가 실제로 읽는 제목·요약·중요성·변화·다음 확인과 원문 근거를 한 건씩 대조합니다. 현재 검수자의 답만 불러오고 변경은 기존 불변 원장에 자동 저장합니다.</span><span class="dev-code">/admin/editorial-desk</span></div>
+      ${localReview?`<div class="review-toolbar"><a href="/admin/editorial-desk">편집 데스크 열기</a><label for="editorialReviewer">독립 검수 원장</label><select id="editorialReviewer"><option value="reviewer-a">검수자 A</option><option value="reviewer-b">검수자 B</option></select><button id="editorialReviewSave" type="button">현재 원장 저장</button><span class="review-status" id="editorialReviewStatus">저장 내역 확인 중</span></div>`:""}
+      ${localReviewRows?`<div class="dev-table-wrap review-table-wrap"><table class="dev-table review-table"><thead><tr><th>블라인드 ID</th><th>분야</th><th>판단 자료</th><th>근거 모드</th><th>사람 입력</th></tr></thead><tbody>${localReviewRows}</tbody></table></div>`:'<p class="empty">현재 판 블라인드 검수 패킷이 아직 관측되지 않았습니다.</p>'}
+      ${localAdjudicationRows?`<div class="dev-section-head" style="margin-top:16px"><h3>2인 불일치 조정</h3><span>${devChip(humanReview.adjudication.unresolvedFields?"human_adjudication_required":humanReview.state,`${esc(humanReview.adjudication.resolvedFields)}/${esc(humanReview.adjudication.requiredFields)} 완료`)}</span></div><div class="dev-alert"><b>검수 원장과 분리</b><span>두 사람의 원답은 수정하지 않습니다. 불일치 필드의 최종 판정과 근거 메모만 별도 조정 원장에 저장합니다.</span></div><div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>블라인드 ID</th><th>항목</th><th>A·B</th><th>최종 판정</th><th>근거 메모</th></tr></thead><tbody>${localAdjudicationRows}</tbody></table></div><div class="review-toolbar"><button id="editorialAdjudicationSave" type="button">조정 원장 저장</button><span class="review-status" id="editorialAdjudicationStatus">미결 항목은 품질 PASS로 올리지 않습니다.</span></div>`:""}
+      <div class="dev-section-head" style="margin-top:22px"><h3>동적 후보 영수증 표본</h3><span>${localFixture?esc(localFixture.contractId):esc(b.editionCandidateContractId)}</span></div>
+      ${localCandidateRows?`<div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>ID</th><th>분야</th><th>출처·역할·그룹</th><th>편집 재료 제목</th><th>추천·댓글·교차</th></tr></thead><tbody>${localCandidateRows}</tbody></table></div>`:'<p class="empty">런타임 fixture가 아직 관측되지 않았습니다.</p>'}
+      <div class="dev-section-head" style="margin-top:22px"><h3>한계 보존</h3><span>기계 관측을 사람 검수 PASS로 올리지 않음</span></div>
+      <div class="dev-list">${localLimits}</div>
+    </section>
+
+    <section class="dev-section">
+      <div class="dev-section-head"><h3>07. 벤치마크에서 가져올 요소</h3><span>과거 51→85 평가는 방법론 부재로 승인 지표에서 제외</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>순위</th><th>서비스</th><th>점수</th><th>채택 요소</th></tr></thead><tbody>${benchmark}</tbody></table></div>
+    </section>
+
+    <section class="dev-section" id="dev-roadmap">
+      <div class="dev-section-head"><h3>08. 개발 단계와 승인 게이트</h3><span>기계 QA 통과·사람 검수 대기 · 운영 전환 HOLD</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>단계</th><th>내용</th><th>진입 조건</th><th>현재</th></tr></thead><tbody>${phases}</tbody></table></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>안정 ID 요구사항 원장</h3><span>${esc(b.developmentId)}</span></div>
+      <div class="dev-table-wrap"><table class="dev-table"><thead><tr><th>안정 ID</th><th>요구</th><th>상태</th></tr></thead><tbody>${requirements}</tbody></table></div>
+    </section>
+
+    <section class="dev-section" id="dev-evidence">
+      <div class="dev-section-head"><h3>09. 정본·변경 기록·금지선</h3><span>문서 보임 ≠ 구현 완료 ≠ 모델 준비 ≠ 운영 반영</span></div>
+      <div class="dev-grid">${sources}</div>
+      <div class="dev-table-wrap" style="margin-top:14px"><table class="dev-table"><thead><tr><th>변경 ID</th><th>날짜</th><th>내용</th><th>외부 반영</th></tr></thead><tbody>${changes}</tbody></table></div>
+      <div class="dev-section-head" style="margin-top:22px"><h3>지금 하지 않는 것</h3><span>별도 설계·승인 필요</span></div>
+      <div class="dev-list">${notNow}</div>
+    </section>`;
+  wireEditorialReview(localReview,panel);
 }
 
 async function renderDashboard(panel){

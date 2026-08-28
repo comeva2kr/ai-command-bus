@@ -144,6 +144,78 @@ export function validParagraph(text, { min = 40, max = 700, source = "" } = {}) 
   return true;
 }
 
+// 구조화 출력 호출의 공통 한 벌. 브리핑 해설과 개인판 편집·검증이 같은
+// HTTP·거절·토큰 기록 경계를 공유해 공급자 호출 코드를 중복하지 않는다.
+export async function callStructuredMessage({
+  apiKey,
+  model = MODEL,
+  system,
+  prompt,
+  schema,
+  maxTokens = 4000,
+  fetchImpl = fetch,
+  onUsage = null,
+  purpose = "구조화 LLM",
+  timeoutMs = 120000
+} = {}) {
+  if (!apiKey) throw new Error("missing api key");
+  const body = {
+    model,
+    max_tokens: maxTokens,
+    system,
+    output_config: /-4-5$|haiku/.test(model)
+      ? { format: { type: "json_schema", schema } }
+      : { effort: "low", format: { type: "json_schema", schema } },
+    messages: [{ role: "user", content: prompt }]
+  };
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetchImpl(API_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": ANTHROPIC_VERSION
+      },
+      body: JSON.stringify(body),
+      signal: ctl.signal
+    });
+  } finally { clearTimeout(timer); }
+
+  if (!res.ok) {
+    let type = "";
+    let providerMessage = "";
+    try {
+      const body = await res.json();
+      if (/^[a-z_]+$/.test(body?.error?.type || "")) type = ` ${body.error.type}`;
+      if (typeof body?.error?.message === "string") providerMessage = body.error.message.trim().slice(0, 500);
+    } catch {}
+    const error = new Error(`api ${res.status}${type}`);
+    error.providerMessage = providerMessage;
+    error.requestId = res.headers?.get?.("request-id") || "";
+    throw error;
+  }
+  const response = await res.json();
+  if (response.stop_reason === "refusal") throw new Error("refusal");
+  if (response.stop_reason === "max_tokens") throw new Error("truncated");
+  const text = (response.content || []).find((block) => block.type === "text");
+  if (!text) throw new Error("no text block");
+  const usage = response.usage || {};
+  if (onUsage) {
+    try {
+      onUsage({
+        model,
+        purpose,
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens
+      });
+    } catch {}
+  }
+  return { parsed: JSON.parse(text.text), usage, model };
+}
+
 // 하루 3회(모닝·런치·이브닝)만 부르고 저장한다. 같은 슬롯을 다시 요청하면
 // 저장분을 그대로 준다 — 페이지 조회수가 늘어도 API 호출은 늘지 않는다.
 export function makeWriter({
@@ -161,58 +233,18 @@ export function makeWriter({
   const cache = store || { get: (k) => mem.get(k), set: (k, v) => mem.set(k, v) };
 
   async function call(brief) {
-    const body = {
+    return callStructuredMessage({
+      apiKey,
       model,
-      max_tokens: 4000,          // 사고 + 본문 합산 상한. 본문은 1.5k 안팎이라 여유.
       system: SYSTEM,
-      // effort는 세대가 갈린다. Haiku 4.5 같은 4.5대 모델은 effort를 **거부**하므로
-       // (400) 함께 보내면 요청 자체가 죽는다. LLM_MODEL로 모델을 갈아끼울 수
-       // 있게 해 둔 이상, 그 약속이 Haiku에서 거짓말이 되지 않게 분기한다.
-      output_config: /-4-5$|haiku/.test(model)
-        ? { format: { type: "json_schema", schema: SCHEMA } }
-        : { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-      messages: [{ role: "user", content: buildPrompt(brief) }]
-    };
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), timeoutMs);
-    let res;
-    try {
-      res = await fetchImpl(API_URL, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": ANTHROPIC_VERSION
-        },
-        body: JSON.stringify(body),
-        signal: ctl.signal
-      });
-    } finally { clearTimeout(timer); }
-
-    if (!res.ok) {
-      // 본문을 읽어 흘려보낸다 — 안 읽으면 연결이 남아 서버가 죽는다(2026-08-02 사례).
-      try { await res.text(); } catch {}
-      throw new Error(`api ${res.status}`);
-    }
-    const j = await res.json();
-
-    // 안전 분류기가 요청을 거절하면 HTTP 200에 stop_reason=refusal로 온다.
-    // content를 먼저 읽으면 빈 배열에서 터진다.
-    if (j.stop_reason === "refusal") throw new Error("refusal");
-    if (j.stop_reason === "max_tokens") throw new Error("truncated");
-
-    const text = (j.content || []).find((b) => b.type === "text");
-    if (!text) throw new Error("no text block");
-    const usage = j.usage || {};
-    if (onUsage) {
-      try {
-        onUsage({
-          model, purpose: "브리핑 해설",
-          inputTokens: usage.input_tokens, outputTokens: usage.output_tokens
-        });
-      } catch {}
-    }
-    return { parsed: JSON.parse(text.text), usage };
+      prompt: buildPrompt(brief),
+      schema: SCHEMA,
+      maxTokens: 4000,
+      fetchImpl,
+      onUsage,
+      purpose: "브리핑 해설",
+      timeoutMs
+    });
   }
 
   // brief를 받아 해설이 채워진 사본을 돌려준다.

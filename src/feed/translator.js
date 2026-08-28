@@ -1,4 +1,5 @@
 import { discardBody } from "./fetchers.js";
+import { callStructuredMessage } from "./llm.js";
 // Free machine translation for overseas feed items.
 //
 // Plugs into translate.js's TranslatingSource as the injected `translateFn`.
@@ -24,9 +25,27 @@ import { discardBody } from "./fetchers.js";
 // calls for identical strings across refresh cycles. That's enough protection
 // for a free endpoint without adding a bespoke queue.
 
-const ENDPOINT = "https://translate.googleapis.com/translate_a/single";
+const ENDPOINT = "https://clients5.google.com/translate_a/t";
 const DEFAULT_TIMEOUT_MS = 4000;
 const DEFAULT_UA = "ai-command-bus-feed/0.1 (+https://github.com/comeva2kr/ai-command-bus)";
+
+function protectKoreanRuns(text) {
+  const value = String(text || "");
+  const korean = (value.match(/[가-힣ㄱ-ㅎㅏ-ㅣ]/g) || []).length;
+  const latin = (value.match(/[A-Za-z]/g) || []).length;
+  if (latin < 18 || latin <= korean * 2) return { text: value, restore: (out) => out };
+
+  const runs = [];
+  const masked = value.replace(/[가-힣ㄱ-ㅎㅏ-ㅣ]+/g, (run) => {
+    const token = `NOWHOTKOR${runs.length}TOKEN`;
+    runs.push([token, run]);
+    return token;
+  });
+  return {
+    text: masked,
+    restore: (out) => runs.reduce((result, [token, run]) => result.split(token).join(run), out)
+  };
+}
 
 // Google's `dt=t` response is a nested JSON array, not an object:
 //   [[["번역된 문장","original sentence",null,null,1], ...], null, "en", ...]
@@ -39,12 +58,15 @@ const DEFAULT_UA = "ai-command-bus-feed/0.1 (+https://github.com/comeva2kr/ai-co
 // 소스 선언(조선비즈면 "ko")을 그대로 되돌려주고 있었기 때문이다.
 // 조선비즈는 한국 매체지만 일본어판 기사를 섞어 보낸다(실측 100건 중 5건).
 function extractDetectedLang(data) {
-  const l = Array.isArray(data) ? data[2] : null;
+  const l = Array.isArray(data)
+    ? data[2] || (Array.isArray(data[0]) ? data[0][1] : null)
+    : null;
   return typeof l === "string" && l.length <= 8 ? l : null;
 }
 
 function extractTranslation(data) {
   if (!Array.isArray(data) || !Array.isArray(data[0])) return null;
+  if (typeof data[0][0] === "string") return data[0][0] || null;
   let out = "";
   for (const chunk of data[0]) {
     if (Array.isArray(chunk) && typeof chunk[0] === "string") out += chunk[0];
@@ -59,11 +81,12 @@ function extractTranslation(data) {
 export function googleFreeTranslator({ fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   return async (text, opts = {}) => {
     if (!text) return text;
+    const protectedText = protectKoreanRuns(text);
     const sl = opts.from || "auto";
     const tl = opts.to || "ko";
     const url =
-      `${ENDPOINT}?client=gtx&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}` +
-      `&dt=t&q=${encodeURIComponent(text)}`;
+      `${ENDPOINT}?client=dict-chrome-ex&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}` +
+      `&q=${encodeURIComponent(protectedText.text)}`;
 
     try {
       const res = await fetchImpl(url, {
@@ -78,9 +101,53 @@ export function googleFreeTranslator({ fetchImpl = fetch, timeoutMs = DEFAULT_TI
       // 부가 정보만 옆으로 흘린다.
       const detected = extractDetectedLang(data);
       if (detected && opts && typeof opts === "object") opts.detectedLang = detected;
-      return translated || text; // empty/unexpected shape -> original text, never throw
+      return translated ? protectedText.restore(translated) : text; // empty/unexpected shape -> original text, never throw
     } catch {
       return text; // network error, timeout (AbortError), bad JSON -> original text
     }
+  };
+}
+
+const ANTHROPIC_TRANSLATION_SCHEMA = {
+  type: "object",
+  properties: { translation: { type: "string" } },
+  required: ["translation"],
+  additionalProperties: false
+};
+
+export function anthropicTranslator({
+  apiKey,
+  model = "claude-haiku-4-5-20251001",
+  invoke = callStructuredMessage,
+  onUsage = null
+} = {}) {
+  return async (text) => {
+    if (!text || !apiKey) return text;
+    try {
+      const result = await invoke({
+        apiKey,
+        model,
+        system: "Translate the supplied text faithfully into natural Korean. Preserve names, numbers, and meaning. Return only the translation field and add no facts.",
+        prompt: String(text),
+        schema: ANTHROPIC_TRANSLATION_SCHEMA,
+        maxTokens: 500,
+        onUsage,
+        purpose: "해외 주요 언론 번역"
+      });
+      const translated = String(result?.parsed?.translation || "").trim();
+      return translated && /[가-힣]/.test(translated) && translated.length <= String(text).length * 4 + 80
+        ? translated : text;
+    } catch {
+      return text;
+    }
+  };
+}
+
+export function fallbackTranslator(primary, fallback) {
+  return async (text, opts = {}) => {
+    const translated = primary ? await primary(text, opts) : text;
+    return translated && translated !== text
+      ? translated
+      : fallback ? fallback(text, opts) : translated;
   };
 }

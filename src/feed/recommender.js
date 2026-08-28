@@ -20,6 +20,18 @@ const WEIGHT_DECAY = 0.995;
 // Weights are clamped to keep any single feature from dominating.
 const WEIGHT_CLAMP = 6;
 
+export const FEEDBACK_OVERLAY_CONTRACT = Object.freeze({
+  stableId: "NOWHOT-FEEDBACK-OVERLAY-CONTRACT-001",
+  version: 1,
+  baseField: "preferenceBase",
+  projectionField: "preferences",
+  rules: Object.freeze([
+    "설문·이력·묵시 신호는 preferenceBase만 갱신한다.",
+    "현재 ratings의 명시 평가만 preferenceBase 위에 결정적으로 투영한다.",
+    "평가 해제는 해당 rating을 삭제한 뒤 재투영하며 다른 학습 신호를 역산하지 않는다."
+  ])
+});
+
 function clamp(v, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
@@ -208,26 +220,26 @@ export function diversify(ranked, opts = {}) {
 // 쌓인 만큼만 갖는 게 맞다.
 const CATEGORY_STEP_RATIO = 0.25;
 
-function nudge(vec, item, step) {
-  decayAll(vec); // gently fade stale interests
+function setWeight(map, key, value, lo = -WEIGHT_CLAMP, hi = WEIGHT_CLAMP) {
+  const next = clamp(value, lo, hi);
+  if (Math.abs(next) < 1e-12) delete map[key];
+  else map[key] = next;
+}
 
-  vec.categories[item.category] = clamp(
-    (vec.categories[item.category] || 0) + step * CATEGORY_STEP_RATIO,
-    -WEIGHT_CLAMP,
-    WEIGHT_CLAMP
-  );
+function nudge(vec, item, step, { decay = true } = {}) {
+  if (decay) decayAll(vec); // gently fade stale interests
+
+  setWeight(vec.categories, item.category,
+    (vec.categories[item.category] || 0) + step * CATEGORY_STEP_RATIO);
   for (const tag of item.tags) {
-    vec.tags[tag] = clamp((vec.tags[tag] || 0) + step, -WEIGHT_CLAMP, WEIGHT_CLAMP);
+    setWeight(vec.tags, tag, (vec.tags[tag] || 0) + step);
   }
-  vec.sources[item.source] = clamp(
-    (vec.sources[item.source] || 0) + step * 0.7,
-    -WEIGHT_CLAMP,
-    WEIGHT_CLAMP
-  );
+  setWeight(vec.sources, item.source, (vec.sources[item.source] || 0) + step * 0.7);
 
   // learn longform preference from the item's length
   if (item.length >= 400) vec.prefs.longform = clamp((vec.prefs.longform || 0) + step * 0.3, -2, 2);
   else if (item.length <= 120) vec.prefs.longform = clamp((vec.prefs.longform || 0) - step * 0.3, -2, 2);
+  if (Math.abs(vec.prefs.longform || 0) < 1e-12) vec.prefs.longform = 0;
 
   return vec;
 }
@@ -237,6 +249,48 @@ function nudge(vec, item, step) {
 export function applyFeedback(vec, item, signal) {
   const s = signal >= 0 ? 1 : -1;
   return nudge(vec, item, LEARNING_RATE * s);
+}
+
+export function clonePreferenceVector(vec = emptyPreferenceVector()) {
+  return {
+    categories: { ...(vec.categories || {}) },
+    tags: { ...(vec.tags || {}) },
+    sources: { ...(vec.sources || {}) },
+    prefs: { ...(vec.prefs || {}) }
+  };
+}
+
+export function feedbackItemSnapshot(item = {}) {
+  return {
+    category: String(item.category || "news"),
+    tags: [...new Set((Array.isArray(item.tags) ? item.tags : []).filter(Boolean).map(String))],
+    source: String(item.source || "unknown"),
+    length: Number.isFinite(item.length) ? item.length : 0
+  };
+}
+
+// Explicit ratings are a bounded overlay, not destructive mutations of the
+// survey/history/implicit base. Rebuilding from the current rating set makes
+// delete and sign changes exact even after unrelated implicit signals.
+export function projectPreferenceVector(base, ratings = {}) {
+  const projected = clonePreferenceVector(base);
+  const ordered = Object.entries(ratings || {})
+    .filter(([, rating]) => rating && [1, -1].includes(Number(rating.signal)) && rating.features)
+    .sort(([leftId, left], [rightId, right]) => {
+      const byTime = String(left.at || "").localeCompare(String(right.at || ""));
+      return byTime || leftId.localeCompare(rightId);
+    });
+  for (const [, rating] of ordered) {
+    applyFeedback(projected, feedbackItemSnapshot(rating.features), Number(rating.signal));
+  }
+  return projected;
+}
+
+// A removed explicit rating must also remove the direct feature contribution
+// that rating added. We intentionally do not decay unrelated preferences here.
+export function revertFeedback(vec, item, signal) {
+  const s = signal >= 0 ? 1 : -1;
+  return nudge(vec, item, -LEARNING_RATE * s, { decay: false });
 }
 
 // Apply an implicit engagement signal — the TikTok-style behavioural feedback

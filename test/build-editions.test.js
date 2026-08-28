@@ -33,7 +33,33 @@ const V1_SUBJECTS = [
   "호르무즈 해협 통항 협상 재개",
   "산업단지 공장 투자 착공 일정",
   "S&P 500 목표치 상향 발표",
-  "보유세 과세 기준 개편 발표"
+  "보유세 과세 기준 개편 발표",
+  "기준금리 전망 수정",
+  "원달러 환율 변동 확대",
+  "반도체 수출 증가 발표",
+  "고용 지표 개선 확인",
+  "국제유가 공급 전망 변경",
+  "채권시장 수급 대책 발표",
+  "소비자물가 상승률 둔화",
+  "자동차 생산 투자 확대",
+  "온라인 유통 실적 발표",
+  "기업 인수합병 심사 착수",
+  "무역수지 흑자 폭 확대",
+  "전기요금 연료비 조정안 공개",
+  "중소기업 정책금융 확대",
+  "항만 물동량 월간 통계 발표",
+  "고용보험 가입자 통계 공개",
+  "기업 설비투자 계획 확정",
+  "조선업 수주 잔고 분기 집계",
+  "배터리 원재료 장기 공급 계약",
+  "항공화물 운임 지수 발표",
+  "농산물 도매가격 안정 대책",
+  "벤처투자 신규 결성액 통계",
+  "통신사 망 투자 로드맵 공개",
+  "철강 생산설비 정비 일정",
+  "바이오 의약품 수출 허가 획득",
+  "가계대출 관리 방안 확정",
+  "해운사 친환경 선박 발주"
 ];
 
 async function normalizedV1Articles() {
@@ -99,6 +125,41 @@ test("groupArticlesAsSources: 소스별 청크(기본 20)로 쪼개고 id·kind�
     const total = lists.reduce((sum, list) => sum + list.length, 0);
     assert.equal(total, 46, "기사 유실 0");
   });
+});
+
+test("buildTodayEditionInProcess: 주입한 동결 풀도 발행 전 번역 경로를 지난다", async () => {
+  const dir = tmpDir();
+  const poolFile = path.join(dir, "translated-pool.json");
+  const article = {
+    id: "foreign-news-1",
+    source: "bbc-world",
+    kind: "news",
+    lang: "en",
+    title: "Global markets react to the policy decision",
+    summary: "Investors assessed the official announcement and its likely effects.",
+    url: "https://example.com/world/1",
+    category: "news",
+    publishedAt: "2026-08-11T10:30:00+09:00"
+  };
+  await buildTodayEditionInProcess({
+    sources: groupArticlesAsSources([article]),
+    nowMs: NOW_MS,
+    storeFile: path.join(dir, "translated-store.json"),
+    poolFile,
+    query: "/api/today?categories=news&slot=lunch",
+    translate: {
+      targetLang: "ko",
+      translateFn: async (text) => text === article.title
+        ? "정책 결정에 반응한 세계 시장"
+        : "투자자들은 공식 발표와 예상 영향을 살폈습니다."
+    }
+  });
+
+  const saved = JSON.parse(fs.readFileSync(poolFile, "utf8"));
+  const translated = saved.rows.map((row) => row.item).find((item) => item.id === article.id);
+  assert.equal(translated.title, "정책 결정에 반응한 세계 시장");
+  assert.equal(translated.translated, true);
+  assert.equal(translated.originalTitle, article.title);
 });
 
 test("validateTodayEdition: 필수 필드 누락을 잡는다", () => {
@@ -194,4 +255,25 @@ test("v2 생성 경로: shadow 선별 → 같은 편집 문장 계층 → 오늘
   assert.deepEqual(check.errors, [], "오늘판 스키마 통과");
   assert.equal(Number(run.edition.llmCalls), 0, "LLM 호출 0");
   assert.ok(run.edition.issues.length >= 1);
+});
+
+test("고정판 직접 생성은 실행 시각으로 동결 풀을 다시 자르지 않는다", async () => {
+  const dir = tmpDir();
+  const articles = await normalizedV1Articles();
+  const run = await buildTodayEditionInProcess({
+    sources: groupArticlesAsSources(articles),
+    nowMs: NOW_MS + 7 * 24 * 3600 * 1000,
+    storeFile: path.join(dir, "direct-store.json"),
+    poolFile: path.join(dir, "direct-pool.json"),
+    directBuild: true,
+    categories: ["business"],
+    slotId: "evening",
+    editionDate: "2026-08-11",
+    editorialPreselectedPool: true
+  });
+  assert.equal(run.status, 200);
+  assert.equal(run.edition.editionDate, "2026-08-11");
+  assert.equal(run.edition.slot.id, "evening");
+  assert.ok(run.edition.issues.length >= 1);
+  assert.equal(run.edition.serving.fallback, false);
 });

@@ -71,6 +71,19 @@ const SHORT_ALLOW = new Set([
 
 export const MAX_TAGS = 8;
 
+function dictionaryIndex(text, word) {
+  const needle = word.toLowerCase();
+  let idx = text.indexOf(needle);
+  while (idx >= 0) {
+    if (!/^[a-z0-9]+$/.test(needle)) return idx;
+    const before = idx > 0 ? text[idx - 1] : "";
+    const after = text[idx + needle.length] || "";
+    if (!/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after)) return idx;
+    idx = text.indexOf(needle, idx + 1);
+  }
+  return -1;
+}
+
 export function extractTags(title) {
   const t = String(title || "");
   if (!t) return [];
@@ -81,7 +94,7 @@ export function extractTags(title) {
   const overlaps = (s, e) => claimed.some(([cs, ce]) => s < ce && e > cs);
 
   for (const w of DICT) {
-    const idx = lower.indexOf(w.toLowerCase());
+    const idx = dictionaryIndex(lower, w);
     if (idx < 0) continue;
     const end = idx + w.length;
     if (overlaps(idx, end)) continue; // 더 긴 표현에 이미 포함됨

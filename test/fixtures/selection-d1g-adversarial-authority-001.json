@@ -1,0 +1,555 @@
+{
+ "contract": "NOWHOT-SELECTION-D1G-ADVERSARIAL-AUTHORITY-001",
+ "createdAt": "2026-08-20",
+ "purpose": "adversarial 10건 평가 정본(superseding fixture authority). corpus/gold 원본 무수정 — 평가에서만 corpus contractGold adversarial 부분집합을 대체.",
+ "method": "현 구현 세션과 분리된 독립 blind 검수자 A/B(중립 ID, 기존 gold/모델예측/점수/실패항목 비노출, 파일 접근 금지) 병렬 판정 → A/B 완전 합의 10/10, adjudication 불요. scopeClass는 동결 resolveScopeClass 공식으로 arrays에서 기계 파생. ambiguous 합의 항목은 게이트 분모 제외(억지 정답 금지).",
+ "rulesGivenToReviewers": "동결 계약(taxonomy 14·contentType=format·admission core/secondary/reject·2범주는 분리불가 교차도메인만·grounding exact-substring·declaredSection은 힌트) + 사건위치/판매시장/관련국 3구분(David 지시) + quotable 단서 열거(지명·기관·리테일러·통화·법률) + sourceCountry/언어는 위치 증거 아님",
+ "provenance": {
+  "workflowRunId": "wf_49284bff-cbb",
+  "reviewerAIdentity": "d1g-blind-reviewer-A-20260820(news-desk-editor persona)",
+  "reviewerBIdentity": "d1g-blind-reviewer-B-20260820(contract-compliance-auditor persona)",
+  "adjudicator": "not_needed_full_agreement",
+  "corpusSha256": "b8f2d45842fa94d5ddd5630fc35660ccd8b13986fd3f1a0291ab6e52def07b8b",
+  "goldSha256": "9a82b0920e56606a8553b39616c6736ee7011699266b2f2d67958fc40f07fdeb",
+  "gatesSha256": "10c3160c9c098e7a4c3ca3fbd0ebaa0561bcb12f3d1bda82605a1f56a1fb7793"
+ },
+ "items": [
+  {
+   "blindItemId": "d1a-01-food-as-politics",
+   "neutralId": "A01",
+   "state": "agreed",
+   "ambiguous": false,
+   "ambiguousReason": null,
+   "expected": {
+    "contentType": "community",
+    "scope": "unknown",
+    "acceptedCategories": [
+     "life"
+    ]
+   },
+   "agreedGeoEvidenceSpans": [],
+   "reviewerA": {
+    "contentType": "community",
+    "eventJurisdictions": [],
+    "salesMarketCountries": [],
+    "relevanceCountries": [],
+    "geoEvidenceSpans": [],
+    "acceptedCategories": [
+     "life"
+    ],
+    "secondaryCategories": [],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "A user's home-cooking recipe post; core topic is everyday cooking, so life only. declaredSection 'politics' has zero support in the text and is discarded; '사천' names an ingredient style, not an event location, so no jurisdiction is groundable."
+   },
+   "reviewerB": {
+    "contentType": "community",
+    "eventJurisdictions": [],
+    "salesMarketCountries": [],
+    "relevanceCountries": [],
+    "geoEvidenceSpans": [],
+    "acceptedCategories": [
+     "life"
+    ],
+    "secondaryCategories": [],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "User post sharing a home cooking recipe; life is the single core topic and declaredSection politics has zero textual merit. '사천' names a cooking style/ingredient, not the location of the described home activity, so no event jurisdiction can be grounded."
+   }
+  },
+  {
+   "blindItemId": "d1a-02-devto-as-fashion",
+   "neutralId": "A02",
+   "state": "agreed",
+   "ambiguous": false,
+   "ambiguousReason": null,
+   "expected": {
+    "contentType": "news",
+    "scope": "unknown",
+    "acceptedCategories": [
+     "tech"
+    ]
+   },
+   "agreedGeoEvidenceSpans": [],
+   "reviewerA": {
+    "contentType": "news",
+    "eventJurisdictions": [],
+    "salesMarketCountries": [],
+    "relevanceCountries": [],
+    "geoEvidenceSpans": [],
+    "acceptedCategories": [
+     "tech"
+    ],
+    "secondaryCategories": [],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "A first-party announcement article about a developer-platform program for open source maintainers — core tech; declaredSection 'fashion' is plainly wrong. The program is an inherently online, non-territorial event and sourceCountry US is not evidence, so eventJurisdictions stays empty."
+   },
+   "reviewerB": {
+    "contentType": "news",
+    "eventJurisdictions": [],
+    "salesMarketCountries": [],
+    "relevanceCountries": [],
+    "geoEvidenceSpans": [],
+    "acceptedCategories": [
+     "tech"
+    ],
+    "secondaryCategories": [],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "Announcement reporting a new open-source contributor program → tech core; declaredSection fashion is plainly wrong. The program is an online/global platform initiative with no groundable national event location, and sourceCountry US is never evidence, so jurisdictions stay empty."
+   }
+  },
+  {
+   "blindItemId": "d1a-03-community-as-news",
+   "neutralId": "A03",
+   "state": "agreed",
+   "ambiguous": false,
+   "ambiguousReason": null,
+   "expected": {
+    "contentType": "community",
+    "scope": "domestic",
+    "acceptedCategories": [
+     "tech"
+    ]
+   },
+   "agreedGeoEvidenceSpans": [
+    "150만원"
+   ],
+   "reviewerA": {
+    "contentType": "community",
+    "eventJurisdictions": [
+     "KR"
+    ],
+    "salesMarketCountries": [],
+    "relevanceCountries": [
+     "KR"
+    ],
+    "geoEvidenceSpans": [
+     "150만원"
+    ],
+    "acceptedCategories": [
+     "tech"
+    ],
+    "secondaryCategories": [
+     "gaming"
+    ],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "A user asking for advice on a PC build — community format, core topic PC hardware (tech); gaming is only the intended use, so secondary. The KRW budget '150만원' grounds the described purchasing activity in KR; not a deal, so salesMarket is empty."
+   },
+   "reviewerB": {
+    "contentType": "community",
+    "eventJurisdictions": [
+     "KR"
+    ],
+    "salesMarketCountries": [],
+    "relevanceCountries": [],
+    "geoEvidenceSpans": [
+     "150만원"
+    ],
+    "acceptedCategories": [
+     "tech"
+    ],
+    "secondaryCategories": [
+     "gaming"
+    ],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "User post asking for PC-build advice → community, tech core; gaming is only the PC's intended use, a secondary theme. The KRW budget '150만원' is a currency amount grounding the described activity in KR; a personal build materially affects no country, so relevance is empty."
+   }
+  },
+  {
+   "blindItemId": "d1a-04-deal-as-news",
+   "neutralId": "A04",
+   "state": "agreed",
+   "ambiguous": false,
+   "ambiguousReason": null,
+   "expected": {
+    "contentType": "deal",
+    "scope": "domestic",
+    "acceptedCategories": [
+     "tech"
+    ]
+   },
+   "agreedGeoEvidenceSpans": [
+    "쿠팡",
+    "89000원"
+   ],
+   "reviewerA": {
+    "contentType": "deal",
+    "eventJurisdictions": [
+     "KR"
+    ],
+    "salesMarketCountries": [
+     "KR"
+    ],
+    "relevanceCountries": [
+     "KR"
+    ],
+    "geoEvidenceSpans": [
+     "쿠팡",
+     "89000원",
+     "무료배송"
+    ],
+    "acceptedCategories": [
+     "tech"
+    ],
+    "secondaryCategories": [],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "A purchase offer (price, discount link, shipping) for an SSD — deal format, core topic computer hardware (tech), not 'life' as filed. Korean retailer '쿠팡', the KRW price '89000원', and shipping terms ground the offer's market as KR."
+   },
+   "reviewerB": {
+    "contentType": "deal",
+    "eventJurisdictions": [
+     "KR"
+    ],
+    "salesMarketCountries": [
+     "KR"
+    ],
+    "relevanceCountries": [
+     "KR"
+    ],
+    "geoEvidenceSpans": [
+     "쿠팡",
+     "89000원"
+    ],
+    "acceptedCategories": [
+     "tech"
+    ],
+    "secondaryCategories": [],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "Purchase offer for an SSD → deal format; the topic is computer hardware, so tech is the core category (declaredSection life gets no independent merit). Retailer '쿠팡' and the KRW price '89000원' ground the redeemable market as KR."
+   }
+  },
+  {
+   "blindItemId": "d1a-05-source-prior-conflict",
+   "neutralId": "A05",
+   "state": "agreed",
+   "ambiguous": false,
+   "ambiguousReason": null,
+   "expected": {
+    "contentType": "news",
+    "scope": "domestic",
+    "acceptedCategories": [
+     "business"
+    ]
+   },
+   "agreedGeoEvidenceSpans": [
+    "3조원"
+   ],
+   "reviewerA": {
+    "contentType": "news",
+    "eventJurisdictions": [
+     "KR"
+    ],
+    "salesMarketCountries": [],
+    "relevanceCountries": [
+     "KR"
+    ],
+    "geoEvidenceSpans": [
+     "3조원"
+    ],
+    "acceptedCategories": [
+     "business"
+    ],
+    "secondaryCategories": [
+     "tech"
+    ],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "Despite the sports-section filing, the event is a holding company's disclosed 3-trillion-won capex investment — core business; the club is a mere ownership mention, so sports is rejected, and the semiconductor sector is context (tech secondary). The KRW amount '3조원' grounds the event in KR."
+   },
+   "reviewerB": {
+    "contentType": "news",
+    "eventJurisdictions": [
+     "KR"
+    ],
+    "salesMarketCountries": [],
+    "relevanceCountries": [
+     "KR"
+    ],
+    "geoEvidenceSpans": [
+     "3조원"
+    ],
+    "acceptedCategories": [
+     "business"
+    ],
+    "secondaryCategories": [
+     "tech"
+    ],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "A corporate disclosure of a 3-trillion-won semiconductor investment is core business news; '구단 모기업' merely identifies the company, so sports (the declaredSection) is a mere mention and rejected, with the semiconductor angle a secondary tech theme. The KRW amount '3조원' grounds the event and its material relevance in KR."
+   }
+  },
+  {
+   "blindItemId": "d1a-06-genuine-cross-domain",
+   "neutralId": "A06",
+   "state": "agreed",
+   "ambiguous": false,
+   "ambiguousReason": null,
+   "expected": {
+    "contentType": "news",
+    "scope": "domestic",
+    "acceptedCategories": [
+     "business",
+     "politics"
+    ]
+   },
+   "agreedGeoEvidenceSpans": [
+    "국회",
+    "반도체 특별법"
+   ],
+   "reviewerA": {
+    "contentType": "news",
+    "eventJurisdictions": [
+     "KR"
+    ],
+    "salesMarketCountries": [],
+    "relevanceCountries": [
+     "KR"
+    ],
+    "geoEvidenceSpans": [
+     "국회",
+     "반도체 특별법"
+    ],
+    "acceptedCategories": [
+     "business",
+     "politics"
+    ],
+    "secondaryCategories": [
+     "tech"
+    ],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "A national law expanding tax credits for chip firms passed by the legislature is a genuinely inseparable business-and-politics event, so both are accepted; the semiconductor industry itself is secondary tech. The National Assembly '국회' and the national law '반도체 특별법' ground the event in KR."
+   },
+   "reviewerB": {
+    "contentType": "news",
+    "eventJurisdictions": [
+     "KR"
+    ],
+    "salesMarketCountries": [],
+    "relevanceCountries": [
+     "KR"
+    ],
+    "geoEvidenceSpans": [
+     "국회",
+     "반도체 특별법"
+    ],
+    "acceptedCategories": [
+     "business",
+     "politics"
+    ],
+    "secondaryCategories": [
+     "tech"
+    ],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "A special law passed by the National Assembly expanding corporate tax credits is the contract's paradigm inseparable cross-domain event — jointly politics (legislation, 여야 합의) and business (corporate tax support) — with the semiconductor industry a secondary tech theme. Institution name '국회' and national law '반도체 특별법' ground KR."
+   }
+  },
+  {
+   "blindItemId": "d1a-07-secondary-only-admission",
+   "neutralId": "A07",
+   "state": "agreed",
+   "ambiguous": true,
+   "ambiguousReason": "The event clearly occurs in one national market, but the company is unnamed and there is no quotable place, institution, law, or currency; '여야' and '정치권' are generic terms whose country reading would rest on language/outlet inference, which the rules forbid — so event location cannot be grounded.",
+   "expected": null,
+   "agreedGeoEvidenceSpans": [],
+   "reviewerA": {
+    "contentType": "news",
+    "eventJurisdictions": [],
+    "salesMarketCountries": [],
+    "relevanceCountries": [],
+    "geoEvidenceSpans": [],
+    "acceptedCategories": [
+     "business"
+    ],
+    "secondaryCategories": [
+     "politics"
+    ],
+    "ambiguous": true,
+    "ambiguousReason": "The event clearly occurs in one national market, but the company is unnamed and there is no quotable place, institution, law, or currency; '여야' and '정치권' are generic terms whose country reading would rest on language/outlet inference, which the rules forbid — so event location cannot be grounded.",
+    "rationale": "The core event is a conglomerate's above-expectation quarterly earnings — business; the political sparring is a reaction to it, a second-order theme, so politics is secondary rather than co-accepted. No character-for-character geographic evidence exists, so all geo arrays stay empty."
+   },
+   "reviewerB": {
+    "contentType": "news",
+    "eventJurisdictions": [],
+    "salesMarketCountries": [],
+    "relevanceCountries": [],
+    "geoEvidenceSpans": [],
+    "acceptedCategories": [
+     "business"
+    ],
+    "secondaryCategories": [
+     "politics"
+    ],
+    "ambiguous": true,
+    "ambiguousReason": "The event location cannot be grounded: '대기업', '정치권', '여야' are generic vocabulary, not place names, named institutions, currency amounts, or named laws; the outlet's country and Korean language are inadmissible as evidence, so eventJurisdictions must stay [] even though the event is very likely domestic Korean.",
+    "rationale": "The core event is the earnings beat (business); the partisan sparring is a reaction — a second-order effect — so politics is a real but secondary theme, not a jointly-core field like a law. No character-for-character span grounds any jurisdiction."
+   }
+  },
+  {
+   "blindItemId": "d1a-08-primary-ok-admission-wrong",
+   "neutralId": "A08",
+   "state": "agreed",
+   "ambiguous": true,
+   "ambiguousReason": "The delinquency trend plainly concerns some single national banking market, but the text names no country, city, institution, law, or currency, so the event location cannot be grounded under the evidence rules.",
+   "expected": null,
+   "agreedGeoEvidenceSpans": [],
+   "reviewerA": {
+    "contentType": "news",
+    "eventJurisdictions": [],
+    "salesMarketCountries": [],
+    "relevanceCountries": [],
+    "geoEvidenceSpans": [],
+    "acceptedCategories": [
+     "business"
+    ],
+    "secondaryCategories": [],
+    "ambiguous": true,
+    "ambiguousReason": "The delinquency trend plainly concerns some single national banking market, but the text names no country, city, institution, law, or currency, so the event location cannot be grounded under the evidence rules.",
+    "rationale": "Macro-financial reporting on rising SME loan delinquency amid prolonged high rates — squarely business core, matching but not because of the declared section. With zero quotable geographic fragments, eventJurisdictions must be empty and scope derives to unknown."
+   },
+   "reviewerB": {
+    "contentType": "news",
+    "eventJurisdictions": [],
+    "salesMarketCountries": [],
+    "relevanceCountries": [],
+    "geoEvidenceSpans": [],
+    "acceptedCategories": [
+     "business"
+    ],
+    "secondaryCategories": [],
+    "ambiguous": true,
+    "ambiguousReason": "The event location cannot be grounded: '중소기업', '고금리', '연체율' are generic economic terms with no place name, institution name, currency amount, or named program; sourceCountry and language are never evidence, so eventJurisdictions must remain [] despite the story reading as a national-economy item.",
+    "rationale": "Rising SME loan delinquency is a single-core business/finance story with no other real theme. No quotable fragment grounds a country in any geo field."
+   }
+  },
+  {
+   "blindItemId": "d1a-09-domestic-media-overseas-event",
+   "neutralId": "A09",
+   "state": "agreed",
+   "ambiguous": false,
+   "ambiguousReason": null,
+   "expected": {
+    "contentType": "news",
+    "scope": "global",
+    "acceptedCategories": [
+     "business"
+    ]
+   },
+   "agreedGeoEvidenceSpans": [
+    "美 연준",
+    "미국 연방준비제도"
+   ],
+   "reviewerA": {
+    "contentType": "news",
+    "eventJurisdictions": [
+     "US"
+    ],
+    "salesMarketCountries": [],
+    "relevanceCountries": [
+     "US"
+    ],
+    "geoEvidenceSpans": [
+     "美 연준",
+     "미국 연방준비제도"
+    ],
+    "acceptedCategories": [
+     "business"
+    ],
+    "secondaryCategories": [],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "A central-bank rate decision is core economy/business; the 'news' topic is not accepted merely because the format is reporting. '美 연준' and '미국 연방준비제도' ground the event in the US; no other country is textually grounded, so relevance beyond the US (e.g. KR) cannot be asserted despite the Korean outlet."
+   },
+   "reviewerB": {
+    "contentType": "news",
+    "eventJurisdictions": [
+     "US"
+    ],
+    "salesMarketCountries": [],
+    "relevanceCountries": [
+     "US"
+    ],
+    "geoEvidenceSpans": [
+     "美 연준",
+     "미국 연방준비제도"
+    ],
+    "acceptedCategories": [
+     "business"
+    ],
+    "secondaryCategories": [],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "A Fed rate decision is core business/economy; the 'news' topic is not accepted merely because the format is news, and central-bank policy is not politics. Institution names '美 연준'/'미국 연방준비제도' ground US; KR relevance, however plausible, has no textual span and cannot be asserted, so the scope computes to global."
+   }
+  },
+  {
+   "blindItemId": "d1a-10-same-structure-diff-meaning",
+   "neutralId": "A10",
+   "state": "agreed",
+   "ambiguous": false,
+   "ambiguousReason": null,
+   "expected": {
+    "contentType": "news",
+    "scope": "global",
+    "acceptedCategories": [
+     "tech"
+    ]
+   },
+   "agreedGeoEvidenceSpans": [
+    "애플"
+   ],
+   "reviewerA": {
+    "contentType": "news",
+    "eventJurisdictions": [
+     "US"
+    ],
+    "salesMarketCountries": [],
+    "relevanceCountries": [
+     "US"
+    ],
+    "geoEvidenceSpans": [
+     "애플"
+    ],
+    "acceptedCategories": [
+     "tech"
+    ],
+    "secondaryCategories": [
+     "business"
+    ],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "The teasing headline is resolved by the excerpt: an executive reshuffle and reorganization at Apple — a tech-industry story at its core, with corporate-management interest as secondary business. The company name '애플' grounds the event at the US firm; no KR relevance is textually grounded."
+   },
+   "reviewerB": {
+    "contentType": "news",
+    "eventJurisdictions": [
+     "US"
+    ],
+    "salesMarketCountries": [],
+    "relevanceCountries": [
+     "US"
+    ],
+    "geoEvidenceSpans": [
+     "애플"
+    ],
+    "acceptedCategories": [
+     "tech"
+    ],
+    "secondaryCategories": [
+     "business"
+    ],
+    "ambiguous": false,
+    "ambiguousReason": null,
+    "rationale": "Excerpt resolves the teaser title: an Apple executive reshuffle and reorg — core tech-industry news ('업계 술렁'), with the corporate-management angle a secondary business theme, not an inseparable joint core. The company/platform name '애플' grounds the event's jurisdiction as US; no KR span exists, so scope computes to global."
+   }
+  }
+ ]
+}

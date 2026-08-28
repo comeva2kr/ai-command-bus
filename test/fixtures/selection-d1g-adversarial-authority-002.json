@@ -1,0 +1,345 @@
+{
+ "contract": "NOWHOT-SELECTION-D1G-ADVERSARIAL-AUTHORITY-002",
+ "createdAt": "2026-08-20",
+ "supersedes": "NOWHOT-SELECTION-D1G-ADVERSARIAL-AUTHORITY-001",
+ "purpose": "adversarial 하드게이트 정본 — 정확히 10 decisive fixture(분모 10 유지). corpus/gold 원본 무수정.",
+ "localityRules": {
+  "unknownIsDecisive": "unknown은 유효하고 결정적인 답 — geo unknown만으로 ambiguous 금지",
+  "news": "통화 금액만으로 사건 발생국 확정 금지",
+  "deal": "리테일러·통화·배송 조건은 판매시장·딜 관할 근거 가능",
+  "community": "통화만으로 활동 장소 확정 금지",
+  "generic": "의원/여야/정치권 등 일반어는 국가 근거 불가"
+ },
+ "reviewers": "검수자 A/B와 adjudicator 후보는 모두 동일 기반 모델(Claude)의 분리된 별도 실행(fresh-context, 상호·구현세션과 컨텍스트 비공유)이었음을 정직 표기. 사람 검수자 아님.",
+ "provenance": {
+  "taxonomyVersion": "d1c-tax-03d168babe55",
+  "corpusSha256": "b8f2d45842fa94d5ddd5630fc35660ccd8b13986fd3f1a0291ab6e52def07b8b",
+  "goldSha256": "9a82b0920e56606a8553b39616c6736ee7011699266b2f2d67958fc40f07fdeb",
+  "gatesSha256": "10c3160c9c098e7a4c3ca3fbd0ebaa0561bcb12f3d1bda82605a1f56a1fb7793",
+  "authority001Sha256": "fb723542be2a67d1342629caf979e6d34a1b9ae64f05a8dd0f909148332eac32",
+  "rawReceipts": [
+   {
+    "path": ".nowhot-local/selection-d1g/receipts/ab-blind-10items-wf_49284bff-cbb.output",
+    "sha256": "f443f60641c5d49df3c6c89f85ec9d5023050ff0aeda4885e8c8df1100a44db3"
+   },
+   {
+    "path": ".nowhot-local/selection-d1g/receipts/ab-blind-10items-wf_49284bff-cbb.journal.jsonl",
+    "sha256": "3f8b3e51efb68492e50351f8ca2ae3f706fc6a4a21d92f9cf9c8823ec179e738"
+   },
+   {
+    "path": ".nowhot-local/selection-d1g/receipts/ab-blind-2repl-wf_fbb727b2-951.output",
+    "sha256": "b409102b48aeea27ad488de9f3f29e3d5336601b379b3d0f6e9a597c785cc661"
+   },
+   {
+    "path": ".nowhot-local/selection-d1g/receipts/ab-blind-2repl-wf_fbb727b2-951.journal.jsonl",
+    "sha256": "c82632bdf5ce6e786325e615b0e7fee21d5f94eebd32eacb8f90304369abee4a"
+   }
+  ]
+ },
+ "decisiveItems": [
+  {
+   "blindItemId": "d1a-01-food-as-politics",
+   "neutralId": "A01",
+   "source": "corpus",
+   "title": "집에서 만든 마라탕 레시피 대공개",
+   "excerpt": "육수부터 사천 고추기름까지 직접 끓여 만든 마라탕 만드는 법",
+   "evidenceHash": "4fffc1c22a1cb7ed7d7b595791d08fe94154b93be57ed05a6f97e740e51fa855",
+   "expected": {
+    "contentType": "community",
+    "scope": "unknown",
+    "acceptedCategories": [
+     "life"
+    ],
+    "rejectedCategories": [
+     "politics"
+    ],
+    "secondaryCategories": []
+   },
+   "abAgreedScope": "unknown",
+   "ownerRuleCorrection": null,
+   "secondaryCategories": [],
+   "geoEvidenceSpans": []
+  },
+  {
+   "blindItemId": "d1a-02-devto-as-fashion",
+   "neutralId": "A02",
+   "source": "corpus",
+   "title": "Announcing the new dev.to open source contributor program",
+   "excerpt": "New program for open source maintainers to onboard contributors and manage pull requests",
+   "evidenceHash": "c19a071cfdf97e7858e0a31e84307c8d0e415ca36cdf302700de3bf48f653b84",
+   "expected": {
+    "contentType": "news",
+    "scope": "unknown",
+    "acceptedCategories": [
+     "tech"
+    ],
+    "rejectedCategories": [
+     "fashion"
+    ],
+    "secondaryCategories": []
+   },
+   "abAgreedScope": "unknown",
+   "ownerRuleCorrection": null,
+   "secondaryCategories": [],
+   "geoEvidenceSpans": []
+  },
+  {
+   "blindItemId": "d1a-03-community-as-news",
+   "neutralId": "A03",
+   "source": "corpus",
+   "title": "제 컴퓨터 견적 좀 봐주세요 조립 처음입니다",
+   "excerpt": "예산 150만원으로 게임용 조립 PC 견적 짰는데 조언 부탁드립니다",
+   "evidenceHash": "e510e6c6a4dc2f19b0b0920df33d895e9b328ae25e428b23b0702d68cbd2b3ab",
+   "expected": {
+    "contentType": "community",
+    "scope": "unknown",
+    "acceptedCategories": [
+     "tech"
+    ],
+    "rejectedCategories": [],
+    "secondaryCategories": [
+     "gaming"
+    ]
+   },
+   "abAgreedScope": "domestic",
+   "ownerRuleCorrection": "scope domestic→unknown (명확화 지역성 규칙 적용)",
+   "secondaryCategories": [
+    "gaming"
+   ],
+   "geoEvidenceSpans": [
+    "150만원"
+   ]
+  },
+  {
+   "blindItemId": "d1a-04-deal-as-news",
+   "neutralId": "A04",
+   "source": "corpus",
+   "title": "[쿠팡] 삼성 정품 SSD 1TB 최저가 89000원 무료배송",
+   "excerpt": "역대 최저가 특가 링크입니다 카드할인 추가 적용",
+   "evidenceHash": "560e8bc306711d8761f7a2dce7728e490a3672d0df0e7aaf97287b81d5364b5d",
+   "expected": {
+    "contentType": "deal",
+    "scope": "domestic",
+    "acceptedCategories": [
+     "tech"
+    ],
+    "rejectedCategories": [],
+    "secondaryCategories": []
+   },
+   "abAgreedScope": "domestic",
+   "ownerRuleCorrection": "scope domestic→domestic (명확화 지역성 규칙 적용)",
+   "secondaryCategories": [],
+   "geoEvidenceSpans": [
+    "쿠팡",
+    "89000원"
+   ]
+  },
+  {
+   "blindItemId": "d1a-05-source-prior-conflict",
+   "neutralId": "A05",
+   "source": "corpus",
+   "title": "구단 모기업, 반도체 부문 3조원 신규 투자 발표",
+   "excerpt": "그룹 지주사가 반도체 생산라인 증설에 3조원을 투자한다고 공시했다",
+   "evidenceHash": "1677d9b72f505ce7eb30e02f842fdb1e1f93e9bfb886af647ee6f546d21cd6f5",
+   "expected": {
+    "contentType": "news",
+    "scope": "unknown",
+    "acceptedCategories": [
+     "business"
+    ],
+    "rejectedCategories": [
+     "sports"
+    ],
+    "secondaryCategories": [
+     "tech"
+    ]
+   },
+   "abAgreedScope": "domestic",
+   "ownerRuleCorrection": "scope domestic→unknown (명확화 지역성 규칙 적용)",
+   "secondaryCategories": [
+    "tech"
+   ],
+   "geoEvidenceSpans": [
+    "3조원"
+   ]
+  },
+  {
+   "blindItemId": "d1a-06-genuine-cross-domain",
+   "neutralId": "A06",
+   "source": "corpus",
+   "title": "국회, 반도체 특별법 본회의 통과… 세액공제 대폭 확대",
+   "excerpt": "여야 합의로 반도체 기업 세제 지원을 늘리는 특별법이 국회를 통과했다",
+   "evidenceHash": "c6d7bdeae3baed796cbfdb338db4729944c929457cb90a796807d5594e929fe4",
+   "expected": {
+    "contentType": "news",
+    "scope": "domestic",
+    "acceptedCategories": [
+     "business",
+     "politics"
+    ],
+    "rejectedCategories": [],
+    "secondaryCategories": [
+     "tech"
+    ]
+   },
+   "abAgreedScope": "domestic",
+   "ownerRuleCorrection": null,
+   "secondaryCategories": [
+    "tech"
+   ],
+   "geoEvidenceSpans": [
+    "국회",
+    "반도체 특별법"
+   ]
+  },
+  {
+   "blindItemId": "d1a-08-primary-ok-admission-wrong",
+   "neutralId": "A08",
+   "source": "corpus",
+   "title": "중소기업 대출 연체율 상승세 지속",
+   "excerpt": "고금리 장기화로 중소기업 대출 연체율이 다섯 달째 오름세를 보였다",
+   "evidenceHash": "d3b801c50f8a420e23752c28c9545af8d5f3335b2b55ad4563b98605d716891a",
+   "expected": {
+    "contentType": "news",
+    "scope": "unknown",
+    "acceptedCategories": [
+     "business"
+    ],
+    "rejectedCategories": [],
+    "secondaryCategories": []
+   },
+   "abAgreedScope": "unknown",
+   "ownerRuleCorrection": "scope unknown→unknown (명확화 지역성 규칙 적용)",
+   "secondaryCategories": [],
+   "geoEvidenceSpans": []
+  },
+  {
+   "blindItemId": "d1a-09-domestic-media-overseas-event",
+   "neutralId": "A09",
+   "source": "corpus",
+   "title": "美 연준, 기준금리 동결… 연내 인하 시그널",
+   "excerpt": "미국 연방준비제도가 기준금리를 동결하고 연내 인하 가능성을 시사했다",
+   "evidenceHash": "bf0ec7cd7ec2d1f7872d3be6981c2c3ed24419345576db97aa8fc6f9ccadfe41",
+   "expected": {
+    "contentType": "news",
+    "scope": "global",
+    "acceptedCategories": [
+     "business"
+    ],
+    "rejectedCategories": [],
+    "secondaryCategories": []
+   },
+   "abAgreedScope": "global",
+   "ownerRuleCorrection": "scope global→global (명확화 지역성 규칙 적용)",
+   "secondaryCategories": [],
+   "geoEvidenceSpans": [
+    "美 연준",
+    "미국 연방준비제도"
+   ]
+  },
+  {
+   "blindItemId": "d1g-11-clear-secondary-politics",
+   "neutralId": "B01",
+   "source": "replacement_fixture",
+   "title": "대형 전자업체 분기 영업이익 사상 최대 발표",
+   "excerpt": "실적 발표 직후 여러 의원이 축하 논평을 냈지만 정책 논의나 입법 움직임은 없었다",
+   "sourceId": "mk-news",
+   "sourceTier": "specialist",
+   "declaredSection": "business",
+   "contentKindHint": "news",
+   "sourceCountry": "KR",
+   "language": "ko",
+   "expected": {
+    "contentType": "news",
+    "scope": "unknown",
+    "acceptedCategories": [
+     "business"
+    ],
+    "rejectedCategories": [],
+    "secondaryCategories": [
+     "politics"
+    ]
+   },
+   "secondaryCategories": [
+    "politics"
+   ],
+   "geoEvidenceSpans": [],
+   "replaces": "d1a-07-secondary-only-admission",
+   "designNote": "함정 의도(실적=core, 정치권 반응=부차)만으로 설계, 모델 결과 무참조. blind A/B 완전 합의.",
+   "evidenceHash": "eaaa358ac403e349aea78c773ace41e3a97ab05264fb3464e10c15508f190173",
+   "goldStub": {
+    "state": "contract_fixture_only",
+    "goldContentType": "news",
+    "humanValid": true,
+    "inScope": true,
+    "note": "대체 반례용 gold 행 합성 재료 — frozen gold 파일 무수정, 러너/테스트가 이 stub과 canonical 해시로 행을 구성"
+   }
+  },
+  {
+   "blindItemId": "d1g-12-clear-product-launch",
+   "neutralId": "B02",
+   "source": "replacement_fixture",
+   "title": "애플, 신형 맥북 프로 공개… 자체 설계 M5 칩 첫 탑재",
+   "excerpt": "애플이 자체 설계한 신형 칩을 탑재한 노트북 신제품을 공개하고 다음 달 출시한다고 발표했다",
+   "sourceId": "yozm",
+   "sourceTier": "news",
+   "declaredSection": "tech",
+   "contentKindHint": "news",
+   "sourceCountry": "KR",
+   "language": "ko",
+   "expected": {
+    "contentType": "news",
+    "scope": "global",
+    "acceptedCategories": [
+     "tech"
+    ],
+    "rejectedCategories": [],
+    "secondaryCategories": []
+   },
+   "secondaryCategories": [],
+   "geoEvidenceSpans": [
+    "애플"
+   ],
+   "replaces": "d1a-10-same-structure-diff-meaning",
+   "designNote": "함정 의도(구조유사 제목·tech core 명확화)만으로 설계, 모델 결과 무참조. blind A/B 완전 합의.",
+   "evidenceHash": "7f00c754e1bc7345cc58273507d4ee7aa260312a49a5e247078919c24d858e89",
+   "goldStub": {
+    "state": "contract_fixture_only",
+    "goldContentType": "news",
+    "humanValid": true,
+    "inScope": true,
+    "note": "대체 반례용 gold 행 합성 재료 — frozen gold 파일 무수정, 러너/테스트가 이 stub과 canonical 해시로 행을 구성"
+   }
+  }
+ ],
+ "auditAmbiguousItems": [
+  {
+   "blindItemId": "d1a-07-secondary-only-admission",
+   "neutralId": "A07",
+   "auditAmbiguous": true,
+   "reason": "politics core 여부가 실제 경계선(독립 검수 합의 ambiguous)",
+   "reviewerAVerdict": {
+    "contentType": "news",
+    "acceptedCategories": [
+     "business"
+    ],
+    "ambiguous": true
+   }
+  },
+  {
+   "blindItemId": "d1a-10-same-structure-diff-meaning",
+   "neutralId": "A10",
+   "auditAmbiguous": true,
+   "reason": "tech/business core가 실제 경계선(독립 검수 A/B 상반된 판정 이력)",
+   "reviewerAVerdict": {
+    "contentType": "news",
+    "acceptedCategories": [
+     "tech"
+    ],
+    "ambiguous": false
+   }
+  }
+ ],
+ "expectedContractFixtures": 10,
+ "scoringOwnership": "채점 값(contentType·scope·accepted·rejected·secondary)은 본 authority가 단독 소유. corpus contractGold는 데이터셋 무결성 대조(§5)와 동결 이력 전용 — 평가 답으로 사용 금지."
+}

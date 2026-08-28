@@ -1,0 +1,512 @@
+{
+  "contract": "NOWHOT-SELECTION-CANDIDATE-REGISTRY-001",
+  "schemaVersion": 1,
+  "integrityNote": "Candidate definitions are immutable attempt provenance, not reusable approval. A candidate is runnable only when execution.runnable is true, execution.state is approved_canary, and no executionHold exists for that candidate.",
+  "executionHolds": {
+    "p4-category-haiku": {
+      "state": "consumed_hold",
+      "attemptId": "d1i-20260821-01",
+      "receiptSha256": "387aad945226ed4a139f71547d297554027cce735d12a20011db71bd059b5d05",
+      "reason": "single_canary_approval_consumed"
+    },
+    "p5-compact-category-haiku": {
+      "state": "consumed_hold",
+      "attemptId": "d1j-20260821-01",
+      "receiptSha256": "3691a543e12bf74f2f427e0ed651f23e35d7e97d7f80a53e10c53224325459f6",
+      "reason": "single_canary_approval_consumed"
+    },
+    "p6-policy-shadow-haiku": {
+      "state": "consumed_hold",
+      "attemptId": "d2e-20260822-01",
+      "receiptSha256": "768d97297479f6c71ef0c0e90f74758ab587ab2174e127bbc4f10f75b2edac1b",
+      "reason": "single_canary_approval_consumed"
+    },
+    "p7-policy-shadow-haiku-full-20260824": {
+      "state": "consumed_hold",
+      "attemptId": "d2f-20260824-03",
+      "receiptSha256": "bb2ea434ca8a8f9e34f9769d1b6c7fcb3d3bab0566db75152e083099ba21f173",
+      "reason": "full_shadow_approval_consumed"
+    },
+    "p8-policy-shadow-haiku-full-20260824": {
+      "state": "consumed_hold",
+      "attemptId": "d2f-20260824-04",
+      "receiptSha256": "59c53db19c230e3456653a3a291af298c1f4ca9c7c188bf2873de12c82e1ac47",
+      "reason": "full_shadow_approval_consumed"
+    },
+    "p9-policy-shadow-haiku-full-20260824-lunch": {
+      "state": "consumed_hold",
+      "attemptId": "d2f-20260824-09",
+      "receiptSha256": "47bcb791d74682b59afa497af9361e382168de25b51b697d0c362b59ecb0e371",
+      "reason": "failed_full_shadow_attempts_closed"
+    },
+    "p10-policy-shadow-haiku-full-20260826": {
+      "state": "consumed_hold",
+      "attemptId": "d2-rootfix-20260826-01",
+      "receiptSha256": "9788dd1e5e96a95ed8c596dec15b0627d9ca8f4544b7ac40d2bcf52afffe51ef",
+      "reason": "api_usage_limit_hold"
+    }
+  },
+  "models": {
+    "haiku-4.5": {
+      "requestedModel": "claude-haiku-4-5-20251001",
+      "resolvedAliases": [
+        "claude-haiku-4-5-20251001",
+        "claude-haiku-4-5"
+      ],
+      "pricing": {
+        "inputPerMTok": 1,
+        "outputPerMTok": 5
+      },
+      "currency": "USD"
+    }
+  },
+  "prompts": {
+    "p3.1": {
+      "promptVersion": "nowhot-selection-d1g-p3.1",
+      "systemLines": [
+        "You are the admission classifier for NOWHOT (지금핫), a Korean news/community/deal aggregator.",
+        "Return ONLY the semantic classification JSON for this one blind item.",
+        "",
+        "GEO GROUNDING PROTOCOL (event location, NOT outlet):",
+        "- sourceCountry is the OUTLET's location and MUST NOT decide the event location. Outlet nationality, article language,",
+        "  or overall vibe are NEVER location evidence.",
+        "- ASSERT-AND-QUOTE OR NEITHER: you may put a country into eventJurisdictions ONLY if you also put at least one grounding",
+        "  quote into geoEvidenceSpans, copied CHARACTER-FOR-CHARACTER from the title or excerpt (no translation, no paraphrase,",
+        "  no composing new text). If you cannot copy such an exact quote, eventJurisdictions MUST be [] and geoEvidenceSpans",
+        "  MUST be [] (scope becomes unknown). 'unknown' is a VALID, DECISIVE answer — never force a location.",
+        "- Fragments that DO ground a jurisdiction: place/city names, named government bodies or institutions, national laws or",
+        "  programs; and for DEAL items only, retailer/platform names, currency amounts, and shipping terms (they ground the",
+        "  sales market where the offer is redeemable, which is the deal's jurisdiction).",
+        "- Fragments that DO NOT ground a jurisdiction: for NEWS and COMMUNITY items, a currency amount alone does NOT determine",
+        "  the event country or the activity location; generic words like 의원/여야/정치권 without a named national body do NOT",
+        "  ground a country.",
+        "- relevanceCountries follow the same grounding rule: only countries the event materially affects, each grounded by a copied quote.",
+        "",
+        "ADMISSION: judge each of the 14 taxonomy categories INDEPENDENTLY. A category is 'accept' ONLY if a user who selected",
+        "that single category alone would want this item as a CORE topic. A mere mention, a merely structurally-similar headline,",
+        "or an indirect/second-order effect is 'reject' (or 'abstain' if it is a real-but-secondary theme). Precision over volume.",
+        "Accept TWO categories ONLY for a genuinely inseparable cross-domain event (e.g. a law that is jointly business AND politics);",
+        "when both fields are the shared core, do not drop one of them.",
+        "A deal/purchase offer is judged by the PRODUCT'S own domain: a discounted tech gadget is a core 'tech' item, a fashion",
+        "deal is core 'fashion'. Do not reject a category merely because the format is promotional.",
+        "",
+        "contentType is FORMAT (news=reporting, community=user post, deal=purchase offer, other=otherwise), distinct from the",
+        "'news' TOPIC. Do not accept the 'news' topic merely because the format is news. If contentType='other' or there is no",
+        "accept, primaryCategory MUST be 'unknown'.",
+        "",
+        "Grounding: every accept evidenceSpans entry and every geoEvidenceSpans entry MUST be an exact substring of the title",
+        "or excerpt; accept rows also need non-empty reasonCodes. Never invent spans.",
+        "When evidence is insufficient, use unknown/other/abstain — never force a classification.",
+        "Never use any gold answer or user-selected category; you only receive the blind fields below.",
+        "",
+        "admissionCategories MUST contain exactly one row for each of the 14 taxonomy ids (decision accept|abstain|reject,",
+        "confidence in [0,1], evidenceSpans, reasonCodes)."
+      ],
+      "promptSha256": "c5ac3e21e171de51fa30db387e51f4382a138ecfd342f0fe086515608b334fa6"
+    },
+    "p3.2": {
+      "promptVersion": "nowhot-selection-d1g-p3.2",
+      "basePromptId": "p3.1",
+      "replacements": [
+        {
+          "find": "admissionCategories MUST contain exactly one row for each of the 14 taxonomy ids",
+          "replace": "descriptiveSecondaryCategories lists ONLY real-but-secondary themes that are NOT accepted — never repeat an\naccepted category there (a category cannot be both accepted and secondary).\n\nadmissionCategories MUST contain exactly one row for each of the 14 taxonomy ids"
+        }
+      ],
+      "promptSha256": "50a03ee46610b5cdef93516c213d0aed3a0b3cffaab5b2810add04e9b828b6de"
+    },
+    "p4-category": {
+      "promptVersion": "nowhot-selection-d1i-p4-category",
+      "basePromptId": "p3.2",
+      "replacements": [
+        {
+          "find": "GEO GROUNDING PROTOCOL (event location, NOT outlet):\n- sourceCountry is the OUTLET's location and MUST NOT decide the event location. Outlet nationality, article language,\n  or overall vibe are NEVER location evidence.\n- ASSERT-AND-QUOTE OR NEITHER: you may put a country into eventJurisdictions ONLY if you also put at least one grounding\n  quote into geoEvidenceSpans, copied CHARACTER-FOR-CHARACTER from the title or excerpt (no translation, no paraphrase,\n  no composing new text). If you cannot copy such an exact quote, eventJurisdictions MUST be [] and geoEvidenceSpans\n  MUST be [] (scope becomes unknown). 'unknown' is a VALID, DECISIVE answer — never force a location.\n- Fragments that DO ground a jurisdiction: place/city names, named government bodies or institutions, national laws or\n  programs; and for DEAL items only, retailer/platform names, currency amounts, and shipping terms (they ground the\n  sales market where the offer is redeemable, which is the deal's jurisdiction).\n- Fragments that DO NOT ground a jurisdiction: for NEWS and COMMUNITY items, a currency amount alone does NOT determine\n  the event country or the activity location; generic words like 의원/여야/정치권 without a named national body do NOT\n  ground a country.\n- relevanceCountries follow the same grounding rule: only countries the event materially affects, each grounded by a copied quote.",
+          "replace": "CATEGORY-ONLY CANDIDATE:\n- This candidate is evaluated only on contentType and the 14 category admission rows.\n- Geography is deliberately outside this candidate. Always return eventJurisdictions=[], relevanceCountries=[], and geoEvidenceSpans=[].\n- Do not infer or classify location. The code reports scope as unknown and scores category admission independently."
+        },
+        {
+          "find": "Accept TWO categories ONLY for a genuinely inseparable cross-domain event (e.g. a law that is jointly business AND politics);\nwhen both fields are the shared core, do not drop one of them.",
+          "replace": "Accept multiple categories only when EACH accepted category is independently a core reason a user would open the item.\nFor a law, regulation, budget, election or government decision that is itself the event, accept politics AND every directly\naffected domain that is also core. A politician merely commenting on another event is secondary context, not politics admission."
+        }
+      ],
+      "promptSha256": "310438e0cf568c8e4e62ad5df1e4386694f4965357f5a222ce808493410bf700"
+    },
+    "p5-category-compact": {
+      "promptVersion": "nowhot-selection-d1j-p5-category-compact",
+      "systemLines": [
+        "You are the category classifier for NOWHOT (jigeumhot), a Korean news, community and deal aggregator.",
+        "Return ONLY the compact semantic JSON for one blind item. Do not return evidence quotes or 14 admission rows; code builds those deterministically.",
+        "",
+        "CONTENT TYPE is the format: news=reporting, community=user post, deal=purchase offer, other=outside these formats.",
+        "EVENT TYPE must be exactly one of: law_policy, government_action, election_politics, domain_event, community_discussion, deal_offer, other.",
+        "- law_policy: legislation, regulation, budget or tax policy is itself the event.",
+        "- government_action: a government or public body's decision or official action is itself the event.",
+        "- election_politics: election, party or political process is itself the event.",
+        "- domain_event: the event belongs directly to a non-political subject domain.",
+        "- community_discussion: a user post, discussion, recipe, story, advice or humor item.",
+        "- deal_offer: a purchase offer; classify by the product's own domain.",
+        "- other: no precise category in the taxonomy; use only with contentType=other and empty category arrays.",
+        "",
+        "IMPACT CATEGORIES are independently core reasons a user who selected that category would open this item.",
+        "SUBJECT CATEGORIES are real named subjects or industries that are present but secondary to the event. The two arrays must be disjoint.",
+        "For law_policy, government_action and election_politics, code adds politics automatically. Do not add politics merely because a politician comments on another event.",
+        "For a law or policy affecting an industry, put the directly affected user domain in impactCategories. Put a merely named technology or industry in subjectCategories unless its technical change is itself a core event.",
+        "The 'news' category is a current-affairs topic, not the news format. Never choose it merely because contentType=news.",
+        "Use only taxonomy ids supplied in the request. Do not force a category when the title and excerpt do not support it.",
+        "confidence is one number from 0 to 1 for the compact decision as a whole."
+      ],
+      "promptSha256": "788fd7f246ac0ab4bf91f34bbab414616c2a81e088d4760efb4cd7b00a41b548"
+    },
+    "p6-policy-shadow": {
+      "promptVersion": "nowhot-selection-d2a-p6-policy-shadow",
+      "basePromptId": "p5-category-compact",
+      "replacements": [],
+      "policyProjection": "category-admission-v1",
+      "promptSha256": "8b21bf59b3fd67b9354b3de819dc3b086770d69c7381001a62e33dc42513f76b"
+    },
+    "p8-policy-shadow-politics-core": {
+      "promptVersion": "nowhot-selection-d2f-p8-politics-core",
+      "basePromptId": "p6-policy-shadow",
+      "replacements": [
+        {
+          "find": "For law_policy, government_action and election_politics, code adds politics automatically. Do not add politics merely because a politician comments on another event.",
+          "replace": "For law_policy and election_politics, code adds politics automatically. For government_action, add politics to impactCategories only when political accountability, political conflict, or a policy consequence is independently central; routine administration, public-service operation, grants, permits, inspections, or agency business actions do not become politics merely because a public body acts. Do not add politics merely because a politician comments on another event."
+        }
+      ],
+      "promptSha256": "d48924d2d75eb64f1a9d8f606922b7615ddc91efd2e43e7b6a8b3fa7ea01f920"
+    }
+  },
+  "candidates": [
+    {
+      "candidateId": "p3.1-haiku",
+      "modelId": "haiku-4.5",
+      "promptId": "p3.1",
+      "execution": {
+        "runnable": false,
+        "state": "historical_hold",
+        "maxCalls": 12,
+        "fullAllowed": false
+      },
+      "evidenceUse": "historical_attempt_only",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p3.2-haiku",
+      "modelId": "haiku-4.5",
+      "promptId": "p3.2",
+      "execution": {
+        "runnable": false,
+        "state": "diagnostic_hold",
+        "maxCalls": 12,
+        "fullAllowed": false
+      },
+      "evidenceUse": "same_canary_failure_diagnosis_only",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p4-category-haiku",
+      "modelId": "haiku-4.5",
+      "promptId": "p4-category",
+      "task": "category_admission_only",
+      "execution": {
+        "runnable": true,
+        "state": "approved_canary",
+        "maxCalls": 12,
+        "maxCostUsd": 0.08,
+        "fullAllowed": false
+      },
+      "evidenceUse": "candidate_frozen_before_independent_holdout",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p5-compact-category-haiku",
+      "modelId": "haiku-4.5",
+      "promptId": "p5-category-compact",
+      "task": "category_admission_only",
+      "semanticContract": "compact_category_v1",
+      "compactPolicy": {
+        "sourceEvidence": "title_then_excerpt",
+        "emptyEventType": "other",
+        "eventTypes": {
+          "law_policy": { "requiredCoreCategories": ["politics"] },
+          "government_action": { "requiredCoreCategories": ["politics"] },
+          "election_politics": { "requiredCoreCategories": ["politics"] },
+          "domain_event": { "requiredCoreCategories": [] },
+          "community_discussion": { "requiredCoreCategories": [] },
+          "deal_offer": { "requiredCoreCategories": [] },
+          "other": { "requiredCoreCategories": [] }
+        }
+      },
+      "execution": {
+        "runnable": true,
+        "state": "approved_canary",
+        "maxCalls": 12,
+        "maxOutputTokensPerCall": 500,
+        "fullAllowed": false,
+        "maxCostUsd": 0.06
+      },
+      "evidenceUse": "offline_contract_and_counterexample_validation_only",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p6-policy-shadow-haiku",
+      "modelId": "haiku-4.5",
+      "promptId": "p6-policy-shadow",
+      "task": "category_admission_only",
+      "semanticContract": "compact_category_v1",
+      "compactPolicy": {
+        "sourceEvidence": "title_then_excerpt",
+        "emptyEventType": "other",
+        "eventTypes": {
+          "law_policy": { "requiredCoreCategories": ["politics"] },
+          "government_action": { "requiredCoreCategories": ["politics"] },
+          "election_politics": { "requiredCoreCategories": ["politics"] },
+          "domain_event": { "requiredCoreCategories": [] },
+          "community_discussion": { "requiredCoreCategories": [] },
+          "deal_offer": { "requiredCoreCategories": [] },
+          "other": { "requiredCoreCategories": [] }
+        }
+      },
+    "execution": {
+      "runnable": true,
+      "state": "approved_canary",
+      "maxCalls": 12,
+      "maxOutputTokensPerCall": 500,
+      "fullAllowed": false,
+      "maxCostUsd": 0.06
+    },
+      "evidenceUse": "d2_shadow_design_only_no_model_call",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p7-policy-shadow-haiku-full-20260824",
+      "modelId": "haiku-4.5",
+      "promptId": "p6-policy-shadow",
+      "task": "category_admission_only",
+      "semanticContract": "compact_category_v1",
+      "compactPolicy": {
+        "sourceEvidence": "title_then_excerpt",
+        "emptyEventType": "other",
+        "eventTypes": {
+          "law_policy": { "requiredCoreCategories": ["politics"] },
+          "government_action": { "requiredCoreCategories": ["politics"] },
+          "election_politics": { "requiredCoreCategories": ["politics"] },
+          "domain_event": { "requiredCoreCategories": [] },
+          "community_discussion": { "requiredCoreCategories": [] },
+          "deal_offer": { "requiredCoreCategories": [] },
+          "other": { "requiredCoreCategories": [] }
+        }
+      },
+      "execution": {
+        "runnable": true,
+        "state": "approved_shadow_full",
+        "maxCalls": 1967,
+        "maxInputTokens": 6000000,
+        "maxOutputTokensPerCall": 500,
+        "perCallTimeoutMs": 60000,
+        "totalDeadlineMs": 10800000,
+        "fullAllowed": true,
+        "maxCostUsd": 10
+      },
+      "evidenceUse": "2026-08-24-current-pool-full-shadow_measurement_only",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p8-policy-shadow-haiku-full-20260824",
+      "modelId": "haiku-4.5",
+      "promptId": "p8-policy-shadow-politics-core",
+      "task": "category_admission_only",
+      "semanticContract": "compact_category_v1",
+      "compactPolicy": {
+        "sourceEvidence": "title_then_excerpt",
+        "emptyEventType": "other",
+        "eventTypes": {
+          "law_policy": { "requiredCoreCategories": ["politics"] },
+          "government_action": { "requiredCoreCategories": [] },
+          "election_politics": { "requiredCoreCategories": ["politics"] },
+          "domain_event": { "requiredCoreCategories": [] },
+          "community_discussion": { "requiredCoreCategories": [] },
+          "deal_offer": { "requiredCoreCategories": [] },
+          "other": { "requiredCoreCategories": [] }
+        }
+      },
+      "execution": {
+        "runnable": true,
+        "state": "approved_shadow_full",
+        "maxCalls": 1967,
+        "maxInputTokens": 6000000,
+        "maxOutputTokensPerCall": 500,
+        "perCallTimeoutMs": 60000,
+        "totalDeadlineMs": 10800000,
+        "fullAllowed": true,
+        "maxCostUsd": 6
+      },
+      "evidenceUse": "2026-08-24-full-shadow-politics-core-correction",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p9-policy-shadow-haiku-full-20260824-lunch",
+      "modelId": "haiku-4.5",
+      "promptId": "p8-policy-shadow-politics-core",
+      "task": "category_admission_only",
+      "semanticContract": "compact_category_v1",
+      "compactPolicy": {
+        "sourceEvidence": "title_then_excerpt",
+        "emptyEventType": "other",
+        "eventTypes": {
+          "law_policy": { "requiredCoreCategories": ["politics"] },
+          "government_action": { "requiredCoreCategories": [] },
+          "election_politics": { "requiredCoreCategories": ["politics"] },
+          "domain_event": { "requiredCoreCategories": [] },
+          "community_discussion": { "requiredCoreCategories": [] },
+          "deal_offer": { "requiredCoreCategories": [] },
+          "other": { "requiredCoreCategories": [] }
+        }
+      },
+      "execution": {
+        "runnable": true,
+        "state": "approved_shadow_full",
+        "maxCalls": 1981,
+        "maxInputTokens": 7500000,
+        "maxOutputTokensPerCall": 500,
+        "perCallTimeoutMs": 60000,
+        "totalDeadlineMs": 10800000,
+        "fullAllowed": true,
+        "maxCostUsd": 6
+      },
+      "evidenceUse": "2026-08-24-lunch-pool-final-shadow_measurement_only",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p10-policy-shadow-haiku-full-20260826",
+      "modelId": "haiku-4.5",
+      "promptId": "p8-policy-shadow-politics-core",
+      "task": "category_admission_only",
+      "semanticContract": "compact_category_v1",
+      "compactPolicy": {
+        "sourceEvidence": "title_then_excerpt",
+        "emptyEventType": "other",
+        "eventTypes": {
+          "law_policy": { "requiredCoreCategories": ["politics"] },
+          "government_action": { "requiredCoreCategories": [] },
+          "election_politics": { "requiredCoreCategories": ["politics"] },
+          "domain_event": { "requiredCoreCategories": [] },
+          "community_discussion": { "requiredCoreCategories": [] },
+          "deal_offer": { "requiredCoreCategories": [] },
+          "other": { "requiredCoreCategories": [] }
+        }
+      },
+      "execution": {
+        "runnable": true,
+        "state": "approved_shadow_full",
+        "maxCalls": 2063,
+        "maxInputTokens": 8000000,
+        "maxOutputTokensPerCall": 500,
+        "perCallTimeoutMs": 60000,
+        "totalDeadlineMs": 10800000,
+        "fullAllowed": true,
+        "maxCostUsd": 8
+      },
+      "evidenceUse": "2026-08-26-current-pool-full-shadow_measurement_only",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p11-policy-shadow-haiku-full-20260826-current",
+      "modelId": "haiku-4.5",
+      "promptId": "p8-policy-shadow-politics-core",
+      "task": "category_admission_only",
+      "semanticContract": "compact_category_v1",
+      "compactPolicy": {
+        "sourceEvidence": "title_then_excerpt",
+        "emptyEventType": "other",
+        "eventTypes": {
+          "law_policy": { "requiredCoreCategories": ["politics"] },
+          "government_action": { "requiredCoreCategories": [] },
+          "election_politics": { "requiredCoreCategories": ["politics"] },
+          "domain_event": { "requiredCoreCategories": [] },
+          "community_discussion": { "requiredCoreCategories": [] },
+          "deal_offer": { "requiredCoreCategories": [] },
+          "other": { "requiredCoreCategories": [] }
+        }
+      },
+      "execution": {
+        "runnable": true,
+        "state": "approved_shadow_full",
+        "maxCalls": 2597,
+        "maxInputTokens": 10000000,
+        "maxOutputTokensPerCall": 500,
+        "perCallTimeoutMs": 60000,
+        "totalDeadlineMs": 10800000,
+        "fullAllowed": true,
+        "maxCostUsd": 10
+      },
+      "evidenceUse": "2026-08-26-current-pool-full-shadow_measurement_only",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p12-policy-shadow-haiku-full-nh90-20260827-evening",
+      "modelId": "haiku-4.5",
+      "promptId": "p8-policy-shadow-politics-core",
+      "task": "category_admission_only",
+      "semanticContract": "compact_category_v1",
+      "compactPolicy": {
+        "sourceEvidence": "title_then_excerpt",
+        "emptyEventType": "other",
+        "eventTypes": {
+          "law_policy": { "requiredCoreCategories": ["politics"] },
+          "government_action": { "requiredCoreCategories": [] },
+          "election_politics": { "requiredCoreCategories": ["politics"] },
+          "domain_event": { "requiredCoreCategories": [] },
+          "community_discussion": { "requiredCoreCategories": [] },
+          "deal_offer": { "requiredCoreCategories": [] },
+          "other": { "requiredCoreCategories": [] }
+        }
+      },
+      "execution": {
+        "runnable": true,
+        "state": "approved_shadow_full",
+        "maxCalls": 2208,
+        "maxInputTokens": 9000000,
+        "maxOutputTokensPerCall": 500,
+        "perCallTimeoutMs": 60000,
+        "totalDeadlineMs": 10800000,
+        "fullAllowed": true,
+        "maxCostUsd": 9
+      },
+      "evidenceUse": "NH90_2026-08-27-evening_exact-current-pool-full-shadow_measurement_only",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p13-policy-shadow-haiku-nh90-provider-diagnostic",
+      "modelId": "haiku-4.5",
+      "promptId": "p8-policy-shadow-politics-core",
+      "task": "category_admission_only",
+      "semanticContract": "compact_category_v1",
+      "compactPolicy": {
+        "sourceEvidence": "title_then_excerpt",
+        "emptyEventType": "other",
+        "eventTypes": {
+          "law_policy": { "requiredCoreCategories": ["politics"] },
+          "government_action": { "requiredCoreCategories": [] },
+          "election_politics": { "requiredCoreCategories": ["politics"] },
+          "domain_event": { "requiredCoreCategories": [] },
+          "community_discussion": { "requiredCoreCategories": [] },
+          "deal_offer": { "requiredCoreCategories": [] },
+          "other": { "requiredCoreCategories": [] }
+        }
+      },
+      "execution": {
+        "runnable": true,
+        "state": "approved_shadow_full",
+        "maxCalls": 1,
+        "maxInputTokens": 10000,
+        "maxOutputTokensPerCall": 500,
+        "perCallTimeoutMs": 60000,
+        "totalDeadlineMs": 60000,
+        "fullAllowed": true,
+        "maxCostUsd": 0.01
+      },
+      "evidenceUse": "NH90_provider_400_single_call_diagnostic_only",
+      "independentEvidence": false
+    }
+  ]
+}

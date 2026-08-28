@@ -2,8 +2,8 @@
 //
 // 블루프린트 v4 "정정 3 — 신호 축"의 코드 정본이다. 여기의 어떤 함수도 현행
 // 서빙·편성 경로(digest.js·engine.js·server.js)를 건드리지 않는다 — shadow
-// 계층(shadow-selection.js)과 평가 도구(tools/eval-shadow-edition.mjs)만
-// 소비한다. 순수 함수만 있다: 네트워크·저장소·시계 접근 없음(now는 인자).
+// 계층(shadow-selection.js)과 실제 오늘판(engine.js)이 함께 소비한다. 순수
+// 함수만 있다: 네트워크·저장소·시계 접근 없음(now는 인자).
 //
 // ── 축 정의 (v4 정정 3)
 //   heat        화제성. 반응(추천·댓글)의 log10 포화. **커뮤니티 반응은 이 축
@@ -18,6 +18,13 @@
 //               팩별 계약이 한다(전 분야 공통 규칙 금지 — 정정 1).
 //
 // 모든 축은 [0,1] 값과 함께 **근거(입력 신호 값)** 를 반환한다 — 감사 가능성.
+
+export const AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS = 24;
+
+export function isAuthoritativeForeignNewsSource(source) {
+  return Boolean(source && source.kind === "news" && source.country && source.country !== "KR"
+    && source.editorialAuthority === "global_major");
+}
 //
 // ── 숫자의 출처 (실측 없는 숫자 금지)
 //   - 반응 셈법 score + 2×commentCount: digest.js:652의 현행 eng 셈법 재사용.
@@ -75,6 +82,7 @@ export function importanceAxis({ event, memberArticles = [] } = {}, {
   weightyCategories,
   componentWeights,
   roleOf,
+  authorityOf = null,
   marketSignalLexicon = null
 } = {}) {
   const sat = Number(groupSaturation);
@@ -89,6 +97,10 @@ export function importanceAxis({ event, memberArticles = [] } = {}, {
   const roles = memberArticles.map((article) => roleOf(article));
   const primaryHit = roles.some((role) => role === "primary" || role === "first_party");
   const w = componentWeights;
+  if (w.authority && typeof authorityOf !== "function") {
+    throw new Error("importanceAxis: authority 성분 사용 시 authorityOf 필요");
+  }
+  const authorityHit = Boolean(w.authority && memberArticles.some((article) => authorityOf(article)));
   let marketSignalHit = false;
   let marketSignalMatches = [];
   if (w.marketSignal) {
@@ -112,6 +124,7 @@ export function importanceAxis({ event, memberArticles = [] } = {}, {
   const value = (w.groups || 0) * groupsRatio
     + (w.weighty || 0) * (weightyHit ? 1 : 0)
     + (w.primary || 0) * (primaryHit ? 1 : 0)
+    + (w.authority || 0) * (authorityHit ? 1 : 0)
     + (w.marketSignal || 0) * (marketSignalHit ? 1 : 0);
   return {
     value,
@@ -124,6 +137,7 @@ export function importanceAxis({ event, memberArticles = [] } = {}, {
       primary: primaryHit,
       memberRoles: roles,
       componentWeights: { ...w },
+      ...(w.authority ? { authority: authorityHit } : {}),
       ...(w.marketSignal ? { marketSignal: marketSignalHit, marketSignalMatches } : {})
     }
   };

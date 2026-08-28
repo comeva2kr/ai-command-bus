@@ -11,27 +11,29 @@ const src = readFileSync("src/feed/server.js", "utf8");
 
 test("배너 렌더러가 seen을 pickBanner에 넘긴다", () => {
   const fn = src.slice(src.indexOf("const coupangBannerHtml = ("),
-                       src.indexOf("const adSlotHtml = "));
+                       src.indexOf("const displayAdHtml = "));
   assert.match(fn, /pickBanner\(\{[^}]*seen/, "seen을 안 넘긴다 — 같은 광고가 두 번 나온다");
   assert.match(fn, /if \(seen\) seen\.add\(b\.id\)/, "고른 것을 seen에 안 넣는다");
 });
 
-test("여러 광고가 나가는 페이지는 전부 한 묶음(adPage)으로 그린다", () => {
+test("광고 가능한 편집 페이지만 adPage 묶음을 쓰고 유틸리티는 명시적으로 끈다", () => {
   // 라우트 안에서 coupangBannerHtml을 직접 부르면 그 자리만 묶음 밖으로
   // 빠져나가 중복이 되살아난다. 직접 호출은 정의부와 adPage 안에만 있어야 한다.
-  const body = src.slice(src.indexOf("const adSlotHtml = "));
+  const body = src.slice(src.indexOf("const displayAdHtml = "));
   const direct = (body.match(/coupangBannerHtml\(/g) || []).length;
   assert.equal(direct, 0,
     `라우트가 coupangBannerHtml을 직접 부른다(${direct}곳) — adPage()를 거쳐야 한다`);
-  assert.ok((src.match(/const AD = adPage\(\)/g) || []).length >= 8,
-    "광고가 둘 이상 나가는 페이지 일부가 묶이지 않았다");
+  const editorial = (src.match(/const AD = adPage\((?:Boolean\(b\.publishable\))?\)/g) || []).length;
+  assert.ok(editorial >= 3, "브리핑·아카이브·리포트가 adPage 묶음을 거치지 않는다");
+  assert.ok((src.match(/const AD = adPage\(false\)/g) || []).length >= 6,
+    "noindex 유틸리티 페이지의 제휴 광고가 명시적으로 꺼지지 않았다");
 });
 
 test("문구 회전값이 자리 번호에만 매이지 않는다", () => {
   // pick은 자리마다 고정이라 같은 자리엔 늘 같은 문장이 나왔다.
   // 270개를 만들어 두고 몇 개만 돌려쓴 셈이다.
   const fn = src.slice(src.indexOf("const coupangBannerHtml = ("),
-                       src.indexOf("const adSlotHtml = "));
+                       src.indexOf("const displayAdHtml = "));
   assert.match(fn, /rotate: pick \+ adTurn/, "회전값이 자리 번호로 고정돼 있다");
   assert.match(src, /adTurn = \(adTurn \+ 1\) % 997/, "방문 순번이 돌지 않는다");
 });

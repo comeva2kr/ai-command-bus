@@ -7,12 +7,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  heatAxis, importanceAxis, changeAxis, freshnessStairValue, trustMaterials, engagementOf
+  heatAxis, importanceAxis, changeAxis, freshnessStairValue, trustMaterials, engagementOf,
+  isAuthoritativeForeignNewsSource
 } from "../src/feed/selection-axes.js";
 import {
   SHADOW_PACK_PARAMS, SHADOW_SELECTION_CONTRACT,
   shadowSelectEdition, shadowSelectBriefing, packIdForArticle, resolveSourceRole, overrideShadowParams,
-  sensitiveMatches, representativeOf, shadowScore, allMembersOverseas
+  sensitiveMatches, representativeOf, shadowScore, shadowEligibility, allMembersOverseas
 } from "../src/feed/shadow-selection.js";
 import { buildEventClusters } from "../src/feed/event-cluster.js";
 
@@ -96,7 +97,8 @@ test("importance: 독립 그룹 포화(5)·weighty·primary 구성 요소와 근
 
 test("동결: 해외 경제 사건 — marketSignal로 importance 역전 (David 채택 옵션 1, 2026-08-17)", () => {
   const registry = [
-    { id: "cnbc-economy", kind: "news", category: "business", sourceTier: "specialist", country: "US" },
+    { id: "cnbc-economy", kind: "news", category: "business", sourceTier: "specialist",
+      country: "US", editorialAuthority: "global_major" },
     { id: "yna", kind: "news", category: "business", sourceTier: "specialist", country: "KR" }
   ];
   const registryById = new Map(registry.map((entry) => [entry.id, entry]));
@@ -138,6 +140,42 @@ test("동결: 해외 경제 사건 — marketSignal로 importance 역전 (David 
   assert.equal(after.axes.importance.evidence.marketSignal, true);
   assert.deepEqual(after.axes.importance.evidence.marketSignalMatches,
     [{ articleId: "ov1", term: "Fed" }, { articleId: "ov1", term: "rate" }]);
+});
+
+test("해외 주요 언론은 제목 키워드가 없어도 권위 신호와 24시간 창을 적용한다", () => {
+  const registry = [
+    { id: "bbc-business", kind: "news", category: "business", sourceTier: "specialist",
+      country: "GB", editorialAuthority: "global_major" },
+    { id: "yna", kind: "news", category: "business", sourceTier: "specialist", country: "KR" }
+  ];
+  const registryById = new Map(registry.map((entry) => [entry.id, entry]));
+  const sourceRole = (a) => resolveSourceRole(a, registryById.get(a && a.source));
+  const pack = SHADOW_PACK_PARAMS.packs.newsy;
+  const overseas = article({
+    id: "authority-overseas",
+    title: "Review launched after airline changes passenger policy",
+    category: "business",
+    source: "bbc-business",
+    publishedAt: "2026-08-12T18:00:00+09:00"
+  });
+  const view = {
+    event: { counts: { independentReportingGroups: 1 }, firstSeenAt: overseas.publishedAt,
+      lastMaterialChangeAt: overseas.publishedAt, factsFingerprint: "EVF-authority" },
+    memberArticles: [overseas],
+    reactionArticles: []
+  };
+
+  assert.equal(isAuthoritativeForeignNewsSource(registryById.get("bbc-business")), true);
+  const gate = shadowEligibility(view, pack, {
+    now: NOW, slotId: "lunch", registryById, roleOf: sourceRole,
+    sensitiveLexicon: SHADOW_PACK_PARAMS.sensitive
+  });
+  const score = shadowScore(view, pack, { now: NOW, roleOf: sourceRole, registryById });
+
+  assert.equal(gate.pass, true, "해외 주요 언론의 18시간 전 보도는 점심판 24시간 창에 남아야 한다");
+  assert.equal(gate.windowHours, 24);
+  assert.equal(score.axes.importance.evidence.authority, true);
+  assert.ok(score.axes.importance.value > 0.5, "시장 키워드가 없어도 매체 권위가 중요도에 반영돼야 한다");
 });
 
 test("동결: 국내 사건은 marketSignal 분기를 타지 않는다 — 기존 3성분 산식 무변경", () => {
@@ -1635,7 +1673,7 @@ test("v2: 계약 자가 검증 — 위반을 잡아낸다", () => {
     categories: { business: { partial: false, items: [{
       rank: 1, title: "t", url: "https://x/1", source: "s", sourceLabel: "S",
       categoryIds: ["business"], trustGrade: "A", trustLabel: null,
-      publishedAt: null, evidenceCount: 1
+      publishedAt: null, evidenceCount: 1, adultGateRequired: false
     }] } }
   });
   assert.ok(validateV2Edition(base()).ok);

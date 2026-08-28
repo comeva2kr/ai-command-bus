@@ -7,6 +7,7 @@
 // **본문은 퍼오지 않는다.** 우리만 아는 것을 붙여 읽을 값어치를 만든다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { FeedEngine } from "../src/feed/engine.js";
 import { FeedStore } from "../src/feed/store.js";
 
@@ -111,6 +112,62 @@ test("관리자가 끈 소스는 관련글에도 안 나온다", async () => {
   store.disabledSources = () => new Set(["donga"]);
   const one = await engine.getItem(user.id, "a");
   assert.equal(one.related.length, 0, "차단한 소스가 관련글로 샜다");
+});
+
+test("오래 저장된 Google 뉴스 자리표시자 이미지는 상세 응답에서도 제거한다", async () => {
+  const { engine, userId } = await engineWith([
+    mk("a", "18호 태풍 사우델 결국 중국으로", "kbs-news", {
+      image: "https://lh3.googleusercontent.com/J6_placeholder=s0-w300"
+    })
+  ]);
+
+  const one = await engine.getItem(userId, "a");
+  assert.equal(one.image, null);
+});
+
+test("오늘판 상세는 출처 운영그룹으로 직접 URL을 우선하고 중계만 있으면 원문이라고 부르지 않는다", () => {
+  const html = readFileSync("src/feed/public/today.html", "utf8");
+  const links = html.slice(html.indexOf("function issueSourceLinks(issue){"), html.indexOf("function renderCategories(edition){"));
+  const detail = html.slice(html.indexOf("function openIssueDetail(index,returnFocus=null){"), html.indexOf("$(\"detailClose\").onclick"));
+  assert.match(links, /row\.sourceGroup\|\|row\.ownershipGroup/, "서버의 출처 정본 그룹을 사용하지 않는다");
+  assert.match(links, /directGroups/, "직접 URL이 있어도 같은 언론사 중계를 남긴다");
+  assert.match(detail, /Google 뉴스 중계 링크/, "중계 링크만 남은 상태를 사용자에게 구분하지 않는다");
+  assert.match(detail, /const sourceInventory=/, "준비된 요약은 출처 종류를 다시 원문으로 뭉갠다");
+  assert.match(detail, /readyText[\s\S]{0,120}\$\{sourceInventory\}/, "준비된 요약에서 원문·중계 구분을 버린다");
+  assert.doesNotMatch(detail, /copy\.watchNext\|\|issue\.watchNext/, "상세에 편집되지 않은 내부 후속 문구를 다시 노출한다");
+});
+
+test("오늘판 상세는 준비된 요약의 출처 정본에 과거 Google 중계를 다시 합치지 않는다", () => {
+  const html = readFileSync("src/feed/public/today.html", "utf8");
+  const sourceLinksFn = html.slice(html.indexOf("function issueSourceLinks(issue){"), html.indexOf("function renderCategories(edition){"));
+  const issueSourceLinks = new Function("externalHref", "directSourceUrl", "publisherKey", `${sourceLinksFn}; return issueSourceLinks;`)(
+    (value) => { try { const url = new URL(value); return ["http:", "https:"].includes(url.protocol) ? url.href : null; } catch { return null; } },
+    (value) => { try { const url = new URL(value); return url.hostname === "news.google.com" ? null : url.href; } catch { return null; } },
+    (value) => String(value || "").normalize("NFKC").toLowerCase().replace(/[\s._-]+/g, "")
+  );
+  const links = issueSourceLinks({
+    articleSummary: {
+      status: "ready",
+      sourceLinks: [{ sourceLabel: "KBS", sourceGroup: "kbs", url: "https://news.kbs.co.kr/news/view.do?ncd=1" }]
+    },
+    eventSources: [{ sourceLabel: "KBS 뉴스", url: "https://news.google.com/rss/articles/kbs-wrapper" }]
+  });
+
+  assert.deepEqual(links.map((row) => row.url), ["https://news.kbs.co.kr/news/view.do?ncd=1"]);
+});
+
+test("오늘판은 정확한 날짜 판본을 고르고 상세에 최초 발행시각을 표시한다", () => {
+  const html = readFileSync("src/feed/public/today.html", "utf8");
+  const links = html.slice(html.indexOf("function issueSourceLinks(issue){"), html.indexOf("function renderCategories(edition){"));
+  const detail = html.slice(html.indexOf("function openIssueDetail(index,returnFocus=null){"), html.indexOf("$(\"detailClose\").onclick"));
+
+  assert.match(html, /<input[^>]+id="editionDate"[^>]+type="date"/, "날짜 선택기가 없다");
+  assert.match(html, /\$\("editionDate"\)\.onchange=/, "날짜 변경이 판본 조회에 연결되지 않았다");
+  assert.match(html, /loadEdition\(false,event\.currentTarget\.value\)/, "선택 날짜를 API에 전달하지 않는다");
+  assert.match(links, /publishedAt:row\.publishedAt\|\|sourceEvent\?\.publishedAt\|\|null/, "출처 발행시각을 상세까지 보존하지 않는다");
+  assert.match(detail, /firstPublishedAt/, "최초 발행시각을 계산하지 않는다");
+  assert.match(detail, /최초 발행/, "최초 발행시각을 사용자에게 표시하지 않는다");
+  assert.doesNotMatch(detail, /공개 원문 본문을 그대로 발췌했습니다/, "원문 전체를 복제한 것처럼 오해되는 문구가 남았다");
 });
 
 test("홈 seed가 비면 3분이 아니라 곧 다시 시도한다", async () => {

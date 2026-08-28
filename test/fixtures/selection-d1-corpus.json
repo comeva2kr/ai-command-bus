@@ -1,0 +1,2572 @@
+{
+  "contract": "NOWHOT-SELECTION-D1-CORPUS-002",
+  "supersedes": "NOWHOT-SELECTION-D1-CORPUS-001",
+  "phase": "D1-A",
+  "note": "실제 로컬 스냅샷 과반 + 적대/변형 계약 fixture. declared category는 stratum일 뿐 gold 아님. 실제 기사 정답은 이 파일에 없다(독립 gold 별도).",
+  "snapshots": [
+    {
+      "id": "pool-2026-08-14-lunch",
+      "path": ".nowhot-local/shadow-observation/pool-2026-08-14-lunch.json",
+      "sha256": "faf354420acb8f420d4c287898ac729399d2ac4958eda47990d8165a2d133eaa",
+      "rows": 1912
+    },
+    {
+      "id": "pool-2026-08-15-lunch",
+      "path": ".nowhot-local/shadow-observation/pool-2026-08-15-lunch.json",
+      "sha256": "11d68b09977f3eec2cdab0f309d9ca3cd10a4c268ee547d7ed18949cff3505cd",
+      "rows": 1973
+    },
+    {
+      "id": "pool-2026-08-16-lunch",
+      "path": ".nowhot-local/shadow-observation/pool-2026-08-16-lunch.json",
+      "sha256": "b3aca64fcf84ae2f3f2edadcb7ec6e874d9f6941496b4567feaf52db54cf3e95",
+      "rows": 1952
+    }
+  ],
+  "counts": {
+    "real": 78,
+    "adversarial": 10,
+    "mutation": 8,
+    "total": 96,
+    "realMajority": true,
+    "realRatioBps": 8125
+  },
+  "coverage": {
+    "categories": [
+      "art",
+      "auto",
+      "business",
+      "culture",
+      "fashion",
+      "gaming",
+      "humor",
+      "life",
+      "news",
+      "realestate",
+      "science",
+      "sports",
+      "tech"
+    ],
+    "dates": [
+      "14",
+      "15",
+      "16"
+    ],
+    "kinds": [
+      "community",
+      "news"
+    ],
+    "sources": [
+      "archdaily",
+      "autoherald",
+      "bbc-sport",
+      "bloter",
+      "bobae",
+      "clien",
+      "cnbc-economy",
+      "creativeboom",
+      "designboom",
+      "donga",
+      "espn",
+      "etnews",
+      "etoday",
+      "etoland",
+      "fashionista",
+      "gamemeca",
+      "gnews",
+      "gnews-biz",
+      "gnews-ent",
+      "gnews-sports",
+      "gnews-tech",
+      "gnews-world",
+      "hackernews",
+      "hani-rank",
+      "hankyung",
+      "hankyung-realestate",
+      "heraldbiz",
+      "highsnobiety",
+      "hypebae",
+      "hyperallergic",
+      "ibabynews",
+      "inven_hot",
+      "khan",
+      "livescience",
+      "mk-realestate",
+      "mk-stock",
+      "motorgraph",
+      "nasa",
+      "pcgamer",
+      "physorg",
+      "ppomppu",
+      "ppomppu-deal",
+      "ppomppu-deal-os",
+      "ppomppu-house",
+      "ruliweb-deal",
+      "sciencedaily",
+      "slashdot",
+      "slownews",
+      "slrclub",
+      "stereogum",
+      "theqoo",
+      "tildes",
+      "todayhumor",
+      "yankodesign"
+    ]
+  },
+  "shortages": [
+    {
+      "stratum": "14:politics",
+      "reason": "no_declared_supply"
+    },
+    {
+      "stratum": "15:politics",
+      "reason": "no_declared_supply"
+    },
+    {
+      "stratum": "16:politics",
+      "reason": "no_declared_supply"
+    },
+    {
+      "stratum": "content_kind:deal",
+      "reason": "no_real_supply_in_snapshots"
+    },
+    {
+      "stratum": "content_kind:other",
+      "reason": "no_real_supply_in_snapshots"
+    }
+  ],
+  "rows": [
+    {
+      "blindItemId": "d1r-005a24f8256d6a1d",
+      "origin": "real_local_snapshot",
+      "sourceId": "hani-rank",
+      "sourceTier": "aggregate",
+      "declaredCategory": "news",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "청와대 “용산어린이정원 땅에 공공 소유 아파트 필요”",
+      "excerpt": "",
+      "evidenceHash": "005a24f8256d6a1dafed346e25b0d268011f3f70c7f4fca4ca0b04480b4e50db",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:news",
+      "provenance": {
+        "date": "14",
+        "source": "hani-rank",
+        "declaredCategory": "news",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0166de97dbf4402b",
+      "origin": "real_local_snapshot",
+      "sourceId": "gnews",
+      "sourceTier": "aggregate",
+      "declaredCategory": "news",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "한화, 미 해군 함정 건조 성큼…트럼프 지시에 '반색'",
+      "excerpt": "",
+      "evidenceHash": "0166de97dbf4402b148aaa3d762426a01037a122cdde61acd7dc8c58cb0a16a5",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:news",
+      "provenance": {
+        "date": "14",
+        "source": "gnews",
+        "declaredCategory": "news",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0030c6f19d49a864",
+      "origin": "real_local_snapshot",
+      "sourceId": "tildes",
+      "sourceTier": "community",
+      "declaredCategory": "tech",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "What we lost when we quit using crappy old web forums",
+      "excerpt": "",
+      "evidenceHash": "0030c6f19d49a864584e4d1dcf69a36a27f43f33993e391f913fd4f85532bc3a",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:tech",
+      "provenance": {
+        "date": "14",
+        "source": "tildes",
+        "declaredCategory": "tech",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-010cfbda23878bee",
+      "origin": "real_local_snapshot",
+      "sourceId": "hackernews",
+      "sourceTier": "community",
+      "declaredCategory": "tech",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Blog about things you don't understand yet",
+      "excerpt": "",
+      "evidenceHash": "010cfbda23878bee5529f3fd5b9d41203da54fe0f4ce1cce5accc52600b4338b",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:tech",
+      "provenance": {
+        "date": "14",
+        "source": "hackernews",
+        "declaredCategory": "tech",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-04e44b91a8a9cf80",
+      "origin": "real_local_snapshot",
+      "sourceId": "autoherald",
+      "sourceTier": "specialist",
+      "declaredCategory": "auto",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "메르세데스 AMG, 1100마력 넘는 전기 SUV 예고 '괴물급 성능 기대'",
+      "excerpt": "메르세데스 AMG가 최고출력 1100마력을 넘어설 것으로 예상되는 고성능 순수전기 SUV 공개를 예고했다(벤츠) [오토헤럴드 김훈기 기자] 메르세데스 AMG가 최고출력 1100마력을 넘어설 것으로 예상되는 고성능 순수전기 SUV 공개를 예고했다. 지난 5월 선보인 신형 'AMG GT 4도어'의 전동화 기술을 SUV에 옮긴 모델로, 향후 포르쉐와 BMW 등 ",
+      "evidenceHash": "04e44b91a8a9cf80a9703265f6f93d73639a7aec026aa712935cb69058bed604",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:auto",
+      "provenance": {
+        "date": "14",
+        "source": "autoherald",
+        "declaredCategory": "auto",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-06d5c81e42de25a5",
+      "origin": "real_local_snapshot",
+      "sourceId": "motorgraph",
+      "sourceTier": "specialist",
+      "declaredCategory": "auto",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "폭스바겐코리아, ID.4 및 ID.5 전기차 고객을 위한 ‘전기차 라이프 케어’ 이벤트",
+      "excerpt": "폭스바겐코리아가 전기차 고객의 합리적인 유지관리를 지원하기 위해 8월 12일(수)부터 9월 30일(수)까지 '전기차 라이프 케어' 이벤트를 실시한다.이번 이벤트는 프로모션 기간 내 폭스바겐 ID.4 및 ID.5 고객을 대상으로 진행된다. 대상 상품은 전기차 관리에 필요한 주요 소모품을 합리적으로 이용할 수 있는 EV 전용 서비스 패키지 2종과 제조사 보증 ",
+      "evidenceHash": "06d5c81e42de25a5e9ca62e852ec328232ab7fa1ba24e9addb57cabe6965c443",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:auto",
+      "provenance": {
+        "date": "14",
+        "source": "motorgraph",
+        "declaredCategory": "auto",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0436a0ab17552905",
+      "origin": "real_local_snapshot",
+      "sourceId": "nasa",
+      "sourceTier": "specialist",
+      "declaredCategory": "science",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Perseids Meteor Shower",
+      "excerpt": "The constellation Orion is framed by two Perseid meteors in this photo from Aug. 12, 2018, in Cedar Breaks National Monument, Utah. The Perseids – one of the year’s brightest and most popular meteor s",
+      "evidenceHash": "0436a0ab17552905fd74681040a17fd810978ad6328fc1153c189e85dc4d3a05",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:science",
+      "provenance": {
+        "date": "14",
+        "source": "nasa",
+        "declaredCategory": "science",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0964ca690a5b16e0",
+      "origin": "real_local_snapshot",
+      "sourceId": "sciencedaily",
+      "sourceTier": "specialist",
+      "declaredCategory": "science",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "The sun will vanish over Europe in a rare total solar eclipse: Watch live",
+      "excerpt": "A total solar eclipse will plunge parts of Europe into darkness on August 12, 2026, with Spain offering some of the best views. ESA will livestream the spectacle from the Javalambre Observatory, combi",
+      "evidenceHash": "0964ca690a5b16e038e3471d71f4204510749ecceba833233273ce7150d82081",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:science",
+      "provenance": {
+        "date": "14",
+        "source": "sciencedaily",
+        "declaredCategory": "science",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-00984254ce754fd0",
+      "origin": "real_local_snapshot",
+      "sourceId": "etoday",
+      "sourceTier": "specialist",
+      "declaredCategory": "business",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "교촌 문베어, 홀리데이 인 인천 송도서 ‘선셋 비어 가든’ 운영",
+      "excerpt": "28일까지 매주 금요일 옥상 정원서 수제맥주 4종 시음 교촌치킨 콜라보 플래터 주문 시 맥주 무제한 제공 교촌에프앤비의 수...",
+      "evidenceHash": "00984254ce754fd098a15742aad899224630f0e5e2820ca507102c33835690a4",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:business",
+      "provenance": {
+        "date": "14",
+        "source": "etoday",
+        "declaredCategory": "business",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-01a8f60b8b29a336",
+      "origin": "real_local_snapshot",
+      "sourceId": "cnbc-economy",
+      "sourceTier": "specialist",
+      "declaredCategory": "business",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "China's factory activity unexpectedly contracts in July on demand slump, typhoons",
+      "excerpt": "China's factory activity unexpectedly contracted in July, as the export rush that powered a second-quarter rebound began to unwind.",
+      "evidenceHash": "01a8f60b8b29a33688129ee058b762349097abb2c808e584689112bbe4b3cebd",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:business",
+      "provenance": {
+        "date": "14",
+        "source": "cnbc-economy",
+        "declaredCategory": "business",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-013c2a63c26a6a5d",
+      "origin": "real_local_snapshot",
+      "sourceId": "inven_hot",
+      "sourceTier": "community",
+      "declaredCategory": "gaming",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "제른 다르모어 << 이 씨발새끼 대체 뭐하는 새끼임?",
+      "excerpt": "",
+      "evidenceHash": "013c2a63c26a6a5d2185933b4773642f288bb1357d1097e9a02fbfbab09eb52f",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:gaming",
+      "provenance": {
+        "date": "14",
+        "source": "inven_hot",
+        "declaredCategory": "gaming",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-025f45be150f2727",
+      "origin": "real_local_snapshot",
+      "sourceId": "pcgamer",
+      "sourceTier": "specialist",
+      "declaredCategory": "gaming",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Nightdive's System Shock remake is coming to VR",
+      "excerpt": "Strap Shodan on your face. Insect.",
+      "evidenceHash": "025f45be150f272792748b74822aae3d285fd4a657a249aeabefd1b96104ce9c",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:gaming",
+      "provenance": {
+        "date": "14",
+        "source": "pcgamer",
+        "declaredCategory": "gaming",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-00422328f5d487bf",
+      "origin": "real_local_snapshot",
+      "sourceId": "bbc-sport",
+      "sourceTier": "specialist",
+      "declaredCategory": "sports",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "GB",
+      "language": "en",
+      "title": "'I hope you're not sick of my face' - Hunt wants more after 200m gold",
+      "excerpt": "Great Britain's Amy Hunt reacts to taking her second gold of the 2026 European Athletics Championships by winning the women's 200m, but stresses that \"it's not over yet\" as she looks forward to the sp",
+      "evidenceHash": "00422328f5d487bfcb94247ab75a55457ceea5e7acd75aa26861409ad30e5337",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:sports",
+      "provenance": {
+        "date": "14",
+        "source": "bbc-sport",
+        "declaredCategory": "sports",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-07cff039141a377a",
+      "origin": "real_local_snapshot",
+      "sourceId": "espn",
+      "sourceTier": "specialist",
+      "declaredCategory": "sports",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Best shots and highlights from Round 1",
+      "excerpt": "Here are the best sights and sounds from the first round of the 2026 FedEx St. Jude Championship at TPC Southwind.",
+      "evidenceHash": "07cff039141a377ab906b242a55b044552d8e682770f107ca3e0397f9fcdf196",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:sports",
+      "provenance": {
+        "date": "14",
+        "source": "espn",
+        "declaredCategory": "sports",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-01ffc3215e177cbb",
+      "origin": "real_local_snapshot",
+      "sourceId": "gnews-ent",
+      "sourceTier": "aggregate",
+      "declaredCategory": "culture",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "아이맥스 찾아 서울서 대전까지... ‘오디세이’ 원정 떠나는 관람객들",
+      "excerpt": "",
+      "evidenceHash": "01ffc3215e177cbb383f65005a4fabab8a3a4999083345883c7f4b07f9848758",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:culture",
+      "provenance": {
+        "date": "14",
+        "source": "gnews-ent",
+        "declaredCategory": "culture",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0264216f0909c4ab",
+      "origin": "real_local_snapshot",
+      "sourceId": "stereogum",
+      "sourceTier": "specialist",
+      "declaredCategory": "culture",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Tinashe – “Melatonin”",
+      "excerpt": "Oh, Tinashe is going for it. Next month the resurgent dance-pop/R&B cult hero will hit us with her new album Popstar , and early singles \" Too Easy \" and \" Crash Out \" are extremely encouraging. Today",
+      "evidenceHash": "0264216f0909c4ab32c5e6b6066a3716f5f87ee645d8a1766d5e87adac813e48",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:culture",
+      "provenance": {
+        "date": "14",
+        "source": "stereogum",
+        "declaredCategory": "culture",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-000b3549798602a2",
+      "origin": "real_local_snapshot",
+      "sourceId": "ruliweb-deal",
+      "sourceTier": "community",
+      "declaredCategory": "life",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "[네이버]닌텐도 스위치2 본체 + 피트니스 복싱3 712,800원무배",
+      "excerpt": "",
+      "evidenceHash": "000b3549798602a2eaae6b483bf892662791a0f6f184d7b29639693e3eb4046e",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:life",
+      "provenance": {
+        "date": "14",
+        "source": "ruliweb-deal",
+        "declaredCategory": "life",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-016abe9b13aec746",
+      "origin": "real_local_snapshot",
+      "sourceId": "ibabynews",
+      "sourceTier": "specialist",
+      "declaredCategory": "life",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "[오늘의 특가] 믹순, ‘네고왕’ 프로모션 진행… 최대 82% 할인 혜택 선봬",
+      "excerpt": "【베이비뉴스 이유주 기자】 K-뷰티 스킨케어 브랜드 믹순(mixsoon)이 에이앤이코리아 달라스튜디오 '네고왕'과 함께 특별 프로모션을 진행한다. ⓒ믹순 K-뷰티 스킨케어 브랜드 믹순(mixsoon)이 에이앤이코리아 달라스튜디오 '네고왕'과 함께 특별 프로모션을 진행한다고 14일 밝혔다. 지난 13일 공개된 네고왕 방송에서는 원료 본연의 효능에 집중하는 믹",
+      "evidenceHash": "016abe9b13aec7466b86599bb7aa104c4b83cf116755118d2ca41aa0a0918e91",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:life",
+      "provenance": {
+        "date": "14",
+        "source": "ibabynews",
+        "declaredCategory": "life",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-04008a9469248afe",
+      "origin": "real_local_snapshot",
+      "sourceId": "ppomppu",
+      "sourceTier": "community",
+      "declaredCategory": "humor",
+      "declaredSection": "business",
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "마케팅 천재가 생수로 1조를 번 방법.jpg",
+      "excerpt": "",
+      "evidenceHash": "04008a9469248afedd45fdf20fe637301908a749a13012b48a672535f67b751b",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:humor",
+      "provenance": {
+        "date": "14",
+        "source": "ppomppu",
+        "declaredCategory": "humor",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-0478853b223ae86d",
+      "origin": "real_local_snapshot",
+      "sourceId": "todayhumor",
+      "sourceTier": "community",
+      "declaredCategory": "humor",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "회사 창업자의 묻혀져있던 비밀",
+      "excerpt": "",
+      "evidenceHash": "0478853b223ae86d243e73d55d3b7b5ed7ebf866c80aaa98202867d8d182c2fe",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:humor",
+      "provenance": {
+        "date": "14",
+        "source": "todayhumor",
+        "declaredCategory": "humor",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-01f07b7b71832725",
+      "origin": "real_local_snapshot",
+      "sourceId": "mk-realestate",
+      "sourceTier": "specialist",
+      "declaredCategory": "realestate",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "“이대로 가면 폭망”…정부 세제개편안에 與 의총서 수도권 의원들 성토",
+      "excerpt": "더불어민주당 의원총회에서 정부가 내놓은 세제개편안과 주택 공급 대책을 놓고 수도권 의원들의 우려가 잇따라 터져 나왔다. 정부안이 향후 민심과 선거에 악영향을 미칠 수 있다며 “위기..",
+      "evidenceHash": "01f07b7b71832725146245e5c3184ada0abb9ca1d6744cca5dd573ce5dd3f1f7",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:realestate",
+      "provenance": {
+        "date": "14",
+        "source": "mk-realestate",
+        "declaredCategory": "realestate",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-020ca60bd0cbdf4d",
+      "origin": "real_local_snapshot",
+      "sourceId": "hankyung-realestate",
+      "sourceTier": "specialist",
+      "declaredCategory": "realestate",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "[포토] 수도권 신규택지 3곳 발표…2030년까지 착공",
+      "excerpt": "",
+      "evidenceHash": "020ca60bd0cbdf4d272c31dc7d67102167b6704e00f51767465fd0cb07e634a8",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:realestate",
+      "provenance": {
+        "date": "14",
+        "source": "hankyung-realestate",
+        "declaredCategory": "realestate",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-06319f18ee7c8885",
+      "origin": "real_local_snapshot",
+      "sourceId": "fashionista",
+      "sourceTier": "specialist",
+      "declaredCategory": "fashion",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "6 Standout Trends From Copenhagen Fashion Week Spring 2027",
+      "excerpt": "A first look at how we'll be dressing next year.",
+      "evidenceHash": "06319f18ee7c8885c41e9db3beef5a7bd6324430bf39afffe656f2aa857b719a",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:fashion",
+      "provenance": {
+        "date": "14",
+        "source": "fashionista",
+        "declaredCategory": "fashion",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0a554adf0760de71",
+      "origin": "real_local_snapshot",
+      "sourceId": "highsnobiety",
+      "sourceTier": "specialist",
+      "declaredCategory": "fashion",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "DE",
+      "language": "en",
+      "title": "adidas' Hard-Boiled Handball Spezial Is a Literal Snack",
+      "excerpt": "Fresh Rag's boiled an adidas Handball Spezial sneaker & turned it into a literal Florida snack.",
+      "evidenceHash": "0a554adf0760de71e29a303dea6d84b71e47896b69ecd418639e77118f1f39f9",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:fashion",
+      "provenance": {
+        "date": "14",
+        "source": "highsnobiety",
+        "declaredCategory": "fashion",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-040dca37e16788cd",
+      "origin": "real_local_snapshot",
+      "sourceId": "hyperallergic",
+      "sourceTier": "specialist",
+      "declaredCategory": "art",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Art Dispatches From “Habibi City”",
+      "excerpt": "Alan Michelson’s oyster-shaped public artwork on Governors Island, a fragment of The Odyssey at The Met, and Simone Forti talking about her days in Yoko Ono’s Manhattan loft.",
+      "evidenceHash": "040dca37e16788cdebda5aa4dcb7caea39488ab8ab84b32631e37607309c5271",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:art",
+      "provenance": {
+        "date": "14",
+        "source": "hyperallergic",
+        "declaredCategory": "art",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-07e532b0ebdd9988",
+      "origin": "real_local_snapshot",
+      "sourceId": "designboom",
+      "sourceTier": "specialist",
+      "declaredCategory": "art",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "IT",
+      "language": "en",
+      "title": "jaguar reveals type 01 interior with full-length ‘spine’ and travertine tones",
+      "excerpt": "jaguar carries the type 00 concept's full-length spine into production, dividing its upcoming electric type 01 into four individual spaces. The post jaguar reveals type 01 interior with full-length ‘s",
+      "evidenceHash": "07e532b0ebdd99886ee03625109a459c79b6e32c10d25fa566a61191d5b4a749",
+      "sourceSnapshotId": "pool-2026-08-14-lunch",
+      "sourceSnapshotSha": "faf354420acb8f42",
+      "stratum": "14:art",
+      "provenance": {
+        "date": "14",
+        "source": "designboom",
+        "declaredCategory": "art",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-02fc8b45c62a3d86",
+      "origin": "real_local_snapshot",
+      "sourceId": "khan",
+      "sourceTier": "aggregate",
+      "declaredCategory": "news",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "[박민지 디자이너의 옷 잘 입는 공식]여름의 바지, 이만큼의 균형미",
+      "excerpt": "(25) 테일러드 쇼츠슈트 팬츠 자른 형상…반듯한 허리선에 핀턱·주름 특징바짓단은 다리 비교적 가는 부분 지나게 하는 게 중요상의는 티셔츠로 충분…색 통일하면 정돈된 느낌말복 무렵이면 계절로는 여름의 끝자락에 다다른 셈이지만 해마다 기록을 경신하는 더위는 멋을 부리는 일 자체를 무의미하게 만들기도 한다. 무엇을 입어도 덥고, 옷을 여러 겹 갖춰 입는 일은 ",
+      "evidenceHash": "02fc8b45c62a3d8679cd8e88cb118b169a07b5cd88d21d4ed9745c1c8fa7bb9f",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:news",
+      "provenance": {
+        "date": "15",
+        "source": "khan",
+        "declaredCategory": "news",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-08c05cdb0bd045b2",
+      "origin": "real_local_snapshot",
+      "sourceId": "slownews",
+      "sourceTier": "aggregate",
+      "declaredCategory": "news",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "“풍차랑 싸우는 돈키호테 같아.” 이재명 정곡 찌른 서울시 부동산 토론회.",
+      "excerpt": "🎧 ‘팟캐스트’로 듣기. (🕒11분) 슬로우뉴스를 읽어드립니다. 생성형 인공지능 구글 노트북LM을 이용해서 제작했습니다. 서울시는 6일 부동산 정상화를 위한 시민 대토론회를 열었다. 이재명 정부가 발표한 8·3 세제 개편안을 포함해 규제 중심 부동산 정책 전반에 신랄한 비판이 이어졌다. 토론회 현장 목소리를 담았다. 이게 왜 중요한가. 박준 “임차인 프",
+      "evidenceHash": "08c05cdb0bd045b270b6cb27b5eb484af4f80683321e0b9b74f1091d07ba1d4a",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:news",
+      "provenance": {
+        "date": "15",
+        "source": "slownews",
+        "declaredCategory": "news",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-024545152c89dd34",
+      "origin": "real_local_snapshot",
+      "sourceId": "slashdot",
+      "sourceTier": "community",
+      "declaredCategory": "tech",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Trump Slaps a 100% Tariff On Heavy and 'Sensitive' Drones",
+      "excerpt": "President Trump has imposed tariffs of up to 100% on heavier and \"sensitive\" drones, including models over 55 pounds or equipped with docking stations or thermal imaging. \"Those include commercial mod",
+      "evidenceHash": "024545152c89dd345c78f372797ae1dc21367be0fb2d13d7b977ec04f9c9b251",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:tech",
+      "provenance": {
+        "date": "15",
+        "source": "slashdot",
+        "declaredCategory": "tech",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-0267201dd08292f4",
+      "origin": "real_local_snapshot",
+      "sourceId": "gnews-tech",
+      "sourceTier": "aggregate",
+      "declaredCategory": "tech",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "작은 그릇에 밥 가득 담아 먹어야 포만감 크다",
+      "excerpt": "",
+      "evidenceHash": "0267201dd08292f401f9f165e059824fc5e433dff9e29656c07c363f5559cc78",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:tech",
+      "provenance": {
+        "date": "15",
+        "source": "gnews-tech",
+        "declaredCategory": "tech",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0529e3cd5df5c17d",
+      "origin": "real_local_snapshot",
+      "sourceId": "gnews-biz",
+      "sourceTier": "aggregate",
+      "declaredCategory": "auto",
+      "declaredSection": "business",
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "산업부·현대차그룹·육군 MOU…“로봇·피지컬 AI 국방 적용 확대”",
+      "excerpt": "",
+      "evidenceHash": "0529e3cd5df5c17da7c6c689b61fcabd39c0ae0d2dcfda81eeec0388b62e44f7",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:auto",
+      "provenance": {
+        "date": "15",
+        "source": "gnews-biz",
+        "declaredCategory": "auto",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-08e4fd10d9556eee",
+      "origin": "real_local_snapshot",
+      "sourceId": "etnews",
+      "sourceTier": "specialist",
+      "declaredCategory": "auto",
+      "declaredSection": "tech",
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "현대차그룹-육군-산업부, 피지컬 AI 국방 도입 '맞손'",
+      "excerpt": "현대자동차그룹이 육군, 산업통상자원부와 손잡고 국방 분야에 로봇과 '피지컬 AI(인공지능)' 등 첨단기술을 본격 도입한다. 인구 구조 변화에 따른 병력 자원 감소에 대응하고, 장병의 안전과 군 지원 업무 효율성을 높인다는 구상이다. 현대차그룹은 14일 충남 계룡시 육군본부에서 육군, 산업부와 '로봇·피지컬 AI 및 첨단기술 활용 확대를 위한 업무협약(MOU",
+      "evidenceHash": "08e4fd10d9556eee1f2ffcdcafd5b1dbfc9dc39857c0084babfc69df5797b76f",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:auto",
+      "provenance": {
+        "date": "15",
+        "source": "etnews",
+        "declaredCategory": "auto",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0985fa9abfa45a44",
+      "origin": "real_local_snapshot",
+      "sourceId": "livescience",
+      "sourceTier": "specialist",
+      "declaredCategory": "science",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Totality! See incredible photos ofthe Aug. 12 total solar eclipse from across Europe",
+      "excerpt": "From Baily's Beads, a bright-pink prominence to awe-struck eclipse-watchers from across the European continent, check out these stunning images from yesterday's total solar eclipse.",
+      "evidenceHash": "0985fa9abfa45a440ca2b6e5fe1d06302925c488761306ab820d40607b7cb928",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:science",
+      "provenance": {
+        "date": "15",
+        "source": "livescience",
+        "declaredCategory": "science",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0c3894339411abdb",
+      "origin": "real_local_snapshot",
+      "sourceId": "physorg",
+      "sourceTier": "specialist",
+      "declaredCategory": "science",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Wheat gene behind Hessian fly resistance cloned after 50-year search",
+      "excerpt": "Researchers at the University of Maryland and their collaborators have cloned a gene that makes wheat resistant to feeding by Hessian fly larvae and demonstrated its direct interaction with a protein ",
+      "evidenceHash": "0c3894339411abdb98294a8a73a2d964ba61b5da5ed93e32d182b5daa36caad3",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:science",
+      "provenance": {
+        "date": "15",
+        "source": "physorg",
+        "declaredCategory": "science",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0059a90e5ce5be2f",
+      "origin": "real_local_snapshot",
+      "sourceId": "mk-stock",
+      "sourceTier": "specialist",
+      "declaredCategory": "business",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "“국민주 이름값 제대로 해냈다”…성인 5명 중 1명은 삼성전자 소액주주",
+      "excerpt": "삼성전자 주식을 보유한 소액주주가 올해 상반기 800만명에 육박하는 것으로 나타났다. 전례 없는 증권시장 활황과 반도체 기업 가치 상승 기대감에 개인투자자들이 우량주로 유입된 영향..",
+      "evidenceHash": "0059a90e5ce5be2fcf750bd99fb92f293a4dcb2c8e62894e7cd20529cdb56467",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:business",
+      "provenance": {
+        "date": "15",
+        "source": "mk-stock",
+        "declaredCategory": "business",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-00da866826700417",
+      "origin": "real_local_snapshot",
+      "sourceId": "heraldbiz",
+      "sourceTier": "specialist",
+      "declaredCategory": "business",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "횡성 둔내 토마토축제, 절정기 돌입..16일 폐막",
+      "excerpt": "[헤럴드경제=함영훈 기자] 강원특별자치도 횡성군의 둔내고랭지토마토축제가 14일 개막해 오는 16일까지 일정으로 둔내종합체육공원 일원에서 진행중이다. 광복절은 이 축제의 절정기이다. ‘토마토로 물들GO! 물놀이로 식히GO!’를 주제로 열리는 올해 15회 축제는 토마토 키링 만들기, 어린이 매직쇼, 토마토 탕후루 만들기 등 가족 단위 방문객을 위한 신규 프로그",
+      "evidenceHash": "00da8668267004175259a6ab8f4ba7249c19855b73ee10c0df3dfc38a72cc5b1",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:business",
+      "provenance": {
+        "date": "15",
+        "source": "heraldbiz",
+        "declaredCategory": "business",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0158fd779b30ed23",
+      "origin": "real_local_snapshot",
+      "sourceId": "inven_hot",
+      "sourceTier": "community",
+      "declaredCategory": "gaming",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "ㅋㅋㅋㅋ 드디어 나왔네요",
+      "excerpt": "",
+      "evidenceHash": "0158fd779b30ed23b85f3af9efb2e71f23a10cd59bb63f5561fb38c03de237aa",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:gaming",
+      "provenance": {
+        "date": "15",
+        "source": "inven_hot",
+        "declaredCategory": "gaming",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-0463f55d115525d0",
+      "origin": "real_local_snapshot",
+      "sourceId": "gamemeca",
+      "sourceTier": "specialist",
+      "declaredCategory": "gaming",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "벅샷 룰렛 개발자 신작 '머신 파티', 판매량 100만 장 돌파",
+      "excerpt": "▲ 머신 파티 대표 이미지 (사진제공: 오로 인터렉티브) 벅샷 룰렛 개발자 마이크 클루브니카의 신작 '머신 파티'가 출시 2주 만에 판매량 100만 장을 돌파했다. 지난 7월 30일 출시된 머신 파티는 2~4명의 플레이어가 목숨을 건 미니게임을 벌이는 파티게임이다. 각기 다른 규칙을 가진 15종의 미니게임이 등장하며, 순발력 대결, 두뇌 싸움, 심리전 등 ",
+      "evidenceHash": "0463f55d115525d0ec3f11bc3c94c1d9995c4a21623928558dbca57dce3c0186",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:gaming",
+      "provenance": {
+        "date": "15",
+        "source": "gamemeca",
+        "declaredCategory": "gaming",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-001fb87a85ab0d15",
+      "origin": "real_local_snapshot",
+      "sourceId": "bbc-sport",
+      "sourceTier": "specialist",
+      "declaredCategory": "sports",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "GB",
+      "language": "en",
+      "title": "Arsenal lead Hinshelwood race - Saturday's gossip",
+      "excerpt": "Arsenal lead race for Jack Hinshelwood, Barcelona set to make third Rodri bid, Manchester United and Tottenham join Arsenal in discussing Victor Osimhen, plus more.",
+      "evidenceHash": "001fb87a85ab0d15a345717f47a42721d0be4f5522c3ecb2089c983648a2f3c5",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:sports",
+      "provenance": {
+        "date": "15",
+        "source": "bbc-sport",
+        "declaredCategory": "sports",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-038bbfe846d1c496",
+      "origin": "real_local_snapshot",
+      "sourceId": "gnews-sports",
+      "sourceTier": "aggregate",
+      "declaredCategory": "sports",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "마나베 감독 “숫자는 거짓말 안 한다”…IBK에 이식할 ‘데이터 배구’",
+      "excerpt": "",
+      "evidenceHash": "038bbfe846d1c496697972ea8f419c342f98570b777bbbb9a77ae8861d7992ee",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:sports",
+      "provenance": {
+        "date": "15",
+        "source": "gnews-sports",
+        "declaredCategory": "sports",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-007c444a935dfd99",
+      "origin": "real_local_snapshot",
+      "sourceId": "theqoo",
+      "sourceTier": "community",
+      "declaredCategory": "culture",
+      "declaredSection": "culture",
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "한국 예능에 출연한 유명 탈북민, 다시 북한으로 돌아가다.jpg",
+      "excerpt": "",
+      "evidenceHash": "007c444a935dfd9920e53e490d46cf076718517ad16aed29ce7d433787a9d1de",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:culture",
+      "provenance": {
+        "date": "15",
+        "source": "theqoo",
+        "declaredCategory": "culture",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-036165adb969baac",
+      "origin": "real_local_snapshot",
+      "sourceId": "slrclub",
+      "sourceTier": "community",
+      "declaredCategory": "culture",
+      "declaredSection": "humor",
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "하영이 무슨 잘못이 있다고 GR 들을 함.",
+      "excerpt": "",
+      "evidenceHash": "036165adb969baacf9353f0dec2574b0086c66970d610cad0bd649dfba1ba7d2",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:culture",
+      "provenance": {
+        "date": "15",
+        "source": "slrclub",
+        "declaredCategory": "culture",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-01a46362f1c7ab17",
+      "origin": "real_local_snapshot",
+      "sourceId": "ppomppu-deal",
+      "sourceTier": "community",
+      "declaredCategory": "life",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "육포선몰세트 쇠고기집 VIP 프리미엄 육포 + 쇼핑백 선물세트 (23,800원/무료)",
+      "excerpt": "",
+      "evidenceHash": "01a46362f1c7ab17da2b1514d8bb3da15f9cf5294df83e980c8a3a508587f0ba",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:life",
+      "provenance": {
+        "date": "15",
+        "source": "ppomppu-deal",
+        "declaredCategory": "life",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-021d286d3903639f",
+      "origin": "real_local_snapshot",
+      "sourceId": "ppomppu-deal-os",
+      "sourceTier": "community",
+      "declaredCategory": "life",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "Clearance sale [Fanatics, from $3.99] until 12pm Korean local time",
+      "excerpt": "",
+      "evidenceHash": "021d286d3903639f03471e2080c8eaf59b31aa460772464894cb40cb64cd358f",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:life",
+      "provenance": {
+        "date": "15",
+        "source": "ppomppu-deal-os",
+        "declaredCategory": "life",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-01541383aa4f2fa4",
+      "origin": "real_local_snapshot",
+      "sourceId": "bobae",
+      "sourceTier": "community",
+      "declaredCategory": "humor",
+      "declaredSection": "auto",
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "독립운동 하면 3대가 망한다\"김선태, 유공자 후손에 1000..",
+      "excerpt": "",
+      "evidenceHash": "01541383aa4f2fa401d92d3cf8f3105303319f880e040d2278e2fddd4740db6e",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:humor",
+      "provenance": {
+        "date": "15",
+        "source": "bobae",
+        "declaredCategory": "humor",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-01885b8b4efa9fe1",
+      "origin": "real_local_snapshot",
+      "sourceId": "etoland",
+      "sourceTier": "community",
+      "declaredCategory": "humor",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "하루특가) 바다내음 듬뿍 미역, 완도, 40g, 2개",
+      "excerpt": "",
+      "evidenceHash": "01885b8b4efa9fe1537cba0e00ae28b0ae43a8cf657d096f52b980695dfc6325",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:humor",
+      "provenance": {
+        "date": "15",
+        "source": "etoland",
+        "declaredCategory": "humor",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-0688751bcc7271cb",
+      "origin": "real_local_snapshot",
+      "sourceId": "ppomppu-house",
+      "sourceTier": "community",
+      "declaredCategory": "realestate",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "부동산은 우상향 할듯 합니다.",
+      "excerpt": "자산 가지신분들은 꽉잡고 가야할듯요...",
+      "evidenceHash": "0688751bcc7271cbb0d585673335f8596659792a0dbebefbe7fb44f333a67ba8",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:realestate",
+      "provenance": {
+        "date": "15",
+        "source": "ppomppu-house",
+        "declaredCategory": "realestate",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-0ec77abdc9042c04",
+      "origin": "real_local_snapshot",
+      "sourceId": "hankyung-realestate",
+      "sourceTier": "specialist",
+      "declaredCategory": "realestate",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "김윤덕 장관 \"국토부, 그린벨트 해제 권한 있지만…서울시와 최대한 협의\"",
+      "excerpt": "",
+      "evidenceHash": "0ec77abdc9042c048ecbbac59d332ed0143142b43394b4e6531254af1f5ae379",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:realestate",
+      "provenance": {
+        "date": "15",
+        "source": "hankyung-realestate",
+        "declaredCategory": "realestate",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0a44f6142410a8a4",
+      "origin": "real_local_snapshot",
+      "sourceId": "highsnobiety",
+      "sourceTier": "specialist",
+      "declaredCategory": "fashion",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "DE",
+      "language": "en",
+      "title": "Your Next North Face Jacket Should Be One of One",
+      "excerpt": "The North Face Japan is introducing a permanent customization workshop to its flagship Sapporo Factory store to let you put a personal touch on every item.",
+      "evidenceHash": "0a44f6142410a8a44a73ac791fc84eff270159e8980145716cde0c81f9495949",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:fashion",
+      "provenance": {
+        "date": "15",
+        "source": "highsnobiety",
+        "declaredCategory": "fashion",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0f5fd8729cb584b2",
+      "origin": "real_local_snapshot",
+      "sourceId": "hypebae",
+      "sourceTier": "specialist",
+      "declaredCategory": "fashion",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Women’s Soccer Needs More Fashion Moments",
+      "excerpt": "The women's sports renaissance of the past few years has placed a global spotlight on several different leagues and organizations, funding new teams and building on a newfound demand for women athlete",
+      "evidenceHash": "0f5fd8729cb584b26a7d11f0a487f150913cc3b0d22cd1e539e6dc8470fd2be2",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:fashion",
+      "provenance": {
+        "date": "15",
+        "source": "hypebae",
+        "declaredCategory": "fashion",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-031304068d140a35",
+      "origin": "real_local_snapshot",
+      "sourceId": "yankodesign",
+      "sourceTier": "specialist",
+      "declaredCategory": "art",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Goldmund’s $500,000 Amp Is as Much a Sculpture as It Is a Machine",
+      "excerpt": "High-end audio amplifiers tend to get bigger, heavier, and more expensive in the pursuit of performance headroom that most recordings will never fully demand. The...",
+      "evidenceHash": "031304068d140a35cd49bc084331e1d9438257cea6b0aa31a671c5a7ab11cfc9",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:art",
+      "provenance": {
+        "date": "15",
+        "source": "yankodesign",
+        "declaredCategory": "art",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0c8cec09313ba4de",
+      "origin": "real_local_snapshot",
+      "sourceId": "creativeboom",
+      "sourceTier": "specialist",
+      "declaredCategory": "art",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "GB",
+      "language": "en",
+      "title": "A 10ft ball of real human hair is rolling through New York, and it's all part of the plan",
+      "excerpt": "From Midtown to Chinatown, Uncommon's giant 'Tumblehair' has been surprising New Yorkers this week – all to get the Big Apple talking about hair loss for K18. It's never a fun job removing dead ha...",
+      "evidenceHash": "0c8cec09313ba4de272e0b14198450d7eb84d749356c63e6946d89e5bbd4c8b8",
+      "sourceSnapshotId": "pool-2026-08-15-lunch",
+      "sourceSnapshotSha": "11d68b09977f3eec",
+      "stratum": "15:art",
+      "provenance": {
+        "date": "15",
+        "source": "creativeboom",
+        "declaredCategory": "art",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0086f1dcc387ba73",
+      "origin": "real_local_snapshot",
+      "sourceId": "gnews-world",
+      "sourceTier": "aggregate",
+      "declaredCategory": "news",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "이스라엘, 레바논 남부 공습…\"휴전 이후 최다, 11명 사망\"",
+      "excerpt": "",
+      "evidenceHash": "0086f1dcc387ba731f35c2f2b32c65bcf90d29d683bdb8e331227a680ea4418e",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:news",
+      "provenance": {
+        "date": "16",
+        "source": "gnews-world",
+        "declaredCategory": "news",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-00c7ccec96176c7f",
+      "origin": "real_local_snapshot",
+      "sourceId": "donga",
+      "sourceTier": "aggregate",
+      "declaredCategory": "news",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "‘오디세이’ 400만·‘스파이더맨4’ 700만 돌파",
+      "excerpt": "영화 ‘오디세이’(감독 크리스토퍼 놀런)가 400만, 스파이더맨‘의 후속 시리즈 ’스파이더맨: 브랜드 뉴 데이‘(감독 데스틴 크리튼/’스파이더맨4‘)가 700만 관객을 16일 각각 돌파했다.16일 영화진흥위원회 영화관입장권 통합전산망 집계에 따르면, ’오디세이‘는 이날 오전 6시 46분 429만 4209 명을 동원, 개봉 12일째에 400만 관객을 돌파했다",
+      "evidenceHash": "00c7ccec96176c7fe196afc7c1c7f7a138df9a5ba720ed2dc3fdac0494445433",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:news",
+      "provenance": {
+        "date": "16",
+        "source": "donga",
+        "declaredCategory": "news",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-02eb54ecc8684efd",
+      "origin": "real_local_snapshot",
+      "sourceId": "bloter",
+      "sourceTier": "specialist",
+      "declaredCategory": "tech",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "여행 시장 불확실했지만…야놀자, 2Q 매출 14% 성장",
+      "excerpt": "/생성형 AI(구글 제미나이)의 도움을 받아 제작한 그래픽입니다. 글로벌 트래블 테크 기업 야놀자가 지정학적 리스크 등으로 인한 여행 시장 불확실성에도 불구하고 올해 2분기 매출을 늘렸다. 14일 야놀자에 따르면 회사는 2분기 연결기준 매출 5023억원을 기록했다. 이는 전년 동기 4407억원 대비 14% 증가한 수치다. 조정 상각전영업이익(EBITDA)은",
+      "evidenceHash": "02eb54ecc8684efd33e083bd42774d3cd4f1508efc82c99cf02e5142bbe7f096",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:tech",
+      "provenance": {
+        "date": "16",
+        "source": "bloter",
+        "declaredCategory": "tech",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-03fc6e10e9b8363b",
+      "origin": "real_local_snapshot",
+      "sourceId": "clien",
+      "sourceTier": "community",
+      "declaredCategory": "tech",
+      "declaredSection": "tech",
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "호남반도체 때문에 김민석이 당선됐다 이러는 것도 웃기죠",
+      "excerpt": "",
+      "evidenceHash": "03fc6e10e9b8363b8a3f77ab6df3917d033d8c36f7e57d28c82e84a182c67b71",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:tech",
+      "provenance": {
+        "date": "16",
+        "source": "clien",
+        "declaredCategory": "tech",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-00e9e14bc3de6cb7",
+      "origin": "real_local_snapshot",
+      "sourceId": "bobae",
+      "sourceTier": "community",
+      "declaredCategory": "auto",
+      "declaredSection": "auto",
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "여고생이 오토바이를 타다 생긴 참혹한 사건",
+      "excerpt": "",
+      "evidenceHash": "00e9e14bc3de6cb7f9f86eef0d27073805df51119b7b9511c80e2d58910a09ae",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:auto",
+      "provenance": {
+        "date": "16",
+        "source": "bobae",
+        "declaredCategory": "auto",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-13cf2ea4d14cd2ef",
+      "origin": "real_local_snapshot",
+      "sourceId": "autoherald",
+      "sourceTier": "specialist",
+      "declaredCategory": "auto",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "'도로위 무법자' 지금이 가장 많을 때... 무면허 청소년 'PM' 사고 급증",
+      "excerpt": "무면허운전 사고 현황. 휴가철이 겹치는 8월에 가장 많이 발생한 것으로 나타났다. (한국도로교통공단) [오토헤럴드 김흥식 기자] 도로위 무법자 '무면허운전'에 위한 사고가 8월에 19세 이하 청소년에서 가장 많이 발생하는 것으로 나타났다. 한국도로교통공단이 최근 3년간(2023~2025년) 무면허운전 사고를 분석한 결과, 여름 휴가철인 8월에 사고와 사망자",
+      "evidenceHash": "13cf2ea4d14cd2efb9802c18381be3dc954576e76887da986055947786ced71d",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:auto",
+      "provenance": {
+        "date": "16",
+        "source": "autoherald",
+        "declaredCategory": "auto",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-09e4f47005d2d763",
+      "origin": "real_local_snapshot",
+      "sourceId": "livescience",
+      "sourceTier": "specialist",
+      "declaredCategory": "science",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "'If this is the new normal, then we are in very deep trouble': Brazil's drying aquifers could have ripple effects across the world",
+      "excerpt": "New research suggests some of Brazil's most important aquifers, located beneath major agricultural regions, aren't being replenished. What does this mean for the country's water supply and food export",
+      "evidenceHash": "09e4f47005d2d763d582288e2602b8372b0a58191aef5c92b6fb1cd797507d14",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:science",
+      "provenance": {
+        "date": "16",
+        "source": "livescience",
+        "declaredCategory": "science",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0e961e564b4bd879",
+      "origin": "real_local_snapshot",
+      "sourceId": "physorg",
+      "sourceTier": "specialist",
+      "declaredCategory": "science",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "Nature has spent billions of years fighting bacteria. AI could help us learn its secrets",
+      "excerpt": "Tiny viruses that infect bacteria could one day help us tackle infections that antibiotics can no longer treat. But first, scientists need to understand how these viruses work, and artificial intellig",
+      "evidenceHash": "0e961e564b4bd87969e87b6dffeecb2246c2087415d55b715f2bbeabefaff48c",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:science",
+      "provenance": {
+        "date": "16",
+        "source": "physorg",
+        "declaredCategory": "science",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-01381732c0697411",
+      "origin": "real_local_snapshot",
+      "sourceId": "hankyung",
+      "sourceTier": "specialist",
+      "declaredCategory": "business",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "\"밥값 비싸서 편의점 갔는데\"…이번엔 '이것'마저 9% 올랐다 [박상경의 영수증 리뷰]",
+      "excerpt": "",
+      "evidenceHash": "01381732c0697411f713e63326038dc8a528ea893acf3481f696da589df52d55",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:business",
+      "provenance": {
+        "date": "16",
+        "source": "hankyung",
+        "declaredCategory": "business",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0239b01ff505a4ae",
+      "origin": "real_local_snapshot",
+      "sourceId": "heraldbiz",
+      "sourceTier": "specialist",
+      "declaredCategory": "business",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "[리얼푸드] 북유럽 와인 주목, 기후위기가 바꾸는 유럽 와인 지도",
+      "excerpt": "[리얼푸드=육성연 기자] 최근 이상기후로 유럽의 전통 와인 산지의 재배 환경이 빠르게 변화하고 있다. 동시에 건강을 중시하는 소비문화와 절주 트렌드가 확산하면서 와인 소비는 감소하는 중이다. 한국농수산식품유통공사(aT)의 농식품수출정보(KATI)에 따르면 올여름 프랑스, 스페인, 이탈리아 등 남유럽은 기록적인 폭염과 가뭄을 겪으며 와인 산업이 큰 타격을 입",
+      "evidenceHash": "0239b01ff505a4aead280aa86eb6211457a5440a83818a236b62251cdc7ddee5",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:business",
+      "provenance": {
+        "date": "16",
+        "source": "heraldbiz",
+        "declaredCategory": "business",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-040efa78a453a01a",
+      "origin": "real_local_snapshot",
+      "sourceId": "pcgamer",
+      "sourceTier": "specialist",
+      "declaredCategory": "gaming",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "EverQuest Legends is the only MMO that could hook me in 2026",
+      "excerpt": "Admittedly, I am a very specific type of guy.",
+      "evidenceHash": "040efa78a453a01abf3ec91fd66e3e2403fdac27619ebd9432033d52659218dc",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:gaming",
+      "provenance": {
+        "date": "16",
+        "source": "pcgamer",
+        "declaredCategory": "gaming",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-06f5897cc602abae",
+      "origin": "real_local_snapshot",
+      "sourceId": "inven_hot",
+      "sourceTier": "community",
+      "declaredCategory": "gaming",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "안녕하세요 마격좀 부탁드립니다",
+      "excerpt": "",
+      "evidenceHash": "06f5897cc602abae2c7b34531e874cb5004c47b72f23d7fe81bba41d2ffc02d3",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:gaming",
+      "provenance": {
+        "date": "16",
+        "source": "inven_hot",
+        "declaredCategory": "gaming",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-01922ef0a2523d4e",
+      "origin": "real_local_snapshot",
+      "sourceId": "bbc-sport",
+      "sourceTier": "specialist",
+      "declaredCategory": "sports",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "GB",
+      "language": "en",
+      "title": "Great Britain storm to 4x100m relay gold",
+      "excerpt": "Great Britain quartet Romell Glave, Zharnell Hughes, Jeremiah Azu and Louie Hinchliffe race to 4x100m relay gold at the European Athletics Championships.",
+      "evidenceHash": "01922ef0a2523d4e8518a7cca062be68a396c13f75630f8960ac989036f8b755",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:sports",
+      "provenance": {
+        "date": "16",
+        "source": "bbc-sport",
+        "declaredCategory": "sports",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0ab55aeaa9bb686d",
+      "origin": "real_local_snapshot",
+      "sourceId": "gnews-sports",
+      "sourceTier": "aggregate",
+      "declaredCategory": "sports",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "타구 맞은 NC 임지민, 아래턱뼈 분쇄 골절…\"다음주 초 수술\"",
+      "excerpt": "",
+      "evidenceHash": "0ab55aeaa9bb686d363d31ca1cfa1f1dd0a2bd51b4c636852e2e2c4ae45f06ad",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:sports",
+      "provenance": {
+        "date": "16",
+        "source": "gnews-sports",
+        "declaredCategory": "sports",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-01f8c19d82166f98",
+      "origin": "real_local_snapshot",
+      "sourceId": "theqoo",
+      "sourceTier": "community",
+      "declaredCategory": "culture",
+      "declaredSection": "culture",
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "👫 드라마에서 보고싶은 동갑내기 남배우-여배우 조합.jpgif",
+      "excerpt": "",
+      "evidenceHash": "01f8c19d82166f98489bf71fafe443cf00a67627cf424bfa46a31f176112dd76",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:culture",
+      "provenance": {
+        "date": "16",
+        "source": "theqoo",
+        "declaredCategory": "culture",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-0352e134cd6b2edd",
+      "origin": "real_local_snapshot",
+      "sourceId": "etoland",
+      "sourceTier": "community",
+      "declaredCategory": "culture",
+      "declaredSection": "humor",
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "옆도 보이고 등도 보이는 레드벨벳 슬기",
+      "excerpt": "",
+      "evidenceHash": "0352e134cd6b2edd338d46e4a035595775905233457e05db7faaacebb25fbfce",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:culture",
+      "provenance": {
+        "date": "16",
+        "source": "etoland",
+        "declaredCategory": "culture",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-008010d7dd3e7619",
+      "origin": "real_local_snapshot",
+      "sourceId": "ppomppu-deal",
+      "sourceTier": "community",
+      "declaredCategory": "life",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "조선호텔 포기김치 5키로 (34430/무료)",
+      "excerpt": "",
+      "evidenceHash": "008010d7dd3e76197b6cde242d5c547bde4fd746b7d1925aac1bc5b20bc843b9",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:life",
+      "provenance": {
+        "date": "16",
+        "source": "ppomppu-deal",
+        "declaredCategory": "life",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-025cf48371808b22",
+      "origin": "real_local_snapshot",
+      "sourceId": "ppomppu-deal-os",
+      "sourceTier": "community",
+      "declaredCategory": "life",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "[amazonjp] 오클리 남성용 선글라스 0OO9245 FROGSKINS (아시아 사이즈) (12,561엔/무배)",
+      "excerpt": "",
+      "evidenceHash": "025cf48371808b22cf7630efff7415f985f582ca72d99f082325f2475b9600ee",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:life",
+      "provenance": {
+        "date": "16",
+        "source": "ppomppu-deal-os",
+        "declaredCategory": "life",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-0098d07e434eb390",
+      "origin": "real_local_snapshot",
+      "sourceId": "etoland",
+      "sourceTier": "community",
+      "declaredCategory": "humor",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "은근 맛있다는 PC방 정식",
+      "excerpt": "",
+      "evidenceHash": "0098d07e434eb390c0778b02eb2847f4bbe7ce7cf478a81d6dce6e7bc45447c3",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:humor",
+      "provenance": {
+        "date": "16",
+        "source": "etoland",
+        "declaredCategory": "humor",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-00ed2a1e9d1b72cf",
+      "origin": "real_local_snapshot",
+      "sourceId": "slrclub",
+      "sourceTier": "community",
+      "declaredCategory": "humor",
+      "declaredSection": null,
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "이제 용인이 용솟음 치게되죠",
+      "excerpt": "",
+      "evidenceHash": "00ed2a1e9d1b72cfa3ac146015ec9f96b35f3eb54ace3ef35f1a71fa7f962408",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:humor",
+      "provenance": {
+        "date": "16",
+        "source": "slrclub",
+        "declaredCategory": "humor",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-011b55ed038e0e3f",
+      "origin": "real_local_snapshot",
+      "sourceId": "theqoo",
+      "sourceTier": "community",
+      "declaredCategory": "realestate",
+      "declaredSection": "culture",
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "계약만료 앞둔 세입자가 마주한 월세 근황",
+      "excerpt": "",
+      "evidenceHash": "011b55ed038e0e3f2e45cffb35feab4341372864e33d50774a3296b091b0f020",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:realestate",
+      "provenance": {
+        "date": "16",
+        "source": "theqoo",
+        "declaredCategory": "realestate",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-0237957ceebc51fc",
+      "origin": "real_local_snapshot",
+      "sourceId": "etoland",
+      "sourceTier": "community",
+      "declaredCategory": "realestate",
+      "declaredSection": "humor",
+      "contentKindHint": "community",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "title": "영원한 물가상승->인건비상승->재료비상승=집값영원히상승",
+      "excerpt": "",
+      "evidenceHash": "0237957ceebc51fce1d32e7ba3aa56d508e31139a42a0c709f8f5eb75fde8935",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:realestate",
+      "provenance": {
+        "date": "16",
+        "source": "etoland",
+        "declaredCategory": "realestate",
+        "kind": "community"
+      }
+    },
+    {
+      "blindItemId": "d1r-0f7fe97ff2c0e9a8",
+      "origin": "real_local_snapshot",
+      "sourceId": "fashionista",
+      "sourceTier": "specialist",
+      "declaredCategory": "fashion",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "title": "ICYMI: Copenhagen Fashion Week's Top Spring 2027 Trends, Saucony Is StockX's Fastest-Growing Sneaker Brand & Asos Is Platforming Emerging Designers",
+      "excerpt": "A must-read roundup of our most popular stories of the week.",
+      "evidenceHash": "0f7fe97ff2c0e9a84f891d228b395807bf4cfb1952d93f615903d94b05b9611d",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:fashion",
+      "provenance": {
+        "date": "16",
+        "source": "fashionista",
+        "declaredCategory": "fashion",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-16ad7052fcc46593",
+      "origin": "real_local_snapshot",
+      "sourceId": "highsnobiety",
+      "sourceTier": "specialist",
+      "declaredCategory": "fashion",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "DE",
+      "language": "en",
+      "title": "Crazy Watches Are for Collectors. A Cool Timex Is for Everyone Else",
+      "excerpt": "The heritage watchmaker is known for its classic styles, but in the hands of BEAMS, it finds a way to gently rock the boat with a two-in-one timepiece.",
+      "evidenceHash": "16ad7052fcc465932e19b769b16d6c31b334af2c4c5a692eaadc7127fe7f8b8d",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:fashion",
+      "provenance": {
+        "date": "16",
+        "source": "highsnobiety",
+        "declaredCategory": "fashion",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-0d1915174d6ccfa7",
+      "origin": "real_local_snapshot",
+      "sourceId": "creativeboom",
+      "sourceTier": "specialist",
+      "declaredCategory": "art",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "GB",
+      "language": "en",
+      "title": "Is there a retirement crisis in the creative industry?",
+      "excerpt": "We keep hearing about senior creatives who are planning to exit the industry earlier than expected. So what exactly is going on? There's a conversation in creative industries right now that's larg...",
+      "evidenceHash": "0d1915174d6ccfa77486084d7e6959079f6a479499eaa808817a7a9e60527b2a",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:art",
+      "provenance": {
+        "date": "16",
+        "source": "creativeboom",
+        "declaredCategory": "art",
+        "kind": "news"
+      }
+    },
+    {
+      "blindItemId": "d1r-152e5347c77ce46b",
+      "origin": "real_local_snapshot",
+      "sourceId": "archdaily",
+      "sourceTier": "specialist",
+      "declaredCategory": "art",
+      "declaredSection": null,
+      "contentKindHint": "news",
+      "sourceCountry": "CL",
+      "language": "en",
+      "title": "While Away An Architect’s Travel Sketches",
+      "excerpt": "An intimate and inspiring journey through the travel sketches of renowned architect Steve Ziger. Part mernoir, part travel guide, part drawing manual and architectural history, this captivating book f",
+      "evidenceHash": "152e5347c77ce46b71d3c4b3b1ac4d091ce938c08f2ed56e7825e49356606a33",
+      "sourceSnapshotId": "pool-2026-08-16-lunch",
+      "sourceSnapshotSha": "b3aca64fcf84ae2f",
+      "stratum": "16:art",
+      "provenance": {
+        "date": "16",
+        "source": "archdaily",
+        "declaredCategory": "art",
+        "kind": "news"
+      }
+    },
+    {
+      "origin": "adversarial_contract_fixture",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "blindItemId": "d1a-01-food-as-politics",
+      "sourceId": "todayhumor",
+      "sourceTier": "community",
+      "declaredCategory": "politics",
+      "declaredSection": "politics",
+      "contentKindHint": "community",
+      "title": "집에서 만든 마라탕 레시피 대공개",
+      "excerpt": "육수부터 사천 고추기름까지 직접 끓여 만든 마라탕 만드는 법",
+      "defect": "food article declared politics",
+      "contractGold": {
+        "contentType": "community",
+        "acceptedCategories": [
+          "life"
+        ],
+        "rejectedCategories": [
+          "politics"
+        ],
+        "evidenceSpans": [
+          "마라탕 레시피"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "unknown",
+        "eventJurisdictions": [],
+        "relevanceCountries": [],
+        "geoEvidenceSpans": []
+      },
+      "stratum": "adversarial:01-food-as-politics",
+      "evidenceHash": "4fffc1c22a1cb7ed7d7b595791d08fe94154b93be57ed05a6f97e740e51fa855"
+    },
+    {
+      "origin": "adversarial_contract_fixture",
+      "sourceCountry": "US",
+      "language": "en",
+      "blindItemId": "d1a-02-devto-as-fashion",
+      "sourceId": "devto",
+      "sourceTier": "news",
+      "declaredCategory": "fashion",
+      "declaredSection": "fashion",
+      "contentKindHint": "news",
+      "title": "Announcing the new dev.to open source contributor program",
+      "excerpt": "New program for open source maintainers to onboard contributors and manage pull requests",
+      "defect": "dev announcement declared fashion",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "tech"
+        ],
+        "rejectedCategories": [
+          "fashion"
+        ],
+        "evidenceSpans": [
+          "open source contributor program"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "unknown",
+        "eventJurisdictions": [],
+        "relevanceCountries": [],
+        "geoEvidenceSpans": []
+      },
+      "stratum": "adversarial:02-devto-as-fashion",
+      "evidenceHash": "c19a071cfdf97e7858e0a31e84307c8d0e415ca36cdf302700de3bf48f653b84"
+    },
+    {
+      "origin": "adversarial_contract_fixture",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "blindItemId": "d1a-03-community-as-news",
+      "sourceId": "clien",
+      "sourceTier": "community",
+      "declaredCategory": "tech",
+      "declaredSection": "tech",
+      "contentKindHint": "community",
+      "title": "제 컴퓨터 견적 좀 봐주세요 조립 처음입니다",
+      "excerpt": "예산 150만원으로 게임용 조립 PC 견적 짰는데 조언 부탁드립니다",
+      "defect": "community help post that a naive classifier calls news",
+      "contractGold": {
+        "contentType": "community",
+        "acceptedCategories": [
+          "tech"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "조립 PC 견적"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "unknown",
+        "eventJurisdictions": [],
+        "relevanceCountries": [],
+        "geoEvidenceSpans": []
+      },
+      "stratum": "adversarial:03-community-as-news",
+      "evidenceHash": "e510e6c6a4dc2f19b0b0920df33d895e9b328ae25e428b23b0702d68cbd2b3ab"
+    },
+    {
+      "origin": "adversarial_contract_fixture",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "blindItemId": "d1a-04-deal-as-news",
+      "sourceId": "ppomppu",
+      "sourceTier": "community",
+      "declaredCategory": "life",
+      "declaredSection": "life",
+      "contentKindHint": "deal",
+      "title": "[쿠팡] 삼성 정품 SSD 1TB 최저가 89000원 무료배송",
+      "excerpt": "역대 최저가 특가 링크입니다 카드할인 추가 적용",
+      "defect": "deal item that a naive classifier calls news",
+      "contractGold": {
+        "contentType": "deal",
+        "acceptedCategories": [
+          "tech"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "최저가",
+          "특가"
+        ],
+        "reasonCodes": [
+          "deal-price-signal"
+        ],
+        "scopeClass": "domestic",
+        "eventJurisdictions": [
+          "KR"
+        ],
+        "relevanceCountries": [
+          "KR"
+        ],
+        "geoEvidenceSpans": [
+          "쿠팡",
+          "89000원"
+        ]
+      },
+      "stratum": "adversarial:04-deal-as-news",
+      "evidenceHash": "560e8bc306711d8761f7a2dce7728e490a3672d0df0e7aaf97287b81d5364b5d"
+    },
+    {
+      "origin": "adversarial_contract_fixture",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "blindItemId": "d1a-05-source-prior-conflict",
+      "sourceId": "gnews-sports",
+      "sourceTier": "aggregate",
+      "declaredCategory": "sports",
+      "declaredSection": "sports",
+      "contentKindHint": "news",
+      "title": "구단 모기업, 반도체 부문 3조원 신규 투자 발표",
+      "excerpt": "그룹 지주사가 반도체 생산라인 증설에 3조원을 투자한다고 공시했다",
+      "defect": "sports-section source but article is business",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "business"
+        ],
+        "rejectedCategories": [
+          "sports"
+        ],
+        "evidenceSpans": [
+          "반도체 부문 3조원 신규 투자"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "domestic",
+        "eventJurisdictions": [
+          "KR"
+        ],
+        "relevanceCountries": [
+          "KR"
+        ],
+        "geoEvidenceSpans": [
+          "3조원"
+        ]
+      },
+      "stratum": "adversarial:05-source-prior-conflict",
+      "evidenceHash": "1677d9b72f505ce7eb30e02f842fdb1e1f93e9bfb886af647ee6f546d21cd6f5"
+    },
+    {
+      "origin": "adversarial_contract_fixture",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "blindItemId": "d1a-06-genuine-cross-domain",
+      "sourceId": "hankyung",
+      "sourceTier": "specialist",
+      "declaredCategory": "business",
+      "declaredSection": "business",
+      "contentKindHint": "news",
+      "title": "국회, 반도체 특별법 본회의 통과… 세액공제 대폭 확대",
+      "excerpt": "여야 합의로 반도체 기업 세제 지원을 늘리는 특별법이 국회를 통과했다",
+      "defect": "genuine business+politics cross-domain event",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "business",
+          "politics"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "국회",
+          "세액공제"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "domestic",
+        "eventJurisdictions": [
+          "KR"
+        ],
+        "relevanceCountries": [
+          "KR"
+        ],
+        "geoEvidenceSpans": [
+          "국회",
+          "여야"
+        ]
+      },
+      "stratum": "adversarial:06-genuine-cross-domain",
+      "evidenceHash": "c6d7bdeae3baed796cbfdb338db4729944c929457cb90a796807d5594e929fe4"
+    },
+    {
+      "origin": "adversarial_contract_fixture",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "blindItemId": "d1a-07-secondary-only-admission",
+      "sourceId": "mk-news",
+      "sourceTier": "specialist",
+      "declaredCategory": "business",
+      "declaredSection": "business",
+      "contentKindHint": "news",
+      "title": "대기업 실적 발표에 정치권도 촉각",
+      "excerpt": "분기 영업이익이 시장 기대를 웃돌자 여야가 경기 진단을 놓고 공방을 벌였다",
+      "defect": "politics only in secondary — politics admission must NOT hold",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "business"
+        ],
+        "rejectedCategories": [
+          "politics"
+        ],
+        "descriptiveSecondaryCategories": [
+          "politics"
+        ],
+        "evidenceSpans": [
+          "영업이익"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "domestic",
+        "eventJurisdictions": [
+          "KR"
+        ],
+        "relevanceCountries": [
+          "KR"
+        ],
+        "geoEvidenceSpans": [
+          "여야"
+        ]
+      },
+      "stratum": "adversarial:07-secondary-only-admission",
+      "evidenceHash": "41dfa1a2e350888ae77247acbb8c34590d0f2bae18153217e74d38372f6bebcf"
+    },
+    {
+      "origin": "adversarial_contract_fixture",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "blindItemId": "d1a-08-primary-ok-admission-wrong",
+      "sourceId": "etnews",
+      "sourceTier": "specialist",
+      "declaredCategory": "business",
+      "declaredSection": "business",
+      "contentKindHint": "news",
+      "title": "중소기업 대출 연체율 상승세 지속",
+      "excerpt": "고금리 장기화로 중소기업 대출 연체율이 다섯 달째 오름세를 보였다",
+      "defect": "primary business correct but a prediction that rejects business admission = not TP",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "business"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "대출 연체율"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "unknown",
+        "eventJurisdictions": [],
+        "relevanceCountries": [],
+        "geoEvidenceSpans": []
+      },
+      "stratum": "adversarial:08-primary-ok-admission-wrong",
+      "evidenceHash": "d3b801c50f8a420e23752c28c9545af8d5f3335b2b55ad4563b98605d716891a"
+    },
+    {
+      "origin": "adversarial_contract_fixture",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "blindItemId": "d1a-09-domestic-media-overseas-event",
+      "sourceId": "yna",
+      "sourceTier": "specialist",
+      "declaredCategory": "news",
+      "declaredSection": "news",
+      "contentKindHint": "news",
+      "title": "美 연준, 기준금리 동결… 연내 인하 시그널",
+      "excerpt": "미국 연방준비제도가 기준금리를 동결하고 연내 인하 가능성을 시사했다",
+      "defect": "domestic (KR) media reporting an overseas (US) event",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "business"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "연준",
+          "기준금리"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "international",
+        "eventJurisdictions": [
+          "US"
+        ],
+        "relevanceCountries": [
+          "KR",
+          "US"
+        ],
+        "geoEvidenceSpans": [
+          "美",
+          "미국"
+        ]
+      },
+      "stratum": "adversarial:09-domestic-media-overseas-event",
+      "evidenceHash": "bf0ec7cd7ec2d1f7872d3be6981c2c3ed24419345576db97aa8fc6f9ccadfe41"
+    },
+    {
+      "origin": "adversarial_contract_fixture",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "blindItemId": "d1a-10-same-structure-diff-meaning",
+      "sourceId": "yozm",
+      "sourceTier": "news",
+      "declaredCategory": "tech",
+      "declaredSection": "tech",
+      "contentKindHint": "news",
+      "title": "애플, 새 얼굴 공개… 업계 술렁",
+      "excerpt": "애플이 신규 임원 인사를 단행하며 조직 개편에 나섰다",
+      "defect": "same title structure as a product-launch headline but means an exec appointment",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "business"
+        ],
+        "rejectedCategories": [
+          "tech"
+        ],
+        "evidenceSpans": [
+          "신규 임원 인사"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "unknown",
+        "eventJurisdictions": [],
+        "relevanceCountries": [],
+        "geoEvidenceSpans": []
+      },
+      "stratum": "adversarial:10-same-structure-diff-meaning",
+      "evidenceHash": "ff6ac3709cf0d8bb5abd23698da1ddd2515256c78a2f2cef33079c5b183746b2"
+    },
+    {
+      "origin": "mutation_fixture",
+      "sourceId": "yozm",
+      "sourceTier": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "contentKindHint": "news",
+      "declaredSection": null,
+      "blindItemId": "d1m-01a",
+      "mutationPairId": "m01",
+      "mutationRole": "original",
+      "mutationType": "semantic",
+      "declaredCategory": "tech",
+      "title": "삼성 갤럭시 신제품 공개",
+      "excerpt": "삼성전자가 새 갤럭시 스마트폰 라인업을 공개했다",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "tech"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "갤럭시 스마트폰"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "domestic"
+      },
+      "stratum": "mutation:m01",
+      "evidenceHash": "aed936284dcb72c0a163bcb3d001a83744bf5d4e20370a0f5981d4fb5cd60fca"
+    },
+    {
+      "origin": "mutation_fixture",
+      "sourceId": "yozm",
+      "sourceTier": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "contentKindHint": "news",
+      "declaredSection": null,
+      "blindItemId": "d1m-01b",
+      "mutationPairId": "m01",
+      "mutationRole": "variant",
+      "mutationType": "semantic",
+      "declaredCategory": "tech",
+      "title": "삼성 라이온즈 신인 공개",
+      "excerpt": "삼성 라이온즈가 새 신인 야구선수 라인업을 공개했다",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "sports"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "야구선수"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "domestic"
+      },
+      "stratum": "mutation:m01",
+      "evidenceHash": "6d6dc6fd954d232aed647c6e1adbf0d021134f9ef06cf580b3f99f2738bc204c"
+    },
+    {
+      "origin": "mutation_fixture",
+      "sourceId": "yozm",
+      "sourceTier": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "contentKindHint": "news",
+      "declaredSection": null,
+      "blindItemId": "d1m-02a",
+      "mutationPairId": "m02",
+      "mutationRole": "original",
+      "mutationType": "semantic",
+      "declaredCategory": "business",
+      "title": "현대차 분기 영업이익 발표",
+      "excerpt": "현대차가 분기 영업이익 실적을 발표했다",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "business"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "영업이익 실적"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "domestic"
+      },
+      "stratum": "mutation:m02",
+      "evidenceHash": "d4b0466637c38d16f1a98b82948e6bf2ed40299c7fbdd78ecd8e45f3ea961b4e"
+    },
+    {
+      "origin": "mutation_fixture",
+      "sourceId": "yozm",
+      "sourceTier": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "contentKindHint": "news",
+      "declaredSection": null,
+      "blindItemId": "d1m-02b",
+      "mutationPairId": "m02",
+      "mutationRole": "variant",
+      "mutationType": "semantic",
+      "declaredCategory": "business",
+      "title": "현대차 분기 우승기록 발표",
+      "excerpt": "현대차 축구단이 분기 우승기록 성적을 발표했다",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "sports"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "축구단",
+          "우승기록"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "domestic"
+      },
+      "stratum": "mutation:m02",
+      "evidenceHash": "47b55623cbbfe30d11a94e765140b4886457dbb55f5d27380b062cbdd2a202c9"
+    },
+    {
+      "origin": "mutation_fixture",
+      "sourceId": "yozm",
+      "sourceTier": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "contentKindHint": "news",
+      "declaredSection": null,
+      "blindItemId": "d1m-03a",
+      "mutationPairId": "m03",
+      "mutationRole": "original",
+      "mutationType": "invariance",
+      "declaredCategory": "sports",
+      "title": "손흥민 멀티골 폭발",
+      "excerpt": "손흥민이 한 경기 멀티골을 넣으며 팀 승리를 이끌었다",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "sports"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "멀티골"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "international"
+      },
+      "stratum": "mutation:m03",
+      "evidenceHash": "60cf101af7df5073b132dbbd0cd91bef79c3338de11deb40883db45b080ac640"
+    },
+    {
+      "origin": "mutation_fixture",
+      "sourceId": "yozm",
+      "sourceTier": "news",
+      "sourceCountry": "KR",
+      "language": "ko",
+      "contentKindHint": "news",
+      "declaredSection": null,
+      "blindItemId": "d1m-03b",
+      "mutationPairId": "m03",
+      "mutationRole": "variant",
+      "mutationType": "invariance",
+      "declaredCategory": "sports",
+      "title": "손흥민,   멀티골  폭발!!!",
+      "excerpt": "손흥민이 한 경기 멀티골을 넣으며 팀 승리를 이끌었다...",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "sports"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "멀티골"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "international"
+      },
+      "stratum": "mutation:m03",
+      "evidenceHash": "60cf101af7df5073b132dbbd0cd91bef79c3338de11deb40883db45b080ac640"
+    },
+    {
+      "origin": "mutation_fixture",
+      "sourceId": "yozm",
+      "sourceTier": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "contentKindHint": "news",
+      "declaredSection": null,
+      "blindItemId": "d1m-04a",
+      "mutationPairId": "m04",
+      "mutationRole": "original",
+      "mutationType": "invariance",
+      "declaredCategory": "tech",
+      "title": "OpenAI releases new API",
+      "excerpt": "OpenAI announced a new developer API for building applications",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "tech"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "developer API"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "global"
+      },
+      "stratum": "mutation:m04",
+      "evidenceHash": "c72b6abcd1587cb45d344447ce6b5c18f19f17cd1994f8051363fa10d5417eca"
+    },
+    {
+      "origin": "mutation_fixture",
+      "sourceId": "yozm",
+      "sourceTier": "news",
+      "sourceCountry": "US",
+      "language": "en",
+      "contentKindHint": "news",
+      "declaredSection": null,
+      "blindItemId": "d1m-04b",
+      "mutationPairId": "m04",
+      "mutationRole": "variant",
+      "mutationType": "invariance",
+      "declaredCategory": "tech",
+      "title": "openai releases   new api",
+      "excerpt": "OpenAI announced a new developer API for building applications.",
+      "contractGold": {
+        "contentType": "news",
+        "acceptedCategories": [
+          "tech"
+        ],
+        "rejectedCategories": [],
+        "evidenceSpans": [
+          "developer API"
+        ],
+        "reasonCodes": [
+          "semantic-topic"
+        ],
+        "scopeClass": "global"
+      },
+      "stratum": "mutation:m04",
+      "evidenceHash": "c72b6abcd1587cb45d344447ce6b5c18f19f17cd1994f8051363fa10d5417eca"
+    }
+  ]
+}

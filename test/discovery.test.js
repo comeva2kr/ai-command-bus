@@ -87,18 +87,24 @@ test("IndexNow: 통보 실패가 서비스를 죽이지 않는다", async () => 
   assert.ok(out.error, "실패는 값으로 돌려주고 던지지 않는다");
 });
 
-test("구조화 데이터: 홈과 자체 콘텐츠 페이지에 JSON-LD가 있고 파싱된다", async () => {
-  const home = fs.readFileSync(new URL("../src/feed/public/index.html", import.meta.url), "utf8");
-  const m = home.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
-  assert.ok(m, "홈에 JSON-LD가 있어야 한다");
+test("구조화 데이터: /live 앱과 편집 홈·콘텐츠 페이지의 역할이 구분된다", async () => {
+  const live = fs.readFileSync(new URL("../src/feed/public/index.html", import.meta.url), "utf8");
+  const m = live.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  assert.ok(m, "/live 앱에 JSON-LD가 있어야 한다");
   const ld = JSON.parse(m[1]);
-  assert.equal(ld["@type"], "WebSite");
+  assert.equal(ld["@type"], "WebApplication");
   assert.equal(ld.inLanguage, "ko");
-  // 사실과 다른 선언은 리치 결과에서 제외된다 — 실제 도메인·운영 주체를 쓴다
-  assert.equal(ld.url, "https://nowhot.kr/");
+  assert.equal(ld.url, "https://nowhot.kr/live");
   assert.equal(ld.publisher.name, "페퍼클럽");
 
   await withServer({}, async (base) => {
+    const root = await (await fetch(`${base}/`)).text();
+    const rm = root.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    assert.ok(rm, "편집 홈에도 JSON-LD가 있어야 한다");
+    const site = JSON.parse(rm[1]);
+    assert.equal(site["@type"], "WebSite");
+    assert.equal(site.url, "https://nowhot.kr/");
+
     const html = await (await fetch(`${base}/briefing`)).text();
     const mm = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
     assert.ok(mm, "자체 콘텐츠 페이지에도 JSON-LD가 있어야 한다");

@@ -8,10 +8,16 @@
 import { emptyBucket, applyEvent, bumpDeviceInfo, weekKey, monthKey } from "./analytics.js";
 import { emptyCostBucket, recordCall } from "./costs.js";
 import fs from "node:fs";
+import { articleContentId, isCurrentArticleSummary } from "./article-summary.js";
 import { randomUUID } from "node:crypto";
 import crypto from "node:crypto";
 import { emptyPreferenceVector, buildPreferenceVector } from "./survey.js";
 import { inferFromHistory, mergeVectors } from "./history.js";
+import {
+  clonePreferenceVector,
+  feedbackItemSnapshot,
+  projectPreferenceVector
+} from "./recommender.js";
 
 // 잦은 기록을 몇 번 모아 한 번에 쓴다. 길게 잡으면 재시작 때 잃는 게 늘고,
 // 짧게 잡으면 다시 요청마다 쓰는 꼴이 된다.
@@ -63,11 +69,15 @@ export class FeedStore {
   createUser(userId) {
     const id = userId || this._id("user");
     if (this.users.has(id)) return this.users.get(id);
+    const preferenceBase = emptyPreferenceVector();
     const user = {
       id,
       nickname: nicknameFor(id), // 오늘의 닉네임 — anonymous, stable per user
-      preferences: emptyPreferenceVector(),
+      preferenceBase,
+      preferences: clonePreferenceVector(preferenceBase),
+      preferenceModelVersion: 2,
       surveyed: false,
+      feedbackBaseCount: 0,
       feedbackCount: 0,
       saved: [], // 스크랩한 itemId 목록
       mutedSources: [], // 사용자가 피드에서 숨긴 소스
@@ -225,12 +235,27 @@ export class FeedStore {
     // if the user warm-started from browsing history, fold that signal in at a
     // reduced weight so the explicit survey answers lead but the inferred taste
     // isn't thrown away
-    if (user.warmStarted) mergeVectors(surveyVec, user.preferences, 0.6);
-    user.preferences = surveyVec;
+    if (user.warmStarted) mergeVectors(surveyVec, this.learningPreferences(userId), 0.6);
+    user.preferenceBase = surveyVec;
+    user.preferenceModelVersion = 2;
+    user.preferences = projectPreferenceVector(user.preferenceBase, user.ratings);
     user.surveyAnswers = answers;
     user.surveyed = true;
     this._persist();
     return user;
+  }
+
+  // 오늘판의 명시적 카테고리 선택. 기존 설문 답과 학습 벡터를 덮지 않고
+  // 오늘 브리핑 조립에만 우선 적용한다.
+  setBriefingCategories(userId, categories) {
+    const user = this.requireUser(userId);
+    user.briefingCategories = [...new Set(
+      (Array.isArray(categories) ? categories : [])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+    )].slice(0, 20);
+    this._persist();
+    return user.briefingCategories;
   }
 
   // Warm-start from browsing history: infer a vector and merge it in. Runs
@@ -238,12 +263,20 @@ export class FeedStore {
   applyHistory(userId, entries) {
     const user = this.requireUser(userId);
     const { vector, hits, entriesSeen } = inferFromHistory(entries);
-    mergeVectors(user.preferences, vector, 1);
+    const base = this.learningPreferences(userId);
+    mergeVectors(base, vector, 1);
+    if (user.preferenceBase) user.preferences = projectPreferenceVector(base, user.ratings);
     user.warmStarted = true;
     user.historyHits = hits;
     // a strong footprint gives a small confidence head start
     const signalCount = hits.sources + hits.keywords;
-    if (signalCount >= 3) user.feedbackCount = Math.max(user.feedbackCount, Math.min(6, Math.floor(signalCount / 3)));
+    if (signalCount >= 3) {
+      user.feedbackBaseCount = Math.max(
+        Number(user.feedbackBaseCount) || 0,
+        Math.min(6, Math.floor(signalCount / 3))
+      );
+      this._syncFeedbackCount(user);
+    }
     this._persist();   // 온보딩 1회성 취향 워밍업 — 잦은 기록이 아니다. 유실되면 사용자는 알 방법이 없다
     return { hits, entriesSeen, preferences: user.preferences };
   }
@@ -758,6 +791,372 @@ export class FeedStore {
     return this.briefings ? Object.keys(this.briefings).sort() : [];
   }
 
+  // 로컬 개인 오늘판은 공용 브리핑과 분리해 날짜·슬롯·선택 분야 조합으로
+  // 고정한다. 같은 슬롯을 새로고침할 때 내용이 흔들리지 않고, 다음 슬롯이
+  // 실제 이전 판과 비교할 수 있게 하는 근거 스냅샷이다.
+  saveEditorialEdition(date, slotId, segmentKey, data, { replace = false } = {}) {
+    if (!this.editorialEditions) this.editorialEditions = {};
+    if (!this.editorialEditions[date]) this.editorialEditions[date] = {};
+    if (!this.editorialEditions[date][slotId]) this.editorialEditions[date][slotId] = {};
+    const existing = this.editorialEditions[date][slotId][segmentKey];
+    if (existing && !replace) return existing;
+    this.editorialEditions[date][slotId][segmentKey] = { ...data, savedAt: this._nowMs() };
+    this._rememberArticleSummaries(data);
+    const dates = Object.keys(this.editorialEditions).sort();
+    for (const d of dates.slice(0, Math.max(0, dates.length - 400))) delete this.editorialEditions[d];
+    this._persist();
+    return this.editorialEditions[date][slotId][segmentKey];
+  }
+
+  saveEditorialEvidenceAnchor(date, slotId, asOfMs, { replace = false } = {}) {
+    const value = Number(asOfMs);
+    if (!Number.isFinite(value)) throw new Error("invalid editorial evidence anchor");
+    if (!this.editorialEvidenceAnchors) this.editorialEvidenceAnchors = {};
+    if (!this.editorialEvidenceAnchors[date]) this.editorialEvidenceAnchors[date] = {};
+    if (!this.editorialEvidenceAnchors[date][slotId] || replace) {
+      this.editorialEvidenceAnchors[date][slotId] = new Date(value).toISOString();
+      this._persist();
+    }
+    return Date.parse(this.editorialEvidenceAnchors[date][slotId]);
+  }
+
+  getEditorialEvidenceAnchor(date, slotId) {
+    const value = this.editorialEvidenceAnchors?.[date]?.[slotId];
+    const parsed = Date.parse(value || "");
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  enrichEditorialEdition(date, slotId, segmentKey, data) {
+    const current = this.getEditorialEdition(date, slotId, segmentKey);
+    if (!current || current.editionId !== data?.editionId) return current;
+    if (this._rememberArticleSummaries(data)) this._persist();
+    return current;
+  }
+
+  _rememberArticleSummaries(data) {
+    const nowMs = this._nowMs();
+    const summaries = new Map();
+    for (const issue of data.issues || []) {
+      if (!isCurrentArticleSummary(issue?.articleSummary, issue, nowMs)) continue;
+      const summary = issue.articleSummary;
+      for (const contentId of new Set([
+        summary.articleContentId || articleContentId(issue),
+        ...(summary.articleContentAliases || [])
+      ].filter(Boolean))) summaries.set(contentId, summary);
+    }
+    if (!summaries.size) return false;
+    if (!this.articleSummaries) this.articleSummaries = {};
+    let changed = false;
+    for (const [contentId, summary] of summaries) {
+      const existing = this.articleSummaries[contentId];
+      if (isCurrentArticleSummary(existing, null, nowMs)) continue;
+      this.articleSummaries[contentId] = summary;
+      changed = true;
+    }
+    return changed;
+  }
+
+  getArticleSummary(contentId) {
+    return contentId && (this.articleSummaries || {})[contentId] || null;
+  }
+
+  getEditorialEdition(date, slotId, segmentKey) {
+    return this.editorialEditions &&
+      this.editorialEditions[date] &&
+      this.editorialEditions[date][slotId] &&
+      this.editorialEditions[date][slotId][segmentKey] || null;
+  }
+
+  // 저장 판은 불변 스냅샷이므로 장기 품질 원장은 이 목록을 읽기만 한다.
+  // 날짜·슬롯·공유 조합을 함께 반환해 총건수가 아니라 판본 단위로 집계한다.
+  allEditorialEditions() {
+    const rows = [];
+    for (const date of Object.keys(this.editorialEditions || {}).sort()) {
+      for (const [slotId, segments] of Object.entries(this.editorialEditions[date] || {})) {
+        for (const [segmentKey, edition] of Object.entries(segments || {})) {
+          if (edition) rows.push({ date, slotId, segmentKey, edition });
+        }
+      }
+    }
+    return rows.sort((a, b) =>
+      `${a.date}|${a.edition.generatedAt || a.slotId}|${a.segmentKey}`
+        .localeCompare(`${b.date}|${b.edition.generatedAt || b.slotId}|${b.segmentKey}`)
+    );
+  }
+
+  // 독자에게 실제로 반환한 응답 지문만 불변 영수증으로 남긴다. 저장 판본 ID만
+  // 같아도 응답 투영이나 검수 계약이 달라질 수 있으므로 packetId까지 키에 넣는다.
+  saveEditorialServingVerification(verification) {
+    if (!verification || !verification.packetId || !verification.editionId || !verification.segmentKey) {
+      throw new Error("invalid editorial serving verification");
+    }
+    if (!this.editorialServingVerifications) this.editorialServingVerifications = {};
+    const key = [
+      verification.contractVersion || 0,
+      verification.packetId,
+      verification.editionId,
+      verification.segmentKey
+    ].join("|");
+    const existing = this.editorialServingVerifications[key];
+    if (existing) return existing;
+    const record = {
+      ...JSON.parse(JSON.stringify(verification)),
+      key,
+      savedAt: this._nowMs()
+    };
+    this.editorialServingVerifications[key] = record;
+
+    const dates = [...new Set(Object.values(this.editorialServingVerifications)
+      .map((row) => row.date)
+      .filter(Boolean))].sort();
+    const expired = new Set(dates.slice(0, Math.max(0, dates.length - 400)));
+    for (const [storedKey, row] of Object.entries(this.editorialServingVerifications)) {
+      if (expired.has(row.date)) delete this.editorialServingVerifications[storedKey];
+    }
+    this._persist();
+    return record;
+  }
+
+  listEditorialServingVerifications(segmentKey = null) {
+    return Object.values(this.editorialServingVerifications || {})
+      .filter((row) => !segmentKey || row.segmentKey === segmentKey)
+      .sort((a, b) => String(b.slotAsOf || b.verifiedAt || "")
+        .localeCompare(String(a.slotAsOf || a.verifiedAt || "")));
+  }
+
+  // 같은 근거 묶음을 다시 LLM에 보내지 않는다. 계약·프롬프트·모델까지 묶은
+  // 공용 캐시 키별 검증 완료 편집본만 보관하므로 개인 정보도 섞이지 않는다.
+  getEditorialLlmEdit(cacheKey) {
+    return cacheKey && (this.editorialLlmEdits || {})[cacheKey] || null;
+  }
+
+  saveEditorialLlmEdit(cacheKey, edit) {
+    if (!cacheKey || !edit) return null;
+    if (!this.editorialLlmEdits) this.editorialLlmEdits = {};
+    const existing = this.editorialLlmEdits[cacheKey];
+    const existingVerified = existing && existing.contractId && existing.contractVersion &&
+      existing.promptVersion && (
+        existing.draft && existing.verifier ||
+        existing.verified === true && existing.articleSummary &&
+          isCurrentArticleSummary(existing.articleSummary, null, this._nowMs())
+      );
+    if (existingVerified) return existing;
+    const saved = { ...edit, savedAt: edit.savedAt || new Date(this._nowMs()).toISOString() };
+    this.editorialLlmEdits[cacheKey] = saved;
+    const rows = Object.entries(this.editorialLlmEdits);
+    if (rows.length > 4000) {
+      rows.sort((a, b) => String(a[1].savedAt || "").localeCompare(String(b[1].savedAt || "")));
+      for (const [key] of rows.slice(0, rows.length - 4000)) delete this.editorialLlmEdits[key];
+    }
+    this._persistSoon();
+    return saved;
+  }
+
+  // 날짜·슬롯별 최초 실행 관측을 덮어쓰지 않는다. 늦게 실행한 백필을 나중에
+  // 정시 실행처럼 고쳐 쓸 수 없게 해야 실제 하루 증거가 성립한다.
+  saveEditorialSlotObservation(observation) {
+    return this.saveEditorialSlotObservations([observation])[0];
+  }
+
+  saveEditorialSlotObservations(observations) {
+    if (!this.editorialSlotObservations) this.editorialSlotObservations = {};
+    let changed = false;
+    const stored = (observations || []).map((observation) => {
+      const key = `${observation.date}|${observation.slotId}`;
+      if (!this.editorialSlotObservations[key]) {
+        this.editorialSlotObservations[key] = { ...observation, savedAt: this._nowMs() };
+        changed = true;
+      }
+      return this.editorialSlotObservations[key];
+    });
+    const dates = [...new Set(Object.values(this.editorialSlotObservations).map((row) => row.date))].sort();
+    const expired = new Set(dates.slice(0, Math.max(0, dates.length - 400)));
+    for (const [storedKey, row] of Object.entries(this.editorialSlotObservations)) {
+      if (expired.has(row.date)) {
+        delete this.editorialSlotObservations[storedKey];
+        changed = true;
+      }
+    }
+    if (changed) this._persist();
+    return stored;
+  }
+
+  editorialSlotObservationsForDate(date) {
+    return Object.values(this.editorialSlotObservations || {})
+      .filter((row) => row.date === date)
+      .sort((a, b) => String(a.asOf).localeCompare(String(b.asOf)));
+  }
+
+  allEditorialSlotObservations() {
+    return Object.values(this.editorialSlotObservations || {})
+      .sort((a, b) => `${a.date}|${a.asOf}`.localeCompare(`${b.date}|${b.asOf}`));
+  }
+
+  priorEditorialEditions(date, slotId, segmentKey, slotOrder, limit = 3) {
+    const rows = [];
+    const max = Math.max(1, Number(limit) || 1);
+    const dates = Object.keys(this.editorialEditions || {}).filter((value) => value <= date).sort().reverse();
+    const currentSlot = slotOrder.indexOf(slotId);
+    for (const day of dates) {
+      const end = day === date ? currentSlot - 1 : slotOrder.length - 1;
+      for (let index = end; index >= 0; index -= 1) {
+        const found = this.getEditorialEdition(day, slotOrder[index], segmentKey);
+        if (!found) continue;
+        rows.push(found);
+        if (rows.length >= max) return rows;
+      }
+    }
+    return rows;
+  }
+
+  // 재고 계약 버전이 올라간 첫 판도 같은 카테고리 조합의 직전 사건을 이어받아야
+  // 한다. 각 과거 슬롯에서는 현재 키를 우선하고, 없을 때만 가장 최신 구버전을 쓴다.
+  priorCompatibleEditorialEditions(date, slotId, segmentKey, baseKey, slotOrder, limit = 3) {
+    const rows = [];
+    const max = Math.max(1, Number(limit) || 1);
+    const dates = Object.keys(this.editorialEditions || {}).filter((value) => value <= date).sort().reverse();
+    const currentSlot = slotOrder.indexOf(slotId);
+    const versionRank = (key) => Number(/^v(\d+):/.exec(String(key || ""))?.[1] || -1);
+    const compatibleBaseKey = (key, edition) =>
+      edition && edition.editionSegment && edition.editionSegment.baseKey ||
+      String(key || "").replace(/^v\d+:/, "");
+
+    for (const day of dates) {
+      const end = day === date ? currentSlot - 1 : slotOrder.length - 1;
+      for (let index = end; index >= 0; index -= 1) {
+        const segments = this.editorialEditions && this.editorialEditions[day] &&
+          this.editorialEditions[day][slotOrder[index]] || {};
+        let found = segments[segmentKey] || null;
+        if (!found) {
+          const compatible = Object.entries(segments)
+            .filter(([key, edition]) => edition && compatibleBaseKey(key, edition) === baseKey)
+            .sort(([leftKey, left], [rightKey, right]) =>
+              versionRank(rightKey) - versionRank(leftKey) ||
+              Number(right && right.savedAt || 0) - Number(left && left.savedAt || 0));
+          found = compatible[0] && compatible[0][1] || null;
+        }
+        if (!found) continue;
+        rows.push(found);
+        if (rows.length >= max) return rows;
+      }
+    }
+    return rows;
+  }
+
+  previousEditorialEdition(date, slotId, segmentKey, slotOrder) {
+    return this.priorEditorialEditions(date, slotId, segmentKey, slotOrder, 1)[0] || null;
+  }
+
+  // 사람 검수는 두 사람이 같은 행과 근거를 봤을 때만 비교할 수 있다. 현재
+  // 판을 매번 다시 만든 결과를 직접 보여주지 않고, 패킷을 처음 본 그대로
+  // 고정한다. 새 슬롯 패킷은 대기열에만 추가되며 활성 대상은 명시적으로만
+  // 바뀐다.
+  saveEditorialReviewPacket(packet, metadata = {}) {
+    if (!packet || !packet.packetId || !packet.editionId) throw new Error("invalid editorial review packet");
+    if (!this.editorialReviewPackets) this.editorialReviewPackets = { activeKey: null, packets: {} };
+    const key = `${packet.packetId}|${packet.editionId}`;
+    const existing = this.editorialReviewPackets.packets[key];
+    if (existing) {
+      if (!this.editorialReviewPackets.activeKey && metadata.activateIfEmpty !== false) {
+        this.editorialReviewPackets.activeKey = key;
+        this._persist();
+      }
+      return existing;
+    }
+
+    const record = {
+      key,
+      packetId: packet.packetId,
+      editionId: packet.editionId,
+      packet: JSON.parse(JSON.stringify(packet)),
+      date: metadata.date || null,
+      slotId: metadata.slotId || null,
+      segmentKey: metadata.segmentKey || null,
+      frozenAt: this._nowMs()
+    };
+    this.editorialReviewPackets.packets[key] = record;
+    if (!this.editorialReviewPackets.activeKey && metadata.activateIfEmpty !== false) {
+      this.editorialReviewPackets.activeKey = key;
+    }
+
+    const unreviewed = Object.values(this.editorialReviewPackets.packets)
+      .filter((row) => row.key !== this.editorialReviewPackets.activeKey && !this.getEditorialReview(row.packetId, row.editionId))
+      .sort((a, b) => Number(a.frozenAt || 0) - Number(b.frozenAt || 0));
+    for (const row of unreviewed.slice(0, Math.max(0, unreviewed.length - 30))) {
+      delete this.editorialReviewPackets.packets[row.key];
+    }
+    this._persist();
+    return record;
+  }
+
+  getEditorialReviewPacket(packetId, editionId) {
+    const key = `${packetId}|${editionId}`;
+    return this.editorialReviewPackets && this.editorialReviewPackets.packets &&
+      this.editorialReviewPackets.packets[key] || null;
+  }
+
+  activeEditorialReviewPacket() {
+    const queue = this.editorialReviewPackets;
+    return queue && queue.activeKey && queue.packets && queue.packets[queue.activeKey] || null;
+  }
+
+  listEditorialReviewPackets() {
+    return Object.values(this.editorialReviewPackets && this.editorialReviewPackets.packets || {})
+      .sort((a, b) => Number(b.frozenAt || 0) - Number(a.frozenAt || 0));
+  }
+
+  activateEditorialReviewPacket(packetId, editionId) {
+    const record = this.getEditorialReviewPacket(packetId, editionId);
+    if (!record) throw new Error("unknown editorial review packet");
+    this.editorialReviewPackets.activeKey = record.key;
+    this._persist();
+    return record;
+  }
+
+  // 사람 검수 결과는 기계 판정과 섞지 않고 패킷·판본·검수자별로 보존한다.
+  // 두 검수자가 서로 다른 원장을 쓰므로 한 명의 입력이 다른 사람의 정답이
+  // 되지 않는다. 실제 PASS 여부는 이 저장 동작과 별개의 후속 집계다.
+  saveEditorialReview(packetId, editionId, reviewerId, annotations) {
+    if (!this.editorialReviews) this.editorialReviews = {};
+    const key = `${packetId}|${editionId}`;
+    const packet = this.editorialReviews[key] || {
+      packetId,
+      editionId,
+      reviewers: {},
+      createdAt: this._nowMs()
+    };
+    packet.reviewers[reviewerId] = {
+      reviewerId,
+      annotations,
+      savedAt: this._nowMs()
+    };
+    packet.updatedAt = this._nowMs();
+    this.editorialReviews[key] = packet;
+    this._persist();
+    return packet.reviewers[reviewerId];
+  }
+
+  getEditorialReview(packetId, editionId, reviewerId = null) {
+    const packet = (this.editorialReviews || {})[`${packetId}|${editionId}`] || null;
+    if (!packet || !reviewerId) return packet;
+    return packet.reviewers && packet.reviewers[reviewerId] || null;
+  }
+
+  saveEditorialReviewAdjudication(packetId, editionId, adjudicatorId, resolutions) {
+    if (!this.editorialReviews) this.editorialReviews = {};
+    const key = `${packetId}|${editionId}`;
+    const packet = this.editorialReviews[key];
+    if (!packet) throw new Error("editorial review ledger is not ready");
+    packet.adjudication = {
+      adjudicatorId,
+      resolutions,
+      savedAt: this._nowMs()
+    };
+    packet.updatedAt = this._nowMs();
+    this._persist();
+    return packet.adjudication;
+  }
+
   getDailyEdition(date) {
     return (this.dailyEditions && this.dailyEditions.get(date)) || null;
   }
@@ -785,6 +1184,36 @@ export class FeedStore {
     user.mixBalance = Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0;
     this._persist();
     return user.mixBalance;
+  }
+
+  _syncFeedbackCount(user) {
+    const ratingCount = Object.keys(user.ratings || {}).length;
+    if (!Number.isFinite(user.feedbackBaseCount)) {
+      user.feedbackBaseCount = Math.max(0, (Number(user.feedbackCount) || 0) - ratingCount);
+    }
+    user.feedbackCount = Math.max(0, user.feedbackBaseCount) + ratingCount;
+    return user.feedbackCount;
+  }
+
+  // The base carries survey/history/implicit learning only. Explicit ratings
+  // are projected over it, so removing a rating never has to reverse unrelated
+  // signals. Legacy users with no stored ratings can be adopted losslessly.
+  learningPreferences(userId) {
+    const user = this.requireUser(userId);
+    const ratingCount = Object.keys(user.ratings || {}).length;
+    if (!user.preferenceBase && ratingCount === 0) {
+      user.preferenceBase = clonePreferenceVector(user.preferences);
+      user.preferenceModelVersion = 2;
+    }
+    return user.preferenceBase || user.preferences;
+  }
+
+  refreshPreferenceProjection(userId) {
+    const user = this.requireUser(userId);
+    if (user.preferenceBase) {
+      user.preferences = projectPreferenceVector(user.preferenceBase, user.ratings);
+    }
+    return user.preferences;
   }
 
 
@@ -820,12 +1249,24 @@ export class FeedStore {
     return user.implicitCount;
   }
 
-  recordRating(userId, itemId, signal) {
+  recordRating(userId, itemId, signal, item = null) {
     const user = this.requireUser(userId);
     const prev = user.ratings[itemId];
-    user.ratings[itemId] = { signal, at: nowIso(this.clock) };
-    // only count the first rating of an item toward confidence volume
-    if (!prev) user.feedbackCount += 1;
+    if (signal === 0) {
+      if (!prev) return null;
+      delete user.ratings[itemId];
+      this._syncFeedbackCount(user);
+      this.refreshPreferenceProjection(userId);
+      this._persist();
+      return null;
+    }
+    user.ratings[itemId] = {
+      signal,
+      at: nowIso(this.clock),
+      ...(item ? { features: feedbackItemSnapshot(item) } : (prev && prev.features ? { features: prev.features } : {}))
+    };
+    this._syncFeedbackCount(user);
+    this.refreshPreferenceProjection(userId);
     this._persist();
     return user.ratings[itemId];
   }
@@ -1583,6 +2024,14 @@ export class FeedStore {
       dailyEditions: [...(this.dailyEditions || new Map())].map(([date, e]) => ({ date, ...e })),
       sourceHealth: this.sourceHealth || {},
       briefings: this.briefings || {},
+      editorialEditions: this.editorialEditions || {},
+      editorialEvidenceAnchors: this.editorialEvidenceAnchors || {},
+      articleSummaries: this.articleSummaries || {},
+      editorialLlmEdits: this.editorialLlmEdits || {},
+      editorialSlotObservations: this.editorialSlotObservations || {},
+      editorialServingVerifications: this.editorialServingVerifications || {},
+      editorialReviewPackets: this.editorialReviewPackets || { activeKey: null, packets: {} },
+      editorialReviews: this.editorialReviews || {},
       analytics: this.analytics || {},
       costs: this.costs || {},
       fixedCosts: this.fixedCosts || {},
@@ -1655,6 +2104,19 @@ export class FeedStore {
       this.dailyEditions = new Map((data.dailyEditions || []).map((e) => [e.date, { briefing: e.briefing, ranking: e.ranking, updatedAt: e.updatedAt }]));
       this.sourceHealth = data.sourceHealth || {};
       this.briefings = data.briefings || {};
+      this.editorialEditions = data.editorialEditions || {};
+      this.editorialEvidenceAnchors = data.editorialEvidenceAnchors || {};
+      this.articleSummaries = data.articleSummaries || {};
+      this.editorialLlmEdits = data.editorialLlmEdits || {};
+      this.editorialSlotObservations = data.editorialSlotObservations || {};
+      this.editorialServingVerifications = data.editorialServingVerifications || {};
+      const reviewPackets = data.editorialReviewPackets || {};
+      this.editorialReviewPackets = {
+        ...reviewPackets,
+        activeKey: reviewPackets.activeKey || null,
+        packets: reviewPackets.packets || {}
+      };
+      this.editorialReviews = data.editorialReviews || {};
       this.analytics = data.analytics || {};
       this.costs = data.costs || {};
       this.fixedCosts = data.fixedCosts || {};
@@ -1666,6 +2128,24 @@ export class FeedStore {
       this.sessions = new Map((data.sessions || []).map((s) => [s.token, { userId: s.userId, expiresAt: s.expiresAt }]));
       for (const user of data.users || []) {
         if (!user.nickname) user.nickname = nicknameFor(user.id); // backfill
+        user.ratings = user.ratings || {};
+        user.preferences = user.preferences || emptyPreferenceVector();
+        const ratingCount = Object.keys(user.ratings).length;
+        if (user.preferenceBase) {
+          user.preferenceModelVersion = 2;
+          user.preferences = projectPreferenceVector(user.preferenceBase, user.ratings);
+        } else if (ratingCount === 0) {
+          // No active explicit rating means the legacy aggregate is already a
+          // lossless base. The current local dataset migrates entirely here.
+          user.preferenceBase = clonePreferenceVector(user.preferences);
+          user.preferenceModelVersion = 2;
+        } else {
+          // Item features were not persisted by the legacy schema, so claiming
+          // an exact split would invent state. Keep the legacy path until its
+          // active ratings are cleared.
+          user.preferenceModelVersion = 1;
+        }
+        this._syncFeedbackCount(user);
         this.users.set(user.id, user);
         for (const c of user.comments || []) {
           const list = this.commentsByItem.get(c.itemId) || [];

@@ -28,7 +28,7 @@
 //         "trustGrade": "A|independent2|B|community",
 //         "trustLabel": str|null,        // B등급만 "단일 출처"(R5)
 //         "publishedAt": ISO8601|null,
-//         "evidenceCount": n
+//         "evidenceCount": n, "adultGateRequired": bool
 //       }]
 //     }
 //   }
@@ -106,7 +106,10 @@ export function buildV2Edition(briefingOut, {
       const view = row.view;
       const repId = row.representative ? row.representative.articleId : null;
       const pool = [...view.memberArticles, ...view.reactionArticles];
-      const article = pool.find((a) => a && a.id === repId) || pool[0] || {};
+      const categoryPool = pool.filter((a) => Array.isArray(a?.admittedCategories)
+        && a.admittedCategories.includes(category));
+      const article = categoryPool.find((a) => a && a.id === repId) || categoryPool[0]
+        || pool.find((a) => a && a.id === repId) || pool[0] || {};
       const entry = registryById.get(article.source) || null;
       return {
         rank: index + 1,
@@ -119,7 +122,9 @@ export function buildV2Edition(briefingOut, {
         trustGrade: row.gate.trustGrade || "community",
         trustLabel: row.gate.trustLabel ?? null, // R5 — B등급만 "단일 출처"
         publishedAt: article.publishedAt ?? null,
-        evidenceCount: view.memberArticles.length
+        evidenceCount: view.memberArticles.length,
+        // 삭제하지 않고 화면 게이트가 판단할 수 있도록 판본까지 보존한다.
+        adultGateRequired: article.adultGateRequired === true
       };
     });
     categories[category] = { partial: Boolean(run.partialEdition), items };
@@ -176,6 +181,7 @@ export function validateV2Edition(edition) {
       if (!Number.isInteger(item.evidenceCount) || item.evidenceCount < 0) {
         it("evidenceCount not non-negative int");
       }
+      if (typeof item.adultGateRequired !== "boolean") it("adultGateRequired not bool");
     });
   }
   return { ok: errors.length === 0, errors };

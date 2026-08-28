@@ -1,0 +1,3868 @@
+{
+  "contract": "NOWHOT-SELECTION-D1-GOLD-001",
+  "phase": "D1-B",
+  "note": "Independent blind A/B labels; disagreements require a distinct adjudicator. Generated locally without model or network calls.",
+  "labelingContract": {
+    "procedure": [
+      "labelerA blind",
+      "labelerB blind(A 미열람)",
+      "동일 재계산 decisionDigest·blindPacketHash 일치만 provisional",
+      "불일치는 독립 adjudicator",
+      "미조정은 분모 제외 HOLD"
+    ],
+    "forbidden": [
+      "production/generator/동일 identity 라벨러",
+      "digest 재계산 불일치",
+      "blindPacketHash 정본 불일치",
+      "A/B 없는 adjudication"
+    ],
+    "decisionDigest": "SHA-256(canonical(goldContentType, sorted accepted/rejected/secondary, humanValid, inScope, reason=null))"
+  },
+  "releaseGoldState": "sufficient_independent_gold",
+  "counts": {
+    "pending": 0,
+    "agreed": 57,
+    "disputed": 0,
+    "adjudicated": 21,
+    "contract_fixture_only": 18
+  },
+  "labels": [
+    {
+      "itemId": "d1r-005a24f8256d6a1d",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "005a24f8256d6a1dafed346e25b0d268011f3f70c7f4fca4ca0b04480b4e50db",
+      "blindPacketHash": "5f5b2885002183db0f1d88a126a68a89a767f55caccde57130a46d542921c3b0",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "realestate"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "politics"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "5f5b2885002183db0f1d88a126a68a89a767f55caccde57130a46d542921c3b0",
+        "decisionDigest": "f4aa7b9076d2375c7a994768f86394e50adad18bdcba0a0c0fc70549e8e8d3a9"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "5f5b2885002183db0f1d88a126a68a89a767f55caccde57130a46d542921c3b0",
+        "decisionDigest": "f4aa7b9076d2375c7a994768f86394e50adad18bdcba0a0c0fc70549e8e8d3a9"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "f4aa7b9076d2375c7a994768f86394e50adad18bdcba0a0c0fc70549e8e8d3a9",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0166de97dbf4402b",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0166de97dbf4402b148aaa3d762426a01037a122cdde61acd7dc8c58cb0a16a5",
+      "blindPacketHash": "361be19b14b8b28730b9d4486f9e6720a709b3b4fadc763767c3797802682b69",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "politics"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "361be19b14b8b28730b9d4486f9e6720a709b3b4fadc763767c3797802682b69",
+        "decisionDigest": "b0d7f28f8a8018933c77a969217c67b0904dd56faf131a49bcccd3e0523ae3e1"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "361be19b14b8b28730b9d4486f9e6720a709b3b4fadc763767c3797802682b69",
+        "decisionDigest": "b0d7f28f8a8018933c77a969217c67b0904dd56faf131a49bcccd3e0523ae3e1"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "b0d7f28f8a8018933c77a969217c67b0904dd56faf131a49bcccd3e0523ae3e1",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0030c6f19d49a864",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0030c6f19d49a864584e4d1dcf69a36a27f43f33993e391f913fd4f85532bc3a",
+      "blindPacketHash": "7df1463e55f6c3f54cdff2a1851918ddeb4d2f3884853ac23c9d46bc263f4e61",
+      "state": "agreed",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "tech"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "7df1463e55f6c3f54cdff2a1851918ddeb4d2f3884853ac23c9d46bc263f4e61",
+        "decisionDigest": "f19a443956ac8891e4b55db021aa74de1616d05d90c0c674585757140a67bd25"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "7df1463e55f6c3f54cdff2a1851918ddeb4d2f3884853ac23c9d46bc263f4e61",
+        "decisionDigest": "f19a443956ac8891e4b55db021aa74de1616d05d90c0c674585757140a67bd25"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "f19a443956ac8891e4b55db021aa74de1616d05d90c0c674585757140a67bd25",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-010cfbda23878bee",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "010cfbda23878bee5529f3fd5b9d41203da54fe0f4ce1cce5accc52600b4338b",
+      "blindPacketHash": "21b3a7729fca0ee1702ac3d67baeb31c0924a588b7bfa0d3c3d2d31decdafa4b",
+      "state": "adjudicated",
+      "goldContentType": "other",
+      "goldAcceptedCategories": [],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": false,
+      "inScope": false,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "21b3a7729fca0ee1702ac3d67baeb31c0924a588b7bfa0d3c3d2d31decdafa4b",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "21b3a7729fca0ee1702ac3d67baeb31c0924a588b7bfa0d3c3d2d31decdafa4b",
+        "decisionDigest": "f19a443956ac8891e4b55db021aa74de1616d05d90c0c674585757140a67bd25"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "21b3a7729fca0ee1702ac3d67baeb31c0924a588b7bfa0d3c3d2d31decdafa4b",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "finalDecisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-04e44b91a8a9cf80",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "04e44b91a8a9cf80a9703265f6f93d73639a7aec026aa712935cb69058bed604",
+      "blindPacketHash": "31c65429dd96bd6d4c46aacc57b686bac96e99db18feaef461156fc8981fba69",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "auto"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "31c65429dd96bd6d4c46aacc57b686bac96e99db18feaef461156fc8981fba69",
+        "decisionDigest": "5d2055a53d867e348a809e6298fab1b58bd08d723bb2d21892201f7638f02487"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "31c65429dd96bd6d4c46aacc57b686bac96e99db18feaef461156fc8981fba69",
+        "decisionDigest": "5d2055a53d867e348a809e6298fab1b58bd08d723bb2d21892201f7638f02487"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "5d2055a53d867e348a809e6298fab1b58bd08d723bb2d21892201f7638f02487",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-06d5c81e42de25a5",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "06d5c81e42de25a5e9ca62e852ec328232ab7fa1ba24e9addb57cabe6965c443",
+      "blindPacketHash": "e0a5e7305d89c83f7d790173be0dcf25a9875260344db2ea7ce23cc2076dcea0",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "auto"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "e0a5e7305d89c83f7d790173be0dcf25a9875260344db2ea7ce23cc2076dcea0",
+        "decisionDigest": "5d2055a53d867e348a809e6298fab1b58bd08d723bb2d21892201f7638f02487"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "e0a5e7305d89c83f7d790173be0dcf25a9875260344db2ea7ce23cc2076dcea0",
+        "decisionDigest": "5d2055a53d867e348a809e6298fab1b58bd08d723bb2d21892201f7638f02487"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "5d2055a53d867e348a809e6298fab1b58bd08d723bb2d21892201f7638f02487",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0436a0ab17552905",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0436a0ab17552905fd74681040a17fd810978ad6328fc1153c189e85dc4d3a05",
+      "blindPacketHash": "f9c5bf0277821fd09a098c0cc7c8a3664310697e70bcd549eb468c055453d374",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "science"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "f9c5bf0277821fd09a098c0cc7c8a3664310697e70bcd549eb468c055453d374",
+        "decisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "f9c5bf0277821fd09a098c0cc7c8a3664310697e70bcd549eb468c055453d374",
+        "decisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0964ca690a5b16e0",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0964ca690a5b16e038e3471d71f4204510749ecceba833233273ce7150d82081",
+      "blindPacketHash": "fd2729f75d74691a9b4b724ec2940703a053b0b9070b07e4836327c13095c98a",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "science"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "fd2729f75d74691a9b4b724ec2940703a053b0b9070b07e4836327c13095c98a",
+        "decisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "fd2729f75d74691a9b4b724ec2940703a053b0b9070b07e4836327c13095c98a",
+        "decisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-00984254ce754fd0",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "00984254ce754fd098a15742aad899224630f0e5e2820ca507102c33835690a4",
+      "blindPacketHash": "e4b385d7d0c528981e5ef5813c865d92483be1659417261b303bae4cf9156a7e",
+      "state": "agreed",
+      "goldContentType": "deal",
+      "goldAcceptedCategories": [
+        "life"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "e4b385d7d0c528981e5ef5813c865d92483be1659417261b303bae4cf9156a7e",
+        "decisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "e4b385d7d0c528981e5ef5813c865d92483be1659417261b303bae4cf9156a7e",
+        "decisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-01a8f60b8b29a336",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "01a8f60b8b29a33688129ee058b762349097abb2c808e584689112bbe4b3cebd",
+      "blindPacketHash": "fa9b65b3bfec43c92f66ad6fd29b78938cc2ec306b80135590ac19af987031ae",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "fa9b65b3bfec43c92f66ad6fd29b78938cc2ec306b80135590ac19af987031ae",
+        "decisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "fa9b65b3bfec43c92f66ad6fd29b78938cc2ec306b80135590ac19af987031ae",
+        "decisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-013c2a63c26a6a5d",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "013c2a63c26a6a5d2185933b4773642f288bb1357d1097e9a02fbfbab09eb52f",
+      "blindPacketHash": "2fdbf976e1f43c17759d40f291c702d2d72f4e06029f9fcea7344e750160824d",
+      "state": "adjudicated",
+      "goldContentType": "other",
+      "goldAcceptedCategories": [],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": false,
+      "inScope": false,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "2fdbf976e1f43c17759d40f291c702d2d72f4e06029f9fcea7344e750160824d",
+        "decisionDigest": "9ca2d0c4fd64c5158416f66aa4e323b3a0e5bcceaa571ae2dad749372fb89001"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "2fdbf976e1f43c17759d40f291c702d2d72f4e06029f9fcea7344e750160824d",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "2fdbf976e1f43c17759d40f291c702d2d72f4e06029f9fcea7344e750160824d",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "finalDecisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-025f45be150f2727",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "025f45be150f272792748b74822aae3d285fd4a657a249aeabefd1b96104ce9c",
+      "blindPacketHash": "f1289f50950b6b269200c6abed594c22f36762e32aa2c33542703a0843863a5b",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "gaming"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "f1289f50950b6b269200c6abed594c22f36762e32aa2c33542703a0843863a5b",
+        "decisionDigest": "a68da5ededc8cc6349d708c24bed58811350a238a57477748317df2e1a9b9be6"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "f1289f50950b6b269200c6abed594c22f36762e32aa2c33542703a0843863a5b",
+        "decisionDigest": "afe9f6abbc1bf09e934c482e50a52f34c2bfd2e376b755c3d5ea8e3b2011ac69"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "f1289f50950b6b269200c6abed594c22f36762e32aa2c33542703a0843863a5b",
+        "decisionDigest": "a68da5ededc8cc6349d708c24bed58811350a238a57477748317df2e1a9b9be6"
+      },
+      "finalDecisionDigest": "a68da5ededc8cc6349d708c24bed58811350a238a57477748317df2e1a9b9be6",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-00422328f5d487bf",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "00422328f5d487bfcb94247ab75a55457ceea5e7acd75aa26861409ad30e5337",
+      "blindPacketHash": "70343a41901520923098b204222ce50a72ae84101282822424af4d5ab6253152",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "70343a41901520923098b204222ce50a72ae84101282822424af4d5ab6253152",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "70343a41901520923098b204222ce50a72ae84101282822424af4d5ab6253152",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-07cff039141a377a",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "07cff039141a377ab906b242a55b044552d8e682770f107ca3e0397f9fcdf196",
+      "blindPacketHash": "ef9e03752d67b62e8f1433fa075269774b3686010fae19d2df1bae806919dd83",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "ef9e03752d67b62e8f1433fa075269774b3686010fae19d2df1bae806919dd83",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "ef9e03752d67b62e8f1433fa075269774b3686010fae19d2df1bae806919dd83",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-01ffc3215e177cbb",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "01ffc3215e177cbb383f65005a4fabab8a3a4999083345883c7f4b07f9848758",
+      "blindPacketHash": "f777a1b495e7f5d86e5c60dbbcc9df36e91857827d1659c26246e3a3bf4c741c",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "culture"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "f777a1b495e7f5d86e5c60dbbcc9df36e91857827d1659c26246e3a3bf4c741c",
+        "decisionDigest": "0f1597c31e13c0710cfba09eb697faea8586ecb75c2174d61da1bea3a755d53d"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "f777a1b495e7f5d86e5c60dbbcc9df36e91857827d1659c26246e3a3bf4c741c",
+        "decisionDigest": "0f1597c31e13c0710cfba09eb697faea8586ecb75c2174d61da1bea3a755d53d"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "0f1597c31e13c0710cfba09eb697faea8586ecb75c2174d61da1bea3a755d53d",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0264216f0909c4ab",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0264216f0909c4ab32c5e6b6066a3716f5f87ee645d8a1766d5e87adac813e48",
+      "blindPacketHash": "7da8b852c6eb9d4d0b0787b41e554fa5b95e5751e9d0edbb09f3abbac8d69a7d",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "culture"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "7da8b852c6eb9d4d0b0787b41e554fa5b95e5751e9d0edbb09f3abbac8d69a7d",
+        "decisionDigest": "0f1597c31e13c0710cfba09eb697faea8586ecb75c2174d61da1bea3a755d53d"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "7da8b852c6eb9d4d0b0787b41e554fa5b95e5751e9d0edbb09f3abbac8d69a7d",
+        "decisionDigest": "0f1597c31e13c0710cfba09eb697faea8586ecb75c2174d61da1bea3a755d53d"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "0f1597c31e13c0710cfba09eb697faea8586ecb75c2174d61da1bea3a755d53d",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-000b3549798602a2",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "000b3549798602a2eaae6b483bf892662791a0f6f184d7b29639693e3eb4046e",
+      "blindPacketHash": "22d43e5a61bf116377df5ef53c34fb6b1cbf9ac9538698b9461f8f6c8276fc18",
+      "state": "agreed",
+      "goldContentType": "deal",
+      "goldAcceptedCategories": [
+        "gaming"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "22d43e5a61bf116377df5ef53c34fb6b1cbf9ac9538698b9461f8f6c8276fc18",
+        "decisionDigest": "44ec1c53d703f258d681646f15792cd29bf8f6bb7596cb4301be6879d33488d2"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "22d43e5a61bf116377df5ef53c34fb6b1cbf9ac9538698b9461f8f6c8276fc18",
+        "decisionDigest": "44ec1c53d703f258d681646f15792cd29bf8f6bb7596cb4301be6879d33488d2"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "44ec1c53d703f258d681646f15792cd29bf8f6bb7596cb4301be6879d33488d2",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-016abe9b13aec746",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "016abe9b13aec7466b86599bb7aa104c4b83cf116755118d2ca41aa0a0918e91",
+      "blindPacketHash": "dccceeaa7ca48d9d6d56dfd7d300f7f145fa96ff091a358675d6869cbe4d277d",
+      "state": "adjudicated",
+      "goldContentType": "deal",
+      "goldAcceptedCategories": [
+        "fashion"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "dccceeaa7ca48d9d6d56dfd7d300f7f145fa96ff091a358675d6869cbe4d277d",
+        "decisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "dccceeaa7ca48d9d6d56dfd7d300f7f145fa96ff091a358675d6869cbe4d277d",
+        "decisionDigest": "f399b340768bc5e5ed86f3bb940cb085cbc4da656f125bd8758d44705819138b"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "dccceeaa7ca48d9d6d56dfd7d300f7f145fa96ff091a358675d6869cbe4d277d",
+        "decisionDigest": "f399b340768bc5e5ed86f3bb940cb085cbc4da656f125bd8758d44705819138b"
+      },
+      "finalDecisionDigest": "f399b340768bc5e5ed86f3bb940cb085cbc4da656f125bd8758d44705819138b",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-04008a9469248afe",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "04008a9469248afedd45fdf20fe637301908a749a13012b48a672535f67b751b",
+      "blindPacketHash": "e3380894d033e946bc66e6c25319e1ae2bd954e2314a8667c912919dc68d5a09",
+      "state": "agreed",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "e3380894d033e946bc66e6c25319e1ae2bd954e2314a8667c912919dc68d5a09",
+        "decisionDigest": "1b3b56f0b248b42316e694dc50628a74c66fd0d5759024f53a08a2fe0de506a2"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "e3380894d033e946bc66e6c25319e1ae2bd954e2314a8667c912919dc68d5a09",
+        "decisionDigest": "1b3b56f0b248b42316e694dc50628a74c66fd0d5759024f53a08a2fe0de506a2"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "1b3b56f0b248b42316e694dc50628a74c66fd0d5759024f53a08a2fe0de506a2",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0478853b223ae86d",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0478853b223ae86d243e73d55d3b7b5ed7ebf866c80aaa98202867d8d182c2fe",
+      "blindPacketHash": "f09c42f71d8600233719d54b0a1bdefc8daf419f12da2accc7c78d239978608f",
+      "state": "adjudicated",
+      "goldContentType": "other",
+      "goldAcceptedCategories": [],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": false,
+      "inScope": false,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "f09c42f71d8600233719d54b0a1bdefc8daf419f12da2accc7c78d239978608f",
+        "decisionDigest": "1b3b56f0b248b42316e694dc50628a74c66fd0d5759024f53a08a2fe0de506a2"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "f09c42f71d8600233719d54b0a1bdefc8daf419f12da2accc7c78d239978608f",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "f09c42f71d8600233719d54b0a1bdefc8daf419f12da2accc7c78d239978608f",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "finalDecisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-01f07b7b71832725",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "01f07b7b71832725146245e5c3184ada0abb9ca1d6744cca5dd573ce5dd3f1f7",
+      "blindPacketHash": "99a386e9f5cb783effa808cca0f6ee017d41901ba21160c062f9008dd88e4cf9",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "politics"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "realestate"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "99a386e9f5cb783effa808cca0f6ee017d41901ba21160c062f9008dd88e4cf9",
+        "decisionDigest": "bb5390c4a52fbffe603442e427be243f0cff81cd9c04637c815f59e443892b9a"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "99a386e9f5cb783effa808cca0f6ee017d41901ba21160c062f9008dd88e4cf9",
+        "decisionDigest": "bb5390c4a52fbffe603442e427be243f0cff81cd9c04637c815f59e443892b9a"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "bb5390c4a52fbffe603442e427be243f0cff81cd9c04637c815f59e443892b9a",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-020ca60bd0cbdf4d",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "020ca60bd0cbdf4d272c31dc7d67102167b6704e00f51767465fd0cb07e634a8",
+      "blindPacketHash": "178cad714e6830ccdf29b9bfd81df8e835afac32888f6f89cd64a0176810d875",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "realestate"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "178cad714e6830ccdf29b9bfd81df8e835afac32888f6f89cd64a0176810d875",
+        "decisionDigest": "73a96907730336bd7092f40999144604a13f93d2b9d31b37f5bb728ab7857269"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "178cad714e6830ccdf29b9bfd81df8e835afac32888f6f89cd64a0176810d875",
+        "decisionDigest": "73a96907730336bd7092f40999144604a13f93d2b9d31b37f5bb728ab7857269"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "73a96907730336bd7092f40999144604a13f93d2b9d31b37f5bb728ab7857269",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-06319f18ee7c8885",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "06319f18ee7c8885c41e9db3beef5a7bd6324430bf39afffe656f2aa857b719a",
+      "blindPacketHash": "c7d3faa12581db552a3e89958ee32ee2bc453d8de62b3403b13797177b833591",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "fashion"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "c7d3faa12581db552a3e89958ee32ee2bc453d8de62b3403b13797177b833591",
+        "decisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "c7d3faa12581db552a3e89958ee32ee2bc453d8de62b3403b13797177b833591",
+        "decisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0a554adf0760de71",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0a554adf0760de71e29a303dea6d84b71e47896b69ecd418639e77118f1f39f9",
+      "blindPacketHash": "243a08db7ad3cacd50d4153a75a08b6be48aad91037ffb83b1627e49bcb3444e",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "fashion"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "art"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "243a08db7ad3cacd50d4153a75a08b6be48aad91037ffb83b1627e49bcb3444e",
+        "decisionDigest": "277ded21ffc9aff2d21a6f3cdb9f6d1f98a65c56ff48ed9ed7d5e4106f8a0ca3"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "243a08db7ad3cacd50d4153a75a08b6be48aad91037ffb83b1627e49bcb3444e",
+        "decisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "243a08db7ad3cacd50d4153a75a08b6be48aad91037ffb83b1627e49bcb3444e",
+        "decisionDigest": "277ded21ffc9aff2d21a6f3cdb9f6d1f98a65c56ff48ed9ed7d5e4106f8a0ca3"
+      },
+      "finalDecisionDigest": "277ded21ffc9aff2d21a6f3cdb9f6d1f98a65c56ff48ed9ed7d5e4106f8a0ca3",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-040dca37e16788cd",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "040dca37e16788cdebda5aa4dcb7caea39488ab8ab84b32631e37607309c5271",
+      "blindPacketHash": "7504a4a04fcc055d100109a4993b1d88c43b4b90413237c80d0b128098f97fad",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "art"
+      ],
+      "goldRejectedCategories": [
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "7504a4a04fcc055d100109a4993b1d88c43b4b90413237c80d0b128098f97fad",
+        "decisionDigest": "3d9e295c4d604d71ddc90bdb377ff699bab754904b2f998723ed3add1195b693"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "7504a4a04fcc055d100109a4993b1d88c43b4b90413237c80d0b128098f97fad",
+        "decisionDigest": "3d9e295c4d604d71ddc90bdb377ff699bab754904b2f998723ed3add1195b693"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "3d9e295c4d604d71ddc90bdb377ff699bab754904b2f998723ed3add1195b693",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-07e532b0ebdd9988",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "07e532b0ebdd99886ee03625109a459c79b6e32c10d25fa566a61191d5b4a749",
+      "blindPacketHash": "d95440db0c027f096be5496e1c9e1689eb06bc2277b8db98ed158e77f124653d",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "auto"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "art"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "d95440db0c027f096be5496e1c9e1689eb06bc2277b8db98ed158e77f124653d",
+        "decisionDigest": "5d2055a53d867e348a809e6298fab1b58bd08d723bb2d21892201f7638f02487"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "d95440db0c027f096be5496e1c9e1689eb06bc2277b8db98ed158e77f124653d",
+        "decisionDigest": "820ec315571a78f7d382e389ed552a9749d705410509596f2ded6b79a80ec59f"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "d95440db0c027f096be5496e1c9e1689eb06bc2277b8db98ed158e77f124653d",
+        "decisionDigest": "820ec315571a78f7d382e389ed552a9749d705410509596f2ded6b79a80ec59f"
+      },
+      "finalDecisionDigest": "820ec315571a78f7d382e389ed552a9749d705410509596f2ded6b79a80ec59f",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-02fc8b45c62a3d86",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "02fc8b45c62a3d8679cd8e88cb118b169a07b5cd88d21d4ed9745c1c8fa7bb9f",
+      "blindPacketHash": "5371a9a9961a1def4c629136613a3405669c463387ab03f5f2300752f12904b8",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "fashion"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "5371a9a9961a1def4c629136613a3405669c463387ab03f5f2300752f12904b8",
+        "decisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "5371a9a9961a1def4c629136613a3405669c463387ab03f5f2300752f12904b8",
+        "decisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-08c05cdb0bd045b2",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "08c05cdb0bd045b270b6cb27b5eb484af4f80683321e0b9b74f1091d07ba1d4a",
+      "blindPacketHash": "9b8f921c457f30acfc788428c54119e65aa651e8b3eaddb0b2d8081d2b3696cf",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "politics",
+        "realestate"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "9b8f921c457f30acfc788428c54119e65aa651e8b3eaddb0b2d8081d2b3696cf",
+        "decisionDigest": "54a58d493e398b980270b50cd5f65ebb678a0d128f048f18b67279eac3f76ebe"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "9b8f921c457f30acfc788428c54119e65aa651e8b3eaddb0b2d8081d2b3696cf",
+        "decisionDigest": "f4aa7b9076d2375c7a994768f86394e50adad18bdcba0a0c0fc70549e8e8d3a9"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "9b8f921c457f30acfc788428c54119e65aa651e8b3eaddb0b2d8081d2b3696cf",
+        "decisionDigest": "54a58d493e398b980270b50cd5f65ebb678a0d128f048f18b67279eac3f76ebe"
+      },
+      "finalDecisionDigest": "54a58d493e398b980270b50cd5f65ebb678a0d128f048f18b67279eac3f76ebe",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-024545152c89dd34",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "024545152c89dd345c78f372797ae1dc21367be0fb2d13d7b977ec04f9c9b251",
+      "blindPacketHash": "5027ab332b97d0cf3ac72b33e76a28cdf71dbd13c44d02f3137a451dec0cc996",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "politics",
+        "tech"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "5027ab332b97d0cf3ac72b33e76a28cdf71dbd13c44d02f3137a451dec0cc996",
+        "decisionDigest": "b0d7f28f8a8018933c77a969217c67b0904dd56faf131a49bcccd3e0523ae3e1"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "5027ab332b97d0cf3ac72b33e76a28cdf71dbd13c44d02f3137a451dec0cc996",
+        "decisionDigest": "e8a36e4c21d8e18c17e3dc912ce6978a789f20f0d6870f569047c47b00c1d94e"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "5027ab332b97d0cf3ac72b33e76a28cdf71dbd13c44d02f3137a451dec0cc996",
+        "decisionDigest": "a1ce96caa97469bba0fbc7f9b62339490842695ad383a014ec5e3e4562e5ff47"
+      },
+      "finalDecisionDigest": "a1ce96caa97469bba0fbc7f9b62339490842695ad383a014ec5e3e4562e5ff47",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0267201dd08292f4",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0267201dd08292f401f9f165e059824fc5e433dff9e29656c07c363f5559cc78",
+      "blindPacketHash": "23009f6312643b497f2a1b2cf8248d866c7824bdaf8d5e6df6bfad1ef082fc19",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "life"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "23009f6312643b497f2a1b2cf8248d866c7824bdaf8d5e6df6bfad1ef082fc19",
+        "decisionDigest": "fd6519412631ca3820f946b886d1b4563c5c5e4183bb10f8ac4bec3e4869d51d"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "23009f6312643b497f2a1b2cf8248d866c7824bdaf8d5e6df6bfad1ef082fc19",
+        "decisionDigest": "fd6519412631ca3820f946b886d1b4563c5c5e4183bb10f8ac4bec3e4869d51d"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "fd6519412631ca3820f946b886d1b4563c5c5e4183bb10f8ac4bec3e4869d51d",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0529e3cd5df5c17d",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0529e3cd5df5c17da7c6c689b61fcabd39c0ae0d2dcfda81eeec0388b62e44f7",
+      "blindPacketHash": "8301e321811b54087b1b921aed269e93abae04acd51f81ee2e9435a4e5ea6652",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "tech"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports"
+      ],
+      "descriptiveSecondaryCategories": [
+        "politics"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "8301e321811b54087b1b921aed269e93abae04acd51f81ee2e9435a4e5ea6652",
+        "decisionDigest": "f332b74d89a521a9e96a2732dc98b324510c439799f67e535509b54e63df4812"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "8301e321811b54087b1b921aed269e93abae04acd51f81ee2e9435a4e5ea6652",
+        "decisionDigest": "f332b74d89a521a9e96a2732dc98b324510c439799f67e535509b54e63df4812"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "f332b74d89a521a9e96a2732dc98b324510c439799f67e535509b54e63df4812",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-08e4fd10d9556eee",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "08e4fd10d9556eee1f2ffcdcafd5b1dbfc9dc39857c0084babfc69df5797b76f",
+      "blindPacketHash": "36b88bf73b457d62607b2cc69ec5d4b76af3f404fa071eba7e71709601dc2aeb",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "tech"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports"
+      ],
+      "descriptiveSecondaryCategories": [
+        "politics"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "36b88bf73b457d62607b2cc69ec5d4b76af3f404fa071eba7e71709601dc2aeb",
+        "decisionDigest": "f332b74d89a521a9e96a2732dc98b324510c439799f67e535509b54e63df4812"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "36b88bf73b457d62607b2cc69ec5d4b76af3f404fa071eba7e71709601dc2aeb",
+        "decisionDigest": "f332b74d89a521a9e96a2732dc98b324510c439799f67e535509b54e63df4812"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "f332b74d89a521a9e96a2732dc98b324510c439799f67e535509b54e63df4812",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0985fa9abfa45a44",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0985fa9abfa45a440ca2b6e5fe1d06302925c488761306ab820d40607b7cb928",
+      "blindPacketHash": "0f6758df5cb04227429783ee8659c8938330dc7b7289720a2b22b7d78873ae25",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "science"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "0f6758df5cb04227429783ee8659c8938330dc7b7289720a2b22b7d78873ae25",
+        "decisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "0f6758df5cb04227429783ee8659c8938330dc7b7289720a2b22b7d78873ae25",
+        "decisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0c3894339411abdb",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0c3894339411abdb98294a8a73a2d964ba61b5da5ed93e32d182b5daa36caad3",
+      "blindPacketHash": "81b8e43b33061560e07ef6621bb83d9134af7e3e87ebd1430516545cc5fbfb8e",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "science"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "81b8e43b33061560e07ef6621bb83d9134af7e3e87ebd1430516545cc5fbfb8e",
+        "decisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "81b8e43b33061560e07ef6621bb83d9134af7e3e87ebd1430516545cc5fbfb8e",
+        "decisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0059a90e5ce5be2f",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0059a90e5ce5be2fcf750bd99fb92f293a4dcb2c8e62894e7cd20529cdb56467",
+      "blindPacketHash": "5e553bf21bfa6707058f604bc9fe6dd9b1f9baea9cbd842f242f6336982e92c0",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "5e553bf21bfa6707058f604bc9fe6dd9b1f9baea9cbd842f242f6336982e92c0",
+        "decisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "5e553bf21bfa6707058f604bc9fe6dd9b1f9baea9cbd842f242f6336982e92c0",
+        "decisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-00da866826700417",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "00da8668267004175259a6ab8f4ba7249c19855b73ee10c0df3dfc38a72cc5b1",
+      "blindPacketHash": "7ac182a304f4e88aba23ac0a13353a4404e0c30251a8264336054d553a7d5b48",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "life"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "7ac182a304f4e88aba23ac0a13353a4404e0c30251a8264336054d553a7d5b48",
+        "decisionDigest": "fd6519412631ca3820f946b886d1b4563c5c5e4183bb10f8ac4bec3e4869d51d"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "7ac182a304f4e88aba23ac0a13353a4404e0c30251a8264336054d553a7d5b48",
+        "decisionDigest": "fd6519412631ca3820f946b886d1b4563c5c5e4183bb10f8ac4bec3e4869d51d"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "fd6519412631ca3820f946b886d1b4563c5c5e4183bb10f8ac4bec3e4869d51d",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0158fd779b30ed23",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0158fd779b30ed23b85f3af9efb2e71f23a10cd59bb63f5561fb38c03de237aa",
+      "blindPacketHash": "0e8c749ee3e22355cec1d9d8c81205da7805799957cc428fd550f0b4ed2336ab",
+      "state": "agreed",
+      "goldContentType": "other",
+      "goldAcceptedCategories": [],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": false,
+      "inScope": false,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "0e8c749ee3e22355cec1d9d8c81205da7805799957cc428fd550f0b4ed2336ab",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "0e8c749ee3e22355cec1d9d8c81205da7805799957cc428fd550f0b4ed2336ab",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0463f55d115525d0",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0463f55d115525d0ec3f11bc3c94c1d9995c4a21623928558dbca57dce3c0186",
+      "blindPacketHash": "131b3b34ac6c94b317bcc31643abb1b9b8ca899d8424b66dff4b0f9d477dc977",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "gaming"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "131b3b34ac6c94b317bcc31643abb1b9b8ca899d8424b66dff4b0f9d477dc977",
+        "decisionDigest": "a68da5ededc8cc6349d708c24bed58811350a238a57477748317df2e1a9b9be6"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "131b3b34ac6c94b317bcc31643abb1b9b8ca899d8424b66dff4b0f9d477dc977",
+        "decisionDigest": "a68da5ededc8cc6349d708c24bed58811350a238a57477748317df2e1a9b9be6"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "a68da5ededc8cc6349d708c24bed58811350a238a57477748317df2e1a9b9be6",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-001fb87a85ab0d15",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "001fb87a85ab0d15a345717f47a42721d0be4f5522c3ecb2089c983648a2f3c5",
+      "blindPacketHash": "f205eb56a1ab587a8da34bbe0e2e5991fda8a84bd146bb5562c3c68d52bf4741",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "f205eb56a1ab587a8da34bbe0e2e5991fda8a84bd146bb5562c3c68d52bf4741",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "f205eb56a1ab587a8da34bbe0e2e5991fda8a84bd146bb5562c3c68d52bf4741",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-038bbfe846d1c496",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "038bbfe846d1c496697972ea8f419c342f98570b777bbbb9a77ae8861d7992ee",
+      "blindPacketHash": "fe19077672525301e67b7487f8e9511f4a482669dde2e1e4534e20404b2097d5",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "fe19077672525301e67b7487f8e9511f4a482669dde2e1e4534e20404b2097d5",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "fe19077672525301e67b7487f8e9511f4a482669dde2e1e4534e20404b2097d5",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-007c444a935dfd99",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "007c444a935dfd9920e53e490d46cf076718517ad16aed29ce7d433787a9d1de",
+      "blindPacketHash": "b1d47b36cb9e5fea6f8c9a462fc6cad57fd019a8f75701ee829fc8f14dedc201",
+      "state": "agreed",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "politics"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "b1d47b36cb9e5fea6f8c9a462fc6cad57fd019a8f75701ee829fc8f14dedc201",
+        "decisionDigest": "7ec03fbeb484d897cb78ce3bfd40ac6814496f09c174eca3368c074296df7299"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "b1d47b36cb9e5fea6f8c9a462fc6cad57fd019a8f75701ee829fc8f14dedc201",
+        "decisionDigest": "7ec03fbeb484d897cb78ce3bfd40ac6814496f09c174eca3368c074296df7299"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "7ec03fbeb484d897cb78ce3bfd40ac6814496f09c174eca3368c074296df7299",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-036165adb969baac",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "036165adb969baacf9353f0dec2574b0086c66970d610cad0bd649dfba1ba7d2",
+      "blindPacketHash": "119b89c79909211e7f7e94fd54946c22b39d633816cf89eef4e36d72640f9daf",
+      "state": "agreed",
+      "goldContentType": "other",
+      "goldAcceptedCategories": [],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": false,
+      "inScope": false,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "119b89c79909211e7f7e94fd54946c22b39d633816cf89eef4e36d72640f9daf",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "119b89c79909211e7f7e94fd54946c22b39d633816cf89eef4e36d72640f9daf",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-01a46362f1c7ab17",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "01a46362f1c7ab17da2b1514d8bb3da15f9cf5294df83e980c8a3a508587f0ba",
+      "blindPacketHash": "308c10a991921bad45aa052033f3a938d0cda1e990f26941389440e1d7177677",
+      "state": "agreed",
+      "goldContentType": "deal",
+      "goldAcceptedCategories": [
+        "life"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "308c10a991921bad45aa052033f3a938d0cda1e990f26941389440e1d7177677",
+        "decisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "308c10a991921bad45aa052033f3a938d0cda1e990f26941389440e1d7177677",
+        "decisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-021d286d3903639f",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "021d286d3903639f03471e2080c8eaf59b31aa460772464894cb40cb64cd358f",
+      "blindPacketHash": "ca1f775d8c2adb10c37608f198825d7beb7cfc0e1ac65547db50710b15a0a7cc",
+      "state": "adjudicated",
+      "goldContentType": "deal",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "ca1f775d8c2adb10c37608f198825d7beb7cfc0e1ac65547db50710b15a0a7cc",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "ca1f775d8c2adb10c37608f198825d7beb7cfc0e1ac65547db50710b15a0a7cc",
+        "decisionDigest": "48620741c7248c1bcbbaef21dea6e5efc1212013368698867d4be141b789b67b"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "ca1f775d8c2adb10c37608f198825d7beb7cfc0e1ac65547db50710b15a0a7cc",
+        "decisionDigest": "48620741c7248c1bcbbaef21dea6e5efc1212013368698867d4be141b789b67b"
+      },
+      "finalDecisionDigest": "48620741c7248c1bcbbaef21dea6e5efc1212013368698867d4be141b789b67b",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-01541383aa4f2fa4",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "01541383aa4f2fa401d92d3cf8f3105303319f880e040d2278e2fddd4740db6e",
+      "blindPacketHash": "805371f9fea74cf5438737dd4e6252f3efbad01d8ed2c1306156a737af8723be",
+      "state": "agreed",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "politics"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "805371f9fea74cf5438737dd4e6252f3efbad01d8ed2c1306156a737af8723be",
+        "decisionDigest": "7ec03fbeb484d897cb78ce3bfd40ac6814496f09c174eca3368c074296df7299"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "805371f9fea74cf5438737dd4e6252f3efbad01d8ed2c1306156a737af8723be",
+        "decisionDigest": "7ec03fbeb484d897cb78ce3bfd40ac6814496f09c174eca3368c074296df7299"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "7ec03fbeb484d897cb78ce3bfd40ac6814496f09c174eca3368c074296df7299",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-01885b8b4efa9fe1",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "01885b8b4efa9fe1537cba0e00ae28b0ae43a8cf657d096f52b980695dfc6325",
+      "blindPacketHash": "7836c6dea29cc33a0d55023aa952518fa9e6f636a1c6c0e0e5e107363a588b01",
+      "state": "agreed",
+      "goldContentType": "deal",
+      "goldAcceptedCategories": [
+        "life"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "7836c6dea29cc33a0d55023aa952518fa9e6f636a1c6c0e0e5e107363a588b01",
+        "decisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "7836c6dea29cc33a0d55023aa952518fa9e6f636a1c6c0e0e5e107363a588b01",
+        "decisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0688751bcc7271cb",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0688751bcc7271cbb0d585673335f8596659792a0dbebefbe7fb44f333a67ba8",
+      "blindPacketHash": "83ba16c08f39621d625b469a197d21f1f2d7fddb3c14beb2401905c7464d3b3f",
+      "state": "agreed",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "realestate"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "83ba16c08f39621d625b469a197d21f1f2d7fddb3c14beb2401905c7464d3b3f",
+        "decisionDigest": "de278ce4142a8eb20324afc3e705bdd4f01bf6a60e9e63d87bf947171649f879"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "83ba16c08f39621d625b469a197d21f1f2d7fddb3c14beb2401905c7464d3b3f",
+        "decisionDigest": "de278ce4142a8eb20324afc3e705bdd4f01bf6a60e9e63d87bf947171649f879"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "de278ce4142a8eb20324afc3e705bdd4f01bf6a60e9e63d87bf947171649f879",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0ec77abdc9042c04",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0ec77abdc9042c048ecbbac59d332ed0143142b43394b4e6531254af1f5ae379",
+      "blindPacketHash": "0402c4f96305461b585bdf9ec29984abe83096df69afc18d3ca73b3ae9bd9a33",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "realestate"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "politics"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "0402c4f96305461b585bdf9ec29984abe83096df69afc18d3ca73b3ae9bd9a33",
+        "decisionDigest": "f4aa7b9076d2375c7a994768f86394e50adad18bdcba0a0c0fc70549e8e8d3a9"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "0402c4f96305461b585bdf9ec29984abe83096df69afc18d3ca73b3ae9bd9a33",
+        "decisionDigest": "f4aa7b9076d2375c7a994768f86394e50adad18bdcba0a0c0fc70549e8e8d3a9"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "f4aa7b9076d2375c7a994768f86394e50adad18bdcba0a0c0fc70549e8e8d3a9",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0a44f6142410a8a4",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0a44f6142410a8a44a73ac791fc84eff270159e8980145716cde0c81f9495949",
+      "blindPacketHash": "5e750c8d9f10e03abb0c463f58d67ace2b0252e906230ecedd5de7f12bb2a12f",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "fashion"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "5e750c8d9f10e03abb0c463f58d67ace2b0252e906230ecedd5de7f12bb2a12f",
+        "decisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "5e750c8d9f10e03abb0c463f58d67ace2b0252e906230ecedd5de7f12bb2a12f",
+        "decisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0f5fd8729cb584b2",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0f5fd8729cb584b26a7d11f0a487f150913cc3b0d22cd1e539e6dc8470fd2be2",
+      "blindPacketHash": "1c787f8817d9abe363e409aec2487d16b850639b4e0e7cdc175485158ad8fc3f",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "fashion",
+        "sports"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "1c787f8817d9abe363e409aec2487d16b850639b4e0e7cdc175485158ad8fc3f",
+        "decisionDigest": "adbdaee8ceb681472be8a6914916758ab8ffd3cb3e77b48982f2fb2f6bd9cdcc"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "1c787f8817d9abe363e409aec2487d16b850639b4e0e7cdc175485158ad8fc3f",
+        "decisionDigest": "adbdaee8ceb681472be8a6914916758ab8ffd3cb3e77b48982f2fb2f6bd9cdcc"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "adbdaee8ceb681472be8a6914916758ab8ffd3cb3e77b48982f2fb2f6bd9cdcc",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-031304068d140a35",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "031304068d140a35cd49bc084331e1d9438257cea6b0aa31a671c5a7ab11cfc9",
+      "blindPacketHash": "6dc51ae4bca5fd0603f03cd154ec3b2ff858e8cba82eb8fe9fd1d64623c852dc",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "art"
+      ],
+      "goldRejectedCategories": [
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "tech"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "6dc51ae4bca5fd0603f03cd154ec3b2ff858e8cba82eb8fe9fd1d64623c852dc",
+        "decisionDigest": "7c8059f39aa398dade2c18af6f64af4b12f61c05d57cf3416186b89160e1d7b3"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "6dc51ae4bca5fd0603f03cd154ec3b2ff858e8cba82eb8fe9fd1d64623c852dc",
+        "decisionDigest": "9b95a8114ab0d0c96a35aafda95d490ac4d3bdbe02352e82f9a2cae78b203ad4"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "6dc51ae4bca5fd0603f03cd154ec3b2ff858e8cba82eb8fe9fd1d64623c852dc",
+        "decisionDigest": "7c8059f39aa398dade2c18af6f64af4b12f61c05d57cf3416186b89160e1d7b3"
+      },
+      "finalDecisionDigest": "7c8059f39aa398dade2c18af6f64af4b12f61c05d57cf3416186b89160e1d7b3",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0c8cec09313ba4de",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0c8cec09313ba4de272e0b14198450d7eb84d749356c63e6946d89e5bbd4c8b8",
+      "blindPacketHash": "686fcea191cbbdeb94384e4fe9f87e94e95aa688d4d0271788788016cdd9e77f",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "art"
+      ],
+      "goldRejectedCategories": [
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "business"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "686fcea191cbbdeb94384e4fe9f87e94e95aa688d4d0271788788016cdd9e77f",
+        "decisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "686fcea191cbbdeb94384e4fe9f87e94e95aa688d4d0271788788016cdd9e77f",
+        "decisionDigest": "3d9e295c4d604d71ddc90bdb377ff699bab754904b2f998723ed3add1195b693"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "686fcea191cbbdeb94384e4fe9f87e94e95aa688d4d0271788788016cdd9e77f",
+        "decisionDigest": "f666cede8717d05d94b8a68766425f359d50b14fc00eea5b2dc0f8193a791a62"
+      },
+      "finalDecisionDigest": "f666cede8717d05d94b8a68766425f359d50b14fc00eea5b2dc0f8193a791a62",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0086f1dcc387ba73",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0086f1dcc387ba731f35c2f2b32c65bcf90d29d683bdb8e331227a680ea4418e",
+      "blindPacketHash": "ede4b6eed49abda116ead97a0dd6595ec5c3a5157f5602a6b3054b99d4db5298",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "politics"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "ede4b6eed49abda116ead97a0dd6595ec5c3a5157f5602a6b3054b99d4db5298",
+        "decisionDigest": "78688ff57e3fbafbd5262629f2fdba363a77cb985a82515dbb07b7f70ddbffe3"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "ede4b6eed49abda116ead97a0dd6595ec5c3a5157f5602a6b3054b99d4db5298",
+        "decisionDigest": "78688ff57e3fbafbd5262629f2fdba363a77cb985a82515dbb07b7f70ddbffe3"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "78688ff57e3fbafbd5262629f2fdba363a77cb985a82515dbb07b7f70ddbffe3",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-00c7ccec96176c7f",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "00c7ccec96176c7fe196afc7c1c7f7a138df9a5ba720ed2dc3fdac0494445433",
+      "blindPacketHash": "cd968ae6affd319a079f1765e54641ed551b494cb3aac2b8eb3b233080ccd34a",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "culture"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "cd968ae6affd319a079f1765e54641ed551b494cb3aac2b8eb3b233080ccd34a",
+        "decisionDigest": "0f1597c31e13c0710cfba09eb697faea8586ecb75c2174d61da1bea3a755d53d"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "cd968ae6affd319a079f1765e54641ed551b494cb3aac2b8eb3b233080ccd34a",
+        "decisionDigest": "0f1597c31e13c0710cfba09eb697faea8586ecb75c2174d61da1bea3a755d53d"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "0f1597c31e13c0710cfba09eb697faea8586ecb75c2174d61da1bea3a755d53d",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-02eb54ecc8684efd",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "02eb54ecc8684efd33e083bd42774d3cd4f1508efc82c99cf02e5142bbe7f096",
+      "blindPacketHash": "60537509fe5bedcd48353fb715b9faa12d936ebcba66e01f20d91ad38ea308c0",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "60537509fe5bedcd48353fb715b9faa12d936ebcba66e01f20d91ad38ea308c0",
+        "decisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "60537509fe5bedcd48353fb715b9faa12d936ebcba66e01f20d91ad38ea308c0",
+        "decisionDigest": "68860e9fc6f96b860722b33948193d3371dfa5d66ef4717791911cbf423f5f2a"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "60537509fe5bedcd48353fb715b9faa12d936ebcba66e01f20d91ad38ea308c0",
+        "decisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667"
+      },
+      "finalDecisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-03fc6e10e9b8363b",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "03fc6e10e9b8363b8a3f77ab6df3917d033d8c36f7e57d28c82e84a182c67b71",
+      "blindPacketHash": "aeb2bd377002b46d3910bc66fbe9e04b44cb61f79189f2228860305fe5b58d16",
+      "state": "agreed",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "politics"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "aeb2bd377002b46d3910bc66fbe9e04b44cb61f79189f2228860305fe5b58d16",
+        "decisionDigest": "7ec03fbeb484d897cb78ce3bfd40ac6814496f09c174eca3368c074296df7299"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "aeb2bd377002b46d3910bc66fbe9e04b44cb61f79189f2228860305fe5b58d16",
+        "decisionDigest": "7ec03fbeb484d897cb78ce3bfd40ac6814496f09c174eca3368c074296df7299"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "7ec03fbeb484d897cb78ce3bfd40ac6814496f09c174eca3368c074296df7299",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-00e9e14bc3de6cb7",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "00e9e14bc3de6cb7f9f86eef0d27073805df51119b7b9511c80e2d58910a09ae",
+      "blindPacketHash": "69ad10a8e672410e6639e0083367a3cf5f19b99a2c22b2efe7501e0acabd1646",
+      "state": "agreed",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "auto"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "69ad10a8e672410e6639e0083367a3cf5f19b99a2c22b2efe7501e0acabd1646",
+        "decisionDigest": "8aa613235f1b570d1cbb4c6f85c25b50af433299cf21c5bcf6c0227324e84c48"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "69ad10a8e672410e6639e0083367a3cf5f19b99a2c22b2efe7501e0acabd1646",
+        "decisionDigest": "8aa613235f1b570d1cbb4c6f85c25b50af433299cf21c5bcf6c0227324e84c48"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "8aa613235f1b570d1cbb4c6f85c25b50af433299cf21c5bcf6c0227324e84c48",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-13cf2ea4d14cd2ef",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "13cf2ea4d14cd2efb9802c18381be3dc954576e76887da986055947786ced71d",
+      "blindPacketHash": "f1040bd20dcdb29de440d6996994df3fe0597fe2234fcf2a3584df8e599fd05a",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "auto"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "f1040bd20dcdb29de440d6996994df3fe0597fe2234fcf2a3584df8e599fd05a",
+        "decisionDigest": "5d2055a53d867e348a809e6298fab1b58bd08d723bb2d21892201f7638f02487"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "f1040bd20dcdb29de440d6996994df3fe0597fe2234fcf2a3584df8e599fd05a",
+        "decisionDigest": "5d2055a53d867e348a809e6298fab1b58bd08d723bb2d21892201f7638f02487"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "5d2055a53d867e348a809e6298fab1b58bd08d723bb2d21892201f7638f02487",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-09e4f47005d2d763",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "09e4f47005d2d763d582288e2602b8372b0a58191aef5c92b6fb1cd797507d14",
+      "blindPacketHash": "10cb680f4aa320bc5a92ea053d50c99014a05e68199c653b28e362f65dba8552",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "science"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "10cb680f4aa320bc5a92ea053d50c99014a05e68199c653b28e362f65dba8552",
+        "decisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "10cb680f4aa320bc5a92ea053d50c99014a05e68199c653b28e362f65dba8552",
+        "decisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "6406453828a22452040549ce2fb4c03eeced7b6551439ebd9f1208c970e1cef2",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0e961e564b4bd879",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0e961e564b4bd87969e87b6dffeecb2246c2087415d55b715f2bbeabefaff48c",
+      "blindPacketHash": "995ffe173fbc0d4847deff2a1f677db3298f17548d0b8cc7caec794323b44f64",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "science"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "tech"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "995ffe173fbc0d4847deff2a1f677db3298f17548d0b8cc7caec794323b44f64",
+        "decisionDigest": "0b8ea12ec32308a4a5a3cf374abeda8066423b3f35ce215f3b24a53bbfaed84b"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "995ffe173fbc0d4847deff2a1f677db3298f17548d0b8cc7caec794323b44f64",
+        "decisionDigest": "0b8ea12ec32308a4a5a3cf374abeda8066423b3f35ce215f3b24a53bbfaed84b"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "0b8ea12ec32308a4a5a3cf374abeda8066423b3f35ce215f3b24a53bbfaed84b",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-01381732c0697411",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "01381732c0697411f713e63326038dc8a528ea893acf3481f696da589df52d55",
+      "blindPacketHash": "01eb50d883d5321b81508538c78cf9ee4acca5a0192ccbdaa5a49fc0505d55d8",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "life"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "01eb50d883d5321b81508538c78cf9ee4acca5a0192ccbdaa5a49fc0505d55d8",
+        "decisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "01eb50d883d5321b81508538c78cf9ee4acca5a0192ccbdaa5a49fc0505d55d8",
+        "decisionDigest": "68860e9fc6f96b860722b33948193d3371dfa5d66ef4717791911cbf423f5f2a"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "01eb50d883d5321b81508538c78cf9ee4acca5a0192ccbdaa5a49fc0505d55d8",
+        "decisionDigest": "68860e9fc6f96b860722b33948193d3371dfa5d66ef4717791911cbf423f5f2a"
+      },
+      "finalDecisionDigest": "68860e9fc6f96b860722b33948193d3371dfa5d66ef4717791911cbf423f5f2a",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0239b01ff505a4ae",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0239b01ff505a4aead280aa86eb6211457a5440a83818a236b62251cdc7ddee5",
+      "blindPacketHash": "83ef0fe556889b7dec761d8c1dab58666f5f291003742ad40a719704cd7fa80e",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "life"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "business",
+        "science"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "83ef0fe556889b7dec761d8c1dab58666f5f291003742ad40a719704cd7fa80e",
+        "decisionDigest": "d65ac69d0b938580310eab42da57b2047cf8e74dcbd038c22e5702cc7ae31d6b"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "83ef0fe556889b7dec761d8c1dab58666f5f291003742ad40a719704cd7fa80e",
+        "decisionDigest": "e5dacb77daa934c24b112de7b9de56852ac63bbc1c780e2ffcd12e07266d499a"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "83ef0fe556889b7dec761d8c1dab58666f5f291003742ad40a719704cd7fa80e",
+        "decisionDigest": "e5dacb77daa934c24b112de7b9de56852ac63bbc1c780e2ffcd12e07266d499a"
+      },
+      "finalDecisionDigest": "e5dacb77daa934c24b112de7b9de56852ac63bbc1c780e2ffcd12e07266d499a",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-040efa78a453a01a",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "040efa78a453a01abf3ec91fd66e3e2403fdac27619ebd9432033d52659218dc",
+      "blindPacketHash": "f004d38c7e1c73b5a95c4174d759b184683eb2f0fe602f22658def152a8e5f58",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "gaming"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "f004d38c7e1c73b5a95c4174d759b184683eb2f0fe602f22658def152a8e5f58",
+        "decisionDigest": "9ca2d0c4fd64c5158416f66aa4e323b3a0e5bcceaa571ae2dad749372fb89001"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "f004d38c7e1c73b5a95c4174d759b184683eb2f0fe602f22658def152a8e5f58",
+        "decisionDigest": "a68da5ededc8cc6349d708c24bed58811350a238a57477748317df2e1a9b9be6"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "f004d38c7e1c73b5a95c4174d759b184683eb2f0fe602f22658def152a8e5f58",
+        "decisionDigest": "a68da5ededc8cc6349d708c24bed58811350a238a57477748317df2e1a9b9be6"
+      },
+      "finalDecisionDigest": "a68da5ededc8cc6349d708c24bed58811350a238a57477748317df2e1a9b9be6",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-06f5897cc602abae",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "06f5897cc602abae2c7b34531e874cb5004c47b72f23d7fe81bba41d2ffc02d3",
+      "blindPacketHash": "9fed775084d33a2d7b304c80c98ebb0eb0672516ce98580fcf45092908ffdf56",
+      "state": "agreed",
+      "goldContentType": "other",
+      "goldAcceptedCategories": [],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": false,
+      "inScope": false,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "9fed775084d33a2d7b304c80c98ebb0eb0672516ce98580fcf45092908ffdf56",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "9fed775084d33a2d7b304c80c98ebb0eb0672516ce98580fcf45092908ffdf56",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-01922ef0a2523d4e",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "01922ef0a2523d4e8518a7cca062be68a396c13f75630f8960ac989036f8b755",
+      "blindPacketHash": "3664e7ea9f82e93db8606a3780ce1c3d2e18d222f659557c24b288384f284de8",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "3664e7ea9f82e93db8606a3780ce1c3d2e18d222f659557c24b288384f284de8",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "3664e7ea9f82e93db8606a3780ce1c3d2e18d222f659557c24b288384f284de8",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0ab55aeaa9bb686d",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0ab55aeaa9bb686d363d31ca1cfa1f1dd0a2bd51b4c636852e2e2c4ae45f06ad",
+      "blindPacketHash": "07a58f6ff81bbe7465d90174a529c25803781ca945376c55fa0e11d63897e5f8",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "07a58f6ff81bbe7465d90174a529c25803781ca945376c55fa0e11d63897e5f8",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "07a58f6ff81bbe7465d90174a529c25803781ca945376c55fa0e11d63897e5f8",
+        "decisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "c24225412dc962ea2d0b5d5703c7d8ecc4ec6f5d57d95bd6470f939042adb6de",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-01f8c19d82166f98",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "01f8c19d82166f98489bf71fafe443cf00a67627cf424bfa46a31f176112dd76",
+      "blindPacketHash": "b21650d8eeffef28c90f7d1a47485c944164695567f6bcda23163557560f1747",
+      "state": "agreed",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "culture"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "b21650d8eeffef28c90f7d1a47485c944164695567f6bcda23163557560f1747",
+        "decisionDigest": "1e0fd41cba887270a65af6367df71880c6f73b7b79b667ba37c723a0e9f32213"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "b21650d8eeffef28c90f7d1a47485c944164695567f6bcda23163557560f1747",
+        "decisionDigest": "1e0fd41cba887270a65af6367df71880c6f73b7b79b667ba37c723a0e9f32213"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "1e0fd41cba887270a65af6367df71880c6f73b7b79b667ba37c723a0e9f32213",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0352e134cd6b2edd",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0352e134cd6b2edd338d46e4a035595775905233457e05db7faaacebb25fbfce",
+      "blindPacketHash": "7a5df489dfe0aa2cd6713c7a5214181f1a0383e0da2457ac0cd329031a83df78",
+      "state": "agreed",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "culture"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "7a5df489dfe0aa2cd6713c7a5214181f1a0383e0da2457ac0cd329031a83df78",
+        "decisionDigest": "1e0fd41cba887270a65af6367df71880c6f73b7b79b667ba37c723a0e9f32213"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "7a5df489dfe0aa2cd6713c7a5214181f1a0383e0da2457ac0cd329031a83df78",
+        "decisionDigest": "1e0fd41cba887270a65af6367df71880c6f73b7b79b667ba37c723a0e9f32213"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "1e0fd41cba887270a65af6367df71880c6f73b7b79b667ba37c723a0e9f32213",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-008010d7dd3e7619",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "008010d7dd3e76197b6cde242d5c547bde4fd746b7d1925aac1bc5b20bc843b9",
+      "blindPacketHash": "7f634914d28d73493a27940bae53620b3495b1bd868c30d8afbc2e2c41eefe8a",
+      "state": "agreed",
+      "goldContentType": "deal",
+      "goldAcceptedCategories": [
+        "life"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "7f634914d28d73493a27940bae53620b3495b1bd868c30d8afbc2e2c41eefe8a",
+        "decisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "7f634914d28d73493a27940bae53620b3495b1bd868c30d8afbc2e2c41eefe8a",
+        "decisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "45b8db4f4227298cd99505568a24d9ff8ab930118b70663e27a8766977f052fa",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-025cf48371808b22",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "025cf48371808b22cf7630efff7415f985f582ca72d99f082325f2475b9600ee",
+      "blindPacketHash": "df3101480f58e96746587e6a41248b5d0e8782dea51d3daac917e2b05d508753",
+      "state": "agreed",
+      "goldContentType": "deal",
+      "goldAcceptedCategories": [
+        "fashion"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "df3101480f58e96746587e6a41248b5d0e8782dea51d3daac917e2b05d508753",
+        "decisionDigest": "f399b340768bc5e5ed86f3bb940cb085cbc4da656f125bd8758d44705819138b"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "df3101480f58e96746587e6a41248b5d0e8782dea51d3daac917e2b05d508753",
+        "decisionDigest": "f399b340768bc5e5ed86f3bb940cb085cbc4da656f125bd8758d44705819138b"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "f399b340768bc5e5ed86f3bb940cb085cbc4da656f125bd8758d44705819138b",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0098d07e434eb390",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0098d07e434eb390c0778b02eb2847f4bbe7ce7cf478a81d6dce6e7bc45447c3",
+      "blindPacketHash": "de2306ea3dfe9c7e9915f515f4b89c20fc0dd5588c883d31c4324d17946c2d78",
+      "state": "agreed",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "life"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "de2306ea3dfe9c7e9915f515f4b89c20fc0dd5588c883d31c4324d17946c2d78",
+        "decisionDigest": "5159f1344682903bc368a9c6aba3488b958635ec94a0f3149e3e35e01ba50406"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "de2306ea3dfe9c7e9915f515f4b89c20fc0dd5588c883d31c4324d17946c2d78",
+        "decisionDigest": "5159f1344682903bc368a9c6aba3488b958635ec94a0f3149e3e35e01ba50406"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "5159f1344682903bc368a9c6aba3488b958635ec94a0f3149e3e35e01ba50406",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-00ed2a1e9d1b72cf",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "00ed2a1e9d1b72cfa3ac146015ec9f96b35f3eb54ace3ef35f1a71fa7f962408",
+      "blindPacketHash": "27beaab07f06a69b540ef67201227b15411f5189975d99d19166eef5ee89f561",
+      "state": "adjudicated",
+      "goldContentType": "other",
+      "goldAcceptedCategories": [],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": false,
+      "inScope": false,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "27beaab07f06a69b540ef67201227b15411f5189975d99d19166eef5ee89f561",
+        "decisionDigest": "de278ce4142a8eb20324afc3e705bdd4f01bf6a60e9e63d87bf947171649f879"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "27beaab07f06a69b540ef67201227b15411f5189975d99d19166eef5ee89f561",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "27beaab07f06a69b540ef67201227b15411f5189975d99d19166eef5ee89f561",
+        "decisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba"
+      },
+      "finalDecisionDigest": "84593c120a6994765e2245bb38d1c875ab9b2965e5fcdbeaf9c944e6cb25edba",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-011b55ed038e0e3f",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "011b55ed038e0e3f2e45cffb35feab4341372864e33d50774a3296b091b0f020",
+      "blindPacketHash": "b9174a5a6c03c6554d072d2a119c3db7a50029eff67973f68ad2bf80f5f7f9ad",
+      "state": "adjudicated",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "realestate"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "b9174a5a6c03c6554d072d2a119c3db7a50029eff67973f68ad2bf80f5f7f9ad",
+        "decisionDigest": "de278ce4142a8eb20324afc3e705bdd4f01bf6a60e9e63d87bf947171649f879"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "b9174a5a6c03c6554d072d2a119c3db7a50029eff67973f68ad2bf80f5f7f9ad",
+        "decisionDigest": "25f6c82a294a9ae74031cfd40460914ee733244863500db3a78b65d954a6111d"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "b9174a5a6c03c6554d072d2a119c3db7a50029eff67973f68ad2bf80f5f7f9ad",
+        "decisionDigest": "de278ce4142a8eb20324afc3e705bdd4f01bf6a60e9e63d87bf947171649f879"
+      },
+      "finalDecisionDigest": "de278ce4142a8eb20324afc3e705bdd4f01bf6a60e9e63d87bf947171649f879",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0237957ceebc51fc",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0237957ceebc51fce1d32e7ba3aa56d508e31139a42a0c709f8f5eb75fde8935",
+      "blindPacketHash": "31a99af066e67f4dfe44d6ace8fda29c41b44bdbb7d0dbf713d37887040d95c9",
+      "state": "adjudicated",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "realestate"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "business"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "31a99af066e67f4dfe44d6ace8fda29c41b44bdbb7d0dbf713d37887040d95c9",
+        "decisionDigest": "de278ce4142a8eb20324afc3e705bdd4f01bf6a60e9e63d87bf947171649f879"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "31a99af066e67f4dfe44d6ace8fda29c41b44bdbb7d0dbf713d37887040d95c9",
+        "decisionDigest": "25f6c82a294a9ae74031cfd40460914ee733244863500db3a78b65d954a6111d"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "31a99af066e67f4dfe44d6ace8fda29c41b44bdbb7d0dbf713d37887040d95c9",
+        "decisionDigest": "25f6c82a294a9ae74031cfd40460914ee733244863500db3a78b65d954a6111d"
+      },
+      "finalDecisionDigest": "25f6c82a294a9ae74031cfd40460914ee733244863500db3a78b65d954a6111d",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0f7fe97ff2c0e9a8",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0f7fe97ff2c0e9a84f891d228b395807bf4cfb1952d93f615903d94b05b9611d",
+      "blindPacketHash": "14933c12f871308c1baf6cbfe398782d3d01c3737bdbb10d74f02fce49918a11",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "fashion"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "business"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "14933c12f871308c1baf6cbfe398782d3d01c3737bdbb10d74f02fce49918a11",
+        "decisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "14933c12f871308c1baf6cbfe398782d3d01c3737bdbb10d74f02fce49918a11",
+        "decisionDigest": "6fbc03177f104257d73e6e049c368bc77380db6b0c8a9fa844ba2b00108215d4"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "14933c12f871308c1baf6cbfe398782d3d01c3737bdbb10d74f02fce49918a11",
+        "decisionDigest": "6fbc03177f104257d73e6e049c368bc77380db6b0c8a9fa844ba2b00108215d4"
+      },
+      "finalDecisionDigest": "6fbc03177f104257d73e6e049c368bc77380db6b0c8a9fa844ba2b00108215d4",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-16ad7052fcc46593",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "16ad7052fcc465932e19b769b16d6c31b334af2c4c5a692eaadc7127fe7f8b8d",
+      "blindPacketHash": "f902249249dc349db2434d6fd3cda99de9493aa2658d9e5c0d93a51ac1faa440",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "fashion"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "business",
+        "culture",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "f902249249dc349db2434d6fd3cda99de9493aa2658d9e5c0d93a51ac1faa440",
+        "decisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "f902249249dc349db2434d6fd3cda99de9493aa2658d9e5c0d93a51ac1faa440",
+        "decisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "e0e4a3e049e9213e1561388f8a463b15babfe5f572d0c22714ec1488c9265cbe",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-0d1915174d6ccfa7",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "0d1915174d6ccfa77486084d7e6959079f6a479499eaa808817a7a9e60527b2a",
+      "blindPacketHash": "83d2bc5191cef3f07dbaf83e79b3cb0f3a3438adc6a2fb151b2899407856030c",
+      "state": "adjudicated",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "art",
+        "auto",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "art"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "83d2bc5191cef3f07dbaf83e79b3cb0f3a3438adc6a2fb151b2899407856030c",
+        "decisionDigest": "aa4b0d08413ed6cb53aa9b92a8651a8f7ffe520b3b3cf7ba9dbc498484f9b667"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "83d2bc5191cef3f07dbaf83e79b3cb0f3a3438adc6a2fb151b2899407856030c",
+        "decisionDigest": "a1935cae80c6260e5938fd1aeb79c2e536aec30352316ba82bca42a280cffdf0"
+      },
+      "adjudicator": {
+        "identity": "claude-opus-4-8-d1b-adjudicator-20260818",
+        "blindPacketHash": "83d2bc5191cef3f07dbaf83e79b3cb0f3a3438adc6a2fb151b2899407856030c",
+        "decisionDigest": "a1935cae80c6260e5938fd1aeb79c2e536aec30352316ba82bca42a280cffdf0"
+      },
+      "finalDecisionDigest": "a1935cae80c6260e5938fd1aeb79c2e536aec30352316ba82bca42a280cffdf0",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1r-152e5347c77ce46b",
+      "origin": "real_local_snapshot",
+      "evidenceHash": "152e5347c77ce46b71d3c4b3b1ac4d091ce938c08f2ed56e7825e49356606a33",
+      "blindPacketHash": "796bfe62b8d707e1332ecb71a44d1f14a4114a1e0820954e0fa7cef570eca0d1",
+      "state": "agreed",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "art"
+      ],
+      "goldRejectedCategories": [
+        "auto",
+        "business",
+        "culture",
+        "fashion",
+        "gaming",
+        "humor",
+        "life",
+        "news",
+        "politics",
+        "realestate",
+        "science",
+        "sports",
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [
+        "life"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "codex-luna-d1b-labeler-a-20260818",
+        "blindPacketHash": "796bfe62b8d707e1332ecb71a44d1f14a4114a1e0820954e0fa7cef570eca0d1",
+        "decisionDigest": "c39fa928429adf865722f440bde7590677a700768ec2c10a3c5c4173480510d7"
+      },
+      "labelerB": {
+        "identity": "codex-terra-d1b-labeler-b-20260818",
+        "blindPacketHash": "796bfe62b8d707e1332ecb71a44d1f14a4114a1e0820954e0fa7cef570eca0d1",
+        "decisionDigest": "c39fa928429adf865722f440bde7590677a700768ec2c10a3c5c4173480510d7"
+      },
+      "adjudicator": null,
+      "finalDecisionDigest": "c39fa928429adf865722f440bde7590677a700768ec2c10a3c5c4173480510d7",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1a-01-food-as-politics",
+      "origin": "adversarial_contract_fixture",
+      "evidenceHash": "4fffc1c22a1cb7ed7d7b595791d08fe94154b93be57ed05a6f97e740e51fa855",
+      "blindPacketHash": "e86618daef547edd74d9b542f76693dad7a434ba0bddbc45e9f6bb89c643a908",
+      "state": "contract_fixture_only",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "life"
+      ],
+      "goldRejectedCategories": [
+        "politics"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "e86618daef547edd74d9b542f76693dad7a434ba0bddbc45e9f6bb89c643a908",
+        "decisionDigest": "026151682a0ea9ad21a307c69b8797933adfd67f31a6c76d7ee13820d35d140d"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "026151682a0ea9ad21a307c69b8797933adfd67f31a6c76d7ee13820d35d140d",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1a-02-devto-as-fashion",
+      "origin": "adversarial_contract_fixture",
+      "evidenceHash": "c19a071cfdf97e7858e0a31e84307c8d0e415ca36cdf302700de3bf48f653b84",
+      "blindPacketHash": "d2707782a6bae3889930f71dc040f35e7bdd826c40463ae773e6d186201e3440",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "tech"
+      ],
+      "goldRejectedCategories": [
+        "fashion"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "d2707782a6bae3889930f71dc040f35e7bdd826c40463ae773e6d186201e3440",
+        "decisionDigest": "a145118c893c3b93da65f5c34dc6045f386fe098cbac8afb60927996461a2e97"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "a145118c893c3b93da65f5c34dc6045f386fe098cbac8afb60927996461a2e97",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1a-03-community-as-news",
+      "origin": "adversarial_contract_fixture",
+      "evidenceHash": "e510e6c6a4dc2f19b0b0920df33d895e9b328ae25e428b23b0702d68cbd2b3ab",
+      "blindPacketHash": "8e1abf043a874c81480a3c8cc945238c65b4ce1f366e643759638acb3f0193e4",
+      "state": "contract_fixture_only",
+      "goldContentType": "community",
+      "goldAcceptedCategories": [
+        "tech"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "8e1abf043a874c81480a3c8cc945238c65b4ce1f366e643759638acb3f0193e4",
+        "decisionDigest": "6e9507447650ce1117b7bbdd02540c368138d018898bfc7d58f71b65bb5d1eaa"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "6e9507447650ce1117b7bbdd02540c368138d018898bfc7d58f71b65bb5d1eaa",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1a-04-deal-as-news",
+      "origin": "adversarial_contract_fixture",
+      "evidenceHash": "560e8bc306711d8761f7a2dce7728e490a3672d0df0e7aaf97287b81d5364b5d",
+      "blindPacketHash": "00bc642b2f34711e8903c323b37ac1bb75df27787f3c2397823009d6575be69b",
+      "state": "contract_fixture_only",
+      "goldContentType": "deal",
+      "goldAcceptedCategories": [
+        "tech"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "00bc642b2f34711e8903c323b37ac1bb75df27787f3c2397823009d6575be69b",
+        "decisionDigest": "cbf2df83d238f5f3dfa89bbf1d3b553db9754563b7c90ed41db5a5da60bc86fe"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "cbf2df83d238f5f3dfa89bbf1d3b553db9754563b7c90ed41db5a5da60bc86fe",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1a-05-source-prior-conflict",
+      "origin": "adversarial_contract_fixture",
+      "evidenceHash": "1677d9b72f505ce7eb30e02f842fdb1e1f93e9bfb886af647ee6f546d21cd6f5",
+      "blindPacketHash": "a0468435faeb02b8369e329ef6a6c4e8dd46098be4c237bb4b81a79c6d4d524a",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "sports"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "a0468435faeb02b8369e329ef6a6c4e8dd46098be4c237bb4b81a79c6d4d524a",
+        "decisionDigest": "3178b8c0edf924c9cba9a13acb30bfd7565abaf70741c06108734a76a0c7fec3"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "3178b8c0edf924c9cba9a13acb30bfd7565abaf70741c06108734a76a0c7fec3",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1a-06-genuine-cross-domain",
+      "origin": "adversarial_contract_fixture",
+      "evidenceHash": "c6d7bdeae3baed796cbfdb338db4729944c929457cb90a796807d5594e929fe4",
+      "blindPacketHash": "60f7d7d6e8d8783a385b4ca8375a62e391e51f37dbaaeb2e158cd0fcf81e2a84",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business",
+        "politics"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "60f7d7d6e8d8783a385b4ca8375a62e391e51f37dbaaeb2e158cd0fcf81e2a84",
+        "decisionDigest": "cbe9659480bcee065151d92b7def80f825063a06a209cb78cf026ba1c32a0678"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "cbe9659480bcee065151d92b7def80f825063a06a209cb78cf026ba1c32a0678",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1a-07-secondary-only-admission",
+      "origin": "adversarial_contract_fixture",
+      "evidenceHash": "41dfa1a2e350888ae77247acbb8c34590d0f2bae18153217e74d38372f6bebcf",
+      "blindPacketHash": "d2b543356d7fc1b6ec6705f751738022663a3078eb5a1c0665303738e90ad058",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "politics"
+      ],
+      "descriptiveSecondaryCategories": [
+        "politics"
+      ],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "d2b543356d7fc1b6ec6705f751738022663a3078eb5a1c0665303738e90ad058",
+        "decisionDigest": "8e7c4f516d5502a28d453868b44db93e9644351ab8b5459306fb4df4309939bb"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "8e7c4f516d5502a28d453868b44db93e9644351ab8b5459306fb4df4309939bb",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1a-08-primary-ok-admission-wrong",
+      "origin": "adversarial_contract_fixture",
+      "evidenceHash": "d3b801c50f8a420e23752c28c9545af8d5f3335b2b55ad4563b98605d716891a",
+      "blindPacketHash": "f9dc134f84889834776417f294f916681051987aabe9e51bef3ffe7bb8d06ab5",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "f9dc134f84889834776417f294f916681051987aabe9e51bef3ffe7bb8d06ab5",
+        "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1a-09-domestic-media-overseas-event",
+      "origin": "adversarial_contract_fixture",
+      "evidenceHash": "bf0ec7cd7ec2d1f7872d3be6981c2c3ed24419345576db97aa8fc6f9ccadfe41",
+      "blindPacketHash": "1a70369950ab30d6e2dbed997f3c7a482771ddd3bfcaff179ed5add2750eea44",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "1a70369950ab30d6e2dbed997f3c7a482771ddd3bfcaff179ed5add2750eea44",
+        "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1a-10-same-structure-diff-meaning",
+      "origin": "adversarial_contract_fixture",
+      "evidenceHash": "ff6ac3709cf0d8bb5abd23698da1ddd2515256c78a2f2cef33079c5b183746b2",
+      "blindPacketHash": "640681ceda65c4a04bd3654a9d33068064df4b463bae7c477307849c704527b9",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [
+        "tech"
+      ],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "640681ceda65c4a04bd3654a9d33068064df4b463bae7c477307849c704527b9",
+        "decisionDigest": "30ed187580b699f0e7156d149887c7cda0c84b785c55c294e6a05461b1bfba55"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "30ed187580b699f0e7156d149887c7cda0c84b785c55c294e6a05461b1bfba55",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1m-01a",
+      "origin": "mutation_fixture",
+      "evidenceHash": "aed936284dcb72c0a163bcb3d001a83744bf5d4e20370a0f5981d4fb5cd60fca",
+      "blindPacketHash": "dec3c4b15377c3fe7a28e947022dd442f375d525bed283fbc7e74be822ad575e",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "tech"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "dec3c4b15377c3fe7a28e947022dd442f375d525bed283fbc7e74be822ad575e",
+        "decisionDigest": "99e2f2def57130e75df3a8e0ed8c6bf7242e61babcdda01699b07cc632ccbe4c"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "99e2f2def57130e75df3a8e0ed8c6bf7242e61babcdda01699b07cc632ccbe4c",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1m-01b",
+      "origin": "mutation_fixture",
+      "evidenceHash": "6d6dc6fd954d232aed647c6e1adbf0d021134f9ef06cf580b3f99f2738bc204c",
+      "blindPacketHash": "90157352366cc00c2f0bca428ff454a50a51bd8c8435fd62d69ee6f66456509a",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "90157352366cc00c2f0bca428ff454a50a51bd8c8435fd62d69ee6f66456509a",
+        "decisionDigest": "203bdf0bd1aa0f0b0275175fc74d44cfc58cb4731dcd3c12d526c362a5724944"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "203bdf0bd1aa0f0b0275175fc74d44cfc58cb4731dcd3c12d526c362a5724944",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1m-02a",
+      "origin": "mutation_fixture",
+      "evidenceHash": "d4b0466637c38d16f1a98b82948e6bf2ed40299c7fbdd78ecd8e45f3ea961b4e",
+      "blindPacketHash": "bc6c93c713c97113e427e206e9a383569c848fb57c70202f4d46e2d94d60bbf3",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "business"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "bc6c93c713c97113e427e206e9a383569c848fb57c70202f4d46e2d94d60bbf3",
+        "decisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "2fbddcdcbde0d1acdf3c5290c01fa0bc9863ba92874f1759573de6b6cfb6e269",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1m-02b",
+      "origin": "mutation_fixture",
+      "evidenceHash": "47b55623cbbfe30d11a94e765140b4886457dbb55f5d27380b062cbdd2a202c9",
+      "blindPacketHash": "6bc00bc5825f56846548f9ef9261e901bf4fce8012395e49545b1f8340e6bcc3",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "6bc00bc5825f56846548f9ef9261e901bf4fce8012395e49545b1f8340e6bcc3",
+        "decisionDigest": "203bdf0bd1aa0f0b0275175fc74d44cfc58cb4731dcd3c12d526c362a5724944"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "203bdf0bd1aa0f0b0275175fc74d44cfc58cb4731dcd3c12d526c362a5724944",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1m-03a",
+      "origin": "mutation_fixture",
+      "evidenceHash": "60cf101af7df5073b132dbbd0cd91bef79c3338de11deb40883db45b080ac640",
+      "blindPacketHash": "6b5373f9d4a783d2d9734ced126a50f4bb20941c05c6df70909e3fb0995c5afa",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "6b5373f9d4a783d2d9734ced126a50f4bb20941c05c6df70909e3fb0995c5afa",
+        "decisionDigest": "203bdf0bd1aa0f0b0275175fc74d44cfc58cb4731dcd3c12d526c362a5724944"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "203bdf0bd1aa0f0b0275175fc74d44cfc58cb4731dcd3c12d526c362a5724944",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1m-03b",
+      "origin": "mutation_fixture",
+      "evidenceHash": "60cf101af7df5073b132dbbd0cd91bef79c3338de11deb40883db45b080ac640",
+      "blindPacketHash": "f5defbfd322929a4b09b7dd490e91bbef67308b0f899751d58314de369021107",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "sports"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "f5defbfd322929a4b09b7dd490e91bbef67308b0f899751d58314de369021107",
+        "decisionDigest": "203bdf0bd1aa0f0b0275175fc74d44cfc58cb4731dcd3c12d526c362a5724944"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "203bdf0bd1aa0f0b0275175fc74d44cfc58cb4731dcd3c12d526c362a5724944",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1m-04a",
+      "origin": "mutation_fixture",
+      "evidenceHash": "c72b6abcd1587cb45d344447ce6b5c18f19f17cd1994f8051363fa10d5417eca",
+      "blindPacketHash": "acb8fb3bc345ba7ee5a80b571be234ca0b8dac24f2545c25456e029735ed3590",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "tech"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "acb8fb3bc345ba7ee5a80b571be234ca0b8dac24f2545c25456e029735ed3590",
+        "decisionDigest": "99e2f2def57130e75df3a8e0ed8c6bf7242e61babcdda01699b07cc632ccbe4c"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "99e2f2def57130e75df3a8e0ed8c6bf7242e61babcdda01699b07cc632ccbe4c",
+      "decidedAt": null
+    },
+    {
+      "itemId": "d1m-04b",
+      "origin": "mutation_fixture",
+      "evidenceHash": "c72b6abcd1587cb45d344447ce6b5c18f19f17cd1994f8051363fa10d5417eca",
+      "blindPacketHash": "4c629c5f3358030e93bdb982257710104079dead029b4e739a55c5acad0389af",
+      "state": "contract_fixture_only",
+      "goldContentType": "news",
+      "goldAcceptedCategories": [
+        "tech"
+      ],
+      "goldRejectedCategories": [],
+      "descriptiveSecondaryCategories": [],
+      "humanValid": true,
+      "inScope": true,
+      "labelerA": {
+        "identity": "contract_construction",
+        "blindPacketHash": "4c629c5f3358030e93bdb982257710104079dead029b4e739a55c5acad0389af",
+        "decisionDigest": "99e2f2def57130e75df3a8e0ed8c6bf7242e61babcdda01699b07cc632ccbe4c"
+      },
+      "labelerB": null,
+      "adjudicator": null,
+      "finalDecisionDigest": "99e2f2def57130e75df3a8e0ed8c6bf7242e61babcdda01699b07cc632ccbe4c",
+      "decidedAt": null
+    }
+  ],
+  "normalization": "goldRejectedCategories = full taxonomy minus goldAcceptedCategories"
+}

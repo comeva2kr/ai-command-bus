@@ -38,6 +38,10 @@ export function rankParams(opts = {}) {
     // 방지 테스트 실측). 0.55면 같은 픽스처에서 top8이 60% 아래로 내려오면서도
     // 극단 점수 격차(바이럴 vs 사망)는 못 뒤집는다 — rank.test.js가 양방향 고정.
     exposureW: opts.exposureW ?? envNum("RANK_EXPOSURE_W", 0.55),
+    // 장기 스크롤 기아 방지선. 로그 감점만으로는 반응 격차가 큰 소스가 여러
+    // 페이지에 걸쳐 70%를 차지할 수 있었다. 활성 후보가 있는 동안 한 소스가
+    // 최소 노출 소스보다 이 값 이상 앞서지 못하게 하고, 대안이 없을 때만 푼다.
+    maxExposureLead: opts.maxExposureLead ?? envNum("RANK_MAX_EXPOSURE_LEAD", 10),
     // 같은 페이지 안에서 이미 뽑힌 소스의 반복 페널티
     pageRepeatW: opts.pageRepeatW ?? envNum("RANK_PAGE_REPEAT_W", 0.2),
     // 같은 페이지 안에서 이미 뽑힌 **카테고리**의 반복 페널티 (2026-08-01,
@@ -193,13 +197,32 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
       return (needP > 0 && isPicked(c)) || (needO > 0 && isOther(c));
     };
 
-    const eligible = (relaxCap, relaxCat, relaxGap) =>
+    const exposureLead = Number(params.maxExposureLead);
+    let minimumExposure = Infinity;
+    if (Number.isFinite(exposureLead) && exposureLead >= 0) {
+      const activeSources = new Set(remaining.map((entry) => diversityKey(entry.item)));
+      for (const src of activeSources) {
+        minimumExposure = Math.min(
+          minimumExposure,
+          exposureOf(src) + (pagePicks.get(src) || 0)
+        );
+      }
+    }
+    const exposureLeadOk = (c) => {
+      if (!Number.isFinite(exposureLead) || exposureLead < 0) return true;
+      const src = diversityKey(c.item);
+      const current = exposureOf(src) + (pagePicks.get(src) || 0);
+      return current <= minimumExposure + exposureLead;
+    };
+
+    const eligible = (relaxCap, relaxCat, relaxGap, relaxExposureLead = false) =>
       remaining.filter(
         (c) =>
           (relaxCap || (pagePicks.get(diversityKey(c.item)) || 0) < capFor(c)) &&
           (relaxCat || (pageCats.get(c.item.category) || 0) < catCapFor(c)) &&
           (relaxCat || !isOther(c) || otherCount < neutralTotalCap) &&
           (relaxGap || !recentSrcs.includes(diversityKey(c.item))) &&
+          (relaxExposureLead || exposureLeadOk(c)) &&
           quotaOk(c)
       );
 
@@ -209,7 +232,10 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
     let feasible = eligible(false, false, false);
     if (!feasible.length) feasible = eligible(false, true, false);
     if (!feasible.length) feasible = eligible(true, true, false);
-    if (!feasible.length) feasible = eligible(true, true, true);
+    if (!feasible.length) feasible = eligible(false, false, false, true);
+    if (!feasible.length) feasible = eligible(false, true, false, true);
+    if (!feasible.length) feasible = eligible(true, true, false, true);
+    if (!feasible.length) feasible = eligible(true, true, true, true);
     if (!feasible.length) break; // 쿼터 자체를 채울 공급이 없음 (이미 클램프됐으므로 도달 드묾)
 
     // 소프트 페널티를 얹은 조정 점수로 최종 선택

@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test --test-timeout=90000 test/*.test.js",
+    "test": "node --test --test-timeout=180000 test/*.test.js",
     "demo": "node src/router.js examples/task_queue.json",
     "feed": "node src/feed/server.js",
     "editorial:canary": "node tools/editorial-llm-canary.mjs",

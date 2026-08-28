@@ -1,5 +1,11 @@
 import { decodeEntities } from "./html-text.js";
 import { discardBody } from "./fetchers.js";
+import { lookup as dnsLookup } from "node:dns/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { isIP } from "node:net";
+import { Readable } from "node:stream";
+import { isGoogleNewsRedirect } from "./canonical-url.js";
 // 썸네일 보강(enrichment) — image가 없는 피드 아이템의 원문 URL에서 og:image/
 // twitter:image "URL 문자열"만 뽑아 채워 넣는다.
 //
@@ -26,6 +32,9 @@ import { discardBody } from "./fetchers.js";
 const DEFAULT_UA = "ai-command-bus-feed/0.1 (+https://github.com/comeva2kr/ai-command-bus)";
 
 const MAX_HTML_BYTES = 200 * 1024; // og 메타는 <head>에 있다 — 200KB면 충분하고, 그 이상은 읽지 않는다
+const ARTICLE_HTML_MAX_BYTES = 700 * 1024;
+const ARTICLE_TEXT_MAX = 16000;
+const ARTICLE_TEXT_MIN = 250;
 
 // 2026-07-31 확장 (David: "상세창에 무조건 본문내용 축약버전을"): 같은 HTML
 // 요청에서 og:description/meta description도 뽑아 summary가 빈 아이템의
@@ -82,6 +91,8 @@ const NON_CONTENT_IMG = /(logo|icon|sprite|avatar|profile|blank|spacer|pixel|1x1
 // 기존 NON_CONTENT_IMG는 본문 폴백에만 걸려서 og:image로 들어온 것들을 못 막았다.
 const JUNK_IMG_PATH = /(?:^|\/)(?:banner|banners|ad|ads|adimg)\//i;
 const JUNK_IMG_FILE = /(?:^|\/)(?:test|sample|noimage|no_image|noimg|default|dummy|thumb_default)\.(?:png|jpe?g|gif|webp)$/i;
+const GENERIC_IMG_FILE = /(?:^|\/)(?:[^/]*(?:[_-]default|default[_-]|placeholder)[^/]*|headtitle|logo-news-sns|kakao_theqoo|search[_-]s|spinner)\.(?:png|jpe?g|gif|webp|svg)$/i;
+const JUNK_IMG_HOST = /^(?:lh\d+\.googleusercontent\.com|encrypted-tbn\d*\.gstatic\.com)$/i;
 
 // 유튜브 썸네일은 경로가 /vi/<11자 영상ID>/... 여야 한다. 다른 서비스의 클립
 // ID를 끼워 넣은 URL은 200처럼 보여도 실제로는 404다.
@@ -93,8 +104,11 @@ function badYoutubeThumb(u) {
 
 // 후보 URL이 대표 이미지로 쓸 수 없는 것인지 판정. 절대 URL(URL 객체)을 받는다.
 export function isJunkImage(u) {
+  if (JUNK_IMG_HOST.test(u.hostname)) return true;
+  if (u.hostname === "ssl.gstatic.com" && /\/news\//i.test(u.pathname)) return true;
   if (JUNK_IMG_PATH.test(u.pathname)) return true;
   if (JUNK_IMG_FILE.test(u.pathname)) return true;
+  if (GENERIC_IMG_FILE.test(u.pathname)) return true;
   if (badYoutubeThumb(u)) return true;
   return false;
 }
@@ -189,9 +203,10 @@ function decodeHtmlBytes(bytes, contentType) {
   }
 }
 
-async function readCapped(res, maxBytes, contentType) {
+async function readCapped(res, maxBytes, contentType, { allowTextFallback = true } = {}) {
   const reader = res.body && typeof res.body.getReader === "function" ? res.body.getReader() : null;
   if (!reader) {
+    if (!allowTextFallback) return "";
     const text = await res.text();
     return text.length > maxBytes ? text.slice(0, maxBytes) : text;
   }
@@ -201,12 +216,14 @@ async function readCapped(res, maxBytes, contentType) {
     while (received < maxBytes) {
       const { done, value } = await reader.read();
       if (done) break;
-      received += value.byteLength;
-      chunks.push(value);
+      const remaining = maxBytes - received;
+      const chunk = value.byteLength > remaining ? value.slice(0, remaining) : value;
+      received += chunk.byteLength;
+      chunks.push(chunk);
     }
   } finally {
     try {
-      reader.cancel();
+      reader.cancel().catch(() => {});
     } catch {
       // 이미 끝났거나 취소 불가한 스트림 — 무시
     }
@@ -217,9 +234,486 @@ async function readCapped(res, maxBytes, contentType) {
   return decodeHtmlBytes(buf, contentType);
 }
 
-// url을 GET, 리다이렉트는 fetch 기본 동작대로 따라간다(news.google.com 같은
-// 리다이렉트 링크가 퍼블리셔 페이지에 도달하는 것도 이걸로 충분 — 별도 처리
-// 불필요). content-type이 text/html이 아니면 이미지/PDF 등을 og 파싱하지
+function normalizeArticleText(value) {
+  const text = decodeEntities(String(value || ""))
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length > ARTICLE_TEXT_MAX ? text.slice(0, ARTICLE_TEXT_MAX).trimEnd() : text;
+}
+
+export function cleanArticleTextChrome(value) {
+  let text = normalizeArticleText(value);
+  const head = text.slice(0, 700);
+  const readAloud = head.match(/읽어주기 기능은 크롬기반의 브라우저에서만 사용하실 수 있습니다\.\s*AI 요약\s*/i);
+  if (readAloud) text = text.slice(readAloud.index + readAloud[0].length).trim();
+
+  const googleMedia = text.slice(0, 700).match(/Your browser does not support the audio element\.\s*구글 선호 매체 등록\s*/i);
+  if (googleMedia) {
+    text = text.slice(googleMedia.index + googleMedia[0].length).trim();
+    const ad = text.slice(0, 180).match(/(?:^|\s)광고\s+/);
+    if (ad) text = text.slice(ad.index + ad[0].length).trim();
+  }
+
+  const ytnHead = text.slice(0, 700);
+  const arrows = [...ytnHead.matchAll(/-->/g)];
+  if (arrows.length >= 3) text = text.slice(arrows.at(-1).index + 3).trim();
+
+  const dongAHead = text.slice(0, 1200);
+  if (/구글검색 선호 추가/.test(dongAHead)) {
+    const printAt = dongAHead.indexOf("프린트");
+    if (printAt >= 0) text = text.slice(printAt + "프린트".length).replace(/^\s*구독\s*/, "").trim();
+  }
+
+  const photoBig = text.slice(0, 350).match(/photo big-->/i);
+  if (photoBig) text = text.slice(photoBig.index + photoBig[0].length).trim();
+
+  const autoSummary = text.slice(0, 700).match(/요약보기 자동요약[\s\S]*?본문 보기를 권장합니다\./);
+  if (autoSummary) text = text.slice(autoSummary.index + autoSummary[0].length).trim();
+
+  const seoulHead = text.slice(0, 1200);
+  if (/기사 (?:소리로 듣기|읽어주기)/.test(seoulHead)) {
+    const preferred = "구글에서 서울신문 먼저 보기";
+    const preferredAt = seoulHead.indexOf(preferred);
+    if (preferredAt >= 0) text = text.slice(preferredAt + preferred.length).replace(/^\s*세줄 요약\s*/, "").trim();
+  }
+
+  const googlePreferred = text.slice(0, 700).match(/구글 검색 선호 매체 추가\s*/);
+  if (googlePreferred) text = text.slice(googlePreferred.index + googlePreferred[0].length).trim();
+
+  const imageViewer = text.slice(0, 500).match(/이미지 확대\s*닫기\s*이미지 확대 보기\s*/);
+  if (imageViewer) text = text.slice(imageViewer.index + imageViewer[0].length).trim();
+
+  const chromeTail = text.match(/\s(?:닫기 음성으로 듣기|제보는 카카오톡|연합뉴스TV 기사문의 및 제보|<저작권자|이야기를 실시간으로 팔로우하세요\.?\s*하위 섹션)/i);
+  if (chromeTail) text = text.slice(0, chromeTail.index).trim();
+  return normalizeArticleText(text);
+}
+
+function publicText(html) {
+  return cleanArticleTextChrome(String(html || "")
+    .replace(/<(?:script|style|nav|footer|aside|form|svg|noscript)\b[^>]*>[\s\S]*?<\/(?:script|style|nav|footer|aside|form|svg|noscript)>/gi, " ")
+    .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, " ")
+    .replace(/<([a-z][\w:-]*)\b(?=[^>]*\bdata-block\s*=\s*["'](?:metadata|links|topicList|promoList)["'])[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<\/?(?:p|div|li|h[1-6]|section|br)\b[^>]*>/gi, " ")
+    .replace(/<[^>]*>/g, " "));
+}
+
+function jsonLdArticleBody(html) {
+  const scripts = String(html || "").match(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) || [];
+  for (const script of scripts) {
+    const raw = (script.match(/>([\s\S]*?)<\/script>/i) || [])[1];
+    if (!raw) continue;
+    try {
+      const queue = [JSON.parse(raw)];
+      while (queue.length) {
+        const value = queue.shift();
+        if (!value || typeof value !== "object") continue;
+        const types = Array.isArray(value["@type"]) ? value["@type"] : [value["@type"]];
+        if (types.some((type) => /article$/i.test(String(type))) && typeof value.articleBody === "string") {
+          return normalizeArticleText(value.articleBody);
+        }
+        for (const child of Object.values(value)) {
+          if (child && typeof child === "object") queue.push(child);
+        }
+      }
+    } catch {
+      // Invalid JSON-LD is not public body evidence; continue to the HTML paths.
+    }
+  }
+  return "";
+}
+
+function sectionText(html, tag) {
+  const match = String(html || "").match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  return match ? publicText(match[1]) : "";
+}
+
+function articleBodyText(html) {
+  const source = String(html || "");
+  const opening = /<([a-z][\w:-]*)\b(?=[^>]*(?:\bid|\bitemprop)\s*=\s*["']articleBody["'])[^>]*>/i.exec(source);
+  if (!opening) return "";
+  const tag = opening[1];
+  const tags = new RegExp(`<\\/?${tag}\\b[^>]*>`, "gi");
+  const start = opening.index + opening[0].length;
+  tags.lastIndex = start;
+  let depth = 1;
+  let match;
+  while ((match = tags.exec(source))) {
+    if (/^<\//.test(match[0])) depth -= 1;
+    else if (!/\/\s*>$/.test(match[0])) depth += 1;
+    if (depth === 0) return publicText(source.slice(start, match.index));
+  }
+  return "";
+}
+
+function paragraphText(html) {
+  const paragraphs = [];
+  const re = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
+  let match;
+  while ((match = re.exec(String(html || "")))) paragraphs.push(publicText(match[1]));
+  return normalizeArticleText(paragraphs.join(" "));
+}
+
+function articleText(html) {
+  const explicit = [jsonLdArticleBody(html), articleBodyText(html)];
+  const explicitLongest = explicit.reduce((longest, text) => text.length > longest.length ? text : longest, "");
+  if (explicitLongest) {
+    return explicitLongest.length >= ARTICLE_TEXT_MIN
+      ? { text: explicitLongest, tooShort: false }
+      : { text: null, tooShort: true };
+  }
+  let longest = "";
+  for (const text of [sectionText(html, "article"), sectionText(html, "main"), paragraphText(html)]) {
+    if (text.length >= ARTICLE_TEXT_MIN) return { text, tooShort: false };
+    if (text.length > longest.length) longest = text;
+  }
+  return { text: null, tooShort: longest.length > 0 };
+}
+
+export function looksLikePageChrome(text) {
+  const value = String(text || "");
+  if (/오늘의\s*HIT\s*30/i.test(value)) return true;
+  if (/(?:rptHeader\s*\+=|읽어주기 기능은 크롬기반|구글 선호 매체 등록|구글검색 선호 추가|구글 검색 선호 매체 추가|기사 (?:소리로 듣기|읽어주기)|요약보기 자동요약|photo big-->|Your browser does not support the audio element|-->\s*가(?:\s|-->)*-->)/i.test(value.slice(0, 1200))) return true;
+  const markers = [
+    /로그인/i,
+    /회원가입/i,
+    /이용약관/i,
+    /개인정보처리방침/i,
+    /사업자등록번호/i,
+    /통신판매업신고/i,
+    /copyright\s*(?:©|\(c\))?/i,
+    /고객센터/i
+  ];
+  return markers.reduce((count, marker) => count + Number(marker.test(value)), 0) >= 3;
+}
+
+function pageTitle(html) {
+  const meta = metaContent(String(html || ""), "og:title");
+  const title = meta || (String(html || "").match(/<title\b[^>]*>([\s\S]*?)<\/title>/i) || [])[1];
+  return decodeEntities(String(title || "")).replace(/\s+/g, " ").trim();
+}
+
+function canonicalPageUrl(html, baseUrl) {
+  const tag = (String(html || "").match(/<link\b[^>]*\brel=["'][^"']*canonical[^"']*["'][^>]*>/i) || [])[0];
+  const href = tag && (tag.match(/\bhref=["']([^"']+)["']/i) || [])[1];
+  try { return href ? new URL(decodeEntities(href), baseUrl) : null; } catch { return null; }
+}
+
+function articleIdentityMatches(html, requestedUrl, finalUrl, expectedTitle, { strict = false } = {}) {
+  let requested;
+  let final;
+  try {
+    requested = new URL(requestedUrl);
+    final = new URL(finalUrl);
+  } catch {
+    return false;
+  }
+  const root = (url) => !url.pathname || url.pathname === "/";
+  if (!root(requested) && root(final)) return false;
+  const canonical = canonicalPageUrl(html, final);
+  if (canonical && !root(requested) && root(canonical)) return false;
+
+  const expected = String(expectedTitle || "").trim();
+  const observed = pageTitle(html);
+  if (!expected) return true;
+  if (!observed) return false;
+  if (/(?:access denied|request (?:was )?blocked|security check|attention required|forbidden|not found|error page)/i.test(observed)) {
+    return false;
+  }
+  if (/[가-힣]/.test(expected) !== /[가-힣]/.test(observed)) return !strict;
+  const normalizedExpected = expected.toLowerCase().replace(/\s+/g, " ").trim();
+  const normalizedObserved = observed.toLowerCase().replace(/\s+/g, " ").trim();
+  const shorter = normalizedExpected.length <= normalizedObserved.length ? normalizedExpected : normalizedObserved;
+  const longer = shorter === normalizedExpected ? normalizedObserved : normalizedExpected;
+  if (shorter.length >= 8 && longer.includes(shorter)) return true;
+  const tokens = (value) => new Set((value.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || []));
+  const left = tokens(expected);
+  const right = tokens(observed);
+  if (!strict) {
+    const smaller = Math.min(left.size, right.size);
+    if (!smaller) return false;
+    const overlap = [...left].filter((token) => right.has(token)).length;
+    return overlap >= (smaller <= 2 ? smaller : 2);
+  }
+  const overlap = [...left].filter((token) => right.has(token)).length;
+  return Math.min(left.size, right.size) >= 2 &&
+    overlap >= Math.max(2, Math.ceil(Math.min(left.size, right.size) / 2));
+}
+
+function unavailable(reasonCode, httpStatus = null, image = null, finalUrl = null) {
+  return { state: "unavailable", reasonCode, httpStatus, image, finalUrl };
+}
+
+const googleNewsPublisherCache = new Map();
+
+async function resolveGoogleNewsPublisherUrl(url, { fetchImpl, signal }) {
+  const cached = googleNewsPublisherCache.get(url);
+  if (cached) return cached;
+  const articleId = (() => {
+    try { return new URL(url).pathname.match(/\/(?:rss\/)?articles\/([^/]+)/)?.[1] || null; } catch { return null; }
+  })();
+  if (!articleId) return null;
+  try {
+    const pageOptions = {
+      headers: { "user-agent": DEFAULT_UA, accept: "text/html,*/*;q=0.8" },
+      redirect: "manual",
+      signal
+    };
+    let page = await fetchImpl(url, pageOptions);
+    if ([301, 302, 303, 307, 308].includes(Number(page && page.status))) {
+      const location = page.headers && page.headers.get && page.headers.get("location");
+      discardBody(page);
+      let redirected;
+      try { redirected = new URL(location, url); } catch { return null; }
+      const redirectedId = redirected.pathname.match(/\/(?:rss\/)?articles\/([^/]+)/)?.[1];
+      if (!isGoogleNewsRedirect(redirected.href) || redirectedId !== articleId) return null;
+      page = await fetchImpl(redirected.href, pageOptions);
+    }
+    if (!page || !page.ok) { discardBody(page); return null; }
+    const contentType = page.headers && page.headers.get && page.headers.get("content-type") || "";
+    const html = await readCapped(page, ARTICLE_HTML_MAX_BYTES, contentType);
+    const pageId = (html.match(/data-n-a-id=["']([^"']+)/i) || [])[1];
+    const timestamp = (html.match(/data-n-a-ts=["'](\d+)/i) || [])[1];
+    const signature = (html.match(/data-n-a-sg=["']([^"']+)/i) || [])[1];
+    if (!timestamp || !signature || pageId && pageId !== articleId) return null;
+
+    const request = [
+      "Fbv4je",
+      JSON.stringify([
+        "garturlreq",
+        [["X", "X", ["X", "X"], null, null, 1, 1, "US:en", null, 1, null, null, null, null, null, 0, 1],
+          "X", "X", 1, [1, 1, 1], 1, 1, null, 0, 0, null, 0],
+        articleId,
+        Number(timestamp),
+        signature
+      ]),
+      null,
+      "generic"
+    ];
+    const body = new URLSearchParams({ "f.req": JSON.stringify([[request]]) });
+    const rpc = await fetchImpl("https://news.google.com/_/DotsSplashUi/data/batchexecute", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
+        "user-agent": DEFAULT_UA
+      },
+      body,
+      signal
+    });
+    if (!rpc || !rpc.ok) { discardBody(rpc); return null; }
+    const responseText = await readCapped(rpc, 64 * 1024, rpc.headers && rpc.headers.get && rpc.headers.get("content-type"));
+    const jsonStart = responseText.indexOf("[");
+    if (jsonStart < 0) return null;
+    const outer = JSON.parse(responseText.slice(jsonStart));
+    const resultRow = outer.find((row) => Array.isArray(row) && row[1] === "Fbv4je");
+    const decoded = resultRow && JSON.parse(resultRow[2]);
+    const publisherUrl = decoded && decoded[0] === "garturlres" ? decoded[1] : null;
+    if (!/^https?:\/\//i.test(publisherUrl || "") || isGoogleNewsRedirect(publisherUrl)) return null;
+    if (googleNewsPublisherCache.size >= 2000) googleNewsPublisherCache.clear();
+    googleNewsPublisherCache.set(url, publisherUrl);
+    return publisherUrl;
+  } catch {
+    return null;
+  }
+}
+
+function publicIp(address) {
+  const value = String(address || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (value.startsWith("::ffff:")) return publicIp(value.slice(7));
+  if (isIP(value) === 4) {
+    const [a, b] = value.split(".").map(Number);
+    return !(a === 0 || a === 10 || a === 127 || a >= 224 ||
+      (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)));
+  }
+  if (isIP(value) === 6) {
+    return !(value === "::" || value === "::1" || /^f[cd]/.test(value) ||
+      /^fe[89ab]/.test(value) || /^fe[c-f]/.test(value) ||
+      value.startsWith("ff") || value.startsWith("2001:db8:"));
+  }
+  return false;
+}
+
+function fixedLookup(address, family) {
+  return (_hostname, options, callback) => {
+    const done = typeof options === "function" ? options : callback;
+    const resolvedFamily = Number(family) || isIP(address);
+    if (options && typeof options === "object" && options.all) {
+      done(null, [{ address, family: resolvedFamily }]);
+    } else {
+      done(null, address, resolvedFamily);
+    }
+  };
+}
+
+function pinnedFetch(url, { headers, signal, lookup }) {
+  return new Promise((resolve, reject) => {
+    const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+    const req = request(url, {
+      method: "GET",
+      headers,
+      signal,
+      lookup,
+      agent: false,
+      autoSelectFamily: false,
+      ...(url.protocol === "https:" && !isIP(url.hostname) ? { servername: url.hostname } : {})
+    }, (res) => {
+      const status = Number(res.statusCode || 0);
+      resolve({
+        ok: status >= 200 && status < 300,
+        status,
+        url: url.href,
+        headers: {
+          get(name) {
+            const value = res.headers[String(name || "").toLowerCase()];
+            return Array.isArray(value) ? value.join(", ") : value == null ? null : String(value);
+          }
+        },
+        body: Readable.toWeb(res)
+      });
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function abortable(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) throw signal.reason;
+  let onAbort;
+  const aborted = new Promise((_, reject) => {
+    onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([promise, aborted]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
+async function publicArticleUrl(value, resolveHost, signal) {
+  let parsed;
+  try { parsed = new URL(value); } catch { return { reasonCode: "UNSAFE_URL" }; }
+  if (!/^https?:$/.test(parsed.protocol) || parsed.username || parsed.password) return { reasonCode: "UNSAFE_URL" };
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
+    return { reasonCode: "UNSAFE_URL" };
+  }
+  if (isIP(hostname)) {
+    return publicIp(hostname)
+      ? { url: parsed, lookup: fixedLookup(hostname, isIP(hostname)) }
+      : { reasonCode: "UNSAFE_URL" };
+  }
+  if (resolveHost) {
+    try {
+      const addresses = await abortable(resolveHost(hostname, { all: true, verbatim: true }), signal);
+      if (!Array.isArray(addresses) || !addresses.length || addresses.some((row) => !publicIp(row && row.address))) {
+        return { reasonCode: "UNSAFE_URL" };
+      }
+      const selected = addresses[0];
+      return { url: parsed, lookup: fixedLookup(selected.address, selected.family) };
+    } catch {
+      return { reasonCode: signal && signal.aborted ? "TIMEOUT" : "NETWORK_ERROR" };
+    }
+  }
+  return { url: parsed, lookup: null };
+}
+
+// Public-page read for a later Korean summary. The fetched HTML is transient:
+// only capped plain text and an existing OG image URL leave this function.
+export async function fetchPublicArticle(url, {
+  timeoutMs = 5000,
+  fetchImpl = fetch,
+  resolveHost,
+  expectedTitle = null
+} = {}) {
+  const signal = AbortSignal.timeout(timeoutMs);
+  const requestedUrl = url;
+  if (isGoogleNewsRedirect(url)) {
+    url = await resolveGoogleNewsPublisherUrl(url, { fetchImpl, signal });
+    if (!url) return unavailable(signal.aborted ? "TIMEOUT" : "PUBLISHER_URL_UNAVAILABLE");
+  }
+  const resolver = resolveHost === undefined ? (fetchImpl === fetch ? dnsLookup : null) : resolveHost;
+  let checked = await publicArticleUrl(url, resolver, signal);
+  if (!checked.url) return unavailable(checked.reasonCode);
+  let res;
+  let currentUrl = checked.url;
+  for (let redirects = 0; redirects <= 5; redirects += 1) {
+    try {
+      const requestOptions = {
+        headers: { "user-agent": DEFAULT_UA, accept: "text/html,*/*;q=0.8" },
+        redirect: "manual",
+        signal,
+        lookup: checked.lookup
+      };
+      res = fetchImpl === fetch && checked.lookup
+        ? await pinnedFetch(currentUrl, requestOptions)
+        : await fetchImpl(currentUrl.href, requestOptions);
+    } catch {
+      return unavailable(signal.aborted ? "TIMEOUT" : "NETWORK_ERROR");
+    }
+    if (![301, 302, 303, 307, 308].includes(Number(res && res.status))) break;
+    const location = res.headers && res.headers.get && res.headers.get("location");
+    discardBody(res);
+    if (!location || redirects === 5) return unavailable("HTTP_ERROR", res.status);
+    let redirectedUrl;
+    try { redirectedUrl = new URL(location, currentUrl).href; } catch { return unavailable("HTTP_ERROR", res.status); }
+    checked = await publicArticleUrl(redirectedUrl, resolver, signal);
+    if (!checked.url) return unavailable(checked.reasonCode);
+    currentUrl = checked.url;
+  }
+  if (!res) return unavailable("NETWORK_ERROR");
+  if (!res.ok) {
+    const code = res.status === 401 ? "AUTH_REQUIRED"
+      : res.status === 403 ? "ACCESS_DENIED"
+      : res.status === 429 ? "RATE_LIMITED"
+      : res.status === 404 || res.status === 410 ? "NOT_FOUND"
+      : "HTTP_ERROR";
+    discardBody(res);
+    return unavailable(code, res.status);
+  }
+  const contentType = (res.headers && res.headers.get && res.headers.get("content-type")) || "";
+  if (!/text\/html/i.test(contentType)) {
+    discardBody(res);
+    return unavailable("NON_HTML", res.status);
+  }
+  let html;
+  try {
+    html = await readCapped(res, ARTICLE_HTML_MAX_BYTES, contentType, { allowTextFallback: false });
+  } catch {
+    return unavailable(signal.aborted ? "TIMEOUT" : "NETWORK_ERROR");
+  }
+  const finalUrl = res.url || currentUrl.href;
+  const image = extractOgImage(html, finalUrl);
+  const documentChanged = (() => {
+    try {
+      const before = new URL(url);
+      const after = new URL(finalUrl);
+      const path = (value) => value.pathname.replace(/\/+$/, "") || "/";
+      return before.hostname !== after.hostname || path(before) !== path(after);
+    } catch {
+      return true;
+    }
+  })();
+  if (!articleIdentityMatches(html, url, finalUrl, expectedTitle, {
+    strict: isGoogleNewsRedirect(requestedUrl) || documentChanged
+  })) {
+    return unavailable("ARTICLE_IDENTITY_MISMATCH", res.status);
+  }
+  const article = articleText(html);
+  if (article.text && looksLikePageChrome(article.text)) {
+    return unavailable("NO_PUBLIC_BODY", res.status, image, finalUrl);
+  }
+  if (!article.text) {
+    const reason = article.tooShort ? "PUBLIC_BODY_TOO_SHORT" : "NO_PUBLIC_BODY";
+    return unavailable(reason, res.status, image, finalUrl);
+  }
+  return { state: "available", text: article.text, image, finalUrl };
+}
+
+// url을 GET해 공개 메타만 읽는다. Google 뉴스 중계 URL은 언론사 원문이나
+// 대표 이미지가 아니므로 요청하지 않는다. content-type이 text/html이 아니면 이미지/PDF 등을 og 파싱하지
 // 않고 null. 403/404/타임아웃/네트워크 오류는 전부 조용히 null — 우회나
 // 재시도는 하지 않는다.
 export async function fetchOgImage(url, opts = {}) {
@@ -230,6 +724,7 @@ export async function fetchOgImage(url, opts = {}) {
 // 네트워크 1회로 image+desc를 함께 뽑는다. 실패 시 { image:null, desc:null }.
 export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch } = {}) {
   const empty = { image: null, desc: null };
+  if (isGoogleNewsRedirect(url)) return empty;
   let res;
   try {
     res = await fetchImpl(url, {
@@ -241,7 +736,7 @@ export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch } =
   }
   if (!res || !res.ok) { discardBody(res); return empty; } // 403/404 등 — 조용히 포기, 우회 금지
   const contentType = (res.headers && res.headers.get && res.headers.get("content-type")) || "";
-  if (!/text\/html/i.test(contentType)) return empty;
+  if (!/text\/html/i.test(contentType)) { discardBody(res); return empty; }
   let html;
   try {
     html = await readCapped(res, MAX_HTML_BYTES, contentType);

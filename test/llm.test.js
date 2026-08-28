@@ -1,7 +1,7 @@
 // 브리핑 해설 생성 — 환각 차단과 폴백이 핵심이다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { makeWriter, buildPrompt, validParagraph } from "../src/feed/llm.js";
+import { callStructuredMessage, makeWriter, buildPrompt, validParagraph } from "../src/feed/llm.js";
 
 const BRIEF = {
   issues: [
@@ -67,6 +67,28 @@ test("API가 죽어도 브리핑은 그대로 나간다", async () => {
     assert.equal(out.issues[0].headline, "정청래 당선");
     assert.equal(out.issues[0].essay, undefined);
   }
+});
+
+test("API 오류는 안전한 진단 정보와 요청 ID를 보존한다", async () => {
+  let error;
+  try {
+    await callStructuredMessage({
+      apiKey: "k",
+      system: "s",
+      prompt: "p",
+      schema: { type: "object" },
+      fetchImpl: async () => ({
+        ok: false,
+        status: 400,
+        headers: { get: (name) => name === "request-id" ? "req_test" : null },
+        json: async () => ({ error: { type: "billing_error", message: "workspace spend limit reached" } })
+      })
+    });
+    assert.fail("expected provider error");
+  } catch (caught) { error = caught; }
+  assert.match(error.message, /api 400 billing_error/);
+  assert.equal(error.providerMessage, "workspace spend limit reached");
+  assert.equal(error.requestId, "req_test");
 });
 
 test("키가 없으면 호출조차 하지 않는다", async () => {

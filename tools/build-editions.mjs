@@ -40,12 +40,23 @@ import {
   stableStringify, sha256Hex
 } from "../src/feed/shadow-selection.js";
 import { resolveObservationSlot, findPreviousLineageFile } from "./observe-shadow-slot.mjs";
+import { memoizedTranslator, TranslatingSource } from "../src/feed/translate.js";
+import { googleFreeTranslator } from "../src/feed/translator.js";
 import {
   V2_DIR, V2_COMBO_KEY, listV2Categories, v2Paths, v2SlotAlreadyDone,
   buildV2Edition, validateV2Edition
 } from "./build-v2-edition.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+// 해외 영문 소스 한글 번역 — 운영(docker-compose FEED_TRANSLATE=1)과 동일하게
+// 기본 ON이다. 미리보기 판이 운영과 다른 화면을 보여주면 검증 자체가 거짓이
+// 되므로(해외 뉴스가 한국어 독자 게이트에 걸려 빠지던 것) 이 도구도 운영처럼
+// 번역을 켠다. FEED_TRANSLATE=0으로만 끈다(결정론 재현이 필요한 테스트용).
+const editionTranslateFn = process.env.FEED_TRANSLATE === "0"
+  ? null
+  : memoizedTranslator(googleFreeTranslator());
+const editionTranslate = { targetLang: "ko", translateFn: editionTranslateFn };
 
 // 신문형 판(오늘판 스키마) 산출 경로 — v2 계약 파일(edition-<date>-<slot>.json)과
 // 접두사로 구분한다.
@@ -219,10 +230,17 @@ export async function buildTodayEditionInProcess({
   storeFile = null,
   poolFile = null,
   query = "/api/today",
+  categoryRoutingSnapshot = null,
+  translate = editionTranslate,
   // v2 전용(David 승인, 2026-08-17). v1 호출은 이 인자를 절대 넘기지 않는다 —
   // undefined → createServer의 opts.editorialExternalRank도 undefined라 v1
   // 동작은 바이트 그대로다.
-  editorialExternalRank = null
+  editorialExternalRank = null,
+  directBuild = false,
+  categories = null,
+  slotId = null,
+  editionDate = null,
+  editorialPreselectedPool = false
 } = {}) {
   const previousPoolFile = process.env.FEED_POOL_FILE;
   // 웜캐시로 이전 실행의 (제한된) 풀이 새 판에 새어 들지 않게 비운다.
@@ -234,17 +252,55 @@ export async function buildTodayEditionInProcess({
   }
   try {
     const { createServer } = await import("../src/feed/server.js");
+    let engine = null;
+    const preparedSources = translate && translate.targetLang
+      ? sources.map((source) => new TranslatingSource(
+          source,
+          translate.translateFn,
+          translate.targetLang
+        ))
+      : sources;
     const server = createServer({
-      sources,
+      sources: preparedSources,
       localEditorial: true,
       localEditorialLlmEnabled: false,        // LLM 호출 0 계약
       localEditorialInventorySchedule: false, // 배경 재고 점검 없음(1회성 도구)
       file: storeFile,
       clock: () => nowMs,
-      translate: { targetLang: "ko", translateFn: null },
+      translate,
       vapid: null,
-      ...(editorialExternalRank ? { editorialExternalRank } : {})
+      ...(categoryRoutingSnapshot ? {
+        categoryRoutingMode: "v2",
+        categoryRoutingSnapshot
+      } : {}),
+      ...(editorialExternalRank ? { editorialExternalRank } : {}),
+      editorialPreselectedPool,
+      onEngineReady: (value) => { engine = value; }
     });
+    if (directBuild) {
+      if (!engine) throw new Error("direct edition engine unavailable");
+      const edition = await engine.todayEdition({
+        categories,
+        slotId,
+        asOfMs: nowMs,
+        sharedCanonical: true,
+        allowCarryover: false,
+        editionDate
+      });
+      const body = {
+        ...edition,
+        requestedCategories: edition.selection.categories.map((category) => category.id),
+        serving: {
+          state: "build_candidate",
+          fallback: false,
+          requestedDate: edition.editionDate,
+          requestedSlotId: edition.slot.id,
+          servedDate: edition.editionDate,
+          servedSlotId: edition.slot.id
+        }
+      };
+      return { status: 200, edition: body, body };
+    }
     const response = await dispatchGet(server, query);
     let parsed = null;
     try { parsed = JSON.parse(response.body); } catch { parsed = null; }
@@ -353,7 +409,7 @@ async function main() {
       const { FeedStore } = await import("../src/feed/store.js");
       process.env.FEED_POOL_FILE = paths.pool;
       const sources = buildSources(registry, {
-        translate: { targetLang: "ko", translateFn: null },
+        translate: editionTranslate,
         seed: false,
         fetcher: (entry) => makeFetcher(entry)()
       });

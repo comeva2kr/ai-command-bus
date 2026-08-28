@@ -40,7 +40,53 @@ test("스키마: 대표 소스의 tier가 실제 성격과 맞는다", () => {
   // 전문 섹션 RSS
   assert.equal(byId.get("hankyung-realestate").sourceTier, "specialist");
   assert.equal(byId.get("mk-stock").sourceTier, "specialist");
-  assert.equal(byId.get("etnews").sourceTier, "specialist");
+  for (const id of ["etnews", "bloter", "mk-news", "hankyung", "chosunbiz", "mt", "heraldbiz", "etoday"]) {
+    assert.equal(byId.get(id).sourceTier, "aggregate", `${id}: 혼합 전체 피드는 전문 섹션 기본값을 쓰지 않는다`);
+  }
+  for (const [id, operatorGroup] of [
+    ["yna-society", "yonhap"],
+    ["khan-society", "khan"],
+    ["donga-national", "donga"]
+  ]) {
+    assert.equal(byId.get(id).sourceTier, "specialist", id);
+    assert.equal(byId.get(id).category, "news", id);
+    assert.equal(byId.get(id).categoryRouting, "declared_section", id);
+    assert.equal(byId.get(id).operatorGroup, operatorGroup, id);
+  }
+  for (const [id, operatorGroup] of [
+    ["yna-politics", "yonhap"],
+    ["khan-politics", "khan"],
+    ["donga-politics", "donga"]
+  ]) {
+    assert.equal(byId.get(id).sourceTier, "specialist", id);
+    assert.equal(byId.get(id).category, "politics", id);
+    assert.equal(byId.get(id).operatorGroup, operatorGroup, id);
+  }
+  for (const [id, operatorGroup] of [
+    ["bbc-technology", "bbc"],
+    ["techcrunch", "techcrunch"],
+    ["the-verge", "voxmedia"]
+  ]) {
+    const source = byId.get(id);
+    assert.equal(source.sourceTier, "specialist", id);
+    assert.equal(source.category, "tech", id);
+    assert.equal(source.categoryRouting, "declared_section", id);
+    assert.equal(source.operatorGroup, operatorGroup, id);
+    assert.equal(source.editorialAuthority, "global_major", id);
+    assert.match(source.adapter.url, /^https:\/\//, id);
+    assert.doesNotMatch(source.adapter.url, /news\.google\.com/, id);
+  }
+  assert.equal(byId.get("autodaily").sourceTier, "aggregate",
+    "autodaily: 자동차 외 기사가 섞인 전체 피드는 자동차 확정 소스로 쓰지 않는다");
+  assert.equal(byId.get("autodaily").operatorGroup, "autodaily");
+  for (const [id, operatorGroup] of [
+    ["carguy", "carguy"]
+  ]) {
+    assert.equal(byId.get(id).sourceTier, "specialist", id);
+    assert.equal(byId.get(id).category, "auto", id);
+    assert.equal(byId.get(id).operatorGroup, operatorGroup, id);
+    assert.match(byId.get(id).adapter.url, /^https:\/\/[^/]+\/rss\/allArticle\.xml$/);
+  }
   // 종합지·포털
   assert.equal(byId.get("yna").sourceTier, "aggregate");
   assert.equal(byId.get("techmeme").sourceTier, "aggregate");

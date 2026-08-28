@@ -7,9 +7,8 @@
 //
 // 그래서 매번 도는 항목으로 고정한다. 아래 셋은 전부 그날 실제로 깨진 것이다:
 //   1. 무한스크롤    — capDeals가 페이지를 짧게 만들어 "다 봤음"으로 뒤집혔다
-//   2. 광고 카드     — 애드핏 빈 지면이 쿠팡 자리를 먹어 수익이 0이 됐다
-//   3. 애드핏 지면   — 없애면 "설치 후 심사 진행" 반려 사유로 되돌아간다
-// 여기에 애드핏 4차 반려 대응으로 넷째를 더한다:
+//   2. 광고 모드     — AdFit 심사 중 다른 네트워크와 실시간 피드 광고가 섞이지 않음
+//   3. 지면 분리     — /는 자체 편집 홈, /live는 기존 개인화 앱
 //   4. 자체 콘텐츠   — 홈 첫 화면에서 우리가 쓴 글이 차지하는 비중
 //
 // 사용: node tools/preflight.mjs [base]   (기본 https://nowhot.kr)
@@ -30,6 +29,11 @@ async function json(path, init) {
 }
 
 console.log(`배포 전 점검 — ${BASE}\n`);
+
+const cfg = await json("/api/config");
+const reviewMode = Boolean(cfg.body && cfg.body.adfit && cfg.body.adfit.reviewMode);
+const liveMonetization = Boolean(cfg.body && cfg.body.monetization && cfg.body.monetization.enabled);
+const localEditorial = Boolean(cfg.body && cfg.body.localEditorial);
 
 // ── 1. 피드가 10페이지 이어지는가 (각 페이지가 꽉 차는가)
 const s = await json("/api/session", {
@@ -66,8 +70,14 @@ if (!s.body || !s.body.userId) {
   const uid2 = (s2.body && s2.body.userId) || uid;
   const f = await json(`/api/feed?userId=${uid2}&limit=30`);
   const ads = ((f.body && f.body.items) || []).filter((x) => x.via === "ad");
-  ok("광고 슬롯이 나온다", ads.length > 0, `${ads.length}건`);
-  if (ads.length) {
+  if (reviewMode) {
+    ok("심사 모드에서 /live 광고 슬롯을 비움", ads.length === 0, `${ads.length}건`);
+  } else if (liveMonetization) {
+    ok("광고 슬롯이 나온다", ads.length > 0, `${ads.length}건`);
+  } else {
+    ok("수익화 미설정 피드가 무광고", ads.length === 0, `${ads.length}건`);
+  }
+  if (!reviewMode && ads.length) {
     const broken = ads.filter((a) => !a.url || !a.image || !a.hook);
     ok("광고 카드가 온전함", broken.length === 0, `깨진 카드 ${broken.length}건`);
     const flat = ads.filter((a) => !a.productName || a.productName === a.hook);
@@ -75,30 +85,33 @@ if (!s.body || !s.body.userId) {
   }
 }
 
-// ── 3. 화면에 **빈 광고 칸**이 생기지 않는가
-//
-// 이 점검의 예전 판은 코드에 애드핏 지면이 "있는지"만 봤다. 그래서 8/8 통과인데
-// David 화면에는 "제휴 광고 / AD"와 고지문만 남은 169px 빈 칸이 있었다
-// (2026-08-06). 코드가 있는지가 아니라 **그 칸이 채워지는지**를 물어야 한다.
-//
-// 애드핏은 승인 전까지 지면을 만들되 아무것도 채우지 않고, 크로스오리진이라
-// 비었는지 화면에서 알 수도 없다. 그러니 **승인 전에는 지면 자체를 내주지 않는 것**만이
-// 확실하다. 승인되면 이 검사의 기대값을 뒤집는다.
+// ── 3. 심사 지면과 실시간 피드가 실제 응답에서 분리됐는가
 const html = await (await fetch(BASE + "/", { headers: CHECK_HEADERS })).text();
-const cfg = await json("/api/config");
+const liveHtml = await (await fetch(BASE + "/live", { headers: CHECK_HEADERS })).text();
 const adfitUnit = cfg.body && cfg.body.adfit && cfg.body.adfit.mobileUnit;
-ok("승인 전 애드핏 빈 지면을 안 그림", !adfitUnit,
-  adfitUnit ? "config가 광고단위를 내주고 있다 — 화면에 빈 칸이 생긴다" : "지면 미노출");
-ok("애드핏이 수익 슬롯을 안 먹음", /const useAdfit = false;/.test(html));
-ok("애드핏 배선은 보존됨(승인 시 되살릴 수 있음)",
-  /ensureAdfitPlacement/.test(html) && /kakao_ad_area/.test(html));
+ok("/live config에 AdFit 단위 없음", !adfitUnit,
+  adfitUnit ? "자동 갱신 피드가 광고단위를 받았다" : "단위 미전달");
+ok("/live는 noindex", /<meta name="robots" content="noindex,follow">/.test(liveHtml));
+const liveNetworkTag = /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i.test(liveHtml);
+ok("/live가 광고 네트워크 SDK를 직접 로드하지 않음", !liveNetworkTag);
+
+if (reviewMode) {
+  const units = (html.match(/class="kakao_ad_area"/g) || []).length;
+  ok("심사 홈에 AdFit 한 단위", units === 1, `${units}개`);
+  ok("심사 홈은 AdFit SDK만 로드", /t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/.test(html)
+    && !/pagead2\.googlesyndication\.com|link\.coupang\.com/.test(html));
+  ok("심사 모드 /live 제휴 데이터 없음",
+    cfg.body && cfg.body.coupang === null && cfg.body.monetization && cfg.body.monetization.enabled === false);
+} else {
+  ok("AdFit 심사 모드 꺼짐", !reviewMode);
+}
 
 // ── 3-B. 광고 카드가 **한 곳에서만** 그려지는가 (2026-08-06)
 //
 // 이 항목이 없어서 David가 같은 것을 네 번 지적했다. 광고를 그리는 함수가 둘이라
 // 어느 경로로 왔느냐에 따라 카드가 다르게 생겼고, 한쪽을 고치면 다른 쪽이 남았다.
 // 코드 수준에서 갈라짐을 막는다 — 화면을 안 열어도 잡힌다.
-const idx = await (await fetch(BASE + "/", { headers: CHECK_HEADERS })).text();
+const idx = liveHtml;
 const adFn = idx.slice(idx.indexOf("function appendAdCard(item){"), idx.indexOf("// 슬롯 노출 로깅"));
 ok("광고 렌더러가 하나다", /coupangCardHtml\(link,/.test(adFn) && !/adProductNameHtml|ad-disclosure-pop/.test(adFn),
   "서버 경로가 자기만의 마크업으로 되돌아갔다");
@@ -110,10 +123,55 @@ ok("광고 썸네일이 자리와 무관", (css.match(/#feed[^{;]*\.card-go \.go
   && /\.card \.card-go \.go-thumb\{[^}]*width:88px/.test(css));
 
 // ── 4. 자체 콘텐츠 — 애드핏 4차 반려 대응
-ok("홈에 자체 콘텐츠 블록 있음", /id="ownBlock"/.test(html));
+// 로컬 고도화 플래그에서는 정적 셸과 실제 API 편집 결과를 함께 본다. 운영 플래그가
+// 꺼진 서버는 기존 SSR 편집 홈 계약을 그대로 확인한다.
+const legacyEditorialHome = /<h1>지금핫<\/h1>/.test(html) && /어떻게 고르나/.test(html);
+const localEditorialHome = /<title>지금핫 오늘판<\/title>/.test(html)
+  && /id="issues"/.test(html) && /id="categories"/.test(html) && /href="\/live"/.test(html);
+ok("루트가 자체 편집 홈", localEditorial ? localEditorialHome : legacyEditorialHome,
+  localEditorial ? "로컬 개인 오늘판" : "기존 SSR 편집 홈");
+const rootBody = html.slice(html.indexOf("<body"));
+ok("편집 홈 본문에 외부 링크 목록 없음", !/<a[^>]+href="https?:\/\//i.test(rootBody));
 const brief = await json("/api/briefing");
 const issues = ((brief.body && brief.body.issues) || []).filter((i) => i && i.headline && i.paragraph);
 ok("우리가 쓴 브리핑 문단이 있음", issues.length >= 3, `${issues.length}건`);
+if (localEditorial) {
+  const today = await json("/api/today?categories=news,business,tech,humor");
+  const ownIssues = ((today.body && today.body.issues) || []).filter((issue) =>
+    issue && issue.whyImportant && issue.whyHot && issue.whyForYou && issue.confidence);
+  const receipt = today.body && today.body.candidateContract;
+  const editorialQuality = today.body && today.body.editorialQuality;
+  ok("로컬 오늘판 자체 편집 필드", ownIssues.length >= 3, `${ownIssues.length}건`);
+  const candidateMetrics = receipt && receipt.metrics;
+  const selectedCount = today.body && today.body.selection && today.body.selection.categories
+    ? today.body.selection.categories.length : 0;
+  const expectedSampleMode = selectedCount > 1
+    ? "independent_category_lists"
+    : "dynamic_current_edition";
+  ok("로컬 오늘판 동적 후보 계약", Boolean(candidateMetrics
+    && candidateMetrics.candidateCount >= ownIssues.length
+    && candidateMetrics.uniqueSourceCount >= 2
+    && candidateMetrics.selectedCategoryCoveragePct === 100),
+  candidateMetrics
+    ? `후보 ${candidateMetrics.candidateCount}건 · 출처 ${candidateMetrics.uniqueSourceCount}곳 · 선택 ${selectedCount}개`
+    : "영수증 없음");
+  const gateFailures = ownIssues.filter((issue) => !issue.editorialGate || !issue.editorialGate.pass);
+  // 변화 검사 전에는 반복 대체용 여분을 생성하므로 selectedAfterGate가 최종 발행 수보다
+  // 클 수 있다. 후보 탈락이 0이어야 하는 것도 품질 조건이 아니다. 최종 이슈가 모두
+  // 통과했고 초안 수가 최종 수를 충분히 덮는지만 확인한다.
+  ok("현재 판 발행 이슈 편집 게이트", Boolean(editorialQuality
+    && editorialQuality.sampleMode === expectedSampleMode
+    && editorialQuality.selectedAfterGate >= ownIssues.length
+    && gateFailures.length === 0),
+  editorialQuality
+    ? `검사 ${editorialQuality.evaluatedClusters}개 · 초안 ${editorialQuality.selectedAfterGate}개 · 최종 ${ownIssues.length}개 · 기계 탈락 ${editorialQuality.machineHold}개`
+    : "영수증 없음");
+  const falseCrossClaims = ownIssues.filter((issue) => issue.confidence.code === "multiple_feed_observed"
+    && (!issue.evidence || issue.evidence.mode !== "multiple_feed_observed"
+      || Number(issue.evidence.observedFeedCount) < 2));
+  ok("직접 복수 피드 표현 근거 일치", falseCrossClaims.length === 0,
+    `오표기 ${falseCrossClaims.length}건`);
+}
 
 // ── 5. 살아있는 서비스인가 — 2026-08-07 장애 2건 대응
 //

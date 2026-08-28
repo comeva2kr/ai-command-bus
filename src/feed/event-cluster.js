@@ -61,7 +61,7 @@ export const EVENT_MERGE_RULES = Object.freeze({
 const EVENT_GENERIC_TOKENS = new Set([
   "대통령", "정부", "국회", "의원", "장관", "총리", "여야", "당국",
   "발표", "발언", "출시", "정식", "공식", "확정", "예고", "전망",
-  "논란", "화제", "네티즌", "누리꾼", "프로",
+  "논란", "화제", "네티즌", "누리꾼", "프로", "만에", "개발",
   // ── 영문 일반어 (G1, 2026-08-14 신선·저장 풀 전수 실측 오병합 6건 근거)
   // 한글 일반어만 걷고 영문 일반어를 안 걷어서, 동일문자 임계 3이 무관 기사를
   // 병합했다. dedupe.js ENGLISH_STOP_WORDS는 digest 소비 경로(titleConcepts)라
@@ -114,7 +114,6 @@ export function eventEntityTokens(title) {
 // "숫자로 시작"을 숫자 판정으로 쓴다(순수 숫자만 보면 수치 충돌 가드가
 // 통째로 빠진다 — 실측: "부상 17명" vs "부상 90명"이 병합됐다).
 const isNumericToken = (t) => t.startsWith("num:") || /^\d/.test(t);
-const numberTokens = (title) => eventEntityTokens(title).filter(isNumericToken);
 
 // dedupe.js sameTitleConcept과 같은 셈법: 완전일치 또는 조사·합성어 수준의
 // 접두/접미 포함(한글 2자·영문 3자 이상).
@@ -149,50 +148,66 @@ const parseTime = (value) => {
   return Number.isFinite(t) ? t : null;
 };
 
-// 병합 판정 — 단일 진실. 반환: { merge, mode, reason }.
-export function decideEventMerge(a, b) {
-  // 1단 — 강한 결합. canonicalUrl 완전일치는 같은 문서 그 자체이므로
-  // 카테고리 팩 가드보다 먼저 본다(중계·재유통이 여기서 잡힌다 — 표본 5).
-  const ua = canonicalizeUrl(a && a.url);
-  const ub = canonicalizeUrl(b && b.url);
-  if (ua && ub && ua === ub) return { merge: true, mode: "strong", reason: "canonical_url_exact" };
+function prepareEventArticle(article) {
+  const title = article && article.title || "";
+  const tokens = eventEntityTokens(title);
+  return {
+    article,
+    url: canonicalizeUrl(article && article.url),
+    key: eventKey(title),
+    tokens,
+    numbers: tokens.filter(isNumericToken).map((token) => token.replace(/^num:/, "")),
+    time: parseTime(article && article.publishedAt),
+    korean: hasKoreanScript(title),
+    community: isCommunity(article),
+    humorCommunity: isHumorCommunity(article)
+  };
+}
 
-  // 카테고리 팩 비호환: community 유머글과 뉴스는 제목이 어떻게 겹쳐도
-  // 병합하지 않는다(가드 C).
-  const humorVsNews = (isHumorCommunity(a) && !isCommunity(b)) || (isHumorCommunity(b) && !isCommunity(a));
-  if (humorVsNews) return { merge: false, reason: "guard_category_pack_humor_vs_news" };
+function sharedPreparedTokens(a, b) {
+  const crossLanguage = a.korean !== b.korean;
+  const left = crossLanguage ? a.tokens.filter(isLatinOrNumberToken) : a.tokens;
+  const right = crossLanguage ? b.tokens.filter(isLatinOrNumberToken) : b.tokens;
+  const used = new Set();
+  const shared = [];
+  for (const token of left) {
+    const hit = right.findIndex((candidate, index) => !used.has(index) && tokenMatch(token, candidate));
+    if (hit < 0) continue;
+    used.add(hit);
+    shared.push(token.length <= right[hit].length ? token : right[hit]);
+  }
+  return shared;
+}
 
-  const ka = eventKey(a && a.title);
-  const kb = eventKey(b && b.title);
-  if (ka && ka === kb) return { merge: true, mode: "strong", reason: "event_key_exact" };
-
-  // 2단 — 내용어 결합. 커뮤니티 글끼리는 하지 않는다(강한 결합만).
-  if (isCommunity(a) && isCommunity(b)) return { merge: false, reason: "guard_community_pair_strong_only" };
-
-  const ta = parseTime(a && a.publishedAt);
-  const tb = parseTime(b && b.publishedAt);
-  if (ta === null || tb === null || Math.abs(ta - tb) > EVENT_MERGE_RULES.publishWindowHours * 3600 * 1000) {
+function decidePreparedEventMerge(a, b) {
+  if (a.url && b.url && a.url === b.url) {
+    return { merge: true, mode: "strong", reason: "canonical_url_exact" };
+  }
+  if ((a.humorCommunity && !b.community) || (b.humorCommunity && !a.community)) {
+    return { merge: false, reason: "guard_category_pack_humor_vs_news" };
+  }
+  if (a.key && a.key === b.key) return { merge: true, mode: "strong", reason: "event_key_exact" };
+  if (a.community && b.community) return { merge: false, reason: "guard_community_pair_strong_only" };
+  if (a.time === null || b.time === null ||
+      Math.abs(a.time - b.time) > EVENT_MERGE_RULES.publishWindowHours * 3600 * 1000) {
     return { merge: false, reason: "guard_publish_window_24h" };
   }
-
-  const crossLanguage = hasKoreanScript(a && a.title) !== hasKoreanScript(b && b.title);
+  const crossLanguage = a.korean !== b.korean;
   const minShared = crossLanguage
     ? EVENT_MERGE_RULES.minSharedEntityTokensCrossLanguage
     : EVENT_MERGE_RULES.minSharedEntityTokensSameScript;
-  const shared = sharedEventTokens(a && a.title, b && b.title);
-  if (shared.length < minShared) {
-    return { merge: false, reason: "guard_entity_overlap_min" };
-  }
-  if (shared.every(isNumericToken)) {
-    return { merge: false, reason: "guard_numbers_only_overlap" };
-  }
-  const normNum = (t) => t.replace(/^num:/, "");
-  const numsA = numberTokens(a && a.title).map(normNum);
-  const numsB = numberTokens(b && b.title).map(normNum);
-  if (numsA.length && numsB.length && !numsA.some((n) => numsB.includes(n))) {
+  const shared = sharedPreparedTokens(a, b);
+  if (shared.length < minShared) return { merge: false, reason: "guard_entity_overlap_min" };
+  if (shared.every(isNumericToken)) return { merge: false, reason: "guard_numbers_only_overlap" };
+  if (a.numbers.length && b.numbers.length && !a.numbers.some((number) => b.numbers.includes(number))) {
     return { merge: false, reason: "guard_number_conflict" };
   }
   return { merge: true, mode: "content", crossLanguage, reason: `entity_overlap:${shared.join("+")}` };
+}
+
+// 병합 판정 — 단일 진실. 반환: { merge, mode, reason }.
+export function decideEventMerge(a, b) {
+  return decidePreparedEventMerge(prepareEventArticle(a), prepareEventArticle(b));
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +222,12 @@ const articleOrder = (a, b) => {
   if (ta === null && tb !== null) return 1;
   return String(a.id || a.title || "").localeCompare(String(b.id || b.title || ""));
 };
+
+// 짧고 애매한 제목이 먼저 버킷을 차지하면 더 구체적인 후속 보도가 같은 사건을
+// 증명해도 잘못된 2건 묶음이 고정된다. 내용어가 많은 제목부터 뼈대를 잡고,
+// 사건 ID의 앵커·출처 표시는 아래 articleOrder를 그대로 사용한다.
+const preparedClusterOrder = (a, b) => b.tokens.length - a.tokens.length
+  || articleOrder(a.article, b.article);
 
 const seedOf = (article) => eventKey(article && article.title)
   || normalizeForDedupe(article && article.title)
@@ -298,23 +319,31 @@ function finalizeEvent(bucket) {
 
 // 기사 배열 → 사건 배열. 결정적: 발행시각·id 순으로 정렬 후 그리디 결합.
 export function buildEventClusters(articles) {
-  const sorted = [...(articles || [])].filter(Boolean).sort(articleOrder);
+  const sorted = [...(articles || [])].filter(Boolean).map(prepareEventArticle).sort(preparedClusterOrder);
   const buckets = [];
-  for (const article of sorted) {
+  for (const prepared of sorted) {
+    const article = prepared.article;
     let joined = null;
     let decision = null;
     for (const bucket of buckets) {
-      for (const member of bucket.articles) {
-        const d = decideEventMerge(member, article);
-        if (d.merge) { joined = bucket; decision = d; break; }
+      let first = null;
+      let allMerge = true;
+      for (const member of bucket.prepared) {
+        const current = decidePreparedEventMerge(member, prepared);
+        if (!current.merge) { allMerge = false; break; }
+        if (!first) first = current;
       }
-      if (joined) break;
+      if (!allMerge) continue;
+      joined = bucket;
+      decision = first;
+      break;
     }
     if (!joined) {
-      buckets.push({ articles: [article], decisionByArticle: new Map() });
+      buckets.push({ articles: [article], prepared: [prepared], decisionByArticle: new Map() });
       continue;
     }
     joined.articles.push(article);
+    joined.prepared.push(prepared);
     joined.decisionByArticle.set(article, decision);
   }
   return buckets.map(finalizeEvent);

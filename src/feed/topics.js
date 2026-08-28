@@ -136,10 +136,11 @@ function boardTopicsFor(sourceId, url) {
 // Classify a title/url/source into a deduplicated topics[] array. Called from
 // content.js's normalizeItem so every item — rss/list/api/seed/me — is tagged
 // the same way, exactly once, at the point it enters the system.
-export function classifyTopics({ title, url, sourceId } = {}) {
+export function classifyTopics({ title, url, sourceId, category } = {}) {
   const topics = new Set();
 
   for (const t of boardTopicsFor(sourceId, url)) topics.add(t);
+  if (category === "politics") topics.add("politics");
   if (titleHasAny(title, POLITICS_KEYWORDS)
     || (title && POLITICS_KEYWORD_PATTERNS.some((p) => p.test(title)))) topics.add("politics");
   if (titleHasAny(title, RELIGION_KEYWORDS)) topics.add("religion");

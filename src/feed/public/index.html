@@ -16,7 +16,7 @@
   apply(); m.addEventListener && m.addEventListener("change", function(){ if(pref()==="system") apply(); });
 })();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>지금핫 NowHot — 커뮤니티·뉴스 실시간 인기글 모아보기</title>
+<title>지금핫 실시간 피드 — 커뮤니티·뉴스 화제글</title>
 <!-- 검색 결과에 실제로 뜨는 문구 (David 2026-08-03 "검색 잘되게 세팅 잘해.
      사람들이 대충 비슷한거 해도 궁금해서 들어와볼수있게").
      예전엔 meta description도 canonical도 없어서, 구글이 스니펫을 만들 재료가
@@ -26,14 +26,14 @@
      예전 문구의 더쿠·루리웹은 수집이 멈춘 지 오래인데(실측 0건) 검색
      스니펫에서는 계속 데려온다고 말하고 있었다. -->
 <meta name="description" content="클리앙·뽐뿌·보배드림·이토랜드 등 커뮤니티와 뉴스의 인기글을 실측 반응 수치로 모읍니다.">
-<link rel="canonical" href="https://nowhot.kr/">
+<link rel="canonical" href="https://nowhot.kr/live">
 <!-- 네이버 서치어드바이저 소유확인 (2026-08-03).
      파일 방식(/naverfaea…html)과 메타태그 방식을 둘 다 둔다 — 토큰을 화면에서
      옮겨 적었기 때문에 한쪽이 오타여도 다른 쪽으로 인증이 통과한다.
      국내 커뮤니티·화제글 검색은 네이버 유입 비중이 커서, 등록하지 않으면
      브리핑·랭킹 페이지가 네이버 검색에 아예 안 뜬다. -->
 <meta name="naver-site-verification" content="0d469593c15f0aca6694a0eac43985579c104a4d" />
-<meta property="og:url" content="https://nowhot.kr/">
+<meta property="og:url" content="https://nowhot.kr/live">
 <meta property="og:image" content="https://nowhot.kr/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -41,15 +41,15 @@
      max-image-preview:large가 없으면 **구글 Discover 진입 자체가 안 된다** —
      뉴스성 사이트가 구글에서 받는 트래픽의 상당 부분이 그 경로인데 자격 미달
      상태로 운영하고 있었다. 미리보기 길이도 함께 푼다. -->
-<meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="robots" content="noindex,follow">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="alternate" type="application/rss+xml" title="지금핫 NowHot" href="/rss.xml">
 <!-- 구조화 데이터 — 검색엔진이 이 사이트가 무엇인지 기계적으로 읽는 경로.
      실제와 다른 것을 선언하면 리치 결과에서 제외되므로 사실만 적는다. -->
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"WebSite",
+{"@context":"https://schema.org","@type":"WebApplication",
  "name":"지금핫 NowHot","alternateName":"지금핫",
- "url":"https://nowhot.kr/","inLanguage":"ko",
+ "url":"https://nowhot.kr/live","inLanguage":"ko",
  "description":"여러 커뮤니티와 주요 뉴스에서 지금 가장 화제인 글을 실측 반응 수치로 모아 보여주는 서비스",
  "publisher":{"@type":"Organization","name":"페퍼클럽","url":"https://nowhot.kr/"}}
 </script>
@@ -641,6 +641,34 @@
     border-bottom:2px solid var(--color-divider)}
   .brand{font-family:var(--font-heading);font-weight:800;letter-spacing:-.02em}
   .brand small{color:var(--muted)}
+  body{padding-top:64px}
+  .topbar{position:fixed;top:0;left:0;right:0;width:auto;margin:0;padding:0;border-bottom:1px solid var(--line)}
+  .topbar-inner{height:64px;max-width:1160px;margin:0 auto;padding:0 22px;display:flex;align-items:center;gap:24px}
+  .topbar .brand{display:flex;align-items:center;gap:9px;flex:0 0 248px;font-size:20px;white-space:nowrap}
+  .topbar .brand-copy{display:flex;align-items:baseline;gap:7px;min-width:0}
+  .topbar .brand-title{display:inline-flex;align-items:baseline;gap:6px}
+  .topbar .brand-en{font:inherit;color:inherit;font-weight:900}
+  .topbar .brand small{display:block;color:var(--muted);font-size:11px;font-weight:750}
+  .topbar .brand-mark{width:24px;height:24px;flex:0 0 24px}
+  .view-tabs{align-self:stretch;display:grid;grid-template-columns:repeat(2,minmax(58px,1fr));align-items:stretch;position:relative;margin-left:18px}
+  .view-tabs a{display:flex;align-items:center;justify-content:center;position:relative;padding:0 12px;color:var(--muted);font:750 14px var(--font-heading)}
+  .view-tabs a[aria-current="page"]{color:var(--color-text)}
+  .view-indicator{position:absolute;left:0;bottom:-1px;width:50%;height:3px;background:var(--color-accent);transform:translateX(0);transition:transform .21s cubic-bezier(.22,.61,.36,1);pointer-events:none}
+  .view-tabs[data-active="live"] .view-indicator,.view-tabs[data-target="live"] .view-indicator{transform:translateX(100%)}
+  .view-tabs[data-target="today"] .view-indicator{transform:translateX(0)}
+  .topbar .menu-btn{margin-left:auto;width:38px;height:38px}
+  @media(max-width:620px){
+    body{padding-top:58px}
+    .topbar-inner{height:58px;padding:0 16px;gap:14px}
+    .topbar .brand{flex-basis:112px;font-size:18px}
+    .topbar .brand-copy{display:flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.05}
+    .topbar .brand-en{display:none}
+    .topbar .brand small{display:block;font-size:10px}
+    .view-tabs{margin-left:2px;grid-template-columns:repeat(2,minmax(50px,1fr))}
+    .view-tabs a{padding:0 8px}
+    .topbar .menu-btn{width:34px;height:34px}
+  }
+  @media(prefers-reduced-motion:reduce){.view-indicator{transition:none}}
   /* 태그라인 조판 (David 2026-08-01: "쭉 가다가 줄바꿈하는 게 부자연스럽다")
      — 한국어는 어절 단위로 끊어야 읽힌다. span 묶음으로 의미 단위를 보호하고,
      word-break:keep-all + text-wrap:balance로 두 줄이 고르게 나뉘게 한다. */
@@ -1125,11 +1153,16 @@
 <symbol id="i-external" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="14 3 21 3 21 10"></polyline><line x1="21" y1="3" x2="11" y2="13"></line><polyline points="18 14 18 21 3 21 3 6 10 6"></polyline></g></symbol>
 </defs></svg>
 
-  <header>
-    <div class="brand" id="brandHome" role="button" tabindex="0" title="홈으로 (새로고침)" style="cursor:pointer"><svg class="brand-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#111319"/><polyline points="88,368 176,330 244,346" fill="none" stroke="#e8eaf0" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><polyline points="244,346 344,150 424,214" fill="none" stroke="#ff4b3e" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><circle cx="344" cy="150" r="32" fill="#ff4b3e"/></svg> 지금핫 <span class="brand-en">NowHot</span> <small id="phaseLabel"></small>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand" id="brandHome" role="button" tabindex="0" title="실시간 피드 새로고침" style="cursor:pointer"><svg class="brand-mark" viewBox="0 0 512 512" width="22" height="22" aria-hidden="true"><rect width="512" height="512" rx="116" fill="#111319"/><polyline points="88,368 176,330 244,346" fill="none" stroke="#e8eaf0" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><polyline points="244,346 344,150 424,214" fill="none" stroke="#ff4b3e" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/><circle cx="344" cy="150" r="32" fill="#ff4b3e"/></svg><span class="brand-copy"><span class="brand-title">지금핫 <span class="brand-en">NowHot</span></span><small id="phaseLabel">맞춰가는 중</small></span></div>
+      <nav class="view-tabs" aria-label="보기 전환" data-view-switch data-active="live">
+        <a href="/" data-view="today">오늘</a>
+        <a href="/live" data-view="live" aria-current="page">실시간</a>
+        <span class="view-indicator" aria-hidden="true"></span>
+      </nav>
       <button id="menuBtn" class="menu-btn" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"></use></svg></button>
     </div>
-    <p class="tagline"><span>커뮤니티·뉴스에서 지금 가장 화제인 글만</span> <span>모아서 보여드려요</span></p>
   </header>
 
   <!-- 홈은 통합 핫 피드 하나만 — 소스별 선택 칩·필터 토글·내 공간·제출은 전부
@@ -1693,6 +1726,22 @@ if("ResizeObserver" in window){
   window.addEventListener("resize", syncHeaderHeight);
 }
 syncHeaderHeight();
+
+function setupViewSwitch(){
+  const nav=document.querySelector("[data-view-switch]");
+  if(!nav)return;
+  for(const link of nav.querySelectorAll("a[data-view]"))link.addEventListener("click",(event)=>{
+    if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+    const target=link.dataset.view;
+    if(target===nav.dataset.active||nav.dataset.switching){event.preventDefault();return}
+    event.preventDefault();
+    nav.dataset.switching="true";
+    nav.dataset.target=target;
+    const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+    setTimeout(()=>location.assign(link.href),reduced?0:210);
+  });
+}
+setupViewSwitch();
 
 // ---- boot ----
 (async function boot(){
@@ -2392,7 +2441,7 @@ function maybeShowRelease(release){
   document.body.appendChild(back);
 }
 
-// deep-link: a shared /p?id link bounces to /#post-<id>; open that post
+// deep-link: a shared /p?id link bounces to /live#post-<id>; open that post
 function openFromHash(){
   const h = location.hash;
   // 새로고침(버튼·당겨서 새로고침)은 홈으로 (David 2026-08-01). 상세를 열어둔
@@ -4202,7 +4251,7 @@ async function renderDetail(itemId){
       // 없는 글뿐이다 — 그때만 안내를 보여준다.
       body.innerHTML = '<div class="loading-wrap"><div class="loading-msg">이 글은 지금 목록에 없어요<br>' +
         '<span style="font-size:13px;opacity:.75">시간이 지나 내려갔을 수 있어요</span></div>' +
-        '<a class="readmore" href="/" style="margin-top:14px">지금 화제글 보러가기 →</a></div>';
+        '<a class="readmore" href="/live" style="margin-top:14px">지금 화제글 보러가기 →</a></div>';
       return;
     }
   }

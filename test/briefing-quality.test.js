@@ -596,10 +596,11 @@ test("편성: mainFeed:false 소스는 브리핑·랭킹에서도 빠진다", as
   // 걸려 있었기 때문이다 — 우리 이름으로 "오늘의 대표"라고 붙이는 자리야말로
   // 이 설정이 가장 필요하다.
   assert.match(src, /_offMainSet\(\)/, "공용 게터로 한 곳에서 판단해야 한다");
-  const briefingStart = src.indexOf("async briefing(");
-  const briefingEnd = src.indexOf("async todayEdition(", briefingStart);
-  const brief = src.slice(briefingStart, briefingEnd);
-  assert.match(brief, /_offMainSet\(\)\.has\(i\.source\)/, "브리핑에서 제외");
+  const sharedStart = src.indexOf("async _sharedBriefingContext(");
+  const sharedEnd = src.indexOf("async canonicalEventSources(", sharedStart);
+  const shared = src.slice(sharedStart, sharedEnd);
+  assert.match(shared, /!offMain\.has\(item\.source\)/,
+    "브리핑 공용 입력에서 한 번 제외해 모든 카테고리에 같은 기준을 적용한다");
   const rank = src.slice(src.indexOf("async rankingTop("), src.indexOf("async rankingTop(") + 2500);
   assert.match(rank, /_offMainSet\(\)\.has\(i\.source\)/, "랭킹에서 제외");
 });
@@ -788,7 +789,7 @@ test("개인판 출처 균형: 지면을 채우려고 상한을 풀어도 한 �
     "젠레스 상시가챠", "리그오브레전드 결승", "닌텐도 판매기록", "플레이스테이션 디스크", "스팀덱 휴대기기",
     "인디게임 음악협업", "게임소통학교 종료", "크래프톤 블루존", "SOOP 채팅번역", "아서왕 전략신작"
   ];
-  const items = ["게임메카", "PC 게이머", "게임 커뮤니티"].flatMap((sourceLabel, sourceIndex) =>
+  const gamingItems = ["게임메카", "PC 게이머", "게임 커뮤니티"].flatMap((sourceLabel, sourceIndex) =>
     Array.from({ length: 10 }, (_, index) => ({
       id: `${sourceIndex}-${index}`,
       title: `${sourceLabel} ${subjects[sourceIndex * 10 + index]}`,
@@ -799,22 +800,118 @@ test("개인판 출처 균형: 지면을 채우려고 상한을 풀어도 한 �
       tags: []
     }))
   );
-  const { issues } = buildDigest(items, {
-    maxIssues: 14,
+  const newsSubjects = [
+    "철도 노선 확장 일정", "항만 물류 협약 체결", "산불 진화 상황 발표", "대학 입시 전형 개편",
+    "의료보험 수가 조정", "농산물 작황 전망", "재생에너지 입찰 결과", "공공임대 공급 계획",
+    "항공 노선 증편", "문화재 복원 사업", "관광객 통계 발표", "신약 임상 승인",
+    "교육과정 개편", "해양보호구역 지정"
+  ];
+  const newsItems = newsSubjects.map((title, index) => ({
+    id: `news-${index}`,
+    title,
+    source: `source-${1 + (index % 2)}`,
+    sourceLabel: index % 2 ? "게임 커뮤니티" : "PC 게이머",
+    category: "news",
+    score: 200 - index,
+    tags: []
+  }));
+  const { issues } = buildDigest([...newsItems, ...gamingItems], {
+    maxIssues: 28,
     maxPerSource: 3,
-    selectedCategories: ["gaming"],
-    minIssuesPerCategory: 3
+    selectedCategories: ["news", "gaming"],
+    minIssuesPerCategory: 14,
+    additiveCategoryUnion: true
   });
   const counts = new Map();
-  for (const issue of issues) {
+  for (const issue of issues.filter((issue) => issue.categoryIds.includes("gaming"))) {
     const source = issue.refs[0].sourceLabel;
     counts.set(source, (counts.get(source) || 0) + 1);
   }
   const spread = [...counts.values()];
 
-  assert.equal(issues.length, 14);
+  assert.equal([...counts.values()].reduce((sum, count) => sum + count, 0), 14);
   assert.equal(counts.size, 3);
   assert.ok(Math.max(...spread) - Math.min(...spread) <= 1, JSON.stringify(Object.fromEntries(counts)));
+});
+
+test("출처 상한은 섹션 표시명이 아니라 운영 발행사 그룹으로 센다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const items = [
+    { id: "same-a", title: "반도체 투자 계획 첫 번째 보도", source: "publisher-tech", sourceLabel: "경제신문 기술",
+      ownershipGroup: "publisher-group", ownershipBasis: "registry_explicit", category: "tech", score: 300, tags: [] },
+    { id: "same-b", title: "클라우드 사업 확대 두 번째 보도", source: "publisher-business", sourceLabel: "경제신문 비즈니스",
+      ownershipGroup: "publisher-group", ownershipBasis: "registry_explicit", category: "tech", score: 200, tags: [] },
+    { id: "other", title: "인공지능 규제안 별도 보도", source: "other-publisher", sourceLabel: "다른신문",
+      ownershipGroup: "other-group", ownershipBasis: "registry_explicit", category: "tech", score: 100, tags: [] }
+  ];
+
+  const { issues } = buildDigest(items, { maxIssues: 2, maxPerSource: 1 });
+
+  assert.deepEqual(issues.map((issue) => issue.refs[0].id), ["same-a", "other"]);
+});
+
+test("분야별 국내외 목표는 이미 승인된 후보 안에서만 맞춘다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const domesticSources = ["yna", "khan", "donga", "mk-news", "etnews", "hankyung", "chosunbiz"];
+  const foreignSources = [
+    "bbc-world", "guardian-world", "nyt-world", "bbc-technology", "techcrunch",
+    "the-verge", "cnbc-economy", "bbc-business", "marketwatch-top"
+  ];
+  const bands = {
+    news: [0.50, 0.70],
+    business: [0.50, 0.60],
+    politics: [0.80, 0.90],
+    tech: [0.50, 0.70]
+  };
+  const subjects = [
+    "반도체 투자 계획", "주택 공급 일정", "기준금리 결정", "산불 진화 현황",
+    "우주망원경 관측", "전기차 배터리 공장", "축구대표팀 명단", "영화제 수상작",
+    "교육과정 개편", "항만 물류 협약", "의료보험 수가", "인공지능 규제",
+    "재생에너지 입찰", "관세 협상 결과", "신약 임상 승인", "철도 노선 확장",
+    "데이터센터 건설", "농산물 작황 전망", "국방예산 심의", "해양보호구역 지정",
+    "노동시간 개편", "문화재 복원", "게임산업 수출", "항공노선 증편",
+    "기후정상회의", "공공임대 공급", "소상공인 대출", "대학입시 전형",
+    "로봇산업 표준", "통신망 투자", "물가상승률 발표", "외환시장 안정",
+    "선거제도 논의", "원전 정비 일정", "사이버보안 훈련", "관광객 통계"
+  ];
+
+  for (const [category, [minimum, maximum]] of Object.entries(bands)) {
+    const domestic = Array.from({ length: 18 }, (_, index) => ({
+      id: `${category}-kr-${index}`,
+      title: subjects[index],
+      source: domesticSources[index % domesticSources.length],
+      sourceLabel: `국내매체 ${index + 1}`,
+      category,
+      score: 10,
+      tags: []
+    }));
+    const foreign = Array.from({ length: 18 }, (_, index) => ({
+      id: `${category}-global-${index}`,
+      title: subjects[index + 18],
+      source: foreignSources[index % foreignSources.length],
+      sourceLabel: `해외매체 ${index + 1}`,
+      category,
+      score: 10,
+      tags: []
+    }));
+    const items = category === "politics" ? [...domestic, ...foreign] : [...foreign, ...domestic];
+    const externalRank = new Map(items.map((item, index) => [item.id, index]));
+    const { issues } = buildDigest(items, {
+      maxIssues: 14,
+      maxPerSource: 14,
+      selectedCategories: [category],
+      minIssuesPerCategory: 14,
+      additiveCategoryUnion: true,
+      externalRank
+    });
+    const foreignIds = new Set(foreign.map((item) => item.id));
+    const domesticCount = issues.filter((issue) => !foreignIds.has(issue.refs[0].id)).length;
+    const share = domesticCount / issues.length;
+
+    assert.equal(issues.length, 14, `${category}는 의미상 승인 후보 14건을 유지해야 한다`);
+    assert.ok(share >= minimum && share <= maximum,
+      `${category} 국내 비중 ${domesticCount}/14=${share.toFixed(2)}가 ${minimum}~${maximum} 밖이다`);
+  }
 });
 
 test("브리핑 이슈: 중요한 사건이 반응 큰 잡담보다 앞선다", async () => {

@@ -1,0 +1,73 @@
+{
+  "contract": "NOWHOT-SELECTION-D1-GATES-001",
+  "phase": "D1-A",
+  "note": "튜닝 전 동결한 평가 게이트. 값 변경은 append-only David 결정 필요. 전체 바이트 SHA를 코드 상수(D1_GATES_LOCK_SHA256)로 고정하고, precision 0.98·abstain 0.20·14 category·필수 필드를 fail-closed로 검증한다(기본값 대입 금지). Wilson reference는 표준 one-sided score lower bound(z=1.6448536269514722)를 독립 계산한 동결값 — lab이 재현해야 한다.",
+  "categories": ["news", "tech", "auto", "science", "business", "gaming", "sports", "culture", "life", "humor", "politics", "realestate", "fashion", "art"],
+  "wilson": {
+    "z": 1.6448536269514722,
+    "confidence": "0.95_one_sided",
+    "reference": [
+      { "tp": 97, "n": 100, "lowerBound": 0.927289656713096 },
+      { "tp": 49, "n": 50, "lowerBound": 0.915194705751690 },
+      { "tp": 20, "n": 20, "lowerBound": 0.880842162639036 },
+      { "tp": 20, "n": 21, "lowerBound": 0.812196428623541 },
+      { "tp": 196, "n": 200, "lowerBound": 0.956196542832956 }
+    ]
+  },
+  "gates": {
+    "precision": {
+      "unit": "item_x_category_admission_row",
+      "targetLowerBound": 0.98,
+      "zeroSampleIsInsufficient": true,
+      "roundingRule": "gate on raw value before rounding",
+      "allCategoriesRequired": true
+    },
+    "recall": {
+      "rule": "candidate_recall >= frozen legacy baseline on same gold",
+      "baseline": "pending_exact_legacy_measurement",
+      "hardHold": true
+    },
+    "qualifiedSupply": {
+      "minAcceptWhenUpstreamAtLeast": 8,
+      "preserveAllValidWhenUpstreamBelow": true,
+      "rule": "candidate qualified supply >= frozen legacy qualified supply",
+      "baseline": "not_measured",
+      "hardHold": true
+    },
+    "abstain": {
+      "maxRate": 0.20,
+      "denominator": "humanValid_true_and_inScope_true_and_real_and_goldContentType_not_other",
+      "rationale": "precision gaming 방지 Codex 기술 기본값",
+      "changeRequires": "append_only_david_decision"
+    },
+    "adversarial": {
+      "expectedContractFixtures": 10,
+      "selectedCategoryLeak": 0,
+      "secondaryOnlyAdmission": 0,
+      "unknownOtherOrdinaryAdmission": 0,
+      "contentTypeMismatch": 0,
+      "invalidOrMissing": 0,
+      "unexpectedAdmission": 0,
+      "expectedAdmissionMiss": 0,
+      "contractFixtureHardGate": true
+    },
+    "contentType": {
+      "criticalConfusions": ["community->news", "deal->news"],
+      "maxCritical": 0,
+      "perTypePrecisionLowerBound": "reported"
+    },
+    "mutation": {
+      "semanticPairMustChangeLabel": true,
+      "invariancePairMustHoldLabel": true,
+      "incompleteOrPendingPairBlocksPass": true
+    }
+  },
+  "releaseGoldState": "insufficient_independent_gold",
+  "releasePass": false,
+  "doesNotProve": [
+    "실제 모델의 분류 정확도(REAL_MODEL_NOT_RUN)",
+    "제품 품질 PASS(PRODUCT_NOT_PROVEN)",
+    "런타임 서빙 개선(D2_RUNTIME_NOT_WIRED)",
+    "라이브 피드 변경(LIVE_UNCHANGED)"
+  ]
+}

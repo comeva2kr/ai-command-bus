@@ -12,7 +12,7 @@ import { isKnownCategory } from "./taxonomy.js";
 import { extractTags } from "./tags.js";
 import { eventKey } from "./dedupe.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
-import { canonicalizeUrl } from "./canonical-url.js";
+import { canonicalizeUrl, isGoogleNewsRedirect } from "./canonical-url.js";
 import { COVERAGE_MAX } from "./ingest.js";
 import { SEED_ITEMS } from "./seed-data.js";
 import { classifyTopics } from "./topics.js";
@@ -75,7 +75,7 @@ export function normalizeItem(raw, source) {
   // 분류 태그(키워드+게시판 기반, AI 아님) — topics.js. politics/religion은
   // 유저 토글로 기본 숨김(engine.js), adult는 아래에서 기존 19금 필드에 합류시켜
   // 별도 게이트를 만들지 않고 기존 verify-age/adult 게이트 하나로 처리한다.
-  const topics = classifyTopics({ title: raw.title, url, sourceId });
+  const topics = classifyTopics({ title: raw.title, url, sourceId, category });
   return {
     id: raw.id || stableId(url, sourceId, raw.title, raw.publishedAt),
     // "news" | "community". 개별 아이템이 kind를 들고 오는 경우는 드물고(대부분
@@ -394,6 +394,24 @@ export async function collect(sources, opts = {}) {
     const tkey = eventKey(item.title);
     if (tkey && seenTitle.has(tkey)) {
       const kept = seenTitle.get(tkey);
+      if (!isGoogleNewsRedirect(kept.url) && isGoogleNewsRedirect(item.url)) {
+        kept.canonicalAliases = [...(kept.canonicalAliases || []), { id: item.id || null, url: item.url || null }]
+          .filter((alias, index, rows) => alias.id || alias.url ? rows.findIndex((row) =>
+            row.id === alias.id && row.url === alias.url) === index : false);
+      }
+      if (isGoogleNewsRedirect(kept.url) && !isGoogleNewsRedirect(item.url)) {
+        const canonicalAliases = [
+          ...(kept.canonicalAliases || []),
+          { id: kept.id || null, url: kept.url || null }
+        ];
+        const related = kept.related || [];
+        const relatedCoverage = Math.max(kept.relatedCoverage || 0, item.relatedCoverage || 0);
+        const poolCoverage = Math.max(kept.poolCoverage || 0, item.poolCoverage || 0);
+        const coverage = Math.max(kept.coverage || 0, item.coverage || 0, relatedCoverage, poolCoverage);
+        Object.assign(kept, item, { canonicalAliases, related, relatedCoverage, poolCoverage, coverage });
+        seen.add(key);
+        continue;
+      }
       if (item.source && item.source !== kept.source) {
         // ── 우리가 직접 센 교차보도 (2026-08-06)
         //

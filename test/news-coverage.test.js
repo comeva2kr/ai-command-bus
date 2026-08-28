@@ -37,6 +37,21 @@ test("한 곳만 다룬 것은 교차보도가 아니다", async () => {
   assert.ok(!(items[0].coverage > 0), "혼자 다룬 글에 교차보도가 붙었다");
 });
 
+test("직접 기사 뒤에 Google 뉴스 중계가 와도 대표 기사와 예전 ID가 함께 고정된다", async () => {
+  const direct = art("publisher", "kbs-news", "KBS 뉴스");
+  direct.url = "https://news.kbs.co.kr/news/view.do?ncd=123";
+  const wrapper = art("wrapper", "gnews-news", "KBS 뉴스");
+  wrapper.url = "https://news.google.com/rss/articles/opaque";
+  const source = (id, item) => ({ id, kind: "news", async fetch() { return [item]; } });
+  const { items } = await collect([source("kbs-news", direct), source("gnews-news", wrapper)]);
+
+  assert.equal(items.length, 1);
+  assert.equal(items[0].id, "publisher");
+  assert.equal(items[0].url, direct.url);
+  assert.deepEqual(items[0].canonicalAliases, [{ id: "wrapper", url: wrapper.url }]);
+  assert.equal(new FeedEngine(new FeedStore(), [])._findItem(items, "wrapper"), items[0]);
+});
+
 test("수집 사이클이 갈려도 풀 전체에서 다시 센다", async () => {
   // collect의 중복 제거는 한 사이클 안에서만 접는다. 매체마다 기사 올리는 시각이
   // 달라 다른 사이클에 들어오면 안 묶인다 — 접는 자리에서만 세면 라이브에서
@@ -87,6 +102,21 @@ test("같은 매체가 두 번 접혀도 한 번만 센다", async () => {
   assert.equal(items[0].coverage, 2, `실제 2곳인데 coverage=${items[0].coverage}`);
 });
 
+test("같은 발행사의 중계 피드와 직접 RSS는 풀 교차관측을 만들지 않는다", async () => {
+  const src = (id, label) => ({
+    id, kind: "news",
+    async fetch() { return [art(`${id}1`, id, label)]; }
+  });
+  const { items } = await collect([
+    src("gnews", "한겨레"),
+    src("hani-rank", "한겨레 뉴스랭킹")
+  ]);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].coverage || 0, 0);
+  assert.equal(items[0].poolCoverage || 0, 0);
+  assert.equal(items[0].related.length, 1, "관측 기록 자체는 감사용으로 남겨야 한다");
+});
+
 test("커뮤니티가 기사 제목을 따 와도 매체로 세지 않는다", async () => {
   // "몇 곳의 매체가 다뤘나"가 이 신호의 뜻이다. 커뮤니티 반향은 별개 신호다.
   const news = { id: "mk", kind: "news", async fetch() { return [art("n1", "mk", "매경")]; } };
@@ -126,7 +156,7 @@ test("접기 경로와 풀 집계 경로가 같은 상한을 쓴다", async () =
   const fsm = await import("node:fs");
   const content = fsm.readFileSync("src/feed/content.js", "utf8");
   const engine = fsm.readFileSync("src/feed/engine.js", "utf8");
-  assert.match(content, /Math\.min\(rel\.length \+ 2, COVERAGE_MAX\)/, "접기 경로에 상한이 없다");
+  assert.match(content, /Math\.min\(observedGroups\.size, COVERAGE_MAX\)/, "접기 경로에 상한이 없다");
   assert.match(engine, /Math\.min\(bySource\.get\(k\)\.size, COVERAGE_MAX\)/, "풀 집계에 상한이 없다");
   assert.match(content, /import \{ COVERAGE_MAX \} from "\.\/ingest\.js"/, "상한을 따로 정의했다");
 });

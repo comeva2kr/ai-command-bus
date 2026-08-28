@@ -51,6 +51,13 @@ const env = {
   FEED_LIVE: "1",                       // 실제로 수집한다 — 목업으로는 수집 사고를 못 잡는다
   FEED_DB: path.join(DIR, "feed.json"),
   FEED_POOL_FILE: path.join(DIR, "feed-pool.json"),
+  NOWHOT_LOCAL_EDITORIAL: "1",          // 운영과 분리된 새 자체 편집 홈 후보
+  NOWHOT_CATEGORY_ROUTING: process.env.NOWHOT_CATEGORY_ROUTING || "v2",
+  NOWHOT_ARTICLE_SUMMARY: process.env.NOWHOT_ARTICLE_SUMMARY || "0",
+  NOWHOT_ARTICLE_SUMMARY_MODEL: process.env.NOWHOT_ARTICLE_SUMMARY_MODEL || "claude-sonnet-5",
+  NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL: process.env.NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL || "claude-sonnet-5",
+  FEED_TRANSLATE: process.env.FEED_TRANSLATE || "1", // 운영과 같은 무료 제목·발췌 번역
+  NOWHOT_EDITORIAL_CANARY_RECEIPT: path.join(DIR, "editorial-llm-canary.json"),
   // 광고는 미리보기로 켠다. 자격증명 없이도 카드가 그려져야 구조를 볼 수 있다
   // (실제 파트너 키는 넣지 않는다 — 스테이징에서 발생한 노출이 운영 집계에 섞이면 안 된다).
   AD_PREVIEW: process.env.AD_PREVIEW || "1",
@@ -144,12 +151,11 @@ try {
   // 쿠팡 자격증명은 **서버 .env에만** 둔다(David 원칙: 시크릿을 화면·로컬로
   // 옮기지 않는다). 그래서 로컬에는 없고, 광고 후보가 만들어지지 않는다.
   const noPartner = !process.env.COUPANG_PARTNER_ID;
-  // 번역도 운영과 다르다 — docker-compose는 FEED_TRANSLATE=1을 켜지만 여기는 없다.
-  // 해외 소스(하입비스트·랍스터스·라이브도어 등)가 원문 그대로 보인다.
-  if (!process.env.FEED_TRANSLATE) {
+  // 명시적으로 끈 경우에만 운영과 다르다. 기본 스테이징은 운영과 같은 무료
+  // 제목·발췌 번역을 사용하고 외부 LLM 크레딧은 쓰지 않는다.
+  if (env.FEED_TRANSLATE === "0") {
     console.log("※ 번역이 꺼져 있습니다 — 해외 소스는 원문(영어·일본어)으로 보입니다.");
-    console.log("  운영은 FEED_TRANSLATE=1이라 한국어로 나갑니다. 번역 결과를 보려면");
-    console.log("  FEED_TRANSLATE=1 과 번역 키를 넣고 다시 실행하세요.\n");
+    console.log("  운영과 같은 번역 결과를 보려면 FEED_TRANSLATE=1로 다시 실행하세요.\n");
   }
   if (noPartner) {
     console.log("※ 이 스테이징에 없는 것: 쿠팡 파트너 자격증명(서버 .env 전용).");

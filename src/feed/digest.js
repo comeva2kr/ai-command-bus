@@ -34,7 +34,7 @@ import {
 } from "./editorial-quality.js";
 import { buildSourceEvidence } from "./editorial-lineage.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
-import { composeEventFromMembers, decideEventMerge } from "./event-cluster.js";
+import { buildEventClusters, composeEventFromMembers, decideEventMerge } from "./event-cluster.js";
 import { loadRegistry } from "./registry.js";
 
 // 해외발(국내 미보도) 판정 — David #과업3, 2026-08-17: "판별은 소스 레지스트리
@@ -98,14 +98,14 @@ export function clusterIssues(items) {
 // 걸러도 그 클러스터가 사라지는 게 아니라 다음 순위 클러스터가 그 자리를
 // 메운다.
 //
-// 클러스터 하나 안에서도 여러 클러스터와 겹칠 수 있으므로(A~B 3단어,
-// B~C 3단어처럼 사슬로 이어지는 경우) 그룹의 대표(첫 멤버)만이 아니라
-// 그룹에 이미 들어간 멤버 전체와 비교한다 — clusterIssues가 `c.members.some`
-// 으로 같은 일을 하는 것과 같은 방식이다.
+// 한 멤버하고만 닮은 기사를 기존 그룹 전체에 붙이면 A~B~C 사슬이 서로 다른
+// 사건까지 합친다. 이미 묶인 모든 멤버와 같은 사건일 때만 그룹에 넣는다.
 const NEAR_DUP_CONCEPTS = 3; // 실제 새 판의 트럼프·이란 배상과 축구협회 성접대
 // 변주는 조사·활용형을 접으면 각각 개념 3개가 겹쳤다. 영어 불용어는 세지 않는다.
 const STRONG_EVENT_CONCEPTS = new Set(["지진"]);
 const DISTINCTIVE_ENTITY_MIN_LENGTH = 3;
+const categoryIdsOf = (item) => Array.isArray(item?.admittedCategories)
+  && item.admittedCategories.length ? item.admittedCategories : [item?.category || "news"];
 
 // 숫자 충돌 가드(event-cluster.js decideEventMerge의 guard_numbers_only_overlap
 // 원리 재사용, David 승인 2026-08-17 — "오병합 가드"). 서로 다른 분야 병합은
@@ -118,13 +118,24 @@ const STATISTICAL_FILLER_CONCEPTS = new Set([
   "기록적", "증가", "감소", "급증", "급감", "발생", "넘어서", "이상", "이하", "달해", "기록", "집계"
 ]);
 
-export function nearIssueGroups(scored) {
+export function nearIssueGroups(scored, canonicalEvents = null) {
+  const canonicalByArticle = new Map();
+  const canonicalSizes = new Map();
+  const events = canonicalEvents || buildEventClusters(scored.flatMap((cluster) => cluster.members));
+  for (const event of events) {
+    canonicalSizes.set(event.eventId, event.memberArticleIds.length);
+    for (const id of event.memberArticleIds) canonicalByArticle.set(id, event.eventId);
+  }
   const groups = [];
   for (const c of scored) {
     const title = c.members[0].title;
-    const categories = new Set(c.members.map((item) => item.category || "news"));
-    const hit = groups.find((g) => g.some((m) => {
-      const sameCategory = m.members.some((item) => categories.has(item.category || "news"));
+    const categories = new Set(c.members.flatMap(categoryIdsOf));
+    const hit = groups.find((g) => g.every((m) => {
+      const currentEvents = new Set(c.members.map((item) => canonicalByArticle.get(item.id)).filter(Boolean));
+      const previousEvents = new Set(m.members.map((item) => canonicalByArticle.get(item.id)).filter(Boolean));
+      if ([...currentEvents].some((id) => previousEvents.has(id))) return true;
+      if ([...currentEvents, ...previousEvents].some((id) => canonicalSizes.get(id) > 1)) return false;
+      const sameCategory = m.members.some((item) => categoryIdsOf(item).some((id) => categories.has(id)));
       const sharedConcepts = sharedTitleConcepts(title, m.members[0].title);
       if (sameCategory && sharedConcepts.length >= NEAR_DUP_CONCEPTS) return true;
 
@@ -533,7 +544,7 @@ function projectIssueRefs(members) {
 // eslint-disable-next-line no-unused-vars -- perIssueRefs는 buildDigest 공개
 // 시그니처 호환을 위해 유지한다(외부 호출부 없음, 2026-08-17 확인). refs는
 // 더 이상 이 값으로 자르지 않는다 — projectIssueRefs가 전량 투영한다.
-function buildIssueDraft(members, perIssueRefs, requireKoreanAudience = false) {
+export function buildIssueDraft(members, perIssueRefs, requireKoreanAudience = false) {
   const shape = issueShape(members);
   const evidence = coverageEvidence(members);
   const subject = issueSubject(members);
@@ -561,7 +572,7 @@ function buildIssueDraft(members, perIssueRefs, requireKoreanAudience = false) {
     paragraph,
     tone: issueTone(shape, evidence),
     shape,
-    categoryIds: [...new Set(members.map((item) => item.category || "news"))],
+    categoryIds: [...new Set(members.flatMap(categoryIdsOf))],
     metrics: {
       sourceCount: evidence.observedFeedCount,
       independentGroupCount: evidence.independentGroupCount,
@@ -654,6 +665,16 @@ export const isOverseas = (item) =>
   Boolean(item && ((item.originalLang && item.originalLang !== "ko") ||
     (item.lang && item.lang !== "ko") || item.translated));
 
+// 국내 사용자의 기본 브리핑에 필요한 소프트 편성 범위. 이미 해당 분야로
+// 승인된 사건 안에서만 순서를 조정하며, 한쪽 공급이 부족하면 다른 분야의
+// 기사로 채우지 않는다.
+export const CATEGORY_DOMESTIC_SHARE_BANDS = Object.freeze({
+  news: Object.freeze([0.50, 0.70]),
+  business: Object.freeze([0.50, 0.60]),
+  politics: Object.freeze([0.80, 0.90]),
+  tech: Object.freeze([0.50, 0.70])
+});
+
 export const MIN_ISSUES = 3; // 이보다 적으면 발행하지 않는다 — 빈 글은 자체 콘텐츠가 아니다
 
 export function slotForHour(kstHour) {
@@ -679,7 +700,8 @@ export function buildDigest(items, {
   // 매핑이 없는 클러스터는 매핑된 클러스터들 뒤로 밀리고, 그들끼리는 기존
   // weight로 정렬한다(부분 공급 시 안전망). null(기본, v1 전 경로)이면 이
   // 함수의 나머지 동작은 바이트 그대로다.
-  externalRank = null
+  externalRank = null,
+  canonicalEvents = null
 } = {}) {
   const clusters = clusterIssues(items);
 
@@ -728,7 +750,7 @@ export function buildDigest(items, {
       const t = i.interest ? (i.interest.traffic || 0) * (i.interest.strength || 1) : 0;
       return t > m ? t : m;
     }, 0);
-    const isWeighty = members.some((i) => EDITORIAL_WEIGHTY.has(i.category));
+    const isWeighty = members.some((i) => categoryIdsOf(i).some((id) => EDITORIAL_WEIGHTY.has(id)));
     const roles = sourceRoleCounts(members);
     const hasVerifiedSource = [...VERIFIED_SOURCE_ROLES].some((role) => (roles[role] || 0) > 0);
     // 중요한 분야라는 이유만으로 커뮤니티 단일 글에 105점을 주지 않는다.
@@ -737,6 +759,8 @@ export function buildDigest(items, {
     const weighty = isWeighty && (hasVerifiedSource || evidence.mode === "multiple_feed_observed")
       ? WEIGHTY_BONUS : 0;
     const sourceTrust = isWeighty && hasVerifiedSource ? VERIFIED_SOURCE_BONUS : 0;
+    const authorityBonus = members.reduce((best, item) =>
+      Math.max(best, Number(item.briefingAuthorityBonus) || 0), 0);
     const coveragePoints = evidence.mode === "multiple_feed_observed"
       ? Math.min(5, evidence.independentGroupCount) * COVERAGE_K
       : evidence.relatedCoverageSignal
@@ -752,6 +776,7 @@ export function buildDigest(items, {
         + INTEREST_MAX * Math.min(1, best / 1000)
         + weighty
         + sourceTrust
+        + authorityBonus
     };
   }).sort((a, b) => {
     if (Number(a.carryoverOnly) !== Number(b.carryoverOnly)) {
@@ -771,7 +796,7 @@ export function buildDigest(items, {
   // P1-B 사건 계층: 근접 중복은 "첫 건만 남김"이 아니라 사건 병합이다.
   // 기존 휴리스틱 그룹 위에 사건 2단 판정 병합을 얹고, 병합된 클러스터의
   // 기사는 대표 이슈의 근거(sourceEvidence)로 보존한다 — 타 매체 근거 소실 0.
-  const eventGroups = mergeGroupsByEventDecision(nearIssueGroups(machinePassed));
+  const eventGroups = mergeGroupsByEventDecision(nearIssueGroups(machinePassed, canonicalEvents));
   const deduped = eventGroups.map((group) => group[0]);
   const mergedEvidenceOf = new Map(eventGroups.map((group) => [
     group[0],
@@ -796,9 +821,17 @@ export function buildDigest(items, {
   const chosenTrendTerms = new Set();
   const selected = new Set((selectedCategories || []).filter(Boolean));
   const categoryCounts = new Map();
+  const sourceOf = (cluster) => operationalSourceIdentity(cluster.members[0]).ownershipGroup;
+  const categorySourceCount = (category, source) => balanced.filter((cluster) =>
+    sourceOf(cluster) === source
+    && cluster.members.some((item) => categoryIdsOf(item).includes(category))).length;
+  const byLeastUsedSource = (candidates, category = null) => [...candidates].sort((a, b) =>
+    (category ? categorySourceCount(category, sourceOf(a)) - categorySourceCount(category, sourceOf(b)) : 0)
+    || (perSource.get(sourceOf(a)) || 0) - (perSource.get(sourceOf(b)) || 0)
+    || rankOfOriginal.get(a) - rankOfOriginal.get(b));
   const addBalanced = (cluster, { ignoreSourceCap = false } = {}) => {
     if (chosen.has(cluster) || balanced.length >= maxIssues) return false;
-    const src = cluster.members[0].sourceLabel || cluster.members[0].source || "?";
+    const src = sourceOf(cluster);
     if (!ignoreSourceCap && (perSource.get(src) || 0) >= maxPerSource) return false;
     const subjectKey = String(cluster.draft.subject || "").toLowerCase();
     const trendTerms = [...new Set(cluster.members
@@ -812,8 +845,9 @@ export function buildDigest(items, {
     if (subjectKey) chosenSubjects.add(subjectKey);
     for (const term of trendTerms) chosenTrendTerms.add(term);
     perSource.set(src, (perSource.get(src) || 0) + 1);
-    for (const category of new Set(cluster.members.map((item) => item.category || "news"))) {
-      if (selected.has(category)) categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+    for (const category of new Set(cluster.members.flatMap(categoryIdsOf))) {
+      if (!selected.has(category)) continue;
+      categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
     }
     return true;
   };
@@ -824,10 +858,52 @@ export function buildDigest(items, {
   // 기존 동작을 그대로 유지한다.
   const floor = Math.max(0, Math.floor(Number(minIssuesPerCategory) || 0));
   if (floor && selected.size) {
+    const categoryCandidates = (category) => deduped.filter((cluster) =>
+      cluster.members.some((item) => categoryIdsOf(item).includes(category)));
+    const selectedGroupCount = (category, predicate) => balanced.filter((cluster) =>
+      cluster.members.some((item) => categoryIdsOf(item).includes(category))
+      && predicate(cluster)).length;
+    const fillCategoryGroup = (category, candidates, predicate, target, ignoreSourceCap) => {
+      while (selectedGroupCount(category, predicate) < target) {
+        const ordered = ignoreSourceCap
+          ? byLeastUsedSource(candidates.filter((cluster) => !chosen.has(cluster)), category)
+          : candidates;
+        let added = false;
+        for (const cluster of ordered) {
+          if (!cluster.members.some((item) => categoryIdsOf(item).includes(category))) continue;
+          if (!predicate(cluster)) continue;
+          if (addBalanced(cluster, { ignoreSourceCap })) {
+            added = true;
+            break;
+          }
+        }
+        if (!added) break;
+      }
+    };
+
+    // 순위 상단이 한 지역에 몰려도 국내외 기사 공급이 충분한 분야는 제품
+    // 범위를 먼저 예약한다. 혼합 보도 사건은 국내에서 이미 다뤄진 사건이므로
+    // 국내로 센다. 출처 상한 때문에만 못 채운 경우에 한해 같은 그룹 안에서
+    // 상한을 풀고, 그 뒤의 일반 중요도 채우기는 기존 로직을 그대로 쓴다.
+    for (const category of selected) {
+      const band = CATEGORY_DOMESTIC_SHARE_BANDS[category];
+      if (!band) continue;
+      const candidates = categoryCandidates(category);
+      const target = Math.min(floor, candidates.length);
+      const domesticTarget = Math.ceil(target * band[0]);
+      const foreignTarget = Math.ceil(target * (1 - band[1]));
+      const domestic = (cluster) => !membersAllOverseas(cluster.members);
+      const foreign = (cluster) => membersAllOverseas(cluster.members);
+      fillCategoryGroup(category, candidates, domestic, domesticTarget, false);
+      fillCategoryGroup(category, candidates, foreign, foreignTarget, false);
+      fillCategoryGroup(category, candidates, domestic, domesticTarget, true);
+      fillCategoryGroup(category, candidates, foreign, foreignTarget, true);
+    }
+
     for (const category of selected) {
       for (const cluster of deduped) {
         if ((categoryCounts.get(category) || 0) >= floor) break;
-        if (!cluster.members.some((item) => (item.category || "news") === category)) continue;
+        if (!cluster.members.some((item) => categoryIdsOf(item).includes(category))) continue;
         addBalanced(cluster);
       }
     }
@@ -835,11 +911,7 @@ export function buildDigest(items, {
     // 머무르면, 전체 중요도 자리를 채우기 전에 그 분야의 최소 깊이에 한해 상한을
     // 푼다. 중복 사건·주제·전체 판본 상한은 그대로라 없는 공급을 만들지는 않는다.
     for (const category of selected) {
-      for (const cluster of deduped) {
-        if ((categoryCounts.get(category) || 0) >= floor) break;
-        if (!cluster.members.some((item) => (item.category || "news") === category)) continue;
-        addBalanced(cluster, { ignoreSourceCap: true });
-      }
+      fillCategoryGroup(category, deduped, () => true, floor, true);
     }
   }
   if (!additiveCategoryUnion) {
@@ -857,13 +929,7 @@ export function buildDigest(items, {
     ? balanced.length
     : Math.min(maxIssues, deduped.length);
   while (balanced.length < fillTarget) {
-    const remaining = deduped
-      .filter((cluster) => !chosen.has(cluster))
-      .sort((a, b) => {
-        const sourceOf = (cluster) => cluster.members[0].sourceLabel || cluster.members[0].source || "?";
-        return (perSource.get(sourceOf(a)) || 0) - (perSource.get(sourceOf(b)) || 0)
-          || rankOfOriginal.get(a) - rankOfOriginal.get(b);
-      });
+    const remaining = byLeastUsedSource(deduped.filter((cluster) => !chosen.has(cluster)));
     let added = false;
     for (const cluster of remaining) {
       if (addBalanced(cluster, { ignoreSourceCap: true })) {
@@ -918,16 +984,16 @@ export function buildDigest(items, {
     evidenceModes[mode] = (evidenceModes[mode] || 0) + 1;
   }
   const categoriesOfCluster = (cluster) => new Set(
-    (cluster && cluster.members || []).map((item) => item.category || "news")
+    (cluster && cluster.members || []).flatMap(categoryIdsOf)
   );
   const countClusters = (rows, category) => (rows || [])
     .filter((cluster) => categoriesOfCluster(cluster).has(category)).length;
   const funnelCategories = [...new Set([
     ...(selectedCategories || []).filter(Boolean),
-    ...items.map((item) => item.category || "news")
+    ...items.flatMap(categoryIdsOf)
   ])];
   const categoryFunnel = funnelCategories.map((categoryId) => {
-    const inputItemCount = items.filter((item) => (item.category || "news") === categoryId).length;
+    const inputItemCount = items.filter((item) => categoryIdsOf(item).includes(categoryId)).length;
     const clusterCount = countClusters(scored, categoryId);
     const machinePassClusterCount = countClusters(machinePassed, categoryId);
     const qualifiedClusterCount = countClusters(deduped, categoryId);

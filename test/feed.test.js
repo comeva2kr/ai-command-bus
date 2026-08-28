@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,7 +16,7 @@ import {
 import { normalizeItem, SeedSource, collect, JsonSource } from "../src/feed/content.js";
 import { inferFromHistory, mergeVectors } from "../src/feed/history.js";
 import { FeedStore } from "../src/feed/store.js";
-import { FeedEngine } from "../src/feed/engine.js";
+import { FeedEngine, briefingAvailableAt, briefingTimestampEligible } from "../src/feed/engine.js";
 import { StorePostsSource } from "../src/feed/content.js";
 import { loadRegistry, query, buildSources, summarize } from "../src/feed/registry.js";
 import { TranslatingSource, memoizedTranslator } from "../src/feed/translate.js";
@@ -163,6 +164,48 @@ test("seed source collects a de-duplicated item set", async () => {
   assert.equal(ids.size, items.length, "ids are unique");
 });
 
+test("현재판과 과거판은 같은 원문의 Google 중계 주소와 직접 주소를 한 기사로 센다", async () => {
+  const now = Date.parse("2026-08-26T12:00:00+09:00");
+  const directUrl = "https://news.kbs.co.kr/news/view.do?ncd=8644224";
+  const base = {
+    kind: "news",
+    category: "news",
+    tags: [],
+    topics: [],
+    score: 0,
+    commentCount: 0,
+    publishedAt: new Date(now - 60_000).toISOString(),
+    canonicalUrl: directUrl
+  };
+  const rows = [
+    {
+      ...base,
+      id: "relay-row",
+      source: "gnews-news",
+      sourceLabel: "KBS 뉴스",
+      title: "태풍 관련 Google 뉴스 중계 항목",
+      url: "https://news.google.com/rss/articles/opaque-kbs"
+    },
+    {
+      ...base,
+      id: "publisher-row",
+      source: "kbs-news",
+      sourceLabel: "KBS 뉴스",
+      title: "태풍 관련 KBS 직접 기사 항목",
+      url: directUrl
+    }
+  ];
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    rows.map((row) => ({ id: row.source, kind: "news", fetch: async () => [structuredClone(row)] }))
+  );
+
+  await engine.refresh();
+
+  assert.equal((await engine._items()).length, 1);
+  assert.equal((await engine._itemsAsOf(now)).length, 1);
+});
+
 test("engine serves unseen batches and never repeats within a session", async () => {
   const store = new FeedStore({ clock: fixedClock });
   const engine = new FeedEngine(store, [new SeedSource()]);
@@ -182,6 +225,56 @@ test("engine serves unseen batches and never repeats within a session", async ()
   assert.ok(seen.size >= 20, "paged through many unique items");
 });
 
+test("과거 슬롯 소스 상한은 같은 firstSeenAt에서도 실제 발행 최신순을 보존한다", async () => {
+  const now = Date.parse("2026-08-27T10:00:00.000Z");
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    [{ id: "asof-news", kind: "news" }]
+  );
+  engine._cache = [];
+  engine._pool = new Map(Array.from({ length: 21 }, (_, index) => {
+    const newest = index === 20;
+    const item = {
+      id: `asof-${index}`,
+      source: "asof-news",
+      kind: "news",
+      category: "news",
+      title: `과거 슬롯 발행 순서 ${index}`,
+      url: `https://example.com/asof/${index}`,
+      publishedAt: new Date(now - (newest ? 60_000 : (index + 2) * 3_600_000)).toISOString()
+    };
+    return [item.id, { item, firstSeenAt: now - 30_000, lastSeenAt: now - 30_000, heatHist: [] }];
+  }));
+
+  const items = await engine._itemsAsOf(now);
+  assert.equal(items.length, 20);
+  assert.ok(items.some((item) => item.id === "asof-20"), "가장 최근 발행 기사가 상한 뒤에도 남아야 한다");
+  assert.ok(!items.some((item) => item.id === "asof-19"), "가장 오래된 기사 한 건만 밀려야 한다");
+});
+
+test("오늘판은 날짜 없는 RSS 아카이브를 firstSeenAt만으로 새 글 취급하지 않는다", () => {
+  const undated = { publishedAt: null, firstSeenAt: Date.now() };
+  assert.equal(briefingTimestampEligible(undated, { adapter: { type: "rss" } }), false);
+  assert.equal(briefingTimestampEligible(undated, { adapter: { type: "list" } }), true);
+  assert.equal(briefingTimestampEligible({ ...undated, publishedAt: new Date().toISOString() }, {
+    adapter: { type: "rss" }
+  }), true);
+});
+
+test("오늘판의 현재 베스트 목록은 원 게시일보다 목록 관측 시각을 사용한다", () => {
+  const seen = Date.parse("2026-08-27T06:20:00.000Z");
+  const item = {
+    kind: "community",
+    publishedAt: "2026-08-14T06:20:00.000Z",
+    firstSeenAt: seen
+  };
+  assert.equal(briefingAvailableAt(item, { adapter: { type: "list" } }), seen);
+  assert.equal(briefingAvailableAt(item, { adapter: { type: "rss" } }), seen);
+  assert.equal(briefingAvailableAt({ ...item, firstSeenAt: seen - 20 * 24 * 3600 * 1000 }, {
+    adapter: { type: "rss" }
+  }), Date.parse(item.publishedAt));
+});
+
 test("rating through the engine updates confidence and item state", async () => {
   const store = new FeedStore({ clock: fixedClock });
   const engine = new FeedEngine(store, [new SeedSource()]);
@@ -196,6 +289,59 @@ test("rating through the engine updates confidence and item state", async () => 
 
   const detail = await engine.getItem(user.id, first.id);
   assert.equal(detail.myRating, 1, "rating reflected on the item");
+});
+
+test("rating 0 removes the rating and reverses its explicit taste effect", async () => {
+  const store = new FeedStore({ clock: fixedClock });
+  const engine = new FeedEngine(store, [new SeedSource()]);
+  const user = store.createUser("u-rating-undo");
+  const feed = await engine.getFeed(user.id, { cursor: 0, limit: 3 });
+  const item = feed.items[0];
+  const before = structuredClone(user.preferences);
+
+  await engine.rate(user.id, item.id, 1);
+  assert.notDeepEqual(user.preferences, before);
+  await engine.rate(user.id, item.id, 0);
+
+  const detail = await engine.getItem(user.id, item.id);
+  assert.equal(detail.myRating, 0);
+  assert.equal(user.ratings[item.id], undefined);
+  assert.deepEqual(user.preferences, before);
+});
+
+test("rating rollback after an implicit signal matches the unrated control and survives restart", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-feedback-rollback-"));
+  const file = path.join(dir, "feed.json");
+  try {
+    const store = new FeedStore({ file, clock: fixedClock });
+    const engine = new FeedEngine(store, [new SeedSource()]);
+    const rated = store.createUser("u-rating-interleaved");
+    const control = store.createUser("u-rating-control");
+    const survey = { categories: ["auto"], tags: ["cars"], depth: "deep" };
+    store.saveSurvey(rated.id, survey);
+    store.saveSurvey(control.id, survey);
+
+    const item = (await engine.getFeed(rated.id, { cursor: 0, limit: 1 })).items[0];
+    await engine.rate(rated.id, item.id, 1);
+    await engine.signal(rated.id, item.id, { type: "complete" });
+    await engine.signal(control.id, item.id, { type: "complete" });
+    await engine.rate(rated.id, item.id, 0);
+
+    assert.deepEqual(rated.ratings, control.ratings, "removed rating leaves no stored rating");
+    assert.equal(rated.feedbackCount, control.feedbackCount, "removed rating leaves no confidence count");
+    assert.equal(rated.implicitCount, control.implicitCount, "both users retain the same implicit evidence");
+    assert.deepEqual(rated.preferences, control.preferences, "only the shared implicit signal remains");
+
+    const reloaded = new FeedStore({ file, clock: fixedClock });
+    const ratedAfterRestart = reloaded.requireUser(rated.id);
+    const controlAfterRestart = reloaded.requireUser(control.id);
+    assert.deepEqual(ratedAfterRestart.ratings, controlAfterRestart.ratings);
+    assert.equal(ratedAfterRestart.feedbackCount, controlAfterRestart.feedbackCount);
+    assert.equal(ratedAfterRestart.implicitCount, controlAfterRestart.implicitCount);
+    assert.deepEqual(ratedAfterRestart.preferences, controlAfterRestart.preferences);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 
@@ -287,6 +433,37 @@ test("TranslatingSource flags untranslated foreign items and translates when wir
   assert.equal(done[0].lang, "ko");
   assert.match(done[0].title, /^\[번역\]/);
   assert.equal(done[0].originalTitle, "Hello world");
+});
+
+test("번역: 한글이 조금 섞여도 영문이 대부분인 제목은 옮기고 이미 한국어인 발췌는 보존한다", async () => {
+  const source = {
+    id: "mixed-ko", kind: "community", async fetch() {
+      return [
+        {
+          id: "deal-1",
+          title: "Marshall Stanmore III Bluetooth Home Speaker ($199.99/관세 $24.96/한국까지 Free)",
+          summary: "관세와 환율을 감안해야 한다는 구매 후기입니다.",
+          lang: "ko", category: "tech", tags: [], source: "ppomppu-deal-os"
+        },
+        {
+          id: "article-1",
+          title: "GEO 분석 툴을 만들다: E-E-A-T 분석하는 법",
+          summary: "검색 품질 분석 방법을 정리한 글입니다.",
+          lang: "ko", category: "tech", tags: [], source: "yozm"
+        }
+      ];
+    }
+  };
+  const calls = [];
+  const translated = await new TranslatingSource(source, async (text) => {
+    calls.push(text);
+    return "마셜 스탠모어 3 블루투스 홈 스피커 ($199.99/관세 $24.96/한국 배송 무료)";
+  }, "ko").fetch();
+
+  assert.equal(translated[0].title, "마셜 스탠모어 3 블루투스 홈 스피커 ($199.99/관세 $24.96/한국 배송 무료)");
+  assert.equal(translated[0].summary, "관세와 환율을 감안해야 한다는 구매 후기입니다.");
+  assert.equal(translated[1].title, "GEO 분석 툴을 만들다: E-E-A-T 분석하는 법");
+  assert.deepEqual(calls, ["Marshall Stanmore III Bluetooth Home Speaker ($199.99/관세 $24.96/한국까지 Free)"]);
 });
 
 // David 2026-07-24 적대적 검수 #9: dev.to 등 소스 전체에 lang:"en"이 못박힌 항목 중
@@ -789,7 +966,7 @@ test("sendDigestPushes pushes only subscribers with a non-empty digest, payload 
   assert.match(payload.body, /관심글 2개가 올라왔어요/);
   assert.match(payload.body, /전기차 시승기 첫인상/, "previews the first title");
   assert.doesNotMatch(payload.body, /성인 콘텐츠/, "19금 title never appears in a notification");
-  assert.equal(payload.url, "/#post-item_42", "url deep-links to the previewed item");
+  assert.equal(payload.url, "/live#post-item_42", "url deep-links to the previewed item in the live app");
 });
 
 test("sendDigestPushes is a no-op without VAPID keys (never even checks digests)", async () => {
@@ -2730,25 +2907,24 @@ test("communities.json: all 10 sources added 2026-07-24 are registered, enabled,
 // --- googleFreeTranslator (src/feed/translator.js) -------------------------
 // All tests below run with a mocked fetchImpl — no real network access.
 
-test("googleFreeTranslator: parses a normal gtx response and hits the expected URL", async () => {
+test("googleFreeTranslator: parses the Chrome translation response and hits the expected URL", async () => {
   let calledUrl = null;
   const fetchImpl = async (url) => {
     calledUrl = url;
     return {
       ok: true,
       async json() {
-        // real shape: data[0] is a list of [translatedChunk, originalChunk, ...] tuples
-        return [[["안녕 세상", "Hello world", null, null, 1]], null, "en"];
+        return [["안녕 세상", "en"]];
       }
     };
   };
   const translate = googleFreeTranslator({ fetchImpl });
   const out = await translate("Hello world", { from: "en", to: "ko" });
   assert.equal(out, "안녕 세상");
-  assert.match(calledUrl, /^https:\/\/translate\.googleapis\.com\/translate_a\/single\?/);
+  assert.match(calledUrl, /^https:\/\/clients5\.google\.com\/translate_a\/t\?/);
   assert.match(calledUrl, /sl=en/);
   assert.match(calledUrl, /tl=ko/);
-  assert.match(calledUrl, /dt=t/);
+  assert.match(calledUrl, /client=dict-chrome-ex/);
   assert.match(calledUrl, /q=Hello(%20|\+)world/);
 });
 
@@ -2762,6 +2938,31 @@ test("googleFreeTranslator: joins multiple response chunks (long input split by 
   const translate = googleFreeTranslator({ fetchImpl });
   const out = await translate("First sentence. Second sentence.", { from: "en", to: "ko" });
   assert.equal(out, "첫 문장. 둘째 문장.");
+});
+
+test("googleFreeTranslator: preserves Korean fragments while translating a foreign-dominant mixed title", async () => {
+  let query = "";
+  const fetchImpl = async (url) => {
+    query = new URL(url).searchParams.get("q");
+    return {
+      ok: true,
+      async json() {
+        return [[[
+          "마샬 스탠모어 III 블루투스 홈 스피커 ($199.99/NOWHOTKOR0TOKEN $24.96/NOWHOTKOR1TOKEN 무료)",
+          query
+        ]], null, "en"];
+      }
+    };
+  };
+  const translate = googleFreeTranslator({ fetchImpl });
+  const out = await translate(
+    "Marshall Stanmore III Bluetooth Home Speaker ($199.99/관세 $24.96/한국까지 Free)",
+    { from: "auto", to: "ko" }
+  );
+
+  assert.equal(out, "마샬 스탠모어 III 블루투스 홈 스피커 ($199.99/관세 $24.96/한국까지 무료)");
+  assert.match(query, /NOWHOTKOR0TOKEN/);
+  assert.doesNotMatch(query, /관세/);
 });
 
 test("googleFreeTranslator: falls back to the original text on a non-200 response", async () => {

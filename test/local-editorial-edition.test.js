@@ -6,6 +6,7 @@ import path from "node:path";
 
 import { canonicalContentUrl } from "../src/feed/dedupe.js";
 import { applyEditionChanges } from "../src/feed/edition-change.js";
+import { createCategoryRouter } from "../src/feed/category-routing.js";
 import {
   EDITION_CANDIDATE_CONTRACT,
   buildEditionCandidateFixture,
@@ -15,6 +16,7 @@ import { FeedEngine } from "../src/feed/engine.js";
 import { FeedStore } from "../src/feed/store.js";
 import { JsonSource } from "../src/feed/content.js";
 import { buildBlindReviewPacket } from "../src/feed/editorial-quality.js";
+import { EDITORIAL_SERVING_CONTRACT } from "../src/feed/editorial-serving.js";
 import { CATEGORIES as TAXONOMY_CATEGORIES } from "../src/feed/taxonomy.js";
 
 const CATEGORIES = ["business", "politics", "tech", "humor"];
@@ -33,7 +35,12 @@ const SERVEABLE_SUBJECTS = [
   "개표 오류 재검표 일정", "전월세 공급 대책 발표", "보유세 과세 기준 개편",
   "취업 비자 취소 절차", "이주민 귀환 지원 계획", "북극항로 시험 운항 일정",
   "산업단지 공장 투자 착공", "의료 행정처분 법원 판단", "S&P 500 목표치 상향",
-  "방공 체계 지원 요청", "북한군 추가 배치 확인", "정유시설 미사일 공격 피해"
+  "방공 체계 지원 요청", "북한군 추가 배치 확인", "정유시설 미사일 공격 피해",
+  "기준금리 결정 회의 결과", "원달러 환율 변동 대응 방안", "반도체 수출 전망 공식 발표",
+  "국제유가 공급 계획 조정", "전기요금 연료비 조정안", "중소기업 정책금융 확대",
+  "항만 물동량 월간 통계", "온라인 유통 매출 동향", "고용보험 가입자 통계",
+  "기업 설비투자 계획 공개", "조선업 수주 잔고 분기 집계", "배터리 원재료 장기 공급 계약",
+  "항공화물 운임 지수 발표", "농산물 도매가격 안정 대책", "벤처투자 신규 결성액 통계"
 ];
 
 function fixtureItems(count = 121) {
@@ -58,11 +65,11 @@ function fixtureItems(count = 121) {
   return rows;
 }
 
-function editorialSources(baseMs = Date.now(), spacingMs = 60_000, subjects = SUBJECTS, sourceCount = 8) {
+function editorialSources(baseMs = Date.now(), spacingMs = 60_000, subjects = SUBJECTS, sourceCount = 8, categories = CATEGORIES, itemsPerSource = 15) {
   return Array.from({ length: sourceCount }, (_, sourceIndex) => {
-    const category = CATEGORIES[sourceIndex % CATEGORIES.length];
+    const category = categories[sourceIndex % categories.length];
     return new JsonSource(`editorial-${sourceIndex}`, async () =>
-      Array.from({ length: 15 }, (_, itemIndex) => {
+      Array.from({ length: itemsPerSource }, (_, itemIndex) => {
         const subject = subjects[(sourceIndex * 7 + itemIndex) % subjects.length];
         return {
           id: `editorial-${sourceIndex}-${itemIndex}`,
@@ -129,7 +136,8 @@ function snapshotEngine(items) {
   const sources = [
     { id: "sciencedaily", kind: "news" },
     { id: "physorg", kind: "news" },
-    { id: "ruliweb", kind: "community" }
+    { id: "ruliweb", kind: "community" },
+    { id: "inven", kind: "community" }
   ];
   const engine = new FeedEngine(store, sources);
   engine._cache = items.map((item) => ({ ...item }));
@@ -210,6 +218,100 @@ test("동적 후보 계약: 한국어 독자판은 분야 최소 후보에서 �
   });
   assert.equal(fixture.metrics.koreanAudiencePreference, true);
   assert.equal(fixture.candidates.filter((row) => /[가-힣]/.test(row.title)).length, 2);
+});
+
+test("동적 후보 계약: 분야 목표보다 작은 출처 상한으로 유효 후보를 잘라내지 않는다", () => {
+  const items = Array.from({ length: 18 }, (_, index) => ({
+    id: `single-source-${index}`,
+    title: `게임 대회와 신작 소식 ${index + 1}차 발표`,
+    url: `https://gaming.example.com/${index}`,
+    category: "gaming",
+    source: "gamemeca",
+    kind: "news",
+    score: 100 - index
+  }));
+  const fixture = buildEditionCandidateFixture(items, {
+    selectedCategories: ["gaming"],
+    limit: 112,
+    minPerSelectedCategory: 14,
+    preferKoreanAudience: true
+  });
+
+  assert.ok(fixture.metrics.sourceCap >= 14);
+  assert.ok(fixture.candidates.length >= 14);
+});
+
+test("동적 후보 계약: 본문 없는 Google 중계 한 단어 페이지 제목은 후보로 쓰지 않는다", () => {
+  const fixture = buildEditionCandidateFixture([{
+    id: "relay-page-title",
+    title: "열린도지사실",
+    summary: "",
+    url: "https://news.google.com/rss/articles/opaque-token?oc=5",
+    canonicalUrl: null,
+    category: "politics",
+    source: "gnews-biz",
+    kind: "news",
+    coverage: 5
+  }, {
+    id: "direct-story",
+    title: "경기도 청년 주거 지원 예산안 발표",
+    summary: "지원 대상과 시행 일정을 발표했다.",
+    url: "https://publisher.example.com/politics/1",
+    category: "politics",
+    source: "publisher",
+    kind: "news"
+  }], {
+    selectedCategories: ["politics"],
+    limit: 2,
+    minPerSelectedCategory: 1
+  });
+
+  assert.deepEqual(fixture.candidates.map((row) => row.itemId), ["direct-story"]);
+  assert.equal(fixture.metrics.dropped.relayStub, 1);
+});
+
+test("동적 후보 계약: 지역 편성 분야는 검수 전 국내외 후보를 각각 한 지면씩 보존한다", () => {
+  const registry = [];
+  const items = [
+    ...Array.from({ length: 40 }, (_, index) => {
+      const source = `foreign-tech-${index}`;
+      registry.push({ id: source, country: "US" });
+      return {
+        id: source,
+        title: `Global technology report number ${index + 1}`,
+        url: `https://foreign-${index}.example.com/article`,
+        category: "tech",
+        source,
+        kind: "news",
+        score: 1_000 - index
+      };
+    }),
+    ...Array.from({ length: 20 }, (_, index) => {
+      const source = `domestic-tech-${index}`;
+      registry.push({ id: source, country: "KR" });
+      return {
+        id: source,
+        title: `국내 기술 산업 동향 ${index + 1}`,
+        url: `https://domestic-${index}.example.com/article`,
+        category: "tech",
+        source,
+        kind: "news",
+        score: 100 - index
+      };
+    })
+  ];
+
+  const fixture = buildEditionCandidateFixture(items, {
+    registry,
+    selectedCategories: ["tech"],
+    domesticShareBands: { tech: [0.5, 0.7] },
+    limit: 28,
+    minPerSelectedCategory: 14
+  });
+
+  assert.equal(fixture.candidates.filter((row) => row.country === "KR").length, 14);
+  assert.equal(fixture.candidates.filter((row) => row.country === "US").length, 14);
+  assert.equal(fixture.metrics.candidateCount, 28);
 });
 
 test("오늘판: 명시적으로 고른 한 분야가 지면을 소유하고 편집 근거가 붙는다", async () => {
@@ -314,6 +416,123 @@ test("오늘판: 분야별 점수 분포가 달라도 단독 상위 목록을 �
   assert.deepEqual(ids(finalized), expected);
 });
 
+test("오늘판: 복수 선택은 단독 분야의 고정 상위 목록을 다시 뽑지 않고 합친다", async () => {
+  const now = Date.now();
+  const categories = ["business", "tech"];
+  const fixed = Object.fromEntries(categories.map((category, categoryIndex) => [
+    category,
+    Array.from({ length: 4 }, (_, index) => ({
+      evidenceHash: `fixed-${category}-${index}`,
+      clusterId: `fixed-${category}-${index}`,
+      subject: `${category} 고정 기사 ${index}`,
+      headline: `${category} 고정 기사 ${index}`,
+      paragraph: `${category} 고정 기사 ${index}의 고정 설명입니다.`,
+      whyImportant: `${category} 고정 중요성 ${index}`,
+      watchNext: `${category} 고정 후속 ${index}`,
+      categoryIds: [category],
+      refs: [{ id: `fixed-${category}-${index}`, title: `${category} 고정 기사 ${index}` }],
+      metrics: { score: 1_000 - categoryIndex * 100 - index }
+    }))
+  ]));
+  const replacements = categories.flatMap((category, categoryIndex) =>
+    Array.from({ length: 4 }, (_, index) => ({
+      evidenceHash: `replacement-${category}-${index}`,
+      clusterId: `replacement-${category}-${index}`,
+      subject: `${category} 조합 재선정 기사 ${index}`,
+      headline: `${category} 조합 재선정 기사 ${index}`,
+      categoryIds: [category],
+      refs: [{ id: `replacement-${category}-${index}`, title: `${category} 조합 재선정 기사 ${index}` }],
+      metrics: { score: 2_000 - categoryIndex * 100 - index }
+    })));
+  const engine = new FeedEngine(new FeedStore(), []);
+  const calls = [];
+  engine.briefing = async ({ categories: requested }) => {
+    calls.push([...requested]);
+    const issues = requested.length === 1 ? fixed[requested[0]] : replacements;
+    return {
+      generatedAt: new Date(now).toISOString(),
+      slot: { id: "evening" },
+      itemCount: issues.length,
+      sourceCount: issues.length,
+      overseasShare: 0,
+      issues,
+      sections: requested.map((category) => ({
+        category,
+        items: issues.filter((issue) => issue.categoryIds.includes(category))
+      })),
+      editorialQuality: { categoryFunnel: [] },
+      publishable: true
+    };
+  };
+
+  const businessOnly = await engine.todayEdition({ categories: ["business"], slotId: "evening" });
+  const techOnly = await engine.todayEdition({ categories: ["tech"], slotId: "evening" });
+  calls.length = 0;
+  const combined = await engine.todayEdition({ categories, slotId: "evening" });
+  const key = (issue) => issue.clusterId || issue.evidenceHash;
+  const combinedByKey = new Map(combined.issues.map((issue) => [key(issue), issue]));
+
+  assert.deepEqual(calls, [["business"], ["tech"]]);
+  for (const issue of [...businessOnly.issues, ...techOnly.issues]) {
+    const merged = combinedByKey.get(key(issue));
+    assert.ok(merged, `단독 분야 기사가 조합에서 사라짐: ${issue.subject}`);
+    for (const field of ["subject", "headline", "paragraph", "whyImportant", "watchNext"]) {
+      assert.equal(merged[field], issue[field], `${field}가 카테고리 조합 때문에 바뀜`);
+    }
+  }
+});
+
+test("오늘판: 여러 분야도 이전 판 중복을 분야별로 대체해 각 14건을 유지한다", async () => {
+  const categories = ["business", "science", "tech"];
+  const now = Date.now();
+  const currentIssues = categories.flatMap((category, categoryIndex) =>
+    Array.from({ length: 22 }, (_, itemIndex) => ({
+      evidenceHash: `reserve-${category}-${itemIndex}`,
+      headline: `${category} 확정 이슈 ${itemIndex}`,
+      subject: `${category} 확정 이슈 ${itemIndex}`,
+      categoryIds: [category],
+      refs: [{ id: `reserve-${category}-${itemIndex}`, title: `${category} 확정 이슈 ${itemIndex}` }],
+      metrics: { score: 1_000 - categoryIndex * 100 - itemIndex, sourceCount: 2, coverage: 2 },
+      publishedAt: new Date(now - itemIndex * 1000).toISOString()
+    })));
+  const engine = new FeedEngine(new FeedStore(), []);
+  engine.briefing = async ({ categories: selected }) => ({
+    generatedAt: new Date(now).toISOString(),
+    slot: { id: "evening" },
+    issues: currentIssues,
+    sections: selected.map((category) => ({
+      category,
+      items: currentIssues.filter((issue) => issue.categoryIds.includes(category))
+    }))
+  });
+  const candidate = await engine.todayEdition({
+    categories,
+    slotId: "evening",
+    reserveIssues: 8
+  });
+  const previousIssues = categories.flatMap((category) =>
+    candidate.issues.filter((issue) => issue.categoryIds.includes(category)).slice(0, 8));
+  const finalized = applyEditionChanges(candidate, {
+    editionId: "previous-evening",
+    generatedAt: new Date(now - 6 * 3600 * 1000).toISOString(),
+    issues: previousIssues
+  }, {
+    targetLimit: candidate.selection.maxIssues,
+    minIssuesPerCategory: candidate.selection.minIssuesPerCategory,
+    additiveCategoryUnion: candidate.selection.additiveCategoryUnion,
+    categoryIssueLimit: candidate.selection.categoryIssueLimit
+  });
+  const counts = Object.fromEntries(categories.map((category) => [
+    category,
+    finalized.issues.filter((issue) => issue.categoryIds.includes(category)).length
+  ]));
+
+  assert.equal(candidate.selection.generatedIssueBudget, 66);
+  assert.equal(candidate.selection.generationMinIssuesPerCategory, 22);
+  assert.deepEqual(counts, { business: 14, science: 14, tech: 14 });
+  assert.equal(finalized.issues.length, 42);
+});
+
 test("오늘판: 서로 다른 URL과 제목 변형으로 들어온 같은 사건은 두 분야 합집합에서 한 번만 제공한다", async () => {
   const now = Date.now();
   const rows = [
@@ -347,15 +566,25 @@ test("오늘판: 서로 다른 URL과 제목 변형으로 들어온 같은 사�
     additiveCategoryUnion: combined.selection.additiveCategoryUnion,
     categoryIssueLimit: combined.selection.categoryIssueLimit
   });
-  const selectedIds = finalized.issues.flatMap((issue) => issue.refs.map((ref) => ref.id));
-  const duplicateIds = selectedIds.filter((id) => id.startsWith("cross-duplicate-"));
+  const duplicateIssues = finalized.issues.filter((issue) =>
+    issue.refs.some((ref) => ref.id.startsWith("cross-duplicate-")));
+  const duplicateIn = (edition) => edition.issues.find((issue) =>
+    issue.refs.some((ref) => ref.id.startsWith("cross-duplicate-")));
+  const canonicalFields = (issue) => Object.fromEntries([
+    "subject", "headline", "paragraph", "eventSourceSetId", "eventSources", "sourceEvidence", "refs"
+  ].map((field) => [field, issue[field]]));
+  const businessDuplicate = duplicateIn(businessOnly);
+  const scienceDuplicate = duplicateIn(scienceOnly);
+  const combinedDuplicate = duplicateIn(combined);
 
   assert.equal(businessOnly.issues.length, 4);
   assert.equal(scienceOnly.issues.length, 4);
-  assert.equal(combined.issues.length, 8);
+  assert.equal(combined.issues.length, 7);
   assert.equal(finalized.issues.length, 7);
-  assert.equal(duplicateIds.length, 1);
+  assert.equal(duplicateIssues.length, 1);
   assert.equal(new Set(finalized.issues.map((issue) => issue.clusterId)).size, 7);
+  assert.deepEqual(canonicalFields(scienceDuplicate), canonicalFields(businessDuplicate));
+  assert.deepEqual(canonicalFields(combinedDuplicate), canonicalFields(businessDuplicate));
 });
 
 test("오늘판: 저장 선택이 설문보다 우선하고 기존 설문·취향은 보존된다", async () => {
@@ -385,9 +614,9 @@ test("오늘판: 여러 선택 분야는 대표 이슈를 확보하고 남은 �
     assert.doesNotMatch(issue.whyForYou, /기술\/IT을 선택/,
       `영문 약어의 읽는 소리에 맞지 않는 조사: ${issue.whyForYou}`);
   }
-  assert.equal(edition.selection.minIssuesPerCategory, 3);
+  assert.equal(edition.selection.minIssuesPerCategory, 14);
   for (const category of CATEGORIES) {
-    assert.ok(counts[category] >= 3, `${category} 대표 이슈 부족: ${JSON.stringify(counts)}`);
+    assert.ok(counts[category] >= 13, `${category} 대표 이슈 부족: ${JSON.stringify(counts)}`);
   }
   assert.ok(edition.issues.length <= edition.selection.maxIssues);
 });
@@ -403,7 +632,7 @@ test("오늘판: 선택 분야별 유효 이슈를 최대 14건씩 합쳐 공급
     new JsonSource(`density-${category}`, async () =>
       Array.from({ length: 5 }, (_, itemIndex) => ({
         id: `density-${category}-${itemIndex}`,
-        title: `${category} ${distinctTopics[itemIndex]} 분야-${categoryIndex}`,
+        title: `${category} ${distinctTopics[itemIndex]} 사건번호 ${1000 + categoryIndex}`,
         url: `https://density-${category}.example.com/${itemIndex}`,
         category,
         score: 500 - itemIndex,
@@ -425,7 +654,7 @@ test("오늘판: 선택 분야별 유효 이슈를 최대 14건씩 합쳐 공급
   assert.equal(edition.selection.maxIssues, 196);
   assert.equal(edition.selection.categoryIssueLimit, 14);
   assert.equal(edition.selection.additiveCategoryUnion, true);
-  assert.equal(edition.selection.minIssuesPerCategory, 3);
+  assert.equal(edition.selection.minIssuesPerCategory, 14);
   assert.equal(edition.candidateContract.metrics.categoryFloor, 14);
   assert.equal(edition.issues.length, categoryIds.length * 5);
   for (const category of categoryIds) {
@@ -441,16 +670,16 @@ test("오늘판: 선택 분야별 유효 이슈를 최대 14건씩 합쳐 공급
   for (const issue of reserved.issues) {
     for (const category of issue.categoryIds) if (category in reservedCounts) reservedCounts[category] += 1;
   }
-  assert.equal(reserved.selection.minIssuesPerCategory, 3, "최종 품질 최소치는 바뀌지 않는다");
-  assert.equal(reserved.selection.generationMinIssuesPerCategory, 14,
-    "반복 제거 전에는 선택 분야별 상위 목록 전체를 확보한다");
+  assert.equal(reserved.selection.minIssuesPerCategory, 14, "최종 품질 최소치는 바뀌지 않는다");
+  assert.equal(reserved.selection.generationMinIssuesPerCategory, 22,
+    "반복 제거 여유분은 최종 14건 목표보다 넓게 확보한다");
   for (const category of categoryIds) {
     assert.equal(reservedCounts[category], 5,
       `${category} 유효 이슈 누락: ${JSON.stringify(reservedCounts)}`);
   }
 });
 
-test("오늘판: 사용자가 정치를 명시 선택하면 정치 토픽을 정치 분야로 편성한다", async () => {
+test("오늘판: 낡은 v2 스냅샷이어도 정치 토픽을 정치 분야로 편성한다", async () => {
   const now = Date.now();
   const titles = [
     "국회 예산안 본회의 표결 일정 확정",
@@ -466,14 +695,25 @@ test("오늘판: 사용자가 정치를 명시 선택하면 정치 토픽을 정
     score: 100 - index,
     publishedAt: new Date(now - index * 60_000).toISOString()
   })), "news");
-  const edition = await new FeedEngine(new FeedStore(), [source]).todayEdition({
+  const engine = new FeedEngine(new FeedStore(), [source]);
+  const router = createCategoryRouter({
+    contract: "NOWHOT-CATEGORY-ROUTING-SNAPSHOT-001",
+    snapshotId: "stale-politics-test",
+    generatedAt: new Date(now - 31 * 60 * 60 * 1000).toISOString(),
+    source: { packetSha256: "a".repeat(64), predictionsSha256: "b".repeat(64) },
+    counts: { classifiedArticles: 0, withheldArticles: 0 },
+    entries: []
+  }, [], { now: () => now });
+  engine.editorialCategoryRouter = (items) => router.project(items);
+  engine.editorialCategoryRoutingStatus = router.status;
+  const edition = await engine.todayEdition({
     categories: ["politics"],
     slotId: "evening"
   });
 
   assert.ok(edition.issues.length >= 3);
-  assert.ok(edition.issues.every((issue) => issue.categoryIds.includes("politics")));
-  assert.equal(edition.categoryFulfillment.rows[0].state, "met");
+  assert.ok(edition.issues.every((issue) => issue.selectedByCategories.includes("politics")));
+  assert.equal(edition.categoryFulfillment.rows[0].state, "underfilled");
   assert.ok(edition.candidateContract.metrics.categoryCandidateCounts.politics >= 3);
 });
 
@@ -501,7 +741,7 @@ test("오늘판: 동적 최소 깊이를 생성 단계에도 전달해 공급 �
     for (const category of issue.categoryIds) if (category in counts) counts[category] += 1;
   }
 
-  assert.equal(edition.selection.minIssuesPerCategory, 3);
+  assert.equal(edition.selection.minIssuesPerCategory, 14);
   for (const category of categoryIds) assert.ok(counts[category] >= 2, `${category}: ${JSON.stringify(counts)}`);
 });
 
@@ -541,7 +781,7 @@ test("오늘판: 얇은 분야만 최근 24시간의 미제공 보도형 재고�
       url: `${servedUrl}&utm_source=morning`
     }),
     row("community", "과학 게시판에서 화제가 된 우주 사진", 9, {
-      source: "ruliweb",
+      source: "inven",
       kind: "community"
     }),
     row("stale", "오래된 해양 온도 변화 관측 자료", 25)
@@ -572,14 +812,14 @@ test("오늘판: 얇은 분야만 최근 24시간의 미제공 보도형 재고�
   const carryoverIssues = edition.issues.filter((issue) => issue.metrics.carryoverUsed);
 
   assert.equal(edition.editorialCarryover.enabled, true);
-  assert.equal(edition.editorialCarryover.candidateCount, 4);
-  assert.equal(edition.candidateFixture.metrics.carryoverCandidateCount, 4);
-  assert.equal(edition.candidateFixture.metrics.carryoverCategoryCounts.science, 4);
+  assert.equal(edition.editorialCarryover.candidateCount, 5);
+  assert.equal(edition.candidateFixture.metrics.carryoverCandidateCount, 5);
+  assert.equal(edition.candidateFixture.metrics.carryoverCategoryCounts.science, 5);
   assert.ok(candidateIds.has("fresh"));
   assert.ok(!candidateIds.has("served"), "이미 제공한 canonical URL은 다시 후보가 되면 안 된다");
-  assert.ok(!candidateIds.has("community"), "커뮤니티 글은 이월 재고가 아니다");
+  assert.ok(candidateIds.has("community"), "검증된 베스트글도 부족 분야의 미제공 재고로 쓴다");
   assert.ok(!candidateIds.has("stale"), "24시간을 넘긴 글은 이월하지 않는다");
-  assert.ok(carryoverCandidates.every((candidate) => candidate.sourceRole === "reported_secondary"));
+  assert.ok(carryoverCandidates.some((candidate) => candidate.sourceRole === "community_signal"));
   assert.ok(edition.issues.length >= 3);
   assert.equal(edition.issues[0].metrics.carryoverUsed, false,
     "이월분은 현재 슬롯의 새 기사보다 앞에 서면 안 된다");
@@ -587,6 +827,213 @@ test("오늘판: 얇은 분야만 최근 24시간의 미제공 보도형 재고�
   assert.equal(edition.editorialCarryover.selectedIssueCount, carryoverIssues.length);
   assert.ok(carryoverIssues.every((issue) =>
     issue.refs.some((ref) => ref.carryover) && issue.sourceEvidence.some((evidence) => evidence.carryover)));
+});
+
+test("오늘판: 현재 슬롯 공급이 2건이어도 최근 24시간 미제공 재고로 분야 14건을 채운다", async () => {
+  const asOfMs = Date.parse("2026-08-11T10:00:00.000Z");
+  const titles = [
+    "신작 우주 탐험 게임이 첫 번째 확장팩을 공개했다",
+    "프로리그 결승전에서 새로운 우승팀이 탄생했다",
+    "전략 게임 밸런스 패치가 주요 유닛 능력치를 바꿨다",
+    "휴대용 콘솔 신제품의 출시 일정이 확정됐다",
+    "인디 게임 축제가 올해 수상작 명단을 발표했다",
+    "온라인 역할 게임이 신규 대륙 업데이트를 예고했다",
+    "레이싱 게임 대회가 새로운 경기 규칙을 도입했다",
+    "퍼즐 게임 후속작이 협동 모드를 처음 공개했다",
+    "게임 유통 플랫폼이 가족 공유 기능을 정식 도입했다",
+    "액션 게임 개발진이 전투 시스템 개편안을 공개했다",
+    "호러 게임 제작진이 장편 영화화 계약을 체결했다",
+    "축구 게임 시즌 업데이트가 선수 명단을 교체했다",
+    "생존 게임이 이용자 제작 지도 기능을 추가했다",
+    "스토리 게임이 한국어 음성 지원 계획을 발표했다"
+  ];
+  const sources = ["gamemeca", "pcgamer", "inven", "gamespot"];
+  const items = Array.from({ length: 14 }, (_, index) => {
+    const hoursAgo = index < 2 ? index + 1 : index + 7;
+    const at = asOfMs - hoursAgo * 3600 * 1000;
+    return {
+      id: `gaming-depth-${index}`,
+      title: titles[index],
+      url: `https://gaming.example.com/${index}`,
+      category: "gaming",
+      source: sources[index % sources.length],
+      kind: index % 2 ? "community" : "news",
+      score: 100 - index,
+      commentCount: index,
+      coverage: 1,
+      publishedAt: new Date(at).toISOString(),
+      firstSeenAt: at
+    };
+  });
+
+  const edition = await snapshotEngine(items).todayEdition({
+    categories: ["gaming"],
+    slotId: "evening",
+    asOfMs,
+    allowCarryover: true
+  });
+
+  assert.equal(edition.issues.length, 14);
+  assert.equal(edition.categoryFulfillment.rows[0].issueCount, 14);
+  assert.equal(edition.categoryFulfillment.goalSatisfied, true);
+});
+
+test("오늘판: 현재 슬롯 원시 글이 14건이어도 한 매체 편중이면 24시간 재고로 편집 깊이를 채운다", async () => {
+  const asOfMs = Date.parse("2026-08-11T10:00:00.000Z");
+  const freshTitles = [
+    "콘솔 신제품 출시 일정 공개", "프로게임단 새 감독 선임", "인디게임 수상작 발표",
+    "온라인게임 신규 대륙 추가", "레이싱게임 대회 규칙 개편", "퍼즐게임 협동 모드 공개",
+    "게임 플랫폼 가족 공유 도입", "액션게임 전투 시스템 개편", "호러게임 영화화 계약",
+    "축구게임 선수 명단 교체", "생존게임 지도 제작 기능", "스토리게임 한국어 음성 지원",
+    "모바일게임 글로벌 사전예약", "전략게임 신규 진영 공개"
+  ];
+  const backlogTitles = [
+    "게임 엔진 새 렌더링 기능 발표", "휴대용 게임기 배터리 개선", "e스포츠 결승 개최지 확정",
+    "클라우드 게임 지원 국가 확대", "게임 구독 서비스 작품 추가", "가상현실 게임 후속작 공개",
+    "교육용 게임 연구 결과 발표", "게임 접근성 옵션 표준 제안", "보드게임 디지털판 출시",
+    "게임 음악 공연 일정 확정", "아케이드 복원 프로젝트 시작", "게임 개발자 행사 연사 공개",
+    "시뮬레이션 게임 확장팩 예고", "게임 번역 지원 언어 확대"
+  ];
+  const fresh = freshTitles.map((title, index) => {
+    const at = asOfMs - (index + 1) * 60 * 1000;
+    return {
+      id: `fresh-concentrated-${index}`,
+      title,
+      url: `https://fresh.example.com/${index}`,
+      category: "gaming",
+      source: "fresh-source",
+      kind: "news",
+      score: 200 - index,
+      publishedAt: new Date(at).toISOString(),
+      firstSeenAt: at
+    };
+  });
+  const backlog = backlogTitles.map((title, index) => {
+    const at = asOfMs - (8 + index / 10) * 3600 * 1000;
+    return {
+      id: `backlog-diverse-${index}`,
+      title,
+      url: `https://backlog-${index}.example.com/story`,
+      category: "gaming",
+      source: `backlog-source-${index}`,
+      kind: "news",
+      score: 100 - index,
+      publishedAt: new Date(at).toISOString(),
+      firstSeenAt: at
+    };
+  });
+
+  const edition = await snapshotEngine([...fresh, ...backlog]).todayEdition({
+    categories: ["gaming"],
+    slotId: "evening",
+    asOfMs,
+    allowCarryover: true
+  });
+
+  assert.equal(edition.issues.length, 14);
+  assert.equal(edition.categoryFulfillment.rows[0].issueCount, 14);
+  assert.equal(edition.categoryFulfillment.goalSatisfied, true);
+  assert.ok(edition.editorialCarryover.candidateCount > 0);
+});
+
+test("오늘판: 세 전문 매체의 24시간 재고만으로도 부동산 분야 14건을 채운다", async () => {
+  const asOfMs = Date.parse("2026-08-11T10:00:00.000Z");
+  const sources = ["mk-realestate", "hankyung-realestate", "chosunbiz-realestate"];
+  const titles = [
+    "서울 재건축 용적률 완화안 발표", "전세 보증금 반환 지원 확대",
+    "신규 택지 후보지 공개", "오피스텔 취득세 감면",
+    "분양가 상한제 기준 조정", "청년 임대주택 착공",
+    "그린벨트 해제 검토", "상업용 건물 공실률 통계",
+    "주택담보대출 규제 변경", "재개발 조합 사업 승인",
+    "수도권 아파트 거래량 증가", "종부세 공제 기준 개편",
+    "PF 사업장 인수 계획", "공공임대 입주자 모집",
+    "건설사 미분양 할인", "전월세 신고제 보완",
+    "도시정비사업 일정 확정", "토지거래허가구역 조정",
+    "상가 임대차 분쟁 조정", "고령자 주거 지원 확대",
+    "지역주택조합 회계 공개", "건축 인허가 기간 단축",
+    "신혼부부 특별공급 개편", "생활형 숙박시설 용도 변경"
+  ];
+  const items = Array.from({ length: 24 }, (_, index) => {
+    const hoursAgo = index < 4 ? index + 1 : 8 + index / 10;
+    const at = asOfMs - hoursAgo * 3600 * 1000;
+    return {
+      id: `realestate-depth-${index}`,
+      title: titles[index],
+      url: `https://realestate-${index}.example.com/story`,
+      category: "realestate",
+      source: sources[index % sources.length],
+      kind: "news",
+      score: 200 - index,
+      coverage: 1,
+      publishedAt: new Date(at).toISOString(),
+      firstSeenAt: at
+    };
+  });
+
+  const edition = await snapshotEngine(items).todayEdition({
+    categories: ["realestate"],
+    slotId: "evening",
+    asOfMs,
+    allowCarryover: true
+  });
+
+  assert.equal(edition.issues.length, 14);
+  assert.equal(edition.categoryFulfillment.rows[0].issueCount, 14);
+  assert.equal(edition.categoryFulfillment.goalSatisfied, true);
+});
+
+test("오늘판: 영문 최신글이 앞서도 한국어 24시간 재고로 게임 분야를 채운다", async () => {
+  const asOfMs = Date.parse("2026-08-11T10:00:00.000Z");
+  const english = Array.from({ length: 12 }, (_, index) => {
+    const at = asOfMs - (index + 1) * 60 * 1000;
+    return {
+      id: `english-gaming-${index}`,
+      title: `Major game showcase announces a new release update number ${index + 1}`,
+      url: `https://pcgamer.example.com/${index}`,
+      category: "gaming",
+      source: "pcgamer",
+      kind: "news",
+      score: 300 - index,
+      publishedAt: new Date(at).toISOString(),
+      firstSeenAt: at
+    };
+  });
+  const koreanTitles = [
+    "우주 탐험 신작 확장팩 공개", "프로리그 결승전 우승팀 확정",
+    "전략 게임 밸런스 패치 배포", "휴대용 콘솔 출시 일정 발표",
+    "인디 게임 축제 수상작 선정", "온라인 역할 게임 신규 대륙 추가",
+    "레이싱 대회 경기 규칙 개편", "퍼즐 후속작 협동 모드 공개",
+    "게임 플랫폼 가족 공유 도입", "액션 신작 전투 시스템 개편",
+    "호러 게임 장편 영화화 계약", "축구 게임 선수 명단 교체",
+    "생존 게임 지도 제작 기능 추가", "스토리 게임 한국어 음성 지원",
+    "모바일 신작 글로벌 사전예약", "가상현실 게임 후속작 발표",
+    "클라우드 게임 지원 국가 확대", "게임 음악 공연 일정 확정"
+  ];
+  const korean = Array.from({ length: koreanTitles.length }, (_, index) => {
+    const at = asOfMs - (8 + index / 10) * 3600 * 1000;
+    return {
+      id: `korean-gaming-${index}`,
+      title: koreanTitles[index],
+      url: `https://gamemeca.example.com/${index}`,
+      category: "gaming",
+      source: "gamemeca",
+      kind: "news",
+      score: 100 - index,
+      publishedAt: new Date(at).toISOString(),
+      firstSeenAt: at
+    };
+  });
+
+  const edition = await snapshotEngine([...english, ...korean]).todayEdition({
+    categories: ["gaming"],
+    slotId: "evening",
+    asOfMs,
+    allowCarryover: true
+  });
+
+  assert.equal(edition.issues.length, 14);
+  assert.equal(edition.categoryFulfillment.goalSatisfied, true);
+  assert.ok(edition.issues.every((issue) => /[가-힣]/.test(issue.headline)));
 });
 
 test("검수 패킷 승계: 사람 입력이 없는 같은 저장 판만 새 계약 패킷으로 교체한다", async () => {
@@ -736,10 +1183,12 @@ test("서버: 로컬 플래그가 오늘판 홈·선택 저장을 열고 꺼지�
   let testNow = Date.parse("2026-08-10T06:30:00+09:00");
   const local = createServer({
     sources: editorialSources(
-      Date.parse("2026-08-10T18:20:00+09:00"),
-      60 * 60_000,
+      Date.parse("2026-08-10T12:20:00+09:00"),
+      6 * 60 * 60_000,
       SERVEABLE_SUBJECTS,
-      12
+      30,
+      ["business"],
+      2
     ),
     localEditorial: true,
     adminToken,
@@ -811,8 +1260,9 @@ test("서버: 로컬 플래그가 오늘판 홈·선택 저장을 열고 꺼지�
     const previousMorningResponse = await fetch(
       `${base}/api/today?userId=${encodeURIComponent(session.userId)}&slot=morning&date=2026-08-10`
     );
-    assert.equal(previousMorningResponse.status, 200, "07시 전에는 전날 모닝판을 다시 열 수 있어야 한다");
     const previousMorning = await previousMorningResponse.json();
+    assert.equal(previousMorningResponse.status, 200,
+      `07시 전에는 전날 모닝판을 다시 열 수 있어야 한다: ${JSON.stringify(previousMorning.serving || previousMorning)}`);
     assert.equal(previousMorning.editionDate, "2026-08-10");
     const futureMorning = await fetch(
       `${base}/api/today?userId=${encodeURIComponent(session.userId)}&slot=morning&date=2026-08-11`
@@ -845,16 +1295,16 @@ test("서버: 로컬 플래그가 오늘판 홈·선택 저장을 열고 꺼지�
     assert.ok(replay.slots.every((row) =>
       row.preflightReview.metrics.machinePass + row.preflightReview.metrics.machineHold === row.selectedIssueCount));
     assert.equal(inventory.stableId, "NOWHOT-EDITORIAL-INVENTORY-001");
-    assert.equal(inventory.snapshotVersion, "v26");
+    assert.equal(inventory.snapshotVersion, "v30");
     assert.equal(inventory.compatibility.pass, true);
     assert.equal(inventory.state, "inventory_backlog");
-    assert.equal(inventory.missingCount, 1, JSON.stringify({
+    assert.equal(inventory.missingCount, inventory.slots.reduce((sum, row) => sum + row.missing, 0), JSON.stringify({
       state: inventory.state,
       slots: inventory.slots,
       segments: inventory.segments
     }));
     const lunchInventory = inventory.slots.find((row) => row.id === "lunch");
-    assert.equal(lunchInventory.missing, 1, "불완전한 기본 런치판은 저장하지 않고 재수집 대상으로 남겨야 한다");
+    assert.ok(lunchInventory.missing >= 13, "아직 준비되지 않은 분야별 런치판은 재수집 대상으로 남겨야 한다");
     assert.equal(lunchInventory.held, 0, "저장된 런치판은 모두 발행 가능해야 한다");
     assert.match(inventory.privacy, /사용자 ID를 판본 키에 넣지 않는다/);
     assert.equal(elapsedEvidence.actualElapsedTimeProof, false, "주입 시계 테스트를 실제 시간차 증거로 올리면 안 된다");
@@ -881,7 +1331,7 @@ test("서버: 로컬 플래그가 오늘판 홈·선택 저장을 열고 꺼지�
     assert.equal(personalization.addedIssueCount, 0);
     assert.equal(personalization.removedIssueCount, 0);
     assert.equal(servingGate.contractId, "NOWHOT-EDITORIAL-SERVING-CONTRACT-001");
-    assert.equal(servingGate.contractVersion, 1);
+    assert.equal(servingGate.contractVersion, EDITORIAL_SERVING_CONTRACT.version);
     assert.equal(servingGate.humanReviewRequired, false);
     assert.match(servingGate.state, /^serveable_machine_(verified|hold)$/);
     assert.ok(Number.isInteger(servingGate.verificationCount));

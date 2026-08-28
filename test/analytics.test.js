@@ -229,6 +229,7 @@ test("MODEL_PRICING: 우리가 실제로 쓰는 모델의 단가가 등록돼 �
   // 기본 모델이 목록에 없으면 매달 비용이 통째로 '미등록'으로 빠진다.
   const inUse = process.env.LLM_MODEL || "claude-sonnet-5";
   assert.ok(MODEL_PRICING[inUse], `${inUse} 단가 미등록 — 지출 집계에서 누락된다`);
+  assert.deepEqual(MODEL_PRICING["claude-haiku-4-5-20251001"], { in: 1, out: 5 });
 });
 
 // ── 광고 카드 복구 회귀 (2026-08-04) ────────────────────────────────────────
@@ -373,6 +374,10 @@ test("승격 제외: 알맹이 없는 글은 대표 자리에 올리지 않되 �
   assert.equal(lowValueReason("300추 가능한가요?"), "추천 구걸");
   assert.equal(isLowValue("실시간 세르카 나메 2관 파티모집창"), true);
   assert.equal(isLowValue("출석 체크합니다"), true);
+  assert.equal(lowValueReason("*8/14 마감!* 밤의 미술관에서 가장 기대되는 것을 댓글로 남기고 초코말차설빙 받아가세요!"), "경품 참여 유도");
+  assert.equal(lowValueReason("에스라이즈, 지마켓 ‘빡세일 쿨캉스’서 ASUS 게이밍 노트북 특별 프로모션 진행"), "상업 판촉문");
+  assert.equal(lowValueReason("동아오츠카, 폭염 속 봉황대기에 음료 2만개 지원"), "기업 행사 협찬 보도");
+  assert.equal(lowValueReason("8월 특가) 타이어 4개 = 월 2,000원"), "가격형 특가 광고");
 
   // 정상 글은 절대 걸리면 안 된다 — 오탐 하나가 진짜 화제를 밀어낸다
   for (const ok of [
@@ -381,6 +386,10 @@ test("승격 제외: 알맹이 없는 글은 대표 자리에 올리지 않되 �
     "이번에 발표된 청년혜택 진짜 파격적이네요",
     "LLMs reward expertise",
     "수학과 이론 컴퓨터 과학의 10가지 발전",
+    "애플이 신형 노트북 출시 행사를 진행",
+    "프로모션이 기업 실적에 미친 영향 분석",
+    "여름 특가 경쟁이 유통업계 매출에 미친 영향",
+    "정부, 수해 지역에 생수 10만개 지원",
     "5000원으로 장보기 성공한 후기"        // 숫자 + 후기 — 구걸 패턴과 헷갈리기 쉽다
   ]) {
     assert.equal(isLowValue(ok), false, `오탐: "${ok}"`);

@@ -177,6 +177,15 @@ test("registry: 선택 가능한 과학 분야는 복수의 활성 RSS 공급을
   assert.ok(science.every((source) => ["reported_secondary", "primary"].includes(source.sourceRole)));
 });
 
+test("registry: 기술판은 출처당 3건 상한으로도 14건을 채울 직접 매체가 다섯 곳 이상이어야 한다", () => {
+  const directTech = loadRegistry().filter((source) =>
+    source.enabled && source.kind === "news" && source.category === "tech"
+    && source.sourceTier === "specialist" && source.categoryRouting === "declared_section");
+  assert.ok(directTech.length >= 5, `직접 기술 뉴스 소스 ${directTech.length}곳`);
+  assert.ok(directTech.every((source) => source.adapter?.type === "rss"));
+  assert.ok(directTech.every((source) => /^https:\/\//.test(source.adapter.url)));
+});
+
 test("registry: 하입비스트는 종합 문화 피드가 아니라 패션 섹션 피드를 쓴다", () => {
   const registry = loadRegistry();
   const retired = registry.find((row) => row.id === "hypebeast");

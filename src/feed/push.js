@@ -173,7 +173,7 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
     const payload = JSON.stringify({
       title: "지금핫",
       body: `관심글 ${digest.count}개가 올라왔어요` + (top ? ` · ${top.title.slice(0, 30)}` : ""),
-      url: top ? `/#post-${top.id}` : "/"
+      url: top ? `/live#post-${top.id}` : "/live"
     });
 
     try {

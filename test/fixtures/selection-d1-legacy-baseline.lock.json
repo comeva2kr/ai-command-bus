@@ -1,0 +1,158 @@
+{
+  "contract": "NOWHOT-SELECTION-D1C-LEGACY-BASELINE-002",
+  "supersedes": "NOWHOT-SELECTION-D1C-LEGACY-BASELINE-001",
+  "phase": "D1-C",
+  "corpusSha256": "b8f2d45842fa94d5ddd5630fc35660ccd8b13986fd3f1a0291ab6e52def07b8b",
+  "goldSha256": "9a82b0920e56606a8553b39616c6736ee7011699266b2f2d67958fc40f07fdeb",
+  "canonicalSpecSha256": "1bbde69e18f1b162e4528b4071e4dc7c65c4a3092a2c92cff0d67f902fb380e5",
+  "snapshots": {
+    "pool-2026-08-14-lunch": "faf354420acb8f420d4c287898ac729399d2ac4958eda47990d8165a2d133eaa",
+    "pool-2026-08-15-lunch": "11d68b09977f3eec2cdab0f309d9ca3cd10a4c268ee547d7ed18949cff3505cd",
+    "pool-2026-08-16-lunch": "b3aca64fcf84ae2f3f2edadcb7ec6e874d9f6941496b4567feaf52db54cf3e95"
+  },
+  "eligibleCount": 71,
+  "totalQualifiedSupply": 44,
+  "perCategory": {
+    "news": {
+      "goldPositives": 0,
+      "legacyTP": 0,
+      "legacyFN": 0,
+      "legacyFP": 6,
+      "observedAdmission": 6,
+      "recall": null,
+      "qualifiedSupply": 0,
+      "applicable": false
+    },
+    "tech": {
+      "goldPositives": 3,
+      "legacyTP": 1,
+      "legacyFN": 2,
+      "legacyFP": 4,
+      "observedAdmission": 5,
+      "recall": 0.3333333333333333,
+      "qualifiedSupply": 1,
+      "applicable": true
+    },
+    "auto": {
+      "goldPositives": 5,
+      "legacyTP": 4,
+      "legacyFN": 1,
+      "legacyFP": 2,
+      "observedAdmission": 6,
+      "recall": 0.8,
+      "qualifiedSupply": 4,
+      "applicable": true
+    },
+    "science": {
+      "goldPositives": 6,
+      "legacyTP": 6,
+      "legacyFN": 0,
+      "legacyFP": 0,
+      "observedAdmission": 6,
+      "recall": 1,
+      "qualifiedSupply": 6,
+      "applicable": true
+    },
+    "business": {
+      "goldPositives": 8,
+      "legacyTP": 3,
+      "legacyFN": 5,
+      "legacyFP": 3,
+      "observedAdmission": 6,
+      "recall": 0.375,
+      "qualifiedSupply": 3,
+      "applicable": true
+    },
+    "gaming": {
+      "goldPositives": 4,
+      "legacyTP": 3,
+      "legacyFN": 1,
+      "legacyFP": 0,
+      "observedAdmission": 3,
+      "recall": 0.75,
+      "qualifiedSupply": 3,
+      "applicable": true
+    },
+    "sports": {
+      "goldPositives": 8,
+      "legacyTP": 6,
+      "legacyFN": 2,
+      "legacyFP": 0,
+      "observedAdmission": 6,
+      "recall": 0.75,
+      "qualifiedSupply": 6,
+      "applicable": true
+    },
+    "culture": {
+      "goldPositives": 5,
+      "legacyTP": 4,
+      "legacyFN": 1,
+      "legacyFP": 1,
+      "observedAdmission": 5,
+      "recall": 0.8,
+      "qualifiedSupply": 4,
+      "applicable": true
+    },
+    "life": {
+      "goldPositives": 8,
+      "legacyTP": 2,
+      "legacyFN": 6,
+      "legacyFP": 4,
+      "observedAdmission": 6,
+      "recall": 0.25,
+      "qualifiedSupply": 2,
+      "applicable": true
+    },
+    "humor": {
+      "goldPositives": 0,
+      "legacyTP": 0,
+      "legacyFN": 0,
+      "legacyFP": 4,
+      "observedAdmission": 4,
+      "recall": null,
+      "qualifiedSupply": 0,
+      "applicable": false
+    },
+    "politics": {
+      "goldPositives": 6,
+      "legacyTP": 0,
+      "legacyFN": 6,
+      "legacyFP": 0,
+      "observedAdmission": 0,
+      "recall": 0,
+      "qualifiedSupply": 0,
+      "applicable": true
+    },
+    "realestate": {
+      "goldPositives": 7,
+      "legacyTP": 5,
+      "legacyFN": 2,
+      "legacyFP": 1,
+      "observedAdmission": 6,
+      "recall": 0.7142857142857143,
+      "qualifiedSupply": 5,
+      "applicable": true
+    },
+    "fashion": {
+      "goldPositives": 9,
+      "legacyTP": 6,
+      "legacyFN": 3,
+      "legacyFP": 0,
+      "observedAdmission": 6,
+      "recall": 0.6666666666666666,
+      "qualifiedSupply": 6,
+      "applicable": true
+    },
+    "art": {
+      "goldPositives": 4,
+      "legacyTP": 4,
+      "legacyFN": 0,
+      "legacyFP": 2,
+      "observedAdmission": 6,
+      "recall": 1,
+      "qualifiedSupply": 4,
+      "applicable": true
+    }
+  },
+  "lockSha256": "f1c0d4cd2886b190ac9b37eb7f7ca3dabd08bd5a2d2a58917debd8dedbba679c"
+}

@@ -120,6 +120,20 @@ test("selectDiverse: 극단적 점수 격차는 페널티로 못 뒤집는다 (�
   assert.equal(r.picks[0].id, "viral", "다양성 페널티가 화제성 자체를 삼키면 안 됨");
 });
 
+test("selectDiverse: 누적 노출 격차가 기아 방지선을 넘으면 덜 본 소스를 먼저 보낸다", () => {
+  const cands = [
+    mk("loud", "seen-a-lot", "tech", 1.5),
+    mk("quiet", "never-seen", "tech", 0.01)
+  ];
+  const r = selectDiverse(cands, {
+    limit: 1,
+    exposure: new Map([["seen-a-lot", 11], ["never-seen", 0]]),
+    picked: new Set(),
+    hated: new Set()
+  }, P);
+  assert.equal(r.picks[0].id, "quiet");
+});
+
 test("selectDiverse: 공급 부족 시 쿼터를 클램프하고 shortfall을 정직하게 보고", () => {
   // picked 카테고리 글이 2개뿐 — 6개 목표를 채울 수 없다
   const cands = [

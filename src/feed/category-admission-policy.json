@@ -1,0 +1,102 @@
+{
+  "contract": "NOWHOT-CATEGORY-ADMISSION-POLICY-001",
+  "version": 1,
+  "selection": {
+    "coreTest": "A user who selected only this category would intentionally open the item because the category-specific information, consequence, or use case is central.",
+    "directness": "A category may be core through the event subject, action, consequence, or direct use case. A source label, format, actor name, incidental noun, or remote second-order effect is not enough.",
+    "multiCategory": "allow_all_independently_core",
+    "secondaryUse": "metadata_only_no_admission",
+    "display": "display_once_across_selected_categories",
+    "sourceAndFormat": "never_sufficient_alone",
+    "emptyResult": "withhold",
+    "promptRules": [
+      "Accept every category that independently passes the core-user-value test.",
+      "Multiple categories are correct when each is a direct reason that a user of that category would open the item.",
+      "A secondary subject never grants admission.",
+      "A source section, publisher identity, content format, actor name, or incidental noun never grants admission by itself.",
+      "The same item is displayed once even when it is admitted to several selected categories.",
+      "If no category is independently core, withhold the item instead of forcing a label."
+    ]
+  },
+  "categories": [
+    {
+      "id": "news",
+      "core": "General public-affairs, society, or world events whose main user value is broad current-awareness and is not fully represented by a more precise category.",
+      "exclude": "Do not admit news merely because the item is reporting, comes from a news outlet, or mentions a public event already fully owned by a precise domain category."
+    },
+    {
+      "id": "tech",
+      "core": "Computing, software, hardware, AI, security, digital products, or technology-industry actions that directly change capabilities, supply, access, products, or the technology ecosystem.",
+      "exclude": "Do not admit tech when a technology name or company is only incidental and the event has no direct consequence for technology users or the technology ecosystem."
+    },
+    {
+      "id": "auto",
+      "core": "Vehicles, mobility, driving, ownership, vehicle technology, or a policy or business action with a direct consequence for vehicles, drivers, or the automotive market.",
+      "exclude": "Do not admit auto when a vehicle maker or car is merely named in an unrelated corporate, celebrity, or general event."
+    },
+    {
+      "id": "science",
+      "core": "Scientific research, discovery, evidence, methods, institutions, or policy whose scientific content or consequence is central.",
+      "exclude": "Do not admit science for a technology product, health claim, or marketing statement that contains no meaningful scientific finding, evidence, or process."
+    },
+    {
+      "id": "business",
+      "core": "Markets, macroeconomics, finance, investment, earnings, corporate strategy, trade, labor, monetary policy, or a direct economic consequence.",
+      "exclude": "Do not admit business merely because a company, price, sponsor, or owner is named when the event itself has no material economic or corporate consequence."
+    },
+    {
+      "id": "gaming",
+      "core": "Games, gameplay, releases, platforms, game communities, esports, or gaming-specific hardware, configuration, purchasing, or performance use.",
+      "exclude": "Do not admit gaming for general computing or entertainment content that only mentions a game without direct value to a gaming user."
+    },
+    {
+      "id": "sports",
+      "core": "Competitions, athletes, teams, sports performance, leagues, transfers, results, or operations that directly affect the sport or its audience.",
+      "exclude": "Do not admit sports for an unrelated action by a team owner, sponsor, or parent company that has no direct sports consequence."
+    },
+    {
+      "id": "culture",
+      "core": "Film, television, music, celebrities, publishing, entertainment, cultural events, or media works whose cultural or entertainment value is central.",
+      "exclude": "Do not admit culture merely because a famous person, title, or entertainment company appears in an otherwise unrelated event."
+    },
+    {
+      "id": "life",
+      "core": "Health, food, home, travel, family, pets, fitness, practical hobbies, daily living, or actionable personal advice.",
+      "exclude": "Do not admit life for a generic human-interest angle when a more precise category contains the actual reason to open the item."
+    },
+    {
+      "id": "humor",
+      "core": "Humor, memes, comedy, amusing stories, or everyday posts where entertainment or shared amusement is itself the main value.",
+      "exclude": "Do not admit humor merely because a serious item was posted on a humor board or uses an amusing phrase."
+    },
+    {
+      "id": "politics",
+      "core": "Elections, parties, legislation, governance, public policy, political power, accountability, or a government action whose political or policy consequence is central.",
+      "exclude": "Do not admit politics for a politician's incidental comment or for an independent central-bank monetary operation unless political conflict or accountability is itself central."
+    },
+    {
+      "id": "realestate",
+      "core": "Housing, property, land, rent, mortgages, development, construction markets, or policy with a direct property or housing consequence.",
+      "exclude": "Do not admit realestate for a general interest-rate, company, or household story without a direct property, housing, or development consequence."
+    },
+    {
+      "id": "fashion",
+      "core": "Clothing, footwear, style, fashion products, designers, trends, retail, or fashion-industry actions with direct value to fashion users.",
+      "exclude": "Do not admit fashion merely because a person wears an item or a fashion brand is named in an unrelated culture or business event."
+    },
+    {
+      "id": "art",
+      "core": "Art, design, architecture, exhibitions, creative works, artists, or creative practice whose artistic or design value is central.",
+      "exclude": "Do not admit art when design is only a marketing adjective or an artwork or artist is incidental to another event."
+    }
+  ],
+  "productDecisions": [
+    {
+      "id": "gaming-pc-tech-gaming",
+      "summary": "Gaming-specific PC build, configuration, purchase, or performance advice is directly useful to both technology and gaming users.",
+      "coreCategories": ["tech", "gaming"],
+      "secondaryCategories": [],
+      "basis": "david_explicit_2026-08-21"
+    }
+  ]
+}

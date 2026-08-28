@@ -1,0 +1,44 @@
+{
+  "contract": "NOWHOT-SELECTION-BASELINE-001",
+  "baselineVersion": 1,
+  "semanticContractVersion": "NOWHOT-SELECTION-ADMISSION-CONTRACT-001 v3 (runtimeWired:false)",
+  "canonicalSpecSha256": "1bbde69e18f1b162e4528b4071e4dc7c65c4a3092a2c92cff0d67f902fb380e5",
+  "canonicalSpecActualSha256": "1bbde69e18f1b162e4528b4071e4dc7c65c4a3092a2c92cff0d67f902fb380e5",
+  "canonicalSpecMatches": true,
+  "fingerprints": {
+    "selectionContract": "8c586d5e2c4da240",
+    "taxonomy": "4b40bc914e46a7ef",
+    "legacyClassifier": "4c1c3facd3a28c69",
+    "categoryPolicy": "2eb11b4d2904f0b8",
+    "shadowSelectionParams": "60f688bb645bed49",
+    "eventCluster": "f1060e3f6200349f",
+    "sourceRegistry": "4de493e5604218d4",
+    "sourceIdentity": "5526f8b80814e4ed"
+  },
+  "taxonomyIds": [
+    "news",
+    "tech",
+    "auto",
+    "science",
+    "business",
+    "gaming",
+    "sports",
+    "culture",
+    "life",
+    "humor",
+    "politics",
+    "realestate",
+    "fashion",
+    "art"
+  ],
+  "globalMustKnowRuntimeAutoInsert": false,
+  "knownLimitationIds": [
+    "operator-group-not-claim-independence",
+    "overseas-by-source-country"
+  ],
+  "coGatesRegistered": [
+    "abstainRate",
+    "qualifiedSupply",
+    "recall"
+  ]
+}

@@ -17,6 +17,10 @@ services:
       - FEED_LIVE=1
       - FEED_REFRESH_MS=900000         # 15분마다 재수집
       - FEED_TRANSLATE=1               # 해외 소스 한글 번역
+      # 새 오늘판 출시 플래그. 장애 시 0으로 바꾸고 컨테이너를 재시작하면 기존 홈으로 즉시 복귀.
+      - NOWHOT_LOCAL_EDITORIAL=${NOWHOT_LOCAL_EDITORIAL:-1}
+      # 오늘판의 카테고리 입력만 v2 분류 스냅샷으로 교체. v1이면 기존 분류 그대로.
+      - NOWHOT_CATEGORY_ROUTING=${NOWHOT_CATEGORY_ROUTING:-v2}
       - PUSH_DIGEST_MS=3600000         # 시간당 관심글 digest push
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
@@ -34,6 +38,11 @@ services:
       # LLM_MODEL 미지정 시 claude-sonnet-5 (2026-08-04 3모델 실측 비교 결과).
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-}
+      # 최종 Today 이슈만 공개 원문을 메모리에서 읽고 검증된 한국어 장문 요약만 저장한다.
+      # 실모델 카나리 통과 뒤에만 1로 연다. 0이면 기존 200자 발췌 상세가 즉시 롤백 경로다.
+      - NOWHOT_ARTICLE_SUMMARY=${NOWHOT_ARTICLE_SUMMARY:-0}
+      - NOWHOT_ARTICLE_SUMMARY_MODEL=${NOWHOT_ARTICLE_SUMMARY_MODEL:-claude-sonnet-5}
+      - NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL=${NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL:-claude-sonnet-5}
       # 소셜 로그인 — 키가 설정된 provider만 앱에 버튼이 노출된다(auth.js 게이트).
       # 비어 있으면 그 provider는 비활성일 뿐, 앱은 익명으로 정상 동작한다.
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}
@@ -44,30 +53,15 @@ services:
       # 카카오톡 앱 원탭 로그인용 공개 JavaScript 키(시크릿 아님). 없으면
       # 카카오 로그인은 기존 리다이렉트 방식으로 그대로 동작한다.
       - KAKAO_JS_KEY=${KAKAO_JS_KEY:-}
-      # 애드센스 게시자 ID(공개값). 설정 시 index.html에 로더 주입 + /ads.txt 활성.
+      # 애드센스 게시자 ID(공개값). 설정 시 편집 페이지 로더 + 소유확인 메타 + /ads.txt 활성.
       - ADSENSE_CLIENT=${ADSENSE_CLIENT:-}
       # GA4 측정 ID ("G-…"). 설정 시 gtag 자동 주입 (미설정 = 미추적).
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
-      # 카카오 애드핏 모바일 배너 광고단위(공개값). 애드센스 심사 공백 대비.
+      # 카카오 애드핏 모바일 배너 광고단위(공개값).
       - ADFIT_UNIT_MOBILE=${ADFIT_UNIT_MOBILE:-}
-      # 애드핏 지면을 그린다. 2026-08-05 16:22 매체 심사 보류 사유에 새 줄이 붙었다:
-      #   "광고를 설치한 이후 심사 진행이 가능합니다. 광고 설치 후 재심사를 요청하여 주시기 바랍니다."
-      # 우리가 "승인 전에는 그리지 않는다"로 막아 둔 탓에 심사관이 와도 볼 광고가 없었다.
-      # 광고단위 자체는 이미 승인 상태(DAN-ay04FF…, 2026-07-31 생성)라 켜도 된다.
-      # 못 채우면 3초 뒤 쿠팡 카드로 넘어간다(index.html adfitFallback) — 빈 칸은 안 남는다.
-      # 기본값은 **꺼짐**이다. (David 2026-08-06 "쿠팡 파트너스 광고 또 안 뜬다
-      # 자리만 차지하고 링크 없어. 재발 안 되게 해라 진짜")
-      #
-      # 애드핏은 승인 전까지 지면을 만들되 **아무것도 채우지 않는다.** 그러면
-      # 화면에는 "제휴 광고 / AD"와 고지문만 남은 169px 빈 칸이 생기고,
-      # 크로스오리진이라 비었는지 알 수 없어 폴백도 안 걸린다. 사용자에게는
-      # 깨진 화면이고 그 자리의 수익은 0이다.
-      #
-      # 3차 반려 사유가 "광고를 설치한 이후 심사 진행이 가능합니다"여서 켰었다.
-      # 4차 반려 사유는 "자체 콘텐츠 비중"으로 바뀌었다 — 지면 설치는 더 이상
-      # 쟁점이 아니고, 설치했다는 것은 심사자가 이미 봤다.
-      #
-      # **재심사를 넣기 직전에만 1로 켠다.** 승인되면 그때 상시로 둔다.
+      # 1이면 AdFit 심사 모드: /·/briefing·발행 아카이브·/report 같은 안정적인
+      # 자체 편집 지면에만 한 단위를 두고, AdSense·쿠팡과 /live 광고는 끈다.
+      # 기본값은 꺼짐. 재심사 직전 검증된 릴리스에서만 1로 전환한다.
       - ADFIT_ENABLED=${ADFIT_ENABLED:-0}
       # 쿠팡파트너스 실연동 — 3종 모두 있어야 상품 카드 활성(coupang.js).
       - COUPANG_PARTNER_ID=${COUPANG_PARTNER_ID:-}

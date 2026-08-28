@@ -24,7 +24,9 @@ import {
 } from "./event-cluster.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import {
-  heatAxis, importanceAxis, changeAxis, trustMaterials, engagementOf
+  AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS,
+  heatAxis, importanceAxis, changeAxis, trustMaterials, engagementOf,
+  isAuthoritativeForeignNewsSource
 } from "./selection-axes.js";
 // R3 품질 게이트 배선(블루프린트 "2026-08-14 P3-A 판정" 결함 3) — 현행 판정
 // 함수를 그대로 재사용한다(재발명 금지). 어디서 온 규칙인지: engine.js의
@@ -207,8 +209,11 @@ export const SHADOW_PACK_PARAMS = deepFreeze({
       // marketSignal에 가장 큰 비중을 준다(David 채택 옵션 1 그대로).
       overseas: {
         weights: { heat: 0.05, importance: 0.65, change: 0.30 },
+        windowHours: AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS,
         groupSaturation: 2,
-        componentWeights: { groups: 0.30, weighty: 0.15, primary: 0.15, marketSignal: 0.40 }
+        componentWeights: {
+          groups: 0.20, weighty: 0.10, primary: 0.10, authority: 0.35, marketSignal: 0.25
+        }
       }
     },
     science: {
@@ -368,13 +373,20 @@ const freshestMemberAt = (memberArticles) => {
   return best;
 };
 
-function specialistDeclared(memberArticles, pack, registryById) {
+function declaredSingleSourceClass(memberArticles, pack, registryById) {
   if (!registryById || !memberArticles.length) return false;
   const packCategories = new Set([...pack.categories, ...(pack.appliedCategories || [])]);
-  return memberArticles.every((article) => {
+  if (memberArticles.every((article) => {
     const entry = registryById.get(article && article.source);
     return entry && entry.sourceTier === "specialist" && packCategories.has(entry.category);
-  });
+  })) return "specialist";
+  if (memberArticles.every((article) => {
+    const entry = registryById.get(article && article.source);
+    return entry && entry.kind === "news" && entry.sourceTier === "aggregate"
+      && entry.size === "large" && typeof entry.operatorGroup === "string"
+      && entry.operatorGroup.trim().length > 0;
+  })) return "publisher";
+  return null;
 }
 
 // 해외발 판정 — 소스 레지스트리 country 실코드만 본다(David #과업3, 2026-08-17
@@ -488,8 +500,12 @@ export function shadowEligibility(view, pack, {
   let trustLabel = null;
 
   // 창: 팩 신선도 창(모닝 슬롯이면 팩의 morningWindowHours가 있을 때 그 값).
-  const windowHours = slotId === "morning" && Number.isFinite(pack.morningWindowHours)
-    ? pack.morningWindowHours : pack.windowHours;
+  const overseasFormula = Boolean(pack.overseas)
+    && allMembersOverseas(view.memberArticles, registryById);
+  const windowHours = overseasFormula && Number.isFinite(pack.overseas.windowHours)
+    ? pack.overseas.windowHours
+    : slotId === "morning" && Number.isFinite(pack.morningWindowHours)
+      ? pack.morningWindowHours : pack.windowHours;
   const freshest = freshestMemberAt(view.memberArticles);
   let ageHours = freshest === null ? null : (now - freshest) / 3600000;
   // 미래 발행시각(불량 피드·시계 오차)이 영원히 창 안에 머무는 구멍 방지:
@@ -531,12 +547,13 @@ export function shadowEligibility(view, pack, {
     } else if (trust.independentReportingGroups >= 2) {
       passedBy = "independent_groups>=2";
       trustGrade = "independent2";
-    } else if (specialistDeclared(view.memberArticles, pack, registryById)) {
+    } else if (declaredSingleSourceClass(view.memberArticles, pack, registryById)) {
       if (sensitive.sensitive) {
         const terms = [...new Set(sensitive.matches.map((match) => match.term))].join(",");
         failures.push(`sensitive_single_specialist_needs_independent_2(${terms})`);
       } else {
-        passedBy = "specialist_single_source";
+        passedBy = declaredSingleSourceClass(view.memberArticles, pack, registryById) === "specialist"
+          ? "specialist_single_source" : "publisher_single_source";
         trustGrade = "B";
         trustLabel = "단일 출처";
       }
@@ -586,10 +603,14 @@ export function shadowScore(view, pack, {
     groupSaturation: overseasFormula ? pack.overseas.groupSaturation : axis.importanceGroupSaturation,
     weightyCategories: axis.weightyCategories,
     componentWeights: overseasFormula ? pack.overseas.componentWeights : axis.importanceComponents,
+    authorityOf: overseasFormula
+      ? (article) => isAuthoritativeForeignNewsSource(registryById?.get(article && article.source))
+      : null,
     marketSignalLexicon: overseasFormula ? params.marketSignal : null,
     roleOf
   });
-  const windowHours = pack.windowHours;
+  const windowHours = overseasFormula && Number.isFinite(pack.overseas.windowHours)
+    ? pack.overseas.windowHours : pack.windowHours;
   const change = changeAxis(view, {
     now, windowHours, stair: axis.freshnessStair, previousFingerprint
   });
@@ -661,7 +682,8 @@ function prepareShadowPool(articles, {
       packIds: packIdsForEvent(memberArticles, params),
       // 사건의 분야(카테고리) 귀속 — 구성원(보도) 기사들의 카테고리 집합.
       // 반응(community_reaction) 기사는 귀속에 계수하지 않는다.
-      categoryIds: [...new Set(memberArticles.map((article) => article.category || "news"))].sort(),
+      categoryIds: [...new Set(memberArticles.flatMap((article) =>
+        Array.isArray(article.admittedCategories) ? article.admittedCategories : [article.category || "news"]))].sort(),
       lineage: lineage.assignments.get(event.eventId) || null
     });
   }

@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { extractOgImage, extractOgDesc, fetchOgImage, fetchOgMeta, makeEnricher } from "../src/feed/enrich.js";
+import { cleanArticleTextChrome, extractOgImage, extractOgDesc, fetchOgImage, fetchOgMeta, fetchPublicArticle, isJunkImage, makeEnricher } from "../src/feed/enrich.js";
 
 // ---- extractOgImage --------------------------------------------------------
 
@@ -70,6 +70,17 @@ test("extractOgImage: html이 비어있으면 null", () => {
   assert.equal(extractOgImage(null, "https://example.com/"), null);
 });
 
+test("Google 뉴스 중계 플레이스홀더는 기사 대표 이미지로 쓰지 않는다", () => {
+  assert.equal(isJunkImage(new URL("https://lh3.googleusercontent.com/J6_placeholder=s0-w300")), true);
+  assert.equal(isJunkImage(new URL("https://image.bobaedream.co.kr/mobile/iphone/common/headTitle.png")), true);
+  assert.equal(isJunkImage(new URL("https://www.ytn.co.kr/img/comm/ytn_sns_default.jpg")), true);
+  assert.equal(isJunkImage(new URL("https://static.hankyung.com/img/logo/logo-news-sns.png")), true);
+  assert.equal(isJunkImage(new URL("https://theqoo.net/modules/board/skins/sketchbook5_ajax/img/kakao_theqoo.png")), true);
+  assert.equal(isJunkImage(new URL("https://www.todayhumor.co.kr/board/images/search_S.png")), true);
+  assert.equal(isJunkImage(new URL("https://static.hankyung.com/img/common/spinner/spinner.svg")), true);
+  assert.equal(isJunkImage(new URL("https://cdn.example.com/news/photo.jpg")), false);
+});
+
 // ---- fetchOgImage -----------------------------------------------------------
 
 function mockRes({ ok = true, status = 200, contentType = "text/html; charset=utf-8", body = "", url } = {}) {
@@ -118,7 +129,7 @@ test("fetchOgImage: fetchImpl이 throw(네트워크 오류/타임아웃)해도 �
 test("fetchOgImage: 리다이렉트 최종 URL(res.url)을 baseUrl로 사용해 상대 og:image를 절대화", async () => {
   const html = `<meta property="og:image" content="/img/final.jpg">`;
   const fetchImpl = async () => mockRes({ body: html, url: "https://publisher.example.com/article/9" });
-  const result = await fetchOgImage("https://news.google.com/rss/articles/xyz", { fetchImpl });
+  const result = await fetchOgImage("https://redirect.example.com/articles/xyz", { fetchImpl });
   assert.equal(result, "https://publisher.example.com/img/final.jpg");
 });
 
@@ -389,4 +400,582 @@ test("makeEnricher: 캐시가 재시작을 넘어 복구된다 (배포마다 이
   await e2.enrich(items2);
   assert.equal(items2[0].image, "https://cdn.example.com/p1.jpg", "재시작 후에도 이미지 복구");
   assert.equal(calls.length, 1, "재시작 복구는 네트워크를 쓰지 않는다");
+});
+
+// ---- transient public article ------------------------------------------------
+
+function streamRes({ ok = true, status = 200, contentType = "text/html; charset=utf-8", body = "", url, location = null } = {}) {
+  const bytes = new TextEncoder().encode(body);
+  return {
+    ok,
+    status,
+    url,
+    headers: { get: (k) => k.toLowerCase() === "content-type" ? contentType : k.toLowerCase() === "location" ? location : null },
+    body: new ReadableStream({ start(controller) { controller.enqueue(bytes); controller.close(); } }),
+    text: async () => { throw new Error("article fetch must not call response.text()"); }
+  };
+}
+
+test("fetchPublicArticle: JSON-LD articleBody를 우선하고 OG 이미지와 최종 URL만 반환", async () => {
+  const articleBody = "가".repeat(260) + " JSON-LD 본문 끝";
+  const html = `<meta property="og:image" content="/cover.jpg"><script type="application/ld+json">{"@type":"NewsArticle","articleBody":"${articleBody}"}</script><article>다른 본문</article>`;
+  const result = await fetchPublicArticle("https://source.example.com/start", {
+    fetchImpl: async () => streamRes({ body: html, url: "https://publisher.example.com/final" })
+  });
+  assert.deepEqual(result, {
+    state: "available",
+    text: articleBody,
+    image: "https://publisher.example.com/cover.jpg",
+    finalUrl: "https://publisher.example.com/final"
+  });
+});
+
+test("fetchPublicArticle: 표준 articleBody 요소의 중첩 태그를 포함한 본문을 읽는다", async () => {
+  const intro = "도널드 트럼프 미국 대통령이 한미연합훈련 관련 게시물을 다시 올렸습니다. ";
+  const detail = "게시물의 표현과 후속 반응을 설명하는 공개 기사 본문입니다. ".repeat(12);
+  const html = `<div class="page"><div id="articleBody" itemprop="articleBody"><div class="photo">사진 설명</div><br>${intro}<br><div><p>${detail}</p></div></div><aside>관련 기사</aside></div>`;
+  const result = await fetchPublicArticle("https://publisher.example.com/news/1", {
+    fetchImpl: async () => streamRes({ body: html })
+  });
+  assert.equal(result.state, "available");
+  assert.match(result.text, /도널드 트럼프/);
+  assert.match(result.text, /후속 반응/);
+  assert.ok(!result.text.includes("관련 기사"));
+});
+
+test("fetchPublicArticle: article 우선, 없으면 문단 폴백이며 장식 태그는 본문에 남기지 않는다", async () => {
+  const articleText = "기사 문단 ".repeat(60);
+  const fallbackText = "문단 폴백 ".repeat(60);
+  const article = await fetchPublicArticle("https://example.com/article", {
+    fetchImpl: async () => streamRes({ body: `<article><nav>메뉴</nav><p>${articleText}</p><script>비밀</script></article><main><p>${fallbackText}</p></main>` })
+  });
+  assert.equal(article.state, "available");
+  assert.equal(article.text, articleText.trim());
+  assert.ok(!article.text.includes("메뉴") && !article.text.includes("비밀"));
+
+  const fallback = await fetchPublicArticle("https://example.com/fallback", {
+    fetchImpl: async () => streamRes({ body: `<header>머리말</header><p>${fallbackText}</p><footer>꼬리말</footer>` })
+  });
+  assert.equal(fallback.state, "available");
+  assert.equal(fallback.text, fallbackText.trim());
+});
+
+test("fetchPublicArticle: 기사 안의 이미지 크레딧·메타데이터·관련기사 블록은 본문에서 제외한다", async () => {
+  const body = "정부 발표와 현장 반응을 함께 설명하는 실제 공개 기사 본문입니다. ".repeat(14);
+  const html = `<article>
+    <h1>기사 제목</h1>
+    <figure><img src="/cover.jpg"><figcaption>Image source, Getty Images</figcaption></figure>
+    <div data-block="metadata"><span>Published</span><time>2026년 8월 26일</time><span>Mark Savage Music 특파원 작성</span></div>
+    <p>${body}</p>
+    <div data-block="links"><ul><li><p>관련 기사 제목</p><span>10시간 전 공개됨</span></li></ul></div>
+    <p>기사의 마지막 본문 문장입니다.</p>
+  </article>`;
+  const result = await fetchPublicArticle("https://publisher.example.com/news/clean", {
+    fetchImpl: async () => streamRes({ body: html })
+  });
+  assert.equal(result.state, "available");
+  assert.match(result.text, /실제 공개 기사 본문/);
+  assert.match(result.text, /마지막 본문 문장/);
+  for (const noise of ["Getty Images", "특파원 작성", "관련 기사 제목", "10시간 전 공개됨"]) {
+    assert.ok(!result.text.includes(noise), noise);
+  }
+});
+
+test("fetchPublicArticle: 공개 본문이 짧으면 사진과 최종 URL을 보존하고 장문 요약 불가를 구분한다", async () => {
+  const result = await fetchPublicArticle("https://community.example.com/post", {
+    fetchImpl: async () => streamRes({
+      body: `<meta property="og:image" content="/deal.jpg"><p>가격과 배송 조건만 적힌 짧은 게시글입니다.</p>`,
+      url: "https://community.example.com/post"
+    })
+  });
+  assert.deepEqual(result, {
+    state: "unavailable",
+    reasonCode: "PUBLIC_BODY_TOO_SHORT",
+    httpStatus: 200,
+    image: "https://community.example.com/deal.jpg",
+    finalUrl: "https://community.example.com/post"
+  });
+});
+
+test("fetchPublicArticle: 짧은 article 뒤 사이트 푸터를 붙여 장문 본문으로 오인하지 않는다", async () => {
+  const article = "공개 게시글의 실제 내용은 짧습니다. ".repeat(5);
+  const footer = "이용약관 개인정보처리방침 문의 신고 저작권 안내 ".repeat(20);
+  const result = await fetchPublicArticle("https://community.example.com/post", {
+    fetchImpl: async () => streamRes({
+      body: `<article itemprop="articleBody"><p>${article}</p></article><footer><p>${footer}</p></footer>`,
+      url: "https://community.example.com/post"
+    })
+  });
+  assert.equal(result.state, "unavailable");
+  assert.equal(result.reasonCode, "PUBLIC_BODY_TOO_SHORT");
+});
+
+test("fetchPublicArticle: main 안의 게시판 메뉴·로그인·사업자 정보를 본문으로 오인하지 않는다", async () => {
+  const chrome = `게시판 > 베스트글 목록 이전페이지 맨위로
+    댓글 작성을 위해 로그인하세요. 회원가입 고객센터
+    이용약관 개인정보처리방침 사업자등록번호: 123-45-67890
+    통신판매업신고번호: 2026-서울-0001 Copyright © Example`;
+  const result = await fetchPublicArticle("https://community.example.com/post", {
+    fetchImpl: async () => streamRes({
+      body: `<meta property="og:image" content="/post.jpg"><main><p>${chrome.repeat(4)}</p></main>`,
+      url: "https://community.example.com/post"
+    })
+  });
+  assert.equal(result.state, "unavailable");
+  assert.equal(result.reasonCode, "NO_PUBLIC_BODY");
+  assert.equal(result.image, "https://community.example.com/post.jpg");
+});
+
+test("fetchPublicArticle: 오늘의 HIT 목록을 개별 게시글 본문으로 오인하지 않는다", async () => {
+  const hitList = `🔥오늘의 HIT 30 종합 유머 연예 생활 시사 이슈
+    1 산후우울증의 위험성 (140) 2 현대차 신형 아반떼 직진불가 이슈 (96)
+    3 네팔 홍수 시뮬레이션 (28) 4 항암치료를 권하지 않는 이유.jpg (41) `.repeat(8);
+  const result = await fetchPublicArticle("https://community.example.com/post", {
+    fetchImpl: async () => streamRes({
+      body: `<meta property="og:image" content="/post.jpg"><main><p>${hitList}</p></main>`,
+      url: "https://community.example.com/post"
+    })
+  });
+  assert.equal(result.state, "unavailable");
+  assert.equal(result.reasonCode, "NO_PUBLIC_BODY");
+});
+
+test("cleanArticleTextChrome: 한겨레·KBS·YTN 본문 앞 UI만 제거하고 기사 내용은 유지한다", () => {
+  assert.equal(
+    cleanArticleTextChrome("본문 경제 기사 제목 기자 수정 2026-08-27 펼침 0:00 Your browser does not support the audio element. 구글 선호 매체 등록 광고 실제 기사 첫 문장입니다. 후속 내용입니다."),
+    "실제 기사 첫 문장입니다. 후속 내용입니다."
+  );
+  assert.equal(
+    cleanArticleTextChrome("기사 본문 영역 '; rptHeader += ' 뉴스 기사 제목 입력 2026.08.27 읽어주기 기능은 크롬기반의 브라우저에서만 사용하실 수 있습니다. AI 요약 정부 발표의 핵심 내용입니다. 후속 내용입니다."),
+    "정부 발표의 핵심 내용입니다. 후속 내용입니다."
+  );
+  assert.equal(
+    cleanArticleTextChrome("TV 기사 제목 기자 2026-08-26 --> 가 --> 가 가 --> 가 가 가 가 가 --> 실제 기사 첫 문장입니다. 후속 내용입니다."),
+    "실제 기사 첫 문장입니다. 후속 내용입니다."
+  );
+});
+
+test("cleanArticleTextChrome: 동아·뉴데일리·다음·서울·연합계열 UI를 걷고 첫 기사 문장부터 남긴다", () => {
+  assert.equal(
+    cleanArticleTextChrome("기사 제목 동아일보 입력 2026-08-27 15:02 구글검색 선호 추가 코멘트 개 공유하기 URL 복사 글자크기 설정 가 가 가 프린트 구독 실제 기사 첫 문장입니다. 후속 내용입니다."),
+    "실제 기사 첫 문장입니다. 후속 내용입니다."
+  );
+  assert.equal(
+    cleanArticleTextChrome("이미지 크게보기 ▲ ⓒ새마을금고중앙회 photo big--> 실제 금융 기사 첫 문장입니다. 후속 내용입니다."),
+    "실제 금융 기사 첫 문장입니다. 후속 내용입니다."
+  );
+  assert.equal(
+    cleanArticleTextChrome("선수 기사 기자 2026. 8. 27. 13:55 요약보기 자동요약 기사 제목과 주요 문장을 기반으로 자동요약한 결과입니다. 전체 맥락을 이해하기 위해서는 본문 보기를 권장합니다. 실제 경기 기사 첫 문장입니다. 후속 내용입니다."),
+    "실제 경기 기사 첫 문장입니다. 후속 내용입니다."
+  );
+  assert.equal(
+    cleanArticleTextChrome("생활 기사 기사 소리로 듣기 다시듣기 글씨 크기 조절 공유하기 URL 복사 댓글 0 김민지 기자 수정 2026-08-27 15:21 입력 2026-08-27 15:21 구글에서 서울신문 먼저 보기 실제 생활 기사 첫 문장입니다. 후속 내용입니다."),
+    "실제 생활 기사 첫 문장입니다. 후속 내용입니다."
+  );
+  assert.equal(
+    cleanArticleTextChrome("사회 사회일반 기사 제목 연합뉴스 입력 2026.08.27 13:31 수정 2026.08.27 13:43 구글 검색 선호 매체 추가 실제 사회 기사 첫 문장입니다. 후속 내용입니다."),
+    "실제 사회 기사 첫 문장입니다. 후속 내용입니다."
+  );
+});
+
+test("cleanArticleTextChrome: 짧은 기사 뒤 음성·공유·제보·저작권 UI도 자르고 본문만 남긴다", () => {
+  const article = "실제 기사 첫 문장입니다. ".repeat(8).trim();
+  for (const tail of [
+    "닫기 음성으로 듣기 음성재생 설정 번역 설정 글씨크기 조절하기",
+    "제보는 카카오톡 okjebo <저작권자(c) 연합뉴스, 무단 전재-재배포 금지>",
+    "연합뉴스TV 기사문의 및 제보 : 카톡/라인 jebo23 ⓒ연합뉴스TV",
+    "<저작권자 © 스타뉴스, 무단전재 및 재배포 금지>",
+    "이야기를 실시간으로 팔로우하세요. 하위 섹션 아시아 게시됨 1일 전 공유 패널 닫기"
+  ]) {
+    assert.equal(cleanArticleTextChrome(`${article} ${tail}`), article);
+  }
+  assert.equal(
+    cleanArticleTextChrome(`기사 제목 이미지 확대 닫기 이미지 확대 보기 ${article}`),
+    article
+  );
+});
+
+test("fetchPublicArticle: Google 뉴스 중계 주소를 실제 언론사 원문으로 풀어 본문과 사진을 읽는다", async () => {
+  const googleUrl = "https://news.google.com/rss/articles/opaque-article-id?oc=5";
+  const publisherUrl = "https://news.kbs.co.kr/news/view.do?ncd=8644224";
+  const articleBody = "태풍 관련 공개 기사 본문 ".repeat(40);
+  const rpcBody = `)]}'\n\n${JSON.stringify([
+    ["wrb.fr", "Fbv4je", JSON.stringify(["garturlres", publisherUrl, 1]), null, null, null, "generic"]
+  ])}`;
+  const calls = [];
+  const result = await fetchPublicArticle(googleUrl, {
+    fetchImpl: async (url, options = {}) => {
+      calls.push({ url: String(url), method: options.method || "GET" });
+      if (String(url) === googleUrl) {
+        return streamRes({
+          body: '<c-wiz><div data-n-a-id="opaque-article-id" data-n-a-ts="1787687855" data-n-a-sg="signed-token"></div></c-wiz>',
+          url: googleUrl
+        });
+      }
+      if (String(url).includes("/_/DotsSplashUi/data/batchexecute")) {
+        return mockRes({ body: rpcBody, url: String(url) });
+      }
+      return streamRes({
+        body: `<meta property="og:image" content="/photo.jpg"><article>${articleBody}</article>`,
+        url: publisherUrl
+      });
+    }
+  });
+  assert.equal(result.state, "available");
+  assert.equal(result.finalUrl, publisherUrl);
+  assert.equal(result.image, "https://news.kbs.co.kr/photo.jpg");
+  assert.equal(result.text, articleBody.trim());
+  assert.deepEqual(calls.map((row) => row.method), ["GET", "POST", "GET"]);
+});
+
+test("fetchPublicArticle: Google 뉴스의 동일 기사 로케일 302를 한 번 따라가 중계를 해제한다", async () => {
+  const googleUrl = "https://news.google.com/rss/articles/opaque-locale-redirect?oc=5";
+  const publisherUrl = "https://news.kbs.co.kr/news/view.do?ncd=8644224";
+  const articleBody = "태풍 관련 공개 기사 본문 ".repeat(40);
+  const rpcBody = `)]}'\n\n${JSON.stringify([
+    ["wrb.fr", "Fbv4je", JSON.stringify(["garturlres", publisherUrl, 1]), null, null, null, "generic"]
+  ])}`;
+  let wrapperCalls = 0;
+  const result = await fetchPublicArticle(googleUrl, {
+    fetchImpl: async (url) => {
+      const parsed = new URL(String(url));
+      if (parsed.hostname === "news.google.com" && parsed.pathname.includes("/rss/articles/")) {
+        wrapperCalls += 1;
+        if (!parsed.searchParams.has("hl")) {
+          return streamRes({ ok: false, status: 302, url: googleUrl, location: `${googleUrl}&hl=en-US&gl=US&ceid=US:en` });
+        }
+        assert.equal(parsed.searchParams.get("hl"), "en-US");
+        assert.equal(parsed.searchParams.get("gl"), "US");
+        assert.equal(parsed.searchParams.get("ceid"), "US:en");
+        return streamRes({
+          body: '<div data-n-a-id="opaque-locale-redirect" data-n-a-ts="1787687855" data-n-a-sg="signed-token"></div>',
+          url: parsed.href
+        });
+      }
+      if (String(url).includes("/_/DotsSplashUi/data/batchexecute")) return mockRes({ body: rpcBody, url: String(url) });
+      return streamRes({
+        body: `<title>태풍 관련 공개 기사</title><article>${articleBody}</article>`,
+        url: publisherUrl
+      });
+    }
+  });
+  assert.equal(result.state, "available");
+  assert.equal(result.finalUrl, publisherUrl);
+  assert.equal(wrapperCalls, 2);
+});
+
+test("fetchPublicArticle: Google 중계가 다른 기사 페이지를 돌려주면 본문을 섞지 않는다", async () => {
+  const googleUrl = "https://news.google.com/rss/articles/opaque-wrong-publisher-page?oc=5";
+  const publisherUrl = "https://publisher.example.com/news/wrong";
+  const rpcBody = `)]}'\n\n${JSON.stringify([
+    ["wrb.fr", "Fbv4je", JSON.stringify(["garturlres", publisherUrl, 1]), null, null, null, "generic"]
+  ])}`;
+  const result = await fetchPublicArticle(googleUrl, {
+    expectedTitle: "정부가 반도체 산업 지원책을 발표했다",
+    fetchImpl: async (url) => {
+      if (String(url) === googleUrl) {
+        return streamRes({
+          body: '<div data-n-a-id="opaque-wrong-publisher-page" data-n-a-ts="1787687855" data-n-a-sg="signed-token"></div>',
+          url: googleUrl
+        });
+      }
+      if (String(url).includes("/_/DotsSplashUi/data/batchexecute")) return mockRes({ body: rpcBody, url: String(url) });
+      return streamRes({
+        body: `<title>유럽 축구 결승전 경기 결과</title><article>${"전혀 다른 스포츠 기사 본문 ".repeat(40)}</article>`,
+        url: publisherUrl
+      });
+    }
+  });
+  assert.equal(result.state, "unavailable");
+  assert.equal(result.reasonCode, "ARTICLE_IDENTITY_MISMATCH");
+  assert.equal(result.finalUrl, null);
+  assert.equal(result.image, null);
+});
+
+test("fetchPublicArticle: 직접 링크가 다른 기사로 이동하면 짧은 제목이어도 근거로 쓰지 않는다", async () => {
+  const requestedUrl = "https://publisher.example.com/news/rate";
+  const wrongUrl = "https://publisher.example.com/news/sports";
+  let calls = 0;
+  const result = await fetchPublicArticle(requestedUrl, {
+    expectedTitle: "정책 금리 동결",
+    resolveHost: null,
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) return streamRes({
+        status: 302,
+        ok: false,
+        location: wrongUrl,
+        url: requestedUrl,
+        body: ""
+      });
+      return streamRes({
+        body: `<title>오늘 뉴스</title><article>${"전혀 다른 스포츠 기사 본문 ".repeat(40)}</article>`,
+        url: wrongUrl
+      });
+    }
+  });
+  assert.equal(result.state, "unavailable");
+  assert.equal(result.reasonCode, "ARTICLE_IDENTITY_MISMATCH");
+  assert.equal(result.finalUrl, null);
+});
+
+test("fetchPublicArticle: 직접 링크의 접근차단 HTML을 기사 본문으로 오인하지 않는다", async () => {
+  const result = await fetchPublicArticle("https://publisher.example.com/news/blocked", {
+    expectedTitle: "정부가 반도체 산업 지원책을 발표했다",
+    fetchImpl: async () => streamRes({
+      body: `<title>Access Denied Portal</title><main>${"Your request was blocked by the security policy. ".repeat(40)}</main>`,
+      url: "https://publisher.example.com/news/blocked"
+    })
+  });
+
+  assert.equal(result.state, "unavailable");
+  assert.equal(result.reasonCode, "ARTICLE_IDENTITY_MISMATCH");
+});
+
+test("fetchPublicArticle: Google 중계 해제 응답이 깨지면 원문 미확인으로 정확히 구분한다", async () => {
+  const googleUrl = "https://news.google.com/rss/articles/opaque-malformed-rpc?oc=5";
+  const result = await fetchPublicArticle(googleUrl, {
+    fetchImpl: async (url) => String(url) === googleUrl
+      ? streamRes({
+          body: '<div data-n-a-id="opaque-malformed-rpc" data-n-a-ts="1787687855" data-n-a-sg="signed-token"></div>',
+          url: googleUrl
+        })
+      : mockRes({ body: ")]}'\n\nnot-json", url: String(url) })
+  });
+  assert.equal(result.state, "unavailable");
+  assert.equal(result.reasonCode, "PUBLISHER_URL_UNAVAILABLE");
+});
+
+test("fetchPublicArticle: 중계 해제 뒤 언론사 본문이 짧으면 중계 실패로 오인하지 않는다", async () => {
+  const googleUrl = "https://news.google.com/rss/articles/opaque-short-publisher-page?oc=5";
+  const publisherUrl = "https://publisher.example.com/news/short";
+  const rpcBody = `)]}'\n\n${JSON.stringify([
+    ["wrb.fr", "Fbv4je", JSON.stringify(["garturlres", publisherUrl, 1]), null, null, null, "generic"]
+  ])}`;
+  const result = await fetchPublicArticle(googleUrl, {
+    fetchImpl: async (url) => {
+      if (String(url) === googleUrl) {
+        return streamRes({
+          body: '<div data-n-a-id="opaque-short-publisher-page" data-n-a-ts="1787687855" data-n-a-sg="signed-token"></div>',
+          url: googleUrl
+        });
+      }
+      if (String(url).includes("/_/DotsSplashUi/data/batchexecute")) return mockRes({ body: rpcBody, url: String(url) });
+      return streamRes({ body: "<article>짧은 기사입니다.</article>", url: publisherUrl });
+    }
+  });
+  assert.equal(result.state, "unavailable");
+  assert.equal(result.reasonCode, "PUBLIC_BODY_TOO_SHORT");
+  assert.equal(result.finalUrl, publisherUrl);
+});
+
+test("fetchOgMeta: Google 뉴스 중계 이미지를 대표 사진으로 가져오지 않는다", async () => {
+  let calls = 0;
+  const result = await fetchOgMeta("https://news.google.com/rss/articles/example", {
+    fetchImpl: async () => { calls += 1; return mockRes({ body: "<meta property=\"og:image\" content=\"google-logo.png\">" }); }
+  });
+  assert.deepEqual(result, { image: null, desc: null });
+  assert.equal(calls, 0);
+});
+
+test("fetchPublicArticle: 접근 실패 코드를 명시적으로 보존한다", async () => {
+  const cases = [[401, "AUTH_REQUIRED"], [403, "ACCESS_DENIED"], [429, "RATE_LIMITED"], [404, "NOT_FOUND"], [410, "NOT_FOUND"], [500, "HTTP_ERROR"]];
+  for (const [status, reasonCode] of cases) {
+    const result = await fetchPublicArticle("https://example.com/status", { fetchImpl: async () => streamRes({ ok: false, status }) });
+    assert.deepEqual(result, { state: "unavailable", reasonCode, httpStatus: status, image: null, finalUrl: null });
+  }
+});
+
+test("fetchPublicArticle: timeout과 network 오류를 구분한다", async () => {
+  const timeout = await fetchPublicArticle("https://example.com/slow", {
+    timeoutMs: 1,
+    fetchImpl: (_, { signal }) => new Promise((_, reject) => {
+      const wait = setTimeout(() => reject(new Error("timeout signal was not delivered")), 50);
+      signal.addEventListener("abort", () => { clearTimeout(wait); reject(signal.reason); }, { once: true });
+    })
+  });
+  assert.equal(timeout.reasonCode, "TIMEOUT");
+
+  const network = await fetchPublicArticle("https://example.com/offline", { fetchImpl: async () => { throw new TypeError("offline"); } });
+  assert.equal(network.reasonCode, "NETWORK_ERROR");
+});
+
+test("fetchPublicArticle: capped stream 취소가 거부돼도 요청 결과와 프로세스를 깨뜨리지 않는다", async () => {
+  const result = await fetchPublicArticle("https://example.com/cancel-reject", {
+    resolveHost: null,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      url: "https://example.com/cancel-reject",
+      headers: { get: () => "text/html; charset=utf-8" },
+      body: {
+        getReader() {
+          let sent = false;
+          return {
+            async read() {
+              if (sent) return { done: true, value: undefined };
+              sent = true;
+              return { done: false, value: new TextEncoder().encode(`<article>${"공개 기사 본문 ".repeat(60)}</article>`) };
+            },
+            async cancel() { throw new Error("cancel rejected"); }
+          };
+        }
+      }
+    })
+  });
+  assert.equal(result.state, "available");
+});
+
+test("fetchPublicArticle: capped stream 취소가 끝나지 않아도 기사 준비를 기다리게 하지 않는다", async () => {
+  const pending = fetchPublicArticle("https://example.com/cancel-pending", {
+    resolveHost: null,
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      url: "https://example.com/cancel-pending",
+      headers: { get: () => "text/html; charset=utf-8" },
+      body: {
+        getReader() {
+          let sent = false;
+          return {
+            async read() {
+              if (sent) return { done: true, value: undefined };
+              sent = true;
+              return { done: false, value: new TextEncoder().encode(`<article>${"공개 기사 본문 ".repeat(60)}</article>`) };
+            },
+            cancel() { return new Promise(() => {}); }
+          };
+        }
+      }
+    })
+  });
+  const result = await Promise.race([
+    pending,
+    new Promise((resolve) => setTimeout(() => resolve({ state: "cancel_timeout" }), 50))
+  ]);
+  assert.equal(result.state, "available");
+});
+
+test("fetchPublicArticle: DNS 조회도 전체 timeout 안에서 끝나며 지연되면 TIMEOUT이다", async () => {
+  let fetchCalls = 0;
+  const result = await fetchPublicArticle("https://slow-dns.example.com/article", {
+    timeoutMs: 5,
+    resolveHost: async () => new Promise((resolve) => setTimeout(() => resolve([
+      { address: "93.184.216.34", family: 4 }
+    ]), 80)),
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return streamRes({ body: `<article>${"공개 기사 본문 ".repeat(60)}</article>` });
+    }
+  });
+  assert.equal(result.reasonCode, "TIMEOUT");
+  assert.equal(fetchCalls, 0);
+});
+
+test("fetchPublicArticle: 깨진 redirect Location은 reject 대신 HTTP_ERROR로 닫는다", async () => {
+  const result = await fetchPublicArticle("https://example.com/bad-location", {
+    resolveHost: null,
+    fetchImpl: async () => streamRes({ ok: false, status: 302, location: "http://[invalid" })
+  });
+  assert.equal(result.reasonCode, "HTTP_ERROR");
+  assert.equal(result.httpStatus, 302);
+});
+
+test("fetchPublicArticle: Google 뉴스 해제 단계 timeout을 원문 미확인으로 뭉개지 않는다", async () => {
+  const result = await fetchPublicArticle("https://news.google.com/rss/articles/timeout-google-news", {
+    timeoutMs: 5,
+    resolveHost: null,
+    fetchImpl: async (_url, { signal }) => new Promise((_, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    })
+  });
+  assert.equal(result.reasonCode, "TIMEOUT");
+});
+
+test("fetchPublicArticle: 비 HTML은 읽지 않고 NON_HTML로 반환한다", async () => {
+  const result = await fetchPublicArticle("https://example.com/report.pdf", {
+    fetchImpl: async () => streamRes({ contentType: "application/pdf" })
+  });
+  assert.deepEqual(result, { state: "unavailable", reasonCode: "NON_HTML", httpStatus: 200, image: null, finalUrl: null });
+});
+
+test("fetchOgMeta: 비 HTML 응답 본문은 읽지 않고 즉시 닫는다", async () => {
+  let canceled = 0;
+  const result = await fetchOgMeta("https://example.com/report.pdf", {
+    fetchImpl: async () => ({
+      ok: true,
+      status: 200,
+      url: "https://example.com/report.pdf",
+      headers: { get: () => "application/pdf" },
+      body: { cancel() { canceled += 1; return Promise.resolve(); } }
+    })
+  });
+  assert.deepEqual(result, { image: null, desc: null });
+  assert.equal(canceled, 1);
+});
+
+test("fetchPublicArticle: 요청은 한 번이고 인증·쿠키 헤더 없이 capped stream만 읽는다", async () => {
+  const rawMarker = "RAW_HTML_MUST_NOT_ESCAPE";
+  const body = `<main><p>${"a".repeat(300)}</p></main>${"z".repeat(800 * 1024)}${rawMarker}`;
+  const calls = [];
+  const result = await fetchPublicArticle("https://example.com/public", {
+    fetchImpl: async (url, options) => { calls.push({ url, options }); return streamRes({ body, url: "https://example.com/public/final" }); }
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.headers.authorization, undefined);
+  assert.equal(calls[0].options.headers.cookie, undefined);
+  assert.equal(calls[0].options.redirect, "manual", "리다이렉트 목적지도 공인 주소인지 다시 검사한다");
+  assert.equal(result.state, "available");
+  assert.ok(result.text.length <= 16000);
+  assert.ok(!JSON.stringify(result).includes(rawMarker));
+  assert.deepEqual(Object.keys(result).sort(), ["finalUrl", "image", "state", "text"]);
+});
+
+test("fetchPublicArticle: 내부 주소·credentials URL과 내부 주소 리다이렉트를 요청 전에 차단한다", async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls += 1; return streamRes(); };
+  for (const url of [
+    "http://127.0.0.1/private",
+    "http://169.254.169.254/latest/meta-data",
+    "http://[fec0::1]/private",
+    "https://user:pass@example.com/private"
+  ]) {
+    const result = await fetchPublicArticle(url, { fetchImpl });
+    assert.equal(result.reasonCode, "UNSAFE_URL");
+  }
+  assert.equal(calls, 0);
+
+  const redirected = await fetchPublicArticle("https://public.example.com/start", {
+    fetchImpl: async () => {
+      calls += 1;
+      return streamRes({ ok: false, status: 302, location: "http://10.0.0.7/private" });
+    }
+  });
+  assert.equal(redirected.reasonCode, "UNSAFE_URL");
+  assert.equal(calls, 1, "공개 시작 URL 한 번 뒤 내부 리다이렉트는 요청하지 않아야 한다");
+});
+
+test("fetchPublicArticle: 공개 호스트가 사설 IP로 해석되면 요청 전에 차단한다", async () => {
+  let calls = 0;
+  const result = await fetchPublicArticle("https://rebind.example.com/article", {
+    resolveHost: async () => [{ address: "10.20.30.40", family: 4 }],
+    fetchImpl: async () => { calls += 1; return streamRes(); }
+  });
+  assert.equal(result.reasonCode, "UNSAFE_URL");
+  assert.equal(calls, 0);
+});
+
+test("fetchPublicArticle: 검증한 공개 DNS 주소를 실제 연결 lookup에 고정한다", async () => {
+  let connectedAddress = null;
+  const result = await fetchPublicArticle("https://rebind.example.com/article", {
+    resolveHost: async () => [{ address: "93.184.216.34", family: 4 }],
+    fetchImpl: async (_url, options) => {
+      options.lookup("rebind.example.com", {}, (_error, address, family) => {
+        connectedAddress = { address, family };
+      });
+      return streamRes({ body: `<article>${"공개 기사 본문 ".repeat(60)}</article>` });
+    }
+  });
+  assert.equal(result.state, "available");
+  assert.deepEqual(connectedAddress, { address: "93.184.216.34", family: 4 });
 });

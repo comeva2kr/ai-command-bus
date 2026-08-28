@@ -8,7 +8,8 @@ import {
   normalizeTitle,
   features,
   TRAIN_LABELS,
-  isReclassifiable
+  isReclassifiable,
+  definiteCategory
 } from "../src/feed/classify.js";
 import { classifyTopics } from "../src/feed/topics.js";
 import { FeedStore } from "../src/feed/store.js";
@@ -134,9 +135,9 @@ test("NB: 직렬화 왕복 후에도 같은 예측을 낸다 (결정성)", () =>
 // 학습/재분류 대상 구분 — 라벨 오염 방지 규칙.
 // ---------------------------------------------------------------------------
 
-test("TRAIN_LABELS: 혼합 게시판(클리앙·뽐뿌·이토랜드)은 학습 소스가 아니다", () => {
+test("TRAIN_LABELS: 혼합 게시판(클리앙·뽐뿌·이토랜드·루리웹 유머판)은 학습 소스가 아니다", () => {
   // etoland는 2026-08-02 실측(HIT 27건에 연예·상품광고 다수)으로 학습에서 뺐다
-  for (const mixed of ["clien", "ppomppu", "etoland"]) {
+  for (const mixed of ["clien", "ppomppu", "etoland", "ruliweb"]) {
     assert.ok(!TRAIN_LABELS.has(mixed), `${mixed}는 온갖 주제가 섞여 라벨로 쓰면 오염된다`);
   }
   // 남은 약지도 소스는 가중치가 낮아야 한다
@@ -152,10 +153,74 @@ test("isReclassifiable: 학습 소스와 gnews 종합 섹션은 재분류하지 
   assert.ok(!isReclassifiable("gnews-biz"), "학습 소스는 라벨이 정답");
   assert.ok(!isReclassifiable("gnews"), "종합 섹션은 news가 정답");
   assert.ok(!isReclassifiable("gnews-kr"));
-  assert.ok(!isReclassifiable("ruliweb"), "약지도 학습 소스는 자기 라벨 유지");
+  assert.ok(isReclassifiable("ruliweb"), "루리웹 300143은 게임 전문판이 아니라 유머 게시판 베스트");
+  assert.ok(!isReclassifiable("hackernews"), "영문 정답 코퍼스 전에는 HN을 다른 전문 분야로 추측하지 않는다");
   // bobae는 2026-07-31 설계 변경으로 재분류 **대상**이다 — 베스트가 전 게시판
   // 통합(실측 15건 중 자동차 1건)이라 학습 소스에서 빼고 혼합 게시판 취급.
   assert.ok(isReclassifiable("bobae"), "보배 베스트는 혼합 게시판");
+});
+
+test("분류 무결성: 핫딜은 가격 어휘로 business에 들어가지 않는다", async () => {
+  const now = new Date().toISOString();
+  const engine = new FeedEngine(new FeedStore(), [
+    new JsonSource("ruliweb-deal", async () => [{
+      id: "deal-drift",
+      title: "[스팀] 여름 방학 게임 번들 (9,120원/무료)",
+      url: "https://bbs.ruliweb.com/market/board/1020/read/1",
+      category: "business",
+      publishedAt: now,
+      sourceRank: 0
+    }], "community")
+  ]);
+
+  await engine.refresh();
+  const item = (await engine._items()).find((row) => row.id === "deal-drift");
+  assert.equal(item.isDeal, true);
+  assert.equal(item.category, "life", "레지스트리의 핫딜 분야가 개인판 분류의 정본이어야 한다");
+});
+
+test("분류 무결성: 캐시에 남은 이전 분류를 등록 분류에서 다시 계산한다", async () => {
+  const engine = new FeedEngine(new FeedStore(), []);
+  engine._cache = [{
+    id: "hn-drift",
+    title: "I made tinnitus my friend, then it disappeared [video]",
+    url: "https://example.com/tinnitus",
+    source: "hackernews",
+    sourceLabel: "해커뉴스",
+    kind: "community",
+    category: "business",
+    registryCategory: "tech",
+    topics: [],
+    tags: [],
+    score: 202,
+    commentCount: 160,
+    publishedAt: new Date().toISOString()
+  }];
+
+  const item = (await engine._items()).find((row) => row.id === "hn-drift");
+  assert.equal(item.category, "tech", "이전 NB 결과가 다음 판의 입력으로 누적되면 안 된다");
+});
+
+test("분류 무결성: 영문 단어 안의 ISA 문자열을 금융상품으로 오인하지 않는다", () => {
+  assert.equal(
+    definiteCategory({ title: "I made tinnitus my friend, then it disappeared [video]" }),
+    null
+  );
+  assert.equal(definiteCategory({ title: "ISA account strategy" }), "business");
+});
+
+test("독립 검수 회귀: 야구·과학·생활 제목이 등록 섹션이나 지뢰어에 끌려가지 않는다", () => {
+  assert.equal(definiteCategory({
+    title: "156km 퍼펙트 SV 이의리 마무리 체질인가",
+    sourceId: "chosunbiz",
+    url: "https://biz.chosun.com/sports/baseball/2026/08/12/example/"
+  }), "sports");
+  assert.equal(keywordCategory("‘우주 쓰레기’ 달 표면에 충돌하던 날"), "science");
+  assert.equal(keywordCategory("트럼프, 타이레놀 이어 이번엔 백신? '자폐 연관성' 주장 논란"), "science");
+  assert.equal(
+    keywordCategory("치아 말고 운동화 밑창·다이아 반지도 닦는다고요? 당신이 몰랐던 의외의 치약 활용법"),
+    "life"
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -217,7 +282,7 @@ test("engine.refresh: 혼합 소스의 자동차 글이 tech에서 auto로 재�
   assert.equal(trainItem.registryCategory, undefined);
 });
 
-test("engine.refresh: 코퍼스가 부족하면(100건 미만) 아무것도 재분류하지 않는다", async () => {
+test("engine.refresh: NB 내부 준비 보호값 전에는 통계 재분류를 시작하지 않는다", async () => {
   const now = Date.now();
   const store = new FeedStore();
   const engine = new FeedEngine(store, [
@@ -407,7 +472,7 @@ test("카드 기본 동작: 내부 상세 우선, 원문은 ↗ 지름길 (아�
 });
 
 // ---- 키워드 확정 분류 + 보배 혼합 베스트 (David 2026-07-31 실측 지적) ----
-import { keywordCategory, MIXED_BEST_FALLBACK } from "../src/feed/classify.js";
+import { categoryGuardReason, keywordCategory, MIXED_BEST_FALLBACK } from "../src/feed/classify.js";
 import { FeedStore as _EdStore } from "../src/feed/store.js";
 import { FeedEngine as _EdEngine } from "../src/feed/engine.js";
 import { JsonSource as _EdJson } from "../src/feed/content.js";
@@ -419,6 +484,12 @@ test("keywordCategory: 자동차 사전 — 시승·모델·전기차는 auto, �
   assert.equal(keywordCategory("현대차 주가 사상 최고치 경신"), null, "브랜드+주가 = 경제 기사");
   assert.equal(keywordCategory("테슬라 실적 발표에 시장 술렁"), null);
   assert.equal(keywordCategory("서운하다며 가족 단톡방을 나간 올케"), null, "일상글은 무반응");
+  assert.equal(keywordCategory("청래야 정신차려라"), null, "정신차려라 안의 신차는 자동차가 아니다");
+  assert.equal(keywordCategory("정신 차리고 신차를 구입했다"), "auto", "별도 신차 문맥은 보존해야 한다");
+  assert.equal(keywordCategory("[무신사] 좋은느낌 유기농순면 18x6팩 (18130원/무료)"), null,
+    "판매처 이름만으로 생필품을 패션으로 확정하면 안 된다");
+  assert.equal(keywordCategory("무신사 스니커즈 협업 컬렉션 공개"), "fashion",
+    "상품 자체의 패션 전용어가 있으면 계속 패션으로 분류한다");
 });
 
 test("보배 베스트: 자동차 키워드 글만 auto, 나머지는 혼합 폴백(humor) — 실측 재현", async () => {
@@ -429,7 +500,9 @@ test("보배 베스트: 자동차 키워드 글만 auto, 나머지는 혼합 폴
     { id: "talk1", title: "서운하다며 가족 단톡방을 나간 올케", url: "https://b.example.com/2",
       publishedAt: new Date(Date.now() - 3600e3).toISOString(), score: 300, category: "auto" },
     { id: "talk2", title: "홍명보 청문회를 본 일본인들 반응", url: "https://b.example.com/3",
-      publishedAt: new Date(Date.now() - 3600e3).toISOString(), score: 200, category: "auto" }
+      publishedAt: new Date(Date.now() - 3600e3).toISOString(), score: 200, category: "auto" },
+    { id: "politics1", title: "정청래 정신차려라", url: "https://b.example.com/4",
+      publishedAt: new Date(Date.now() - 3600e3).toISOString(), score: 180, category: "auto" }
   ], "community");
   const store = new _EdStore();
   const engine = new _EdEngine(store, [bobae]);
@@ -439,7 +512,24 @@ test("보배 베스트: 자동차 키워드 글만 auto, 나머지는 혼합 폴
   assert.equal(byId.get("car1").category, "auto", "진짜 자동차 글은 auto 유지");
   assert.notEqual(byId.get("talk1").category, "auto", "일상글이 auto로 남으면 안 됨");
   assert.notEqual(byId.get("talk2").category, "auto", "청문회 반응글이 auto로 남으면 안 됨");
+  assert.equal(byId.get("politics1").category, "humor",
+    "정치 토픽도 혼합 게시판 등록값보다 먼저 중립화해야 한다");
+  assert.ok(byId.get("politics1").topics.includes("politics"), "정치 토픽 표시는 보존해야 한다");
   assert.equal(byId.get("talk1").registryCategory, "auto", "원 분류는 보존(디버깅용)");
+});
+
+test("루리웹 300143: 게임 고유어가 있는 글만 gaming, 일반 유머 글은 humor", async () => {
+  const source = new _EdJson("ruliweb", async () => [
+    { id: "ruli-game", title: "스타크래프트 신규 패치 후기", url: "https://bbs.ruliweb.com/community/board/300143/read/1", category: "gaming" },
+    { id: "ruli-talk", title: "90년대생이 텔레비전에서 자주 본 배우", url: "https://bbs.ruliweb.com/community/board/300143/read/2", category: "gaming" }
+  ], "community");
+  const engine = new _EdEngine(new _EdStore(), [source]);
+  await engine.refresh();
+  const byId = new Map((await engine._items()).map((item) => [item.id, item]));
+
+  assert.equal(byId.get("ruli-game").category, "gaming");
+  assert.equal(byId.get("ruli-talk").category, "humor");
+  assert.equal(byId.get("ruli-talk").registryCategory, "gaming");
 });
 
 test("경제 뉴스의 시승기: 키워드 확정이 소스 불문 auto로 옮긴다", async () => {
@@ -476,7 +566,67 @@ test("keywordCategory: 커뮤니티 제목을 사람이 유추하는 대로 분�
   assert.equal(keywordCategory("회사 단톡방에서 오타 하나로 벌어진 대참사"), null);
 });
 
-test("섹션이 정해진 뉴스 소스는 등록 카테고리를 그대로 쓴다 (재분류 금지)", async () => {
+test("실제 판 분류: 금융·관광 문맥이 과학·기술·게임 분야를 훔치지 않는다", () => {
+  assert.notEqual(
+    keywordCategory("강원관광재단 감탄로드 여행가챠 서울서 팝업스토어"),
+    "gaming"
+  );
+  assert.equal(
+    keywordCategory("KB운용 미국우주위성통신 ETF 출시 스페이스X 등 투자"),
+    "business"
+  );
+  assert.equal(
+    keywordCategory("뉴욕증시 유가 5%대 급등 3대 지수 하락 반도체주 약세"),
+    "business"
+  );
+  assert.equal(keywordCategory("Pokémon Pokopia Preschooler Outfit 가이드"), "gaming");
+  assert.equal(keywordCategory("포트나이트 챕터 7 에픽게임즈 향후 계획"), "gaming");
+  assert.equal(keywordCategory("악마는 프라다를 입는다 명장면.JPG"), null);
+});
+
+test("실제 런치판: 국제 갈등과 중대 피해를 문화·유머 대표로 소비하지 않는다", () => {
+  assert.equal(
+    categoryGuardReason("culture", "한국 망하라고 저주하는 우크라이나인들"),
+    "geopolitical-conflict-without-culture-subject"
+  );
+  assert.equal(
+    categoryGuardReason("humor", "소록도에서 강제 낙태 당한 한센인들의 아들, 딸"),
+    "강제 낙태"
+  );
+  assert.equal(
+    categoryGuardReason("culture", "우크라이나 전쟁을 다룬 신작 영화 개봉"),
+    null,
+    "전쟁을 다룬 실제 문화 콘텐츠까지 막으면 안 된다"
+  );
+  assert.equal(
+    categoryGuardReason("business", "스트레이 키즈 창빈, 삼성서울병원에 1억원 기부"),
+    "celebrity-donation-without-business-subject"
+  );
+  assert.equal(
+    categoryGuardReason("business", "스타트업 재단, 임직원과 병원에 1억원 기부"),
+    null,
+    "기업·재단의 사회공헌 보도까지 경제에서 막으면 안 된다"
+  );
+  assert.equal(
+    categoryGuardReason("business", "투캅스 감초 배우 안진수, 췌장암 투병 끝 별세"),
+    "performer-obituary-without-business-subject"
+  );
+  assert.equal(
+    categoryGuardReason("humor", "윤서인, 친일파 집안 하영 지지 발표"),
+    "친일파"
+  );
+  assert.equal(
+    categoryGuardReason("humor", "역사 시험에서 조선 왕 이름을 헷갈린 사연"),
+    null,
+    "일반 역사 유머까지 막으면 안 된다"
+  );
+  assert.equal(
+    categoryGuardReason("humor", "이완용은 명함도 못 내밀 최악의 매국노"),
+    "매국노"
+  );
+});
+
+test("섹션 뉴스는 등록 분야를 지키되 명백한 인디게임 기사는 게임으로 바로잡는다", async () => {
   const { FeedStore } = await import("../src/feed/store.js");
   const { FeedEngine } = await import("../src/feed/engine.js");
   const { JsonSource } = await import("../src/feed/content.js");
@@ -485,11 +635,30 @@ test("섹션이 정해진 뉴스 소스는 등록 카테고리를 그대로 쓴�
     { id: "n1", title: "넥슨 신작 흥행에 주가 급등", url: "https://biz.example.com/1",
       publishedAt: new Date(Date.now() - 3600e3).toISOString(), category: "business" }
   ], "news");
+  const tech = new JsonSource("gnews-tech", async () => [
+    { id: "n2", title: "요즘 인디 게임들 핫하네…협동 파티 게임 출시 6일 만에 100만 장 돌파", url: "https://tech.example.com/2",
+      publishedAt: new Date(Date.now() - 3600e3).toISOString(), category: "tech" },
+    { id: "n3", title: "인디 게임 개발용 그래픽카드 렌더링 성능 공개", url: "https://tech.example.com/3",
+      publishedAt: new Date(Date.now() - 3600e3).toISOString(), category: "tech" }
+  ], "news");
   const store = new FeedStore();
-  const engine = new FeedEngine(store, [src]);
+  const engine = new FeedEngine(store, [src, tech]);
   await engine.refresh();
   const item = (await engine._items()).find((i) => i.id === "n1");
   assert.equal(item.category, "business", "섹션 뉴스는 제목 분류로 흔들리지 않는다");
+  const game = (await engine._items()).find((i) => i.id === "n2");
+  const techTool = (await engine._items()).find((i) => i.id === "n3");
+  assert.equal(game.category, "gaming");
+  assert.equal(game.registryCategory, "tech");
+  assert.equal(techTool.category, "tech", "기술 문맥과 동점인 제목까지 게임으로 훔치면 안 된다");
+});
+
+test("기관 교육 운영은 자율주행 한 단어만으로 자동차 분야를 얻지 않는다", () => {
+  assert.notEqual(
+    keywordCategory("한밭대, 한국교통대와 디스플레이·자율주행 비교과 교육과정 운영"),
+    "auto"
+  );
+  assert.equal(keywordCategory("자율주행 신차 도로 시승 결과 공개"), "auto");
 });
 
 // ---------------------------------------------------------------------------
@@ -551,6 +720,13 @@ test("혼합 게시판의 연예 글은 culture로 — 등록값 humor를 물려
   // "배우 "의 뒤 공백이 지키는 경계 — 없으면 아래가 전부 culture로 샌다
   for (const t of ["내 배우자와 여행 계획", "요리 배우고 싶은데 학원 추천", "영어 배우기 좋은 앱"])
     assert.equal(keywordCategory(t), null, `오탐: ${t}`);
+  assert.equal(keywordCategory("피프티피프티 문샤넬"), "culture",
+    "사람 이름의 샤넬 문자열이 패션 카테고리를 훔치면 안 된다");
+  assert.equal(keywordCategory("블랙핑크 제니 샤넬 협업 컬렉션 화보 공개"), "fashion",
+    "실제 패션 문맥이 함께 있으면 패션으로 남아야 한다");
+  assert.equal(keywordCategory("C3S 올 7월 세계 해양 표면 온도 관측 이래 최고"), "science");
+  assert.notEqual(keywordCategory("노트북 표면 온도 낮추는 쿨러 신제품"), "science",
+    "일반 제품의 표면 온도를 과학 기사로 오인하면 안 된다");
 });
 
 test("전문 커뮤니티(인벤)의 등록 카테고리는 유지 — 혼합 폴백을 씌우면 안 된다", async () => {
@@ -583,7 +759,8 @@ test("사건 보도는 주제 글이 아니다 — 등장하는 사물이 주제
     "본인은 억울하다고 한문철에 제보한 교통사고 블랙박스 영상",
     "어머니 벤츠로 음주운전… 10대 가로수 충돌 사망",
     "테슬라 차량 추돌로 2명 숨져",
-    "게임회사 대표 구속… 횡령 혐의"
+    "게임회사 대표 구속… 횡령 혐의",
+    "[속보]‘제주항공 여객기 참사’ 경찰 특수단, 한국공항공사·국토부 압수수색"
   ]) {
     assert.ok(looksLikeIncident(t), `사건으로 안 잡힘: ${t}`);
     assert.equal(keywordCategory(t), null, `사건인데 주제가 붙었다: ${t}`);

@@ -214,6 +214,15 @@ test("오병합 가드 7: 일반 명사 2개만 겹치는 서로 다른 사건�
   assert.equal(buildEventClusters([a, b]).length, 2);
 });
 
+test("오병합 가드: 기간 상투어와 개발만 겹치는 서로 다른 회사 사건은 병합하지 않는다", () => {
+  const a = article({ id: "jeep-cn", title: "지프, 4년 만에 중국 생산 재개 '둥펑 기술로 EV·PHEV 개발' 해외 수출",
+    publishedAt: "2026-08-27T09:00:00+09:00", source: "auto", sourceLabel: "자동차 매체" });
+  const b = article({ id: "blue-profit", title: "블루산업개발, 원지·골판지 수익성 개선…4년 만에 상반기 흑자",
+    publishedAt: "2026-08-27T10:00:00+09:00", source: "business", sourceLabel: "경제 매체" });
+  assert.equal(decideEventMerge(a, b).merge, false);
+  assert.equal(buildEventClusters([a, b]).length, 2);
+});
+
 test("오병합 가드 5: 핵심 숫자 충돌(같은 주제 다른 수치)은 병합을 보류한다", () => {
   const a = article({ id: "m5-a", title: "구로 물류센터 화재, 부상 120명",
     publishedAt: "2026-08-13T09:00:00+09:00", source: "gnews-news", sourceLabel: "연합뉴스" });

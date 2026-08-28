@@ -24,8 +24,18 @@ import { promotable, isLowValue } from "./promotion.js";
 import { isJunkImage } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
 import { canonicalContentUrl } from "./dedupe.js";
+import { buildEventClusters, composeEventFromMembers } from "./event-cluster.js";
+import { isGoogleNewsRedirect } from "./canonical-url.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
-import { buildDigest, MIN_ISSUES, slotForHour, slotById, isOverseas } from "./digest.js";
+import {
+  buildDigest,
+  buildIssueDraft,
+  CATEGORY_DOMESTIC_SHARE_BANDS,
+  MIN_ISSUES,
+  slotForHour,
+  slotById,
+  isOverseas
+} from "./digest.js";
 import { rankParams, categorySets, selectDiverse } from "./rank.js";
 import {
   rankItems,
@@ -44,7 +54,8 @@ import { CATEGORIES, categoryLabel, sourceLabel } from "./taxonomy.js";
 import {
   EDITION_CANDIDATE_CONTRACT,
   buildEditionCandidateFixture,
-  candidateFixtureReceipt
+  candidateFixtureReceipt,
+  koreanAudienceReadable
 } from "./edition-candidates.js";
 import { attachEditorialLineage } from "./editorial-lineage.js";
 import {
@@ -58,6 +69,10 @@ import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotSco
 import { FILTERABLE_TOPICS, NO_DEAL_TOPIC } from "./topics.js";
 import { specialistCorrection, aggregateReclassification, untrainedOverrideAllowed, isTranslatedTitle } from "./category-policy.js";
 import { buildEditorialNote } from "./editorial.js";
+import {
+  AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS,
+  isAuthoritativeForeignNewsSource
+} from "./selection-axes.js";
 import {
   injectSlots,
   adParams,
@@ -77,10 +92,362 @@ const MIN_NB_TRAINING_ROWS = 100;
 
 function preferCanonicalItem(current, candidate, offMain, engagement) {
   if (!current) return candidate;
+  const currentWrapper = isGoogleNewsRedirect(current.url);
+  const candidateWrapper = isGoogleNewsRedirect(candidate.url);
+  if (currentWrapper !== candidateWrapper) return candidateWrapper ? current : candidate;
   const currentVisible = !offMain.has(current.source);
   const candidateVisible = !offMain.has(candidate.source);
   if (currentVisible !== candidateVisible) return candidateVisible ? candidate : current;
   return engagement(candidate) > engagement(current) ? candidate : current;
+}
+
+const eventSourceOrder = (a, b) => {
+  const leftWrapper = Number(isGoogleNewsRedirect(a && (a.canonicalUrl || a.url)));
+  const rightWrapper = Number(isGoogleNewsRedirect(b && (b.canonicalUrl || b.url)));
+  if (leftWrapper !== rightWrapper) return leftWrapper - rightWrapper;
+  const left = Date.parse(a && a.publishedAt || "");
+  const right = Date.parse(b && b.publishedAt || "");
+  if (Number.isFinite(left) && Number.isFinite(right) && left !== right) return left - right;
+  if (Number.isFinite(left) !== Number.isFinite(right)) return Number.isFinite(left) ? -1 : 1;
+  return String(a && (a.id || a.title) || "").localeCompare(String(b && (b.id || b.title) || ""));
+};
+
+function buildEventSourceIndex(items, events = buildEventClusters(items)) {
+  const byId = new Map();
+  const byUrl = new Map();
+  const add = (map, key, item) => {
+    if (!key) return;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(item);
+  };
+  for (const item of items || []) {
+    if (!item) continue;
+    if (item.id) byId.set(item.id, item);
+    add(byUrl, canonicalContentUrl(item.url), item);
+    add(byUrl, canonicalContentUrl(item.canonicalUrl), item);
+    for (const alias of item.canonicalAliases || []) {
+      if (alias && alias.id) byId.set(alias.id, item);
+      add(byUrl, canonicalContentUrl(alias && alias.url), item);
+    }
+  }
+  const groupsByItem = new Map();
+  const eventByItem = new Map();
+  const presentationByEvent = new Map();
+  for (const event of events) {
+    const members = (event.sourceEvidence || []).map((row) =>
+      byId.get(row.articleId) || (byUrl.get(canonicalContentUrl(row.canonicalUrl)) || [])[0]
+    ).filter(Boolean).sort(eventSourceOrder);
+    for (const member of members) {
+      groupsByItem.set(member, members);
+      eventByItem.set(member, event);
+    }
+  }
+  const presentationFor = (item) => {
+    const event = eventByItem.get(item);
+    if (!event) return null;
+    if (!presentationByEvent.has(event.eventId)) {
+      const members = groupsByItem.get(item) || [item];
+      const draft = buildIssueDraft(members, null, true);
+      presentationByEvent.set(event.eventId, enrichDigestIssue({
+        ...draft,
+        subject: members[0]?.title || draft.subject,
+        clusterId: event.eventId,
+        event
+      }, []));
+    }
+    return presentationByEvent.get(event.eventId);
+  };
+  return { byId, byUrl, groupsByItem, presentationFor };
+}
+
+function attachCanonicalEventSources(issue, index) {
+  const evidenceRows = [
+    ...(issue?.refs || []),
+    ...(issue?.sourceEvidence || []),
+    ...(issue?.event?.sourceEvidence || [])
+  ];
+  const leads = [];
+  for (const row of evidenceRows) {
+    const byId = index.byId.get(row?.id || row?.itemId || row?.articleId);
+    if (byId) leads.push(byId);
+    for (const value of [row?.canonicalUrl, row?.url]) {
+      leads.push(...(index.byUrl.get(canonicalContentUrl(value)) || []));
+    }
+  }
+  const lead = [...new Set(leads)].sort(eventSourceOrder)[0];
+  if (!lead) return issue;
+
+  const members = index.groupsByItem.get(lead) || [lead];
+  const canonical = index.presentationFor(lead);
+  const event = composeEventFromMembers(members);
+  const hasReporting = members.some((item) => item.kind !== "community");
+  const seenSources = new Set();
+  const eventSources = members.filter((item) => !hasReporting || item.kind !== "community")
+    .filter((item) => {
+      const key = operationalSourceIdentity(item).ownershipGroup;
+      return key && !seenSources.has(key) && seenSources.add(key);
+    })
+    .map((item) => {
+      const url = canonicalContentUrl(item.canonicalUrl || item.url) || item.canonicalUrl || item.url || null;
+      return {
+        evidenceId: `event-source:${item.id || url}`,
+        id: item.id || null,
+        title: item.title || "",
+        originalTitle: item.originalTitle || null,
+        sourceId: item.source || null,
+        sourceGroup: operationalSourceIdentity(item).ownershipGroup,
+        sourceLabel: item.sourceLabel || item.source || "원문",
+        url,
+        canonicalUrl: url,
+        publishedAt: item.publishedAt || null,
+        image: item.image || null,
+        relay: isGoogleNewsRedirect(url)
+      };
+    }).filter((row) => row.url);
+  if (!eventSources.length) return issue;
+  const carryoverById = new Map();
+  const rememberCarryover = (row) => {
+    if (!row?.carryover) return;
+    if (row.id) carryoverById.set(`id:${row.id}`, row.carryover);
+    if (row.itemId) carryoverById.set(`id:${row.itemId}`, row.carryover);
+    const url = canonicalContentUrl(row.canonicalUrl || row.url);
+    if (url) carryoverById.set(`url:${url}`, row.carryover);
+  };
+  for (const row of [...(issue.refs || []), ...(issue.sourceEvidence || [])]) rememberCarryover(row);
+  const withCarryover = (row) => {
+    const url = canonicalContentUrl(row.canonicalUrl || row.url);
+    const carryover = carryoverById.get(`id:${row.id || row.itemId}`) ||
+      url && carryoverById.get(`url:${url}`) || row.carryover;
+    return carryover ? { ...row, carryover } : row;
+  };
+  // 카테고리는 사건의 노출 여부와 순서만 정한다. 같은 사건의 제목·설명·근거를
+  // 선택 조합마다 다시 만들면 한 기사가 다른 기사처럼 보인다. 전체 사건 멤버로
+  // 한 번 만든 표현 정본만 투영하고, 선택 단계의 게이트 상태는 그대로 둔다.
+  const fixedPresentation = canonical ? {
+    subject: canonical.subject,
+    headline: canonical.headline,
+    paragraph: canonical.paragraph,
+    whatHappened: canonical.whatHappened,
+    tone: canonical.tone,
+    shape: canonical.shape,
+    metrics: {
+      ...canonical.metrics,
+      ...(issue.metrics?.carryoverUsed ? {
+        carryoverUsed: true,
+        carryoverEvidenceCount: issue.metrics.carryoverEvidenceCount || 1
+      } : {})
+    },
+    evidence: canonical.evidence,
+    sourceEvidence: canonical.sourceEvidence.map(withCarryover),
+    refs: canonical.refs.map(withCarryover),
+    overseasOnly: canonical.overseasOnly,
+    clusterId: canonical.clusterId,
+    event: canonical.event,
+    impactLens: canonical.impactLens,
+    whyImportant: canonical.whyImportant,
+    whyHot: canonical.whyHot,
+    watchNext: canonical.watchNext,
+    confidence: canonical.confidence
+  } : {};
+  const selectedCategories = [...new Set([
+    ...(issue.selectedByCategories || []),
+    ...(issue.claimLineage?.claims?.whyForYou?.categoryIds || [])
+  ])];
+  return attachEditorialLineage({
+    ...issue,
+    ...fixedPresentation,
+    selectedByCategories: selectedCategories,
+    eventSourceSetId: `${event.eventId}:${eventSources.map((row) => row.sourceGroup || row.url).sort().join("|")}`,
+    eventSources
+  }, { selectedCategories });
+}
+
+const editionIssueKey = (issue) => String(
+  issue?.event?.eventId || issue?.clusterId || issue?.eventSourceSetId || issue?.evidenceHash ||
+  canonicalContentUrl(issue?.refs?.[0]?.canonicalUrl || issue?.refs?.[0]?.url) ||
+  issue?.refs?.[0]?.id || issue?.subject || ""
+);
+
+export function mergeCategoryEditions(rows, selectedCategories, candidateCap, includeCandidates) {
+  const first = rows[0]?.edition || {};
+  const issueLists = rows.map(({ category, edition }) => ({
+    category,
+    issues: (edition.issues || []).filter((issue) => {
+      const lanes = issue.selectedByCategories || [];
+      return lanes.length ? lanes.includes(category) : (issue.categoryIds || []).includes(category);
+    }).map((issue) => ({
+      ...issue,
+      selectedByCategories: [...new Set([...(issue.selectedByCategories || []), category])]
+    }))
+  }));
+  const mergedIssues = [];
+  const issueIndex = new Map();
+  const maxDepth = Math.max(0, ...issueLists.map((row) => row.issues.length));
+  for (let depth = 0; depth < maxDepth; depth += 1) {
+    const layer = issueLists.map((row, categoryIndex) => ({
+      issue: row.issues[depth],
+      categoryIndex
+    })).filter((row) => row.issue).sort((left, right) =>
+      Number(right.issue.metrics?.score || 0) - Number(left.issue.metrics?.score || 0)
+      || left.categoryIndex - right.categoryIndex);
+    for (const { issue } of layer) {
+      const key = editionIssueKey(issue);
+      if (!key || !issueIndex.has(key)) {
+        issueIndex.set(key || `row:${mergedIssues.length}`, mergedIssues.length);
+        mergedIssues.push(issue);
+        continue;
+      }
+      const index = issueIndex.get(key);
+      const current = mergedIssues[index];
+      const categoryIds = [...new Set([...(current.categoryIds || []), ...(issue.categoryIds || [])])];
+      const selectedByCategories = [...new Set([
+        ...(current.selectedByCategories || []),
+        ...(issue.selectedByCategories || [])
+      ])];
+      const merged = { ...current, categoryIds, selectedByCategories };
+      mergedIssues[index] = current.claimLineage || current.sourceEvidence?.length
+        ? attachEditorialLineage(merged, {
+          selectedCategories: selectedByCategories
+        })
+        : merged;
+    }
+  }
+
+  const fixtures = rows.map((row) => row.edition.candidateFixture).filter(Boolean);
+  const candidateRows = [];
+  const candidateByUrl = new Map();
+  const candidateCategories = new Map();
+  const candidateDepth = Math.max(0, ...fixtures.map((fixture) => fixture.candidates?.length || 0));
+  for (let depth = 0; depth < candidateDepth; depth += 1) {
+    const layer = rows.map(({ category, edition }, categoryIndex) => ({
+      category,
+      categoryIndex,
+      candidate: edition.candidateFixture?.candidates?.[depth]
+    })).filter((row) => row.candidate).sort((left, right) =>
+      Number(right.candidate.signals?.score || 0) - Number(left.candidate.signals?.score || 0)
+      || left.categoryIndex - right.categoryIndex);
+    for (const { category, candidate } of layer) {
+      const key = candidate.canonicalUrl || `${candidate.sourceId}|${candidate.itemId}`;
+      if (!candidateCategories.has(key)) candidateCategories.set(key, new Set());
+      candidateCategories.get(key).add(category);
+      if (candidateByUrl.has(key) || candidateRows.length >= candidateCap) continue;
+      candidateByUrl.set(key, candidateRows.length);
+      candidateRows.push(candidate);
+    }
+  }
+  const candidates = candidateRows.map((candidate, index) => ({
+    ...candidate,
+    candidateId: `EC-${String(index + 1).padStart(3, "0")}`
+  }));
+  const metricRows = fixtures.map((fixture) => fixture.metrics || {});
+  const sum = (field) => metricRows.reduce((total, metrics) => total + Number(metrics[field] || 0), 0);
+  const categoryCandidateCounts = Object.fromEntries(selectedCategories.map((category) => [
+    category,
+    [...candidateByUrl.keys()].filter((key) => candidateCategories.get(key)?.has(category)).length
+  ]));
+  const carryoverCategoryCounts = Object.fromEntries(selectedCategories.map((category) => [
+    category,
+    [...candidateByUrl].filter(([key, index]) =>
+      candidates[index]?.carryover && candidateCategories.get(key)?.has(category)).length
+  ]));
+  const dropped = {};
+  for (const metrics of metricRows) {
+    for (const [reason, count] of Object.entries(metrics.dropped || {})) {
+      dropped[reason] = (dropped[reason] || 0) + Number(count || 0);
+    }
+  }
+  const candidateFixture = fixtures.length ? {
+    stableId: `${EDITION_CANDIDATE_CONTRACT.stableId}-FIXTURE`,
+    contractId: EDITION_CANDIDATE_CONTRACT.stableId,
+    state: candidates.length ? "machine_observation_ready" : "insufficient_input",
+    label: `${candidates.length} MACHINE OBSERVATION`,
+    observedAt: first.generatedAt,
+    selectedCategories: [...selectedCategories],
+    metrics: {
+      inputCount: sum("inputCount"),
+      eligibleCount: sum("eligibleCount"),
+      candidateCount: candidates.length,
+      candidateCap,
+      capReached: candidates.length === candidateCap,
+      truncated: metricRows.some((metrics) => metrics.truncated) || candidateRows.length >= candidateCap,
+      sourceCap: Math.max(0, ...metricRows.map((metrics) => Number(metrics.sourceCap || 0))),
+      categoryFloor: Math.max(0, ...metricRows.map((metrics) => Number(metrics.categoryFloor || 0))),
+      koreanAudiencePreference: metricRows.every((metrics) => metrics.koreanAudiencePreference !== false),
+      uniqueSourceCount: new Set(candidates.map((row) => row.sourceId)).size,
+      uniqueOwnershipGroupCount: new Set(candidates.map((row) => row.ownershipGroup)).size,
+      categoryCount: selectedCategories.filter((category) => categoryCandidateCounts[category] > 0).length,
+      categoryCandidateCounts,
+      carryoverCandidateCount: candidates.filter((row) => row.carryover).length,
+      carryoverCategoryCounts,
+      selectedCategoryCoveragePct: selectedCategories.length
+        ? Math.round(selectedCategories.filter((category) => categoryCandidateCounts[category]).length /
+          selectedCategories.length * 100)
+        : null,
+      sourceRoleCoveragePct: candidates.length
+        ? Math.round(candidates.filter((row) => row.sourceRole !== "unknown").length / candidates.length * 100)
+        : 0,
+      explicitOwnershipCoveragePct: candidates.length
+        ? Math.round(candidates.filter((row) => row.ownershipBasis === "registry_explicit").length /
+          candidates.length * 100)
+        : 0,
+      marketPolicyDeskCoveragePct: candidates.length
+        ? Math.round(candidates.filter((row) => row.marketPolicyDesk).length / candidates.length * 100)
+        : 0,
+      dropped
+    },
+    limits: [...new Set(fixtures.flatMap((fixture) => fixture.limits || []))],
+    candidates
+  } : null;
+
+  const qualityRows = rows.map((row) => row.edition.editorialQuality).filter(Boolean);
+  const countMap = (field) => Object.fromEntries([...new Set(qualityRows.flatMap((quality) =>
+    Object.keys(quality[field] || {})))].map((key) => [key, qualityRows.reduce((total, quality) =>
+    total + Number(quality[field]?.[key] || 0), 0)]));
+  const editorialQuality = qualityRows.length ? {
+    sampleMode: "independent_category_lists",
+    evaluatedClusters: qualityRows.reduce((total, row) => total + Number(row.evaluatedClusters || 0), 0),
+    machinePass: qualityRows.reduce((total, row) => total + Number(row.machinePass || 0), 0),
+    machineHold: qualityRows.reduce((total, row) => total + Number(row.machineHold || 0), 0),
+    qualifiedClusters: qualityRows.reduce((total, row) => total + Number(row.qualifiedClusters || 0), 0),
+    nearDuplicateHolds: qualityRows.reduce((total, row) => total + Number(row.nearDuplicateHolds || 0), 0),
+    selectedAfterGate: mergedIssues.length,
+    failuresByRule: countMap("failuresByRule"),
+    evidenceModes: countMap("evidenceModes"),
+    categoryFunnel: rows.flatMap(({ category, edition }) =>
+      (edition.editorialQuality?.categoryFunnel || []).filter((row) => row.categoryId === category))
+  } : null;
+  const itemCount = rows.reduce((total, row) => total + Number(row.edition.itemCount || 0), 0);
+  const overseasShare = itemCount ? Math.round(rows.reduce((total, row) =>
+    total + Number(row.edition.overseasShare || 0) * Number(row.edition.itemCount || 0), 0) / itemCount) : 0;
+  const merged = {
+    ...first,
+    itemCount,
+    sourceCount: candidateFixture?.metrics.uniqueSourceCount ||
+      Math.max(0, ...rows.map((row) => Number(row.edition.sourceCount || 0))),
+    overseasShare,
+    issues: mergedIssues,
+    digestSummary: `선택한 ${selectedCategories.length}개 분야의 고정 상위 목록을 합쳐 같은 사건은 한 번만 남긴 ${mergedIssues.length}개 이슈입니다.`,
+    sections: rows.flatMap(({ category, edition }) =>
+      (edition.sections || []).filter((section) => section.category === category)),
+    publishable: mergedIssues.length >= MIN_ISSUES,
+    personalized: true,
+    selectedCategories: [...selectedCategories],
+    ...(editorialQuality ? { editorialQuality } : {}),
+    ...(candidateFixture ? { candidateContract: candidateFixtureReceipt(candidateFixture) } : {})
+  };
+  if (includeCandidates && candidateFixture) merged.candidateFixture = candidateFixture;
+  else delete merged.candidateFixture;
+  const carryoverRows = rows.map((row) => row.edition.editorialCarryover).filter(Boolean);
+  if (carryoverRows.length) {
+    merged.editorialCarryover = {
+      ...carryoverRows[0],
+      enabled: carryoverRows.some((row) => row.enabled),
+      candidateCount: candidateFixture?.metrics.carryoverCandidateCount || 0,
+      categoryCounts: candidateFixture?.metrics.carryoverCategoryCounts || {},
+      selectedIssueCount: mergedIssues.filter((issue) => issue.metrics?.carryoverUsed).length
+    };
+  }
+  return merged;
 }
 
 // How long a collected item stays in the rolling pool before it's eligible for
@@ -197,6 +564,41 @@ function sourceLeanOf(sourceId) {
 function safeImage(url) {
   if (!url) return null;
   try { return isJunkImage(new URL(url)) ? null : url; } catch { return null; }
+}
+
+export function briefingAvailableAt(item, sourceMetadata = null) {
+  const seen = Number.isFinite(item?.firstSeenAt) ? item.firstSeenAt : NaN;
+  const published = item?.publishedAt ? Date.parse(item.publishedAt) : NaN;
+  if (item?.kind === "community" && sourceMetadata?.adapter?.type === "list"
+    && Number.isFinite(seen)) return seen;
+  const times = [seen, published].filter(Number.isFinite);
+  return times.length ? Math.max(...times) : NaN;
+}
+
+function briefingTooOld(item, nowMs, sourceMetadata) {
+  const cap = maxAgeFor(item);
+  if (!(cap > 0)) return false;
+  const available = briefingAvailableAt(item, sourceMetadata);
+  return Number.isFinite(available) && (nowMs - available) / 3.6e6 > cap;
+}
+
+export function briefingTimestampEligible(item, sourceMetadata = null) {
+  const published = item?.publishedAt;
+  const publishedAt = published == null
+    ? NaN
+    : typeof published === "number" ? published : Date.parse(published);
+  if (Number.isFinite(publishedAt)) return true;
+  return sourceMetadata?.adapter?.type !== "rss";
+}
+
+function inBriefingWindow(item, now, slotDef, sourceMetadata) {
+  const windowMs = (slotDef.windowHours || 12) * 3600 * 1000;
+  const authoritativeForeign = isAuthoritativeForeignNewsSource(sourceMetadata?.get(item.source));
+  const itemWindowMs = authoritativeForeign
+    ? Math.max(windowMs, AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS * 3600 * 1000)
+    : windowMs;
+  const available = briefingAvailableAt(item, sourceMetadata?.get(item.source));
+  return !Number.isFinite(available) || (available <= now && now - available <= itemWindowMs);
 }
 
 export function leanMultiplier(sourceId, balance) {
@@ -367,6 +769,22 @@ function normalizedCategories(value) {
   return [...new Set(list.map((id) => String(id || "").trim()).filter((id) => CATEGORY_IDS.has(id)))];
 }
 
+export function resolveEditorialSelection(categories, user = null) {
+  const explicit = normalizedCategories(categories);
+  const saved = normalizedCategories(user && user.briefingCategories);
+  const survey = normalizedCategories(user && user.surveyAnswers && user.surveyAnswers.categories);
+  let selectedCategories = explicit;
+  let mode = "request";
+  if (!selectedCategories.length && saved.length) { selectedCategories = saved; mode = "saved"; }
+  if (!selectedCategories.length && survey.length) { selectedCategories = survey; mode = "survey"; }
+  if (!selectedCategories.length) { selectedCategories = DEFAULT_EDITORIAL_PREVIEW.slice(); mode = "preview"; }
+  return {
+    selectedCategories: selectedCategories.slice().sort(),
+    mode,
+    explicit: mode !== "preview"
+  };
+}
+
 export function editorialValue(issue) {
   const categoryIds = issue.categoryIds || [];
   const ids = new Set(categoryIds || []);
@@ -508,6 +926,7 @@ export class FeedEngine {
     this.store = store;
     this.sources = sources && sources.length ? sources : [new SeedSource()];
     this._cache = null; // collected items cache — the capped, ranked-over view of the pool
+    this._briefingContextCache = null;
     this._pool = new Map(); // id -> { item, firstSeenAt } — the rolling accumulation pool
     // 수집 풀을 디스크에 남긴다.
     //
@@ -543,12 +962,22 @@ export class FeedEngine {
     // 전달돼 이슈 순위를 shadow 선별 순서로 고정한다. null이면(운영 서버·
     // v1 인프로세스 인스턴스) briefing() 동작이 기존과 바이트 그대로다.
     this.editorialExternalRank = null;
+    // 오늘판 카테고리 입력만 교체한다. null이면 기존 수집 카테고리를 그대로 쓰고,
+    // server.js가 v2 스냅샷을 주입한 경우에도 personalized briefing에만 적용된다.
+    this.editorialCategoryRouter = null;
+    this.editorialCategoryRoutingStatus = { mode: "v1", state: "legacy" };
+    // 발행 전 동결 풀은 이미 시간 범위를 확정한 재료다. 이 모드에서는 요청
+    // 시각으로 다시 자르지 않고, 카테고리 라우팅은 노출 레인에만 적용한다.
+    this.editorialPreselectedPool = false;
   }
 
   _ensureCategoryIntegrityMetadata() {
     if (this._itemRegistryCategories !== undefined && this._dealSources !== undefined
-      && this._itemSourceRoles !== undefined) return;
+      && this._itemSourceRoles !== undefined && this._itemSourceMetadata !== undefined) return;
     const registry = loadRegistry();
+    if (this._itemSourceMetadata === undefined) {
+      this._itemSourceMetadata = new Map(registry.map((entry) => [entry.id, entry]));
+    }
     if (this._itemRegistryCategories === undefined) {
       this._itemRegistryCategories = new Map(
         registry.filter((c) => c.category).map((c) => [c.id, c.category]));
@@ -733,8 +1162,7 @@ export class FeedEngine {
     const availableAt = (item) => {
       const published = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
       const firstSeen = Number.isFinite(item.firstSeenAt) ? item.firstSeenAt : NaN;
-      const values = [published, firstSeen].filter(Number.isFinite);
-      return values.length ? Math.max(...values) : 0;
+      return Number.isFinite(published) ? published : Number.isFinite(firstSeen) ? firstSeen : 0;
     };
     for (const [sourceId, items] of bySource) {
       items.sort((a, b) => availableAt(b) - availableAt(a));
@@ -746,7 +1174,7 @@ export class FeedEngine {
     const offMain = this._offMainSet();
     const byUrl = new Map();
     for (const item of capped) {
-      const key = item.url ? canonicalContentUrl(item.url) : null;
+      const key = canonicalContentUrl(item.canonicalUrl || item.url);
       if (!key) { byUrl.set(Symbol(), item); continue; }
       byUrl.set(key, preferCanonicalItem(byUrl.get(key), item, offMain, engagement));
     }
@@ -792,6 +1220,9 @@ export class FeedEngine {
     for (const item of items) {
       if (!item || item.source === "seed" || item.source === "me") continue;
       const registeredCategory = this._itemRegistryCategories.get(item.source);
+      // Tier-based reclassification only applies to sources with registry policy.
+      // In-process/imported sources already carry their explicit upstream category.
+      if (!this._itemSourceMetadata.has(item.source)) continue;
       // 이전 사이클의 편집 결과를 다음 판의 원 분류로 쓰지 않는다.
       if (registeredCategory && item.registryCategory !== undefined) item.category = registeredCategory;
       // 교정 감사 기록도 매 사이클 다시 판정한다 — 지난 판의 교정이 관문을
@@ -957,6 +1388,7 @@ export class FeedEngine {
   // so this still merges rather than starting the 48h window over.
   invalidate() {
     this._cache = null;
+    this._briefingContextCache = null;
   }
 
   // Re-collect from all sources and merge into the rolling pool by stableId
@@ -1008,6 +1440,7 @@ export class FeedEngine {
     if (!this._pool.size) return false;
     // 지난 사이클의 노출 후보를 그대로 되살린다 — 순위 재계산 없이 바로 뜬다.
     this._cache = parsed.rows.map((r) => r.item);
+    this._briefingContextCache = null;
     this.lastRefreshedAt = parsed.savedAt;
     return true;
   }
@@ -1180,7 +1613,7 @@ export class FeedEngine {
       const offMain = this._offMainSet();
       const byUrl = new Map();
       for (const item of capped) {
-        const key = item.url ? canonicalContentUrl(item.url) : null;
+        const key = canonicalContentUrl(item.canonicalUrl || item.url);
         if (!key) { byUrl.set(Symbol(), item); continue; }
         byUrl.set(key, preferCanonicalItem(byUrl.get(key), item, offMain, eng));
       }
@@ -1230,6 +1663,7 @@ export class FeedEngine {
     }
 
     this._cache = capped;
+    this._briefingContextCache = null;
     this._errors = errors;
     this.lastRefreshedAt = now;
     this._savePool();
@@ -1987,6 +2421,7 @@ export class FeedEngine {
         : hh.map(() => 0.15);
     }
     const publicItem = { ...item };
+    publicItem.image = safeImage(publicItem.image);
     // 내부 소유자 id는 공개 응답에 싣지 않는다 — 화면은 쓰지 않고, 새어 나가면
     // 계정 결속 탈취의 재료가 된다(적대적 검수 2026-08-06). 소유권 판정은
     // 서버가 store의 원본 레코드로 한다.
@@ -2033,10 +2468,13 @@ export class FeedEngine {
   // 서빙된 글에 좋아요가 "unknown item"으로 죽고 열람(open)이 발자취에서
   // 빠진다. 조회를 두 벌로 두면 한쪽이 반드시 샌다.
   _findItem(items, itemId) {
-    const hit = items.find((i) => i.id === itemId);
+    const matches = (item) => item?.id === itemId || (item?.canonicalAliases || []).some((alias) => alias?.id === itemId);
+    const hit = items.find(matches);
     if (hit) return hit;
     const pooled = this._pool && this._pool.get(itemId);
-    return (pooled && pooled.item) || null;
+    if (pooled?.item) return pooled.item;
+    for (const row of this._pool?.values() || []) if (matches(row.item)) return row.item;
+    return null;
   }
 
   // Record a like/dislike and learn from it. Returns updated confidence.
@@ -2368,6 +2806,102 @@ export class FeedEngine {
     try { return (await this._interestsFn()) || []; } catch { return []; }
   }
 
+  async _sharedBriefingContext({
+    asOfMs = null,
+    slotId = null,
+    personalized = false,
+    allowCarryover = false
+  } = {}) {
+    const requestedAsOf = asOfMs == null ? NaN : Number(asOfMs);
+    const requestedNow = Number.isFinite(requestedAsOf)
+      ? requestedAsOf
+      : this._clock ? new Date(this._clock()).getTime() : Date.now();
+    const requestedKstHour = new Date(requestedNow + 9 * 3600 * 1000).getUTCHours();
+    const requestedSlotDef = slotId ? slotById(slotId) : slotForHour(requestedKstHour);
+    const routingExpiresAt = Date.parse(this.editorialCategoryRoutingStatus?.expiresAt || "");
+    const routingFreshness = Number.isFinite(routingExpiresAt) && requestedNow > routingExpiresAt
+      ? "expired"
+      : "fresh";
+    const timeKey = Number.isFinite(requestedAsOf)
+      ? `${requestedAsOf}:${requestedSlotDef.id}`
+      : `${new Date(requestedNow + 9 * 3600 * 1000).toISOString().slice(0, 10)}:${requestedSlotDef.id}`;
+    const key = JSON.stringify([
+      timeKey,
+      personalized,
+      allowCarryover,
+      this.lastRefreshedAt || null,
+      this.editorialCategoryRouter ? this.editorialCategoryRoutingStatus : null,
+      routingFreshness
+    ]);
+    if (this._briefingContextCache?.key === key) return this._briefingContextCache.promise;
+
+    const promise = (async () => {
+      const collectedItems = !this.editorialPreselectedPool && Number.isFinite(requestedAsOf)
+        ? await this._itemsAsOf(requestedAsOf)
+        : await this._items();
+      // 첫 수집은 firstSeenAt을 요청 시각보다 몇 ms 뒤에 기록한다. 요청 시작
+      // 시각으로 창을 자르면 막 모은 모든 글이 미래 글이 되어 첫 화면만 빈다.
+      const now = Number.isFinite(requestedAsOf)
+        ? requestedAsOf
+        : this._clock ? new Date(this._clock()).getTime() : Date.now();
+      const kstHour = new Date(now + 9 * 3600 * 1000).getUTCHours();
+      const slotDef = slotId ? slotById(slotId) : slotForHour(kstHour);
+      const items = personalized && this.editorialCategoryRouter
+        ? this.editorialCategoryRouter(collectedItems, now)
+        : collectedItems;
+      const offMain = this._offMainSet();
+      const admissible = (item) => item.kind !== "ad" && item.kind !== "affiliate" &&
+        item.source !== "seed" && item.source !== "me" && promotable(item) &&
+        !offMain.has(item.source)
+        && (this.editorialPreselectedPool || (
+          !briefingTooOld(item, now, this._itemSourceMetadata?.get(item.source)) &&
+          briefingTimestampEligible(item, this._itemSourceMetadata?.get(item.source))));
+      const baseItems = items.filter(admissible);
+      const evidenceBaseItems = collectedItems.filter(admissible);
+      const carryoverWindowMs = EDITION_CANDIDATE_CONTRACT.carryoverMaxHours * 3600 * 1000;
+      const sourceItems = evidenceBaseItems.filter((item) => {
+        if (this.editorialPreselectedPool) return true;
+        if (inBriefingWindow(item, now, slotDef, this._itemSourceMetadata)) return true;
+        if (!personalized || !allowCarryover) return false;
+        const at = briefingAvailableAt(item, this._itemSourceMetadata?.get(item.source));
+        return Number.isFinite(at) && at <= now && now - at <= carryoverWindowMs;
+      });
+      const canonicalEvents = personalized ? buildEventClusters(sourceItems) : null;
+      const labelledSourceItems = sourceItems.map((item) => ({
+        ...item,
+        sourceLabel: this._labelFor(item)
+      }));
+      return {
+        items,
+        now,
+        slotDef,
+        baseItems,
+        canonicalEvents,
+        eventSourceIndex: personalized
+          ? buildEventSourceIndex(labelledSourceItems, canonicalEvents)
+          : null,
+        interests: await this._interests()
+      };
+    })();
+    this._briefingContextCache = { key, promise };
+    try {
+      return await promise;
+    } catch (error) {
+      if (this._briefingContextCache?.promise === promise) this._briefingContextCache = null;
+      throw error;
+    }
+  }
+
+  async canonicalEventSources(issues, { asOfMs = null, slotId = null } = {}) {
+    const context = await this._sharedBriefingContext({
+      asOfMs,
+      slotId,
+      personalized: true,
+      allowCarryover: false
+    });
+    return (issues || []).map((issue) => attachCanonicalEventSources(issue, context.eventSourceIndex));
+  }
+
   async briefing({
     slotId = null,
     categories = null,
@@ -2381,15 +2915,16 @@ export class FeedEngine {
     personalized = false,
     includeCandidates = false,
     allowCarryover = false,
-    servedCanonicalUrls = []
+    servedCanonicalUrls = [],
+    _sharedContext = null
   } = {}) {
-    const requestedAsOf = asOfMs == null ? NaN : Number(asOfMs);
-    const items = Number.isFinite(requestedAsOf)
-      ? await this._itemsAsOf(requestedAsOf)
-      : await this._items();
-    const now = Number.isFinite(requestedAsOf)
-      ? requestedAsOf
-      : this._clock ? new Date(this._clock()).getTime() : Date.now();
+    const sharedContext = _sharedContext || await this._sharedBriefingContext({
+      asOfMs,
+      slotId,
+      personalized,
+      allowCarryover
+    });
+    const { items, now, slotDef } = sharedContext;
     const selectedCategories = normalizedCategories(categories);
     const selectedSet = new Set(selectedCategories);
     const user = userId ? this.store.getUser(userId) : null;
@@ -2409,25 +2944,14 @@ export class FeedEngine {
       EDITION_CANDIDATE_CONTRACT.maxCandidateCap,
       Math.floor(Number(candidateLimit) || EDITION_CANDIDATE_CONTRACT.defaultCandidateCap)
     ));
-    const kstHour0 = new Date(now + 9 * 3600 * 1000).getUTCHours();
-    const slotDef = slotId ? slotById(slotId) : slotForHour(kstHour0);
     // 그 시간대에 **새로 화제가 된 것**만 본다. 예전엔 풀 전체(48시간)를 그대로
     // 봐서 아침·점심·저녁 브리핑이 사실상 같은 글을 실었다. 창을 나눠야
     // "아침엔 밤사이 일, 저녁엔 오늘 일"이 성립한다.
-    const windowMs = (slotDef.windowHours || 12) * 3600 * 1000;
-    const availableAt = (i) => {
-      // 백필 판본은 그 슬롯 뒤에 들어온 항목을 미래에서 끌어오면 안 된다.
-      // 발행시각과 최초 관측시각이 모두 있으면 더 늦은 쪽부터 우리가 실제로
-      // 사용할 수 있었던 것으로 본다.
-      const seen = Number.isFinite(i.firstSeenAt) ? i.firstSeenAt : NaN;
-      const published = i.publishedAt ? Date.parse(i.publishedAt) : NaN;
-      const times = [seen, published].filter(Number.isFinite);
-      return times.length ? Math.max(...times) : NaN;
-    };
-    const inWindow = (i) => {
-      const t = availableAt(i);
-      return !Number.isFinite(t) || (t <= now && (now - t) <= windowMs);
-    };
+    const authoritativeForeignNews = (item) => isAuthoritativeForeignNewsSource(
+      this._itemSourceMetadata && this._itemSourceMetadata.get(item.source));
+    const inWindow = this.editorialPreselectedPool
+      ? () => true
+      : (item) => inBriefingWindow(item, now, slotDef, this._itemSourceMetadata);
     // 정치 선택은 기존 공개 피드의 기본 숨김 계약을 바꾸지 않는다. 로컬 개인판에서
     // 사용자가 명시적으로 politics를 골랐을 때만 이미 판별된 정치 토픽을 해당
     // 분야의 편집 카테고리로 투영한다.
@@ -2443,19 +2967,15 @@ export class FeedEngine {
         ? "politics"
         : category;
     };
-    const eligiblePool = items.filter(
-      (i) =>
-        // 기본 숨김 토픽 전부를 본다 — politics만 하드코딩하면 religion이 샌다.
-        // 공개 지면(랭킹·브리핑)은 로그인 없이 보이고 sitemap에도 올라간다.
-        !topicsBlocked(i, visibleTopics) &&
-        i.kind !== "ad" && i.kind !== "affiliate" &&
-        i.source !== "seed" && i.source !== "me" &&
-        promotable(i) &&
-        !this._offMainSet().has(i.source) &&
-        (!selectedSet.size || selectedSet.has(editionCategory(i))) &&
-        !tooOld(i, now)
-    ).map((item) => {
-      const category = editionCategory(item);
+    const editionCategories = (item) => personalized && Array.isArray(item.admittedCategories)
+      && item.admittedCategories.length ? item.admittedCategories : [editionCategory(item)];
+    const eligibleBasePool = sharedContext.baseItems.filter((item) => !topicsBlocked(item, visibleTopics));
+    const eligiblePool = eligibleBasePool
+      .filter((i) => !selectedSet.size
+        || editionCategories(i).some((category) => selectedSet.has(category)))
+      .map((item) => {
+      const categories = editionCategories(item);
+      const category = selectedCategories.find((id) => categories.includes(id)) || categories[0];
       return category === item.category ? item : {
         ...item,
         registryCategory: item.registryCategory === undefined ? item.category : item.registryCategory,
@@ -2470,44 +2990,75 @@ export class FeedEngine {
     const carryoverRows = [];
     if (carryoverEnabled) {
       const carryoverWindowMs = EDITION_CANDIDATE_CONTRACT.carryoverMaxHours * 3600 * 1000;
-      const currentCounts = new Map();
+      const baseTarget = Math.max(
+        perCategoryLimit,
+        Math.floor(Number(minimumIssuesPerCategory) || 0)
+      );
+      // 중복·문장 게이트에서 일부가 빠져도 최종 14칸을 채울 수 있게, 이미
+      // 판 변화 경로에서 쓰는 최대 8건의 대체 후보를 같은 재고 단계에 둔다.
+      const target = baseTarget + Math.min(8, perCategoryLimit);
+      // 이 단계는 최종 다양성 선별이 아니라 재고 확보 단계다. 출처별 3건으로
+      // 막으면 부동산처럼 전문 매체가 3곳인 분야는 최대 9건밖에 못 모은다.
+      // 최종 출처 균형은 후보 계약과 buildDigest가 뒤에서 담당한다.
+      const sourceLimit = target;
+      const capacity = new Map([...selectedSet].map((category) => [category, {
+        count: 0,
+        events: new Set(),
+        urls: new Set(),
+        sources: new Map()
+      }]));
+      const admitCapacity = (category, item) => {
+        const state = capacity.get(category);
+        if (!state) return false;
+        const url = canonicalContentUrl(item.canonicalUrl || item.url);
+        const event = eventKey(item.title);
+        const source = item.source || item.sourceLabel || "unknown";
+        if ((url && state.urls.has(url)) || (event && state.events.has(event)) ||
+            (state.sources.get(source) || 0) >= sourceLimit) return false;
+        if (url) state.urls.add(url);
+        if (event) state.events.add(event);
+        state.sources.set(source, (state.sources.get(source) || 0) + 1);
+        state.count += 1;
+        return true;
+      };
       for (const item of freshPool) {
-        const category = item.category || "news";
-        currentCounts.set(category, (currentCounts.get(category) || 0) + 1);
+        if (!koreanAudienceReadable(item)) continue;
+        for (const category of editionCategories(item)) {
+          admitCapacity(category, item);
+        }
       }
       const backlog = eligiblePool.filter((item) => {
-        if (inWindow(item) || item.kind !== "news") return false;
-        const role = this._itemSourceRoles && this._itemSourceRoles.get(item.source);
-        if (!EDITION_CANDIDATE_CONTRACT.carryoverSourceRoles.includes(role)) return false;
-        const canonicalUrl = canonicalContentUrl(item.url);
+        if (inWindow(item)) return false;
+        const canonicalUrl = canonicalContentUrl(item.canonicalUrl || item.url);
         if (!canonicalUrl || servedUrls.has(canonicalUrl)) return false;
-        const at = availableAt(item);
+        const at = briefingAvailableAt(item);
         return Number.isFinite(at) && at <= now && now - at <= carryoverWindowMs;
       }).sort((a, b) =>
-        availableAt(b) - availableAt(a)
+        Number(koreanAudienceReadable(b)) - Number(koreanAudienceReadable(a))
+        || briefingAvailableAt(b) - briefingAvailableAt(a)
         || Number(a.sourceRank ?? Number.MAX_SAFE_INTEGER) - Number(b.sourceRank ?? Number.MAX_SAFE_INTEGER)
         || String(a.title || "").localeCompare(String(b.title || ""))
       );
       const seenUrls = new Set();
       for (const category of selectedSet) {
-        let needed = Math.max(0,
-          EDITION_CANDIDATE_CONTRACT.carryoverCandidateFloor - (currentCounts.get(category) || 0));
+        const state = capacity.get(category);
         for (const item of backlog) {
-          if (!needed || (item.category || "news") !== category) continue;
-          const canonicalUrl = canonicalContentUrl(item.url);
+          if (state.count >= target) break;
+          if (!editionCategories(item).includes(category)) continue;
+          admitCapacity(category, item);
+          const canonicalUrl = canonicalContentUrl(item.canonicalUrl || item.url);
           if (!canonicalUrl || seenUrls.has(canonicalUrl)) continue;
           seenUrls.add(canonicalUrl);
-          const at = availableAt(item);
+          const at = briefingAvailableAt(item);
           carryoverRows.push({
             ...item,
             editorialCarryover: {
-              reason: "unserved_reported_inventory",
+              reason: "unserved_category_inventory",
               maxAgeHours: EDITION_CANDIDATE_CONTRACT.carryoverMaxHours,
               availableAt: new Date(at).toISOString(),
               ageHours: Math.max(0, Math.round((now - at) / 360000) / 10)
             }
           });
-          needed -= 1;
         }
       }
     }
@@ -2531,21 +3082,28 @@ export class FeedEngine {
     // 그대로 위에 남는다.
     const INTEREST_MAX = 250;   // 실측 상위 10%
     const WEIGHTY_BONUS = 105;  // 실측 상위 25%
-    const interests = await this._interests();
+    const interests = sharedContext.interests;
     const interestOf = (i) => matchInterest(i, interests);
     const interestPoints = (m) => (m ? INTEREST_MAX * Math.min(1, (m.traffic || 0) / 1000) * m.strength : 0);
+    const authorityPoints = (i) => {
+      if (!authoritativeForeignNews(i)) return 0;
+      const rank = Number.isFinite(i.sourceRank) ? Math.max(0, i.sourceRank) : 0;
+      return Math.max(0, INTEREST_MAX - rank * (INTEREST_MAX / 10));
+    };
     const weight = (i) => {
       const m = interestOf(i);
       return engagement(i) + (i.coverage || 0) * 50
         + interestPoints(m)
-        + (WEIGHTY.has(i.category) ? WEIGHTY_BONUS : 0);
+        + (WEIGHTY.has(i.category) ? WEIGHTY_BONUS : 0)
+        + authorityPoints(i);
     };
 
     const byCat = new Map();
     for (const i of pool) {
-      const c = i.category || "news";
-      if (!byCat.has(c)) byCat.set(c, []);
-      byCat.get(c).push(i);
+      for (const category of editionCategories(i)) {
+        if (!byCat.has(category)) byCat.set(category, []);
+        byCat.get(category).push(i);
+      }
     }
     const sections = [];
     for (const [cat, list] of byCat) {
@@ -2620,6 +3178,7 @@ export class FeedEngine {
         score: i.score || 0, commentCount: i.commentCount || 0,
         coverage: i.coverage || 0, tags: i.tags || [],
         category: i.category || "news", interest: interestOf(i),
+        briefingAuthorityBonus: authorityPoints(i),
         briefingWeight: weight(i)
       }))
       .filter((i) => promotable(i))
@@ -2633,6 +3192,7 @@ export class FeedEngine {
       selectedCategories,
       limit: fixtureLimit,
       minPerSelectedCategory: perCategoryLimit,
+      domesticShareBands: CATEGORY_DOMESTIC_SHARE_BANDS,
       preferKoreanAudience: personalized,
       observedAt: new Date(now).toISOString()
     }) : null;
@@ -2656,7 +3216,7 @@ export class FeedEngine {
     // 잃지 않도록 편성 단계에서 막는다.
     const perSourceCandidates = new Map();
     const balancedPool = [];
-    const perSourceLimit = Math.max(2, Math.ceil(fixtureLimit / 10));
+    const perSourceLimit = Math.max(perCategoryLimit, Math.ceil(fixtureLimit / 10));
     for (const i of fixtureRanked) {
       const key = i.source || i.sourceLabel;
       const n = perSourceCandidates.get(key) || 0;
@@ -2674,6 +3234,10 @@ export class FeedEngine {
       const w = (i) => ((i.score || 0) + (i.commentCount || 0) * 2) * (isOverseas(i) ? bias : 1);
       return w(b) - w(a);
     });
+    // 사건은 사용자가 고른 분야와 무관한 고정값이다. 전체 유효 풀에서 한 번
+    // 계산한 사건 묶음을 분야별 digest가 재사용해야, 분야를 바꿔도 같은 기사에
+    // 다른 출처가 붙거나 무관한 기사가 합쳐지지 않는다.
+    const canonicalEvents = personalized ? sharedContext.canonicalEvents : null;
     const minIssuesPerCategory = personalized && selectedCategories.length
       ? minimumIssuesPerCategory == null
         ? Math.max(1, Math.min(3, Math.floor(issueLimit / (selectedCategories.length * 2))))
@@ -2692,10 +3256,16 @@ export class FeedEngine {
       // v2 전용(David 승인, 2026-08-17) — 엔진 인스턴스에 주입됐을 때만 동작.
       // 운영 서버·v1 인프로세스 인스턴스는 null이라 이 인자가 undefined와
       // 같은 기본값으로 buildDigest에 전달돼 기존 동작이 바이트 그대로다.
-      externalRank: this.editorialExternalRank || null
+      externalRank: this.editorialExternalRank || null,
+      canonicalEvents
     });
+    // 출처는 사용자가 고른 분야의 속성이 아니라 사건의 속성이다. 카드 선별은
+    // 위의 분야별 pool을 그대로 쓰되, 출처 정본만 같은 시각의 전체 유효 풀에서
+    // 계산해 분야 조합을 바꿔도 같은 사건이면 같은 매체 목록을 돌려준다.
+    const eventSourceIndex = personalized ? sharedContext.eventSourceIndex : null;
     const issues = personalized
-      ? digest.issues.map((issue) => enrichDigestIssue(issue, selectedCategories))
+      ? digest.issues.map((issue) => attachCanonicalEventSources(
+        enrichDigestIssue(issue, selectedCategories), eventSourceIndex))
       : digest.issues;
     const slot = slotDef;
 
@@ -2719,14 +3289,19 @@ export class FeedEngine {
           sourceRoles: EDITION_CANDIDATE_CONTRACT.carryoverSourceRoles,
           servedCanonicalUrlCount: servedUrls.size,
           candidateCount: carryoverRows.length,
-          categoryCounts: Object.fromEntries([...new Set(carryoverRows.map((item) => item.category || "news"))]
-            .map((category) => [category, carryoverRows.filter((item) => (item.category || "news") === category).length])),
+          categoryCounts: Object.fromEntries([...new Set(carryoverRows.flatMap(editionCategories))]
+            .map((category) => [category, carryoverRows.filter((item) =>
+              editionCategories(item).includes(category)).length])),
           selectedIssueCount: issues.filter((issue) => issue.metrics && issue.metrics.carryoverUsed).length,
-          rule: "현재 슬롯 후보가 얇은 분야만 최근 24시간의 미제공 보도형 원문으로 보충"
+          rule: "현재 슬롯 후보가 얇은 분야만 최근 24시간의 미제공 유효 콘텐츠로 목표 깊이까지 보충"
         }
       } : {}),
       publishable: issues.length >= MIN_ISSUES,
-      ...(personalized ? { personalized: true, selectedCategories } : {}),
+      ...(personalized ? {
+        personalized: true,
+        selectedCategories,
+        categoryRouting: this.editorialCategoryRoutingStatus
+      } : {}),
       ...(candidateFixture ? { candidateContract: candidateFixtureReceipt(candidateFixture) } : {}),
       ...(includeCandidates && candidateFixture ? { candidateFixture } : {}),
       // 카테고리 컷 없음 (David 2026-08-01 "모든 카테고리 다, 안 빼먹고") —
@@ -2753,17 +3328,14 @@ export class FeedEngine {
     reserveIssues = 0,
     sharedCanonical = false,
     allowCarryover = false,
-    servedCanonicalUrls = []
+    servedCanonicalUrls = [],
+    categoryEditions = null,
+    editionDate: requestedEditionDate = null
   } = {}) {
     const user = userId ? this.store.getUser(userId) : null;
-    const explicit = normalizedCategories(categories);
-    const saved = normalizedCategories(user && user.briefingCategories);
-    const survey = normalizedCategories(user && user.surveyAnswers && user.surveyAnswers.categories);
-    let selected = explicit;
-    let mode = "request";
-    if (!selected.length && saved.length) { selected = saved; mode = "saved"; }
-    if (!selected.length && survey.length) { selected = survey; mode = "survey"; }
-    if (!selected.length) { selected = DEFAULT_EDITORIAL_PREVIEW.slice(); mode = "preview"; }
+    const selection = resolveEditorialSelection(categories, user);
+    const selected = selection.selectedCategories;
+    const mode = selection.mode;
 
     const count = selected.length;
     const perCategory = EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory;
@@ -2775,7 +3347,7 @@ export class FeedEngine {
     const changeReserve = Math.max(0, Math.min(8, Math.floor(Number(reserveIssues) || 0)));
     const generatedIssueBudget = Math.min(
       EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.maxGeneratedWithChangeReserve,
-      maxIssues + changeReserve
+      maxIssues + changeReserve * count
     );
     // 후보 수는 제품 법칙이 아니다. 이슈 예산과 선택 분야 수에서 계산한 요청당
     // 안전 상한이며, 공급이 적으면 있는 만큼만 쓰고 많으면 품질 관문 뒤에서 자른다.
@@ -2787,35 +3359,72 @@ export class FeedEngine {
       ? editorialMinimumPerCategory(selected.length, maxIssues)
       : 0;
     // 직전 판과 같은 사건 한 건이 보류돼도 분야 최소 깊이가 무너지지 않도록
-    // 변화 검사 전에는 분야마다 한 칸의 대체 후보를 더 요청한다. 고정 숫자로
-    // 채우지 않고 생성 예산을 선택 분야 수로 나눈 실제 상한 안에서만 늘린다.
+    // 변화 검사 전에는 분야마다 같은 수의 대체 후보를 더 요청한다. 여분을
+    // 조합 전체가 나눠 가지면 선택 분야가 늘수록 각 분야가 먼저 비게 된다.
     const generationMinIssuesPerCategory = selected.length
       ? Math.floor(generatedIssueBudget / selected.length)
       : 0;
-    const edition = await this.briefing({
-      slotId,
-      categories: selected,
-      // 공유 저장 판본은 카테고리 조합만으로 재사용한다. 첫 요청자의
-      // 정치·종교 토픽 설정이 같은 조합의 다른 사용자에게 섞이면 안 된다.
-      userId: sharedCanonical ? null : userId,
+    const briefingUserId = sharedCanonical ? null : userId;
+    const suppliedCategoryEditions = selected.length > 1 && Array.isArray(categoryEditions)
+      ? selected.map((category) => {
+        const row = categoryEditions.find((candidate) => candidate?.category === category);
+        if (!row?.edition) throw new Error(`missing stored category edition: ${category}`);
+        return { category, edition: row.edition };
+      })
+      : null;
+    const sharedContext = suppliedCategoryEditions ? null : await this._sharedBriefingContext({
       asOfMs,
-      maxIssues: generatedIssueBudget,
+      slotId,
+      personalized: true,
+      allowCarryover
+    });
+    const briefingOptions = {
+      slotId,
+      userId: briefingUserId,
+      asOfMs,
       perCategory,
-      candidateLimit: candidateCap,
-      minimumIssuesPerCategory: generationMinIssuesPerCategory,
       additiveCategoryUnion,
       personalized: true,
-      includeCandidates,
       allowCarryover,
-      servedCanonicalUrls
-    });
+      servedCanonicalUrls,
+      _sharedContext: sharedContext
+    };
+    // 카테고리를 함께 넣고 한 번 더 선별하면 후보·소스 균형이 다시 계산되어
+    // 단독판의 상위 기사 일부가 조합판에서 다른 기사로 바뀐다. 분야별 단독판을
+    // 같은 예산으로 독립 생성한 뒤 순위 층으로 합치면, 선택은 노출만 바꾸고
+    // 기사·출처·요약 정본은 건드리지 않는다.
+    const edition = selected.length === 1
+      ? await this.briefing({
+        ...briefingOptions,
+        categories: selected,
+        maxIssues: generatedIssueBudget,
+        candidateLimit: candidateCap,
+        minimumIssuesPerCategory: generationMinIssuesPerCategory,
+        includeCandidates
+      })
+      : mergeCategoryEditions(suppliedCategoryEditions || await Promise.all(selected.map(async (category) => ({
+        category,
+        edition: await this.briefing({
+          ...briefingOptions,
+          categories: [category],
+          maxIssues: generationMinIssuesPerCategory,
+          candidateLimit: Math.min(
+            EDITION_CANDIDATE_CONTRACT.maxCandidateCap,
+            Math.max(generationMinIssuesPerCategory * 8, perCategory * 2)
+          ),
+          minimumIssuesPerCategory: generationMinIssuesPerCategory,
+          includeCandidates: true
+        })
+      }))), selected, candidateCap, includeCandidates);
     // 판 ID의 날짜는 **슬롯 기준 시각(asOfMs)** 으로 앵커한다 (2026-08-13
     // 9인 검수 후속): 생성 시각(generatedAt) 파생이면 과거 슬롯 판을 나중에
     // 만들 때 하루 밀린 ID가 붙었다 — 실측: 8-12 저녁 데이터 판이
     // "2026-08-13-evening-science" ID로 저장·서빙돼 servedDate(8-12)와
     // 모순됐다. late-backfill의 as-of 우선 원칙(DEVCHG-021)과 같은 잣대.
     const editionAnchorMs = Number.isFinite(asOfMs) ? Number(asOfMs) : Date.parse(edition.generatedAt);
-    const editionDate = Number.isFinite(editionAnchorMs)
+    const editionDate = /^\d{4}-\d{2}-\d{2}$/.test(String(requestedEditionDate || ""))
+      ? requestedEditionDate
+      : Number.isFinite(editionAnchorMs)
       ? new Date(editionAnchorMs + 9 * 3600 * 1000).toISOString().slice(0, 10)
       : String(edition.generatedAt || "").slice(0, 10);
     const availableCategories = CATEGORIES.map((category) => ({
@@ -2825,6 +3434,7 @@ export class FeedEngine {
     }));
     const baseEdition = {
       ...edition,
+      editionDate,
       editionId: `${editionDate}-${edition.slot.id}-${selected.slice().sort().join(".")}`,
       editorialMode: "deterministic_evidence_editor",
       llmCalls: 0,

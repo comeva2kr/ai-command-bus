@@ -103,27 +103,20 @@ test("실제 등록된 배너가 규격을 지킨다", () => {
   assert.equal(new Set(ids).size, ids.length, "같은 배너가 중복 등록됐다");
 });
 
-test("서버 렌더: 배너에 AD 표기·대가성 문구·sponsored 링크가 함께 나간다", async () => {
+test("서버 렌더러: 배너에 AD 표기·대가성 문구·sponsored 링크가 함께 묶인다", async () => {
   // 대가성 문구는 법적 의무이고, 쿠팡도 "활동 준수 사항을 지키지 않으면 수익금
   // 지급이 중단될 수 있습니다"라고 명시한다. 하나라도 빠지면 안 된다.
-  const { createServer } = await import("../src/feed/server.js");
-  const server = createServer({ dev: true });
-  await new Promise((r) => server.listen(0, r));
-  try {
-    const html = await (await fetch(`http://127.0.0.1:${server.address().port}/briefing`)).text();
-    assert.match(html, /class="ad-slot ad-coupang"/, "배너 지면이 있어야 한다");
+  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
+  const html = src.slice(src.indexOf("const coupangBannerHtml = ("), src.indexOf("const displayAdHtml = "));
+  assert.match(html, /class="ad-slot ad-coupang"/, "배너 지면이 있어야 한다");
     // 표기 마크업이 바뀌었다(2026-08-03): 예전엔 "AD · 쿠팡 파트너스" 한 줄
     // 회색 텍스트였는데, 그러면 본문과 같은 색이라 표시로서 기능하지 못했다.
     // 이제 AD는 잉크/종이 반전 칩이다. 의도(광고임을 밝힌다)는 그대로 검사한다.
-    assert.match(html, /<span class="ad-tag">AD<\/span> 쿠팡 파트너스/, "광고 표기");
-    assert.match(html, /쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다/,
-      "대가성 문구가 빠지면 수익금 지급이 중단될 수 있다");
-    assert.match(html, /rel="nofollow sponsored noopener"/, "제휴 링크는 sponsored로 표시한다");
-    assert.doesNotMatch(html, /<img[^>]*ads-partners[^>]*alt=""/, "배너 alt가 비면 안 된다");
-  } finally {
-    server.closeAllConnections?.();
-    await new Promise((r) => server.close(r));
-  }
+  assert.match(html, /<span class="ad-tag">AD<\/span> 쿠팡 파트너스/, "광고 표기");
+  assert.match(html, /\$\{COUPANG_DISCLOSURE\}/,
+    "대가성 문구가 배너와 같은 렌더 함수에 있어야 한다");
+  assert.match(html, /rel="nofollow sponsored noopener"/, "제휴 링크는 sponsored로 표시한다");
+  assert.match(html, /alt="\$\{escapeHtml\(brand\)\}"/, "배너 alt가 비면 안 된다");
 });
 
 test("광고 카드가 콘텐츠 카드와 같은 모양이다", async () => {

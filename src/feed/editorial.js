@@ -183,7 +183,7 @@ export function buildEditorialNote(item, context = {}) {
     return score > 0 ? `${label} ${formatCount(score)}점, 한글로 옮겨왔어요` : `${label}, 한글로 옮겨왔어요`;
   }
 
-  // 7. 여러 매체 동시보도형 — 뉴스에는 추천/댓글이 아예 없어 위 템플릿이 전부
+  // 7. 관련 보도 묶음형 — 뉴스에는 추천/댓글이 아예 없어 위 템플릿이 전부
   // 비껴간다. 대신 구글뉴스가 같은 사건으로 묶어 준 관련 기사 수(item.coverage,
   // fetchers.js의 relatedCoverage)가 있고, 이건 우리가 지어낸 게 아니라 피드가
   // 실제로 실어 보낸 값이다.
@@ -191,11 +191,12 @@ export function buildEditorialNote(item, context = {}) {
   // 다만 구글은 이 목록을 최대 5건까지만 준다(실측: 사실상 0 아니면 5). 따라서
   // "5개 매체가 보도"라고 쓰면 상한에 걸린 값을 정확한 수치인 양 말하는 셈이라
   // 이 파일의 대원칙(실측되지 않은 숫자 금지)에 어긋난다. 그래서 개수를 밝히지
-  // 않고 "여러 곳"으로만 말한다 — 이건 coverage가 상한이든 아니든 항상 참이다.
+  // 않고 "관련 보도 묶음"이라고만 말한다. 이 값만으로 지금핫 풀에서 복수
+  // 피드를 직접 확인했다고 승격하지 않는다.
   if (Number.isFinite(item.coverage) && item.coverage >= COVERAGE_MANY) {
     return item.sourceRank === 0
-      ? `${label} 지금 1위 — 여러 매체가 함께 다루는 뉴스`
-      : `여러 매체가 함께 다루는 뉴스`;
+      ? `${label} 지금 1위 — 관련 보도 묶음에 잡힌 뉴스`
+      : `관련 보도 묶음에 잡힌 뉴스`;
   }
 
   // 8. 갓 올라온 게시판 상위글 — 추천/댓글 지표를 아예 제공하지 않는 RSS 소스는
