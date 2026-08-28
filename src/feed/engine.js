@@ -27,6 +27,7 @@ import { canonicalContentUrl } from "./dedupe.js";
 import { buildEventClusters, composeEventFromMembers } from "./event-cluster.js";
 import { isGoogleNewsRedirect } from "./canonical-url.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
+import { coverageEvidence } from "./editorial-quality.js";
 import {
   buildDigest,
   buildIssueDraft,
@@ -112,7 +113,53 @@ const eventSourceOrder = (a, b) => {
   return String(a && (a.id || a.title) || "").localeCompare(String(b && (b.id || b.title) || ""));
 };
 
-function buildEventSourceIndex(items, events = buildEventClusters(items)) {
+const publisherEditionRank = (item) => {
+  const text = `${item?.originalTitle || ""} ${item?.title || ""}`;
+  if (/[가-힣]/.test(text) && !/[ぁ-んァ-ン一-龯]/.test(item?.originalTitle || "")) return 0;
+  if (/[ぁ-んァ-ン一-龯]/.test(text) || /\/jp(?:\/|-)/i.test(item?.canonicalUrl || item?.url || "")) return 2;
+  return 1;
+};
+
+const presentationOrder = (a, b, canLead = () => true) => {
+  const lead = Number(!canLead(a)) - Number(!canLead(b));
+  if (lead) return lead;
+  const reporting = Number(a?.kind === "community") - Number(b?.kind === "community");
+  if (reporting) return reporting;
+  const left = Date.parse(a?.publishedAt || "");
+  const right = Date.parse(b?.publishedAt || "");
+  if (Number.isFinite(left) && Number.isFinite(right) && left !== right) return right - left;
+  if (Number.isFinite(left) !== Number.isFinite(right)) return Number.isFinite(left) ? -1 : 1;
+  const wrapper = Number(isGoogleNewsRedirect(a?.canonicalUrl || a?.url))
+    - Number(isGoogleNewsRedirect(b?.canonicalUrl || b?.url));
+  if (wrapper) return wrapper;
+  const edition = publisherEditionRank(a) - publisherEditionRank(b);
+  if (edition) return edition;
+  return String(a?.id || a?.title || "").localeCompare(String(b?.id || b?.title || ""));
+};
+
+function preferredPresentationMembers(members, canLead) {
+  const representatives = new Map();
+  for (const item of members || []) {
+    const group = operationalSourceIdentity(item).ownershipGroup || `item:${item?.id || item?.url}`;
+    const current = representatives.get(group);
+    const better = !current
+      || Number(!canLead(item)) < Number(!canLead(current))
+      || Number(!canLead(item)) === Number(!canLead(current))
+        && (Number(isGoogleNewsRedirect(item?.canonicalUrl || item?.url))
+            < Number(isGoogleNewsRedirect(current?.canonicalUrl || current?.url))
+          || Number(isGoogleNewsRedirect(item?.canonicalUrl || item?.url))
+              === Number(isGoogleNewsRedirect(current?.canonicalUrl || current?.url))
+            && publisherEditionRank(item) < publisherEditionRank(current));
+    if (better) representatives.set(group, item);
+  }
+  const selected = [...representatives.values()];
+  const primary = selected.filter(canLead).sort(eventSourceOrder);
+  const withheld = selected.filter((item) => !canLead(item)).sort(eventSourceOrder);
+  const chosen = new Set(selected);
+  return [...primary, ...withheld, ...(members || []).filter((item) => !chosen.has(item)).sort(eventSourceOrder)];
+}
+
+function buildEventSourceIndex(items, events = buildEventClusters(items), leadEligibleIds = null) {
   const byId = new Map();
   const byUrl = new Map();
   const add = (map, key, item) => {
@@ -131,36 +178,26 @@ function buildEventSourceIndex(items, events = buildEventClusters(items)) {
     }
   }
   const groupsByItem = new Map();
-  const eventByItem = new Map();
-  const presentationByEvent = new Map();
   for (const event of events) {
     const members = (event.sourceEvidence || []).map((row) =>
       byId.get(row.articleId) || (byUrl.get(canonicalContentUrl(row.canonicalUrl)) || [])[0]
     ).filter(Boolean).sort(eventSourceOrder);
     for (const member of members) {
       groupsByItem.set(member, members);
-      eventByItem.set(member, event);
     }
   }
-  const presentationFor = (item) => {
-    const event = eventByItem.get(item);
-    if (!event) return null;
-    if (!presentationByEvent.has(event.eventId)) {
-      const members = groupsByItem.get(item) || [item];
-      const draft = buildIssueDraft(members, null, true);
-      presentationByEvent.set(event.eventId, enrichDigestIssue({
-        ...draft,
-        subject: members[0]?.title || draft.subject,
-        clusterId: event.eventId,
-        event
-      }, []));
-    }
-    return presentationByEvent.get(event.eventId);
-  };
-  return { byId, byUrl, groupsByItem, presentationFor };
+  const canLead = (item) => !leadEligibleIds || leadEligibleIds.has(item?.id);
+  return { byId, byUrl, groupsByItem, canLead };
 }
 
 function attachCanonicalEventSources(issue, index) {
+  const eventMemberIds = new Set([
+    ...(issue?.event?.memberArticleIds || []),
+    ...(issue?.event?.sourceEvidence || []).map((row) => row?.articleId),
+    issue?.event?.representativeId
+  ].filter(Boolean));
+  const belongsToIssueEvent = (item) => !eventMemberIds.size || eventMemberIds.has(item?.id)
+    || (item?.canonicalAliases || []).some((alias) => eventMemberIds.has(alias?.id));
   const evidenceRows = [
     ...(issue?.refs || []),
     ...(issue?.sourceEvidence || []),
@@ -174,15 +211,41 @@ function attachCanonicalEventSources(issue, index) {
       leads.push(...(index.byUrl.get(canonicalContentUrl(value)) || []));
     }
   }
-  const lead = [...new Set(leads)].sort(eventSourceOrder)[0];
-  if (!lead) return issue;
+  const allEligibleLeads = [...new Set(leads)].filter(index.canLead);
+  const eligibleLeads = eventMemberIds.size
+    ? allEligibleLeads.filter(belongsToIssueEvent)
+    : allEligibleLeads;
+  if (!eligibleLeads.length) return issue;
 
-  const members = index.groupsByItem.get(lead) || [lead];
-  const canonical = index.presentationFor(lead);
+  const lead = eligibleLeads.sort(eventSourceOrder)[0];
+  const leadMembers = index.groupsByItem.get(lead) || [lead];
+  const members = [...new Set(eligibleLeads.flatMap((lead) =>
+    index.groupsByItem.get(lead) || [lead]))];
+  const presentationMembers = preferredPresentationMembers(members, index.canLead);
   const event = composeEventFromMembers(members);
+  const canonicalMembers = preferredPresentationMembers(leadMembers, index.canLead);
+  const canonicalEvent = composeEventFromMembers(leadMembers);
+  const presentationLead = [...canonicalMembers].sort((a, b) =>
+    presentationOrder(a, b, index.canLead))[0];
+  const draftMembers = presentationLead
+    ? [presentationLead, ...canonicalMembers.filter((item) => item !== presentationLead)]
+    : canonicalMembers;
+  const draft = buildIssueDraft(draftMembers, null, true);
+  const routedCategoryIds = [...new Set(members.flatMap((item) =>
+    Array.isArray(item.admittedCategories) ? item.admittedCategories : []))];
+  const canonicalCategoryIds = routedCategoryIds.length ? routedCategoryIds : [...new Set(
+    members.map((item) => item.category).filter(Boolean)
+  )];
+  const canonical = enrichDigestIssue({
+    ...draft,
+    categoryIds: canonicalCategoryIds.length ? canonicalCategoryIds : issue.categoryIds,
+    subject: presentationLead?.title || draft.subject,
+    clusterId: canonicalEvent.eventId,
+    event: canonicalEvent
+  }, []);
   const hasReporting = members.some((item) => item.kind !== "community");
   const seenSources = new Set();
-  const eventSources = members.filter((item) => !hasReporting || item.kind !== "community")
+  const eventSources = presentationMembers.filter((item) => !hasReporting || item.kind !== "community")
     .filter((item) => {
       const key = operationalSourceIdentity(item).ownershipGroup;
       return key && !seenSources.has(key) && seenSources.add(key);
@@ -194,6 +257,7 @@ function attachCanonicalEventSources(issue, index) {
         id: item.id || null,
         title: item.title || "",
         originalTitle: item.originalTitle || null,
+        summary: item.summary || item.description || item.excerpt || "",
         sourceId: item.source || null,
         sourceGroup: operationalSourceIdentity(item).ownershipGroup,
         sourceLabel: item.sourceLabel || item.source || "원문",
@@ -201,10 +265,18 @@ function attachCanonicalEventSources(issue, index) {
         canonicalUrl: url,
         publishedAt: item.publishedAt || null,
         image: item.image || null,
+        canLead: index.canLead(item),
         relay: isGoogleNewsRedirect(url)
       };
     }).filter((row) => row.url);
   if (!eventSources.length) return issue;
+  const eventEvidence = coverageEvidence(
+    presentationMembers.filter((item) => !hasReporting || item.kind !== "community")
+  );
+  const eventConfidence = eventEvidence.mode === "multiple_feed_observed"
+    ? { code: "multiple_feed_observed", label: "운영그룹 교차 관측",
+      note: "지금핫 수집 풀의 서로 다른 운영그룹에서 관측했다. 법적 독립성이나 사실 확정을 뜻하지 않는다." }
+    : null;
   const carryoverById = new Map();
   const rememberCarryover = (row) => {
     if (!row?.carryover) return;
@@ -232,12 +304,15 @@ function attachCanonicalEventSources(issue, index) {
     shape: canonical.shape,
     metrics: {
       ...canonical.metrics,
+      sourceCount: eventEvidence.observedFeedCount,
+      independentGroupCount: eventEvidence.independentGroupCount,
+      evidenceMode: eventEvidence.mode,
       ...(issue.metrics?.carryoverUsed ? {
         carryoverUsed: true,
         carryoverEvidenceCount: issue.metrics.carryoverEvidenceCount || 1
       } : {})
     },
-    evidence: canonical.evidence,
+    evidence: eventEvidence,
     sourceEvidence: canonical.sourceEvidence.map(withCarryover),
     refs: canonical.refs.map(withCarryover),
     overseasOnly: canonical.overseasOnly,
@@ -247,7 +322,7 @@ function attachCanonicalEventSources(issue, index) {
     whyImportant: canonical.whyImportant,
     whyHot: canonical.whyHot,
     watchNext: canonical.watchNext,
-    confidence: canonical.confidence
+    confidence: eventConfidence || canonical.confidence
   } : {};
   const selectedCategories = [...new Set([
     ...(issue.selectedByCategories || []),
@@ -263,7 +338,7 @@ function attachCanonicalEventSources(issue, index) {
 }
 
 const editionIssueKey = (issue) => String(
-  issue?.event?.eventId || issue?.clusterId || issue?.eventSourceSetId || issue?.evidenceHash ||
+  String(issue?.eventSourceSetId || "").split(":")[0] || issue?.event?.eventId || issue?.clusterId || issue?.evidenceHash ||
   canonicalContentUrl(issue?.refs?.[0]?.canonicalUrl || issue?.refs?.[0]?.url) ||
   issue?.refs?.[0]?.id || issue?.subject || ""
 );
@@ -312,7 +387,6 @@ export function mergeCategoryEditions(rows, selectedCategories, candidateCap, in
         : merged;
     }
   }
-
   const fixtures = rows.map((row) => row.edition.candidateFixture).filter(Boolean);
   const candidateRows = [];
   const candidateByUrl = new Map();
@@ -796,6 +870,13 @@ export function editorialValue(issue) {
   const health = /(건강|의료|치료|치매|알츠하이머|퇴행성|백신|항체|신약|임상|질환|병원|영양|임신|모체|바이오|감염)/;
   const sportsSafety = /(구장|경기장|관중|낙하|추락|붕괴|사고|부상|안전|대피|사망)/;
   const sportsIntegrity = /(심판|협회|성접대|승부조작|도핑|비리|수사|조사|징계|의혹|논란)/;
+
+  if (ids.size > 1) {
+    return {
+      lens: "복합 이슈",
+      text: "여러 관심 분야에 걸친 사안이라 현재 확인된 사실과 후속 변화를 함께 볼 가치가 있다."
+    };
+  }
 
   // 분야가 판단 가치의 주어다. 제목 속 우연한 단어 하나가 다른 분야의
   // 상투문을 가져가면 개인화 설명 자체가 틀어진다.
@@ -1539,7 +1620,7 @@ export class FeedEngine {
       // inven_hot·tildes·ppomppu·bobae·slashdot·etoland·44bits)도 나이를 갖게
       // 되어 신선도 상한의 예외가 사라진다(engine.js itemAgeHours 참고).
       capped.push(
-        ...(cap > 0 ? entries.slice(0, cap) : entries).map((e) => {
+        ...(cap > 0 && !this.editorialPreselectedPool ? entries.slice(0, cap) : entries).map((e) => {
           e.item.firstSeenAt = e.firstSeenAt;
           e.item.heatHist = e.heatHist;
           return e.item;
@@ -2853,7 +2934,10 @@ export class FeedEngine {
       const admissible = (item) => item.kind !== "ad" && item.kind !== "affiliate" &&
         item.source !== "seed" && item.source !== "me" && promotable(item) &&
         !offMain.has(item.source)
-        && (this.editorialPreselectedPool || (
+        && (this.editorialPreselectedPool
+          ? (!Number.isFinite(this.editorialPreselectedReferenceMs)
+            || !tooOld(item, this.editorialPreselectedReferenceMs))
+          : (
           !briefingTooOld(item, now, this._itemSourceMetadata?.get(item.source)) &&
           briefingTimestampEligible(item, this._itemSourceMetadata?.get(item.source))));
       const baseItems = items.filter(admissible);
@@ -2867,10 +2951,22 @@ export class FeedEngine {
         return Number.isFinite(at) && at <= now && now - at <= carryoverWindowMs;
       });
       const canonicalEvents = personalized ? buildEventClusters(sourceItems) : null;
-      const labelledSourceItems = sourceItems.map((item) => ({
-        ...item,
-        sourceLabel: this._labelFor(item)
-      }));
+      const leadEligibleIds = personalized && this.editorialCategoryRouter
+        ? new Set(items.map((item) => item.routingOriginalId || item.id).filter(Boolean))
+        : null;
+      const routedById = new Map();
+      for (const item of items) {
+        for (const id of [item.id, item.routingOriginalId]) if (id) routedById.set(id, item);
+      }
+      const labelledSourceItems = sourceItems.map((item) => {
+        const routed = routedById.get(item.id);
+        return {
+          ...item,
+          ...(Array.isArray(routed?.admittedCategories)
+            ? { admittedCategories: [...routed.admittedCategories] } : {}),
+          sourceLabel: this._labelFor(item)
+        };
+      });
       return {
         items,
         now,
@@ -2878,7 +2974,7 @@ export class FeedEngine {
         baseItems,
         canonicalEvents,
         eventSourceIndex: personalized
-          ? buildEventSourceIndex(labelledSourceItems, canonicalEvents)
+          ? buildEventSourceIndex(labelledSourceItems, canonicalEvents, leadEligibleIds)
           : null,
         interests: await this._interests()
       };

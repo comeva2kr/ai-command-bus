@@ -233,6 +233,36 @@ test("발행 전 완성 모드는 모델 장애에도 이미 읽은 공개 원�
   assert.equal(isCurrentArticleSummary(summary, result.issues[0], Date.parse("2026-08-27T09:01:00.000Z")), true);
 });
 
+test("보류 출처는 사건 근거에 남아도 기사 요약 앵커와 사진보다 뒤에 놓인다", async () => {
+  const admittedText = "승인된 기사 본문은 회사의 투자 계획과 실행 일정을 구체적으로 설명했습니다. ".repeat(20);
+  const withheldText = "보류된 기사 본문은 사건을 다른 관점에서 전했습니다. ".repeat(20);
+  const input = issue();
+  input.eventSources = [
+    {
+      evidenceId: "withheld", sourceLabel: "보류 매체", sourceGroup: "withheld",
+      canonicalUrl: "https://example.com/withheld", publishedAt: "2026-08-28T01:00:00.000Z",
+      image: "https://img.example.com/withheld.jpg", canLead: false
+    },
+    {
+      evidenceId: "admitted", sourceLabel: "승인 매체", sourceGroup: "admitted",
+      canonicalUrl: "https://example.com/admitted", publishedAt: "2026-08-28T02:00:00.000Z",
+      image: "https://img.example.com/admitted.jpg", canLead: true
+    }
+  ];
+  const result = await makeArticleSummaryPipeline({
+    completeBeforePublish: true,
+    fetchArticle: async (url) => url.endsWith("/admitted")
+      ? { state: "available", text: admittedText, image: "https://img.example.com/admitted.jpg", finalUrl: url }
+      : { state: "available", text: withheldText, image: "https://img.example.com/withheld.jpg", finalUrl: url },
+    clock: () => Date.parse("2026-08-28T03:00:00.000Z")
+  })({ editionId: "edition-source-order", publishable: true, issues: [input], llmCalls: 0 });
+
+  const summary = result.issues[0].articleSummary;
+  assert.equal(summary.sourceLinks[0].sourceLabel, "승인 매체");
+  assert.equal(summary.image, "https://img.example.com/admitted.jpg");
+  assert.match(summary.textKo, /승인된 기사 본문/);
+});
+
 test("발행 전 완성 모드는 공개 본문이 부족해도 준비된 접근불가 종단으로 닫는다", async () => {
   const result = await makeArticleSummaryPipeline({
     completeBeforePublish: true,
@@ -250,6 +280,32 @@ test("발행 전 완성 모드는 공개 본문이 부족해도 준비된 접근
   assert.equal(summary.unavailableReasonCode, "NO_SUBSTANTIAL_PUBLIC_BODY");
   assert.equal(summary.sourceLinks[0].url, "https://publisher.example/a");
   assert.equal(summary.image, "https://img.example.com/short.jpg");
+  assert.equal(isPreparedArticleSummary(summary, result.issues[0]), true);
+});
+
+test("공개 본문을 읽지 못해도 수집 때 확보한 매체 공개 요약은 발행 전에 준비한다", async () => {
+  const input = issue();
+  input.eventSources = [{
+    evidenceId: "feed-a",
+    sourceLabel: "기준 매체",
+    sourceGroup: "publisher-a",
+    canonicalUrl: "https://publisher.example/feed-a",
+    summary: "기준 매체의 공개 피드는 회사가 반도체 생산 설비 투자를 확대하고 단계별 착공 일정을 공개했다고 전했습니다. " +
+      "새 설비의 적용 공정과 예상 가동 시점도 함께 소개했으며, 세부 집행 계획은 후속 공시에서 확인해야 한다고 설명했습니다. ".repeat(4),
+    canLead: true
+  }];
+  const result = await makeArticleSummaryPipeline({
+    completeBeforePublish: true,
+    fetchArticle: async () => ({ state: "unavailable", reasonCode: "AUTH_REQUIRED", image: null }),
+    clock: () => Date.parse("2026-08-28T04:00:00.000Z")
+  })({ editionId: "edition-feed-summary", publishable: true, issues: [input], llmCalls: 0 });
+
+  const summary = result.issues[0].articleSummary;
+  assert.equal(summary.status, "excerpt_only");
+  assert.equal(summary.excerptBasis, "publisher_feed_excerpt");
+  assert.match(summary.textKo, /반도체 생산 설비 투자를 확대/);
+  assert.equal(summary.sourceLabel, "기준 매체");
+  assert.equal(summary.sourceLinks[0].url, "https://publisher.example/feed-a");
   assert.equal(isPreparedArticleSummary(summary, result.issues[0]), true);
 });
 

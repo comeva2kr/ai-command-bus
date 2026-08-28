@@ -45,6 +45,80 @@ test("감지 언어가 없거나 이상하면 opts를 건드리지 않는다", a
   assert.equal(opts.detectedLang, undefined);
 });
 
+test("무료 번역이 영문 고유명사를 일반 단어로 오역하지 않는다", async () => {
+  const fetchImpl = async (url) => {
+    const source = new URL(url).searchParams.get("q");
+    const translated = source
+      .replace("Judge says ", "판사는 ")
+      .replace("Trump", "트럼프")
+      .replace(" administration’s blacklist of ", " 행정부의 블랙리스트인 ")
+      .replace("Anthropic", "인류학")
+      .replace(" was illegal", "이 불법이었다고 판결했다")
+      .replace("Fleetwood", "플릿우드")
+      .replace(" in contention as ", "가 경쟁 중인 가운데 ")
+      .replace("Lee", "이승엽")
+      .replace(" leads Tour Championship", "가 투어 챔피언십 선두다");
+    return { ok: true, json: async () => [[[translated, source, null, null, 1]], null, "en"] };
+  };
+  const translate = googleFreeTranslator({ fetchImpl });
+
+  const legal = await translate("Judge says Trump administration’s blacklist of Anthropic was illegal");
+  assert.match(legal, /Anthropic/);
+  assert.doesNotMatch(legal, /인류학|인류애/);
+
+  const golf = await translate("Fleetwood in contention as Lee leads Tour Championship");
+  assert.match(golf, /Lee/);
+  assert.doesNotMatch(golf, /이승엽/);
+});
+
+test("Title Case 제목의 일반 단어는 고유명사 보호 때문에 영어로 남지 않는다", async () => {
+  const fetchImpl = async (url) => {
+    const source = new URL(url).searchParams.get("q");
+    const translated = source
+      .replace("Judge", "판사는")
+      .replace("Rules", "판결했다")
+      .replace("Trump", "트럼프")
+      .replace("Administration's", "행정부의")
+      .replace("Blacklisting", "블랙리스트가")
+      .replace(" of ", " ")
+      .replace("Was", "은")
+      .replace("Illegal", "불법이었다");
+    return { ok: true, json: async () => [[[translated, source, null, null, 1]], null, "en"] };
+  };
+  const translated = await googleFreeTranslator({ fetchImpl })(
+    "Judge Rules Trump Administration's Blacklisting of Anthropic Was Illegal"
+  );
+
+  assert.match(translated, /판사는|판결했다|행정부|블랙리스트|불법/);
+  assert.match(translated, /Anthropic/);
+  assert.doesNotMatch(translated, /\b(?:Rules|Administration|Blacklisting|Was|Illegal)\b/);
+});
+
+test("보존한 영문 약어를 복원할 때 한국어 조사를 발음에 맞춘다", async () => {
+  const fetchImpl = async (url) => {
+    const source = new URL(url).searchParams.get("q");
+    const translated = source
+      .replace(/NOWHOTNAME0TOKEN/g, "NOWHOTNAME0TOKEN은")
+      .replace(/NOWHOTNAME1TOKEN/g, "NOWHOTNAME1TOKEN이")
+      .replace(/NOWHOTNAME2TOKEN/g, "NOWHOTNAME2TOKEN을");
+    return { ok: true, json: async () => [[[translated, source, null, null, 1]], null, "en"] };
+  };
+  const translated = await googleFreeTranslator({ fetchImpl })("AI UK OpenAI");
+  assert.equal(translated, "AI는 UK가 OpenAI를");
+});
+
+test("무료 번역 뒤 영문 고유명사와 약어에 붙은 한국어 조사를 다듬는다", async () => {
+  const fetchImpl = async (url) => {
+    const source = new URL(url).searchParams.get("q");
+    const translated = source
+      .replace(/NOWHOTNAME0TOKEN/g, "NOWHOTNAME0TOKEN은")
+      .replace(/NOWHOTNAME1TOKEN/g, "NOWHOTNAME1TOKEN이");
+    return { ok: true, json: async () => [[[translated, source, null, null, 1]], null, "en"] };
+  };
+  const translated = await googleFreeTranslator({ fetchImpl })("McCarthy QBs");
+  assert.equal(translated, "McCarthy는 QBs가");
+});
+
 test("캐시가 적중해도 감지 언어를 잃지 않는다", async () => {
   // 안 그러면 같은 글이 사이클마다 다른 언어로 표시된다 —
   // 화면이 왔다갔다하는 것은 틀린 것보다 알아채기 어렵다.

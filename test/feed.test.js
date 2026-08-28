@@ -3028,11 +3028,10 @@ test("TranslatingSource wired with googleFreeTranslator translates an en item en
   };
   const fetchImpl = async (url) => {
     const q = decodeURIComponent(new URL(url).searchParams.get("q"));
-    const table = {
-      "Show HN: a new database": "Show HN: 새로운 데이터베이스",
-      "we built a fast db": "빠른 db를 만들었습니다"
-    };
-    return { ok: true, async json() { return [[[table[q] || q, q, null, null, 1]]]; } };
+    const translated = q.startsWith("Show NOWHOTNAME0TOKEN:")
+      ? "Show NOWHOTNAME0TOKEN: 새로운 데이터베이스"
+      : q === "we built a fast db" ? "빠른 db를 만들었습니다" : q;
+    return { ok: true, async json() { return [[[translated, q, null, null, 1]]]; } };
   };
   const translateFn = memoizedTranslator(googleFreeTranslator({ fetchImpl }));
   const out = await new TranslatingSource(foreign, translateFn, "ko").fetch();

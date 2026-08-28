@@ -47,6 +47,73 @@ function protectKoreanRuns(text) {
   };
 }
 
+function protectLatinNames(text) {
+  const value = String(text || "");
+  const runs = [];
+  const ambiguous = new Set(["anthropic", "lee"]);
+  const masked = value.replace(/\b[A-Z][A-Za-z0-9'’-]+\b/g, (name) => {
+    const plain = name.replace(/['’]s$/i, "");
+    // Title Case는 거의 모든 단어가 대문자로 시작한다. 일반 대문자 단어까지
+    // 가리면 번역기가 문장을 보지 못하므로, 약어·CamelCase와 실제 오역이
+    // 확인된 모호한 이름만 좁게 보존한다.
+    const protect = /^[A-Z0-9]{2,}$/.test(plain)
+      || /[A-Z]/.test(plain.slice(1))
+      || ambiguous.has(plain.toLowerCase());
+    if (!protect) return name;
+    const token = `NOWHOTNAME${runs.length}TOKEN`;
+    runs.push([token, name]);
+    return token;
+  });
+  return {
+    text: masked,
+    restore: (out) => runs.reduce((result, [token, name]) => {
+      const plain = name.replace(/['’]s$/i, "");
+      const acronym = /^[A-Z0-9]+(?:[ .&/-][A-Z0-9]+)*$/.test(plain) || /[A-Z]{2,}$/.test(plain);
+      if (!acronym) return result.split(token).join(name);
+      const last = (plain.match(/[A-Z0-9](?=[^A-Z0-9]*$)/) || [""])[0];
+      const batchim = /[0-9]/.test(last) ? "013678".includes(last) : "FHLMNRSX".includes(last);
+      const particles = batchim
+        ? [["는", "은"], ["가", "이"], ["를", "을"], ["와", "과"]]
+        : [["은", "는"], ["이", "가"], ["을", "를"], ["과", "와"]];
+      let restored = result;
+      for (const [wrong, right] of particles) restored = restored.split(`${token}${wrong}`).join(`${name}${right}`);
+      return restored.split(token).join(name);
+    }, out)
+  };
+}
+
+function protectTranslationInput(text) {
+  const names = protectLatinNames(text);
+  const korean = protectKoreanRuns(names.text);
+  return {
+    text: korean.text,
+    restore: (out) => normalizeLatinParticles(names.restore(korean.restore(out)))
+  };
+}
+
+function latinHasFinalConsonant(token) {
+  const value = String(token || "").replace(/[^A-Za-z0-9]/g, "");
+  if (!value) return false;
+  const last = value[value.length - 1];
+  if (/[0-9]/.test(last)) return "013678".includes(last);
+  if (/^[A-Z0-9]+$/.test(value)) return "FHLMNRSX".includes(last);
+  if (/[a-z]s$/.test(value)) return false;
+  return /[lmnr]$/i.test(last);
+}
+
+function normalizeLatinParticles(text) {
+  const pairs = {
+    은: ["은", "는"], 는: ["은", "는"],
+    이: ["이", "가"], 가: ["이", "가"],
+    을: ["을", "를"], 를: ["을", "를"],
+    과: ["과", "와"], 와: ["과", "와"]
+  };
+  return String(text || "").replace(
+    /\b([A-Za-z][A-Za-z0-9'’.-]*)(은|는|이|가|을|를|과|와)(?=$|[\s,.!?…'”])/g,
+    (_, token, particle) => `${token}${pairs[particle][latinHasFinalConsonant(token) ? 0 : 1]}`
+  );
+}
+
 // Google's `dt=t` response is a nested JSON array, not an object:
 //   [[["번역된 문장","original sentence",null,null,1], ...], null, "en", ...]
 // data[0] is the list of translated chunks (long input gets split into
@@ -81,7 +148,7 @@ function extractTranslation(data) {
 export function googleFreeTranslator({ fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   return async (text, opts = {}) => {
     if (!text) return text;
-    const protectedText = protectKoreanRuns(text);
+    const protectedText = protectTranslationInput(text);
     const sl = opts.from || "auto";
     const tl = opts.to || "ko";
     const url =
@@ -136,7 +203,7 @@ export function anthropicTranslator({
       });
       const translated = String(result?.parsed?.translation || "").trim();
       return translated && /[가-힣]/.test(translated) && translated.length <= String(text).length * 4 + 80
-        ? translated : text;
+        ? normalizeLatinParticles(translated) : text;
     } catch {
       return text;
     }

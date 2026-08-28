@@ -9,7 +9,8 @@
 //    .nowhot-local/shadow-observation/ 신설 하위 디렉토리에만 쓴다.
 //    (엔진 풀 파일은 FEED_POOL_FILE 환경변수로 관찰 디렉토리에 격리 —
 //     서버가 읽는 feed-data.json / feed-data-pool.json은 건드리지 않는다.)
-//  - FeedStore({ file: null }) — 서버 DB 파일을 읽지도 쓰지도 않는다.
+//  - 관찰 전용 FeedStore — 서버 DB 파일은 건드리지 않되 firstSeenAt은 슬롯을
+//    넘어 이어서 오래된 인기글이 매 판 새 글로 둔갑하지 않게 한다.
 //  - previousLineage는 관찰 디렉토리에 저장된 직전 슬롯 lineage 파일에서
 //    조합별로 로드. 첫 실행이면 빈 배열(정직 기록: previousLineageSource).
 //  - 멱등: 같은 날짜·슬롯 요약 파일이 이미 있으면 재수집 없이 종료(cron
@@ -30,6 +31,7 @@ import { DEFAULT_EDITORIAL_PREVIEW } from "../src/feed/engine.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const OBS_DIR = path.join(ROOT, ".nowhot-local", "shadow-observation");
+export const observationStoreFile = (dir = OBS_DIR) => path.join(dir, "collector-store.json");
 
 // 조합: 4100 실서빙 기본 조합(engine.js DEFAULT_EDITORIAL_PREVIEW — 하드코딩
 // 금지, import로 동일 보장) + 관찰용 추가 2개(business 단독 / science·sports
@@ -187,7 +189,7 @@ async function main() {
       seed: false,
       fetcher: (e) => makeFetcher(e)()
     });
-    const store = new FeedStore({ file: null });
+    const store = new FeedStore({ file: observationStoreFile(OBS_DIR) });
     const engine = new FeedEngine(store, sources);
     await engine.refresh(); // 엔진이 paths.pool에 풀 스냅샷을 쓴다
     const rows = engine.poolRows();

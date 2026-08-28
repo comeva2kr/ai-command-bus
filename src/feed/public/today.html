@@ -80,6 +80,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .issue:first-child{padding-top:30px}
 .issue:first-child .issue-number{color:var(--red)}
 .issue-kicker{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:9px;font-size:11px;font-weight:800;color:var(--sub)}
+.published-time{font-weight:700;white-space:nowrap}
 .lane{color:var(--red)}.lane.coverage{color:var(--blue)}.lane.debate{color:var(--gold)}.lane.applause{color:var(--green)}
 .separator{width:1px;height:11px;background:var(--line)}
 .issue h2{font-size:24px;line-height:1.34;margin:0;font-weight:880;word-break:keep-all;overflow-wrap:anywhere}
@@ -298,7 +299,10 @@ function toast(message){
 
 function formatKst(value){
   const date=new Date(value);
-  return new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",month:"long",day:"numeric",weekday:"short",hour:"2-digit",minute:"2-digit",hour12:false}).format(date);
+  return new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"long",day:"numeric",weekday:"short",hour:"2-digit",minute:"2-digit",hour12:false}).format(date);
+}
+function formatListKst(value){
+  return new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(value));
 }
 
 function kstDate(value){
@@ -401,10 +405,11 @@ function renderIssues(edition){
     const linked=directSources.map((row)=>`<a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer" title="${esc(row.title)}">${esc(row.sourceLabel)}</a>`);
     const observed=(issue.eventSources?.length?[]:issue.evidence?.sources||[]).filter((source)=>!refLabels.has(source.label)).map((source)=>`<span>${esc(source.label)}</span>`);
     const sources=[...linked,...observed].join("");
+    const published=issue.firstPublishedAt?`<time class="published-time" datetime="${esc(issue.firstPublishedAt)}">${esc(formatListKst(issue.firstPublishedAt))} KST</time>`:"";
     return `<article class="issue" data-issue-index="${index}">
       <div class="issue-number">${String(index+1).padStart(2,"0")}</div>
       <div>
-        <div class="issue-kicker"><span class="lane ${laneClass}">${laneLabel}</span><span class="separator"></span><span>${esc(cats)}</span>${sources?`<span class="separator"></span><span class="source-links">${sources}</span>`:""}</div>
+        <div class="issue-kicker"><span class="lane ${laneClass}">${laneLabel}</span><span class="separator"></span><span>${esc(cats)}</span>${sources?`<span class="separator"></span><span class="source-links">${sources}</span>`:""}${published?`<span class="separator"></span>${published}`:""}</div>
         <h2><button class="issue-title-button" type="button" data-open-issue="${index}" aria-label="${esc(copy.headline||issue.headline)} 기사 요약 열기" aria-controls="issueDetail" aria-expanded="false">${esc(copy.headline||issue.headline)}</button></h2>
         <div class="editorial-grid">
           <div class="editorial-point"><b>왜 중요한가</b><p>${esc(copy.whyImportant||issue.whyImportant)}</p></div>
@@ -467,8 +472,9 @@ function openIssueDetail(index,returnFocus=null){
   const relaySourceCount=resolvedSources.filter((row)=>row.relay).length;
   const summarySourceCount=Number.isFinite(articleSummary.summarySourceCount)?articleSummary.summarySourceCount:0;
   const sourceLabel=articleSummary.sourceLabel||labels[0]||"확인 가능한";
-  const firstPublishedAt=resolvedSources.map((row)=>Date.parse(row.publishedAt)).filter(Number.isFinite).sort((a,b)=>a-b)[0]||null;
-  const publishedHtml=firstPublishedAt?`<p class="detail-basis"><b>최초 발행</b> ${esc(formatKst(firstPublishedAt))} (한국시간)</p>`:"";
+  const storedFirstPublishedAt=Date.parse(issue.firstPublishedAt||"");
+  const firstPublishedAt=Number.isFinite(storedFirstPublishedAt)?storedFirstPublishedAt:(resolvedSources.map((row)=>Date.parse(row.publishedAt)).filter(Number.isFinite).sort((a,b)=>a-b)[0]||null);
+  const publishedHtml=firstPublishedAt?`<p class="detail-basis"><b>원문 표기 시각</b> ${esc(formatKst(firstPublishedAt))} (한국시간)</p>`:"";
   const sourceInventory=directSourceCount&&relaySourceCount
     ? `${directSourceCount}개 원문과 ${relaySourceCount}개 Google 뉴스 중계 링크를 표시합니다.`
     : directSourceCount
@@ -717,6 +723,11 @@ setupViewSwitch();
 
 (async function init(){
   try{
+    const initialQuery=new URLSearchParams(location.search);
+    const initialSlot=initialQuery.get("slot");
+    const initialDate=initialQuery.get("date");
+    if(["morning","lunch","evening"].includes(initialSlot))state.slot=initialSlot;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(initialDate||""))state.editionDate=initialDate;
     const saved=localStorage.getItem("feed_uid");
     const session=await json("/api/session",{method:"POST",body:JSON.stringify({userId:saved})});
     state.userId=session.userId;localStorage.setItem("feed_uid",session.userId);

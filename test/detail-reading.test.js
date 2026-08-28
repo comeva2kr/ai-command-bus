@@ -156,17 +156,27 @@ test("오늘판 상세는 준비된 요약의 출처 정본에 과거 Google 중
   assert.deepEqual(links.map((row) => row.url), ["https://news.kbs.co.kr/news/view.do?ncd=1"]);
 });
 
-test("오늘판은 정확한 날짜 판본을 고르고 상세에 최초 발행시각을 표시한다", () => {
+test("오늘판은 정확한 날짜 판본을 고르고 상세에 원문 피드 표기시각을 표시한다", () => {
   const html = readFileSync("src/feed/public/today.html", "utf8");
   const links = html.slice(html.indexOf("function issueSourceLinks(issue){"), html.indexOf("function renderCategories(edition){"));
+  const list = html.slice(html.indexOf("function renderIssues(edition){"), html.indexOf("function closeIssueDetail"));
   const detail = html.slice(html.indexOf("function openIssueDetail(index,returnFocus=null){"), html.indexOf("$(\"detailClose\").onclick"));
 
   assert.match(html, /<input[^>]+id="editionDate"[^>]+type="date"/, "날짜 선택기가 없다");
   assert.match(html, /\$\("editionDate"\)\.onchange=/, "날짜 변경이 판본 조회에 연결되지 않았다");
   assert.match(html, /loadEdition\(false,event\.currentTarget\.value\)/, "선택 날짜를 API에 전달하지 않는다");
+  assert.match(html, /new URLSearchParams\(location\.search\)/, "직접 연 오늘판 URL의 날짜와 슬롯을 읽지 않는다");
+  assert.match(html, /state\.slot=initialSlot/, "직접 연 오늘판 URL의 슬롯을 초기 요청에 쓰지 않는다");
+  assert.match(html, /state\.editionDate=initialDate/, "직접 연 오늘판 URL의 날짜를 초기 요청에 쓰지 않는다");
   assert.match(links, /publishedAt:row\.publishedAt\|\|sourceEvent\?\.publishedAt\|\|null/, "출처 발행시각을 상세까지 보존하지 않는다");
+  assert.match(list, /issue\.firstPublishedAt/, "목록에 고정된 최초 발행시각을 쓰지 않는다");
+  assert.match(list, /<time[^>]+datetime=/, "목록의 최초 발행시각이 time 요소가 아니다");
+  assert.match(html, /function formatListKst[\s\S]{0,220}year:"numeric"/, "목록 발행시각에 연도가 없어 과거 기사를 오늘 기사처럼 보이게 한다");
+  assert.match(html, /function formatKst[\s\S]{0,220}year:"numeric"/, "상세 발행시각에 연도가 없어 목록과 같은 사건의 날짜가 다르게 보인다");
   assert.match(detail, /firstPublishedAt/, "최초 발행시각을 계산하지 않는다");
-  assert.match(detail, /최초 발행/, "최초 발행시각을 사용자에게 표시하지 않는다");
+  assert.match(detail, /issue\.firstPublishedAt/, "상세가 사건에 고정된 최초 발행시각을 우선하지 않는다");
+  assert.match(detail, /원문 표기 시각/, "검증된 최초 발행처럼 과장하지 않고 원문 피드 표기시각을 표시하지 않는다");
+  assert.doesNotMatch(detail, /<b>최초 발행<\/b>/, "피드 시각을 최초 발행으로 오인하게 만든다");
   assert.doesNotMatch(detail, /공개 원문 본문을 그대로 발췌했습니다/, "원문 전체를 복제한 것처럼 오해되는 문구가 남았다");
 });
 

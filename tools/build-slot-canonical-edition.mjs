@@ -9,12 +9,16 @@ import {
   validateCategoryRoutingSnapshot
 } from "../src/feed/category-routing.js";
 import { loadRegistry } from "../src/feed/registry.js";
-import { activateSlotCanonicalEdition, buildSlotCanonicalEdition } from "../src/feed/slot-canonical-edition.js";
+import {
+  activateSlotCanonicalEdition,
+  assertSlotCanonicalEdition,
+  buildSlotCanonicalEdition
+} from "../src/feed/slot-canonical-edition.js";
 import { SLOTS } from "../src/feed/digest.js";
 import { AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS } from "../src/feed/selection-axes.js";
 import { CATEGORIES } from "../src/feed/taxonomy.js";
 import { memoizedTranslator } from "../src/feed/translate.js";
-import { googleFreeTranslator } from "../src/feed/translator.js";
+import { anthropicTranslator, googleFreeTranslator } from "../src/feed/translator.js";
 import { buildCategoryRoutingSnapshot } from "./build-category-routing-snapshot.mjs";
 import { buildTodayEditionInProcess, groupArticlesAsSources, validateTodayEdition } from "./build-editions.mjs";
 
@@ -41,10 +45,17 @@ export function resolveSlotCanonicalBuildTarget({ pool, editionDate, slotId }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(editionDate || ""))) {
     throw new Error("slot edition: invalid edition date");
   }
-  if (!SLOTS.some((slot) => slot.id === slotId)) throw new Error("slot edition: invalid slot");
+  const slot = SLOTS.find((row) => row.id === slotId);
+  if (!slot) throw new Error("slot edition: invalid slot");
   const numeric = Number(pool?.savedAt);
   const evidenceAsOfMs = Number.isFinite(numeric) ? numeric : Date.parse(pool?.savedAt || "");
   if (!Number.isFinite(evidenceAsOfMs)) throw new Error("slot edition: pool savedAt required");
+  const publishAtMs = Date.parse(`${editionDate}T${String(slot.publishHour).padStart(2, "0")}:00:00+09:00`);
+  const windowStartMs = publishAtMs - slot.windowHours * 60 * 60 * 1000;
+  const slotEndMs = publishAtMs + ((slot.toHour - slot.publishHour + 24) % 24) * 60 * 60 * 1000;
+  if (evidenceAsOfMs < windowStartMs || evidenceAsOfMs > slotEndMs) {
+    throw new Error(`slot edition: pool savedAt outside ${slotId} preparation window`);
+  }
   return { editionDate, slotId, evidenceAsOfMs };
 }
 
@@ -80,6 +91,55 @@ export function categoryEditionsFromUnion(unionEdition) {
       return issue.selectedByCategories.includes(category.id);
     })
   }]));
+}
+
+const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
+const latinRatio = (value) => {
+  const text = clean(value);
+  return text.length ? (text.match(/[A-Za-z]/g) || []).length / text.length : 0;
+};
+
+function headlineSource(issue) {
+  const current = clean(issue?.subject || issue?.headline || issue?.reader?.headline);
+  const rows = [...(issue?.eventSources || []), ...(issue?.refs || []), ...(issue?.sourceEvidence || [])]
+    .filter((row) => row?.canLead !== false && clean(row?.originalTitle));
+  return rows.find((row) => clean(row.title) === current) || rows[0] || null;
+}
+
+export function headlineNeedsPolish(issue) {
+  const source = headlineSource(issue);
+  if (!source) return false;
+  const headline = clean(issue?.subject || issue?.headline || issue?.reader?.headline);
+  return /[\u3040-\u30ff\u3400-\u9fff]/u.test(headline)
+    || /(?:[A-Za-z][A-Za-z'’.-]*\s+){3,}[A-Za-z][A-Za-z'’.-]*/.test(headline)
+    || /[A-Za-z][A-Za-z0-9'’.-]*(?:은|을)(?=\s|$|[.,!?])/.test(headline)
+    || (headline.includes(" 및 ") && latinRatio(headline) > 0.45);
+}
+
+export async function polishIssueHeadlines(edition, { translateTitle = null, maxCalls = 24 } = {}) {
+  if (!translateTitle) return { edition, attempted: 0, changed: 0 };
+  let attempted = 0;
+  let changed = 0;
+  const issues = [];
+  for (const issue of edition?.issues || []) {
+    const source = headlineNeedsPolish(issue) ? headlineSource(issue) : null;
+    if (!source || attempted >= maxCalls) { issues.push(issue); continue; }
+    attempted += 1;
+    const translated = clean(await translateTitle(source.originalTitle));
+    if (translated && /[가-힣]/.test(translated) && !headlineNeedsPolish({
+      ...issue,
+      subject: translated,
+      eventSources: [{ ...source, title: translated }],
+      refs: [],
+      sourceEvidence: []
+    })) {
+      issues.push({ ...issue, preparedHeadline: translated });
+      changed += 1;
+    } else {
+      issues.push(issue);
+    }
+  }
+  return { edition: { ...edition, issues }, attempted, changed };
 }
 
 export function foreignMajorLaneCoverage({
@@ -148,6 +208,70 @@ export function assertForeignMajorLaneCoverage(coverage) {
   return coverage;
 }
 
+export function editionObservationReceipt(artifact, { registry = loadRegistry() } = {}) {
+  assertSlotCanonicalEdition(artifact);
+  const registryByKey = new Map();
+  for (const source of registry) {
+    for (const key of [source.id, source.label, source.labelKo].filter(Boolean)) {
+      registryByKey.set(String(key), source);
+    }
+  }
+  const sourceRows = (issue) => [
+    issue.eventSources,
+    issue.articleSummary?.sourceLinks,
+    issue.refs,
+    issue.sourceEvidence
+  ].find((rows) => Array.isArray(rows) && rows.length) || [];
+  const lanes = {};
+  for (const [category, ids] of Object.entries(artifact.lanes)) {
+    const groups = new Set();
+    const operatorIssueCounts = new Map();
+    const counts = { domestic: 0, foreign: 0, mixed: 0, unknown: 0, multiSource: 0 };
+    for (const id of ids) {
+      const sources = sourceRows(artifact.issueTable[id]);
+      const issueGroups = new Set();
+      const issueOperators = new Set();
+      const countries = new Set();
+      for (const row of sources) {
+        const group = String(row?.sourceGroup || row?.sourceId || row?.sourceLabel || row?.url || "").trim();
+        if (group) { groups.add(group); issueGroups.add(group); }
+        const source = registryByKey.get(String(row?.sourceId || ""))
+          || registryByKey.get(String(row?.sourceGroup || ""))
+          || registryByKey.get(String(row?.sourceLabel || ""));
+        if (source?.country) countries.add(source.country);
+        const operator = String(source?.operatorGroup || row?.sourceGroup || row?.sourceId || row?.sourceLabel || "").trim();
+        if (operator) issueOperators.add(operator);
+      }
+      const hasDomestic = countries.has("KR");
+      const hasForeign = [...countries].some((country) => country !== "KR");
+      counts[hasDomestic && hasForeign ? "mixed" : hasDomestic ? "domestic" : hasForeign ? "foreign" : "unknown"] += 1;
+      if (issueGroups.size > 1) counts.multiSource += 1;
+      for (const operator of issueOperators) {
+        operatorIssueCounts.set(operator, (operatorIssueCounts.get(operator) || 0) + 1);
+      }
+    }
+    const topOperatorIssueCount = Math.max(0, ...operatorIssueCounts.values());
+    lanes[category] = {
+      issueCount: ids.length,
+      sourceGroupCount: groups.size,
+      operatorGroupCount: operatorIssueCounts.size,
+      topOperatorShare: ids.length ? Number((topOperatorIssueCount / ids.length).toFixed(4)) : 0,
+      multiSourceIssueCount: counts.multiSource,
+      domesticIssueCount: counts.domestic,
+      foreignIssueCount: counts.foreign,
+      mixedIssueCount: counts.mixed,
+      unknownOriginIssueCount: counts.unknown
+    };
+  }
+  return {
+    contractId: "NOWHOT-SLOT-OBSERVATION-001",
+    artifactId: artifact.artifactId,
+    editionDate: artifact.editionDate,
+    slotId: artifact.slot.id,
+    lanes
+  };
+}
+
 export async function buildSlotCanonicalEditionCandidate({
   pool,
   packet,
@@ -167,6 +291,7 @@ export async function buildSlotCanonicalEditionCandidate({
   fetchArticle,
   fetchImpl = fetch,
   translateText = memoizedTranslator(googleFreeTranslator({ fetchImpl })),
+  translateTitle = null,
   onUsage = null
 }) {
   const target = resolveSlotCanonicalBuildTarget({ pool, editionDate, slotId });
@@ -196,7 +321,8 @@ export async function buildSlotCanonicalEditionCandidate({
     categories: allCategories,
     slotId: target.slotId,
     editionDate: target.editionDate,
-    editorialPreselectedPool: true
+    editorialPreselectedPool: true,
+    editorialPreselectedReferenceMs: referenceNow
   });
   if (run.status !== 200 || !run.edition) {
     throw new Error(`slot edition: union build failed (${run.status}) ${run.body?.code || run.body?.error || ""}`.trim());
@@ -219,7 +345,9 @@ export async function buildSlotCanonicalEditionCandidate({
     onUsage,
     clock: () => referenceNow
   });
-  const unionEdition = await summaryPipeline(run.edition);
+  const summarizedEdition = await summaryPipeline(run.edition);
+  const headlinePolish = await polishIssueHeadlines(summarizedEdition, { translateTitle });
+  const unionEdition = headlinePolish.edition;
   const unprepared = unionEdition.issues.filter((issue) => !isPreparedArticleSummary(issue.articleSummary, issue));
   if (unprepared.length) {
     const sample = unprepared.slice(0, 3).map((issue) => ({
@@ -238,9 +366,17 @@ export async function buildSlotCanonicalEditionCandidate({
     editionsByCategory,
     unionEdition,
     builderPacketSha256: identity.packetSha256,
-    routingSnapshot: activeRoutingSnapshot
+    routingSnapshot: activeRoutingSnapshot,
+    summaryBuildMode: apiKey ? "paid_allowed" : "free_only"
   });
-  return { artifact, routingSnapshot: activeRoutingSnapshot, unionEdition, identity, foreignMajorCoverage };
+  return {
+    artifact,
+    routingSnapshot: activeRoutingSnapshot,
+    unionEdition,
+    identity,
+    foreignMajorCoverage,
+    headlinePolish: { attempted: headlinePolish.attempted, changed: headlinePolish.changed }
+  };
 }
 
 async function main() {
@@ -254,7 +390,7 @@ async function main() {
   const outDir = path.resolve(arg(args, "--out-dir") || path.join(ROOT, ".nowhot-local/slot-editions"));
   const activate = args.includes("--activate");
   if (!poolFile || !packetFile || !editionDate || !slotId || (!predictionsFile && !routingSnapshotFile)) {
-    throw new Error("usage: --pool <pool.json> --packet <packet.json> (--predictions <predictions.json> | --routing-snapshot <snapshot.json>) --date YYYY-MM-DD --slot <morning|lunch|evening> [--out-dir dir] [--activate]");
+    throw new Error("usage: --pool <pool.json> --packet <packet.json> (--predictions <predictions.json> | --routing-snapshot <snapshot.json>) --date YYYY-MM-DD --slot <morning|lunch|evening> [--out-dir dir] [--activate] [--allow-paid]");
   }
   const poolRaw = fs.readFileSync(poolFile, "utf8");
   const packetRaw = fs.readFileSync(packetFile, "utf8");
@@ -263,6 +399,7 @@ async function main() {
   const pool = JSON.parse(poolRaw);
   const target = resolveSlotCanonicalBuildTarget({ pool, editionDate, slotId });
   const usage = [];
+  const apiKey = args.includes("--allow-paid") ? process.env.ANTHROPIC_API_KEY || null : null;
   const result = await buildSlotCanonicalEditionCandidate({
     pool,
     packet: JSON.parse(packetRaw),
@@ -275,21 +412,17 @@ async function main() {
     slotId: target.slotId,
     evidenceAsOfMs: target.evidenceAsOfMs,
     workDir: path.join(outDir, `.work-${process.pid}`),
-    apiKey: process.env.ANTHROPIC_API_KEY || null,
+    apiKey,
+    translateTitle: apiKey ? memoizedTranslator(anthropicTranslator({ apiKey, onUsage: (row) => usage.push(row) })) : null,
     onUsage: (row) => usage.push(row)
   });
   const candidateFile = path.join(outDir,
     `candidate-${result.artifact.editionDate}-${result.artifact.slot.id}-${result.artifact.contentSha256.slice(0, 12)}.json`);
   atomicJson(candidateFile, result.artifact);
-  const activation = activate
-    ? activateSlotCanonicalEdition({
-        artifact: result.artifact,
-        directory: outDir,
-        pointerFile: path.join(outDir, "active.json")
-      })
-    : null;
+  const receiptFile = path.join(outDir,
+    `receipt-${result.artifact.editionDate}-${result.artifact.slot.id}-${result.artifact.contentSha256.slice(0, 12)}.json`);
   const receipt = {
-    state: activation ? "activated" : "candidate_ready",
+    state: "candidate_ready",
     artifactId: result.artifact.artifactId,
     contentSha256: result.artifact.contentSha256,
     editionDate: result.artifact.editionDate,
@@ -297,6 +430,7 @@ async function main() {
     poolSha256: result.identity.poolSha256,
     packetSha256: result.identity.packetSha256,
     issueCount: result.artifact.displayOrder.length,
+    headlinePolish: result.headlinePolish,
     laneCounts: Object.fromEntries(Object.entries(result.artifact.lanes).map(([id, rows]) => [id, rows.length])),
     detailStatuses: result.artifact.displayOrder.reduce((counts, id) => {
       const status = result.artifact.issueTable[id].articleSummary.status;
@@ -305,14 +439,30 @@ async function main() {
     }, {}),
     routingBasisCounts: result.routingSnapshot.counts?.routingBasis || null,
     foreignMajorCoverage: result.foreignMajorCoverage,
+    observation: editionObservationReceipt(result.artifact),
     llmUsage: usage,
     candidateFile,
-    activatedFile: activation?.artifactFile || null,
+    activatedFile: null,
     requestPathWork: "pointer_read_and_filter_only"
   };
-  atomicJson(path.join(outDir,
-    `receipt-${result.artifact.editionDate}-${result.artifact.slot.id}-${result.artifact.contentSha256.slice(0, 12)}.json`), receipt);
-  process.stdout.write(`${JSON.stringify(receipt)}\n`);
+  atomicJson(receiptFile, receipt);
+  const activation = activate
+    ? activateSlotCanonicalEdition({
+        artifact: result.artifact,
+        directory: outDir,
+        pointerFile: path.join(outDir, "active.json")
+      })
+    : null;
+  if (activation) {
+    receipt.state = "activated";
+    receipt.activatedFile = activation.artifactFile;
+    atomicJson(receiptFile, receipt);
+  }
+  process.stdout.write(`${JSON.stringify(activation ? {
+    ...receipt,
+    state: "activated",
+    activatedFile: activation.artifactFile
+  } : receipt)}\n`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

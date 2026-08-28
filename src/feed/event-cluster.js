@@ -32,7 +32,7 @@
 // 계수에 합산하지 않는다.
 import { createHash } from "node:crypto";
 import { eventKey, normalizeForDedupe, titleConcepts } from "./dedupe.js";
-import { canonicalizeUrl } from "./canonical-url.js";
+import { canonicalizeUrl, isGoogleNewsRedirect } from "./canonical-url.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 
 const sha = (value) => createHash("sha256").update(String(value || "")).digest("hex");
@@ -55,6 +55,8 @@ export const EVENT_MERGE_RULES = Object.freeze({
   misMergeIsWorse: "오병합은 미병합보다 나쁜 실패로 계수한다(v4 성공지표)"
 });
 
+const PUBLISHER_BURST_ANGLE_MS = 10 * 60 * 1000;
+
 // titleConcepts가 이미 걷는 일반어(GENERIC_NEWS_WORDS)에 더해, 사건을
 // 구별하지 못하는 직함·상투어를 사건 토큰에서 뺀다. 여기 넣으면 병합이
 // 줄어드는 방향(보수)이다 — 넓히는 방향이 아니라서 오병합 위험이 없다.
@@ -62,6 +64,7 @@ const EVENT_GENERIC_TOKENS = new Set([
   "대통령", "정부", "국회", "의원", "장관", "총리", "여야", "당국",
   "발표", "발언", "출시", "정식", "공식", "확정", "예고", "전망",
   "논란", "화제", "네티즌", "누리꾼", "프로", "만에", "개발",
+  "독립", "변화",
   // ── 영문 일반어 (G1, 2026-08-14 신선·저장 풀 전수 실측 오병합 6건 근거)
   // 한글 일반어만 걷고 영문 일반어를 안 걷어서, 동일문자 임계 3이 무관 기사를
   // 병합했다. dedupe.js ENGLISH_STOP_WORDS는 digest 소비 경로(titleConcepts)라
@@ -77,9 +80,17 @@ const EVENT_GENERIC_TOKENS = new Set([
   // 매체 상투어 — "hear"(스테레오검 "Hear ..." 정형구): EV-83c3f0dcdddf6157,
   // "hiring"(구인 공고 정형구): EV-8626d45bf101265f.
   "hear", "hiring",
+  // 제목 문법·시장/분야 일반어 — NH91 후보에서 이 세 단어만 겹쳐 무관
+  // 사건이 합쳐진 4쌍을 고정 표본으로 재현했다.
+  "fall", "york", "stock", "wall", "street", "korean", "design", "just",
+  "game", "all", "down", "able", "ever",
   // 수량 일반어 — "million/year": EV-a26325700b4c7ab5("million/year/fossil",
   // 무관 화석 기사 2건). years는 같은 낱말의 복수형.
   "million", "year", "years",
+  // 달력 날짜는 사건 정체성이 아니다. 날짜형 연재물끼리 같은 월·일·연도만
+  // 겹쳐 합쳐진 실제 APOD/Slow Letter 회귀를 막는다.
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
   // 지명 상투어 — "london": EV-148276d6fe6422c7(브랜드 접미어 "Jo Malone
   // London"이 3토큰을 채워 무관 기사 병합). 전/후 전수 대조에서 정당 병합
   // 손실 0 확인 후 유지.
@@ -89,11 +100,39 @@ const EVENT_GENERIC_TOKENS = new Set([
 // 한/영 동일 표기 별칭 — 고정 표본으로 증명된 항목만 넣는다(표본 1: 딥시크).
 // 일반 음차 변환은 만들지 않는다 — 규칙 발명은 오병합 지름길이다.
 const CROSS_LANGUAGE_ENTITY_ALIASES = new Map([
-  ["딥시크", "deepseek"]
+  ["딥시크", "deepseek"],
+  ["앤솔로픽", "anthropic"],
+  ["네팔", "nepal"],
+  ["홍수", "flood"],
+  ["폭우", "flood"],
+  ["floods", "flood"],
+  ["대홍수", "flood"],
+  ["빙하", "glacier"],
+  ["glacial", "glacier"],
+  ["블랙리스트", "blacklist"],
+  ["위헌", "illegal"],
+  ["illegally", "illegal"]
 ]);
+
+// 후속 각도 결합은 고정 반례로 증명된 사건형만 연다. 단순 공통 명사 2개로
+// 범용 확장하면 "미국+경제" 같은 무관 기사가 붙는다. 새 사건형은 실기사
+// 분할 표본이 생겼을 때만 여기에 추가한다.
+const FOLLOW_UP_EVENT_CORES = new Set(["flood"]);
 
 const hasKoreanScript = (text) => /[가-힣]/.test(String(text || ""));
 const isLatinOrNumberToken = (token) => token.startsWith("num:") || /^[a-z0-9]/.test(token) && !/[가-힣]/.test(token);
+const GOOGLE_NEWS_PUBLISHER_TAIL = /\s+[-–—|]\s+.{1,80}$/u;
+
+function eventTitle(article) {
+  const displayTitle = article?.title || "";
+  const originalTitle = String(article?.originalTitle || "").trim();
+  const unsupportedOriginalScript = /[\u3040-\u30ff\u3400-\u9fff]/u.test(originalTitle);
+  const title = originalTitle && !unsupportedOriginalScript && titleConcepts(originalTitle).length
+    ? originalTitle : displayTitle;
+  return isGoogleNewsRedirect(article?.url)
+    ? title.replace(GOOGLE_NEWS_PUBLISHER_TAIL, "").trim()
+    : title;
+}
 
 // 사건 토큰 — dedupe.js titleConcepts(조사·불용어·일반어 처리) 재사용 후
 // 직함·상투어를 추가로 걷고 한/영 별칭을 접는다.
@@ -101,7 +140,10 @@ export function eventEntityTokens(title) {
   const out = [];
   for (const concept of titleConcepts(title)) {
     if (EVENT_GENERIC_TOKENS.has(concept)) continue;
-    out.push(CROSS_LANGUAGE_ENTITY_ALIASES.get(concept) || concept);
+    const particleStem = concept.replace(/(?:으로|로)$/u, "");
+    out.push(CROSS_LANGUAGE_ENTITY_ALIASES.get(concept)
+      || CROSS_LANGUAGE_ENTITY_ALIASES.get(particleStem)
+      || concept);
   }
   return [...new Set(out)];
 }
@@ -114,14 +156,30 @@ export function eventEntityTokens(title) {
 // "숫자로 시작"을 숫자 판정으로 쓴다(순수 숫자만 보면 수치 충돌 가드가
 // 통째로 빠진다 — 실측: "부상 17명" vs "부상 90명"이 병합됐다).
 const isNumericToken = (t) => t.startsWith("num:") || /^\d/.test(t);
+const numericValue = (token) => String(token || "").replace(/^num:/, "").match(/^\d+(?:[.,]\d+)?/)?.[0] || "";
 
 // dedupe.js sameTitleConcept과 같은 셈법: 완전일치 또는 조사·합성어 수준의
 // 접두/접미 포함(한글 2자·영문 3자 이상).
 function tokenMatch(a, b) {
   if (a === b) return true;
+  if (FOLLOW_UP_EVENT_CORES.has(a) || FOLLOW_UP_EVENT_CORES.has(b)) return false;
   const korean = /^[가-힣]+$/.test(a) && /^[가-힣]+$/.test(b);
   if (Math.min(a.length, b.length) < (korean ? 2 : 3)) return false;
   return a.startsWith(b) || b.startsWith(a) || a.endsWith(b) || b.endsWith(a);
+}
+
+function eventTokensWithUrlContext(tokens, url) {
+  let pathTokens = [];
+  try {
+    pathTokens = eventEntityTokens(decodeURIComponent(new URL(String(url || "")).pathname)
+      .replace(/[^\p{L}\p{N}]+/gu, " "))
+      .filter((token) => !isNumericToken(token) && token.length >= 4);
+  } catch {}
+  if (!pathTokens.some((pathToken) => FOLLOW_UP_EVENT_CORES.has(pathToken)
+      && tokens.includes(pathToken))) {
+    return tokens;
+  }
+  return [...new Set([...tokens, ...pathTokens])];
 }
 
 // 두 제목이 공유하는 사건 토큰. 언어가 다르면(한↔영) 영문 표기·숫자 축만 쓴다.
@@ -148,19 +206,36 @@ const parseTime = (value) => {
   return Number.isFinite(t) ? t : null;
 };
 
+function sportsCompetition(article, title) {
+  const categories = Array.isArray(article?.admittedCategories) && article.admittedCategories.length
+    ? article.admittedCategories : [article?.category];
+  if (!categories.includes("sports")) return null;
+  const value = String(title || "").toLowerCase();
+  if (/\bklpga\b/.test(value)) return "klpga";
+  if (/\blpga\b/.test(value)) return "lpga";
+  if (/\bpga\b/.test(value) || /\btour\s+championship\b/.test(value) || /투어\s*챔피언십/.test(value)) {
+    return "pga";
+  }
+  return null;
+}
+
 function prepareEventArticle(article) {
-  const title = article && article.title || "";
-  const tokens = eventEntityTokens(title);
+  const title = eventTitle(article);
+  const tokens = eventTokensWithUrlContext(eventEntityTokens(title), article?.url);
+  const source = operationalSourceIdentity(article);
   return {
     article,
     url: canonicalizeUrl(article && article.url),
     key: eventKey(title),
     tokens,
-    numbers: tokens.filter(isNumericToken).map((token) => token.replace(/^num:/, "")),
+    numbers: tokens.filter(isNumericToken).map(numericValue).filter(Boolean),
     time: parseTime(article && article.publishedAt),
     korean: hasKoreanScript(title),
     community: isCommunity(article),
-    humorCommunity: isHumorCommunity(article)
+    humorCommunity: isHumorCommunity(article),
+    ownershipGroup: source.ownershipGroup,
+    image: String(article?.image || "").trim() || null,
+    competition: sportsCompetition(article, title)
   };
 }
 
@@ -188,9 +263,16 @@ function decidePreparedEventMerge(a, b) {
   }
   if (a.key && a.key === b.key) return { merge: true, mode: "strong", reason: "event_key_exact" };
   if (a.community && b.community) return { merge: false, reason: "guard_community_pair_strong_only" };
+  if (a.image && a.image === b.image && a.time !== null && a.time === b.time
+      && a.ownershipGroup && a.ownershipGroup === b.ownershipGroup) {
+    return { merge: true, mode: "strong", reason: "publisher_time_image_exact" };
+  }
   if (a.time === null || b.time === null ||
       Math.abs(a.time - b.time) > EVENT_MERGE_RULES.publishWindowHours * 3600 * 1000) {
     return { merge: false, reason: "guard_publish_window_24h" };
+  }
+  if (a.competition && b.competition && a.competition !== b.competition) {
+    return { merge: false, reason: "guard_competition_conflict" };
   }
   const crossLanguage = a.korean !== b.korean;
   const minShared = crossLanguage
@@ -199,7 +281,12 @@ function decidePreparedEventMerge(a, b) {
   const shared = sharedPreparedTokens(a, b);
   if (shared.length < minShared) return { merge: false, reason: "guard_entity_overlap_min" };
   if (shared.every(isNumericToken)) return { merge: false, reason: "guard_numbers_only_overlap" };
-  if (a.numbers.length && b.numbers.length && !a.numbers.some((number) => b.numbers.includes(number))) {
+  const sharedFacts = shared.filter((token) => !isNumericToken(token));
+  const measuredFollowUp = sharedFacts.length >= minShared
+    && sharedFacts.some((token) => FOLLOW_UP_EVENT_CORES.has(token));
+  const crossLanguageUpdate = crossLanguage && sharedFacts.length >= minShared;
+  if (a.numbers.length && b.numbers.length && !a.numbers.some((number) => b.numbers.includes(number))
+      && !crossLanguageUpdate && !measuredFollowUp) {
     return { merge: false, reason: "guard_number_conflict" };
   }
   return { merge: true, mode: "content", crossLanguage, reason: `entity_overlap:${shared.join("+")}` };
@@ -226,7 +313,8 @@ const articleOrder = (a, b) => {
 // 짧고 애매한 제목이 먼저 버킷을 차지하면 더 구체적인 후속 보도가 같은 사건을
 // 증명해도 잘못된 2건 묶음이 고정된다. 내용어가 많은 제목부터 뼈대를 잡고,
 // 사건 ID의 앵커·출처 표시는 아래 articleOrder를 그대로 사용한다.
-const preparedClusterOrder = (a, b) => b.tokens.length - a.tokens.length
+const preparedClusterOrder = (a, b) => Number(a.community) - Number(b.community)
+  || b.tokens.length - a.tokens.length
   || articleOrder(a.article, b.article);
 
 const seedOf = (article) => eventKey(article && article.title)
@@ -255,7 +343,8 @@ function finalizeEvent(bucket) {
   const history = [];
   let firstSeenAt = anchor && anchor.publishedAt || null;
   let lastMaterialChangeAt = anchor && anchor.publishedAt || null;
-  const factTokens = new Set(members.length && members[0] === anchor ? eventEntityTokens(anchor.title) : []);
+  const factTokens = new Set(members.length && members[0] === anchor
+    ? prepareEventArticle(anchor).tokens : []);
   for (const article of articles.slice(1)) {
     const via = bucket.decisionByArticle.get(article) || { mode: "content", reason: "composed" };
     history.push({
@@ -274,7 +363,7 @@ function finalizeEvent(bucket) {
     }
     if (roleOf(article) !== "community_reaction") {
       let changed = false;
-      for (const token of eventEntityTokens(article.title)) {
+      for (const token of prepareEventArticle(article).tokens) {
         if (!factTokens.has(token)) { factTokens.add(token); changed = true; }
       }
       if (changed) lastMaterialChangeAt = article.publishedAt || lastMaterialChangeAt;
@@ -328,11 +417,37 @@ export function buildEventClusters(articles) {
     for (const bucket of buckets) {
       let first = null;
       let allMerge = true;
-      for (const member of bucket.prepared) {
+      const hasReporting = bucket.prepared.some((member) => !member.community);
+      const comparisonMembers = hasReporting && prepared.community
+        ? bucket.prepared.filter((member) => !member.community)
+        : bucket.prepared;
+      const oneReportingMatchIsEnough = hasReporting && prepared.community;
+      for (const member of comparisonMembers) {
         const current = decidePreparedEventMerge(member, prepared);
-        if (!current.merge) { allMerge = false; break; }
+        if (!current.merge) {
+          if (!oneReportingMatchIsEnough) { allMerge = false; break; }
+          continue;
+        }
         if (!first) first = current;
+        if (oneReportingMatchIsEnough) break;
       }
+      if (!allMerge && !prepared.community && prepared.ownershipGroup) {
+        const publisherAngle = comparisonMembers.find((member) => {
+          if (member.ownershipGroup !== prepared.ownershipGroup || member.time === null || prepared.time === null
+              || Math.abs(member.time - prepared.time) > PUBLISHER_BURST_ANGLE_MS) return false;
+          const shared = sharedPreparedTokens(member, prepared).filter((token) => !isNumericToken(token));
+          const numberConflict = member.numbers.length && prepared.numbers.length
+            && !member.numbers.some((number) => prepared.numbers.includes(number));
+          return shared.length >= 2 && !numberConflict;
+        });
+        const connectedToWholeEvent = comparisonMembers.every((member) =>
+          sharedPreparedTokens(member, prepared).some((token) => !isNumericToken(token)));
+        if (publisherAngle && connectedToWholeEvent) {
+          allMerge = true;
+          first = { merge: true, mode: "strong", reason: "publisher_burst_same_subject" };
+        }
+      }
+      if (!first) allMerge = false;
       if (!allMerge) continue;
       joined = bucket;
       decision = first;

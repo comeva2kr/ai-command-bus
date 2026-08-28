@@ -220,28 +220,35 @@ test("D2-E: 현재 풀 canary는 공급이 적은 분야부터 한 건씩 12건�
   assert.equal(first.purpose, "operational_smoke_not_quality_proof");
 });
 
-test("NH89: 미달 분야 shortlist는 현재 슬롯의 미분류 직접 뉴스만 안정적으로 고른다", () => {
+test("NH91: 미분류 shortlist는 현재 슬롯의 일반 뉴스와 커뮤니티를 출처별로 고르게 고른다", () => {
   const nowMs = Date.parse("2026-08-27T05:42:34.447Z");
   const sourceRegistry = [
     { id: "etnews", enabled: true, kind: "news", sourceTier: "aggregate", category: "tech", adapter: { type: "rss" } },
     { id: "bloter", enabled: true, kind: "news", sourceTier: "aggregate", category: "tech", adapter: { type: "rss" } },
+    { id: "mixed-community", enabled: true, kind: "community", category: "life", adapter: { type: "rss" } },
+    { id: "deal-board", enabled: true, kind: "community", category: "tech", feedGroup: "deal", adapter: { type: "list" } },
     { id: "gnews-tech", enabled: true, kind: "news", sourceTier: "aggregate", category: "tech", feedGroup: "gnews", adapter: { type: "rss" } },
     { id: "tech-specialist", enabled: true, kind: "news", sourceTier: "specialist", category: "tech", adapter: { type: "rss" } },
-    { id: "business-wire", enabled: true, kind: "news", sourceTier: "aggregate", category: "business", adapter: { type: "rss" } }
+    { id: "business-wire", enabled: true, kind: "news", sourceTier: "aggregate", category: "business", adapter: { type: "rss" } },
+    { id: "disabled-news", enabled: false, kind: "news", sourceTier: "aggregate", category: "news", adapter: { type: "rss" } }
   ];
-  const article = (id, source, publishedAt, score = 0) => ({
-    id, source, title: `${id} 제목`, summary: `${id} 요약`, category: "tech", kind: "news", lang: "ko",
+  const article = (id, source, publishedAt, score = 0, kind = "news") => ({
+    id, source, title: `${id} 제목`, summary: `${id} 요약`, category: "tech", kind, lang: "ko",
     publishedAt, hotScorePrev: score, score, commentCount: score, viewCount: score
   });
   const rows = [
-    article("eligible-low", "etnews", "2026-08-27T02:00:00.000Z", 10),
-    article("eligible-high", "bloter", "2026-08-27T03:00:00.000Z", 20),
+    article("etnews-high", "etnews", "2026-08-27T04:40:00.000Z", 100),
+    article("etnews-second", "etnews", "2026-08-27T04:30:00.000Z", 90),
+    article("wrong-lane", "business-wire", "2026-08-27T04:20:00.000Z", 80),
+    article("community", "mixed-community", "2026-08-27T04:10:00.000Z", 70, "community"),
+    article("deal", "deal-board", "2026-08-27T04:15:00.000Z", 1000, "community"),
+    article("bloter", "bloter", "2026-08-27T04:00:00.000Z", 60),
     article("already-admitted", "etnews", "2026-08-27T04:00:00.000Z", 99),
     article("too-old", "etnews", "2026-08-26T20:00:00.000Z", 100),
     article("future", "etnews", "2026-08-27T06:00:00.000Z", 100),
     article("relay", "gnews-tech", "2026-08-27T04:00:00.000Z", 100),
     article("specialist", "tech-specialist", "2026-08-27T04:00:00.000Z", 100),
-    article("wrong-lane", "business-wire", "2026-08-27T04:00:00.000Z", 100),
+    article("disabled", "disabled-news", "2026-08-27T04:00:00.000Z", 100),
     { ...article("undated-rss", "etnews", null, 100), publishedAt: null }
   ];
   const build = (orderedRows) => {
@@ -272,15 +279,19 @@ test("NH89: 미달 분야 shortlist는 현재 슬롯의 미분류 직접 뉴스�
       missingCategoryIds: ["tech"],
       nowMs,
       windowHours: 6,
-      maxCalls: 2
+      maxCalls: 5
     });
   };
 
   const first = build(rows);
   const second = build([...rows].reverse());
   assert.deepEqual(first, second);
-  assert.equal(first.purpose, "underfilled_lane_shortlist_not_quality_proof");
-  assert.deepEqual(first.targets.map((target) => target.itemId), ["eligible-high", "eligible-low"]);
+  assert.equal(first.purpose, "ambiguous_source_shortlist_not_quality_proof");
+  assert.deepEqual(first.targets.map((target) => target.itemId), [
+    "etnews-high", "wrong-lane", "community", "bloter", "etnews-second"
+  ]);
   assert.deepEqual(first.missingCategoryIds, ["tech"]);
-  assert.deepEqual(first.selectedSourceIds, ["bloter", "etnews"]);
+  assert.deepEqual(first.selectedSourceIds, ["bloter", "business-wire", "etnews", "mixed-community"]);
+  assert.deepEqual(first.contentKinds, ["community", "news"]);
+  assert.equal(first.targets.some((target) => target.itemId === "deal"), false);
 });

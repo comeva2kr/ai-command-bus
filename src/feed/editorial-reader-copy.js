@@ -9,7 +9,7 @@ const deepFreeze = (value) => {
 
 export const EDITORIAL_READER_COPY_CONTRACT = deepFreeze({
   stableId: "NOWHOT-EDITORIAL-READER-COPY-CONTRACT-001",
-  version: 11,
+  version: 12,
   fingerprintVersion: 3,
   mode: "response_only_press_style_projection",
   visibleFields: ["headline", "summary", "whyImportant", "whyNow", "change", "watchNext", "confidenceLabel"],
@@ -234,7 +234,9 @@ function hasFinalConsonant(value) {
   const code = last.charCodeAt(0);
   if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0;
   if (/[0-9]/.test(last)) return "013678".includes(last);
-  return false;
+  if (/^[A-Z0-9]+$/.test(text)) return "FHLMNRSX".includes(last);
+  if (/[a-z]s$/.test(text)) return false;
+  return /[lmnr]$/i.test(last);
 }
 
 const withSubjectParticle = (value) => `${clean(value)}${hasFinalConsonant(value) ? "이" : "가"}`;
@@ -281,7 +283,9 @@ function leadTitle(issue) {
 }
 
 function readerEventLabel(issue) {
-  const label = stripOuterQuotes(stripLeadTags(issue && issue.subject || leadTitle(issue)));
+  const label = stripOuterQuotes(stripLeadTags(
+    issue && issue.preparedHeadline || issue && issue.subject || leadTitle(issue)
+  ));
   if (label.length <= 56) return label;
   return `${label.slice(0, 55).trim()}…`;
 }
@@ -294,6 +298,8 @@ function withEventContext(issue, sentence) {
 }
 
 function readerHeadline(issue) {
+  const prepared = clean(issue && issue.preparedHeadline);
+  if (prepared) return prepared;
   if (verifiedEditSupport(issue, "headline")) return clean(issue.headline);
   const subject = stripLeadTags(issue && issue.subject);
   const title = leadTitle(issue);
@@ -389,7 +395,7 @@ function readerWhyNow(issue) {
   if (Number(metrics.score) > 0) reactions.push(`추천 ${Math.round(metrics.score).toLocaleString("ko-KR")}건`);
   if (Number(metrics.comments) > 0) reactions.push(`댓글 ${Math.round(metrics.comments).toLocaleString("ko-KR")}건`);
   if (reactions.length) {
-    const where = names.length ? `${names[0]}에서 ` : "";
+    const where = metrics.communityOnly === true && names.length ? `${names[0]}에서 ` : "온라인에서 ";
     return withEventContext(issue, `${where}${reactions.join("과 ")}의 반응이 확인됐습니다.`);
   }
   if (mode === "multiple_feed_observed") {
@@ -530,7 +536,11 @@ function readerBasis(issue) {
       : policyLineageSupport(issue) ? `editorial_policy:${clean(lineageClaim.policyRule)}`
         : "category_policy";
   return {
-    headline: { kind: verifiedEditSupport(issue, "headline") ? "verified_edit" : "subject_source_titles", evidenceIds },
+    headline: {
+      kind: clean(issue && issue.preparedHeadline) ? "prepublish_translation"
+        : verifiedEditSupport(issue, "headline") ? "verified_edit" : "subject_source_titles",
+      evidenceIds
+    },
     summary: { kind: verifiedEditSupport(issue, "whatHappened") ? "verified_edit" : "source_titles", evidenceIds },
     whyImportant: {
       kind: whyImportantBasis,
@@ -611,7 +621,9 @@ const MAX_READER_LENGTH = Object.freeze({
 });
 
 function readerAnchorTokens(issue, copy) {
-  const base = clean(issue && issue.subject || copy && copy.headline || issue && issue.headline);
+  const base = clean(
+    issue && issue.preparedHeadline || issue && issue.subject || copy && copy.headline || issue && issue.headline
+  );
   return unique(base
     .replace(/[^가-힣a-zA-Z0-9]+/g, " ")
     .split(/\s+/)

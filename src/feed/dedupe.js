@@ -128,11 +128,17 @@ export function titleConcepts(title) {
   const concepts = titleWords(title).map((word) => {
     if (GENERIC_NEWS_WORDS.has(word)) return null;
     if (/^[a-z]+$/.test(word)) return ENGLISH_STOP_WORDS.has(word) ? null : word;
-    const compactNumber = word.replace(/(?:명|건|원)$/u, "");
+    const compactNumber = /^\d/.test(word)
+      ? word.replace(/(?:명|건|원)?(?:에|에서|까지|부터|으로)?$/u, "")
+      : word;
     const koreanUnit = compactNumber.match(/^(\d+)만(?:(\d+)(천)?)?$/u);
     if (koreanUnit) {
       const tail = Number(koreanUnit[2] || 0) * (koreanUnit[3] ? 1000 : 1);
       return `num:${Number(koreanUnit[1]) * 10000 + tail}`;
+    }
+    const largeKoreanUnit = compactNumber.match(/^(\d+(?:\.\d+)?)(억|조)$/u);
+    if (largeKoreanUnit) {
+      return `num:${Number(largeKoreanUnit[1]) * (largeKoreanUnit[2] === "조" ? 1e12 : 1e8)}`;
     }
     if (/^\d{3,}$/.test(compactNumber)) return `num:${Number(compactNumber)}`;
     if (!/^[가-힣]+$/.test(word)) return word;

@@ -208,7 +208,8 @@ export function selectSelectionShadowShortlist(pool, packet, {
   const sourceById = new Map(registry.map((source) => [source.id, source]));
   const missing = new Set(missingCategoryIds);
   const windowMs = windowHours * 3600 * 1000;
-  const targets = packet.targets.filter((target) => {
+  const rank = selectionShadowRank(articles);
+  const eligible = packet.targets.filter((target) => {
     const source = sourceById.get(target.sourceId);
     const article = articles.get(target.itemId);
     const routes = target.sourceArticleIds.map((itemId) => routingById.get(itemId));
@@ -217,14 +218,32 @@ export function selectSelectionShadowShortlist(pool, packet, {
     }
     const publishedAt = article?.publishedAt ? Date.parse(article.publishedAt) : NaN;
     return routes.every((route) => route.categories.length === 0)
-      && target.contentKindHint === "news"
-      && source?.enabled === true && source.kind === "news" && source.sourceTier === "aggregate"
-      && missing.has(source.category) && source.feedGroup !== "gnews"
+      && ["news", "community"].includes(target.contentKindHint)
+      && source?.enabled === true && source.sourceTier !== "specialist"
+      && !["gnews", "deal"].includes(source.feedGroup)
       && Number.isFinite(publishedAt) && publishedAt <= nowMs && nowMs - publishedAt <= windowMs;
-  }).sort(selectionShadowRank(articles)).slice(0, maxCalls);
+  }).sort(rank);
+  const bySource = new Map();
+  for (const target of eligible) {
+    const bucket = bySource.get(target.sourceId) || [];
+    bucket.push(target);
+    bySource.set(target.sourceId, bucket);
+  }
+  const targets = [];
+  for (let offset = 0; targets.length < maxCalls; offset += 1) {
+    let added = false;
+    for (const bucket of bySource.values()) {
+      if (bucket[offset]) {
+        targets.push(bucket[offset]);
+        added = true;
+        if (targets.length === maxCalls) break;
+      }
+    }
+    if (!added) break;
+  }
 
   return {
-    purpose: "underfilled_lane_shortlist_not_quality_proof",
+    purpose: "ambiguous_source_shortlist_not_quality_proof",
     targets,
     missingCategoryIds: [...missing].sort(),
     selectedSourceIds: [...new Set(targets.map((target) => target.sourceId))].sort(),

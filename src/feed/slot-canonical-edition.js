@@ -24,6 +24,15 @@ const pointerKey = (date, slotId) => `${date}:${slotId}`;
 const safeImage = (url) => {
   try { return url && !isJunkImage(new URL(url)) ? url : null; } catch { return null; }
 };
+const firstPublishedAt = (issue) => {
+  const timestamps = [
+    ...(issue?.eventSources || []),
+    ...(issue?.sourceEvidence || []),
+    ...(issue?.refs || []),
+    ...(issue?.articleSummary?.sourceLinks || [])
+  ].map((row) => Date.parse(row?.publishedAt || "")).filter(Number.isFinite);
+  return timestamps.length ? new Date(Math.min(...timestamps)).toISOString() : null;
+};
 
 function payloadFingerprint(issue) {
   return sha256(JSON.stringify({
@@ -69,6 +78,9 @@ export function validateSlotCanonicalEdition(artifact) {
       artifact.contractVersion !== SLOT_CANONICAL_EDITION_CONTRACT.version) errors.push("contract mismatch");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(artifact.editionDate || ""))) errors.push("editionDate invalid");
   if (!String(artifact.slot?.id || "").trim()) errors.push("slot.id missing");
+  if (artifact.summaryBuildMode != null && !["free_only", "paid_allowed"].includes(artifact.summaryBuildMode)) {
+    errors.push("summaryBuildMode invalid");
+  }
   if (artifact.builderPacketSha256 !== artifact.routingSnapshot?.source?.packetSha256) {
     errors.push("routingSnapshot source packetSha256 mismatch");
   }
@@ -128,6 +140,7 @@ export function buildSlotCanonicalEdition({
   unionEdition,
   builderPacketSha256,
   routingSnapshot,
+  summaryBuildMode = "free_only",
   createdAt = unionEdition?.generatedAt || new Date().toISOString()
 }) {
   if (!unionEdition || !Array.isArray(unionEdition.issues)) fail("unionEdition required");
@@ -184,6 +197,8 @@ export function buildSlotCanonicalEdition({
     }
     issueTable[id] = {
       ...frozen,
+      firstPublishedAt: firstPublishedAt(source),
+      publicationTimeBasis: "source_feed_timestamp",
       reader,
       readerLineage: buildReaderLineage(source, reader),
       selectedByCategories
@@ -207,6 +222,7 @@ export function buildSlotCanonicalEdition({
     editionDate: unionEdition.editionDate,
     slot: clone(unionEdition.slot),
     createdAt,
+    summaryBuildMode,
     builderPacketSha256,
     routingSnapshot: clone(routingSnapshot),
     targetPerCategory: SLOT_CANONICAL_EDITION_CONTRACT.targetPerCategory,
@@ -246,7 +262,7 @@ export function projectSlotCanonicalEdition(artifact, {
   const selectedSet = new Set(selected);
   const issues = artifact.displayOrder
     .filter((id) => artifact.issueTable[id].selectedByCategories.some((category) => selectedSet.has(category)))
-    .map((id) => clone(artifact.issueTable[id]));
+    .map((id) => artifact.issueTable[id]);
   const categoryRows = selected.map((category) => ({
     categoryId: category,
     label: categoryById.get(category).label,
@@ -338,29 +354,39 @@ function atomicJson(file, value) {
   fs.renameSync(temporary, file);
 }
 
-export function activateSlotCanonicalEdition({ artifact, directory, pointerFile }) {
-  assertSlotCanonicalEdition(artifact);
+export function activateSlotCanonicalEditions({ artifacts, directory, pointerFile }) {
+  if (!Array.isArray(artifacts) || !artifacts.length) fail("artifacts required");
+  artifacts.forEach(assertSlotCanonicalEdition);
+  const keys = artifacts.map((artifact) => pointerKey(artifact.editionDate, artifact.slot.id));
+  if (new Set(keys).size !== keys.length) fail("duplicate date-slot artifact");
   fs.mkdirSync(directory, { recursive: true });
-  const artifactFile = path.join(directory,
-    `edition-${artifact.editionDate}-${artifact.slot.id}-${artifact.contentSha256.slice(0, 12)}.json`);
-  if (!fs.existsSync(artifactFile)) atomicJson(artifactFile, artifact);
   let pointer = { contractId: "NOWHOT-SLOT-CANONICAL-POINTER-001", contractVersion: 1, editions: {} };
   if (fs.existsSync(pointerFile)) pointer = JSON.parse(fs.readFileSync(pointerFile, "utf8"));
+  const artifactFiles = artifacts.map((artifact) => path.join(directory,
+    `edition-${artifact.editionDate}-${artifact.slot.id}-${artifact.contentSha256.slice(0, 12)}.json`));
+  artifactFiles.forEach((artifactFile, index) => {
+    if (!fs.existsSync(artifactFile)) atomicJson(artifactFile, artifacts[index]);
+  });
   pointer = {
     ...pointer,
     updatedAt: new Date().toISOString(),
     editions: {
       ...(pointer.editions || {}),
-      [pointerKey(artifact.editionDate, artifact.slot.id)]: {
+      ...Object.fromEntries(artifacts.map((artifact, index) => [keys[index], {
         artifactId: artifact.artifactId,
         contentSha256: artifact.contentSha256,
-        file: path.relative(path.dirname(pointerFile), artifactFile)
-      }
+        file: path.relative(path.dirname(pointerFile), artifactFiles[index])
+      }]))
     }
   };
   fs.mkdirSync(path.dirname(pointerFile), { recursive: true });
   atomicJson(pointerFile, pointer);
-  return { artifactFile, pointer };
+  return { artifactFiles, pointer };
+}
+
+export function activateSlotCanonicalEdition({ artifact, directory, pointerFile }) {
+  const result = activateSlotCanonicalEditions({ artifacts: [artifact], directory, pointerFile });
+  return { artifactFile: result.artifactFiles[0], pointer: result.pointer };
 }
 
 export function makeSlotCanonicalEditionReader({ pointerFile }) {
@@ -373,7 +399,8 @@ export function makeSlotCanonicalEditionReader({ pointerFile }) {
       const exactKey = pointerKey(date, slotId);
       const entry = pointer?.editions?.[exactKey];
       if (!entry?.file) {
-        const error = new Error(`slot canonical edition unavailable: ${date} ${slotId}`);
+        const slotLabel = { morning: "모닝", lunch: "런치", evening: "이브닝" }[slotId] || slotId;
+        const error = new Error(`${date} ${slotLabel}판은 아직 준비되지 않았습니다. 다른 시간대를 선택해 주세요.`);
         error.code = "SLOT_CANONICAL_EDITION_UNAVAILABLE";
         throw error;
       }

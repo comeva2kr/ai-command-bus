@@ -38,6 +38,8 @@ const P12_ID = "p12-policy-shadow-haiku-full-nh90-20260827-evening";
 const P12_SHA = "bb1a894838c04ba475eef6822c05c31251df3c4e75c48728a097be85bae6e7d6";
 const P13_ID = "p13-policy-shadow-haiku-nh90-provider-diagnostic";
 const P13_SHA = "8e77aa42fdabad434224faed9f503e81b1b5a2219038376ad0f577af07ac0b1e";
+const P14_ID = "p14-policy-shadow-haiku-full-nh91-20260828-evening";
+const P14_SHA = "4b0f0c0986602cce83be49da07f9ab9f728248c9fb0e05e435d0227c32260454";
 
 test("D2-A 후보: D1-K 일반 정책만 투영하고 소비된 단일 승인은 재사용하지 않는다", () => {
   const p6 = CANDIDATE_REGISTRY[P6_ID];
@@ -75,6 +77,22 @@ test("NH90 공급자 진단 후보는 같은 요청을 단 한 번만 보낸다"
   assert.equal(p13.promptSha256, CANDIDATE_REGISTRY[P12_ID].promptSha256);
   assert.equal(p13.execution.maxCalls, 1);
   assert.equal(p13.execution.maxCostUsd, 0.01);
+});
+
+test("NH91 이브닝 전량 후보는 중복을 뺀 현재 풀 2,198건만 같은 분류 규칙으로 측정한다", () => {
+  const p14 = CANDIDATE_REGISTRY[P14_ID];
+  assert.equal(p14.candidateRecordSha256, P14_SHA);
+  assert.equal(p14.promptSha256, CANDIDATE_REGISTRY[P12_ID].promptSha256);
+  assert.equal(p14.execution.maxCalls, 2198);
+  assert.equal(p14.execution.maxCostUsd, 9);
+  assert.equal(p14.execution.fullAllowed, true);
+  assert.deepEqual(CANDIDATE_EXECUTION_HOLDS[P14_ID], {
+    state: "consumed_hold",
+    attemptId: "nh91-20260828-evening-p14-01",
+    receiptSha256: "4b919d2b802bd9a1e3dc74234a4154763c710980e4e3a25c0a6ceba864247e47",
+    reason: "api_usage_limit_hold"
+  });
+  assert.throws(() => getRunnableFullCandidate(P14_ID), /CANDIDATE_APPROVAL_CONSUMED/);
 });
 
 test("D2-F 전량 후보: 오늘 packet 1,967건 측정 후 추가 유료 실행을 차단한다", () => {

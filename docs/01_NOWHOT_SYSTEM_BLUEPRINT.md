@@ -5,8 +5,8 @@
 - 기준 헌장: `NOWHOT-PRODUCT-CHARTER-001`
 - 벤치마크 입력: `NOWHOT-BENCHMARK-DIRECTION-002`
 - 선별·편집 엔진: `NOWHOT-SELECTION-EDITORIAL-001`
-- 현재 변경: `DEVCHG-NOWHOT-20260827-174`
-- 현재 상태: NH89 슬롯 고정판 통합 수리 계획 합의·정본 고정 / 구현 진행 중 / 운영 반영 없음
+- 현재 변경: `DEVCHG-NOWHOT-20260828-179`
+- 현재 상태: NH91 로컬 사전 발행 후보 GO(런치·이브닝) / 모닝판 미생성은 정직한 409 / 운영 반영 없음
 - 개정: v4 (2026-08-13 개선 방향 — 아래 개정 섹션이 이전 서술과 충돌하면 v4가 우선)
 - 대상 환경: `/Users/hyundonghwang/Documents/NowHot-Local-Dev`
 - 운영 반영: 없음
@@ -1615,3 +1615,46 @@ truth: NH90_1_REVIEW_CORRECTION_LOCKED·CIVIL_DATE_SLOT_IDENTITY·POOL_SAVED_AT_
 접근 불가 원문 47건은 사실을 만들지 않는 현재 종단을 유지한 채 후속 개선 대상으로 남긴다.
 
 truth: NH90_2_LOCAL_CANDIDATE_GO·SCE_8C830E97DF2425AC_ACTIVE_LOCAL·ALL_14_LANES_14·ALL_91_PAIRS_EXACT_UNION·EVENT_CONTENT_STABLE·DETAILS_PRECOMPUTED_NO_PENDING·REQUEST_FILTER_ONLY·CLAUDE_GROK_P0_0_P1_0·THREE_SLOT_AUTOMATION_PENDING·LIVE_UNCHANGED.
+
+### NH91 슬롯 사전 발행과 최신 로컬 체크포인트 (2026-08-28)
+
+NH90.2의 고정 lane·정확 합집합·사전 준비 상세를 보존하면서 기존 슬롯 빌더를 여러 명시 슬롯에
+순서대로 적용하는 `run-slot-canonical-prepublish.mjs`를 추가했다. 새 저장소·새 분류기·요청 중
+생성 경로를 만들지 않았다. 각 작업은 `날짜+슬롯+입력 파일 SHA`로 식별하며, 후보를 모두 검증한
+뒤 포인터를 한 번에 원자 교체한다. 중간 빌드나 활성화가 실패하면 HOLD 영수증만 남기고 기존
+포인터 바이트를 유지한다. 기본 실행은 API 키를 환경에서 제거해 유료 호출을 허용하지 않는다.
+
+현재 로컬 포인터에는 다음 두 판이 준비됐다.
+
+- 런치 `SCE-2c3e84eb5ebea59e`: 181개 사건, 12개 분야 14건, 정치·부동산 13건.
+- 이브닝 `SCE-f6548112c651284a`: 192개 사건, 14개 분야 모두 14건.
+- 모닝판은 만들지 않았으며 정확한 `2026-08-28+morning` 요청은 한국어 안내와 HTTP 409를 반환한다.
+  다른 날짜·슬롯 판으로 조용히 대체하지 않는다.
+
+이브닝판의 14개 단독 분야와 91개 두 분야 조합을 실행 서버에서 전수 대조했다. 모든 조합은 단독
+lane의 정확한 사건 합집합이며 중복·누락·잉여·제목/출처/사진/요약/시각 지문 변화가 0이다.
+두 분야는 실제 공유 사건 수에 따라 26~28건이고 전 분야 선택은 192건이다. 최초 요청을 포함한
+응답은 최대 67.93ms, 평균 7.69ms였고 이후 분야 전환은 포인터 읽기와 교집합 필터만 수행한다.
+
+상세는 이브닝 192건 전부 발행 전에 종단 상태가 고정됐다(`excerpt_only` 134,
+`source_unavailable` 58, `pending/generating/error` 0). 클릭 함수에는 네트워크·번역·요약·파일 쓰기가
+없고 `/api/today/summary`는 410으로 봉인돼 있다. 판과 요청의 LLM 호출은 0회이며
+`summaryBuildMode=free_only`, `requestWork=filter_only`다.
+
+독립 검수에서 발견한 네팔 홍수의 과거 피해 수치 대표 제목과 KITA.NET의 무관한 두 기사 오병합은
+공통 사건 경계에서 수리했다. 최신판은 사망자 543명·실종자 1천535명 후속 보도를 대표로 쓰고,
+빙하 원인·외교부 대피·신규 호수 보도는 별도 사건이다. 무역협회 달러 예금과 OpenAI/MS 사이버
+기사는 별도 사건이며 선택 분야가 바뀌어도 사건 출처 정본은 변하지 않는다.
+
+검증은 focused 148/148, 동시성 단독 6/6, 전체 1,799/1,799, `git diff --check`를 통과했다.
+Claude Opus 5와 Cursor Grok 4.6 high의 최신 바이트·실행판 READ-ONLY 재검수는 모두
+`PASS_WITH_LIMITATION`, P0 0·P1 0이다.
+
+남은 비차단 경계는 숨기지 않는다. `firstPublishedAt`은 대표 제목 기사의 시각이 아니라 사건 묶음의
+가장 이른 `source_feed_timestamp`다. 따라서 화면의 `원문 표기 시각`을 대표 기사 시각으로 읽지
+않도록 후속 문구 검토가 필요하다. 런치와 이브닝은 서로 다른 유효 라우팅 스냅샷으로 만들어졌으며,
+다음 자동 발행 실행에서는 한 슬롯 입력 정체성과 다일 정시 영수증을 관찰해야 한다. 현재 결과는
+**로컬 사전 발행 후보 GO**이며 스케줄러의 실제 모닝·런치·이브닝 정시 운전, 스테이징, push,
+운영 배포를 증명하지 않는다.
+
+truth: NH91_LOCAL_PREPUBLISH_CANDIDATE_GO·LUNCH_SCE_2C3E84EB5EBEA59E·EVENING_SCE_F6548112C651284A·MORNING_HONEST_409·MANIFEST_IDEMPOTENT_INPUT_IDENTITY·ATOMIC_MULTI_SLOT_ACTIVATION·ALL_91_PAIRS_EXACT_UNION·CONTENT_DRIFT_0·DETAIL_PRECOMPUTED_192·REQUEST_FILTER_ONLY·REQUEST_LLM_ZERO·FULL_TEST_1799_PASS·CLAUDE_OPUS5_P0_0_P1_0·GROK46_P0_0_P1_0·SCHEDULE_RUNTIME_NOT_PROVEN·LOCAL_ONLY·LIVE_UNCHANGED.

@@ -101,6 +101,49 @@ test("독자 문장: 단일 기사도 실제 중요성을 설명하고 출처 �
   assert.doesNotMatch(copy.whyImportant, /추가 보도나 공식 자료가 나와야/);
 });
 
+test("독자 문장: 영문 약어 매체명 뒤 조사를 발음에 맞춘다", () => {
+  const issue = {
+    ...hormuzIssue(),
+    subject: "오프시즌 대학 자격 기준 변경",
+    headline: "오프시즌 대학 자격 기준 변경",
+    shape: "single",
+    evidence: { mode: "single_feed_observed", observedFeedCount: 1, sources: [{ label: "ESPN" }] },
+    metrics: { score: 0, comments: 0, sourceCount: 1, evidenceMode: "single_feed_observed" },
+    sourceEvidence: [{
+      ...hormuzIssue().sourceEvidence[0],
+      title: "오프시즌 대학 자격 기준 변경",
+      sourceLabel: "ESPN"
+    }],
+    refs: [{ title: "오프시즌 대학 자격 기준 변경", sourceLabel: "ESPN" }]
+  };
+
+  assert.match(readerIssueCopy(issue).whyNow, /ESPN이 새 보도를 냈습니다/);
+});
+
+test("독자 문장: 온라인 반응을 기사 발행 언론사의 반응으로 돌리지 않는다", () => {
+  const issue = {
+    ...hormuzIssue(),
+    metrics: { score: 42000, comments: 120, sourceCount: 1, evidenceMode: "single_feed_observed", communityOnly: false },
+    sourceEvidence: [{
+      ...hormuzIssue().sourceEvidence[0],
+      sourceLabel: "BBC 월드"
+    }]
+  };
+  const whyNow = readerIssueCopy(issue).whyNow;
+  assert.match(whyNow, /온라인에서 추천 42,000건과 댓글 120건/);
+  assert.doesNotMatch(whyNow, /BBC 월드에서 추천/);
+});
+
+test("독자 문장: 발행 전 준비한 제목을 모든 분야에 같은 읽기 제목으로 쓴다", () => {
+  const issue = {
+    ...hormuzIssue(),
+    preparedHeadline: "맥카시, 스틸러스 쿼터백 4명이 자리를 얻었다고 평가"
+  };
+  const copy = readerIssueCopy(issue);
+  assert.equal(copy.headline, issue.preparedHeadline);
+  assert.equal(buildReaderLineage(issue, copy).basis.headline.kind, "prepublish_translation");
+});
+
 test("독자 문장: 원본 이슈와 근거 계보는 바꾸지 않고 reader 필드만 추가한다", () => {
   const issue = hormuzIssue();
   const before = JSON.stringify(issue);

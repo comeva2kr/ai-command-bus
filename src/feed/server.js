@@ -711,8 +711,8 @@ export function createServer(opts = {}) {
   }
 
   function localEditionTarget({ slotId = null, targetDate = null, asOfMs = null } = {}) {
-    if (targetDate && slotId) {
-      const slot = slotById(slotId);
+    if (targetDate) {
+      const slot = slotId ? slotById(slotId) : resolveEditorialTarget(serverNowMs()).slot;
       const requestedAsOf = asOfMs == null ? slotAsOfMs(targetDate, slot.id) : Number(asOfMs);
       return {
         available: validEditorialDate(targetDate) && Number.isFinite(requestedAsOf) && requestedAsOf <= serverNowMs(),

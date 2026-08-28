@@ -1463,7 +1463,7 @@ test("R7 취합기 ④: 3슬롯 연속 — 판 간 같은 지문 재등장 0 (R4
 // ---------------------------------------------------------------------------
 import {
   resolveObservationSlot, slotAlreadyDone, findPreviousLineageFile, obsPaths, OBSERVE_COMBOS,
-  listPriorObservationFiles, computeMissingSources, deriveLastServedSlots
+  listPriorObservationFiles, computeMissingSources, deriveLastServedSlots, observationStoreFile
 } from "../tools/observe-shadow-slot.mjs";
 import { DEFAULT_EDITORIAL_PREVIEW } from "../src/feed/engine.js";
 import fs from "node:fs";
@@ -1496,6 +1496,14 @@ test("G2 멱등: 요약 파일 존재 = 완료, 없으면 미완료", () => {
   fs.writeFileSync(obsPaths(dir, "2026-08-14", "morning").summary, "{}");
   assert.equal(slotAlreadyDone(dir, "2026-08-14", "morning"), true);
   assert.equal(slotAlreadyDone(dir, "2026-08-14", "lunch"), false);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("G2 수집 장부는 슬롯별 풀이 아니라 관찰판 전체가 공유한다", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "obs-"));
+  assert.equal(observationStoreFile(dir), path.join(dir, "collector-store.json"));
+  assert.notEqual(observationStoreFile(dir), obsPaths(dir, "2026-08-14", "morning").pool);
+  assert.notEqual(observationStoreFile(dir), obsPaths(dir, "2026-08-14", "lunch").pool);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

@@ -44,6 +44,12 @@
       "attemptId": "d2-rootfix-20260826-01",
       "receiptSha256": "9788dd1e5e96a95ed8c596dec15b0627d9ca8f4544b7ac40d2bcf52afffe51ef",
       "reason": "api_usage_limit_hold"
+    },
+    "p14-policy-shadow-haiku-full-nh91-20260828-evening": {
+      "state": "consumed_hold",
+      "attemptId": "nh91-20260828-evening-p14-01",
+      "receiptSha256": "4b919d2b802bd9a1e3dc74234a4154763c710980e4e3a25c0a6ceba864247e47",
+      "reason": "api_usage_limit_hold"
     }
   },
   "models": {
@@ -506,6 +512,39 @@
         "maxCostUsd": 0.01
       },
       "evidenceUse": "NH90_provider_400_single_call_diagnostic_only",
+      "independentEvidence": false
+    },
+    {
+      "candidateId": "p14-policy-shadow-haiku-full-nh91-20260828-evening",
+      "modelId": "haiku-4.5",
+      "promptId": "p8-policy-shadow-politics-core",
+      "task": "category_admission_only",
+      "semanticContract": "compact_category_v1",
+      "compactPolicy": {
+        "sourceEvidence": "title_then_excerpt",
+        "emptyEventType": "other",
+        "eventTypes": {
+          "law_policy": { "requiredCoreCategories": ["politics"] },
+          "government_action": { "requiredCoreCategories": [] },
+          "election_politics": { "requiredCoreCategories": ["politics"] },
+          "domain_event": { "requiredCoreCategories": [] },
+          "community_discussion": { "requiredCoreCategories": [] },
+          "deal_offer": { "requiredCoreCategories": [] },
+          "other": { "requiredCoreCategories": [] }
+        }
+      },
+      "execution": {
+        "runnable": true,
+        "state": "approved_shadow_full",
+        "maxCalls": 2198,
+        "maxInputTokens": 9000000,
+        "maxOutputTokensPerCall": 500,
+        "perCallTimeoutMs": 60000,
+        "totalDeadlineMs": 10800000,
+        "fullAllowed": true,
+        "maxCostUsd": 9
+      },
+      "evidenceUse": "NH91_2026-08-28-evening_exact-current-pool-full-shadow_measurement_only",
       "independentEvidence": false
     }
   ]

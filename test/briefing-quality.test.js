@@ -1235,6 +1235,20 @@ test("오늘판 판단가치: 제목 단어보다 사용자가 고른 분야가 
   assert.equal(value("news", "한일 미군기지, 북중 공격에 취약").lens, "국제정세");
 });
 
+test("오늘판 판단가치: 복수 분야 사건은 한 분야에 치우치지 않는 고정 설명을 쓴다", async () => {
+  const { editorialValue } = await import("../src/feed/engine.js");
+  const issue = {
+    categoryIds: ["culture", "realestate"],
+    headline: "가수 소유 건물 매입과 활동 계획 공개",
+    refs: [{ title: "가수 소유 건물 매입과 활동 계획 공개" }]
+  };
+
+  assert.deepEqual(editorialValue(issue), {
+    lens: "복합 이슈",
+    text: "여러 관심 분야에 걸친 사안이라 현재 확인된 사실과 후속 변화를 함께 볼 가치가 있다."
+  });
+});
+
 test("오늘판 분야 게이트: 잘못 라벨된 금융·관광·사내행사는 대표 후보에서 제외한다", async () => {
   const { buildDigest } = await import("../src/feed/digest.js");
   const mk = (id, category, title, coverage = 5) => ({
@@ -1402,6 +1416,109 @@ test("브리핑 이슈: 근접 중복 헤드라인은 최대 1건만 뽑고 빈 
   assert.ok(actualIds.has("other-trump"), "같은 인물의 별개 정책은 남아야 한다");
 });
 
+test("오병합 가드: 같은 분야의 일반어가 겹쳐도 정식 사건 판정이 거부한 기사는 합치지 않는다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const items = [
+    {
+      id: "valuation",
+      kind: "news",
+      source: "marketwatch-top",
+      sourceLabel: "MarketWatch",
+      category: "business",
+      admittedCategories: ["business"],
+      title: "Anthropic의 가치는 2조 달러입니까? 회사가 새로운 토큰화된 시장에서 거래하는 방법은 다음과 같습니다.",
+      originalTitle: "Is Anthropic worth $2 trillion? Here’s how the company is trading in a new tokenized market.",
+      publishedAt: "2026-08-28T10:29:00.000Z",
+      url: "https://www.marketwatch.com/story/anthropic-tokenized-market",
+      score: 0,
+      commentCount: 0,
+      coverage: 0,
+      tags: []
+    },
+    {
+      id: "insider-trading",
+      kind: "community",
+      source: "techmeme",
+      sourceLabel: "Techmeme",
+      category: "business",
+      admittedCategories: ["business"],
+      title: "출처: 연방 당국은 새로운 사건의 일환으로 US 군인과 KPMG 직원을 예측 시장의 내부자 거래 혐의로 기소할 준비를 하고 있습니다.",
+      originalTitle: "Sources: federal authorities prepare to charge a US serviceman and a KPMG employee with insider trading on prediction markets, as part of a new batch of cases",
+      publishedAt: "2026-08-28T02:55:01.000Z",
+      url: "https://www.techmeme.com/260827/p62#a260827p62",
+      score: 0,
+      commentCount: 0,
+      coverage: 0,
+      tags: []
+    }
+  ];
+
+  const { issues } = buildDigest(items, { maxIssues: 2, selectedCategories: ["business"] });
+  assert.equal(issues.length, 2, "별개 사건 두 건이 한 이슈로 합쳐지면 안 된다");
+  assert.deepEqual(
+    issues.map((issue) => issue.refs.map((ref) => ref.id)).sort(),
+    [["insider-trading"], ["valuation"]],
+    "각 사건은 자기 출처만 보존해야 한다"
+  );
+});
+
+test("후속 보도 계보: 같은 재난이라도 원인·구조·피해처럼 사실 초점이 다른 묶음은 다시 합치지 않는다", async () => {
+  const { nearIssueGroups } = await import("../src/feed/digest.js");
+  const mk = (id, title) => ({
+    id, title, category: "news", sourceLabel: id, source: id,
+    score: 0, commentCount: 0, coverage: 5, tags: []
+  });
+  const scored = [
+    { members: [mk("cause-a", "네팔 홍수 빙하호 붕괴가 원인으로 지목"), mk("cause-b", "네팔 홍수 원인 빙하호 붕괴") ] },
+    { members: [mk("rescue-a", "네팔 홍수 생존자 구조와 가족 수색 이어져"), mk("rescue-b", "네팔 홍수 생존자 수색 계속") ] },
+    { members: [mk("damage-a", "네팔 홍수 사망자 늘어 피해 집계"), mk("damage-b", "네팔 홍수 피해 사망자 추가 확인") ] }
+  ];
+  const canonicalEvents = scored.map((cluster, index) => ({
+    eventId: `nepal-flood-${index}`,
+    memberArticleIds: cluster.members.map((item) => item.id)
+  }));
+
+  const groups = nearIssueGroups(scored, canonicalEvents);
+  assert.equal(groups.length, 3,
+    "사건 클러스터가 나눈 후속 각도를 홍수라는 공통어만으로 다시 합치면 안 된다");
+});
+
+test("편집 단계는 정식 사건 엔진이 나눈 네팔 홍수 본류와 원인 해설을 다시 합치지 않는다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const mk = (id, title, originalTitle, publishedAt) => ({
+    id, title, originalTitle, publishedAt,
+    kind: "news", category: "news", admittedCategories: ["news"],
+    source: id, sourceLabel: id, url: `https://example.com/${id}`,
+    score: 0, commentCount: 0, coverage: 5, tags: []
+  });
+  const mainIds = ["toll-old", "toll-latest"];
+  const causeIds = ["cause-report", "ebs-retrospective"];
+  const rows = [
+    mk("toll-old", "네팔 홍수에 826명 실종·165명 사망", null, "2026-08-28T04:00:00Z"),
+    mk("toll-latest", "네팔·중국 대홍수 사망자 543명 실종자 1535명",
+      "Nepal-Tibet flash flood death toll rises to 543 as rescue operations resume", "2026-08-28T10:49:12Z"),
+    mk("cause-report", "전문가들은 네팔 홍수는 빙하 붕괴로 촉발됐다고 설명",
+      "Devastating Nepal floods were triggered by glacier collapse, experts say", "2026-08-28T07:00:00Z"),
+    mk("ebs-retrospective", "12년 전 이미 네팔 빙하 홍수 내다본 EBS", null, "2026-08-28T11:00:00Z")
+  ];
+  const canonicalEvents = [
+    { eventId: "nepal-flood-toll", memberArticleIds: mainIds },
+    { eventId: "nepal-flood-cause", memberArticleIds: causeIds }
+  ];
+  const { issues } = buildDigest(rows, {
+    maxIssues: 4,
+    selectedCategories: ["news"],
+    canonicalEvents
+  });
+
+  assert.equal(issuesContainingAnyId(issues, mainIds).length, 1);
+  assert.equal(issuesContainingAnyId(issues, causeIds).length, 1);
+  assert.equal(issues.some((issue) => {
+    const ids = new Set(issue.refs.map((ref) => ref.id));
+    return mainIds.some((id) => ids.has(id)) && causeIds.some((id) => ids.has(id));
+  }), false, "정식 사건 엔진이 나눈 두 사건의 출처가 한 카드에 섞이면 안 된다");
+});
+
 // ---------------------------------------------------------------------------
 // 오병합 가드(David 승인, 2026-08-17) — nearIssueGroups의 서로 다른 분야
 // 병합 휴리스틱은 숫자 하나만 우연히 같아도 통계 서술어("기록적", "증가" 등)
@@ -1537,6 +1654,31 @@ test("브리핑 사건 결합: 같은 정규 제목 또는 같은 원문 URL은 
   assert.deepEqual(clusterIssues(rows).map((cluster) => cluster.map((item) => item.id)), [
     ["title-a", "title-b"], ["url-a", "url-b"]
   ]);
+});
+
+test("이미 복수 출처로 묶인 사건에도 같은 핵심어·금액의 커뮤니티 관측을 합친다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const rows = [
+    { id: "nayeon-community", title: "[단독] 트와이스 나연, 청담동 건물 95억원에 샀다",
+      kind: "community", category: "culture", admittedCategories: ["culture", "realestate"],
+      source: "theqoo", sourceLabel: "더쿠", publishedAt: "2026-08-28T10:58:00+09:00",
+      score: 40424, commentCount: 372, coverage: 5, tags: [] },
+    { id: "nayeon-mk", title: "트와이스 나연, 청담동 95억 건물주 됐다",
+      kind: "news", category: "realestate", admittedCategories: ["realestate"],
+      source: "mk-realestate", sourceLabel: "매경 부동산", publishedAt: "2026-08-28T11:22:06+09:00",
+      score: 0, commentCount: 0, coverage: 5, tags: [] },
+    { id: "nayeon-hk", title: "39억 아파트 사들이더니 30세 나연, 95억 건물주 됐다",
+      kind: "news", category: "realestate", admittedCategories: ["realestate"],
+      source: "hankyung", sourceLabel: "한국경제", publishedAt: "2026-08-28T11:38:02+09:00",
+      score: 0, commentCount: 0, coverage: 5, tags: [] }
+  ];
+  const { issues } = buildDigest(rows, {
+    maxIssues: 3,
+    selectedCategories: ["culture", "realestate"]
+  });
+  const hits = issuesContainingAnyId(issues, rows.map((row) => row.id));
+  assert.equal(hits.length, 1, "같은 나연 건물 매입 사건이 카드 두 장을 차지하면 안 된다");
+  assert.deepEqual(hits[0].refs.map((ref) => ref.id).sort(), rows.map((row) => row.id).sort());
 });
 
 test("브리핑 이슈: 잘라 온 구절에 부호 흔적이 남지 않는다", async () => {

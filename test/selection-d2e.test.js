@@ -53,7 +53,7 @@ function fixture(dir, candidate = CANDIDATE) {
   return { poolPath, packetPath };
 }
 
-test("NH89: shortlist 러너는 미달 분야 표본만 기존 유료 레일로 실행한다", async () => {
+test("NH91: shortlist 러너는 미분류 일반 소스 중 전역 상위 표본만 기존 유료 레일로 실행한다", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-nh89-shortlist-"));
   const nowMs = Date.parse("2026-08-27T05:42:34.447Z");
   const approved = {
@@ -150,11 +150,11 @@ test("NH89: shortlist 러너는 미달 분야 표본만 기존 유료 레일로 
   assert.equal(result.status, "D2_SHADOW_SHORTLIST_MEASURED");
   const preflight = JSON.parse(fs.readFileSync(path.join(attemptDir, "preflight.json")));
   assert.equal(preflight.mode, "shortlist");
-  assert.deepEqual(preflight.sample.targetIds, ["selected"]);
+  assert.deepEqual(preflight.sample.targetIds, ["other"]);
   assert.equal(preflight.limits.maxCalls, 1);
   assert.equal(preflight.limits.maxCostUsd, 0.05);
   const progress = fs.readFileSync(path.join(attemptDir, "progress-results.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
-  assert.deepEqual(progress.map((row) => row.itemId), ["selected"]);
+  assert.deepEqual(progress.map((row) => row.itemId), ["other"]);
 });
 
 test("D2-F: 전량 shadow는 packet 전건을 기존 유료 레일로 한 번씩만 측정한다", async () => {

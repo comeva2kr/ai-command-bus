@@ -9,6 +9,7 @@ import { CATEGORIES } from "../src/feed/taxonomy.js";
 import { createServer } from "../src/feed/server.js";
 import {
   activateSlotCanonicalEdition,
+  activateSlotCanonicalEditions,
   buildSlotCanonicalEdition,
   makeSlotCanonicalEditionReader,
   projectSlotCanonicalEdition
@@ -17,7 +18,10 @@ import {
   assertForeignMajorLaneCoverage,
   assertSamePoolInputs,
   categoryEditionsFromUnion,
+  editionObservationReceipt,
   foreignMajorLaneCoverage,
+  headlineNeedsPolish,
+  polishIssueHeadlines,
   poolRows,
   resolveSlotCanonicalBuildTarget,
   resolveSlotCanonicalReferenceNow
@@ -47,6 +51,68 @@ test("판 날짜·슬롯과 근거 시각을 실행 시계와 섞지 않는다",
     editionDate: "2026-08-28",
     slotId: "night"
   }), /invalid slot/);
+
+  assert.throws(() => resolveSlotCanonicalBuildTarget({
+    pool: { savedAt: Date.parse("2026-08-27T07:31:21.590Z"), rows: [{ item: { id: "stale" } }] },
+    editionDate: "2026-08-28",
+    slotId: "morning"
+  }), /outside morning preparation window/);
+
+  for (const [slotId, savedAt] of [
+    ["morning", "2026-08-27T22:30:00.000Z"],
+    ["lunch", "2026-08-28T04:40:40.535Z"],
+    ["evening", "2026-08-28T10:59:22.216Z"]
+  ]) {
+    assert.doesNotThrow(() => resolveSlotCanonicalBuildTarget({
+      pool: { savedAt: Date.parse(savedAt), rows: [{ item: { id: slotId } }] },
+      editionDate: "2026-08-28",
+      slotId
+    }));
+  }
+});
+
+test("불량 기계번역 제목만 발행 전에 고치고 사건·카테고리·요약은 그대로 둔다", async () => {
+  const { unionEdition } = editions();
+  const original = unionEdition.issues[0];
+  const broken = {
+    ...original,
+    subject: "McCarthy은 Steelers의 4 QBs이 자리를 얻었다고 말합니다.",
+    eventSources: [{
+      ...original.eventSources[0],
+      title: "McCarthy은 Steelers의 4 QBs이 자리를 얻었다고 말합니다.",
+      originalTitle: "McCarthy says four Steelers QBs have earned their place"
+    }]
+  };
+  const before = JSON.stringify({
+    clusterId: broken.clusterId,
+    selectedByCategories: broken.selectedByCategories,
+    articleSummary: broken.articleSummary
+  });
+  const polished = await polishIssueHeadlines({ ...unionEdition, issues: [broken] }, {
+    translateTitle: async () => "맥카시, 스틸러스 쿼터백 4명이 자리를 얻었다고 평가"
+  });
+
+  assert.equal(headlineNeedsPolish(broken), true);
+  assert.equal(polished.attempted, 1);
+  assert.equal(polished.changed, 1);
+  assert.equal(polished.edition.issues[0].preparedHeadline, "맥카시, 스틸러스 쿼터백 4명이 자리를 얻었다고 평가");
+  assert.equal(JSON.stringify({
+    clusterId: polished.edition.issues[0].clusterId,
+    selectedByCategories: polished.edition.issues[0].selectedByCategories,
+    articleSummary: polished.edition.issues[0].articleSummary
+  }), before);
+});
+
+test("읽을 수 있는 혼합 한글 제목과 무료 빌드는 유료 제목 호출을 만들지 않는다", async () => {
+  const readable = {
+    subject: "84일 만에 Nintendo 64 게임 디컴파일",
+    eventSources: [{ title: "84일 만에 Nintendo 64 게임 디컴파일", originalTitle: "Decompiling a Nintendo 64 game in 84 days" }]
+  };
+  let calls = 0;
+  assert.equal(headlineNeedsPolish(readable), false);
+  const untouched = await polishIssueHeadlines({ issues: [readable] }, { translateTitle: null });
+  assert.equal(calls, 0);
+  assert.strictEqual(untouched.edition.issues[0], readable);
 });
 
 test("분류는 수집 풀을 얼린 직후 끝나도 같은 슬롯의 준비 시각으로 인정한다", () => {
@@ -93,7 +159,7 @@ function issue(id, selectedByCategories) {
   };
 }
 
-function editions() {
+function editions({ editionDate = "2026-08-27", slotId = "lunch", slotLabel = "런치" } = {}) {
   const byCategory = {};
   const all = new Map();
   for (const category of CATEGORIES) {
@@ -107,18 +173,18 @@ function editions() {
       return row;
     });
     byCategory[category.id] = {
-      editionDate: "2026-08-27",
+      editionDate,
       generatedAt: "2026-08-27T03:00:00.000Z",
-      slot: { id: "lunch", label: "런치" },
+      slot: { id: slotId, label: slotLabel },
       issues: rows,
       availableCategories: CATEGORIES,
       publishable: true
     };
   }
   const unionEdition = {
-    editionDate: "2026-08-27",
+    editionDate,
     generatedAt: "2026-08-27T03:00:00.000Z",
-    slot: { id: "lunch", label: "런치" },
+    slot: { id: slotId, label: slotLabel },
     issues: [...all.values()],
     availableCategories: CATEGORIES,
     publishable: true,
@@ -127,8 +193,8 @@ function editions() {
   return { byCategory, unionEdition };
 }
 
-function build() {
-  const { byCategory, unionEdition } = editions();
+function build(options) {
+  const { byCategory, unionEdition } = editions(options);
   return buildSlotCanonicalEdition({
     editionsByCategory: byCategory,
     unionEdition,
@@ -136,6 +202,66 @@ function build() {
     routingSnapshot: { source: { packetSha256: packetSha } }
   });
 }
+
+test("사건 원문 표기시각은 카테고리와 무관하게 가장 이른 피드 시각으로 고정한다", () => {
+  const { byCategory, unionEdition } = editions();
+  const targetId = unionEdition.issues[0].evidenceHash;
+  const eventSources = [
+    { sourceId: "later", sourceGroup: "later", sourceLabel: "후속", publishedAt: "2026-08-27T02:30:00.000Z" },
+    { sourceId: "first", sourceGroup: "first", sourceLabel: "최초", publishedAt: "2026-08-27T01:10:00.000Z" }
+  ];
+  for (const row of unionEdition.issues) if (row.evidenceHash === targetId) row.eventSources = eventSources;
+  for (const edition of Object.values(byCategory)) {
+    for (const row of edition.issues) if (row.evidenceHash === targetId) row.eventSources = eventSources;
+  }
+  unionEdition.issues.find((row) => row.evidenceHash === targetId).publishedAt = "2026-08-26T23:00:00.000Z";
+
+  const artifact = buildSlotCanonicalEdition({
+    editionsByCategory: byCategory,
+    unionEdition,
+    builderPacketSha256: packetSha,
+    routingSnapshot: { source: { packetSha256: packetSha } }
+  });
+  assert.equal(artifact.issueTable[targetId].firstPublishedAt, "2026-08-27T01:10:00.000Z");
+  assert.equal(artifact.issueTable[targetId].publicationTimeBasis, "source_feed_timestamp");
+});
+
+test("관찰 영수증은 레인을 바꾸지 않고 소스·운영주체·국내외 편중만 측정한다", () => {
+  const { byCategory, unionEdition } = editions();
+  const targetId = unionEdition.issues[0].evidenceHash;
+  const extra = {
+    sourceId: "news-extra",
+    sourceGroup: "news-extra",
+    sourceLabel: "추가 매체",
+    publishedAt: "2026-08-27T02:00:00.000Z"
+  };
+  for (const row of unionEdition.issues) if (row.evidenceHash === targetId) row.eventSources.push(extra);
+  for (const edition of Object.values(byCategory)) {
+    for (const row of edition.issues) if (row.evidenceHash === targetId) row.eventSources.push(extra);
+  }
+  const artifact = buildSlotCanonicalEdition({
+    editionsByCategory: byCategory,
+    unionEdition,
+    builderPacketSha256: packetSha,
+    routingSnapshot: { source: { packetSha256: packetSha } }
+  });
+  const registry = artifact.displayOrder.flatMap((id) => artifact.issueTable[id].eventSources || [])
+    .map((source) => ({
+      id: source.sourceId || source.sourceGroup || source.sourceLabel,
+      label: source.sourceLabel,
+      country: source.sourceId === "news-extra" ? "US" : "KR",
+      operatorGroup: source.sourceGroup || source.sourceId
+    }));
+  const before = JSON.stringify(artifact.lanes);
+  const receipt = editionObservationReceipt(artifact, { registry });
+
+  assert.equal(JSON.stringify(artifact.lanes), before);
+  assert.equal(receipt.lanes.news.issueCount, 13);
+  assert.equal(receipt.lanes.news.domesticIssueCount, 12);
+  assert.equal(receipt.lanes.news.mixedIssueCount, 1);
+  assert.equal(receipt.lanes.news.multiSourceIssueCount, 1);
+  assert.equal(receipt.lanes.news.sourceGroupCount, 14);
+});
 
 test("슬롯 고정판은 복수 분야를 정확한 합집합으로 투영하고 사건 내용은 고정한다", () => {
   const artifact = build();
@@ -155,6 +281,8 @@ test("슬롯 고정판은 복수 분야를 정확한 합집합으로 투영하�
   const gamingShared = gaming.issues.find((row) => row.evidenceHash === "evidence-shared-tech-gaming");
   assert.deepEqual(techShared, gamingShared);
   assert.deepEqual(both.categoryFulfillment.rows.map((row) => row.issueCount), [13, 13]);
+  assert.strictEqual(tech.issues[0], artifact.issueTable[artifact.lanes.tech[0]],
+    "요청 경로는 이미 동결된 기사 객체를 다시 깊은 복제하지 않는다");
 });
 
 test("슬롯 고정판은 요청 전에 기존 독자용 제목을 계산해 얼린다", () => {
@@ -364,13 +492,68 @@ test("활성화 실패는 이전 포인터를 보존하고 성공판은 날짜·
 
   assert.throws(() => reader.read({
     date: "2026-08-28", slotId: "morning", categories: ["news"]
-  }), (error) => error?.code === "SLOT_CANONICAL_EDITION_UNAVAILABLE");
+  }), (error) => error?.code === "SLOT_CANONICAL_EDITION_UNAVAILABLE"
+    && /모닝판은 아직 준비되지 않았습니다/.test(error.message));
 
   const emptyPointer = path.join(root, "empty.json");
   fs.writeFileSync(emptyPointer, JSON.stringify({ editions: {} }));
   assert.throws(() => makeSlotCanonicalEditionReader({ pointerFile: emptyPointer }).read({
     date: "2026-08-27", slotId: "evening", categories: ["news"]
-  }), /slot canonical edition unavailable/);
+  }), /이브닝판은 아직 준비되지 않았습니다/);
+});
+
+test("같은 날짜의 모닝·런치·이브닝은 한 포인터에 독립적으로 누적된다", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-three-slots-"));
+  const pointerFile = path.join(root, "active.json");
+  for (const [slotId, slotLabel] of [["morning", "모닝"], ["lunch", "런치"], ["evening", "이브닝"]]) {
+    activateSlotCanonicalEdition({
+      artifact: build({ slotId, slotLabel }),
+      directory: root,
+      pointerFile
+    });
+  }
+
+  const pointer = JSON.parse(fs.readFileSync(pointerFile, "utf8"));
+  assert.deepEqual(Object.keys(pointer.editions).sort(), [
+    "2026-08-27:evening",
+    "2026-08-27:lunch",
+    "2026-08-27:morning"
+  ]);
+  const reader = makeSlotCanonicalEditionReader({ pointerFile });
+  for (const slotId of ["morning", "lunch", "evening"]) {
+    assert.equal(reader.read({ date: "2026-08-27", slotId, categories: ["news"] }).issues.length, 13);
+  }
+});
+
+test("세 슬롯 활성화는 전부 검증된 뒤 포인터를 한 번만 교체한다", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-batch-"));
+  const pointerFile = path.join(root, "active.json");
+  activateSlotCanonicalEdition({ artifact: build(), directory: root, pointerFile });
+  const before = fs.readFileSync(pointerFile);
+  const invalid = build({ slotId: "lunch", slotLabel: "런치" });
+  invalid.lanes.politics.pop();
+
+  assert.throws(() => activateSlotCanonicalEditions({
+    artifacts: [build({ slotId: "morning", slotLabel: "모닝" }), invalid],
+    directory: root,
+    pointerFile
+  }), /politics.*13/);
+  assert.deepEqual(fs.readFileSync(pointerFile), before);
+
+  const activated = activateSlotCanonicalEditions({
+    artifacts: [
+      build({ slotId: "morning", slotLabel: "모닝" }),
+      build({ slotId: "lunch", slotLabel: "런치" }),
+      build({ slotId: "evening", slotLabel: "이브닝" })
+    ],
+    directory: root,
+    pointerFile
+  });
+  assert.deepEqual(Object.keys(activated.pointer.editions).sort(), [
+    "2026-08-27:evening",
+    "2026-08-27:lunch",
+    "2026-08-27:morning"
+  ]);
 });
 
 async function dispatch(server, url) {
@@ -416,6 +599,26 @@ test("고정판 GET은 수집·요약·저장 없이 포인터 판을 필터링�
   assert.equal(response.body.slotCanonicalEdition.requestWork, "filter_only");
   assert.equal(sourceCalls, 0);
   assert.equal(summaryCalls, 0);
+});
+
+test("날짜만 지정한 고정판 GET도 그 날짜의 현재 슬롯 판을 읽는다", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-date-only-"));
+  const pointerFile = path.join(root, "active.json");
+  activateSlotCanonicalEdition({ artifact: build(), directory: root, pointerFile });
+  const server = createServer({
+    localEditorial: true,
+    slotCanonicalEditionEnabled: true,
+    slotCanonicalPointerFile: pointerFile,
+    clock: () => Date.parse("2026-08-28T12:10:00+09:00"),
+    file: null,
+    sources: [],
+    vapid: null
+  });
+
+  const response = await dispatch(server, "/api/today?date=2026-08-27&categories=news");
+  assert.equal(response.status, 200);
+  assert.equal(response.body.editionDate, "2026-08-27");
+  assert.equal(response.body.slot.id, "lunch");
 });
 
 test("고정판에서 관심 분야를 저장해도 구형 판 생성을 다시 시작하지 않는다", async () => {

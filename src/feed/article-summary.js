@@ -199,6 +199,8 @@ function allSourceRows(issue) {
 }
 
 function sourceRowOrder(a, b) {
+  const withheld = Number(a?.canLead === false) - Number(b?.canLead === false);
+  if (withheld) return withheld;
   const wrapper = Number(isGoogleNewsRedirect(a?.canonicalUrl)) - Number(isGoogleNewsRedirect(b?.canonicalUrl));
   if (wrapper) return wrapper;
   const left = Date.parse(a?.publishedAt || "");
@@ -323,8 +325,22 @@ function publicExcerpt(text) {
 }
 
 async function excerptSummary(row, { translateText, nowMs }) {
-  const anchor = row.sources.find((source) => source.result.state === "available");
-  if (!anchor) return null;
+  let anchor = row.sources.find((source) => source.result.state === "available");
+  let excerptBasis = "public_anchor_body";
+  if (!anchor) {
+    const source = row.resolvedSources.find((candidate) => clean(
+      candidate.summary || candidate.excerpt || candidate.description
+    ));
+    if (!source) return null;
+    anchor = {
+      source,
+      result: {
+        text: source.summary || source.excerpt || source.description,
+        image: source.image || null
+      }
+    };
+    excerptBasis = "publisher_feed_excerpt";
+  }
   let textKo = publicExcerpt(anchor.result.text);
   if (!substantialKoreanSummary(textKo) && typeof translateText === "function") {
     const translated = await translateText(textKo, { from: "auto", to: "ko" });
@@ -349,7 +365,7 @@ async function excerptSummary(row, { translateText, nowMs }) {
     generationModel: null,
     unavailableReasonCode: null,
     generatedAt: new Date(nowMs).toISOString(),
-    excerptBasis: "public_anchor_body"
+    excerptBasis
   };
 }
 
@@ -943,6 +959,9 @@ export function makeArticleSummaryPipeline({
       }
       const anchor = row.sources.find((source) => source.result.state === "available");
       if (!anchor) {
+        if (completeBeforePublish && row.resolvedSources.some((source) => clean(
+          source.summary || source.excerpt || source.description
+        ))) continue;
         const basis = row.sourceRows[0] || null;
         const reason = row.sources[0] && row.sources[0].result.reasonCode || "NO_PUBLIC_BODY";
         const image = row.sources.find((source) => source.result.image)?.result.image || null;

@@ -240,7 +240,8 @@ export async function buildTodayEditionInProcess({
   categories = null,
   slotId = null,
   editionDate = null,
-  editorialPreselectedPool = false
+  editorialPreselectedPool = false,
+  editorialPreselectedReferenceMs = null
 } = {}) {
   const previousPoolFile = process.env.FEED_POOL_FILE;
   // 웜캐시로 이전 실행의 (제한된) 풀이 새 판에 새어 들지 않게 비운다.
@@ -275,7 +276,12 @@ export async function buildTodayEditionInProcess({
       } : {}),
       ...(editorialExternalRank ? { editorialExternalRank } : {}),
       editorialPreselectedPool,
-      onEngineReady: (value) => { engine = value; }
+      onEngineReady: (value) => {
+        engine = value;
+        if (Number.isFinite(editorialPreselectedReferenceMs)) {
+          engine.editorialPreselectedReferenceMs = Number(editorialPreselectedReferenceMs);
+        }
+      }
     });
     if (directBuild) {
       if (!engine) throw new Error("direct edition engine unavailable");

@@ -15,7 +15,7 @@ import {
   parseProgress
 } from "../tools/build-category-routing-snapshot.mjs";
 import { JsonSource } from "../src/feed/content.js";
-import { FeedEngine } from "../src/feed/engine.js";
+import { FeedEngine, mergeCategoryEditions } from "../src/feed/engine.js";
 import { loadRegistry } from "../src/feed/registry.js";
 import { ADMISSION_CATEGORY_IDS } from "../src/feed/selection-contract.js";
 import { FeedStore } from "../src/feed/store.js";
@@ -59,6 +59,71 @@ const snapshot = {
     { itemId: "off", evidenceHash: sha, categories: [], contentType: "other" }
   ]
 };
+
+test("분야별 판 합집합은 정본 출처 집합이 같은 사건을 한 장으로 합친다", () => {
+  const eventSourceSetId = "EV-canonical:bbc|khan";
+  const edition = (issue) => ({
+    generatedAt: "2026-08-28T03:00:00.000Z",
+    issues: [issue],
+    sections: [],
+    itemCount: 1,
+    overseasShare: 0
+  });
+  const issue = (eventId, evidenceHash, category) => ({
+    evidenceHash,
+    event: { eventId },
+    eventSourceSetId,
+    categoryIds: [category],
+    selectedByCategories: [category],
+    metrics: { score: 100 }
+  });
+
+  const merged = mergeCategoryEditions([
+    { category: "news", edition: edition(issue("EV-singleton", hash("1"), "news")) },
+    { category: "science", edition: edition(issue("EV-canonical", hash("2"), "science")) }
+  ], ["news", "science"], 20, false);
+
+  assert.equal(merged.issues.length, 1);
+  assert.deepEqual(new Set(merged.issues[0].selectedByCategories), new Set(["news", "science"]));
+});
+
+test("분야별 판을 합칠 때 이미 확정한 사건 문안을 다시 덮지 않는다", () => {
+  const eventSourceSetId = "EV-flood:guardian|bbc";
+  const base = {
+    evidenceHash: hash("flood"),
+    event: { eventId: "EV-flood" },
+    eventSourceSetId,
+    headline: "네팔 홍수로 관광객 피해가 커졌다",
+    paragraph: "네팔 홍수 피해와 구조 상황을 전한 보도다.",
+    refs: [{ title: "네팔 홍수 피해와 구조 상황" }],
+    categoryIds: ["news"],
+    selectedByCategories: ["news"],
+    impactLens: "정책·의사결정",
+    whyImportant: "정책 결정의 방향을 볼 가치가 있다.",
+    metrics: { score: 100 },
+    sourceEvidence: [{ evidenceId: "flood-source" }]
+  };
+  const edition = (issue) => ({
+    generatedAt: "2026-08-28T03:00:00.000Z",
+    issues: [issue],
+    sections: [],
+    itemCount: 1,
+    overseasShare: 0
+  });
+
+  const merged = mergeCategoryEditions([
+    { category: "news", edition: edition(base) },
+    { category: "science", edition: edition({
+      ...base,
+      categoryIds: ["science"],
+      selectedByCategories: ["science"]
+    }) }
+  ], ["news", "science"], 20, false);
+
+  assert.equal(merged.issues.length, 1);
+  assert.equal(merged.issues[0].impactLens, "정책·의사결정");
+  assert.equal(merged.issues[0].whyImportant, "정책 결정의 방향을 볼 가치가 있다.");
+});
 
 test("여러 완료 attempt의 progress를 한 복구 입력으로 합친다", () => {
   const merged = parseProgress([
@@ -516,6 +581,7 @@ test("같은 사건의 출처 정본은 선택 분야가 달라도 같고 직접
   ].map((row, index) => ({
     ...row,
     url: `https://${row.source}.example.com/${row.id}`,
+    summary: `${row.title} 관련해 해당 매체가 공개 피드에 제공한 설명입니다.`,
     commentCount: 20 - index,
     coverage: 1,
     publishedAt: new Date(now - (row.id === "iran-business-section" ? 30_000 : (index + 1) * 60_000)).toISOString()
@@ -552,6 +618,9 @@ test("같은 사건의 출처 정본은 선택 분야가 달라도 같고 직접
   assert.deepEqual(oneEvent.eventSources.map((row) => row.sourceId), ["business-paper", "bbc-world"]);
   assert.deepEqual(businessEvent.eventSources.map((row) => row.sourceId), ["business-paper", "bbc-world"]);
   assert.deepEqual(twoEvent.eventSources.map((row) => row.sourceId), ["business-paper", "bbc-world"]);
+  assert.match(oneEvent.eventSources[0].summary, /공개 피드에 제공한 설명/);
+  assert.deepEqual(businessEvent.eventSources.map((row) => row.summary), oneEvent.eventSources.map((row) => row.summary));
+  assert.deepEqual(twoEvent.eventSources.map((row) => row.summary), oneEvent.eventSources.map((row) => row.summary));
   assert.equal(twoEvent.eventSources.filter((row) => row.sourceLabel === "경제신문").length, 1);
   assert.equal(oneEvent.eventSources.some((row) => row.sourceId === "tariff-paper"), false);
 
@@ -562,6 +631,138 @@ test("같은 사건의 출처 정본은 선택 분야가 달라도 같고 직접
   const [rehydrated] = await engine.canonicalEventSources([frozen], { asOfMs: now, slotId: "lunch" });
   assert.equal(rehydrated.eventSourceSetId, oneEvent.eventSourceSetId);
   assert.deepEqual(rehydrated.eventSources, oneEvent.eventSources);
+});
+
+test("출처의 등록 분야가 아니라 최종 승인 분야로 왜 중요한가를 만든다", async () => {
+  const now = Date.parse("2026-08-28T12:30:00+09:00");
+  const row = {
+    id: "politics-audit",
+    title: "국회, 감사원 감사 결과와 제도 개선안 공개",
+    source: "general-business-feed",
+    sourceLabel: "종합경제지",
+    category: "business",
+    kind: "news",
+    score: 500,
+    coverage: 2,
+    url: "https://publisher.example/politics-audit",
+    publishedAt: new Date(now - 60_000).toISOString()
+  };
+  const routing = {
+    ...snapshot,
+    counts: { classifiedArticles: 1, withheldArticles: 0 },
+    entries: [{ itemId: row.id, evidenceHash: sha, categories: ["politics"], contentType: "news" }]
+  };
+  const router = createCategoryRouter(routing, [{
+    id: row.source, enabled: true, kind: "news", sourceTier: "aggregate", category: "business"
+  }], { now: () => Date.parse(snapshot.generatedAt) + 60_000 });
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    [new JsonSource(row.source, async () => [row], "news")]
+  );
+  engine.editorialCategoryRouter = (items) => router.project(items);
+  engine.editorialCategoryRoutingStatus = router.status;
+
+  const edition = await engine.briefing({
+    categories: ["politics"], slotId: "lunch", personalized: true, maxIssues: 3, perCategory: 3
+  });
+  assert.equal(edition.issues.length, 1);
+  assert.equal(edition.issues[0].impactLens, "정책·의사결정");
+  assert.doesNotMatch(edition.issues[0].whyImportant, /기업 활동과 경기 흐름/);
+});
+
+test("분야 보류 기사는 사건 근거에는 남지만 대표 제목과 사진은 가져가지 않는다", async () => {
+  const now = Date.parse("2026-08-25T12:30:00+09:00");
+  const rows = [
+    {
+      id: "withheld-lead",
+      title: "카카오AI 초대 이사회 인적 개편 발표",
+      source: "general-feed",
+      sourceLabel: "종합뉴스",
+      image: "https://images.example.com/withheld.jpg",
+      publishedAt: new Date(now - 120_000).toISOString()
+    },
+    {
+      id: "admitted-lead",
+      title: "카카오AI, 초대 이사회에 임혜숙·김대지·오승필 합류",
+      source: "business-paper",
+      sourceLabel: "경제신문",
+      image: "https://images.example.com/admitted.jpg",
+      publishedAt: new Date(now - 60_000).toISOString()
+    }
+  ].map((row) => ({
+    ...row,
+    kind: "news",
+    category: "business",
+    url: `https://${row.source}.example.com/kakao-ai-board`,
+    canonicalUrl: `https://${row.source}.example.com/kakao-ai-board`,
+    score: 500,
+    coverage: 2
+  }));
+  const registry = rows.map((row) => ({
+    id: row.source,
+    enabled: true,
+    kind: "news",
+    sourceTier: "aggregate",
+    category: "news"
+  }));
+  const routing = {
+    ...snapshot,
+    counts: { classifiedArticles: 2, withheldArticles: 1 },
+    entries: [
+      { itemId: "withheld-lead", evidenceHash: sha, categories: [], contentType: "news" },
+      { itemId: "admitted-lead", evidenceHash: sha, categories: ["business"], contentType: "news" }
+    ]
+  };
+  const router = createCategoryRouter(routing, registry, {
+    now: () => Date.parse(snapshot.generatedAt) + 60_000
+  });
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    rows.map((row) => new JsonSource(row.source, async () => [row], "news"))
+  );
+  engine.editorialCategoryRouter = (items) => router.project(items);
+  engine.editorialCategoryRoutingStatus = router.status;
+
+  const edition = await engine.briefing({
+    categories: ["business"], slotId: "lunch", personalized: true, maxIssues: 3, perCategory: 3
+  });
+  const issue = edition.issues.find((row) => row.refs.some((ref) => ref.id === "admitted-lead"));
+
+  assert.ok(issue);
+  assert.equal(issue.subject, rows[1].title);
+  assert.equal(issue.refs[0].id, "admitted-lead");
+  assert.deepEqual(issue.eventSources.map((row) => row.sourceId), ["business-paper", "general-feed"]);
+  assert.equal(issue.eventSources[0].image, rows[1].image);
+  assert.equal(issue.eventSources[0].canLead, true);
+  assert.equal(issue.eventSources[1].canLead, false);
+});
+
+test("사전선별 오늘판도 발행 시각이 수명 상한을 넘은 글은 리드 후보에서 제외한다", async () => {
+  const now = Date.parse("2026-08-28T12:00:00+09:00");
+  const items = [
+    {
+      id: "stale", title: "일주일 전 인기글", source: "community", category: "humor",
+      kind: "community", url: "https://example.com/stale", publishedAt: new Date(now - 7 * 86400000).toISOString(),
+      score: 10000, commentCount: 1000
+    },
+    ...Array.from({ length: 4 }, (_, index) => ({
+      id: `fresh-${index}`, title: `오늘 새 소식 ${index}`, source: `source-${index}`, category: "humor",
+      kind: "community", url: `https://example.com/fresh-${index}`,
+      publishedAt: new Date(now - (index + 1) * 60000).toISOString(), score: 100 - index
+    }))
+  ];
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    items.map((item) => new JsonSource(item.source, async () => [item], "community"))
+  );
+  engine.editorialPreselectedPool = true;
+  engine.editorialPreselectedReferenceMs = now;
+
+  const edition = await engine.briefing({
+    categories: ["humor"], slotId: "lunch", maxIssues: 3, perCategory: 3, asOfMs: now
+  });
+
+  assert.equal(edition.issues.some((issue) => issue.refs.some((ref) => ref.id === "stale")), false);
 });
 
 test("저장 판 출처 재수화도 최초 판과 같은 슬롯 시간창만 사용한다", async () => {
@@ -617,4 +818,151 @@ test("같은 사건에 직접 언론사 URL이 있으면 Google 뉴스 중계보
   assert.equal(canonical.eventSources[0].canonicalUrl, rows[1].url);
   assert.equal(canonical.eventSources.some((row) => row.canonicalUrl === rows[0].url), false,
     "같은 매체의 중계 링크는 직접 기사와 별도 출처로 부풀리지 않는다");
+});
+
+test("같은 발행사의 한국어판과 외국어판이 함께 있으면 한국어 원문을 대표로 쓴다", async () => {
+  const now = Date.parse("2026-08-28T14:00:00+09:00");
+  const image = "https://biz.chosun.com/resizer/v2/same.jpg";
+  const rows = [
+    {
+      id: "a-jp", source: "chosunbiz-jp", ownershipGroup: "chosun", sourceLabel: "조선비즈",
+      title: "지방산 구조로 경피 전달 효율화 광 응답도 실증",
+      originalTitle: "脂肪酸構造で経皮送達効率化光応答も実証",
+      url: "https://biz.chosun.com/jp/jp-science/2026/08/28/a", image
+    },
+    {
+      id: "z-ko", source: "chosunbiz", ownershipGroup: "chosun", sourceLabel: "조선비즈",
+      title: "주사 대신 피부로 약물 전달, 지방산 구조서 해법 찾았다",
+      url: "https://biz.chosun.com/science-chosun/2026/08/28/a", image
+    }
+  ].map((row) => ({ ...row, category: "science", publishedAt: new Date(now).toISOString() }));
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    rows.map((row) => new JsonSource(row.source, async () => [row], "news"))
+  );
+  const [canonical] = await engine.canonicalEventSources([
+    { refs: [{ ...rows[0], canonicalUrl: rows[0].url }] }
+  ], { asOfMs: now });
+
+  assert.equal(canonical.subject, rows[1].title);
+  assert.deepEqual(canonical.eventSources.map((row) => row.canonicalUrl), [rows[1].url]);
+});
+
+test("같은 사건의 수치가 갱신되면 최신 보도를 카드 대표로 쓴다", async () => {
+  const now = Date.parse("2026-08-28T20:00:00+09:00");
+  const rows = [
+    {
+      id: "nepal-old", source: "travel", sourceLabel: "여행신문",
+      title: "네팔 홍수에 826명 실종 165명 사망",
+      url: "https://travel.example.com/nepal-old",
+      publishedAt: "2026-08-27T15:15:00Z"
+    },
+    {
+      id: "nepal-new", source: "yna", sourceLabel: "연합뉴스",
+      title: "네팔 대홍수 사망자 543명 실종자 1535명",
+      url: "https://yna.example.com/nepal-new",
+      publishedAt: "2026-08-28T10:31:26Z"
+    }
+  ].map((row) => ({ ...row, kind: "news", category: "news", admittedCategories: ["news"] }));
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    rows.map((row) => new JsonSource(row.source, async () => [row], "news"))
+  );
+  const [canonical] = await engine.canonicalEventSources([{
+    refs: rows.map((row) => ({ ...row, canonicalUrl: row.url }))
+  }], { asOfMs: now });
+
+  assert.equal(canonical.subject, rows[1].title);
+  assert.deepEqual(new Set(canonical.eventSources.map((row) => row.sourceId)), new Set(["travel", "yna"]));
+});
+
+test("편집 단계가 한 이슈로 확정한 여러 보도 묶음은 출처 정본에서도 모두 보존한다", async () => {
+  const now = Date.parse("2026-08-28T19:00:00+09:00");
+  const rows = [
+    ["cause-a", "guardian", "네팔 홍수 원인은 빙하호 붕괴", "https://guardian.example.com/nepal-cause"],
+    ["cause-b", "bbc-world", "네팔 홍수 원인 빙하호 붕괴로 확인", "https://bbc.example.com/nepal-cause"],
+    ["rescue-a", "nyt-world", "네팔 홍수 생존자 구조 작업 계속", "https://nyt.example.com/nepal-rescue"],
+    ["rescue-b", "khan-news", "네팔 홍수 구조 당국 수색 확대", "https://khan.example.com/nepal-rescue"]
+  ].map(([id, source, title, url], index) => ({
+    id, source, sourceLabel: source, title, url, canonicalUrl: url,
+    kind: "news", category: "news", publishedAt: new Date(now - index * 60_000).toISOString()
+  }));
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    rows.map((row) => new JsonSource(row.source, async () => [row], "news"))
+  );
+
+  const [canonical] = await engine.canonicalEventSources([{
+    refs: [
+      { ...rows[1], canonicalUrl: rows[1].url },
+      { ...rows[2], canonicalUrl: rows[2].url }
+    ]
+  }], { asOfMs: now });
+
+  assert.deepEqual(
+    new Set(canonical.eventSources.map((row) => row.sourceId)),
+    new Set(["guardian", "bbc-world", "nyt-world", "khan-news"])
+  );
+  assert.equal(canonical.metrics.sourceCount, 4);
+  assert.equal(canonical.metrics.independentGroupCount, 4);
+  assert.equal(canonical.evidence.mode, "multiple_feed_observed");
+  assert.equal(canonical.confidence.code, "multiple_feed_observed");
+});
+
+test("사건 멤버가 고정된 이슈는 다른 참조 사건의 출처를 섞지 않는다", async () => {
+  const now = Date.parse("2026-08-28T19:00:00+09:00");
+  const insider = {
+    id: "insider", source: "techmeme", sourceLabel: "Techmeme",
+    title: "KPMG 직원의 예측시장 내부자 거래 기소 준비",
+    url: "https://www.techmeme.com/260827/p62", canonicalUrl: "https://www.techmeme.com/260827/p62",
+    kind: "community", category: "business", admittedCategories: ["business"],
+    publishedAt: new Date(now - 60_000).toISOString()
+  };
+  const valuation = {
+    id: "valuation", source: "marketwatch-top", sourceLabel: "마켓워치",
+    title: "Anthropic 기업가치 2조 달러 토큰 시장",
+    url: "https://marketwatch.example.com/anthropic", canonicalUrl: "https://marketwatch.example.com/anthropic",
+    kind: "news", category: "business", admittedCategories: ["business"],
+    publishedAt: new Date(now).toISOString()
+  };
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    [insider, valuation].map((row) => new JsonSource(row.source, async () => [row], row.kind))
+  );
+
+  const [canonical] = await engine.canonicalEventSources([{
+    event: {
+      eventId: "EV-insider",
+      memberArticleIds: [insider.id],
+      sourceEvidence: [{ articleId: insider.id, canonicalUrl: insider.url }]
+    },
+    refs: [insider, valuation]
+  }], { asOfMs: now });
+
+  assert.deepEqual(canonical.eventSources.map((row) => row.sourceId), ["techmeme"]);
+});
+
+test("레거시 복구 판정만 명시적 URL 섹션으로 바로잡고 모델 판정은 건드리지 않는다", () => {
+  const routing = {
+    ...snapshot,
+    generatedAt: "2026-08-28T10:00:00.000Z",
+    entries: [
+      { itemId: "movie", evidenceHash: hash("b"), categories: ["business"], contentType: "news", routingBasis: "legacy_classifier_fallback" },
+      { itemId: "world", evidenceHash: hash("c"), categories: ["business"], contentType: "news", routingBasis: "legacy_classifier_fallback" },
+      { itemId: "model", evidenceHash: hash("d"), categories: ["business"], contentType: "news", routingBasis: "current_model" }
+    ]
+  };
+  const rows = createCategoryRouter(routing, [], {
+    now: () => Date.parse("2026-08-28T10:01:00.000Z")
+  }).project([
+    { id: "movie", title: "영화 소식", url: "https://biz.chosun.com/entertainment/movie/2026/08/28/a", category: "business" },
+    { id: "world", title: "네팔 소식", url: "https://www.mk.co.kr/news/world/2026/08/28/b", category: "business" },
+    { id: "model", title: "모델 판정", url: "https://biz.chosun.com/entertainment/movie/2026/08/28/c", category: "business" }
+  ]);
+
+  assert.deepEqual(rows.map((row) => [row.id, row.category, row.categoryRoutingBasis]), [
+    ["movie", "culture", "legacy_url_section_recovery"],
+    ["world", "news", "legacy_url_section_recovery"],
+    ["model", "business", "current_model"]
+  ]);
 });

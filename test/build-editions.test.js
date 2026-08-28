@@ -13,6 +13,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { JsonSource } from "../src/feed/content.js";
+import { FeedEngine } from "../src/feed/engine.js";
+import { FeedStore } from "../src/feed/store.js";
 import { shadowSelectBriefing } from "../src/feed/shadow-selection.js";
 import {
   validateTodayEdition,
@@ -125,6 +127,28 @@ test("groupArticlesAsSources: 소스별 청크(기본 20)로 쪼개고 id·kind�
     const total = lists.reduce((sum, list) => sum + list.length, 0);
     assert.equal(total, 46, "기사 유실 0");
   });
+});
+
+test("발행 전 동결 풀은 실시간 피드용 출처당 상한으로 다시 잘리지 않는다", async () => {
+  const articles = Array.from({ length: 45 }, (_, index) => ({
+    id: `frozen-news-${index}`,
+    source: "big-news",
+    sourceLabel: "대형 언론",
+    kind: "news",
+    category: "news",
+    title: `발행 준비 기사 ${index}`,
+    url: `https://big-news.example.com/${index}`,
+    publishedAt: new Date(NOW_MS - index * 60_000).toISOString()
+  }));
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(NOW_MS).toISOString() }),
+    groupArticlesAsSources(articles)
+  );
+  engine.editorialPreselectedPool = true;
+
+  await engine.refresh();
+
+  assert.equal((await engine.sourceCounts())["big-news"], 45);
 });
 
 test("buildTodayEditionInProcess: 주입한 동결 풀도 발행 전 번역 경로를 지난다", async () => {

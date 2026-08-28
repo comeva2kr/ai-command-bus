@@ -203,6 +203,71 @@ test("오병합 가드 4: 고유명사 1개 겹침은 병합하지 않는다", (
   assert.equal(decideEventMerge(a, b).reason, "guard_entity_overlap_min");
 });
 
+test("같은 매체가 한 원영상을 여러 각도로 연속 보도해도 한 사건으로 묶는다", () => {
+  const rows = [
+    article({
+      id: "anna-news",
+      title: "'박주호♥' 안나, 암 투병 후 넷째 임신 \"의사 확인 받고 신중히 결정\"",
+      source: "gnews-sports",
+      sourceLabel: "굿모닝경제",
+      category: "sports",
+      ownershipGroup: "publisher:굿모닝경제",
+      publishedAt: "2026-08-28T01:04:56.000Z"
+    }),
+    article({
+      id: "anna-birth",
+      title: "안나, '넷째 임신' 3남매 중 나은이가 먼저 알았다…한국 출산 계획",
+      source: "tenasia",
+      sourceLabel: "텐아시아",
+      category: "culture",
+      ownershipGroup: "tenasia",
+      publishedAt: "2026-08-28T04:10:01.000Z"
+    }),
+    article({
+      id: "anna-health",
+      title: "'박주호♥' 안나 유방암 완전관해 상태 3년…넷째 임신은 의사와 상의",
+      source: "tenasia",
+      sourceLabel: "텐아시아",
+      category: "culture",
+      ownershipGroup: "tenasia",
+      publishedAt: "2026-08-28T04:11:02.000Z"
+    }),
+    article({
+      id: "anna-wig",
+      title: "박주호 아내 안나, 아이들에게 암 투병 말 못 했다…가발 쓰기도",
+      source: "tenasia",
+      sourceLabel: "텐아시아",
+      category: "culture",
+      ownershipGroup: "tenasia",
+      publishedAt: "2026-08-28T04:06:01.000Z"
+    })
+  ];
+
+  const events = buildEventClusters(rows);
+  assert.equal(events.length, 1);
+  assert.deepEqual(new Set(events[0].memberArticleIds), new Set(rows.map((row) => row.id)));
+});
+
+test("같은 매체의 가까운 보도라도 공통 주제가 하나뿐이면 합치지 않는다", () => {
+  const rows = [
+    article({ id: "same-publisher-a", title: "삼성전자 폴더블 신제품 공개",
+      source: "paper", ownershipGroup: "paper", publishedAt: "2026-08-28T04:00:00.000Z" }),
+    article({ id: "same-publisher-b", title: "삼성전자 반도체 공장 증설",
+      source: "paper", ownershipGroup: "paper", publishedAt: "2026-08-28T04:05:00.000Z" })
+  ];
+  assert.equal(buildEventClusters(rows).length, 2);
+});
+
+test("같은 매체의 가까운 보도라도 일반어만 같으면 서로 다른 사건으로 둔다", () => {
+  const rows = [
+    article({ id: "same-publisher-generic-a", title: "기술 독립 변화 1-0",
+      source: "paper", ownershipGroup: "paper", publishedAt: "2026-08-28T04:00:00.000Z" }),
+    article({ id: "same-publisher-generic-b", title: "기술 독립 변화 1-1",
+      source: "paper", ownershipGroup: "paper", publishedAt: "2026-08-28T04:05:00.000Z" })
+  ];
+  assert.equal(buildEventClusters(rows).length, 2);
+});
+
 test("오병합 가드 7: 일반 명사 2개만 겹치는 서로 다른 사건은 병합하지 않는다 (한/한 임계 3)", () => {
   // 이 픽스처가 임계 2에서 병합돼 한/한 임계를 3으로 올렸다(임계 조정 근거).
   const a = article({ id: "m7-a", title: "유럽중앙은행 성장률 전망 수정",
@@ -297,6 +362,143 @@ test("오병합 가드: 2자리 수치 충돌(부상 17명 vs 부상 90명)도 �
     source: "hankyung", publishedAt: new Date().toISOString() };
   const d = decideEventMerge(a, b);
   assert.equal(d.merge, false, `수치 충돌인데 병합됨: ${d.reason}`);
+});
+
+test("실기사 회귀: 번역된 일본어 보도와 영문 보도는 Anthropic 판결 한 사건으로 묶인다", () => {
+  const rows = [
+    article({
+      id: "anthropic-livedoor",
+      title: "연방지법, 국방부에 의한 앤솔로픽의 리스크 지정을 위헌으로 판단",
+      originalTitle: "連邦地裁、国防総省によるアンソロピックのリスク指定を違憲と判断",
+      source: "livedoor-jp",
+      publishedAt: "2026-08-28T03:43:16.000Z"
+    }),
+    article({
+      id: "anthropic-verge",
+      title: "Anthropic은 트럼프 행정부, 법원 판결에 의해 불법적으로 블랙리스트에 올랐습니다.",
+      originalTitle: "Anthropic was illegally blacklisted by the Trump administration, court rules",
+      source: "the-verge",
+      publishedAt: "2026-08-28T03:14:06.000Z"
+    }),
+    article({
+      id: "anthropic-bbc",
+      title: "트럼프 행정부는 Anthropic에 불법적으로 보복했다고 판사가 판결했습니다.",
+      originalTitle: "Trump administration illegally retaliated against Anthropic, judge rules",
+      source: "bbc-business",
+      publishedAt: "2026-08-28T03:41:59.000Z"
+    }),
+    article({
+      id: "anthropic-techmeme",
+      title: "A US judge blocks the Pentagon from blacklisting Anthropic, ruling that its designation as a supply-chain risk was illegal and baseless",
+      kind: "community",
+      source: "techmeme",
+      publishedAt: "2026-08-28T02:10:02.000Z"
+    }),
+    article({
+      id: "anthropic-hn",
+      title: "Judge Rules Trump Administration’s Blacklisting of Anthropic Was Illegal",
+      kind: "community",
+      source: "hackernews",
+      publishedAt: "2026-08-28T02:03:38.000Z"
+    })
+  ];
+  const events = buildEventClusters(rows);
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0].reactionArticleIds.sort(), ["anthropic-hn", "anthropic-techmeme"]);
+});
+
+test("실기사 회귀: Nepal-Tibet 홍수의 본류 보도는 묶고 후속 각도·네팔 대사 기사는 별개다", () => {
+  const rows = [
+    article({
+      id: "nepal-guardian",
+      title: "Nepal-Tibet 돌발 홍수로 최소 356명 사망 후 거의 1,400명 실종",
+      originalTitle: "Nearly 1,400 missing, mostly tourists, after Nepal-Tibet flash flood kills at least 356",
+      url: "https://www.theguardian.com/world/2026/aug/27/what-caused-nepal-flash-flood-glacial-collapse-tibet-border",
+      source: "guardian-world",
+      publishedAt: "2026-08-27T12:41:41.000Z"
+    }),
+    article({
+      id: "nepal-nyt",
+      title: "실시간 업데이트: 추가 홍수 위험에 처한 실종자와 좌초된 구조대원 수색",
+      originalTitle: "Live Updates: Rescuers Search for Missing and Stranded Under Threat of More Floods",
+      url: "https://www.nytimes.com/live/2026/08/27/world/nepal-tibet-flash-floods",
+      source: "nyt-world",
+      publishedAt: "2026-08-28T04:39:19.000Z"
+    }),
+    article({
+      id: "nepal-etnews",
+      title: "폭 600m 빙하 조각이 2km 높이서 떨어져 비 없는 네팔 대홍수 참사",
+      url: "https://www.etnews.com/20260828000068",
+      source: "etnews",
+      publishedAt: "2026-08-28T01:04:33.000Z"
+    }),
+    article({
+      id: "nepal-bbc-cause",
+      title: "과학자들은 붕괴된 빙하가 파괴적인 Nepal-Tibet 홍수를 일으켰을 가능성이 있다고 말합니다.",
+      originalTitle: "Collapsed glacier likely caused devastating Nepal-Tibet floods, scientists say",
+      source: "bbc-world",
+      publishedAt: "2026-08-28T03:23:56.000Z"
+    }),
+    article({
+      id: "nepal-livescience",
+      title: "전문가들은 네팔의 홍수는 빙하 붕괴로 촉발됐으며 앞으로 더 많은 산사태가 발생할 위험이 있다고 말한다.",
+      originalTitle: "Devastating Nepal floods were triggered by glacier collapse, experts say — and there's a risk of more landslides to come",
+      source: "livescience",
+      publishedAt: "2026-08-27T16:21:42.000Z"
+    }),
+    article({
+      id: "nepal-family",
+      title: "네팔 홍수에서 실종된 호주인의 친척들이 사랑하는 사람의 소식을 기다리고 있습니다",
+      originalTitle: "Relatives of Australians missing in Nepal floods wait for news of loved ones",
+      source: "guardian-world",
+      publishedAt: "2026-08-28T03:56:10.000Z"
+    }),
+    article({
+      id: "nepal-bbc-path",
+      title: "치명적인 Nepal-Tibet 홍수의 경로 추적",
+      originalTitle: "Tracing the deadly path of the Nepal-Tibet flash flood",
+      source: "bbc-world",
+      publishedAt: "2026-08-27T16:13:39.000Z"
+    }),
+    article({
+      id: "nepal-khan-casualties",
+      title: "469명으로 늘어난 네팔 홍수 사망자, 기반 시설 파괴에 접근 어려워",
+      source: "khan",
+      publishedAt: "2026-08-28T03:34:00.000Z"
+    }),
+    article({
+      id: "nepal-ai-slop",
+      title: "Please stop flooding our projects with AI slop to furnish your CV",
+      kind: "community",
+      source: "hackernews",
+      publishedAt: "2026-08-28T03:49:33.000Z"
+    }),
+    article({
+      id: "nepal-live-birdflu",
+      title: "Australia news live: Antarctic staff withdraw due to bird flu risk; dolphin dies from H5",
+      url: "https://www.theguardian.com/australia-news/live/2026/aug/28/nepal-floods-australians-missing-penny-wong",
+      source: "guardian-world",
+      publishedAt: "2026-08-28T04:18:29.000Z"
+    }),
+    article({
+      id: "nepal-ambassador",
+      title: "공석인 네팔 대사에 박재경 짐바브웨 대사 임명",
+      source: "donga",
+      publishedAt: "2026-08-28T03:00:00.000Z"
+    })
+  ];
+  const events = buildEventClusters(rows);
+  assert.equal(events.length, 6);
+  assert.equal(eventOf(events, "nepal-guardian"), eventOf(events, "nepal-nyt"));
+  assert.equal(eventOf(events, "nepal-guardian"), eventOf(events, "nepal-etnews"));
+  assert.equal(eventOf(events, "nepal-guardian"), eventOf(events, "nepal-bbc-cause"));
+  assert.notEqual(eventOf(events, "nepal-guardian"), eventOf(events, "nepal-livescience"));
+  assert.notEqual(eventOf(events, "nepal-guardian"), eventOf(events, "nepal-family"));
+  assert.equal(eventOf(events, "nepal-guardian"), eventOf(events, "nepal-bbc-path"));
+  assert.notEqual(eventOf(events, "nepal-guardian"), eventOf(events, "nepal-khan-casualties"));
+  assert.notEqual(eventOf(events, "nepal-guardian"), eventOf(events, "nepal-ai-slop"));
+  assert.notEqual(eventOf(events, "nepal-guardian"), eventOf(events, "nepal-live-birdflu"));
+  assert.notEqual(eventOf(events, "nepal-guardian"), eventOf(events, "nepal-ambassador"));
 });
 
 // ---------------------------------------------------------------------------
@@ -606,4 +808,194 @@ test("G1-6: 브랜드 접미어 jo/malone/london만 겹치는 무관 기사는 �
     title: "India Amarteifio on the Jo Malone London Combo She Can't Stop Wearing This Summer" });
   assert.equal(decideEventMerge(a, b).merge, false);
   assert.equal(buildEventClusters([a, b]).length, 2);
+});
+
+test("같은 발행사의 같은 시각·같은 이미지는 언어판 제목이 달라도 한 사건이다", () => {
+  const image = "https://biz.chosun.com/resizer/v2/same-science-image.jpg";
+  const ko = article({ id: "same-edition-ko", category: "science", source: "chosunbiz",
+    title: "국내 연구진, 차세대 양자 센서 개발", image,
+    publishedAt: "2026-08-28T01:30:00.000Z", url: "https://biz.chosun.com/science/a" });
+  const ja = article({ id: "same-edition-ja", category: "science", source: "chosunbiz",
+    title: "韓国研究チーム、次世代量子センサーを開発", image,
+    publishedAt: "2026-08-28T01:30:00.000Z", url: "https://biz.chosun.com/jp/science/a" });
+
+  const events = buildEventClusters([ko, ja]);
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0].memberArticleIds.sort(), ["same-edition-ja", "same-edition-ko"]);
+});
+
+test("PGA와 LPGA의 서로 다른 경기는 공통 단어가 많아도 병합하지 않는다", () => {
+  const bbc = article({ id: "golf-bbc", category: "sports", source: "bbc-sport",
+    title: "플릿우드가 경쟁 중인 가운데 Lee가 투어 챔피언십 선두",
+    publishedAt: "2026-08-28T07:56:37+09:00" });
+  const pga = article({ id: "golf-pga", category: "sports", source: "gnews-sports",
+    title: "김주형, PGA 투어 챔피언십 첫날 공동 15위…이민우 단독 선두",
+    publishedAt: "2026-08-28T08:58:10+09:00" });
+  const lpga = article({ id: "golf-lpga", category: "sports", source: "mt",
+    title: "단독 선두 김세영, LPGA 투어 FM 챔피언십 첫날 최고의 출발",
+    publishedAt: "2026-08-28T13:28:48+09:00" });
+
+  const events = buildEventClusters([bbc, pga, lpga]);
+  assert.equal(eventOf(events, "golf-bbc"), eventOf(events, "golf-pga"));
+  assert.notEqual(eventOf(events, "golf-pga"), eventOf(events, "golf-lpga"));
+});
+
+test("Anthropic 법원 사건의 한글 음차와 영문 표기는 한 사건으로 결합된다", () => {
+  const korean = article({ id: "anthropic-ko", category: "politics", source: "livedoor-world",
+    title: "연방지법, 앤솔로픽 블랙리스트는 위헌이라고 판결",
+    publishedAt: "2026-08-28T11:30:00+09:00" });
+  const english = article({ id: "anthropic-en", category: "tech", source: "marketwatch-top",
+    title: "Judge says Trump administration blacklist of Anthropic was illegal",
+    publishedAt: "2026-08-28T12:16:00+09:00" });
+
+  assert.equal(buildEventClusters([korean, english]).length, 1);
+});
+
+test("번역된 외국 기사는 화면 제목이 달라도 보존된 원제목으로 사건을 결합한다", () => {
+  const verge = article({ id: "translated-verge", category: "tech", source: "the-verge",
+    title: "Anthropic은 Trump 행정부, 법원 규칙에 의해 불법적으로 블랙리스트에 올랐습니다.",
+    originalTitle: "Anthropic was illegally blacklisted by the Trump administration, court rules",
+    publishedAt: "2026-08-28T03:14:06Z" });
+  const bbc = article({ id: "translated-bbc", category: "business", source: "bbc-business",
+    title: "트럼프 행정부는 Anthropic에 대해 불법적으로 보복했습니다. 판사 판결",
+    originalTitle: "Trump administration illegally retaliated against Anthropic, judge rules",
+    publishedAt: "2026-08-28T03:41:59Z" });
+
+  const events = buildEventClusters([verge, bbc]);
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0].memberArticleIds.sort(), ["translated-bbc", "translated-verge"]);
+});
+
+test("영문 원제목의 일반어 세 개만 겹치는 무관 기사는 병합하지 않는다", () => {
+  const pairs = [
+    [
+      "Rooms Showroom Is Seeking A Fall 2026 PR Intern In New York, NY",
+      "Hyperallergic Fall 2026 New York Art Guide"
+    ],
+    [
+      "CrowdStrike Stock Jumps After Record Breaking Earnings Wall Street Cheers",
+      "Marvell Stock Falls As Wall Street Questions The Story"
+    ],
+    [
+      "A Korean Designer Just Built The Lucky Charm Generator",
+      "Moscow Apartment With Korean Hanok Design Just Landed"
+    ],
+    [
+      "Arkane Game That Valve Shut Down Is Finally Playable",
+      "GTA 6 Game Breakdown Shows It All Slowing Down"
+    ]
+  ];
+  for (const [index, [left, right]] of pairs.entries()) {
+    const a = article({ id: `generic-left-${index}`, title: "번역 제목 A", originalTitle: left,
+      category: index === 3 ? "gaming" : "art", publishedAt: "2026-08-28T01:00:00Z" });
+    const b = article({ id: `generic-right-${index}`, title: "번역 제목 B", originalTitle: right,
+      category: index === 3 ? "gaming" : "art", publishedAt: "2026-08-28T02:00:00Z" });
+    assert.equal(decideEventMerge(a, b).merge, false, `${left} / ${right}`);
+    assert.equal(buildEventClusters([a, b]).length, 2);
+  }
+});
+
+test("네팔 홍수의 한글·영문 보도는 한 사건으로 결합된다", () => {
+  const korean = article({ id: "nepal-ko", category: "news",
+    title: "네팔 홍수로 실종자 수색 이어져", publishedAt: "2026-08-28T01:00:00Z" });
+  const english = article({ id: "nepal-en", category: "news",
+    title: "Nepal floods leave rescuers searching for missing people", publishedAt: "2026-08-28T02:00:00Z" });
+
+  assert.equal(buildEventClusters([korean, english]).length, 1);
+});
+
+test("법률 일반어만 겹치는 서로 다른 한글·영문 사건은 결합하지 않는다", () => {
+  const korean = article({ id: "court-ko", category: "politics",
+    title: "지방법원 판사, 불법 체류 위헌 논란",
+    publishedAt: "2026-08-28T01:00:00Z" });
+  const english = article({ id: "court-en", category: "news",
+    title: "Judge rules campus protest was illegal",
+    publishedAt: "2026-08-28T02:00:00Z" });
+
+  assert.equal(buildEventClusters([korean, english]).length, 2);
+});
+
+test("같은 커뮤니티의 재사용 이미지·동일 시각 글은 서로 다른 사건으로 남는다", () => {
+  const dinner = article({ id: "community-dinner", kind: "community", source: "theqoo",
+    category: "life", title: "오늘 저녁 뭐먹지", image: "https://img.example/board.png",
+    publishedAt: "2026-08-28T01:00:00Z" });
+  const puppy = article({ id: "community-puppy", kind: "community", source: "theqoo",
+    category: "life", title: "강아지 자랑합니다", image: "https://img.example/board.png",
+    publishedAt: "2026-08-28T01:00:00Z" });
+
+  assert.equal(buildEventClusters([dinner, puppy]).length, 2);
+});
+
+test("같은 발행일만 겹치는 날짜형 연재물은 서로 다른 사건으로 남는다", () => {
+  const letter = article({ id: "slow-letter", source: "slownews", category: "news",
+    title: "느린 편지: 2026년 8월 28일.", originalTitle: "Slow Letter: August 28, 2026.",
+    publishedAt: "2026-08-28T00:30:00Z" });
+  const apod = article({ id: "nasa-apod", source: "nasa", category: "science",
+    title: "APOD: 2026년 8월 28일 - 하늘이 파라날 위로 변합니다",
+    originalTitle: "APOD: 2026 August 28 - The Sky Turns Above Paranal",
+    publishedAt: "2026-08-28T04:05:00Z" });
+
+  assert.equal(buildEventClusters([letter, apod]).length, 2);
+});
+
+test("GTA라는 작품명과 일반 영문 조각만 겹치는 서로 다른 사건은 병합하지 않는다", () => {
+  const rugpull = article({ id: "gta-rugpull", source: "pcgamer", category: "gaming",
+    title: "번역 제목 A",
+    originalTitle: "Cyberleek may have just cashed out on their GTA 6 leak, earning over $200,000 in the most predictable crypto rugpull ever performed",
+    publishedAt: "2026-08-28T01:00:00Z" });
+  const hotwire = article({ id: "gta-hotwire", source: "engadget", category: "gaming",
+    title: "번역 제목 B",
+    originalTitle: "You won't be able to hotwire every vehicle in GTA 6",
+    publishedAt: "2026-08-28T02:00:00Z" });
+
+  assert.equal(decideEventMerge(rugpull, hotwire).merge, false);
+  assert.equal(buildEventClusters([rugpull, hotwire]).length, 2);
+});
+
+test("같은 인터뷰의 안나 넷째 임신 기사는 숫자 단위가 달라도 한 사건이다", () => {
+  const health = article({ id: "anna-health", source: "tenasia", category: "culture",
+    title: "'박주호♥' 안나 \"유방암 완전관해 상태 3년\"…넷째 임신은 \"의사, 괜찮다고\"",
+    publishedAt: "2026-08-28T04:11:02Z" });
+  const family = article({ id: "anna-family", source: "tenasia", category: "culture",
+    title: "안나, '넷째 임신' 3남매 중 나은이가 먼저 알았다…\"한국 출산 계획\"",
+    publishedAt: "2026-08-28T04:10:01Z" });
+
+  assert.equal(decideEventMerge(health, family).merge, true);
+  assert.equal(buildEventClusters([health, family]).length, 1);
+});
+
+test("Google 뉴스 제목의 발행사 꼬리만 같은 서로 다른 기사는 병합하지 않는다", () => {
+  const deposits = article({
+    id: "kita-deposits", source: "gnews-biz", category: "business",
+    url: "https://news.google.com/rss/articles/deposits?oc=5",
+    title: "7월 달러예금 1천억달러 넘어…전체 외화예금도 역대 최대 - 한국무역협회-KITA.NET",
+    publishedAt: "2026-08-28T03:14:52Z"
+  });
+  const cyber = article({
+    id: "kita-cyber", source: "gnews-biz", category: "business",
+    url: "https://news.google.com/rss/articles/cyber?oc=5",
+    title: "AI가 해커 무기로…오픈AI·MS 등 수개월 내 공격 광범위 - 한국무역협회-KITA.NET",
+    publishedAt: "2026-08-28T04:00:00Z"
+  });
+
+  assert.equal(decideEventMerge(deposits, cyber).merge, false);
+  assert.equal(buildEventClusters([deposits, cyber]).length, 2);
+});
+
+test("같은 재난의 수치 갱신은 합치되 관련 후속 기사를 한 사건으로 삼키지 않는다", () => {
+  const initial = article({ id: "nepal-search-a", source: "travel", category: "news",
+    title: "네팔 홍수 실종자 수색 작업 계속", publishedAt: "2026-08-28T01:00:00Z" });
+  const update = article({ id: "nepal-search-b", source: "yna", category: "news",
+    title: "네팔 대홍수 실종자 수색 구조 작업 확대", publishedAt: "2026-08-28T02:00:00Z" });
+  const side = article({ id: "nepal-theft", source: "hankyung", category: "news",
+    title: "네팔 대홍수 희생자 시신서 금귀걸이 훔쳐 두 남성 체포", publishedAt: "2026-08-28T03:00:00Z" });
+  const oldToll = article({ id: "nepal-toll-old", source: "travel", category: "news",
+    title: "네팔 홍수에 826명 실종 165명 사망", publishedAt: "2026-08-28T04:00:00Z" });
+  const newToll = article({ id: "nepal-toll-new", source: "yna", category: "news",
+    title: "네팔 대홍수 사망자 543명 실종자 1535명", publishedAt: "2026-08-28T05:00:00Z" });
+
+  assert.equal(decideEventMerge(oldToll, newToll).merge, true, "수치가 갱신된 같은 재난 보도");
+  const events = buildEventClusters([initial, update, side]);
+  assert.equal(eventOf(events, "nepal-search-a"), eventOf(events, "nepal-search-b"));
+  assert.notEqual(eventOf(events, "nepal-search-a"), eventOf(events, "nepal-theft"));
 });

@@ -102,7 +102,6 @@ export function clusterIssues(items) {
 // 사건까지 합친다. 이미 묶인 모든 멤버와 같은 사건일 때만 그룹에 넣는다.
 const NEAR_DUP_CONCEPTS = 3; // 실제 새 판의 트럼프·이란 배상과 축구협회 성접대
 // 변주는 조사·활용형을 접으면 각각 개념 3개가 겹쳤다. 영어 불용어는 세지 않는다.
-const STRONG_EVENT_CONCEPTS = new Set(["지진"]);
 const DISTINCTIVE_ENTITY_MIN_LENGTH = 3;
 const categoryIdsOf = (item) => Array.isArray(item?.admittedCategories)
   && item.admittedCategories.length ? item.admittedCategories : [item?.category || "news"];
@@ -112,8 +111,7 @@ const categoryIdsOf = (item) => Array.isArray(item?.admittedCategories)
 // 숫자 하나와 통계 서술어(사건을 특정하지 못하는 범용 수식어)만 겹쳐도 되면
 // 안 된다 — 오병합 사례("에볼라 사망자 2,300명" vs "호우 피해신고 2,300건")는
 // 핵심 주제어 없이 이 서술어들과 숫자만 우연히 같아 병합됐다. 목록은
-// STRONG_EVENT_CONCEPTS와 같은 원칙으로 최소·보수적으로만 둔다(넓히는
-// 방향이 아니라 병합을 줄이는 방향).
+// 병합을 넓히지 않도록 최소·보수적으로만 둔다.
 const STATISTICAL_FILLER_CONCEPTS = new Set([
   "기록적", "증가", "감소", "급증", "급감", "발생", "넘어서", "이상", "이하", "달해", "기록", "집계"
 ]);
@@ -130,13 +128,30 @@ export function nearIssueGroups(scored, canonicalEvents = null) {
   for (const c of scored) {
     const title = c.members[0].title;
     const categories = new Set(c.members.flatMap(categoryIdsOf));
-    const hit = groups.find((g) => g.every((m) => {
-      const currentEvents = new Set(c.members.map((item) => canonicalByArticle.get(item.id)).filter(Boolean));
+    const currentEvents = new Set(c.members.map((item) => canonicalByArticle.get(item.id)).filter(Boolean));
+    const hit = groups.find((g) => {
+      const groupedEvents = new Set(g.flatMap((m) =>
+        m.members.map((item) => canonicalByArticle.get(item.id)).filter(Boolean)));
+      if ([...currentEvents].some((id) => groupedEvents.has(id))) return true;
+      if (canonicalEvents) return false;
+      return g.every((m) => {
       const previousEvents = new Set(m.members.map((item) => canonicalByArticle.get(item.id)).filter(Boolean));
-      if ([...currentEvents].some((id) => previousEvents.has(id))) return true;
-      if ([...currentEvents, ...previousEvents].some((id) => canonicalSizes.get(id) > 1)) return false;
       const sameCategory = m.members.some((item) => categoryIdsOf(item).some((id) => categories.has(id)));
       const sharedConcepts = sharedTitleConcepts(title, m.members[0].title);
+      // 정식 사건 판정이 원문 기준으로 공통 실체가 부족하다고 확인한 두 기사를
+      // 번역 제목의 흔한 단어만으로 다시 합치지 않는다.
+      if (decideEventMerge(c.members[0], m.members[0]).reason === "guard_entity_overlap_min") return false;
+      const hasRelatedCoverageSignal = (cluster) => Math.max(
+        ...cluster.members.map((item) => Number(item.coverage) || 0), 0
+      ) >= 3;
+      const bothRelated = hasRelatedCoverageSignal(c) && hasRelatedCoverageSignal(m);
+      const canonicalAlreadyGrouped = [...currentEvents, ...previousEvents]
+        .some((id) => canonicalSizes.get(id) > 1);
+      const highConfidenceExpansion = bothRelated && sharedConcepts.length >= 4
+        && sharedConcepts.some((concept) => concept.startsWith("num:"))
+        && sharedConcepts.filter((concept) => !concept.startsWith("num:")
+          && !STATISTICAL_FILLER_CONCEPTS.has(concept)).length >= 2;
+      if (canonicalAlreadyGrouped && !highConfidenceExpansion) return false;
       if (sameCategory && sharedConcepts.length >= NEAR_DUP_CONCEPTS) return true;
 
       // 한 매체가 같은 사건을 여러 각도로 연속 발행하면 제목 변주는 두 핵심어만
@@ -149,12 +164,6 @@ export function nearIssueGroups(scored, canonicalEvents = null) {
       const sameOperationalSource = source.ownershipGroup === previousSource.ownershipGroup;
       const bothCommunity = c.members.every((item) => sourceRoleOf(item) === "community_signal")
         && m.members.every((item) => sourceRoleOf(item) === "community_signal");
-      const hasRelatedCoverageSignal = (cluster) => Math.max(
-        ...cluster.members.map((item) => Number(item.coverage) || 0), 0
-      ) >= 3;
-      const bothRelated = hasRelatedCoverageSignal(c) && hasRelatedCoverageSignal(m);
-      if (sameCategory && bothRelated && sharedConcepts.length >= 2
-          && sharedConcepts.some((concept) => STRONG_EVENT_CONCEPTS.has(concept))) return true;
       // 서로 다른 매체라도 같은 긴 고유명사와 같은 흐름어가 함께 겹치면 한 판에서
       // 하나만 대표한다. 긴 이름 하나만 같은 별개 사건은 그대로 보존한다.
       if (sameCategory && bothRelated && sharedConcepts.length >= 2
@@ -174,7 +183,8 @@ export function nearIssueGroups(scored, canonicalEvents = null) {
       return !sameCategory && bothRelated && sharedConcepts.length >= NEAR_DUP_CONCEPTS
         && sharedConcepts.some((concept) => concept.startsWith("num:"))
         && topicalBridge.length > 0;
-    }));
+      });
+    });
     if (hit) hit.push(c); else groups.push([c]);
   }
   return groups;
@@ -185,29 +195,6 @@ export function nearIssueGroups(scored, canonicalEvents = null) {
 // 클러스터의 기사를 근거로 보존한다(첫 건만 남기고 버리지 않는다).
 export function dedupeNearIssues(scored) {
   return nearIssueGroups(scored).map((g) => g[0]);
-}
-
-// 사건 2단 판정(event-cluster.js)으로 근접 휴리스틱이 못 잡은 동일 사건을
-// 추가 병합한다. 판 편성에서는 **강한 결합(canonicalUrl·eventKey — 표본 5
-// 중계 재유통)과 한/영 결합(표본 1)만** 쓴다. 한/한 내용어 결합은 위
-// nearIssueGroups의 실측 검증된 휴리스틱이 담당한다 — 사전·형태소 없이
-// 일반 명사 겹침만으로 판을 접으면 서로 다른 사건이 오병합되는 것이 표본
-// 밖 픽스처에서 확인됐다(오병합은 미병합보다 나쁜 실패). 그룹을 나누는
-// 일은 없다(병합만 추가).
-const editionMergeDecision = (a, b) => {
-  const decision = decideEventMerge(a, b);
-  return decision.merge && (decision.mode === "strong" || decision.crossLanguage);
-};
-
-function mergeGroupsByEventDecision(groups) {
-  const merged = [];
-  for (const group of groups) {
-    const hit = merged.find((existing) => existing.some((prevCluster) =>
-      group.some((cluster) => cluster.members.some((item) =>
-        prevCluster.members.some((prevItem) => editionMergeDecision(prevItem, item))))));
-    if (hit) hit.push(...group); else merged.push([...group]);
-  }
-  return merged;
 }
 
 // ---------------------------------------------------------------------------
@@ -794,9 +781,9 @@ export function buildDigest(items, {
   // 생긴다. 게이트 실패 후보는 어떤 형태로도 유효 후보의 자리를 차지하지 않는다.
   const machinePassed = scored.filter((cluster) => cluster.draft.editorialGate.pass);
   // P1-B 사건 계층: 근접 중복은 "첫 건만 남김"이 아니라 사건 병합이다.
-  // 기존 휴리스틱 그룹 위에 사건 2단 판정 병합을 얹고, 병합된 클러스터의
-  // 기사는 대표 이슈의 근거(sourceEvidence)로 보존한다 — 타 매체 근거 소실 0.
-  const eventGroups = mergeGroupsByEventDecision(nearIssueGroups(machinePassed, canonicalEvents));
+  // 사건 엔진이 내부에서 만든 결과와 호출자가 전달한 결과를 같은 정본으로 쓴다.
+  // 편집 단계에서 기사 한 쌍만 닮았다는 이유로 정식 사건 경계를 다시 합치지 않는다.
+  const eventGroups = nearIssueGroups(machinePassed, canonicalEvents);
   const deduped = eventGroups.map((group) => group[0]);
   const mergedEvidenceOf = new Map(eventGroups.map((group) => [
     group[0],
