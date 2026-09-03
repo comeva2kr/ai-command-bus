@@ -8,11 +8,11 @@
   "fingerprints": {
     "selectionContract": "8c586d5e2c4da240",
     "taxonomy": "4b40bc914e46a7ef",
-    "legacyClassifier": "4c1c3facd3a28c69",
-    "categoryPolicy": "2eb11b4d2904f0b8",
-    "shadowSelectionParams": "60f688bb645bed49",
-    "eventCluster": "15cb62dc9c7e24bc",
-    "sourceRegistry": "4de493e5604218d4",
+    "legacyClassifier": "7c46e93e83469b34",
+    "categoryPolicy": "5418ea483ec23905",
+    "shadowSelectionParams": "b5c6d50f7f1ba929",
+    "eventCluster": "eef011ac2154613e",
+    "sourceRegistry": "733369ee44424284",
     "sourceIdentity": "5526f8b80814e4ed"
   },
   "taxonomyIds": [

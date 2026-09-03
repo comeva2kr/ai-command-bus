@@ -209,6 +209,25 @@ test("분류 무결성: 영문 단어 안의 ISA 문자열을 금융상품으로
   assert.equal(definiteCategory({ title: "ISA account strategy" }), "business");
 });
 
+test("분류 무결성: 전세는 잡되 전세계를 부동산으로 오인하지 않는다", () => {
+  assert.equal(definiteCategory({ title: "전세계 사람들이 걱정하는 아이의 탄생" }), null);
+  assert.equal(definiteCategory({ title: "서울 전세 계약과 보증금 반환 조건" }), "realestate");
+});
+
+test("분류 무결성: 자동차 브랜드가 증권사명이나 골프 대회명일 뿐이면 자동차가 아니다", () => {
+  assert.equal(definiteCategory({ title: "현대차증권, IB 조직 개편" }), null);
+  assert.equal(definiteCategory({ title: "제네시스 챔피언십 우승 경쟁" }), null);
+  assert.equal(definiteCategory({ title: "제네시스 GV80 신차 시승" }), "auto");
+});
+
+test("분류 무결성: 발행사 연예 섹션 URL은 종합 피드의 기본 분야를 이긴다", () => {
+  assert.equal(definiteCategory({
+    title: "[사진]차희, '메이드 인 코리아 2' 기대하세요",
+    sourceId: "chosunbiz",
+    url: "https://biz.chosun.com/entertainment/entertainment_photo/2026/09/02/example/"
+  }), "culture");
+});
+
 test("독립 검수 회귀: 야구·과학·생활 제목이 등록 섹션이나 지뢰어에 끌려가지 않는다", () => {
   assert.equal(definiteCategory({
     title: "156km 퍼펙트 SV 이의리 마무리 체질인가",
@@ -623,6 +642,15 @@ test("실제 런치판: 국제 갈등과 중대 피해를 문화·유머 대표�
   assert.equal(
     categoryGuardReason("humor", "이완용은 명함도 못 내밀 최악의 매국노"),
     "매국노"
+  );
+  assert.equal(
+    categoryGuardReason("tech", "‘사형시키게 데려와’…경산 中 유학생 살인사건에 중국인 분노"),
+    "incident-without-tech-subject"
+  );
+  assert.equal(
+    categoryGuardReason("tech", "테슬라 자율주행차 사망 사고 원인 조사"),
+    null,
+    "기술이 실제 사고 원인인 보도까지 막으면 안 된다"
   );
 });
 

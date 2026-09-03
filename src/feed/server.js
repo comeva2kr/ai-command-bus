@@ -616,10 +616,11 @@ export function createServer(opts = {}) {
   const slotCanonicalEditionEnabled = localEditorial && (opts.slotCanonicalEditionEnabled != null
     ? Boolean(opts.slotCanonicalEditionEnabled)
     : process.env.NOWHOT_SLOT_CANONICAL_EDITION === "1");
+  const slotCanonicalPointerFile = opts.slotCanonicalPointerFile || process.env.NOWHOT_SLOT_CANONICAL_POINTER ||
+    path.resolve(process.cwd(), ".nowhot-local/slot-editions/active.json");
   const slotCanonicalEditionReader = slotCanonicalEditionEnabled
     ? makeSlotCanonicalEditionReader({
-        pointerFile: opts.slotCanonicalPointerFile || process.env.NOWHOT_SLOT_CANONICAL_POINTER ||
-          path.resolve(process.cwd(), ".nowhot-local/slot-editions/active.json")
+        pointerFile: slotCanonicalPointerFile
       })
     : null;
   // v2 전용(David 승인, 2026-08-17 — "골라놓은 순서 그대로"). opts에 없으면
@@ -1297,7 +1298,11 @@ export function createServer(opts = {}) {
   const LOCAL_EDITORIAL_CLOCK_SOURCE = opts.clock ? "injected" : "system";
   const LOCAL_INVENTORY_SCHEDULE_ENABLED = localEditorial && !slotCanonicalEditionEnabled &&
     !process.env.NODE_TEST_CONTEXT && opts.localEditorialInventorySchedule !== false;
+  const LOCAL_CANONICAL_SCHEDULE_ENABLED = localEditorial && slotCanonicalEditionEnabled &&
+    (!process.env.NODE_TEST_CONTEXT || typeof opts.localCanonicalPublisher === "function") &&
+    opts.localCanonicalPrepublishSchedule !== false;
   let localInventoryPending = null;
+  let localCanonicalPending = null;
   let localInventoryReceipt = null;
   let localElapsedReceipt = null;
   let localQualityReviewSamplingReceipt = null;
@@ -1422,7 +1427,9 @@ export function createServer(opts = {}) {
     const target = open || nextEditorialSlot(nowMs);
     const state = !localEditorial
       ? "disabled"
-      : !LOCAL_INVENTORY_SCHEDULE_ENABLED
+      : slotCanonicalEditionEnabled
+        ? LOCAL_CANONICAL_SCHEDULE_ENABLED ? "slot_scheduler_armed" : "manual_only"
+        : !LOCAL_INVENTORY_SCHEDULE_ENABLED
         ? "manual_only"
         : overdue.length
           ? "slot_capture_overdue"
@@ -1432,7 +1439,8 @@ export function createServer(opts = {}) {
     return {
       stableId: "NOWHOT-EDITORIAL-SCHEDULER-STATUS-001",
       state,
-      enabled: LOCAL_INVENTORY_SCHEDULE_ENABLED,
+      enabled: LOCAL_INVENTORY_SCHEDULE_ENABLED || LOCAL_CANONICAL_SCHEDULE_ENABLED,
+      mode: slotCanonicalEditionEnabled ? "slot_canonical_prepublish" : "editorial_inventory",
       clockSource: LOCAL_EDITORIAL_CLOCK_SOURCE,
       checkIntervalMs: LOCAL_INVENTORY_CHECK_MS,
       captureWindowMs,
@@ -1493,6 +1501,35 @@ export function createServer(opts = {}) {
     const interval = setInterval(inventoryTick, LOCAL_INVENTORY_CHECK_MS);
     interval.unref?.();
     const warm = setTimeout(inventoryTick, Number(process.env.NOWHOT_EDITORIAL_INVENTORY_DELAY_MS || 30_000));
+    warm.unref?.();
+  }
+
+  async function runLocalCanonicalPrepublish(nowMs = serverNowMs()) {
+    if (localCanonicalPending) return localCanonicalPending;
+    const poolFile = opts.localCanonicalPoolFile || engine._poolFile;
+    if (!poolFile) throw new Error("canonical prepublish: persistent pool file required");
+    const publish = opts.localCanonicalPublisher || (async (options) => {
+      const { runDueSlotPrepublish } = await import("../../tools/run-slot-canonical-prepublish.mjs");
+      return runDueSlotPrepublish(options);
+    });
+    localCanonicalPending = publish({
+      nowMs,
+      poolFile,
+      outDir: path.dirname(slotCanonicalPointerFile),
+      allowPaid: false
+    }).finally(() => { localCanonicalPending = null; });
+    return localCanonicalPending;
+  }
+
+  if (LOCAL_CANONICAL_SCHEDULE_ENABLED) {
+    const canonicalTick = () => runLocalCanonicalPrepublish().catch((error) => {
+      console.warn("[slot-canonical] 정시 후보 생성 HOLD:", error && error.message);
+    });
+    const interval = setInterval(canonicalTick,
+      Number(opts.localCanonicalPrepublishCheckMs || LOCAL_INVENTORY_CHECK_MS));
+    interval.unref?.();
+    const warm = setTimeout(canonicalTick,
+      Number(opts.localCanonicalPrepublishDelayMs ?? process.env.NOWHOT_EDITORIAL_INVENTORY_DELAY_MS ?? 30_000));
     warm.unref?.();
   }
 

@@ -21,9 +21,44 @@
 
 export const AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS = 24;
 
+// 해외 보도가 한국 사용자에게 직접 영향을 줄 가능성을 가르는 기존 관측 사전.
+// shadow와 실제 오늘판이 같은 값을 써야 "실험에서는 중요, 제품에서는 매체명"
+// 같은 이중 기준이 생기지 않는다.
+export const OVERSEAS_MARKET_SIGNAL_LEXICON = Object.freeze({
+  basis: "David 채택 옵션 1(2026-08-17) — 해외 사건 importance 성분. 어휘는 조사 실측만 사용.",
+  korean: Object.freeze(["연준", "금리", "환율", "성장률", "실적", "반도체"]),
+  english: Object.freeze(["Fed", "CPI", "GDP", "jobs", "payrolls", "interest rate", "interest rates", "dollar",
+    "yen", "oil", "earnings", "Nvidia", "Apple", "Microsoft", "Amazon", "Meta", "Tesla",
+    "SoftBank", "Anthropic", "OpenAI"])
+});
+
 export function isAuthoritativeForeignNewsSource(source) {
   return Boolean(source && source.kind === "news" && source.country && source.country !== "KR"
     && source.editorialAuthority === "global_major");
+}
+
+export function findMarketSignalMatches(memberArticles = [], marketSignalLexicon = null) {
+  if (!marketSignalLexicon) return [];
+  const matches = [];
+  const korean = marketSignalLexicon.korean || [];
+  const english = marketSignalLexicon.english || [];
+  for (const article of memberArticles) {
+    const matched = new Set();
+    const titles = [...new Set([article?.title, article?.originalTitle].filter(Boolean).map(String))];
+    for (const title of titles) {
+      const lower = title.toLowerCase();
+      for (const term of korean) {
+        if (term && title.includes(term)) matched.add(term);
+      }
+      for (const term of english) {
+        if (term && new RegExp(`(?:^|[^a-z])${term.toLowerCase()}(?:$|[^a-z])`).test(lower)) {
+          matched.add(term);
+        }
+      }
+    }
+    for (const term of matched) matches.push({ articleId: article?.id ?? null, term });
+  }
+  return matches;
 }
 //
 // ── 숫자의 출처 (실측 없는 숫자 금지)
@@ -105,20 +140,7 @@ export function importanceAxis({ event, memberArticles = [] } = {}, {
   let marketSignalMatches = [];
   if (w.marketSignal) {
     if (!marketSignalLexicon) throw new Error("importanceAxis: marketSignal 성분 사용 시 marketSignalLexicon 필요");
-    const korean = marketSignalLexicon.korean || [];
-    const english = marketSignalLexicon.english || [];
-    for (const article of memberArticles) {
-      const title = String((article && article.title) || "");
-      const lower = title.toLowerCase();
-      for (const term of korean) {
-        if (term && title.includes(term)) marketSignalMatches.push({ articleId: article.id ?? null, term });
-      }
-      for (const term of english) {
-        if (term && new RegExp(`(?:^|[^a-z])${term.toLowerCase()}(?:$|[^a-z])`).test(lower)) {
-          marketSignalMatches.push({ articleId: article.id ?? null, term });
-        }
-      }
-    }
+    marketSignalMatches = findMarketSignalMatches(memberArticles, marketSignalLexicon);
     marketSignalHit = marketSignalMatches.length > 0;
   }
   const value = (w.groups || 0) * groupsRatio

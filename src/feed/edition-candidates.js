@@ -145,14 +145,20 @@ export function buildEditionCandidateFixture(items, {
         left.rankIndex - right.rankIndex);
       if (domesticShareBands?.[category]) {
         const overseas = (row) => Boolean(row.entry?.country && row.entry.country !== "KR");
-        for (const predicate of [(row) => !overseas(row), overseas]) {
-          let count = 0;
+        const perCategoryBudget = Math.floor(max / selected.size);
+        const domesticReserveDepth = Math.min(categoryFloor, Math.ceil(perCategoryBudget / 2));
+        const overseasReserveDepth = Math.min(categoryFloor, Math.floor(perCategoryBudget / 2));
+        const categoryCount = (predicate = () => true) => picked.filter((row) =>
+          categoryIdsOf(row.item).includes(category) && predicate(row)).length;
+        const fill = (predicate, reserveDepth) => {
           for (const row of categoryRows) {
+            if (categoryCount(predicate) >= reserveDepth || picked.length >= max) break;
             if (!predicate(row)) continue;
-            if (add(row)) count += 1;
-            if (count >= categoryFloor || picked.length >= max) break;
+            add(row);
           }
-        }
+        };
+        fill((row) => !overseas(row), domesticReserveDepth);
+        fill(overseas, overseasReserveDepth);
         continue;
       }
       let count = 0;

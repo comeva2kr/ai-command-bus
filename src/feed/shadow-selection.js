@@ -25,6 +25,7 @@ import {
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import {
   AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS,
+  OVERSEAS_MARKET_SIGNAL_LEXICON,
   heatAxis, importanceAxis, changeAxis, trustMaterials, engagementOf,
   isAuthoritativeForeignNewsSource
 } from "./selection-axes.js";
@@ -179,11 +180,7 @@ export const SHADOW_PACK_PARAMS = deepFreeze({
   // 단어 경계. 구성원(보도) 기사 제목만 본다. **David 검토용으로 사전은 이
   // 한 곳에만 있다.**
   marketSignal: {
-    basis: "David 채택 옵션 1(2026-08-17) — allMembersOverseas 사건 한정 importance 성분. 어휘는 조사 실측만(발명 금지).",
-    korean: ["연준", "금리", "환율", "성장률", "실적", "반도체", "중국", "일본"],
-    english: ["Fed", "rate", "CPI", "GDP", "jobs", "payrolls", "China", "Japan", "dollar",
-      "yen", "oil", "earnings", "Nvidia", "Apple", "Microsoft", "Amazon", "Meta", "Tesla",
-      "SoftBank", "Anthropic", "OpenAI"]
+    ...OVERSEAS_MARKET_SIGNAL_LEXICON
   },
   packs: {
     newsy: {

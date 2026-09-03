@@ -180,6 +180,164 @@ test("오늘판은 정확한 날짜 판본을 고르고 상세에 원문 피드 
   assert.doesNotMatch(detail, /공개 원문 본문을 그대로 발췌했습니다/, "원문 전체를 복제한 것처럼 오해되는 문구가 남았다");
 });
 
+function renderTodayDetail(issue, navigator = { userAgent: "Chrome Desktop" }) {
+  const html = readFileSync("src/feed/public/today.html", "utf8");
+  const script = html.slice(html.indexOf("const state="), html.indexOf('document.addEventListener("keydown"'));
+  const elements = new Map();
+  const document = { body: { style: {} }, activeElement: null, getElementById(id) {
+    if (!elements.has(id)) elements.set(id, {
+      innerHTML: "", textContent: "", attributes: {}, classList: new Set(),
+      setAttribute(name, value) { this.attributes[name] = value; },
+      querySelectorAll() { return []; },
+      focus() { document.activeElement = this; }
+    });
+    return elements.get(id);
+  } };
+  const links = new Function("document", "navigator", "fetch", "issue", `${script}
+    state.edition={issues:[issue],availableCategories:[]};
+    renderIssues(state.edition);
+    openIssueDetail(0);
+    return issueSourceLinks(issue);
+  `)(document, navigator, () => assert.fail("상세에서 새 fetch를 호출했다"), issue);
+  assert.equal(document.activeElement, elements.get("detailClose"));
+  return { html: elements.get("detailContent").innerHTML, list: elements.get("issues").innerHTML, links };
+}
+
+test("NH108 Today 번역은 모바일 네이버 앱과 PC 정본 링크 한 개이며 준비된 내용은 불변이다", () => {
+  const source = { evidenceId: "article:1", sourceGroup: "publisher", sourceLabel: "외신", url: "https://publisher.example/article?q=한글&part=2#text" };
+  const issue = {
+    headline: "검수된 한국어 제목", reader: { headline: "독자용 한국어 제목" },
+    articleSummary: { status: "ready", textKo: "이미 준비된 한국어 요약입니다.", sourceEvidenceId: source.evidenceId,
+      sourceLinks: [source], image: "https://publisher.example/photo.jpg", summarySourceCount: 1 },
+    eventSources: [{ ...source, originalTitle: "Original foreign headline", originalLang: "ko" }]
+  };
+  const before = JSON.stringify(issue);
+  const plain = renderTodayDetail({ ...issue, eventSources: [] });
+  const desktop = renderTodayDetail(issue);
+  const mobile = renderTodayDetail(issue, { userAgent: "iPhone" });
+  for (const result of [desktop, mobile]) {
+    assert.equal((result.html.match(/id="detailTranslate"/g) || []).length, 1);
+    assert.match(result.html, /aria-describedby="detailTranslationHint"/);
+    assert.match(result.html, /id="detailTranslationHint"/);
+    assert.match(result.html, /Original foreign headline/);
+    assert.equal(result.html.match(/<h2[^>]*>.*?<\/h2>/)[0], plain.html.match(/<h2[^>]*>.*?<\/h2>/)[0]);
+    assert.equal(result.html.match(/<img[^>]*>/)[0], plain.html.match(/<img[^>]*>/)[0]);
+    assert.match(result.html, /<p>이미 준비된 한국어 요약입니다\.<\/p>/);
+    assert.equal(result.list, plain.list);
+    assert.deepEqual(result.links, plain.links);
+  }
+  assert.match(desktop.html, /id="detailTranslate"[^>]*href="https:\/\/publisher.example\/article\?q=%ED%95%9C%EA%B8%80&amp;part=2#text"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
+  assert.match(desktop.html, /브라우저의 번역 기능/);
+  assert.ok(mobile.html.includes(`naversearchapp://inappbrowser?url=${encodeURIComponent(new URL(source.url).href)}&amp;target=new&amp;version=6`));
+  assert.match(mobile.html, /앱이 열리지 않으면 아래 원문 링크/);
+  assert.doesNotMatch(desktop.html, /naversearchapp:|translate\.goog|transToggle/);
+  assert.equal(JSON.stringify(issue), before);
+});
+
+test("NH108 원문 제목은 정확한 기사에만 연결하고 실제 글자와 명시된 원어로 판별한다", () => {
+  const source = { evidenceId: "article:1", sourceGroup: "same-publisher", sourceLabel: "Reuters", url: "https://publisher.example/one" };
+  const cases = [
+    [{ ...source, originalTitle: "English title", originalLang: "ko" }, true],
+    [{ ...source, originalTitle: "日本語の見出し" }, true],
+    [{ ...source, originalTitle: "AI 관련 한국어 제목", originalLang: "en" }, false],
+    [{ ...source, originalTitle: "123 !?" }, false],
+    [{ ...source, originalLang: "en" }, true],
+    [{ ...source, originalLang: "unknown" }, false],
+    [{ ...source }, false],
+    [{ ...source, evidenceId: "different-id", originalTitle: "Exact URL title" }, true],
+    [{ ...source, url: "https://publisher.example/before-redirect", originalTitle: "Same evidence title" }, true],
+    [{ ...source, evidenceId: "other", url: "https://publisher.example/other", originalTitle: "Wrong article" }, false],
+    [{ ...source, evidenceRole: "related_observation", originalTitle: "Related article" }, false]
+  ];
+  for (const [event, expected] of cases) {
+    const issue = { headline: "한국어 제목", articleSummary: { status: "ready", sourceLinks: [source] }, eventSources: [event] };
+    assert.equal(renderTodayDetail(issue).html.includes('id="detailTranslate"'), expected, JSON.stringify(event));
+  }
+  const ambiguous = { headline: "한국어 제목", articleSummary: { status: "ready", sourceLinks: [source] },
+    eventSources: [{ ...source, originalTitle: "First" }, { ...source, originalTitle: "Second" }] };
+  assert.doesNotMatch(renderTodayDetail(ambiguous).html, /id="detailTranslate"/);
+});
+
+test("NH108 준비된 출처의 기준 외신을 번역하며 과거 중계와 다른 출처를 합치지 않는다", () => {
+  const first = { evidenceId: "first", sourceGroup: "first", sourceLabel: "첫 외신", url: "https://first.example/article", originalTitle: "First title" };
+  const anchor = { evidenceId: "anchor", sourceGroup: "anchor", sourceLabel: "기준 외신", url: "https://anchor.example/article", originalTitle: "Anchor title" };
+  const issue = { headline: "한국어 제목", articleSummary: { status: "source_unavailable", unavailableReasonCode: "AUTH_REQUIRED",
+    sourceEvidenceId: "anchor", sourceLinks: [first, anchor] },
+    eventSources: [{ sourceGroup: "first", sourceLabel: "옛 중계", url: "https://news.google.com/rss/articles/old", originalTitle: "Old title" }] };
+  const result = renderTodayDetail(issue);
+  assert.match(result.html, /id="detailTranslate"[^>]*href="https:\/\/anchor.example\/article"/);
+  assert.deepEqual(result.links.map(({ url }) => url), [first.url, anchor.url]);
+  assert.doesNotMatch(result.html, /news\.google\.com|Old title/);
+  issue.articleSummary.sourceEvidenceId = "absent";
+  assert.match(renderTodayDetail(issue).html, /id="detailTranslate"[^>]*href="https:\/\/first.example\/article"/);
+  issue.articleSummary.sourceLinks = [];
+  assert.doesNotMatch(renderTodayDetail(issue).html, /id="detailTranslate"|news\.google\.com/);
+});
+
+test("NH108 번역 링크는 위험 주소를 배제하고 원문 제목과 매체명을 이스케이프한다", () => {
+  for (const url of ["javascript:alert(1)", "data:text/html,hello", "invalid", "https://user:pass@publisher.example/article",
+    "https://news.google.com/rss/articles/relay", "https://sub.news.google.com/rss/articles/relay"]) {
+    const source = { evidenceId: "x", sourceGroup: "x", url, originalTitle: "English title" };
+    const issue = { headline: "한국어 제목", articleSummary: { status: "ready", sourceLinks: [source] } };
+    assert.doesNotMatch(renderTodayDetail(issue, { userAgent: "Android" }).html, /id="detailTranslate"/, url);
+  }
+  const source = { evidenceId: "x", sourceGroup: "x", url: "https://publisher.example/article", sourceLabel: '<img src=x onerror="alert(1)">',
+    originalTitle: 'Foreign <script>alert("title")</script>' };
+  const result = renderTodayDetail({ headline: "한국어 제목", articleSummary: { status: "ready", sourceLinks: [source] } });
+  assert.match(result.html, /id="detailTranslate"/);
+  assert.match(result.html, /Foreign &lt;script&gt;alert\(&quot;title&quot;\)&lt;\/script&gt;/);
+  assert.match(result.html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
+  assert.doesNotMatch(result.html, /<script>|<img src=x/);
+});
+
+test("NH108 저장된 실패 사유를 보존하고 알 수 없는 사유를 추정하지 않는다", () => {
+  const messages = {
+    NO_SUBSTANTIAL_PUBLIC_BODY: "이 판에 표시할 충분한 한국어 요약·발췌를 확보하지 못했습니다.",
+    ARTICLE_SUMMARY_RATE_LIMIT: "요약 요청이 제한되어 요약을 확보하지 못했습니다.",
+    ARTICLE_SUMMARY_DISABLED: "기사 장문 요약 기능이 현재 꺼져 있습니다.",
+    PUBLISHER_URL_UNAVAILABLE: "Google 뉴스 중계 주소만 확인되어 실제 언론사 본문을 읽지 못했습니다.",
+    AUTH_REQUIRED: "원문 접근에 인증이 필요합니다.",
+    NEW_UNKNOWN_REASON: "요약을 표시하지 못했습니다. 구체적인 사유는 확인되지 않았습니다.",
+    toString: "요약을 표시하지 못했습니다. 구체적인 사유는 확인되지 않았습니다."
+  };
+  for (const [code, message] of Object.entries(messages)) {
+    const result = renderTodayDetail({ headline: "한국어 제목", articleSummary: { status: "source_unavailable", unavailableReasonCode: code } });
+    assert.ok(result.html.includes(message), code);
+  }
+  assert.match(renderTodayDetail({ headline: "한국어 제목", articleSummary: { status: "disabled", unavailableReasonCode: "ARTICLE_SUMMARY_DISABLED" } }).html, /기사 장문 요약 기능이 현재 꺼져 있습니다\./);
+  assert.match(renderTodayDetail({ headline: "한국어 제목" }).html, /이 판의 기사 요약이 아직 준비되지 않았습니다\./);
+});
+
+test("NH108 피드 발췌는 공개 본문과 구분하고 저장된 짧은 발췌만 표시한다", () => {
+  const excerpt = "출판사가 피드에 제공한 공개 발췌를 그대로 보존하는 확인용 한국어 문장입니다.";
+  const source = { evidenceId: "x", sourceGroup: "x", sourceLabel: "매체", url: "https://publisher.example/article", summary: excerpt };
+  const issue = { headline: "한국어 제목", articleSummary: { status: "excerpt_only", sourceLinks: [source],
+    textKo: excerpt, sourceLabel: "매체", excerptBasis: "publisher_feed_excerpt" } };
+  const ready = renderTodayDetail(issue);
+  assert.match(ready.html, /피드에서 제공한 공개 발췌/);
+  assert.ok(ready.html.includes(`<p>${excerpt}</p>`));
+  assert.doesNotMatch(ready.html, /공개 원문에서 확인 가능한 핵심 구간/);
+  const fallback = renderTodayDetail({ ...issue, articleSummary: { ...issue.articleSummary, status: "source_unavailable", unavailableReasonCode: "AUTH_REQUIRED" } });
+  assert.ok(fallback.html.includes(`<p>${excerpt}</p>`));
+  assert.match(fallback.html, /원문 접근에 인증이 필요합니다\./);
+});
+
+test("NH108 정본 출처만 있는 접근 차단 기사도 준비된 사진을 기존 우선순위와 필터로 표시한다", () => {
+  const source = { evidenceId: "photo", sourceGroup: "publisher", url: "https://publisher.example/article", image: "https://publisher.example/feed.jpg" };
+  const issue = { headline: "한국어 제목", articleSummary: { status: "source_unavailable", unavailableReasonCode: "ACCESS_DENIED", sourceLinks: [source] } };
+  const photo = () => renderTodayDetail(issue).html.match(/<img class="detail-image" src="([^"]+)"/)?.[1];
+  assert.equal(photo(), source.image);
+  issue.eventSources = [{ ...source, image: "https://publisher.example/event.jpg" }];
+  assert.equal(photo(), source.image);
+  issue.articleSummary.image = "https://publisher.example/summary.jpg";
+  assert.equal(photo(), issue.articleSummary.image);
+  issue.articleSummary.image = null;
+  source.image = "https://lh3.googleusercontent.com/placeholder=s0-w300";
+  assert.equal(photo(), issue.eventSources[0].image);
+  issue.eventSources = [];
+  assert.equal(photo(), undefined);
+});
+
 test("홈 seed가 비면 3분이 아니라 곧 다시 시도한다", async () => {
   // buildHomeSeed는 안에서 다 삼키고 항상 객체를 돌려준다. 빈 것을 성공으로
   // 보면 "빈 화면을 3분 확정"하는 꼴이 된다 — 빈 화면을 없애려고 만든 기능이

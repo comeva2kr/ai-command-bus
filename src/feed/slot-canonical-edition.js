@@ -22,7 +22,7 @@ const clone = (value) => structuredClone(value);
 const issueId = (issue) => String(issue?.evidenceHash || issue?.clusterId || "").trim();
 const pointerKey = (date, slotId) => `${date}:${slotId}`;
 const safeImage = (url) => {
-  try { return url && !isJunkImage(new URL(url)) ? url : null; } catch { return null; }
+  try { return /^https?:\/\//i.test(url || "") && !isJunkImage(new URL(url)) ? url : null; } catch { return null; }
 };
 const firstPublishedAt = (issue) => {
   const timestamps = [
@@ -184,8 +184,12 @@ export function buildSlotCanonicalEdition({
     if (!selectedByCategories.length) fail(`union issue is not in a lane: ${id}`);
     const reader = readerIssueCopy(source);
     const frozen = clone(source);
+    delete frozen._categoryLaneRanks;
     if (frozen.articleSummary) {
       frozen.articleSummary.image = safeImage(frozen.articleSummary.image);
+      for (const link of frozen.articleSummary.sourceLinks || []) {
+        if (link?.image) link.image = safeImage(link.image);
+      }
       frozen.articleSummary.textKo = cleanArticleTextChrome(frozen.articleSummary.textKo);
       if (looksLikePageChrome(frozen.articleSummary.textKo)) {
         frozen.articleSummary.status = "source_unavailable";

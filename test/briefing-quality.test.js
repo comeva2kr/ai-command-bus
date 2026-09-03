@@ -131,6 +131,14 @@ test("브리핑: 외부 원문 발췌를 싣지 않는다 (애드핏 '외부 콘
   assert.ok(!server.includes("briefingSummary"), "발췌 렌더러가 남아 있으면 안 된다");
 });
 
+test("Today 후보 단계는 국내외 비율을 예약하지 않고 중요도 순서를 유지한다", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../src/feed/engine.js", import.meta.url), "utf8");
+  const fn = src.slice(src.indexOf("async briefing("), src.indexOf("async briefing(") + 14000);
+  assert.doesNotMatch(fn, /domesticShareBands\s*:/,
+    "국내외 비율은 관측값이며 후보 자리를 예약하는 입력으로 사용하면 안 된다");
+});
+
 test("브리핑: 이슈 문단이 본문이 된다 (자체 저작 문장)", async () => {
   const { buildDigest } = await import("../src/feed/digest.js");
   // 구글 정책의 "논평·큐레이션·기타 부가가치" — 우리가 잰 값으로만 쓴 문장.
@@ -850,19 +858,16 @@ test("출처 상한은 섹션 표시명이 아니라 운영 발행사 그룹으�
   assert.deepEqual(issues.map((issue) => issue.refs[0].id), ["same-a", "other"]);
 });
 
-test("분야별 국내외 목표는 이미 승인된 후보 안에서만 맞춘다", async () => {
-  const { buildDigest } = await import("../src/feed/digest.js");
+test("분야별 국내외 범위는 중요도 순서를 바꾸거나 잡기사를 강제하지 않는다", async () => {
+  const { buildDigest, CATEGORY_DOMESTIC_SHARE_BANDS } = await import("../src/feed/digest.js");
   const domesticSources = ["yna", "khan", "donga", "mk-news", "etnews", "hankyung", "chosunbiz"];
   const foreignSources = [
     "bbc-world", "guardian-world", "nyt-world", "bbc-technology", "techcrunch",
     "the-verge", "cnbc-economy", "bbc-business", "marketwatch-top"
   ];
-  const bands = {
-    news: [0.50, 0.70],
-    business: [0.50, 0.60],
-    politics: [0.80, 0.90],
-    tech: [0.50, 0.70]
-  };
+  assert.deepEqual(Object.keys(CATEGORY_DOMESTIC_SHARE_BANDS).sort(),
+    ["business", "news", "politics", "tech"],
+    "합의하지 않은 분야에 임의 지역 관측 범위를 만들지 않는다");
   const subjects = [
     "반도체 투자 계획", "주택 공급 일정", "기준금리 결정", "산불 진화 현황",
     "우주망원경 관측", "전기차 배터리 공장", "축구대표팀 명단", "영화제 수상작",
@@ -875,42 +880,196 @@ test("분야별 국내외 목표는 이미 승인된 후보 안에서만 맞춘�
     "선거제도 논의", "원전 정비 일정", "사이버보안 훈련", "관광객 통계"
   ];
 
-  for (const [category, [minimum, maximum]] of Object.entries(bands)) {
-    const domestic = Array.from({ length: 18 }, (_, index) => ({
-      id: `${category}-kr-${index}`,
-      title: subjects[index],
-      source: domesticSources[index % domesticSources.length],
-      sourceLabel: `국내매체 ${index + 1}`,
-      category,
-      score: 10,
-      tags: []
-    }));
-    const foreign = Array.from({ length: 18 }, (_, index) => ({
-      id: `${category}-global-${index}`,
-      title: subjects[index + 18],
-      source: foreignSources[index % foreignSources.length],
-      sourceLabel: `해외매체 ${index + 1}`,
-      category,
-      score: 10,
-      tags: []
-    }));
-    const items = category === "politics" ? [...domestic, ...foreign] : [...foreign, ...domestic];
-    const externalRank = new Map(items.map((item, index) => [item.id, index]));
-    const { issues } = buildDigest(items, {
-      maxIssues: 14,
-      maxPerSource: 14,
-      selectedCategories: [category],
-      minIssuesPerCategory: 14,
-      additiveCategoryUnion: true,
-      externalRank
-    });
-    const foreignIds = new Set(foreign.map((item) => item.id));
-    const domesticCount = issues.filter((issue) => !foreignIds.has(issue.refs[0].id)).length;
-    const share = domesticCount / issues.length;
+  const rows = (category, region, count, offset = 0) => Array.from({ length: count }, (_, index) => ({
+    id: `${category}-${region}-${index}`,
+    title: subjects[offset + index],
+    source: region === "kr"
+      ? domesticSources[index % domesticSources.length]
+      : foreignSources[index % foreignSources.length],
+    sourceLabel: `${region === "kr" ? "국내" : "해외"}매체 ${index + 1}`,
+    category,
+    score: 10,
+    tags: []
+  }));
+  const select = (category, items) => buildDigest(items, {
+    maxIssues: 14,
+    maxPerSource: 14,
+    selectedCategories: [category],
+    minIssuesPerCategory: 14,
+    additiveCategoryUnion: true,
+    externalRank: new Map(items.map((item, index) => [item.id, index]))
+  }).issues;
 
-    assert.equal(issues.length, 14, `${category}는 의미상 승인 후보 14건을 유지해야 한다`);
-    assert.ok(share >= minimum && share <= maximum,
-      `${category} 국내 비중 ${domesticCount}/14=${share.toFixed(2)}가 ${minimum}~${maximum} 밖이다`);
+  const importantForeign = rows("business", "global", 14, 0);
+  const lowerDomestic = rows("business", "kr", 14, 14);
+  assert.deepEqual(select("business", [...importantForeign, ...lowerDomestic])
+    .map((issue) => issue.refs[0].id), importantForeign.map((item) => item.id),
+  "해외 사건이 실제 중요도 상위면 국내 비율을 맞추려고 밀어내지 않는다");
+
+  const highForeign = rows("business", "global", 1, 0);
+  const domestic = rows("business", "kr", 14, 1);
+  const fillerForeign = rows("business", "global-filler", 5, 15).map((item, index) => ({
+    ...item,
+    id: `business-global-filler-${index}`,
+    source: foreignSources[index % foreignSources.length]
+  }));
+  const selected = select("business", [...highForeign, ...domestic, ...fillerForeign]);
+  assert.equal(selected.length, 14);
+  assert.ok(selected.some((issue) => issue.refs[0].id === highForeign[0].id),
+    "중요도 1위 해외 사건은 비율과 무관하게 유지한다");
+  assert.equal(selected.some((issue) => issue.refs[0].id.startsWith("business-global-filler-")), false,
+    "해외 건수를 채우기 위한 낮은 순위 필러를 강제하지 않는다");
+});
+
+function nh108Rows(category, region, count, weight = 100) {
+  const sources = region === "kr"
+    ? ["yna", "khan", "donga", "mk-news"]
+    : ["bbc-world", "guardian-world", "nyt-world", "bbc-business"];
+  return Array.from({ length: count }, (_, index) => ({
+    id: `nh108-${category}-${region}-${index}`,
+    title: `${category} 독립 사건 ${region === "kr" ? 1 : 2}-${index + 1}`,
+    originalTitle: region === "kr" ? undefined : `Fed interest rates decision ${index + 1}`,
+    source: sources[index % sources.length],
+    sourceLabel: sources[index % sources.length],
+    sourceRank: Math.floor(index / sources.length),
+    category,
+    score: 0,
+    briefingAuthorityBonus: weight,
+    tags: []
+  }));
+}
+
+function nh108Options(category, limit = 14) {
+  return { maxIssues: limit, minIssuesPerCategory: limit, maxPerSource: 3,
+    selectedCategories: [category], additiveCategoryUnion: true };
+}
+
+test("NH108: comparable candidates change the published 14 in both directions, not the 22-seat reserve ratio", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const { categoryEditionsFromUnion } = await import("../tools/build-slot-canonical-edition.mjs");
+  for (const [category, minimum, maximum] of [
+    ["news", 7, 9], ["business", 7, 8], ["tech", 7, 9], ["politics", 12, 12]
+  ]) {
+    for (const majority of ["kr", "foreign"]) {
+      const rows = [...nh108Rows(category, majority, 24),
+        ...nh108Rows(category, majority === "kr" ? "foreign" : "kr", 14, 90)];
+      const direct = buildDigest(rows, nh108Options(category)).issues;
+      const reserve = buildDigest(rows, nh108Options(category, 22)).issues;
+      const union = { issues: reserve.map((issue, rank) => ({ ...issue,
+        selectedByCategories: [category], _categoryLaneRanks: { [category]: rank } })) };
+      const published = categoryEditionsFromUnion(union)[category].issues;
+      assert.equal(reserve.length, 22);
+      assert.equal(published.length, 14);
+      assert.deepEqual(published.map((issue) => issue.refs[0].id), direct.map((issue) => issue.refs[0].id));
+      const domestic = published.filter((issue) => !issue.overseasOnly).length;
+      assert.ok(domestic >= minimum && domestic <= maximum, `${category}/${majority}: ${domestic}/14`);
+      assert.ok(published.some((issue) => issue.refs[0].id.includes(majority === "kr" ? "-foreign-" : "-kr-")),
+        "must admit a comparable candidate outside the original top 22, not only shuffle that set");
+    }
+  }
+});
+
+test("NH108: one inclusive 10% weight gap, with actual zero and negative engagement", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  for (const [majorityWeight, minorityWeight, score, expectedForeign] of [
+    [100, 90, 0, true], [100, 89.99, 0, false],
+    [0, 0, 0, true], [0, 0, -100, true], [1, 0, 0, false]
+  ]) {
+    const rows = [...nh108Rows("news", "kr", 14, majorityWeight),
+      ...nh108Rows("news", "foreign", 14, minorityWeight)].map((row) => ({ ...row, score }));
+    const { issues } = buildDigest(rows, { ...nh108Options("news"), maxPerSource: 14 });
+    assert.equal(issues.some((issue) => issue.overseasOnly), expectedForeign,
+      JSON.stringify({ majorityWeight, minorityWeight, score }));
+  }
+});
+
+test("NH108: far stronger domestic or foreign leaders win and weak opposite-region fillers stay out", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  for (const majority of ["kr", "foreign"]) {
+    const leaders = nh108Rows("business", majority, 14, 100);
+    leaders[0].briefingAuthorityBonus = 1000;
+    const rows = [...leaders, ...nh108Rows("business", majority === "kr" ? "foreign" : "kr", 14, 20)];
+    const { issues } = buildDigest(rows, { ...nh108Options("business"), maxPerSource: 14 });
+    assert.deepEqual(issues.map((issue) => issue.refs[0].id), leaders.map((row) => row.id));
+  }
+});
+
+test("NH108: foreign advancement requires an existing cross-reporting or Korean-impact signal", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const domestic = nh108Rows("news", "kr", 14, 200);
+  const plain = { ...nh108Rows("news", "foreign", 1, 180)[0], originalTitle: "",
+    source: "hackernews", sourceLabel: "Hacker News" };
+  for (const [name, foreign, expected] of [
+    ["none", [plain], false],
+    ["global_major", [{ ...plain, source: "bbc-world" }], false],
+    ["Korean impact", [{ ...plain, originalTitle: "Fed interest rates decision" }], true],
+    ["cross-reporting", [
+      { ...plain, briefingAuthorityBonus: 20, url: "https://example.test/nh108-cross" },
+      { ...plain, id: "nh108-cross-second", source: "pcgamer", sourceLabel: "PC Gamer",
+        briefingAuthorityBonus: 20, url: "https://example.test/nh108-cross" }
+    ], true]
+  ]) {
+    const { issues } = buildDigest([...domestic, ...foreign], { ...nh108Options("news"), maxPerSource: 14 });
+    assert.equal(issues.some((issue) => issue.overseasOnly), expected, name);
+  }
+  const strongest = { ...plain, briefingAuthorityBonus: 1000 };
+  assert.equal(buildDigest([...domestic, strongest], nh108Options("news")).issues[0].refs[0].id, strongest.id,
+    "the advancement signal is not an exclusion gate on naturally important foreign coverage");
+});
+
+test("NH108: external ranks, carryover priority and unspecified categories are not ratio knobs", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const rows = [...nh108Rows("news", "kr", 14), ...nh108Rows("news", "foreign", 14, 90)];
+  const ids = rows.slice(0, 14).map((row) => row.id);
+  const options = { ...nh108Options("news"), maxPerSource: 14 };
+  for (const externalRank of [new Map(rows.map((row, index) => [row.id, index])),
+    new Map(rows.slice(0, 14).map((row, index) => [row.id, index]))]) {
+    assert.deepEqual(buildDigest(rows, { ...options, externalRank }).issues.map((issue) => issue.refs[0].id), ids);
+  }
+  const carryover = rows.map((row) => row.id.includes("-foreign-") ? { ...row, editorialCarryover: { reason: "test" } } : row);
+  assert.deepEqual(buildDigest(carryover, options).issues.map((issue) => issue.refs[0].id), ids);
+  const unspecified = rows.map((row) => ({ ...row, category: "fashion" }));
+  assert.deepEqual(buildDigest(unspecified, { ...options, selectedCategories: ["fashion"] }).issues.map((issue) => issue.refs[0].id), ids);
+});
+
+test("NH108: guide admissions retain source caps, source order, category eligibility and trend dedupe", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const rows = [...nh108Rows("news", "kr", 20), ...nh108Rows("news", "foreign", 14, 90)];
+  const foreign = rows.filter((row) => row.id.includes("-foreign-"));
+  for (const row of foreign.slice(0, 3)) row.interest = { term: "공통검색", traffic: 0, how: "term" };
+  rows.push({ ...foreign[0], id: "nh108-invalid", title: "ㅋㅋㅋ", originalTitle: "", interest: null },
+    { ...foreign[0], id: "nh108-wrong-category", title: "별도 독립 사건 3-1", originalTitle: "", category: "fashion", interest: null });
+  const { issues, quality } = buildDigest(rows, nh108Options("news"));
+  assert.equal(issues.length, 14);
+  assert.ok(quality.machineHold > 0);
+  assert.ok(issues.every((issue) => issue.categoryIds.includes("news")));
+  assert.ok(!issues.some((issue) => issue.refs.some((ref) => ["nh108-invalid", "nh108-wrong-category"].includes(ref.id))));
+  assert.ok(issuesContainingAnyId(issues, foreign.slice(0, 3).map((row) => row.id)).length <= 1);
+  const bySource = new Map();
+  for (const issue of issues) {
+    const ref = issue.refs[0];
+    const ranks = bySource.get(ref.ownershipGroup) || [];
+    ranks.push(rows.find((row) => row.id === ref.id).sourceRank);
+    bySource.set(ref.ownershipGroup, ranks);
+  }
+  for (const ranks of bySource.values()) {
+    assert.ok(ranks.length <= 3);
+    assert.deepEqual(ranks, [...ranks].sort((a, b) => a - b));
+  }
+});
+
+test("NH108: no applicable preference preserves the original reserve order and final 14", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const rows = [...nh108Rows("news", "kr", 24), ...nh108Rows("news", "foreign", 14, 90)];
+  for (const [items, extra] of [
+    [rows, { externalRank: new Map(rows.map((row, index) => [row.id, index])) }],
+    [rows.map((row) => row.id.includes("-foreign-") ? { ...row, briefingAuthorityBonus: 20 } : row), {}],
+    [rows.map((row) => ({ ...row, source: "yna" })), {}]
+  ]) {
+    const options = { ...nh108Options("news", 22), ...extra };
+    const original = buildDigest(items, { ...options, selectedCategories: ["news", "empty-lane"] }).issues;
+    assert.deepEqual(buildDigest(items, options).issues.map((issue) => issue.refs[0].id),
+      original.map((issue) => issue.refs[0].id));
   }
 });
 
@@ -1481,6 +1640,150 @@ test("후속 보도 계보: 같은 재난이라도 원인·구조·피해처럼 
   const groups = nearIssueGroups(scored, canonicalEvents);
   assert.equal(groups.length, 3,
     "사건 클러스터가 나눈 후속 각도를 홍수라는 공통어만으로 다시 합치면 안 된다");
+});
+
+test("커뮤니티 전재와 정식 결혼 보도는 숫자 표현이 달라도 24시간 안이면 한 자리로 접는다", async () => {
+  const { nearIssueGroups } = await import("../src/feed/digest.js");
+  const mk = (id, title, kind) => ({
+    id, title, kind, category: "culture", admittedCategories: ["culture"],
+    source: id, sourceLabel: id, score: 0, commentCount: 0, coverage: 0, tags: []
+  });
+  const community = mk("wedding-community",
+    "[단독] 지예은♥바타, 부부 된다… 12월 12일 결혼", "community");
+  const reporting = mk("wedding-report",
+    "지예은♥바타, 공개 열애 5개월 만에 결혼 발표…인생 함께 하기로 약속", "news");
+  const canonicalEvents = [
+    {
+      eventId: "wedding-community-event",
+      memberArticleIds: [community.id],
+      firstSeenAt: "2026-09-01T22:53:00.000Z",
+      sourceEvidence: [{ articleId: community.id, title: community.title,
+        operatorGroup: "instiz", publishedAt: null, evidenceRole: "community_post" }]
+    },
+    {
+      eventId: "wedding-report-event",
+      memberArticleIds: [reporting.id],
+      firstSeenAt: "2026-09-02T00:10:00.000Z",
+      sourceEvidence: [{ articleId: reporting.id, title: reporting.title,
+        operatorGroup: "ytn", publishedAt: "2026-09-02T00:10:00.000Z", evidenceRole: "reporting" }]
+    }
+  ];
+
+  assert.equal(nearIssueGroups([
+    { members: [community] }, { members: [reporting] }
+  ], canonicalEvents).length, 1);
+});
+
+test("정식 사건이 갈라져도 명백한 화면 중복은 한 자리만 쓰고 다음 사건으로 채운다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const mk = (id, title, source, score, seconds) => ({
+    id, title, source, sourceLabel: source,
+    kind: "news", category: "sports", admittedCategories: ["sports"],
+    url: `https://${source}.example.com/${id}`,
+    score, commentCount: 0, coverage: 0, tags: [],
+    publishedAt: new Date(Date.parse("2026-09-01T03:00:00Z") + seconds * 1000).toISOString()
+  });
+  const items = [
+    mk("messi-a", "메시 아르헨티나 대표팀 은퇴 공식 발표", "sports-a", 500, 0),
+    mk("messi-b", "메시 아르헨티나 대표팀 은퇴 확정", "sports-b", 400, 60),
+    mk("moreno-a", "축구대표팀 임시 감독에 모레노 선임", "yna-sports", 300, 120),
+    mk("moreno-b", "젊은 사령탑 모레노 한국축구 구할까", "yna-sports", 200, 150),
+    mk("lee", "이강인 아틀레티코 데뷔전 도움 기록", "sports-c", 100, 180)
+  ];
+  const canonicalEvents = items.map((item) => ({
+    eventId: `event-${item.id}`,
+    memberArticleIds: [item.id]
+  }));
+
+  const { issues } = buildDigest(items, {
+    maxIssues: 3,
+    maxPerSource: 3,
+    selectedCategories: ["sports"],
+    minIssuesPerCategory: 3,
+    additiveCategoryUnion: true,
+    canonicalEvents
+  });
+  const ids = issues.map((issue) => issue.refs[0]?.id);
+
+  assert.deepEqual(ids, ["messi-a", "moreno-a", "lee"]);
+  assert.deepEqual(issues.flatMap((issue) => issue.refs.map((ref) => ref.id)),
+    ["messi-a", "moreno-a", "lee"],
+    "서로 다른 정식 사건의 근거를 한 카드에 합치지 않고 화면 자리만 중복 제거해야 한다");
+});
+
+test("최종 출처 제목에서 드러나는 보도 중복과 보도에 붙은 커뮤니티 반응도 한 자리만 쓴다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const mk = (id, title, source, kind = "news") => ({
+    id, title, source, sourceLabel: source, kind,
+    category: "sports", admittedCategories: ["sports"],
+    url: `https://${source}.example.com/${id}`,
+    score: 0, commentCount: 0, coverage: 0, tags: []
+  });
+  const rows = [
+    mk("moreno-main", "축구대표팀 새 감독 발표", "yna-sports"),
+    mk("moreno-follow", "대표팀 사령탑 인선 후속", "yna-sports"),
+    mk("go-report", "프로야구 선수 거취 보도", "yna-sports"),
+    mk("go-community", "야구 팬 반응", "theqoo", "community"),
+    mk("next", "이강인 아틀레티코 데뷔전 도움 기록", "sports-next")
+  ];
+  const canonicalEvents = [
+    {
+      eventId: "moreno-a", memberArticleIds: ["moreno-main"],
+      sourceEvidence: [{ articleId: "moreno-main", title: "축구대표팀 임시 감독에 모레노 선임",
+        operatorGroup: "yonhap", publishedAt: "2026-09-01T03:18:16Z", evidenceRole: "reporting" }]
+    },
+    {
+      eventId: "moreno-b", memberArticleIds: ["moreno-follow"],
+      sourceEvidence: [{ articleId: "moreno-follow", title: "48세 젊은 사령탑 모레노 한국축구 구할까",
+        operatorGroup: "yonhap", publishedAt: "2026-09-01T03:18:42Z", evidenceRole: "reporting" }]
+    },
+    {
+      eventId: "go-report", memberArticleIds: ["go-report"],
+      sourceEvidence: [{ articleId: "go-report", title: "고우석 LG 복귀 유력",
+        operatorGroup: "yonhap", publishedAt: "2026-09-01T03:20:00Z", evidenceRole: "reporting" }]
+    },
+    {
+      eventId: "go-community", memberArticleIds: ["go-community"],
+      sourceEvidence: [{ articleId: "go-community", title: "고우석 한국 복귀",
+        operatorGroup: "theqoo", publishedAt: null, evidenceRole: "community_post" }]
+    },
+    {
+      eventId: "next", memberArticleIds: ["next"],
+      sourceEvidence: [{ articleId: "next", title: rows[4].title,
+        operatorGroup: "sports-next", publishedAt: "2026-09-01T03:30:00Z", evidenceRole: "reporting" }]
+    }
+  ];
+
+  const { issues } = buildDigest(rows, {
+    maxIssues: 3,
+    maxPerSource: 3,
+    selectedCategories: ["sports"],
+    minIssuesPerCategory: 3,
+    additiveCategoryUnion: true,
+    canonicalEvents
+  });
+
+  assert.deepEqual(issues.map((issue) => issue.refs[0]?.id), ["moreno-main", "go-report", "next"]);
+  assert.deepEqual(issues.flatMap((issue) => issue.refs.map((ref) => ref.id)),
+    ["moreno-main", "go-report", "next"],
+    "화면 중복을 없애되 서로 다른 정식 사건의 근거를 합치면 안 된다");
+});
+
+test("측정 중요도가 같으면 해외 필러보다 국내 사건을 먼저 둔다", async () => {
+  const { buildDigest } = await import("../src/feed/digest.js");
+  const items = [
+    { id: "foreign-filler", title: "해외 지역 행사 일정 공개", source: "foreign",
+      sourceLabel: "해외매체", lang: "en", kind: "news", category: "news",
+      admittedCategories: ["news"], url: "https://foreign.example.com/filler",
+      score: 0, commentCount: 0, coverage: 0, tags: [] },
+    { id: "domestic", title: "전국 호우 피해와 열차 운행 조정", source: "domestic",
+      sourceLabel: "국내매체", lang: "ko", kind: "news", category: "news",
+      admittedCategories: ["news"], url: "https://domestic.example.com/rain",
+      score: 0, commentCount: 0, coverage: 0, tags: [] }
+  ];
+
+  const { issues } = buildDigest(items, { maxIssues: 1, selectedCategories: ["news"] });
+  assert.equal(issues[0].refs[0].id, "domestic");
 });
 
 test("편집 단계는 정식 사건 엔진이 나눈 네팔 홍수 본류와 원인 해설을 다시 합치지 않는다", async () => {

@@ -276,6 +276,7 @@ function policyLineageSupport(issue) {
 
 function leadTitle(issue) {
   return stripOuterQuotes(stripLeadTags(
+    issue && issue.preparedHeadline ||
     primaryRefs(issue)[0] && primaryRefs(issue)[0].title ||
     primaryEvidenceRows(issue)[0] && primaryEvidenceRows(issue)[0].title ||
     issue && issue.subject || issue && issue.headline
@@ -313,9 +314,11 @@ function readerHeadline(issue) {
 
 function readerSummary(issue) {
   if (verifiedEditSupport(issue, "whatHappened")) return clean(issue.paragraph);
-  if (issue && issue.shape !== "coverage") return clean(issue.paragraph || issue.whatHappened);
   const title = leadTitle(issue);
   const names = sourceNames(issue);
+  if (!clean(issue && issue.preparedHeadline) && issue && issue.shape !== "coverage") {
+    return clean(issue.paragraph || issue.whatHappened);
+  }
   const mode = clean(issue && issue.evidence && issue.evidence.mode || issue && issue.metrics && issue.metrics.evidenceMode);
   if (mode === "multiple_feed_observed" && names.length) {
     return `${names.join("·")}에서 “${title}” 관련 보도를 확인했습니다.`;
@@ -334,7 +337,9 @@ function readerWhyImportant(issue) {
       .replace(/가치가 있다\.?$/, "가치가 있습니다.")
       .replace(/필요가 있다\.?$/, "필요가 있습니다.")
       .replace(/해야 한다\.?$/, "해야 합니다.");
-    const subject = stripOuterQuotes(stripLeadTags(issue && issue.subject));
+    const subject = clean(issue && issue.preparedHeadline)
+      ? readerEventLabel(issue)
+      : stripOuterQuotes(stripLeadTags(issue && issue.subject));
     if (!/볼 가치가 있다\.?$/.test(original) || !/[가-힣]/.test(subject) || subject.length > 56 || formal.includes(subject)) {
       return formal;
     }

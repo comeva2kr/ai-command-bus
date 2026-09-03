@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { fetchPublicArticle } from "./enrich.js";
+import { cleanArticleTextChrome, fetchPublicArticle, looksLikePageChrome } from "./enrich.js";
+import { stripHtml } from "./html-text.js";
 import { callStructuredMessage } from "./llm.js";
 import { isGoogleNewsRedirect } from "./canonical-url.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
@@ -198,6 +199,9 @@ function allSourceRows(issue) {
   );
 }
 
+const hasSubstantialFeedExcerpt = (rows) => (rows || []).some((row) =>
+  substantialKoreanSummary(row.summary || row.excerpt || row.description));
+
 function sourceRowOrder(a, b) {
   const withheld = Number(a?.canLead === false) - Number(b?.canLead === false);
   if (withheld) return withheld;
@@ -234,12 +238,23 @@ export function articleContentId(issue) {
 function sourceLinks(rows) {
   const canonical = canonicalSourceRows(rows);
   const direct = canonical.filter((row) => !isGoogleNewsRedirect(row.canonicalUrl));
-  return (direct.length ? direct : canonical).map((row) => ({
-    evidenceId: row.evidenceId || null,
-    sourceLabel: clean(row.sourceLabel) || "원문",
-    sourceGroup: clean(row.sourceGroup) || clean(operationalSourceIdentity(row).ownershipGroup),
-    url: row.canonicalUrl
-  }));
+  return (direct.length ? direct : canonical).map((row) => {
+    const excerpt = row.summary || row.excerpt || row.description;
+    const summary = typeof excerpt === "string" ? cleanArticleTextChrome(stripHtml(excerpt)) : "";
+    const originalTitle = typeof row.originalTitle === "string" ? stripHtml(row.originalTitle) : "";
+    return {
+      evidenceId: row.evidenceId || null,
+      sourceLabel: clean(row.sourceLabel) || "원문",
+      sourceGroup: clean(row.sourceGroup) || clean(operationalSourceIdentity(row).ownershipGroup),
+      url: row.canonicalUrl,
+      ...(/\p{L}/u.test(summary) && !looksLikePageChrome(summary) ? { summary: summary.slice(0, 200) } : {}),
+      ...(typeof row.image === "string" && row.image && !isGoogleNewsRedirect(row.canonicalUrl)
+        ? { image: row.image } : {}),
+      ...(typeof row.publishedAt === "string" && Number.isFinite(Date.parse(row.publishedAt))
+        ? { publishedAt: row.publishedAt } : {}),
+      ...(originalTitle ? { originalTitle } : {})
+    };
+  });
 }
 
 function resolvedSourceRows(allSources, fetchedSources) {
@@ -874,7 +889,8 @@ export function makeArticleSummaryPipeline({
       const currentSourceFingerprint = sourceFingerprint(allSources);
       const hit = summaries.get(key);
       if (verifiedCache(hit, model, verifierModel, effectiveFallbackModel, clock()) ||
-        unavailableCache(hit, model, verifierModel, effectiveFallbackModel, clock(), currentSourceFingerprint)) {
+        (!completeBeforePublish || !hasSubstantialFeedExcerpt(allSources)) &&
+          unavailableCache(hit, model, verifierModel, effectiveFallbackModel, clock(), currentSourceFingerprint)) {
         output[index] = { ...issue, articleSummary: hit.articleSummary };
         cacheHits += 1;
       } else {
@@ -944,7 +960,8 @@ export function makeArticleSummaryPipeline({
     for (const row of fetchedRows) {
       const resolvedHit = row.resolvedKey && summaries.get(row.resolvedKey);
       if (verifiedCache(resolvedHit, model, verifierModel, effectiveFallbackModel, clock()) ||
-        unavailableCache(resolvedHit, model, verifierModel, effectiveFallbackModel, clock(), sourceFingerprint(row.resolvedSources))) {
+        (!completeBeforePublish || !hasSubstantialFeedExcerpt(row.resolvedSources)) &&
+          unavailableCache(resolvedHit, model, verifierModel, effectiveFallbackModel, clock(), sourceFingerprint(row.resolvedSources))) {
         const articleSummary = {
           ...resolvedHit.articleSummary,
           articleContentAliases: unique([
@@ -1239,13 +1256,15 @@ export function makeArticleSummaryPipeline({
           continue;
         }
         const anchor = row.sources.find((source) => source.result.state === "available");
+        const reason = anchor ? "NO_SUBSTANTIAL_PUBLIC_BODY"
+          : row.sources[0]?.result.reasonCode || "NO_PUBLIC_BODY";
         const image = row.sources.find((source) => source.result.image)?.result.image || null;
         output[row.index] = {
           ...row.issue,
           articleSummary: saveUnavailable(row, {
             ...unavailable(
               row.resolvedIssue, anchor?.source || row.sourceRows[0] || null,
-              "NO_SUBSTANTIAL_PUBLIC_BODY", row.resolvedSources, image, clock()
+              reason, row.resolvedSources, image, clock()
             ),
             articleContentAliases: row.articleContentAliases
           })

@@ -9,7 +9,7 @@
 import fs from "node:fs";
 import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
-import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, UNTRAINED_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY } from "./classify.js";
+import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, UNTRAINED_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY, categoryGuardReason, isGeneralNewsGuardReason } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
 import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
@@ -31,7 +31,7 @@ import { coverageEvidence } from "./editorial-quality.js";
 import {
   buildDigest,
   buildIssueDraft,
-  CATEGORY_DOMESTIC_SHARE_BANDS,
+  canonicalDisplayDuplicate,
   MIN_ISSUES,
   slotForHour,
   slotById,
@@ -72,6 +72,8 @@ import { specialistCorrection, aggregateReclassification, untrainedOverrideAllow
 import { buildEditorialNote } from "./editorial.js";
 import {
   AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS,
+  OVERSEAS_MARKET_SIGNAL_LEXICON,
+  findMarketSignalMatches,
   isAuthoritativeForeignNewsSource
 } from "./selection-axes.js";
 import {
@@ -240,6 +242,8 @@ function attachCanonicalEventSources(issue, index) {
     ...draft,
     categoryIds: canonicalCategoryIds.length ? canonicalCategoryIds : issue.categoryIds,
     subject: presentationLead?.title || draft.subject,
+    headline: canonicalMembers.some((item) => item.kind === "news" && item.editorialImportance === "pass")
+      ? presentationLead?.title || draft.subject : draft.headline,
     clusterId: canonicalEvent.eventId,
     event: canonicalEvent
   }, []);
@@ -273,10 +277,17 @@ function attachCanonicalEventSources(issue, index) {
   const eventEvidence = coverageEvidence(
     presentationMembers.filter((item) => !hasReporting || item.kind !== "community")
   );
-  const eventConfidence = eventEvidence.mode === "multiple_feed_observed"
-    ? { code: "multiple_feed_observed", label: "운영그룹 교차 관측",
-      note: "지금핫 수집 풀의 서로 다른 운영그룹에서 관측했다. 법적 독립성이나 사실 확정을 뜻하지 않는다." }
-    : null;
+  const presentationMetrics = {
+    ...canonical.metrics,
+    sourceCount: eventEvidence.observedFeedCount,
+    independentGroupCount: eventEvidence.independentGroupCount,
+    evidenceMode: eventEvidence.mode
+  };
+  const presentationCopy = enrichDigestIssue({
+    ...canonical,
+    metrics: presentationMetrics,
+    evidence: eventEvidence
+  }, []);
   const carryoverById = new Map();
   const rememberCarryover = (row) => {
     if (!row?.carryover) return;
@@ -296,6 +307,7 @@ function attachCanonicalEventSources(issue, index) {
   // 선택 조합마다 다시 만들면 한 기사가 다른 기사처럼 보인다. 전체 사건 멤버로
   // 한 번 만든 표현 정본만 투영하고, 선택 단계의 게이트 상태는 그대로 둔다.
   const fixedPresentation = canonical ? {
+    categoryIds: canonical.categoryIds,
     subject: canonical.subject,
     headline: canonical.headline,
     paragraph: canonical.paragraph,
@@ -303,10 +315,7 @@ function attachCanonicalEventSources(issue, index) {
     tone: canonical.tone,
     shape: canonical.shape,
     metrics: {
-      ...canonical.metrics,
-      sourceCount: eventEvidence.observedFeedCount,
-      independentGroupCount: eventEvidence.independentGroupCount,
-      evidenceMode: eventEvidence.mode,
+      ...presentationMetrics,
       ...(issue.metrics?.carryoverUsed ? {
         carryoverUsed: true,
         carryoverEvidenceCount: issue.metrics.carryoverEvidenceCount || 1
@@ -320,9 +329,9 @@ function attachCanonicalEventSources(issue, index) {
     event: canonical.event,
     impactLens: canonical.impactLens,
     whyImportant: canonical.whyImportant,
-    whyHot: canonical.whyHot,
-    watchNext: canonical.watchNext,
-    confidence: eventConfidence || canonical.confidence
+    whyHot: presentationCopy.whyHot,
+    watchNext: presentationCopy.watchNext,
+    confidence: presentationCopy.confidence
   } : {};
   const selectedCategories = [...new Set([
     ...(issue.selectedByCategories || []),
@@ -343,6 +352,44 @@ const editionIssueKey = (issue) => String(
   issue?.refs?.[0]?.id || issue?.subject || ""
 );
 
+const sourceKindById = new Map(loadRegistry().map((source) => [source.id, source.kind]));
+const finalIssueEvidence = (issue) => (issue?.sourceEvidence?.length
+  ? issue.sourceEvidence : issue?.event?.sourceEvidence?.length
+    ? issue.event.sourceEvidence : issue?.eventSources || []).map((row) => ({
+  title: row.title || issue.headline || "",
+  operatorGroup: row.operatorGroup || row.ownershipGroup || row.sourceGroup || row.sourceId || "",
+  publishedAt: row.publishedAt || issue.firstPublishedAt || issue?.event?.firstSeenAt || null,
+  evidenceRole: ["reporting", "community_post"].includes(row.evidenceRole)
+    ? row.evidenceRole : sourceKindById.get(row.sourceId) === "community" ? "community_post" : "reporting"
+})).filter((row) => row.title);
+
+const sameFinalDisplayIssue = (left, right) => finalIssueEvidence(left).some((leftEvidence) =>
+  finalIssueEvidence(right).some((rightEvidence) => canonicalDisplayDuplicate(leftEvidence, rightEvidence)));
+
+const finalIssuePriority = (issue) => {
+  const evidence = finalIssueEvidence(issue);
+  const reporting = evidence.filter((row) => row.evidenceRole === "reporting");
+  return [
+    Number(reporting.length > 0),
+    new Set(reporting.map((row) => row.operatorGroup).filter(Boolean)).size,
+    evidence.length,
+    Number(issue?.metrics?.score) || 0
+  ];
+};
+
+const preferFinalIssue = (left, right) => {
+  const leftPriority = finalIssuePriority(left);
+  const rightPriority = finalIssuePriority(right);
+  for (let index = 0; index < leftPriority.length; index += 1) {
+    if (leftPriority[index] !== rightPriority[index]) {
+      return leftPriority[index] > rightPriority[index] ? left : right;
+    }
+  }
+  const leftKey = `${left?.evidenceHash || ""}|${editionIssueKey(left)}`;
+  const rightKey = `${right?.evidenceHash || ""}|${editionIssueKey(right)}`;
+  return leftKey.localeCompare(rightKey) <= 0 ? left : right;
+};
+
 export function mergeCategoryEditions(rows, selectedCategories, candidateCap, includeCandidates) {
   const first = rows[0]?.edition || {};
   const issueLists = rows.map(({ category, edition }) => ({
@@ -350,9 +397,10 @@ export function mergeCategoryEditions(rows, selectedCategories, candidateCap, in
     issues: (edition.issues || []).filter((issue) => {
       const lanes = issue.selectedByCategories || [];
       return lanes.length ? lanes.includes(category) : (issue.categoryIds || []).includes(category);
-    }).map((issue) => ({
+    }).map((issue, rank) => ({
       ...issue,
-      selectedByCategories: [...new Set([...(issue.selectedByCategories || []), category])]
+      selectedByCategories: [...new Set([...(issue.selectedByCategories || []), category])],
+      _categoryLaneRanks: { ...(issue._categoryLaneRanks || {}), [category]: rank }
     }))
   }));
   const mergedIssues = [];
@@ -367,20 +415,33 @@ export function mergeCategoryEditions(rows, selectedCategories, candidateCap, in
       || left.categoryIndex - right.categoryIndex);
     for (const { issue } of layer) {
       const key = editionIssueKey(issue);
-      if (!key || !issueIndex.has(key)) {
+      const exactIdentity = Boolean(key && issueIndex.has(key));
+      const existingIndex = exactIdentity ? issueIndex.get(key)
+        : mergedIssues.findIndex((current) => sameFinalDisplayIssue(current, issue));
+      if (existingIndex < 0) {
         issueIndex.set(key || `row:${mergedIssues.length}`, mergedIssues.length);
         mergedIssues.push(issue);
         continue;
       }
-      const index = issueIndex.get(key);
-      const current = mergedIssues[index];
-      const categoryIds = [...new Set([...(current.categoryIds || []), ...(issue.categoryIds || [])])];
-      const selectedByCategories = [...new Set([
-        ...(current.selectedByCategories || []),
-        ...(issue.selectedByCategories || [])
-      ])];
-      const merged = { ...current, categoryIds, selectedByCategories };
-      mergedIssues[index] = current.claimLineage || current.sourceEvidence?.length
+      const current = mergedIssues[existingIndex];
+      const survivor = preferFinalIssue(current, issue);
+      const categoryIds = exactIdentity
+        ? [...new Set([...(current.categoryIds || []), ...(issue.categoryIds || [])])]
+        : [...new Set(survivor.categoryIds || [])];
+      const selectedByCategories = exactIdentity
+        ? [...new Set([...(current.selectedByCategories || []), ...(issue.selectedByCategories || [])])]
+        : [...new Set(survivor.selectedByCategories || [])];
+      const categoryLaneRanks = exactIdentity
+        ? { ...(current._categoryLaneRanks || {}), ...(issue._categoryLaneRanks || {}) }
+        : { ...(survivor._categoryLaneRanks || {}) };
+      const merged = { ...survivor, categoryIds, selectedByCategories, _categoryLaneRanks: categoryLaneRanks };
+      if (!exactIdentity && survivor !== current) {
+        for (const [mappedKey, mappedIndex] of issueIndex) {
+          if (mappedIndex === existingIndex) issueIndex.delete(mappedKey);
+        }
+      }
+      issueIndex.set(editionIssueKey(survivor), existingIndex);
+      mergedIssues[existingIndex] = survivor.claimLineage || survivor.sourceEvidence?.length
         ? attachEditorialLineage(merged, {
           selectedCategories: selectedByCategories
         })
@@ -1290,6 +1351,7 @@ export class FeedEngine {
     const registry = loadRegistry();
     // P2-A 분류 이원화 관문(category-policy.js): tier가 재분류 허용 범위를 정한다.
     const tierBySource = new Map(registry.map((source) => [source.id, source.sourceTier]));
+    const routingBySource = new Map(registry.map((source) => [source.id, source.categoryRouting]));
     const mixedSources = new Set(registry.filter((source) => source && source.mixed).map((source) => source.id));
     const newsCategories = new Map(registry.map((source) => [source.id, source.category]));
     const isSectionedNews = (item) => {
@@ -1328,13 +1390,24 @@ export class FeedEngine {
         item.category = MIXED_NEUTRAL_CATEGORY;
       }
       const sectioned = isSectionedNews(item);
+      const classificationTitle = item.title;
       const definite = definiteCategory({
-        title: item.title,
+        title: classificationTitle,
         url: item.url,
         sourceId: item.source
       });
       const urlDefinite = definiteCategory({ title: "", url: item.url, sourceId: item.source });
       const politicsTopic = (item.topics || []).includes("politics");
+      const declarationGuard = sectioned && tierBySource.get(item.source) === "aggregate"
+        ? categoryGuardReason(item.category, item.title, item) : null;
+      if (isGeneralNewsGuardReason(declarationGuard)) {
+        if (item.registryCategory === undefined) item.registryCategory = item.category;
+        item.categoryCorrection = {
+          from: item.category, to: "news", rule: "aggregate-general-news-guard", reason: declarationGuard
+        };
+        item.category = "news";
+        continue;
+      }
       if (politicsTopic && definite !== "science") continue;
       if (UNTRAINED_CATEGORIES.has(item.category) && definite !== "science") continue;
 
@@ -1342,7 +1415,7 @@ export class FeedEngine {
         // P2-A 관문: 번역 제목이 확정 사전 1히트로 UNTRAINED 카테고리(부동산·
         // 패션·예술)에 승격되는 것을 막는다 — 표본 7 계열의 구조적 방어.
         if (!untrainedOverrideAllowed({
-          toCategory: definite, title: item.title, translated: isTranslatedTitle(item)
+          toCategory: definite, title: classificationTitle, translated: isTranslatedTitle(item)
         })) continue;
         if (definite !== item.category) {
           if (item.registryCategory === undefined) item.registryCategory = item.category;
@@ -1378,6 +1451,7 @@ export class FeedEngine {
         // (선언 news)은 sectioned가 아니라서 여기 오지 않는다 — 기존 경로
         // 무변경.
         if (tierBySource.get(item.source) === "aggregate"
+          && routingBySource.get(item.source) !== "declared_section"
           && this._classifier.trained >= MIN_NB_TRAINING_ROWS) {
           // R6(2026-08-14 David HOLD 결함 6): gnews 전문 섹션은 학습 소스이기도
           // 하다 — 이 행을 그대로 predict하면 방금 학습한 자기 라벨을 암기해
@@ -2964,6 +3038,7 @@ export class FeedEngine {
           ...item,
           ...(Array.isArray(routed?.admittedCategories)
             ? { admittedCategories: [...routed.admittedCategories] } : {}),
+          ...(routed?.editorialImportance ? { editorialImportance: routed.editorialImportance } : {}),
           sourceLabel: this._labelFor(item)
         };
       });
@@ -3183,8 +3258,17 @@ export class FeedEngine {
     const interestPoints = (m) => (m ? INTEREST_MAX * Math.min(1, (m.traffic || 0) / 1000) * m.strength : 0);
     const authorityPoints = (i) => {
       if (!authoritativeForeignNews(i)) return 0;
-      const rank = Number.isFinite(i.sourceRank) ? Math.max(0, i.sourceRank) : 0;
-      return Math.max(0, INTEREST_MAX - rank * (INTEREST_MAX / 10));
+      if (i.editorialImportance === "pass") return INTEREST_MAX;
+      if (i.editorialImportance === "fail") return 0;
+      const observedAcrossFeeds = Math.max(
+        Number(i.coverage) || 0,
+        Number(i.relatedCoverage) || 0
+      ) > 0;
+      const marketConsequence = editionCategories(i).some((category) =>
+        ["news", "business", "politics", "realestate", "tech", "auto"].includes(category))
+        && findMarketSignalMatches([i], OVERSEAS_MARKET_SIGNAL_LEXICON).length > 0;
+      if (!observedAcrossFeeds && !marketConsequence) return 0;
+      return INTEREST_MAX;
     };
     const weight = (i) => {
       const m = interestOf(i);
@@ -3288,7 +3372,6 @@ export class FeedEngine {
       selectedCategories,
       limit: fixtureLimit,
       minPerSelectedCategory: perCategoryLimit,
-      domesticShareBands: CATEGORY_DOMESTIC_SHARE_BANDS,
       preferKoreanAudience: personalized,
       observedAt: new Date(now).toISOString()
     }) : null;

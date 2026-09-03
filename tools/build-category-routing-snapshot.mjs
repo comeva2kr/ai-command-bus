@@ -14,13 +14,82 @@ const arg = (args, name) => {
 };
 const argsFor = (args, name) => args.flatMap((value, index) =>
   value === name && args[index + 1] ? [args[index + 1]] : []);
+export const EDITORIAL_IMPORTANCE_CONTRACT = "NOWHOT-EDITORIAL-IMPORTANCE-001";
+const IMPORTANCE_REASON_CLASSES = new Set(["market", "security", "diplomacy", "disaster", "policy", "none"]);
+const KOREA_IMPACT_LEVELS = new Set(["direct", "indirect", "none"]);
+const isSha = (value) => typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+const hasExactKeys = (value, keys) => value && typeof value === "object" && !Array.isArray(value)
+  && Object.keys(value).sort().join("|") === [...keys].sort().join("|");
 
-export function buildCategoryRoutingSnapshot(packet, predictions, source = {}) {
+const deterministicRouting = (target) => {
+  const value = target?.deterministicRouting;
+  if (value === undefined) return null;
+  if (!value || value.routingBasis !== "deterministic_tier_policy"
+    || !Array.isArray(value.categories) || value.categories.length !== 1
+    || !isKnownCategory(value.categories[0])
+    || !["news", "community", "deal"].includes(value.contentType)
+    || value.contentType !== target.contentKindHint) {
+    throw new Error(`category routing build: invalid deterministic routing '${target?.itemId || ""}'`);
+  }
+  return value;
+};
+
+function validateEditorialImportanceReview(review, packet, registry, packetSha256) {
+  if (!hasExactKeys(review, ["contract", "generatedAt", "source", "entries"])
+    || review.contract !== EDITORIAL_IMPORTANCE_CONTRACT
+    || !Number.isFinite(Date.parse(review.generatedAt))
+    || !hasExactKeys(review.source, ["packetSha256", "promptVersion", "reviewers"])
+    || !isSha(review.source.packetSha256)
+    || typeof review.source.promptVersion !== "string" || !review.source.promptVersion.trim()
+    || !Array.isArray(review.source.reviewers) || review.source.reviewers.length !== 3
+    || new Set(review.source.reviewers).size !== 3
+    || review.source.reviewers.some((value) => typeof value !== "string" || !value.trim())
+    || !Array.isArray(review.entries)) {
+    throw new TypeError("category routing importance: invalid review");
+  }
+  if (review.source.packetSha256 !== packetSha256) {
+    throw new Error("category routing importance: packet SHA mismatch");
+  }
+  if (!Array.isArray(registry)) throw new TypeError("category routing importance: registry required");
+
+  const sources = new Map(registry.map((entry) => [entry.id, entry]));
+  const required = new Set(packet.targets.filter((target) => {
+    const meta = sources.get(target.sourceId);
+    return target.contentKindHint === "news" && meta?.enabled === true && meta.kind === "news"
+      && meta.country && meta.country !== "KR" && meta.editorialAuthority === "global_major"
+      && ["news", "business"].includes(meta.category);
+  }).map((target) => target.evidenceHash));
+  const decisions = new Map();
+  for (const entry of review.entries) {
+    if (!hasExactKeys(entry, ["evidenceHash", "important", "reasonClass", "koreaImpact"])
+      || !isSha(entry.evidenceHash) || typeof entry.important !== "boolean"
+      || !IMPORTANCE_REASON_CLASSES.has(entry.reasonClass)
+      || !KOREA_IMPACT_LEVELS.has(entry.koreaImpact)
+      || decisions.has(entry.evidenceHash)) {
+      throw new TypeError("category routing importance: invalid review entry");
+    }
+    decisions.set(entry.evidenceHash, entry);
+  }
+  if (required.size !== decisions.size || [...required].some((hash) => !decisions.has(hash))
+    || [...decisions.keys()].some((hash) => !required.has(hash))) {
+    throw new Error("category routing importance: incomplete target coverage");
+  }
+  return decisions;
+}
+
+export function buildCategoryRoutingSnapshot(packet, predictions, source = {}, {
+  editorialImportanceReview = null,
+  registry = []
+} = {}) {
   if (!Array.isArray(packet?.targets) || !Array.isArray(predictions?.results)) {
     throw new TypeError("category routing build: packet and recovered predictions required");
   }
+  const importance = editorialImportanceReview
+    ? validateEditorialImportanceReview(editorialImportanceReview, packet, registry, source.packetSha256)
+    : null;
   const byTarget = new Map(predictions.results.map((row) => [row.itemId, row]));
   if (byTarget.size !== packet.targets.length) throw new Error("category routing build: incomplete predictions");
+  const targetBasis = { current_model: 0, deterministic_tier_policy: 0, withheld: 0 };
 
   const entries = packet.targets.flatMap((target) => {
     const prediction = byTarget.get(target.itemId);
@@ -28,14 +97,26 @@ export function buildCategoryRoutingSnapshot(packet, predictions, source = {}) {
     if (!prediction || (classified && prediction.classification?.evidenceHash !== target.evidenceHash)) {
       throw new Error(`category routing build: prediction mismatch '${target.itemId}'`);
     }
-    const categories = classified
-      ? admittedCategories(prediction.classification)
-      : [];
+    const deterministic = classified ? null : deterministicRouting(target);
+    let categories = classified ? admittedCategories(prediction.classification) : deterministic?.categories || [];
+    let basis = classified ? "current_model"
+      : categories.length ? "deterministic_tier_policy" : "withheld";
+    const importanceDecision = importance?.get(target.evidenceHash);
+    const editorialImportance = importanceDecision
+      ? importanceDecision.important ? "pass" : "fail" : undefined;
+    if (editorialImportance === "fail") {
+      categories = [];
+      basis = "withheld";
+    }
+    targetBasis[basis] += 1;
     return target.sourceArticleIds.map((itemId) => ({
       itemId,
       evidenceHash: target.evidenceHash,
       categories,
-      contentType: prediction.classification?.contentType || "other"
+      contentType: prediction.classification?.contentType
+        || deterministic?.contentType || "other",
+      routingBasis: basis,
+      ...(editorialImportance ? { editorialImportance } : {})
     }));
   }).sort((a, b) => a.itemId.localeCompare(b.itemId));
 
@@ -46,12 +127,19 @@ export function buildCategoryRoutingSnapshot(packet, predictions, source = {}) {
     source: {
       packetSha256: source.packetSha256,
       predictionsSha256: source.predictionsSha256,
+      ...(editorialImportanceReview ? {
+        editorialImportanceContract: EDITORIAL_IMPORTANCE_CONTRACT,
+        editorialImportanceReviewSha256: source.editorialImportanceReviewSha256
+      } : {}),
       candidateId: predictions.candidate?.candidateId || packet.candidate?.candidateId || null
     },
     counts: {
       entries: entries.length,
       classifiedArticles: entries.filter((entry) => entry.categories.length > 0).length,
-      withheldArticles: entries.filter((entry) => entry.categories.length === 0).length
+      modelClassifiedArticles: entries.filter((entry) => entry.routingBasis === "current_model").length,
+      admittedArticles: entries.filter((entry) => entry.categories.length > 0).length,
+      withheldArticles: entries.filter((entry) => entry.categories.length === 0).length,
+      routingBasis: targetBasis
     },
     entries
   };
@@ -78,15 +166,12 @@ export function buildRecoveredCategoryRoutingSnapshot(packet, predictions, prior
     }
     currentByHash.set(classification.evidenceHash, row);
   }
-  const priorIsPureModelSnapshot = Boolean(priorSnapshot.source?.candidateId)
-    && !priorSnapshot.source?.recoveryPolicy
-    && priorSnapshot.entries.every((entry) => entry.routingBasis == null);
   const priorByHash = new Map();
   for (const entry of priorSnapshot.entries) {
     const value = {
       categories: [...entry.categories],
       contentType: entry.contentType || "other",
-      routingBasis: entry.routingBasis || (priorIsPureModelSnapshot ? "current_model" : "prior_exact_hash")
+      routingBasis: entry.routingBasis || "withheld"
     };
     const prior = priorByHash.get(entry.evidenceHash);
     if (prior && JSON.stringify(prior) !== JSON.stringify(value)) {
@@ -94,14 +179,10 @@ export function buildRecoveredCategoryRoutingSnapshot(packet, predictions, prior
     }
     priorByHash.set(entry.evidenceHash, value);
   }
-  const registryById = new Map(registry.map((entry) => [entry.id, entry]));
   const entriesById = new Map();
-  const allowLegacyFallback = source.allowLegacyFallback === true;
   const targetBasis = {
-    current_model: 0, prior_exact_hash: 0, specialist_registry_default: 0,
-    ...(allowLegacyFallback ? { legacy_classifier_fallback: 0 } : {}), withheld: 0
+    current_model: 0, prior_exact_hash: 0, deterministic_tier_policy: 0, withheld: 0
   };
-  let policyCorrectionSkipped = 0;
 
   for (const target of packet.targets) {
     if (!target?.itemId || !/^[0-9a-f]{64}$/.test(target.evidenceHash)
@@ -110,14 +191,9 @@ export function buildRecoveredCategoryRoutingSnapshot(packet, predictions, prior
     }
     const current = currentByHash.get(target.evidenceHash);
     const currentClassified = Boolean(current);
-    const meta = registryById.get(target.sourceId);
-    const specialist = meta?.enabled === true && meta.kind === "news"
-      && meta.sourceTier === "specialist" && isKnownCategory(meta.category);
     const prior = priorByHash.get(target.evidenceHash);
     const reusablePrior = prior?.categories.length > 0
-      && (prior.routingBasis === "current_model"
-        || (prior.routingBasis === "specialist_registry_default"
-          && specialist && prior.categories.length === 1 && prior.categories[0] === meta.category));
+      && ["current_model", "prior_exact_hash"].includes(prior.routingBasis);
     let value;
     let routingBasis;
     if (currentClassified) {
@@ -132,20 +208,15 @@ export function buildRecoveredCategoryRoutingSnapshot(packet, predictions, prior
       routingBasis = "current_model";
     } else if (reusablePrior) {
       value = prior;
-      routingBasis = prior.routingBasis;
+      routingBasis = "prior_exact_hash";
     } else {
-      const legacy = allowLegacyFallback && isKnownCategory(target.legacyCategory)
-        && ["news", "community", "deal"].includes(target.contentKindHint);
-      value = specialist
-        ? { categories: [meta.category], contentType: "news" }
-        : legacy ? { categories: [target.legacyCategory], contentType: target.contentKindHint }
-          : { categories: [], contentType: ["news", "community", "deal"].includes(target.contentKindHint)
-            ? target.contentKindHint : "other" };
-      routingBasis = specialist ? "specialist_registry_default"
-        : legacy ? "legacy_classifier_fallback" : "withheld";
-      if (specialist && isKnownCategory(target.legacyCategory) && target.legacyCategory !== meta.category) {
-        policyCorrectionSkipped += 1;
-      }
+      const deterministic = deterministicRouting(target);
+      value = deterministic || {
+        categories: [],
+        contentType: ["news", "community", "deal"].includes(target.contentKindHint)
+          ? target.contentKindHint : "other"
+      };
+      routingBasis = deterministic ? "deterministic_tier_policy" : "withheld";
     }
     targetBasis[routingBasis] += 1;
     for (const itemId of target.sourceArticleIds) {
@@ -179,10 +250,7 @@ export function buildRecoveredCategoryRoutingSnapshot(packet, predictions, prior
       registrySha256: source.registrySha256,
       categoryPolicySha256: source.categoryPolicySha256,
       candidateId: predictions.candidate?.candidateId || packet.candidate?.candidateId || null,
-      recoveryPolicy: allowLegacyFallback
-        ? "current_model_then_exact_prior_then_specialist_then_legacy_classifier"
-        : "current_model_then_current_specialist_registry_default",
-      policyCorrectionSkipped
+      recoveryPolicy: "current_model_then_exact_prior_then_current_packet_deterministic"
     },
     counts: {
       entries: entries.length,
@@ -213,10 +281,10 @@ function main() {
   const priorSnapshotFile = arg(args, "--prior-snapshot");
   const registryFile = arg(args, "--registry");
   const categoryPolicyFile = arg(args, "--category-policy");
-  const allowLegacyFallback = args.includes("--allow-legacy-fallback");
+  const editorialImportanceFile = arg(args, "--editorial-importance");
   const outFile = arg(args, "--out");
   if (!packetFile || !outFile || (!predictionsFile && !progressFile)) {
-    throw new Error("usage: --packet <packet.json> (--predictions <predictions.json> | --progress <progress.jsonl> --prior-snapshot <snapshot.json> --registry <communities.json> --category-policy <file>) --out <snapshot.json>");
+    throw new Error("usage: --packet <packet.json> (--predictions <predictions.json> [--editorial-importance <review.json> --registry <communities.json>] | --progress <progress.jsonl> --prior-snapshot <snapshot.json> --registry <communities.json> --category-policy <file>) --out <snapshot.json>");
   }
   const packetRaw = fs.readFileSync(packetFile, "utf8");
   const progressRaws = progressFiles.map((file) => fs.readFileSync(file, "utf8"));
@@ -225,6 +293,7 @@ function main() {
     : progressRaws.join("\n");
   let snapshot;
   if (progressFile) {
+    if (editorialImportanceFile) throw new Error("category routing recovery: importance review unsupported");
     if (!priorSnapshotFile || !registryFile || !categoryPolicyFile) {
       throw new Error("category routing recovery: --prior-snapshot, --registry, and --category-policy required");
     }
@@ -241,12 +310,21 @@ function main() {
       {
         packetSha256: sha256(packetRaw), predictionsSha256: sha256(predictionsRaw),
         priorSnapshotSha256: sha256(priorRaw), registrySha256: sha256(registryRaw),
-        categoryPolicySha256: sha256(policyRaw), allowLegacyFallback
+        categoryPolicySha256: sha256(policyRaw)
       }
     );
   } else {
+    if (editorialImportanceFile && !registryFile) {
+      throw new Error("category routing importance: --registry required");
+    }
+    const importanceRaw = editorialImportanceFile ? fs.readFileSync(editorialImportanceFile, "utf8") : null;
+    const registryJson = registryFile ? JSON.parse(fs.readFileSync(registryFile, "utf8")) : [];
     snapshot = buildCategoryRoutingSnapshot(JSON.parse(packetRaw), JSON.parse(predictionsRaw), {
-      packetSha256: sha256(packetRaw), predictionsSha256: sha256(predictionsRaw)
+      packetSha256: sha256(packetRaw), predictionsSha256: sha256(predictionsRaw),
+      ...(importanceRaw ? { editorialImportanceReviewSha256: sha256(importanceRaw) } : {})
+    }, {
+      editorialImportanceReview: importanceRaw ? JSON.parse(importanceRaw) : null,
+      registry: Array.isArray(registryJson) ? registryJson : registryJson.communities
     });
   }
   fs.mkdirSync(path.dirname(outFile), { recursive: true });

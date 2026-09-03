@@ -9,33 +9,10 @@ export const CATEGORY_ROUTING_MAX_AGE_MS = 30 * 60 * 60 * 1000;
 const isId = (value) => typeof value === "string" && value.trim().length > 0 && value === value.trim();
 const isSha = (value) => typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
 const ROUTING_BASES = new Set([
-  "current_model", "prior_exact_hash", "specialist_registry_default", "legacy_classifier_fallback", "withheld"
+  "current_model", "prior_exact_hash", "deterministic_tier_policy",
+  "specialist_registry_default", "legacy_classifier_fallback", "withheld"
 ]);
-const LEGACY_SECTION_CATEGORIES = new Map(Object.entries({
-  politics: "politics", policy: "politics", government: "politics", election: "politics",
-  entertainment: "culture", enter: "culture", movie: "culture", music: "culture", television: "culture",
-  world: "news", international: "news", society: "news", national: "news", local: "news",
-  sports: "sports", science: "science", technology: "tech", tech: "tech",
-  automobile: "auto", automotive: "auto", cars: "auto", mobility: "auto",
-  business: "business", economy: "business", finance: "business", market: "business",
-  gaming: "gaming", games: "gaming", realestate: "realestate", property: "realestate", housing: "realestate",
-  fashion: "fashion", style: "fashion", art: "art", design: "art", architecture: "art"
-}));
-
-function legacySectionCategory(item) {
-  const categories = new Set();
-  for (const value of [item?.canonicalUrl, item?.url]) {
-    try {
-      for (const raw of new URL(value).pathname.toLowerCase().split("/").filter(Boolean)) {
-        for (const segment of [raw, raw.replace(/[-_.]/g, ""), ...raw.split(/[-_.]/)]) {
-          const category = LEGACY_SECTION_CATEGORIES.get(segment);
-          if (category) categories.add(category);
-        }
-      }
-    } catch { /* an invalid URL is not section evidence */ }
-  }
-  return categories.size === 1 ? [...categories][0] : null;
-}
+const EDITORIAL_IMPORTANCE_STATES = new Set(["pass", "fail"]);
 
 export function validateCategoryRoutingSnapshot(snapshot) {
   if (!snapshot || snapshot.contract !== CATEGORY_ROUTING_CONTRACT || !isId(snapshot.snapshotId)
@@ -49,7 +26,9 @@ export function validateCategoryRoutingSnapshot(snapshot) {
     if (!entry || !isId(entry.itemId) || !isSha(entry.evidenceHash)
       || !Array.isArray(entry.categories) || entry.categories.some((id) => !isKnownCategory(id))
       || new Set(entry.categories).size !== entry.categories.length || ids.has(entry.itemId)
-      || (entry.routingBasis !== undefined && !ROUTING_BASES.has(entry.routingBasis))) {
+      || (entry.routingBasis !== undefined && !ROUTING_BASES.has(entry.routingBasis))
+      || (entry.editorialImportance !== undefined
+        && !EDITORIAL_IMPORTANCE_STATES.has(entry.editorialImportance))) {
       throw new TypeError(`category routing: invalid entry '${entry?.itemId || ""}'`);
     }
     ids.add(entry.itemId);
@@ -101,36 +80,27 @@ export function createCategoryRouter(snapshot, registry = [], {
         if (item.adultGateRequired === true || item.adult === true || meta?.adult === true
           || unsafeForLead(item.title)) return [];
 
-        const entry = byId.get(item.id);
-        const declaredSection = !entry && meta?.categoryRouting === "declared_section"
-          && meta.kind === "news" && meta.sourceTier === "specialist"
-          && isKnownCategory(meta.category);
-        const observedAfterSnapshot = !entry && [Date.parse(item.publishedAt), Number(item.firstSeenAt)]
-          .some((at) => Number.isFinite(at) && at > generatedAtMs && at <= referenceNow);
-        const existingCategories = (item.admittedCategories || []).filter(isKnownCategory);
-        const staleFallback = existingCategories.length ? existingCategories
-          : isKnownCategory(item.category) ? [item.category] : [];
-        const legacySection = entry?.routingBasis === "legacy_classifier_fallback"
-          ? legacySectionCategory(item) : null;
-        const categories = entry ? legacySection ? [legacySection] : entry.categories : declaredSection ? [meta.category]
-          : staleSnapshot ? staleFallback
-          : observedAfterSnapshot && isKnownCategory(item.category) ? [item.category] : [];
+        const entries = [item.id,
+          ...(item.canonicalAliases || []).map((alias) => alias?.id),
+          ...(item.related || []).map((related) => related?.id)]
+          .map((id) => byId.get(id)).filter(Boolean);
+        const entry = byId.get(item.id) || entries[0];
+        const categories = [...new Set(entries.flatMap((row) => row.categories || []))];
         if (!categories.length) return [];
+        const editorialImportance = entries.some((row) => row.editorialImportance === "pass") ? "pass"
+          : entries.some((row) => row.editorialImportance === "fail") ? "fail" : undefined;
 
         const projected = {
           ...item,
           routingOriginalId: item.id,
           registryCategory: item.registryCategory === undefined ? item.category : item.registryCategory,
-          category: categories[0],
-          categoryRoutingBasis: entry ? legacySection
-            ? `legacy_url_section_recovery${staleSnapshot ? "_stale" : ""}`
-            : staleSnapshot ? `${entry.routingBasis || "classified_snapshot"}_stale`
-              : entry.routingBasis || "classified_snapshot"
-            : declaredSection ? "declared_specialist_section"
-              : staleSnapshot ? "snapshot_stale_declared_category" : "post_snapshot_declared_category"
+          category: entry.categories[0] || categories[0],
+          admittedCategories: categories,
+          ...(editorialImportance ? { editorialImportance } : {}),
+          categoryRoutingBasis: staleSnapshot
+            ? `${entry.routingBasis || "classified_snapshot"}_stale`
+            : entry.routingBasis || "classified_snapshot"
         };
-        if (entry || declaredSection || existingCategories.length) projected.admittedCategories = categories;
-        else delete projected.admittedCategories;
         return [projected];
       });
     }

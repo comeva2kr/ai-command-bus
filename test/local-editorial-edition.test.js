@@ -270,34 +270,22 @@ test("동적 후보 계약: 본문 없는 Google 중계 한 단어 페이지 제
   assert.equal(fixture.metrics.dropped.relayStub, 1);
 });
 
-test("동적 후보 계약: 지역 편성 분야는 검수 전 국내외 후보를 각각 한 지면씩 보존한다", () => {
+test("동적 후보 계약: 단일 지역 편성 분야는 검수 전 국내외 후보 한 지면씩을 유지한다", () => {
   const registry = [];
   const items = [
     ...Array.from({ length: 40 }, (_, index) => {
       const source = `foreign-tech-${index}`;
       registry.push({ id: source, country: "US" });
-      return {
-        id: source,
-        title: `Global technology report number ${index + 1}`,
-        url: `https://foreign-${index}.example.com/article`,
-        category: "tech",
-        source,
-        kind: "news",
-        score: 1_000 - index
-      };
+      return { id: source, title: `Global technology report number ${index + 1}`,
+        url: `https://${source}.example.com/article`, category: "tech", source, kind: "news",
+        score: 1_000 - index };
     }),
     ...Array.from({ length: 20 }, (_, index) => {
       const source = `domestic-tech-${index}`;
       registry.push({ id: source, country: "KR" });
-      return {
-        id: source,
-        title: `국내 기술 산업 동향 ${index + 1}`,
-        url: `https://domestic-${index}.example.com/article`,
-        category: "tech",
-        source,
-        kind: "news",
-        score: 100 - index
-      };
+      return { id: source, title: `국내 기술 산업 동향 ${index + 1}`,
+        url: `https://${source}.example.com/article`, category: "tech", source, kind: "news",
+        score: 100 - index };
     })
   ];
 
@@ -311,7 +299,77 @@ test("동적 후보 계약: 지역 편성 분야는 검수 전 국내외 후보�
 
   assert.equal(fixture.candidates.filter((row) => row.country === "KR").length, 14);
   assert.equal(fixture.candidates.filter((row) => row.country === "US").length, 14);
+});
+
+test("동적 후보 계약: 지역 편성 예약이 앞 분야에 두 지면을 써서 뒤 분야를 굶기지 않는다", () => {
+  const registry = [];
+  const items = ["tech", "science"].flatMap((category, categoryIndex) => [
+    ...Array.from({ length: 20 }, (_, index) => {
+      const source = `foreign-${category}-${index}`;
+      registry.push({ id: source, country: "US" });
+      return { id: source, title: `Global ${category} report number ${index + 1}`,
+        url: `https://${source}.example.com/article`, category, source, kind: "news",
+        score: 1_000 - categoryIndex * 100 - index };
+    }),
+    ...Array.from({ length: 20 }, (_, index) => {
+      const source = `domestic-${category}-${index}`;
+      registry.push({ id: source, country: "KR" });
+      return { id: source, title: `국내 ${category} 산업 동향 ${index + 1}`,
+        url: `https://${source}.example.com/article`, category, source, kind: "news",
+        score: 100 - categoryIndex * 10 - index };
+    })
+  ]);
+
+  const fixture = buildEditionCandidateFixture(items, {
+    registry,
+    selectedCategories: ["tech", "science"],
+    domesticShareBands: { tech: [0.5, 0.7], science: [0.5, 0.7] },
+    limit: 28,
+    minPerSelectedCategory: 14
+  });
+
+  for (const category of ["tech", "science"]) {
+    const rows = fixture.candidates.filter((row) => row.categoryId === category);
+    assert.equal(rows.length, 14, `${category} 후보 최소선이 다른 분야 예약에 먹히면 안 된다`);
+    assert.equal(rows.filter((row) => row.country === "KR").length, 7);
+    assert.equal(rows.filter((row) => row.country === "US").length, 7);
+  }
   assert.equal(fixture.metrics.candidateCount, 28);
+});
+
+test("동적 후보 계약: 두 분야 13건의 홀수 지역 예약도 각각 최소선을 채운다", () => {
+  const registry = [];
+  const items = ["tech", "science"].flatMap((category, categoryIndex) => [
+    ...Array.from({ length: 20 }, (_, index) => {
+      const source = `odd-foreign-${category}-${index}`;
+      registry.push({ id: source, country: "US" });
+      return { id: source, title: `Global ${category} report ${index + 1}`,
+        url: `https://${source}.example.com/article`, category, source, kind: "news",
+        score: 1_000 - categoryIndex * 100 - index };
+    }),
+    ...Array.from({ length: 20 }, (_, index) => {
+      const source = `odd-domestic-${category}-${index}`;
+      registry.push({ id: source, country: "KR" });
+      return { id: source, title: `국내 ${category} 산업 보고 ${index + 1}`,
+        url: `https://${source}.example.com/article`, category, source, kind: "news",
+        score: 100 - categoryIndex * 10 - index };
+    })
+  ]);
+
+  const fixture = buildEditionCandidateFixture(items, {
+    registry,
+    selectedCategories: ["tech", "science"],
+    domesticShareBands: { tech: [0.5, 0.7], science: [0.5, 0.7] },
+    limit: 26,
+    minPerSelectedCategory: 13
+  });
+
+  for (const category of ["tech", "science"]) {
+    const rows = fixture.candidates.filter((row) => row.categoryId === category);
+    assert.equal(rows.length, 13, `${category}가 홀수 목표 13건을 채워야 한다`);
+    assert.equal(rows.filter((row) => row.country === "KR").length, 7);
+    assert.equal(rows.filter((row) => row.country === "US").length, 6);
+  }
 });
 
 test("오늘판: 명시적으로 고른 한 분야가 지면을 소유하고 편집 근거가 붙는다", async () => {
@@ -606,7 +664,9 @@ test("오늘판: 여러 선택 분야는 대표 이슈를 확보하고 남은 �
   const edition = await engine.todayEdition({ categories: CATEGORIES, slotId: "evening" });
   const counts = Object.fromEntries(CATEGORIES.map((category) => [category, 0]));
   for (const issue of edition.issues) {
-    for (const category of issue.categoryIds) {
+    const creditedCategories = issue.selectedByCategories?.length
+      ? issue.selectedByCategories : issue.categoryIds;
+    for (const category of creditedCategories) {
       if (category in counts) counts[category] += 1;
     }
     assert.doesNotMatch(issue.whyForYou, /(?:디자인|게임|패션|부동산|과학|일상)를 선택/,
@@ -679,7 +739,7 @@ test("오늘판: 선택 분야별 유효 이슈를 최대 14건씩 합쳐 공급
   }
 });
 
-test("오늘판: 낡은 v2 스냅샷이어도 정치 토픽을 정치 분야로 편성한다", async () => {
+test("오늘판: 낡은 빈 v2 스냅샷은 정치 토픽을 요청 경로에서 재분류하지 않는다", async () => {
   const now = Date.now();
   const titles = [
     "국회 예산안 본회의 표결 일정 확정",
@@ -711,10 +771,10 @@ test("오늘판: 낡은 v2 스냅샷이어도 정치 토픽을 정치 분야로 
     slotId: "evening"
   });
 
-  assert.ok(edition.issues.length >= 3);
-  assert.ok(edition.issues.every((issue) => issue.selectedByCategories.includes("politics")));
-  assert.equal(edition.categoryFulfillment.rows[0].state, "underfilled");
-  assert.ok(edition.candidateContract.metrics.categoryCandidateCounts.politics >= 3);
+  assert.equal(edition.issues.length, 0);
+  assert.equal(edition.categoryFulfillment.rows[0].state, "no_supply");
+  assert.equal(edition.candidateContract.metrics.categoryCandidateCounts.politics ?? 0, 0);
+  assert.equal(router.status.state, "snapshot_stale_last_good_v2");
 });
 
 test("오늘판: 동적 최소 깊이를 생성 단계에도 전달해 공급 많은 분야의 독식을 막는다", async () => {
@@ -1201,6 +1261,8 @@ test("서버: 로컬 플래그가 오늘판 홈·선택 저장을 열고 꺼지�
   try {
     const home = await fetch(`${base}/`).then((res) => res.text());
     assert.match(home, /<title>지금핫 오늘판<\/title>/);
+    assert.match(home, /serviceWorker\.register\("\/sw\.js"\)/,
+      "오늘판만 열어도 이전 워커의 잘못된 실시간 폴백이 갱신돼야 한다");
     assert.match(home, /editionDate>today\|\|\(editionDate===today&&hour>kstHour\)/,
       "07시 전 전날 판을 보여줄 때 전날 모닝·런치 탭까지 잠그면 안 된다");
     assert.match(home, /query\.set\("date",targetDate\)/,

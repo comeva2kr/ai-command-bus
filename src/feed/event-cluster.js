@@ -83,7 +83,7 @@ const EVENT_GENERIC_TOKENS = new Set([
   // 제목 문법·시장/분야 일반어 — NH91 후보에서 이 세 단어만 겹쳐 무관
   // 사건이 합쳐진 4쌍을 고정 표본으로 재현했다.
   "fall", "york", "stock", "wall", "street", "korean", "design", "just",
-  "game", "all", "down", "able", "ever",
+  "game", "ai", "all", "down", "able", "ever", "beat",
   // 수량 일반어 — "million/year": EV-a26325700b4c7ab5("million/year/fossil",
   // 무관 화석 기사 2건). years는 같은 낱말의 복수형.
   "million", "year", "years",

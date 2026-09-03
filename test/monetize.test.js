@@ -1255,6 +1255,13 @@ test("adfit: env + 심사 플래그는 편집 지면 모드를 켜지만 실시�
   assert.ok(!/feed\.appendChild\(slot\)/.test(html), "애드핏 지면이 목록 끝에 붙었다");
 });
 
+test("adfit: Web SDK는 공식 kakaocdn 도메인만 사용한다", async () => {
+  const { readFileSync } = await import("node:fs");
+  const html = readFileSync("src/feed/public/index.html", "utf8");
+  assert.doesNotMatch(html, /(?:https?:)?\/\/t1\.daumcdn\.net\/kas\/static\/ba\.min\.js/);
+  assert.match(html, /https:\/\/t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/);
+});
+
 test("광고: 판정은 서버가 하고 화면은 그 표시를 읽는다", async () => {
   // 2026-08-05 전수검사: 광고를 꽂는 곳이 둘인데 서로를 몰랐다.
   //   서버 injectSlots      — adUnsafe 검사 있음

@@ -31,6 +31,7 @@
 // 필요하다 — 지금 없는 것을 있는 척하지 않고, 대신 그 글 옆에 광고를 두지
 // 않는 것으로 실제 리스크(광고주 브랜드 안전)만 막는다.
 import { hasProfanity } from "./profanity.js";
+import { isDeal } from "./deals.js";
 
 // 형식으로 판별되는 저가치 패턴. 각 항목은 "왜 이게 바깥 사람에게 읽을 것이
 // 없는가"로 설명될 수 있어야 한다. 애매하면 넣지 않는다 — 오탐 하나가
@@ -68,7 +69,14 @@ export const LOW_VALUE_PATTERNS = [
   { re: /^[\[(]?[^\[\]()]{0,12}특가\s*[)\]]/, why: "특가 라벨 광고" },
   // 같은 관찰의 딜 게시판 변형: "지센 여름 원피스 특가 (29,900원~/무료)" —
   // "특가" 직후 괄호 안 가격. 가격을 전면에 둔 판매 글만 좁게 잡는다.
-  { re: /특가\s*\(\s*[\d,]+\s*원/, why: "특가 가격 병기 광고" }
+  { re: /특가\s*\(\s*[\d,]+\s*원/, why: "특가 가격 병기 광고" },
+  { re: /^(?:APOD\b|Astronomy Picture of the Day\b|오늘의 천문학 사진(?:\s*[:：-]|$))/i, why: "일일 사진 목록" },
+  { re: /(?:invites?\s+(?:the\s+)?media|media\s+(?:invitation|advisory)|미디어\s*(?:초대|참석))/i, why: "미디어 참석 안내" },
+  { re: /\b(?:is|are)\s+(?:hiring|seeking|looking\s+for)\s+(?:an?\s+)?(?:[a-z0-9&/-]+\s+){0,6}(?:editor|writer|designer|intern|assistant|manager|director|reporter|representative)\b/i, why: "채용 공고" },
+  { re: /(?:에디터|작가|디자이너|인턴|어시스턴트|매니저|디렉터|기자|판매\s*담당자)(?:\s+[a-z0-9가-힣&/-]+){0,2}\s*(?:을|를)?\s*(?:찾고\s*있|모집(?:합니다|중)?|고용(?:합니다|중)?)/i, why: "채용 공고" },
+  { re: /(?:출전작|응모작|참가자|지원자)\s*(?:공개\s*)?모집/, why: "참여 모집" },
+  { re: /^\[[^\]]{0,30}오늘의\s*운세[^\]]*\]/, why: "점술 목록" },
+  { re: /^(?:오늘의\s*)?(?:별자리|띠별)\s*(?:운세|점성술)|\b(?:daily\s+)?(?:horoscope|tarot\s+reading)\b/i, why: "점술 목록" }
 ];
 
 // 우리 이름으로 "오늘의 대표"라고 붙이기엔 부적합한 표현.
@@ -140,6 +148,7 @@ export function adUnsafe(item) {
 // 우리 이름으로 발행하는 자리(브리핑·랭킹 대표)에 올려도 되는가.
 export function promotable(item) {
   if (!item) return false;
+  if (item.kind === "community" && isDeal(item)) return false;
   if (hasProfanity(item.title)) return false;
   if (hasUnpromotableExpression(item.title)) return false;
   if (isLowValue(item.title)) return false;

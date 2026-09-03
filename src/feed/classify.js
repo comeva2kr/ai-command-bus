@@ -345,7 +345,7 @@ export const AUTO_KEYWORDS = [
 
 // 자동차 브랜드가 나와도 금융·기업 문맥이면 경제 기사다 ("현대차 주가 급등",
 // "테슬라 실적 발표") — 이 가드에 걸리면 키워드 확정을 포기하고 원 분류 유지.
-export const AUTO_FINANCE_GUARD = ["주가", "실적", "영업이익", "매출", "수출", "노조", "파업", "채용", "공장", "투자",
+export const AUTO_FINANCE_GUARD = ["주가", "실적", "영업이익", "매출", "수출", "노조", "파업", "채용", "공장", "투자", "증권", "IB",
   // 2026-08-02 검수 A15: 부고 기사가 브랜드명만으로 auto로 갔다
   "별세", "타계",
   // 대학·기관의 교육 운영은 자율주행이 등장해도 자동차 제품·시장 기사가 아니다.
@@ -378,7 +378,7 @@ export const AUTO_FINANCE_GUARD = ["주가", "실적", "영업이익", "매출",
 // 오탐 하나가 진짜 주제 글을 밀어낸다 — 확실한 것만 넣는다.
 export const INCIDENT_GUARD = [
   // 인명 피해 — 사건 보도의 가장 분명한 표지
-  "사망", "숨져", "숨진", "숨졌", "참변", "빈소", "발인",
+  "사망", "숨져", "숨진", "숨졌", "살인", "살해", "참변", "빈소", "발인",
   // 사고 유형
   "전복사고", "추돌", "뺑소니", "음주운전", "역주행", "무면허",
   "졸음운전", "교통사고", "인명사고", "낙상", "감전",
@@ -429,22 +429,42 @@ export const CATEGORY_GUARDS = new Map([
 ]);
 
 const TECH_SUBJECT = /(인공지능|\bai\b|챗gpt|chatgpt|gpt-|클로드|제미나이|오픈ai|반도체|hbm|파운드리|소프트웨어|앱\b|ios\b|안드로이드|클라우드|데이터센터|해킹|랜섬웨어|스마트폰|노트북|그래픽카드|디지털|가상현실|증강현실|\bvr\b|\bar\b)/i;
+const FINANCIAL_SECTOR_SUBJECT = /(저축은행|인터넷은행|시중은행|은행권|상호금융|금융감독원|금감원|보험사|증권사|카드사|캐피털)/i;
+const FINANCIAL_PERFORMANCE = /(순이익|연체율|고정이하여신|예대마진|중[·ㆍ.\-\s]?저신용(?:대출)?)/i;
 const CULTURE_EVENT_SUBJECT = /(?:아티스트|아이돌|가수|보이그룹|걸그룹|엔하이픈).{0,40}(?:전시|콘서트|팬미팅)|(?:전시|콘서트|팬미팅).{0,40}(?:아티스트|아이돌|가수|보이그룹|걸그룹|엔하이픈)/i;
 const GAMING_SUBJECT = /(게임|게이머|오버워치|overwatch|옵치|팰월드|palworld|포켓몬|pok[eé]mon|pokopia|포트나이트|fortnite|스팀\s*머신|플레이스테이션|xbox|엑스박스|\bcbt\b)/i;
+const TECH_GAME_FRANCHISE = /(?:\bgta\b|grand\s+theft\s+auto|크레이지\s*택시)/i;
+const TECH_IN_GAME_CONTEXT = /(?:dlss|\bdll\b|그래픽카드|드라이버|악성\s*코드|malware|랜섬웨어)/i;
 const CULTURE_SUBJECT = /(영화|드라마|예능|배우|감독|아이돌|가수|음악|음원|앨범|신곡|공연|콘서트|팬미팅|전시|작품|소설|웹툰|넷플릭스|박스오피스)/i;
 const CULTURE_PRODUCTION_CONTEXT = /(영화|예능|배우|감독|아이돌|가수|음악|음원|앨범|신곡|공연|콘서트|팬미팅|전시|작품|소설|웹툰|넷플릭스|박스오피스|드라마.{0,12}(?:방영|공개|제작|출연|시청률)|(?:방영|공개|제작|출연|시청률).{0,12}드라마)/i;
+const FILM_TV_PRODUCTION = /(스릴러|시트콤|다큐멘터리|드라마|영화|시즌\s*\d|캐스팅|출연|개봉|감독|제작자)/i;
 const CULTURE_PERFORMER = /(아이돌|가수|배우\s|보이그룹|걸그룹|bts|블랙핑크|뉴진스|아이브|세븐틴|에스파|르세라핌|트와이스|비비지|프로미스나인|피프티피프티|아이들|스테이씨|있지|레드벨벳|스트레이\s*키즈)/i;
 const FASHION_SUBJECT = /(패션|의상|룩북|스타일|화보|컬렉션|브랜드|가방|앰배서더|착용|런웨이|코디)/i;
 const CELEBRITY_DONATION = /(기부|후원|성금)/i;
 const BUSINESS_DONATION_CONTEXT = /(기업|회사|법인|재단|사회공헌|esg|임직원|매출|협약)/i;
-const GEOPOLITICAL_ACTOR = /(우크라이나|러시아|이스라엘|이란|북한|중국|미국|일본|유럽|나토|정부|대통령)/i;
-const GEOPOLITICAL_CONFLICT = /(전쟁|침공|공격|제재|외교|국경|미사일|핵무기|저주|망하라고|혐오)/i;
+const GEOPOLITICAL_ACTOR = /(우크라이나|러시아|이스라엘|이란|북한|중국|미국|일본|유럽|나토|호르무즈|정부|대통령)/i;
+const GEOPOLITICAL_CONFLICT = /(전쟁|침공|공격|피격|제재|외교|국경|미사일|핵무기|저주|망하라고|혐오)/i;
 const REALESTATE_SUBJECT = /(부동산|주택|아파트|집값|전셋값|월세|전세(?!계)|매매가|분양|청약|재건축|재개발|입주|공시가격|종부세|취득세|주택담보대출|임대차|전세사기|갭투자|미분양|택지|그린벨트|역세권|오피스텔|상가\s*임대)/i;
 const CLIMATE_OR_DISASTER_SUBJECT = /(폭염|한파|태풍|폭우|홍수|해수면\s*온도|기후|지진|강진|화산|산불|earthquake|\bquake\b|wildfire|flood)/i;
 const SCIENCE_REPORTING_CONTEXT = /(연구|연구진|논문|학술|분석|관측|실험|데이터|과학자|기후변화|study|research|researcher|scientist|journal|experiment|analysis|data)/i;
+const CIVIC_OATH_CONTEXT = /(?:공무원\s*선서|취임\s*선서|oath of office|swearing[\s-]*in)/i;
 const DISASTER_OR_OBITUARY_REPORT = /(사망|숨져|숨진|별세|타계|국가비상사태|killing|killed|\bdies\b|\bdeath\b|earthquake|\bquake\b)/i;
+const LABOR_DISPUTE = /(?:임단협|단계별\s*파업)/i;
+const INDUSTRIAL_LABOR_CONTEXT = /(?:노조|현대중|중공업|조선|금속노조)/i;
+const LIFE_SERVICE_CONTEXT = /(?:병원|의료|간호사|육아|보육|급식|학교|배달|라이더)/i;
 const POLITICAL_PROCESS_CONTEXT = /(대통령|정부|국회|민주당|국민의힘|정당|선거|특검|수사|김건희|박지원|이재명|한동훈|정청래|나경원|윤상현)/i;
+const GOVERNMENT_LEADERSHIP = /(?:국무)?총리/i;
+const GENERAL_REGULATORY_SLOGAN = /규제\s*타파/i;
 const AUTO_PRODUCT_CONTEXT = /(자동차|차량|현대차|기아|제네시스|테슬라|벤츠|bmw|아우디|폭스바겐|볼보|포르쉐|렉서스|토요타|도요타|혼다|쉐보레|르노|kgm|byd|아반떼|쏘나타|그랜저|팰리세이드|싼타페|투싼|쏘렌토|스포티지|카니발|셀토스|캐스퍼|아이오닉|ev[369]|모델[3y]|씨라이언|전기차|하이브리드|내연기관|suv|세단|쿠페|해치백|시승|연비|주행거리|자율주행|급발진|리콜|배터리|브레이크)/i;
+
+const GENERAL_NEWS_GUARD_REASONS = new Set([
+  "geopolitical-conflict-without-tech-subject",
+  "political-process-without-tech-subject",
+  "incident-without-tech-subject",
+  "government-slogan-without-tech-subject"
+]);
+
+export const isGeneralNewsGuardReason = (reason) => GENERAL_NEWS_GUARD_REASONS.has(reason);
 
 // 제목의 낱말 하나가 분야를 훔치지 못하게 하는 공통 가드. 분류 단계뿐 아니라
 // 자체 편집 기계 게이트에서도 같은 함수를 써서, 디스크에 이미 잘못 저장된
@@ -452,7 +472,30 @@ const AUTO_PRODUCT_CONTEXT = /(자동차|차량|현대차|기아|제네시스|�
 export function categoryGuardReason(category, title, item = null) {
   const raw = String(title || "");
   const text = String(title || "").toLowerCase();
-  if (category === "tech" && GAMING_SUBJECT.test(raw) && !TECH_SUBJECT.test(raw)) {
+  if (category === "tech" && GOVERNMENT_LEADERSHIP.test(raw)
+      && GENERAL_REGULATORY_SLOGAN.test(raw)
+      && !TECH_SUBJECT.test(raw) && !AUTO_PRODUCT_CONTEXT.test(raw)) {
+    return "government-slogan-without-tech-subject";
+  }
+  if (category === "tech" && looksLikeIncident(raw)
+      && !TECH_SUBJECT.test(raw) && !AUTO_PRODUCT_CONTEXT.test(raw)) {
+    return "incident-without-tech-subject";
+  }
+  if (category === "tech" && GEOPOLITICAL_ACTOR.test(raw)
+      && GEOPOLITICAL_CONFLICT.test(raw)
+      && !TECH_SUBJECT.test(raw) && !AUTO_PRODUCT_CONTEXT.test(raw)) {
+    return "geopolitical-conflict-without-tech-subject";
+  }
+  if (category === "tech" && POLITICAL_PROCESS_CONTEXT.test(raw)
+      && !TECH_SUBJECT.test(raw) && !AUTO_PRODUCT_CONTEXT.test(raw)) {
+    return "political-process-without-tech-subject";
+  }
+  if (category === "tech" && FINANCIAL_SECTOR_SUBJECT.test(raw)
+      && FINANCIAL_PERFORMANCE.test(raw) && !TECH_SUBJECT.test(raw)) {
+    return "finance-earnings-without-tech-subject";
+  }
+  if (category === "tech" && (GAMING_SUBJECT.test(raw) || TECH_GAME_FRANCHISE.test(raw))
+      && !TECH_SUBJECT.test(raw) && !TECH_IN_GAME_CONTEXT.test(raw)) {
     return "gaming-without-tech-subject";
   }
   if (category === "tech" && CULTURE_EVENT_SUBJECT.test(raw) && !TECH_SUBJECT.test(raw)) {
@@ -476,12 +519,19 @@ export function categoryGuardReason(category, title, item = null) {
   if (category === "fashion" && CULTURE_PERFORMER.test(raw) && !FASHION_SUBJECT.test(raw)) {
     return "performer-name-collision-without-fashion-subject";
   }
+  if (category === "fashion" && FILM_TV_PRODUCTION.test(raw) && !FASHION_SUBJECT.test(raw)) {
+    return "culture-work-without-fashion-subject";
+  }
   if (category === "fashion" && /(치약|세척|청소|얼룩|세탁)/.test(raw) && /(?:운동화|신발)/.test(raw)
       && !FASHION_SUBJECT.test(raw)) {
     return "household-care-without-fashion-subject";
   }
   if (category === "realestate" && looksLikeIncident(raw) && !REALESTATE_SUBJECT.test(raw)) {
     return "incident-without-realestate-subject";
+  }
+  if (category === "realestate" && /\bapi\b/i.test(raw)
+      && (raw.match(/지도|교통|날씨|주식/g) || []).length >= 2) {
+    return "multi-domain-api-listicle";
   }
   if (category === "auto" && looksLikeIncident(raw) && !AUTO_PRODUCT_CONTEXT.test(raw)) {
     return "incident-without-auto-subject";
@@ -492,6 +542,14 @@ export function categoryGuardReason(category, title, item = null) {
   if (category === "science" && DISASTER_OR_OBITUARY_REPORT.test(raw)
       && !SCIENCE_REPORTING_CONTEXT.test(raw)) {
     return "incident-without-science-subject";
+  }
+  if (category === "science" && CIVIC_OATH_CONTEXT.test(raw)
+      && !SCIENCE_REPORTING_CONTEXT.test(raw)) {
+    return "civic-ceremony-without-science-subject";
+  }
+  if (category === "life" && LABOR_DISPUTE.test(raw) && INDUSTRIAL_LABOR_CONTEXT.test(raw)
+      && !LIFE_SERVICE_CONTEXT.test(raw)) {
+    return "industrial-labor-without-life-subject";
   }
   if (item && item.registryCategory === "news" && category !== "news" && category !== "politics"
       && looksLikeIncident(raw) && category !== "realestate") {
@@ -506,6 +564,7 @@ export function categoryGuardReason(category, title, item = null) {
 export function includesCategoryKeyword(lowerTitle, keyword) {
   const lowerKeyword = String(keyword || "").toLowerCase();
   if (!lowerKeyword) return false;
+  if (lowerKeyword === "전세") return /전세(?!계)/.test(lowerTitle);
   // 짧은 영문 약어는 영단어 내부 부분문자열로 세지 않는다. 예: disappeared의
   // "isa"를 금융상품 ISA로 읽으면 생활 글이 경제판으로 이동한다. 한글과 붙는
   // 표기(ISA계좌)는 경계로 인정하되 영숫자 내부만 차단한다.
@@ -529,6 +588,8 @@ export function keywordCategory(title, opts = {}) {
   if (looksLikeIncident(t)) return null;
   if (AUTO_KEYWORDS.some((k) => includesCategoryKeyword(autoTitle, k))) {
     if (AUTO_FINANCE_GUARD.some((k) => t.includes(k))) return null;
+    if (/제네시스/i.test(t) && /(골프|챔피언십)/i.test(t)
+        && !/(gv\s?(?:60|70|80|90)|자동차|차량|신차|시승|주행|엔진|전기차|하이브리드)/i.test(t)) return null;
     return "auto";
   }
   if (opts.autoOnly) return null;
@@ -555,6 +616,13 @@ export function keywordCategory(title, opts = {}) {
 export const BOARD_CATEGORY_RULES = [
   { source: "ppomppu", pattern: /[?&]id=car\b/i, category: "auto" },
   { source: "chosunbiz", pattern: /\/sports\/baseball\//i, category: "sports" }
+];
+
+const CONTENT_CATEGORY_URL_RULES = [
+  { pattern: /https?:\/\/[^/?#\s]+\/entertainment(?:\/|_)/i, category: "culture" },
+  { pattern: /https?:\/\/(?:m\.)?entertain\.naver\.com\//i, category: "culture" },
+  { pattern: /(?:(?:\[단독\]|\[공식\]|[♥♡]).{0,80}(?:결혼|부부)|(?:결혼|부부).{0,80}(?:\[단독\]|\[공식\]|[♥♡]))/i,
+    category: "culture" }
 ];
 
 // ---------------------------------------------------------------------------
@@ -665,6 +733,8 @@ export function definiteCategory({ title, url, sourceId, autoOnly } = {}) {
     const rule = BOARD_CATEGORY_RULES.find((r) => r.source === sourceId && r.pattern.test(url));
     if (rule) return rule.category;
   }
+  const contentRule = CONTENT_CATEGORY_URL_RULES.find((rule) => rule.pattern.test(`${url || ""} ${title || ""}`));
+  if (contentRule) return contentRule.category;
   return keywordCategory(title, { autoOnly });
 }
 

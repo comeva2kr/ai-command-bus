@@ -6,9 +6,16 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { buildCategoryEventViews } from "../src/feed/category-event-view.js";
+import {
+  categoryGuardReason,
+  definiteCategory,
+  isGeneralNewsGuardReason,
+  MIXED_NEUTRAL_CATEGORY
+} from "../src/feed/classify.js";
 import { validateCategoryRoutingSnapshot } from "../src/feed/category-routing.js";
 import { d1cTaxonomyVersion, normalizeClassifierInput } from "../src/feed/selection-classifier-lab.js";
 import { loadRegistry } from "../src/feed/registry.js";
+import { findMarketSignalMatches, OVERSEAS_MARKET_SIGNAL_LEXICON } from "../src/feed/selection-axes.js";
 import { isKnownCategory } from "../src/feed/taxonomy.js";
 import { getCandidate } from "./selection-candidate-registry.mjs";
 
@@ -28,6 +35,58 @@ const representativePriority = (article, meta = {}) =>
   (Array.isArray(meta.defaultTags) && meta.defaultTags.length > 0 ? 4 : 0)
   + (meta.sourceTier === "specialist" ? 2 : 0)
   + (meta.sourceTier === "aggregate" ? 0 : 1);
+
+const deterministicRoutingVote = (article, meta = {}) => {
+  if (!isKnownCategory(article?.category) || meta.feedGroup === "deal") return null;
+  const declared = isKnownCategory(article.registryCategory) ? article.registryCategory
+    : isKnownCategory(meta.category) ? meta.category : null;
+  if (article.kind === "community" && meta.kind === "community") {
+    const mixedCategory = meta.mixed === true ? definiteCategory({
+      title: article.title,
+      url: article.url,
+      sourceId: article.source
+    }) : null;
+    return meta.mixed === true ? mixedCategory || MIXED_NEUTRAL_CATEGORY : declared || article.category;
+  }
+  if (article.kind !== "news") return null;
+  const generalNews = meta.category === "news";
+  const foreignOrWorld = meta.feedGroup === "gnews"
+    || Boolean(meta.country && meta.country !== "KR");
+  if (generalNews && foreignOrWorld
+    && meta.editorialAuthority === "global_major"
+    && meta.categoryRouting === "declared_section") {
+    return "news";
+  }
+  if (generalNews && foreignOrWorld) {
+    return findMarketSignalMatches([article], OVERSEAS_MARKET_SIGNAL_LEXICON).length ? "news" : null;
+  }
+  const generalNewsGuard = meta.sourceTier === "aggregate"
+    ? categoryGuardReason(declared || article.category, article.title, article) : null;
+  if (isGeneralNewsGuardReason(generalNewsGuard)) {
+    const observedAcrossFeeds = Math.max(
+      Number(article.coverage) || 0,
+      Number(article.relatedCoverage) || 0
+    ) > 0;
+    return generalNewsGuard !== "incident-without-tech-subject" || observedAcrossFeeds ? "news" : null;
+  }
+  const freshCategory = definiteCategory({ title: article.title, url: article.url, sourceId: article.source });
+  const urlCategory = definiteCategory({ title: "", url: article.url, sourceId: article.source });
+  if ((meta.sourceTier === "specialist" || meta.categoryRouting === "declared_section") && declared) {
+    const validCorrection = article.categoryCorrection?.rule === "specialist-title-definite"
+      && freshCategory === article.category;
+    return validCorrection ? article.category : declared;
+  }
+  if (meta.sourceTier === "aggregate" && declared && meta.category !== "news") {
+    if (urlCategory) return urlCategory;
+    if (article.category === "auto" && freshCategory !== "auto") return declared;
+    return article.category;
+  }
+  if (meta.sourceTier === "aggregate" && generalNews && meta.country === "KR") {
+    return freshCategory
+      || (Math.max(Number(article.coverage) || 0, Number(article.relatedCoverage) || 0) > 0 ? "news" : null);
+  }
+  return null;
+};
 
 const selectionShadowRank = (articles) => {
   const representative = (target) => target.sourceArticleIds.map((id) => articles.get(id)).filter(Boolean)
@@ -72,6 +131,7 @@ export function buildSelectionShadowPacket(pool, {
   const articlesById = new Map(articles.map((article) => [article.id, article]));
   const articleIds = new Set();
   const targetsByEvidence = new Map();
+  const routingVotesByEvidence = new Map();
   const legacyCategories = [];
   const contentKinds = [];
 
@@ -93,6 +153,12 @@ export function buildSelectionShadowPacket(pool, {
       sourceCountry: meta.country,
       language: article.lang || meta.lang
     });
+    const routingVote = deterministicRoutingVote(article, meta);
+    if (routingVote) {
+      const votes = routingVotesByEvidence.get(input.evidenceHash) || new Set();
+      votes.add(routingVote);
+      routingVotesByEvidence.set(input.evidenceHash, votes);
+    }
     const existing = targetsByEvidence.get(input.evidenceHash);
     if (existing) {
       existing.sourceArticleIds.push(article.id);
@@ -115,7 +181,17 @@ export function buildSelectionShadowPacket(pool, {
     contentKinds.push(isId(article.kind) ? article.kind : "unknown");
   }
 
-  const targets = [...targetsByEvidence.values()];
+  const targets = [...targetsByEvidence.values()].map((target) => {
+    const votes = routingVotesByEvidence.get(target.evidenceHash);
+    return votes?.size === 1 ? {
+      ...target,
+      deterministicRouting: {
+        categories: [...votes],
+        contentType: target.contentKindHint,
+        routingBasis: "deterministic_tier_policy"
+      }
+    } : target;
+  });
   return {
     contract: SELECTION_SHADOW_PACKET_CONTRACT,
     runtimeWired: false,
@@ -207,6 +283,11 @@ export function selectSelectionShadowShortlist(pool, packet, {
   const routingById = new Map(routingSnapshot.entries.map((entry) => [entry.itemId, entry]));
   const sourceById = new Map(registry.map((source) => [source.id, source]));
   const missing = new Set(missingCategoryIds);
+  const shortlistCategory = (target) => {
+    const source = sourceById.get(target.sourceId);
+    return source?.enabled === true && source.kind === "news" && source.sourceTier === "specialist"
+      && isKnownCategory(source.category) ? source.category : target.legacyCategory;
+  };
   const windowMs = windowHours * 3600 * 1000;
   const rank = selectionShadowRank(articles);
   const eligible = packet.targets.filter((target) => {
@@ -219,28 +300,34 @@ export function selectSelectionShadowShortlist(pool, packet, {
     const publishedAt = article?.publishedAt ? Date.parse(article.publishedAt) : NaN;
     return routes.every((route) => route.categories.length === 0)
       && ["news", "community"].includes(target.contentKindHint)
-      && source?.enabled === true && source.sourceTier !== "specialist"
+      && source?.enabled === true
       && !["gnews", "deal"].includes(source.feedGroup)
       && Number.isFinite(publishedAt) && publishedAt <= nowMs && nowMs - publishedAt <= windowMs;
-  }).sort(rank);
-  const bySource = new Map();
-  for (const target of eligible) {
-    const bucket = bySource.get(target.sourceId) || [];
-    bucket.push(target);
-    bySource.set(target.sourceId, bucket);
-  }
-  const targets = [];
-  for (let offset = 0; targets.length < maxCalls; offset += 1) {
-    let added = false;
-    for (const bucket of bySource.values()) {
-      if (bucket[offset]) {
-        targets.push(bucket[offset]);
-        added = true;
-        if (targets.length === maxCalls) break;
-      }
+  }).sort((a, b) => Number(missing.has(shortlistCategory(b))) - Number(missing.has(shortlistCategory(a)))
+    || rank(a, b));
+  const roundRobin = (rows, limit) => {
+    const bySource = new Map();
+    for (const target of rows) {
+      const bucket = bySource.get(target.sourceId) || [];
+      bucket.push(target);
+      bySource.set(target.sourceId, bucket);
     }
-    if (!added) break;
-  }
+    const selected = [];
+    for (let offset = 0; selected.length < limit; offset += 1) {
+      let added = false;
+      for (const bucket of bySource.values()) {
+        if (bucket[offset]) {
+          selected.push(bucket[offset]);
+          added = true;
+          if (selected.length === limit) break;
+        }
+      }
+      if (!added) break;
+    }
+    return selected;
+  };
+  const targeted = eligible.filter((target) => missing.has(shortlistCategory(target)));
+  const targets = roundRobin(targeted, maxCalls);
 
   return {
     purpose: "ambiguous_source_shortlist_not_quality_proof",

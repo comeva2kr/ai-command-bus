@@ -3,10 +3,10 @@
 // Goals: make the app installable, launch instantly, and survive flaky/offline
 // networks — the retention half of "web-first PWA". Strategy:
 //   - app shell (/live, icons, manifest) is precached and served cache-first
-//   - navigations are network-first, falling back to the cached shell offline
+//   - navigations are network-first, falling back only to the same page offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v141"; // v141: 오늘·실시간 공통 상단 전환과 독자 문장 투영
+const CACHE = "feed-shell-v142"; // v142: 오늘 연결 실패를 실시간 화면으로 대체하지 않는다
 const SHELL = ["/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png"];
 
@@ -62,10 +62,17 @@ self.addEventListener("fetch", (event) => {
   // never cache the personalized API — always go to the network
   if (url.pathname.startsWith("/api/")) return;
 
-  // navigations: network-first so content is fresh, cached shell as offline fallback
+  // Never replace a Today navigation with the unrelated Live shell.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request).catch(() => caches.match("/live").then((r) => r || caches.match(request)))
+      fetch(request).catch(async () => {
+        const cached = await caches.match(request)
+          || (url.pathname === "/live" && await caches.match("/live"));
+        return cached || new Response(
+          '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>지금핫 연결 확인</title><main><h1>서버에 연결할 수 없습니다</h1><p>서버 또는 인터넷 연결을 확인한 뒤 다시 시도해 주세요.</p><a href="">다시 시도</a></main></html>',
+          { status: 503, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }
+        );
+      })
     );
     return;
   }

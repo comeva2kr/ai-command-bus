@@ -5,14 +5,32 @@
 - 기준 헌장: `NOWHOT-PRODUCT-CHARTER-001`
 - 벤치마크 입력: `NOWHOT-BENCHMARK-DIRECTION-002`
 - 선별·편집 엔진: `NOWHOT-SELECTION-EDITORIAL-001`
-- 현재 변경: `DEVCHG-NOWHOT-20260828-179`
-- 현재 상태: NH91 로컬 사전 발행 후보 GO(런치·이브닝) / 모닝판 미생성은 정직한 409 / 운영 반영 없음
-- 개정: v4 (2026-08-13 개선 방향 — 아래 개정 섹션이 이전 서술과 충돌하면 v4가 우선)
+- 현재 변경: `DEVCHG-NOWHOT-20260901-184`
+- 현재 상태: NH94 구현·검증 완료, 새 후보 비활성 / 로컬 활성판·운영 불변
+- 개정: v5 (2026-09-01 상시 개발 행동원칙 — 아래 개정 섹션이 이전 서술과 충돌하면 v5가 우선)
 - 대상 환경: `/Users/hyundonghwang/Documents/NowHot-Local-Dev`
 - 운영 반영: 없음
 
 이 문서는 영구 사명을 실제 제품 구조로 번역한다. 화면과 기술은 검증 결과에 따라
 버전업할 수 있지만, 변경 시 헌장 원칙과 안정 ID별 영향 대조가 필요하다.
+
+## 상시 개발 행동원칙
+
+이 원칙은 NowHot의 계획·개발·수리·검수 전 라운드에 자동 적용한다. WRC 13 First
+Principles와 충돌하지 않으며, 중복되는 최소 변경·비용·보고 규칙은 이 절로 합쳐 해석한다.
+
+1. **목적·전체 경로 우선**: 기능 완성과 사용자 가치를 기준으로 수집→분류→편성→요약→화면의
+   실제 경로를 먼저 확인하고, 눈앞의 증상만 고치지 않는다.
+2. **최소 근인 수정**: 이미 성공한 동작은 보존하고 모든 관련 호출자가 지나는 공통 원인 한 곳을
+   가장 작고 단순한 비하드코딩 방식으로 고친다. 필요 없는 프레임워크·규칙·테스트는 만들지 않는다.
+3. **비용 효율**: 명확한 일은 기존 데이터와 무료 결정 규칙으로 처리하고, LLM은 중요하면서
+   애매한 소수 항목에만 사용한다. 품질을 낮춰 비용을 줄이지 않는다.
+4. **3자 역할 견제**: Codex는 전체 경로 추적과 구현, Claude는 제품·편집·근거 품질, Cursor
+   Grok은 구조·회귀·반례 공격을 맡아 서로의 결론을 독립적으로 검수한다.
+5. **합의 뒤 실행**: 세 판단이 갈리면 구현을 밀어붙이지 않고 차이의 근거를 대조해 먼저 해소한다.
+   합의된 최소안만 실행하며 외부 반영·유료 확대는 기존 승인 경계를 따른다.
+6. **라운드 보고**: 매 라운드가 끝날 때 개선된 것, 유지된 것, 남은 문제, Blueprint상 현재 위치와
+   다음 행동을 이용자 언어로 보고한다. 테스트 통과와 제품·로컬 활성·라이브 완료를 섞지 않는다.
 
 ## 기준 조합
 
@@ -1658,3 +1676,558 @@ Claude Opus 5와 Cursor Grok 4.6 high의 최신 바이트·실행판 READ-ONLY �
 운영 배포를 증명하지 않는다.
 
 truth: NH91_LOCAL_PREPUBLISH_CANDIDATE_GO·LUNCH_SCE_2C3E84EB5EBEA59E·EVENING_SCE_F6548112C651284A·MORNING_HONEST_409·MANIFEST_IDEMPOTENT_INPUT_IDENTITY·ATOMIC_MULTI_SLOT_ACTIVATION·ALL_91_PAIRS_EXACT_UNION·CONTENT_DRIFT_0·DETAIL_PRECOMPUTED_192·REQUEST_FILTER_ONLY·REQUEST_LLM_ZERO·FULL_TEST_1799_PASS·CLAUDE_OPUS5_P0_0_P1_0·GROK46_P0_0_P1_0·SCHEDULE_RUNTIME_NOT_PROVEN·LOCAL_ONLY·LIVE_UNCHANGED.
+
+### NH92 분류·편성 근인 수리 로컬 활성 체크포인트 (2026-08-31)
+
+NH91의 슬롯 정본·분야별 고정 lane·정확 합집합·사전 준비 상세·요청 중 LLM 0회를 그대로
+유지하면서, 실제 카드에서 확인된 분야 오분류와 저가치 콘텐츠를 공통 분류·승격 경계에서 수리했다.
+선택 분야별 예외를 만들지 않고 모든 승인 분야에 같은 품질 가드를 적용했으며, 딜·채용·운세·일일
+사진·참여 모집처럼 오늘판 대표 카드로 부적합한 행은 기존 공통 승격 함수에서 제외했다. 국내외
+후보 reserve는 조합 전체가 아니라 각 분야 예산 안에서 계산해 한 분야의 비중 보정이 다른 분야의
+14건을 잠식하지 않게 했다.
+
+Google 뉴스의 `아이러브PC방` 기사가 기술로 남던 마지막 사례는 분류 규칙을 더 붙이지 않고 누락된
+원 매체 정체성 메타데이터 한 건을 복구해 게임으로 이동시켰다. 해당 등록 행은
+`enabled:false`·seed adapter라 직접 수집 소스로 실행되지 않는다. v8 대비 변경된 lane 멤버십은
+기술과 게임 각 한 건뿐이며, 다른 12개 분야는 그대로다.
+
+활성 로컬판은 `SCE-e35dc2831e2ac6f1`(콘텐츠 SHA
+`e35dc2831e2ac6f10333cc5009320591fdc98fdf48b2e407b3b3466df06da6cf`)이다. 193개 고유
+사건으로 14개 분야가 각각 정확히 14건이며 상세는 `excerpt_only 139`,
+`source_unavailable 54`, `pending/error 0`이다. 뉴스·경제·기술·정치의 국내 대표 카드 수는
+각각 9/8/7/12건이고 해외 주요 보도는 뉴스·경제·기술 각각 5/6/7건이다. 실행 중 유료 API와
+LLM 사용은 0회이며 요청 경로는 포인터 읽기와 분야 필터만 수행한다.
+
+focused 209/209, 전체 1,808/1,808, `git diff --check`를 통과했다. Claude Fable 5와 Cursor
+Grok 4.6 Extra High가 동일 후보와 전체 변경분을 READ-ONLY로 독립 검수했고 모두
+`APPROVE_LOCAL_ACTIVATION`, P0 0·P1 0을 반환했다. 다음 신선한 라우팅 스냅샷에서는 과거
+`specialist_registry_default` 827건을 재사용하지 않는 새 정책 결과를 별도 검수해야 하며,
+일부 분야의 편집 취향 P2는 제품 운영 관찰 대상으로 남긴다. 이번 반영은 로컬 포인터만 변경했고
+commit·push·staging·운영 배포는 하지 않았다.
+
+truth: NH92_LOCAL_ROOTFIX_ACTIVE·SCE_E35DC2831E2AC6F1·ALL_14_LANES_14·ISSUE_COUNT_193·R2_GAMING_ONLY·OTHER_12_LANES_UNCHANGED·PER_CATEGORY_GEO_RESERVE·COMMON_PROMOTION_GUARDS·DETAILS_PRECOMPUTED_NO_PENDING·REQUEST_FILTER_ONLY·REQUEST_LLM_ZERO·FULL_TEST_1808_PASS·FABLE5_APPROVED_P0_0_P1_0·GROK46_APPROVED_P0_0_P1_0·FRESH_ROUTING_REBUILD_REVIEW_PENDING·LOCAL_ONLY·LIVE_UNCHANGED.
+
+### NH93 중요도 우선 지역성 편성 정합 수리 (2026-08-31)
+
+#### 사용자 규칙
+
+- 해외 기사는 일정 비율을 채우기 위해 넣지 않는다. 한국 이용자에게 실제 파급이 큰
+  세계 사건이면 중요도 순위로 선택하고, 그렇지 않으면 0건이어도 정상이다.
+- 뉴스·경제·정치·기술의 국내 비중 범위는 사용자에게 자연스러운지 보는 관측값이다.
+  낮은 가치의 국내·해외 기사를 넣거나 높은 가치의 기사를 빼는 좌석 쿼터가 아니다.
+- 분야당 목표 14건·최소 13건은 유지하되 관련 있는 유효 사건만 사용한다. 13건이 안 되면
+  잡기사로 채우지 않고 새 후보판을 실패시켜 직전 완성판을 유지한다.
+
+#### 3자 검토 합의
+
+Codex는 공통 호출 경로를 추적했고, Claude Fable 5는 해외 최소 좌석이 영국 지역 행정·
+개인 재무·행사 홍보 같은 저가치 필러를 넣는 반례를 확인했다. Cursor Grok 4.6 xhigh는
+좌석만 지우면 연준·한국 시장·외교·재난과 같은 중요 해외 사건까지 빠질 수 있다는 반대
+반례를 제시했다. 따라서 두 조건을 같이 잠근다.
+
+1. 최종 lane에서 국내·해외 최소 선발과 `global_major` 건수 미달 예외를 제거한다.
+2. 이 제거 전·후에 중요도 상위의 해외 사건은 유지되고 저순위 해외 필러는 강제 삽입되지
+   않는지 적대 테스트로 증명한다. 현재 점수가 이 반례를 못 지키면 새 예외 쿼터를
+   넣지 않고 기존 `selection-axes`/shadow 중요도 재료를 발행 전 순위에 재사용한다.
+
+후보 풀의 국내·해외 여유분은 최종 출력 쿼터가 아니다. 어느 쪽에서 중요 사건이 나와도
+최종 14건을 고를 수 있게 두는 검수용 재료 창이므로 이 라운드에서는 유지한다. 사용자 출력에서는
+국적이 좌석을 소유하지 않는다.
+
+#### 수리 경계와 증거
+
+- 수정 소유자는 `buildDigest()`의 분야별 최종 배정과 슬롯 후보 빌더의 해외 주요매체
+  관측 검사다. 분류·사건 묶음·제목·사진·출처·요약·성인 게이트·GET 필터는 변경하지 않는다.
+- 검증은 `중요 해외 사건 유지`, `저순위 해외 사건 비강제`, `분야 13~14건`, `복수 선택 정확 합집합`,
+  `사건 콘텐츠 지문 불변`, `요청 중 LLM 0` 순으로 실행한다.
+- 유료 호출 없이 동일 풀을 재생하고 Claude와 Cursor Grok이 서로 반대 위험을 다시 검수한다.
+  새 후보가 통과하기 전에는 활성 포인터를 바꾸지 않으며 commit·push·배포를 하지 않는다.
+
+현재 상태: **NH93 계획 잠금·RED 테스트 작성 시작**. NH92 활성 로컬판과 라이브는 변경하지 않았다.
+
+truth: NH93_THREE_PARTY_PLAN_LOCKED·IMPORTANCE_BEFORE_GEO·NO_FOREIGN_MINIMUM_OUTPUT·GEO_BANDS_OBSERVATION_ONLY·CANDIDATE_OPTIONALITY_PRESERVED·NO_FILLER_FOR_13·IMPORTANT_GLOBAL_REGRESSION_GATE·UNPAID_REPLAY_REQUIRED·NH92_ACTIVE_PRESERVED·LIVE_UNCHANGED.
+
+#### NH93.1 근인 수리 실행·반대검수 정정 (2026-08-31)
+
+NH93의 사용자 규칙을 발행 경로 전체에 적용했다. 이 절은 NH90.1 제약 순서 5의
+`뉴스/경제/기술 해외 주요언론 최소선`과 위 NH93의 후보 지역 예약 설명을 정정한다.
+국내외 비중과 해외 주요매체 수는 관측 영수증이며 후보·최종 지면 어느 단계에서도
+국적별 좌석을 예약하지 않는다. 해외 기사는 한국 독자에게 중요한 시장·정책·안보·재난
+영향 또는 독립 교차보도 근거가 있을 때 중요도 순위로 남고, 비율을 채우기 위한 기사는 넣지 않는다.
+
+발행 입력은 다음 한 경로로 닫았다.
+
+1. 직접 모델 판정은 `current_model`, 근거 지문이 같은 검증 결과 재사용은
+   `prior_exact_hash`, 그 밖의 행은 `withheld`로 기록한다. 출처 기본값·레거시 URL·발행사
+   라벨만으로 승인된 행은 정본 슬롯 빌더가 거부한다.
+2. 수집 풀 기사 ID, 분류 패킷의 모든 `sourceArticleIds`, 라우팅 스냅샷의 `itemId` 집합이
+   정확히 같아야 한다. 스냅샷 밖 전문피드 기사가 `declared_section`으로 끼어드는 경로도
+   작업 폴더·요약 호출 전에 실패한다.
+3. 전체 풀을 사건으로 묶고 분야를 투영한 뒤 14개 분야가 각각 의미 승인 사건 13건 이상인지
+   요약 전에 검사한다. 부족하면 잡기사나 지역 좌석으로 채우지 않고 후보판 전체를 HOLD한다.
+4. 재분류가 필요하면 기존 shortlist가 부족 분야와 연결된 미분류 원문만 고르고, 대상이
+   적으면 호출 수를 줄이며 다른 분야 기사로 패딩하지 않는다. 자동 유료 반복은 만들지 않는다.
+5. Today 후보 생성에서 `CATEGORY_DOMESTIC_SHARE_BANDS` 전달을 제거했다. 중요 해외
+   `global_major` 사건의 기존 중요도 가산은 교차보도 또는 한국 독자 파급 신호가 있는
+   뉴스·경제·정치·부동산·기술·자동차에만 적용한다.
+
+Claude Fable 5 중간 검수는 모델 근거·shortlist·중요 해외 회귀를 PASS로 보았으나 풀 밖
+기사 반례를 놓쳤다. Cursor Grok 4.6 반대검수가 `pool ⊃ packet/routing`과 기술 후보의
+지역 예약을 재현했고, Codex가 두 반례를 RED로 고정한 뒤 위 2·5에서 공통 원인을 수리했다.
+수리 후 관련 10파일 **234/234**, 전체 **1,811/1,811**, `git diff --check`를 통과했다.
+
+무과금 실데이터 재생은 2,199건 풀을 정확히 결속한 뒤 요약 전에 다음과 같이 정직하게 HOLD했다:
+뉴스 6, 자동차 2, 과학 4, 게임 2, 스포츠 0, 문화 7, 유머 5, 정치 9, 부동산 1,
+패션 0, 예술 1건. 부족 분야용 미분류 후보 200건은 별도로 선택됐지만 모델 호출·요약 호출은
+0회였다. 따라서 **코드 근인 수리는 GREEN, 새 상품판은 신선한 의미 분류 공급 전까지 HOLD**다.
+현재 활성 로컬 포인터 `SCE-e35dc2831e2ac6f1`과 라이브는 변경하지 않았다.
+
+truth: NH93_ROOT_GATES_GREEN·POOL_PACKET_ROUTING_EXACT·SEMANTIC_BASIS_REQUIRED·SEMANTIC_LANE_MIN_13·MISSING_LANE_SHORTLIST_NO_PADDING·NO_GEO_SEAT_RESERVATION·IMPORTANT_GLOBAL_CAN_RANK·UNPAID_REPLAY_HOLD·MODEL_CALLS_ZERO·FULL_TEST_1811_PASS·NH92_ACTIVE_PRESERVED·PRODUCT_HOLD·LIVE_UNCHANGED.
+
+#### NH93.2 최종 반례 봉합·3자 재검수 (2026-08-31)
+
+NH93.1 뒤의 Claude·Grok 독립 반대검수에서 발견된 두 경계만 공통 소유자에서
+최소 수정했다. `assertSemanticPublicationRouting`은 카테고리 배열의 유무보다
+`routingBasis`를 먼저 검사해, 카테고리가 빈 구형·출처 기반 행도 이후 URL 복구로
+되살아나기 전에 거부한다. 허용값은 `current_model`, `prior_exact_hash`, 그리고
+카테고리가 비어 있는 `withheld`뿐이다.
+
+해외 파급 신호의 공용 사전에서는 국가명 `중국/일본/China/Japan`과 일반 영단어
+`rate`를 제거하고 `interest rate(s)`를 명시했다. 따라서 국가명·호텔의 `first-rate`
+만으로 해외 주요 기사가 승격되지 않으며 Fed·CPI·GDP·고용·금리·환율·실적·반도체와
+주요 기업 신호는 기존처럼 shadow와 실제 Today 중요도 경로가 함께 사용한다.
+국내외 최소 비율이나 해외 좌석 예약은 다시 도입하지 않았다.
+
+Codex는 RED 3건을 확인한 뒤 반례 묶음 **106/106**, 관련 회귀 **318/318**, 전체
+**1,812/1,812**, `git diff --check` PASS를 확인했다. Claude Fable 5는 출판 근거
+게이트와 풀·패킷·라우팅 결속을 **GO(P0 0/P1 0)**, Cursor Grok 4.6 Extra High는
+해외 파급 신호와 실제 서빙 무쿼터 경로를 **GO(P0 0/P1 0)**로 재검수했다.
+활성 포인터 SHA `0306f9178e33416dc225fa48788ebbffadb26c975230b1a2be8b444a480f57a4`
+(`SCE-e35dc2831e2ac6f1`)는 그대로다. 코드 근인은 GREEN이지만 새 실제판은
+신선한 의미 분류와 오프라인 결과 검수 전까지 HOLD다.
+
+truth: NH93_FINAL_COUNTEREXAMPLES_GREEN·BASIS_FIRST_FAIL_CLOSED·COUNTRY_NAME_NOT_IMPORTANCE·GENERIC_RATE_NOT_IMPORTANCE·IMPORTANT_GLOBAL_SIGNALS_PRESERVED·NO_GEO_QUOTA·FOCUSED_318_PASS·FULL_TEST_1812_PASS·THREE_PARTY_P0_0_P1_0·ACTIVE_SHA_PRESERVED·PRODUCT_HOLD·LIVE_UNCHANGED.
+
+### NH94 기존 분류 결과의 패킷 고정·요청 경로 단일화 (2026-09-01)
+
+#### 근인과 사용자 규칙
+
+현재 수집 엔진은 이미 소스 성격과 제목 근거를 이용해 커뮤니티·전문 매체·종합 매체 섹션을
+서로 다른 강도로 분류한다. 그러나 NH93.2 발행 스냅샷은 모델 판정과 동일 해시 과거 판정만
+허용해, 엔진이 계산한 명확한 결과까지 버리고 있었다. 그 뒤 요청 시점 라우터가 URL 경로와
+발행사 라벨로 다시 분야를 바꾸면서 같은 사건이 선택 분야에 따라 다른 출처·분야로 보일 수
+있는 두 번째 분류 경로도 생겼다. 수집 부족이 아니라 **이미 계산한 결과를 발행 정본에 고정하지
+않고 뒤에서 다시 해석한 구조**가 근인이다.
+
+제품 의미는 다음처럼 고정한다.
+
+- `유머/일상`은 혼합 커뮤니티의 일반 일상 글을 담는 의도된 기본 lane이다. 게시판의 등록
+  분야를 상속하지 않고 엔진이 더 명확한 분야를 찾지 못한 커뮤니티 글이 여기에 남는 것은
+  정상이다.
+- 경제·스포츠·연예·기술·과학·자동차·패션·예술·부동산처럼 주제가 명확한 전문 매체는 기존
+  엔진의 교정 규칙을 거친 최종 분야를 그대로 쓴다. 단지 홈페이지 피드라는 이유로 전량 LLM에
+  보내지 않는다.
+- 일반 종합뉴스와 출처 불명확 행만 보류한다. RSS/Atom의 발행사별 category 문자열을 새로
+  파싱하거나 매핑하는 시스템은 만들지 않는다.
+
+#### 합의 구현 계약
+
+1. `buildSelectionShadowPacket`은 수집 엔진이 이미 계산한 `article.category`만 읽는다.
+   커뮤니티, 전문 뉴스, 일반 `news`가 아닌 종합매체 섹션은 분야 투표권을 갖고, 종합뉴스·딜·
+   미등록 소스는 투표하지 않는다.
+2. 같은 `evidenceHash` 안에 유효 투표가 하나 이상 있고 모든 유효 투표가 같을 때만
+   `deterministic_tier_policy` 제안을 패킷에 저장한다. 유효 투표끼리 충돌하면 대표 기사 한 건의
+   값을 고르지 않고 보류한다. 투표권 없는 종합뉴스 형제는 명확한 전문 원문의 투표를 무효화하지
+   않는다.
+3. 라우팅 우선순위는 `current_model` → 모델에서 나온 동일 해시 과거 판정
+   `prior_exact_hash` → **현재 패킷의** `deterministic_tier_policy` → 빈 `withheld`다.
+   deterministic 행은 다음 판의 prior로 재사용하지 않고 매 패킷 다시 계산한다.
+4. 요청 시점 라우터는 스냅샷 행만 투영한다. URL·발행사 라벨·등록 분야·누락 행·스냅샷 이후
+   기사·stale 기사 자체 분야로 재분류하지 않는다. 성인 게이트는 그대로 유지한다.
+5. 수집 풀·패킷·라우팅 ID 정확 일치, 분야별 발행 최소 13건, 직전 완성판 유지, 사건별 제목·
+   출처·사진·요약 고정, 요청 중 LLM 0회는 변경하지 않는다. 새 후보가 이 검증을 통과해도 이
+   라운드에서는 활성 포인터·commit·push·staging·deploy·live를 바꾸지 않는다.
+
+동결 풀 2,199개 기사(분류 대상 2,198)의 실제 패킷 재생 기준선은 deterministic 1,923,
+no-vote withheld 275, 유효 투표 충돌 0이다. 대상 수는 예술 75·자동차 86·경제 255·문화 98·
+패션 71·게임 85·유머/일상 384·라이프 103·뉴스 59·정치 45·부동산 77·과학 72·스포츠 92·
+기술 421이다. 계획 검수 때 적었던 2,022/176은 투표 금지로 합의한 딜 99건을 라이프에 포함한
+산술 오류였고, 구현 RED 픽스처와 전체 동결 풀 재생에서 바로잡았다. 이는 공급 가능성 좌표이며
+실제 발행 가능성은 사건 묶음·시간창·승격 가드 뒤의 분야별 13건으로 별도 검증한다.
+
+Codex가 전체 경로와 동결 풀을 대조했고, Claude Fable 5와 Cursor Grok 4.6 Extra High가
+각각 뉴스룸 분류·대규모 애그리게이터 관점으로 세 차례 반대검수했다. RSS 신규 파서, 요청 시
+레지스트리 fallback, 혼합 커뮤니티 과보류를 제거한 최종안에 두 검수자 모두
+`CONVERGE_GO`를 반환했다. 현재 상태는 **계획 잠금·RED 반례 테스트 착수**이며 로컬 활성판과
+라이브는 변경하지 않았다.
+
+truth: NH94_THREE_PARTY_PLAN_LOCKED·EXISTING_ENGINE_RESULT_REUSED·PACKET_DETERMINISTIC_VOTE·MODEL_ONLY_PRIOR_REUSE·PROJECTION_ONLY_REQUEST_ROUTER·NO_RSS_CATEGORY_SYSTEM·GENERAL_NEWS_WITHHELD·MIXED_COMMUNITY_LANE_PRESERVED·POOL_PACKET_ROUTING_EXACT_REQUIRED·LANE_MIN_13_REQUIRED·REQUEST_LLM_ZERO·ACTIVE_POINTER_UNCHANGED·LOCAL_ONLY·LIVE_UNCHANGED.
+
+#### 구현·검증 종료
+
+위 계약을 새 분류기 없이 기존 네 경계에만 구현했다. 패킷 빌더는 엔진의 최종 분야를 조건부
+결정 투표로 저장하고, 라우팅 빌더는 모델·모델 유래 과거 판정·현재 패킷 결정 판정 순서로 한
+번만 결론을 낸다. 요청 라우터는 봉인된 결과를 투영만 하며, 슬롯 발행 게이트는
+`current_model`·`prior_exact_hash`·`deterministic_tier_policy`·빈 `withheld`만 허용한다.
+
+동결 풀 재생 결과는 풀·패킷·라우팅 기사 ID **2,199/2,199/2,199**, 분류 대상 2,198,
+결정 대상 1,923, 보류 275(딜 99 + 일반 종합뉴스 176), 충돌 0이다. 기사 행 기준 승인 수는
+같은 사건에 기사 2개가 묶인 한 건 때문에 1,924이고, 대상 기준 1,923과 모순이 아니다. 생성된
+비활성 후보 `SCE-5ef1ac07d78811ca`는 고유 사건 195개, 14개 분야 각각 14건, 상세
+`source_unavailable` 49·`excerpt_only` 146·pending/error 0이며 `llmUsage: []`,
+`activatedFile: null`이다. 활성 포인터 SHA
+`0306f9178e33416dc225fa48788ebbffadb26c975230b1a2be8b444a480f57a4`
+(`SCE-e35dc2831e2ac6f1`)는 재생 전후 동일하다.
+
+focused **91/91**, 전체 **1,813/1,813**, `git diff --check` PASS다. Claude Fable 5 최종
+독립검수는 **GO(P0 0/P1 0)**, Cursor Grok 4.6 Extra High는 기능 **GO**를 반환했다.
+Grok의 문서 지연은 본 절로 닫았고, 기사 행/대상 수 구분은 위에 명기했다. 구형 스냅샷 검증용
+legacy basis 이름과 미래 `isDeal`-only 소스 가능성은 현재 발행 경로·현재 소스에서 재현되지 않아
+호환성 관찰로 남기며 새 분기나 추상화를 추가하지 않는다. 이 결과는 무과금 동결 데이터의 구조
+증명이며 새 실제판 활성 승인이 아니다.
+
+truth: NH94_IMPLEMENTED_UNACTIVATED·FROZEN_REPLAY_2199_EXACT·DETERMINISTIC_TARGETS_1923·WITHHELD_275·CONFLICTS_0·CANDIDATE_195·ALL_14_LANES_14·DETAILS_PRECOMPUTED·REQUEST_LLM_ZERO·FULL_TEST_1813_PASS·THREE_PARTY_GO·ACTIVE_SHA_PRESERVED·LOCAL_CANDIDATE_ONLY·LIVE_UNCHANGED.
+
+### NH99 전체 경로 근인 수리·검수본 로컬 활성 (2026-09-01)
+
+#### 해결한 공통 원인
+
+NH99는 상단의 NowHot 실행원칙 v5에 따라 수집→분류→편성→상세→화면을 한 경로로
+대조한 뒤 세 공통 경계만 수정했다.
+
+1. 같은 사건의 중복 여부는 최종 화면에 실제 노출되는 출처를 기준으로 공용 판정 함수 한
+   곳에서 결정한다. 분야별 후보 단계의 임시 대표 출처로 다시 판정하지 않는다.
+2. 복수 분야 선택은 동일 사건을 한 번만 남기고 그 사건의 승인 분야만 합친다. 제목·대표
+   출처·사진·발행시각·상세 요약은 선택한 분야와 무관한 고정 카드 정체성을 유지한다.
+3. shadow 패킷은 새 분류기나 RSS 매핑을 만들지 않고 기존 수집 엔진이 이미 정한 명확한
+   분야와 등록 소스 정책을 재사용한다. 종합뉴스·불명확 행은 기존 보류 경계를 유지한다.
+
+추가로 `AI`라는 공통 단어 하나 때문에 서로 무관한 6개 기사가 한 사건으로 묶이던 반례는
+기존 사건 군집의 일반 토큰 집합에 `ai` 한 항목만 추가해 분리했다. 게임 lane에는 실제
+위쳐·사이버펑크 기사, 기술 lane에는 영란은행의 AI 금융안정 기사로 각각 정상 대체됐다.
+
+#### 실제 검수 결과
+
+동결 풀 2,241건과 현재 패킷·routing을 결속해 routing 결정 1,913건, 보류 325건을 얻었다.
+검수 정본은 `SCE-116a2d55df910888`, SHA
+`116a2d55df9108886339bedef78fe6ebda0ad14175d03ebe7ea0cf5e2f1345a0`이다.
+
+- 14개 분야 각각 14건, 전체 고유 카드 193건
+- 91개 모든 두 분야 조합 27~28건, 최종 화면 중복 0건
+- 상세 193건 전부 사전 종결: `excerpt_only 146`, `source_unavailable 47`, pending/error 0
+- 요청 경로 `llmUsage: []`; 14개 단독·91개 조합 HTTP 응답 모두 정확한 합집합
+- 실제 브라우저에서 기사 클릭 즉시 사전 준비된 한국어 상세·사진·발행시각·원문 링크 표시,
+  클릭 후 요약 생성 API 요청 0
+- focused 265/265, 전체 1,821/1,821, `git diff --check` PASS
+- Claude Fable 5 제품·편집 검수와 Cursor Grok 4.6 Extra High 구조·회귀 검수 모두
+  **로컬 GO**, P0 0
+
+위 정본만 `/Users/hyundonghwang/Documents/NowHot-Local-Dev/.nowhot-local/slot-editions/active.json`
+의 `2026-09-01:lunch` 포인터로 원자 활성화했다. 요청 서버는 이 파일을 다시 분류하거나
+재요약하지 않고 분야 선택에 따라 고정 카드를 필터링만 한다.
+
+#### 남은 제한과 활성 경계
+
+같은 동결 pool·packet·routing으로 빌더를 다시 실행했을 때 고유 카드 수가 192건과 194건으로
+달라지는 **빌드 단계 비결정성**을 새로 발견했다. 원인은 아직 격리하지 않았으므로 두 재빌드본은
+검수 정본으로 채택하지 않았고, SHA까지 검수된 193건 산출물을 직접 활성화했다. 따라서 현재
+로컬 요청 결과는 고정됐지만, 정시 자동 발행 전에 “검수 후 재빌드”를 금지하고 빌드 재현성의
+공통 원인을 별도 봉합해야 한다.
+
+무료 결정 규칙은 시장·한국 파급 신호가 약한 일부 해외 주요뉴스를 보류할 수 있고, 일부 해외
+제목의 한국어 표현은 아직 어색하다. 이는 이번 합집합·정체성·사전 상세 근인 수리의 차단 결함은
+아니며 다음 편집 품질 라운드에서 실제 사용자 표본으로 다룬다. 새 프레임워크·전량 LLM·지역
+쿼터는 추가하지 않았다.
+
+이 활성화는 **로컬 확인판만** 해당한다. 유료 API/model/Keychain 호출, commit, push,
+staging, 운영 deploy, live 변경은 하지 않았다.
+
+truth: NH99_REVIEWED_LOCAL_ACTIVE·EXACT_REVIEWED_ARTIFACT_ACTIVATED·ALL_14_LANES_14·ALL_91_PAIRS_27_OR_28·FIXED_CARD_IDENTITY·FINAL_DISPLAY_DUPLICATES_ZERO·DETAILS_PRECOMPUTED·REQUEST_LLM_ZERO·FULL_TEST_1821_PASS·THREE_PARTY_LOCAL_GO·BUILD_REPRODUCIBILITY_P1·LOCAL_ONLY·LIVE_UNCHANGED.
+
+### NH103 캐시·대표 제목 공통 경계와 발행 전 제목 검수 후보 (2026-09-01)
+
+NH99 활성판은 유지한 채 전체 경로에서 두 공통 원인을 수리했다. 첫째, 과거의
+`source_unavailable` 캐시는 같은 기사에 뒤늦게 들어온 충분한 피드 발췌보다 앞설 수 없다.
+검증된 요약 캐시는 계속 최우선이지만, 본문 미확인 캐시는 새 근거를 가리지 않는다. 둘째,
+뉴스 사건의 정본 제목은 기존 `presentationLead.title` 또는 완전한 사건 제목 한 곳에서 정하고,
+digest의 별도 표시 제목 분기를 제거했다. 잘린 네팔 제목 반례와 캐시 반례를 회귀 테스트로
+고정했다.
+
+무료 번역의 의미 오역은 번역기를 새로 만들지 않고 기존 `preparedHeadline` 경로에 발행 전
+사람 검수 오버레이를 붙였다. 오버레이는 현재 `evidenceHash`와 영어 `originalTitle`이 정확히
+일치하고, 한국어이며 기존 위험 제목 검사를 통과할 때만 적용된다. 독자용 제목·요약·중요성·
+주목 이유·다음 확인은 같은 검수 제목을 쓰되 원래 기계번역과 영어 제목은 감사용 정본에
+남는다. 검수 파일 SHA와 적용 건수는 후보 내용 SHA와 별도 영수증에 함께 고정한다.
+
+최종 미활성 후보 `SCE-c43b20a67c92a517`은 194개 사건, 기술 13건·나머지 13개 분야 각
+14건이며, NH103 직전 후보와 lane·표시 순서·issue key가 같다. 뉴스는 국내 10·해외 3·혼합 1,
+경제는 국내 13·해외 1이고 해외 주요 보도는 뉴스 3·경제 1·기술 7건이다. 상세는
+`excerpt_only 144/source_unavailable 50`, `llmUsage []`다. 이란 기사 독자 필드에서는
+`거래소/파업` 오역이 0건이며 원문 감사 필드는 보존됐다.
+
+재빌드 사이 공개 페이지 상대시각·사이드바가 바뀌어 5개 `excerpt_only` 본문 조각이 달라진
+현상은 선택·카드 키·lane을 바꾸지 않으며 활성화 뒤 후보 SHA에 고정된다. 같은 입력의 완전한
+byte 재현은 아직 P2 관찰로 남긴다. focused 회귀와 전체 **1,827/1,827**, `git diff --check`가
+통과했고 Claude Fable 5와 Cursor Grok 4.6 Extra High가 각각 편집·구조 관점에서 GO,
+P0 0·P1 0으로 합의했다.
+
+현재 로컬 포인터는 계속 `SCE-116a2d55df910888`이며 SHA도 불변이다. 후보 활성화, 유료
+API/model/Keychain, commit, push, staging, deploy, live 변경은 하지 않았다.
+
+truth: NH103_ROOTFIX_CANDIDATE_GO·CACHE_UNAVAILABLE_NO_LONGER_MASKS_NEW_EXCERPT·ONE_CANONICAL_HEADLINE_OWNER·EXACT_REVIEWED_HEADLINE_OVERLAY·READER_FIELDS_CONSISTENT·RAW_AUDIT_PRESERVED·CANDIDATE_SCE_C43B20A67C92A517·FULL_TEST_1827_PASS·THREE_PARTY_GO·ACTIVE_POINTER_PRESERVED·LOCAL_UNACTIVATED·LIVE_UNCHANGED.
+
+### NH103 검수 정본 로컬 활성 (2026-09-01)
+
+David 승인에 따라 후보를 다시 빌드하지 않고 검수된 정확한 산출물
+`SCE-c43b20a67c92a517`(콘텐츠 SHA
+`c43b20a67c92a517a2e14a3c202d490045557cd02a334a48846f53714f38f2c1`)만
+`2026-09-01:lunch` 로컬 포인터에 원자 활성화했다. 후보와 활성 파일의 직렬화 SHA는
+모두 `5092cad7b74624994a5e52c6585ef7ff3c6ead2776dfbcb4f50f67ce55fce97f`로
+byte-identical이고, 갱신된 포인터 파일 SHA는
+`9d753887b090f8f60df0fee11ee52a5717c31397c448b0f6265aa42b0fc0fd31`이다.
+
+로컬 4100 실응답에서 14개 단독 분야는 기술 13건·나머지 각 14건, 뉴스+경제는
+28건이며 전부 같은 artifact SHA, `slot_canonical_verified`, `filter_only`,
+`llmCalls: 0`을 반환했다. 브라우저에는 이란 기사가 `미국과 이란, 한 달간의 소강 뒤
+밤사이 공격 주고받아`로 표시되고 상세 창도 요청 중 생성 없이 즉시 열렸다. 활성화 집중
+테스트 23/23과 `git diff --check`가 통과했으며 Claude Fable 5 제품 검수와 Cursor Grok
+4.6 Extra High 구조 검수도 사후 `GO`, P0 0·P1 0으로 일치했다.
+
+현재 시각 기준 이브닝판은 아직 준비되지 않아 기본 진입에서 정직한 미준비 상태가 보일 수
+있고, NYT 단독 이란 기사는 공개 본문을 충분히 읽지 못해 상세가 `source_unavailable`로
+표시된다. 둘 다 이번 런치 정본 활성 범위 밖의 P2다. 유료 API/model/Keychain 호출,
+commit, push, staging, deploy, live 변경은 하지 않았다.
+
+truth: NH103_REVIEWED_LOCAL_ACTIVE·EXACT_SAVED_ARTIFACT_ACTIVATED·ACTIVE_POINTER_SHA_9D753887·ALL_14_SINGLETONS_13_OR_14·NEWS_BUSINESS_UNION_28·REQUEST_FILTER_ONLY·REQUEST_LLM_ZERO·IRAN_READER_HEADLINE_CORRECTED·DETAIL_OPENS_PRECOMPUTED·POST_ACTIVATION_THREE_PARTY_GO·P0_0·P1_0·LOCAL_ONLY·LIVE_UNCHANGED.
+
+### NH104 정본 자동 발행 연결·무료 제목 마감 계획 (2026-09-02)
+
+#### 3자 역할과 상호 반박
+
+- Codex 5.6 Sol Ultra는 현재 수집→분류→편성→상세→GET 전체 호출 경로와 실제 구현을 맡는다.
+- Claude Fable 5.1 Ultra Code는 장기 운영·제품 편집 관점에서 자동 발행과 독자 품질을 검수한다.
+- Cursor Grok 4.6 Extra High는 포인터 원자성·회귀·반례와 비용 경계를 공격 검수한다.
+
+세 검토자는 현재 활성판의 13~14건, 정확 합집합, 선택 분야와 무관한 카드 정체성,
+사전 준비 상세, 요청 중 LLM 0회를 유지해야 한다는 데 일치했다. 분야 수 하향과 전 카드
+유료 LLM은 근인을 가리지 못하고 비용만 늘리므로 모두 거부했다. Fable의 수동 검수 의존
+자동화 제안은 검수 오버레이가 선택 입력이라는 현재 코드와 맞지 않아 채택하지 않았고,
+Grok의 구조 결론은 제품 의미와 대조해 아래 세 경계로 좁혔다.
+
+#### 합의된 최소 실행
+
+1. 정본 모드가 구형 재고 스케줄러를 끄면서 새 정본 빌더를 연결하지 않은 단절을 수리한다.
+   기존 `run-slot-canonical-prepublish.mjs`가 현재 풀에서 패킷·라우팅을 준비하고 기존 후보
+   빌더와 원자 포인터 활성화를 그대로 호출한다. 새 프레임워크와 별도 발행 엔진은 만들지 않는다.
+2. 서버의 로컬 정본 모드에서만 기동 후와 5분 점검 때 위 한 경로를 호출한다. 동시 실행은
+   한 번으로 제한하고, 풀 시간창·13건·상세 준비·입력 SHA 중 하나라도 실패하면 HOLD 영수증만
+   남기며 활성 포인터는 바꾸지 않는다. 요청 핸들러는 계속 파일 필터만 수행한다.
+3. 외국어 제목은 이미 존재하는 무료 번역기를 약한 제목의 발행 전 2차 마감에도 재사용한다.
+   유료 Anthropic은 명시 승인 없이는 환경에서 제거하며 이번 실행에서는 호출하지 않는다.
+
+검증은 먼저 실패 테스트를 만든 뒤 `현재 슬롯 1회 완주`, `다음 정시 자동 호출`, `실패 시
+포인터 byte 불변`, `14개 분야 13~14건`, `91개 복수 선택 정확 합집합`, `카드 내용 지문 불변`,
+`상세 사전 준비`, `요청 중 LLM 0회`를 순서대로 확인한다. 통과 뒤 Fable과 Grok이 같은 현재
+바이트와 산출물을 다시 독립 검수한다. 로컬 정본 활성화는 검증 통과 범위 안에서만 허용하고,
+commit·push·staging·deploy·live는 별도 승인 전까지 변경하지 않는다.
+
+현재 상태: **NH104 계획 잠금·RED 테스트 착수**.
+
+truth: NH104_THREE_PARTY_PLAN_LOCKED·EXISTING_PREPUBLISH_REUSED·CANONICAL_SCHEDULE_ROOTFIX·FREE_HEADLINE_SECOND_PASS·NO_BLANKET_LLM·NO_CATEGORY_COUNT_REDUCTION·RED_BEFORE_FIX·ATOMIC_POINTER_REQUIRED·LOCAL_ONLY·LIVE_UNCHANGED.
+
+#### 구현·로컬 검증 완료
+
+정본 모드에서 끊겨 있던 자동 발행 연결을 새 엔진 없이 복구했다. 서버의 기존 로컬 점검
+주기는 현재 영속 풀을 기존 packet·결정 라우팅·후보 빌더·원자 포인터 경로에 한 번만
+전달하며, 동시 실행 가드와 `allowPaid:false`를 유지한다. 다음 발행이 20분 이내면 기존
+`nextEditorialSlot` 결과를 사용해 모닝·런치·이브닝판을 발행 전에 준비한다. 이미 완성된
+날짜·슬롯은 새 풀의 시간창과 무관하게 먼저 재사용해 불필요한 재빌드와 HOLD 경고를 만들지
+않는다. 요청 경로는 계속 활성 포인터를 읽고 선택 분야를 필터링만 한다.
+
+첫 실데이터 실행에서는 기존 무료 번역기의 인자 계약 차이가 쓰기 전에 실패했고 직전 포인터가
+보존됐다. 번역기 자체나 유료 폴백을 새로 만들지 않고 호출 옵션을 기존 계약에 맞춘 뒤 같은
+경로가 성공했다. 활성 로컬판은 `SCE-55d43713440229e2`(콘텐츠 SHA
+`55d43713440229e2a7781415440e45efe2f9e0f2885a321e82df4a849e54d8e1`)이며 고유 사건
+195건, 14개 분야 각각 14건이다. 상세는 발행 전에 `excerpt_only 141`,
+`source_unavailable 54`로 고정돼 요청 중 생성은 없다.
+
+실서버에서 단독 분야 14개는 모두 14건이고, 91개 모든 2분야 조합은 각 단독 목록의 정확한
+집합 합성이며 중복 0·사건 제목/출처/요약/최초발행시각 변화 0이다. 뉴스·경제·기술의 국내/해외
+관측은 각각 10/4, 11/3, 7/7이고 해외 주요 보도는 4/3/7건이다. 뉴스에는 Guardian·BBC·NYT,
+경제에는 CNBC·MarketWatch가 실제 선택 카드로 확인됐다. 실응답은
+`slot_canonical_verified`, `requestWork:filter_only`, `llmCalls:0`이다.
+
+사전 발행과 서버 집중 회귀 36/36, 전체 1,833/1,833, `git diff --check`를 통과했다.
+Claude Fable 5.1 Ultra Code 재검수는 시간 경계 수정 뒤 P0 0·P1 0으로 판정했다. 실제
+Cursor Grok 4.6 Extra High의 현재 바이트 독립 재검수도 LOCAL GO·P0 0·P1 0으로 판정했다.
+18:40 이브닝 선행 생성과 19:00 자동 전환은 아직 시각이 오지 않아 코드 결함이 아닌 시간대별
+운영 증거로 남긴다. 유료 API/model/Keychain, commit, push, staging, deploy, live 변경은 0이다.
+
+truth: NH104_LOCAL_AUTOPUBLISH_WIRED·PREPUBLISH_20M·ACTIVE_SLOT_SHORT_CIRCUIT·SCE_55D43713440229E2·ALL_14_LANES_14·ISSUE_COUNT_195·ALL_91_PAIRS_EXACT_UNION·FIXED_CARD_CONTENT·FOREIGN_MAJOR_NEWS_4_BUSINESS_3_TECH_7·DETAILS_PRECOMPUTED·REQUEST_FILTER_ONLY·REQUEST_LLM_ZERO·FULL_TEST_1833_PASS·FABLE51_P0_0_P1_0·GROK46_P0_0_P1_0·EVENING_CLOCK_OBSERVATION_PENDING·LOCAL_ONLY·LIVE_UNCHANGED.
+
+### NH105 AdFit Web SDK 신규 도메인 전환 (2026-09-02)
+
+공식 AdFit Web 가이드의 SDK 주소는
+`https://t1.kakaocdn.net/kas/static/ba.min.js`다. 서버 렌더 경로와 보조 클라이언트
+경로는 이미 신규 주소였지만, 실제 피드 렌더 뒤 호출되는 `ensureAdfitPlacement()` 한 곳만
+구 주소 `t1.daumcdn.net`을 사용하고 있었다. 해당 한 줄을 공식 HTTPS 주소로 통일하고,
+배포 HTML에 구 SDK 주소가 다시 들어오면 실패하는 회귀 테스트를 추가했다.
+
+RED에서 구 주소를 실측한 뒤 GREEN으로 전환했고 광고 회귀 93/93과 `git diff --check`가
+통과했다. 로컬 `/live`와 `/index.html` 응답은 구 주소 0·신규 주소 1이다. 광고 단위,
+배치, 폴백, 수익 로직은 변경하지 않았으며 commit·push·staging·deploy·live 변경은 0이다.
+
+truth: NH105_ADFIT_SDK_DOMAIN_MIGRATED·OFFICIAL_KAKAO_SDK_CDN_HTTPS_ONLY·OLD_DAUMCDN_SDK_ZERO·MONETIZE_TEST_93_PASS·LOCAL_ONLY·LIVE_UNCHANGED.
+
+### NH106 분야 의미 경계·동일 사건 중복 최소 수리 계획 (2026-09-02)
+
+현재 활성판의 분야별 14건, 복수 선택 정확 합집합, 카드 정체성 고정, 상세 사전 준비,
+요청 중 LLM 0회는 변경 금지 기준선으로 잠근다. 활성 실데이터와 Codex·Claude Fable
+5.1 Ultra Code·Cursor Grok 4.6 Extra High의 상호 검수에서 재현된 결함만 고친다.
+
+1. 혼합 커뮤니티는 제목만으로 불명확할 때 이미 수집된 짧은 요약도 기존 확정 분류기에
+   함께 제공한다. 배우 결혼 보도를 유머로 남기는 문제를 별도 모델 없이 해결한다.
+2. 종합 성격의 분야 피드가 명백한 사건·세계정세 보도를 IT로 선언한 경우 기존 문맥
+   가드로 뉴스에 돌린다. 전역 임계·소스 라벨·정상 IT/게임 인접 기사는 건드리지 않는다.
+3. 같은 사건의 보도와 커뮤니티 전재가 숫자 표현만 달라 중복된 경우에 한해, 서로 다른
+   역할·핵심 개념 3개 이상·24시간 이내 조건으로 최종 화면에서 한 장으로 합친다.
+4. 자동 교정이 `스포츠`를 선택할 때만 스포츠 전용어가 하나 이상 있어야 통과시킨다.
+   메디포스트 인사처럼 근거 없는 스포츠 오분류를 분류 단계에서 막고, 다른 분야의 정상
+   자동 교정과 단일 기사·복수분야 승계는 그대로 유지한다.
+
+실패 테스트를 먼저 만들고 집중·전체 회귀 뒤 새 후보만 생성한다. 14개 단독 분야와 91개
+복수 조합, 정체성 고정, 상세 준비, 국내외 주요 매체 유지, 요청 중 LLM 0회를 통과한
+후에만 로컬 포인터를 바꾼다. commit·push·staging·deploy·live는 별도 확정 전까지 금지한다.
+
+truth: NH106_PLAN_LOCKED·THREE_PARTY_ROOT_CAUSE_CONSENSUS·PRESERVE_CURRENT_WINS·THREE_REPRODUCED_BOUNDARIES_ONLY·NO_GLOBAL_THRESHOLD_CHANGE·NO_NEW_LLM·RED_BEFORE_FIX·LOCAL_CANDIDATE_FIRST·LIVE_UNCHANGED.
+
+#### 구현·3자 검수·로컬 활성 완료
+
+실제 남은 오분류는 전역 임계나 새 필터 문제가 아니라, 조선비즈의
+`/entertainment/` 기사와 Google 연예 묶음이 집계 소스의 기본값·약한 무근거 추론으로
+IT에 덮어써지던 한 경계였다. 기존 분류기와 출처 설정만 최소 수정해 연예 URL은
+문화/연예로 확정하고 `gnews-ent`만 선언된 연예 섹션을 유지하게 했다. 다른 Google
+분야 피드와 `gnews-biz`의 정상 의미 교정은 그대로 보존했다. Today/v1 수집 경로와
+슬롯 정본 준비 경로가 같은 결론을 쓰도록 두 기존 호출 지점에 동일 설정을 연결했다.
+
+최종 로컬판은 `SCE-cd956b3b20ab2eb1`(콘텐츠 SHA
+`cd956b3b20ab2eb126c05a39036c645fc3dae5063bfda020c5fef83d1b3dc6d2`)이며 193개
+고유 사건, 14개 분야 각각 14건, 91개 모든 두 분야 조합 27~28건이다. 문제가 된
+`차희, '메이드 인 코리아 2' 기대하세요`는 IT 목록에서 제거됐고 Apple Maps의
+뉴스+기술 복수 분류 등 정상 장점은 유지됐다. 상세 193건은 발행 전
+`excerpt_only 136/source_unavailable 57`로 종결돼 pending·failed 0이며 사용자 요청은
+계속 파일 필터만 수행하고 `llmUsage: []`다.
+
+최종 릴리스 후보에서는 화면에 직접 보도 한 곳만 남았는데도 집계 피드 때문에 복수
+출처로 설명되던 OpenAI·Blue Origin 두 장의 출처 설명도 같은 화면 근거에서 다시
+계산하도록 바로잡았다. 기사 선정·제목·사진·출처·요약·분야·순서는 바꾸지 않았다.
+
+집중 회귀 282/282, 전체 1,845/1,845, baseline lock check와 `git diff --check`가
+통과했다. Claude Fable 5.1 Ultra Code는 제품·편집 관점, Cursor Grok 4.6 Extra High는
+구조·회귀 관점에서 각각 PASS(P0 0/P1 0)했으며 Codex가 실제 브라우저에서 IT 14건과
+문제 기사 제거, 준비된 상세의 즉시 표시를 재확인했다. 로컬 포인터만 이 검수본으로
+전환했고 유료 API/model 호출·commit·push·staging·deploy·운영 변경은 없다.
+
+truth: NH106_LOCAL_REVIEWED_ACTIVE·SCE_CD956B3B20AB2EB1·ALL_14_LANES_14·ALL_91_PAIRS_27_OR_28·ENTERTAINMENT_NOT_TECH·PRESERVED_VALID_MULTI_CATEGORY·SOURCE_COPY_COHERENT·DETAILS_PRECOMPUTED·REQUEST_FILTER_ONLY·LLM_ZERO·FULL_TEST_1845_PASS·THREE_PARTY_P0_0_P1_0·LOCAL_ONLY·LIVE_UNCHANGED.
+
+### NH107 로컬 오늘 진입·서버 응답 복구 (2026-09-03)
+
+David의 `/` 접속이 실시간 skeleton으로 보인 원인은 기본 라우트 변경이 아니었다.
+4100 서버가 꺼진 상태에서 SW v141이 모든 navigation 실패를 `/live` 캐시로 대체했다.
+재기동 시에는 정시 빌더의 `spawnSync` 때문에 HTTP 전체가 빌드 완료까지 정지했다.
+
+- SW v142: 같은 주소 캐시만 폴백하고 `/live` 셸은 `/live`에만 사용한다. 그 외에는
+  503/no-store 연결 오류와 다시 시도를 제공한다. Today도 `/sw.js`를 등록해 갱신받는다.
+- 기존 빌더 호출만 비동기 `execFile`로 바꾼다. 명시 인자·키 차단·30분 제한·1MiB
+  출력상한·실패 시 이전 포인터 보존은 유지한다. 빌드 중 갱신되는 수집 풀 대신 이미
+  해시한 `poolRaw`를 기존 원자 쓰기로 고정해 패킷과 동일한 입력을 전달한다.
+- 실행은 Orca 소유 터미널 `term_5342fa45-dc06-46c5-b089-3467a0660f33`에서 유지한다.
+  앱 종료·Mac 재부팅 후 자동 기동까지 보장한 것은 아니다.
+
+수정 전 실패 재현 2건, 수정 후 관련 6파일 75/75·diff PASS. Claude Fable 5.1과
+Cursor Grok 4.6은 각자 좁은 코드 검수 PASS. Chrome 실제 서버 중지/재시작으로
+연결 오류→Today 복구를 확인했고, 9/3 모닝 55건(기본 4분야)과 상세 열기를 확인했다.
+직접 요청 측정은 `/` 151ms, health 7ms, Today 경제+기술 49ms(28건)였다.
+기사 선정·분류·비율·요약 로직과 어제 검수판 `cd956b3b…dc6d2`는 바꾸지 않았다.
+
+주의: 재기동 시 기존 스케줄러가 9/3 모닝 `SCE-43e8348e2fd334a3`을 생성했다.
+192건·14분야 각14·발췌159/원문불가33이며, 이는 새 판 전체의 기사 품질 PASS가 아니다.
+부모 프로세스의 짧은 패킷 준비는 그대로다. 이번 완료 범위는 진입·응답 문제이며
+유료 모델 호출·commit·push·staging·배포·라이브 변경은 없다.
+
+truth: NH107_LOCAL_ENTRY_FIXED·SAME_ROUTE_OFFLINE_FALLBACK·NONBLOCKING_CHILD_BUILD·FROZEN_POOL_INPUT·FOCUSED_75_PASS·THREE_PARTY_REVIEW_PASS·PRODUCT_COMPLETION_NOT_CLAIMED·LIVE_UNCHANGED.
+
+NH107 실행 영수증: 입력은 로컬 장애 수정 지시로 분류했다. 작업 전 자동 주입 MD는
+WRC AGENTS 지침이며, 직접 읽은 문서는 START_HERE·Canonical 13원칙·Wiki Rules·
+Enforcement·PMO Live Board·Report Read Index의 해당 절, 이 Blueprint·개발현황,
+Superpowers using/systematic-debugging/TDD/verification·wrc-start·Orca CLI다.
+이번 전용 파일은 SW·Today HTML·prepublish 실행기와 해당 테스트다. 공유 장부의
+무관한 과거 항목 전체는 정독하지 않았다. 적용 규칙은 전체 경로 확인·최소 근본 수정·
+3자 견제·기존 기능 보존이다. First Principles 게이트: PASS.
+개발현황 반영: NOWHOT-DEVELOPMENT-STATUS-001 / DEVCHG-NOWHOT-20260903-190,
+실측·테스트·기록 대조 일치. 금지선 준수: 운영/배포/결제/유료 모델 변경 없음.
+David 행동 필요: 없음(기존에 열린 오류 화면은 새로고침 가능). Telegram: 불요.
+이익 우선·과잉방어: 사용을 막는 진입·동기 정지만 수리. 하지 않은 일: 전체 품질
+재검수, LLM 재요약, 국내외 비율 재조정, 부팅 자동실행, 전체 테스트 재실행.
+
+### NH108 현재 품질 보존형 상세·편성 통합 보완 (2026-09-03)
+
+David 확정 지시: 현재 기사 품질과 구성을 유지하면서 원문 미확인 안내, 지정 분야의
+국내외 가이드, Today 번역 버튼, 커뮤니티 상세, 국내 패션 공급을 함께 보완한다.
+Codex·Claude Fable 5.1·Cursor Grok 4.6은 계획·구현·검수 단계마다 변경 경계와
+반례를 서로 대조한다. 서브에이전트는 독립 파일 범위만 담당한다.
+
+**Goal:** 정상 기사·요약을 보존하며 이미 확보한 내용을 빠짐없이 즉시 제공하고,
+명시된 편성 가이드와 국내 패션 공급을 실제 발행 전 경로에 연결한다.
+**Architecture:** 수집 → 기존 확정 분류 → 중요도/분야별 편성 → 상세 사전 준비 →
+불변 슬롯 파일 → 화면 필터의 기존 경로를 재사용한다. 신규 프레임워크·유료 API·
+클릭 시 수집/요약·전체 재분류는 추가하지 않는다.
+**Tech Stack:** 기존 Node.js ES modules, node:test, RSS/HTML adapters, 정적 Today UI.
+**Spec:** 본 절과 NH106/NH107의 검증된 분류·합집합·고정 상세·서버 응답 계약.
+
+#### 작업 계획표
+
+| 단계 | 책임과 허용 파일 | 구체적 산출물 | 검증과 상태 |
+| --- | --- | --- | --- |
+| 1 기준선 | Codex: `.nowhot-local/nh108/baseline/` | SCE-43e8348e2fd334a3 판·영수증·포인터 복사. 기존 dirty 변경은 되돌리지 않음 | [x] 기준 파일 보존, 선정·출처·텍스트 비교 기준 확보 |
+| 2 본문 정본 | Claude 설계/검수, 한 명의 구현자: `article-summary.js`, 대응 테스트 | `sourceLinks`에 동일 기사에서 확인된 200자 이하 소개문·원제목·공개 사진/시각 전달. 실제 fetch 오류와 부족한 본문/번역 결과 구분. UI에서 원시 출처를 다시 병합하지 않음 | [x] 짧은 소개문/403/사진/정상 요약 보존 RED→GREEN 130/130. 교차검수 후 사이트 자체 소개문은 공통 chrome 판정에서 추가 구분 |
+| 3 Today 번역 | Codex UI worker: `public/today.html`, `detail-reading.test.js` | 준비된 해외 원문을 식별해 기존 Live의 PC 안내와 모바일 네이버 앱 연결을 제공. 확인된 오류 문구 매핑. 동일 출처 정본만 사용 | [x] UI 20/20, 실제 Chrome PC·모바일 형태·직접 URL/네이버 딥링크·클릭 상세 API 0 확인. 네이버 앱 자체 실행은 미검증 |
+| 4 편성 가이드 | Grok 설계/검수, 전용 구현자: `digest.js`, 대응 테스트 | 명시된 뉴스 50~70%, 경제 50~60%, 기술 50~70%, 정치 80~90% 국내 범위를 적격·유사 중요도 후보의 소프트 편성에 반영. 중요 보도는 비율보다 우선. 미지정 분야 해외 하한 없음 | [x] 실제 14개 발행 접두부·상대 weight 차이 10% 이내. 해외 추가 승격에는 기존 시장 파급 또는 독립 교차보도 근거가 필요하며 대형 매체 이름만으로 승격하지 않음. 관련 76/76 |
+| 5 국내 패션 | Grok 소스 조사, Codex 통합: `communities.json`, 필요한 기존 adapter와 테스트 | 공개 RSS/편집 콘텐츠를 실제 확인한 국내 패션 소스부터 연결. 전체 쇼핑 카탈로그·쿠폰 목록 투입 금지. 기존 종합뉴스의 패션 승인 경로 유지 | [x] ELLE 공식 RSS 15개 중 명시 FASHION 4개, 기존 어댑터 section 필터·26/26 검사. 후보판 국내 패션 4/14 |
+| 6 후보·통합 | Codex: 기존 슬롯 빌더/테스트, 두 reviewer | 동일 근거의 준비된 성공 상세 재사용, 신규/실패 자료만 발행 전에 준비. 신규 후보와 기준선 비교. 변경은 상세 보완·지정 가이드·패션 공급과 통합 중 입증된 사건 오병합 근인에 한정 | [x] 최종 모닝·점심 각 194건, 성공 상세 158/154건 재사용, 각각 14개 단독+91쌍·동일 사건 출처/상세·pending 0. 기존 자동 점심판의 Broadcom/HPE 오병합은 일반 동사 `beat` 제외 한 곳으로 수리, 실기사 분리·같은 회사 병합 보존 2/2·사건 61/61 |
+| 7 로컬 적용 | Codex, Claude/Grok 교차 검수 | 표적 및 전체 회귀, 실제 PC·모바일 화면, 새 후보의 수치와 유지/변경 항목 확인 후 로컬만 적용 | [x] Claude/Grok 정확 후보 로컬 GO, 전체 1,871/1,871·diff PASS. 12:23 KST 모닝/점심 원자 활성, 4100 재시작 후 각 14+91 재검증·실제 Chrome 기본 Today/경제14/상세 API0 확인 |
+
+#### 구현 경계
+
+- 현재 좋아하는 기사들을 잘라 비율 숫자만 맞추지 않는다. 기존 편집 적격성·출처 다양성·
+  사건 중복 제거를 유지한 채 지정 분야에만 소프트 가이드를 적용한다. 중요도 차이가
+  큰 후보를 대체하는 하드 쿼터는 금지한다. 실제 허용 범위와 적용 지점은 3자 검토로 확정한다.
+- 상세는 `articleSummary.sourceLinks`가 출처 정본이다. `eventSources`를 UI에서 다시
+  섞어 Google 중계/직접 기사 중복을 재도입하지 않는다. 준비 단계에서 동일 URL/근거에만
+  짧은 소개문·사진을 보충하고, 원문 접근 거부를 본문 확보 성공으로 표시하지 않는다.
+- 본문 실패가 있어도 이미 준비된 정상 요약을 지우거나 전부 재생성하지 않는다.
+  신규 후보의 상세 재사용은 기사/출처 정체성을 검증한 경우에만 허용한다.
+- 원문 접근의 public-only/DNS pinning/응답 크기·시간 제한을 유지한다. 로그인·유료벽·
+  자동 접근 차단 우회는 하지 않는다. 외부 href/text 이스케이프와 noopener를 유지한다.
+- 새 후보를 만들기 전 현재 판·포인터를 보존한다. 포인터는 후보 검수 후 바꾸며,
+  현재 판을 수정해 과거 발행 내용을 몰래 재작성하지 않는다.
+- commit·push·staging·deploy·운영 변경·유료 콘텐츠 API 호출은 이번 승인에 포함하지 않는다.
+
+상태: 3자 계획 대조·실제 후보 비교·PC/모바일 검증·최종 교차검수 후 정확 후보를
+로컬 활성했다. 모닝 `SCE-c1dc3db823640d73`, 점심 `SCE-3613dacdf8c825b5`.
+라이브/배포 PASS 아님. 최종 상세와 증거는
+`docs/reports/NOWHOT_NH108_LOCAL_INTEGRATION_2026-09-03.md`에 기록한다.
+원래 활성판의 원본 입력 풀 SHA는 복원되지 않았으므로 활성판과의 완전 일치를 주장하지 않는다.
+효과 비교는 동일 재생 풀 2,243건·동일 routing·동일 관심 RSS로 구/신 digest를 비교했다.
+고정 전 스포츠 2건 순위 차이는 실행 사이 Google 관심 신호 변경으로 확인됐고, 관심 RSS를
+고정한 `control-selection-fixed.json`/`candidate-selection-fixed.json`에서 해소됐다.
+비율 가이드는 강제 배당이 아니다. 최종 모닝은 뉴스 13KR/1F·경제 12KR/2F·기술 8KR/6F·
+정치 14KR/0F, 점심은 뉴스 10KR/3F/혼합1·경제 10KR/4F·기술 7KR/7F·정치 14KR/0F다.
+일부 분야는 목표 범위 밖이다. 이를 비율 충족이나 제품 전체 PASS로 표현하지 않는다.
+두 판 모두 국내 ELLE 패션 4건을 포함한다. 동일 풀/관심 신호의 구 digest 대조군에는
+ELLE도 들어 있으므로 대조군과의 동일성은 신규 공급 효과까지 없다는 뜻이 아니다.
+모닝 대조군 대비 14개 분야 집합·순서 동일, 점심은 뉴스 순서·기술 1건·경제 오병합 분리만
+달라졌고 나머지 11개 분야는 집합·순서 동일했다.
+기존 교차언어 Broadcom/브로드컴 중복과 경제·정치 복수 분류 경계 사례는 보고서의 잔여
+관찰로 남긴다. 이번의 상세·가이드 보완 완료를 제품 전체 결함 0으로 확대하지 않는다.
+truth: NH108_REVIEWED_LOCAL_ACTIVE·ALL_14_LANES_14·ALL_91_PAIRS_VERIFIED·PREPARED_DETAILS_REUSED·BASELINE_PRESERVED·FULL_TEST_1871_PASS·NO_PAID_API·NO_LIVE_CHANGE.

@@ -144,6 +144,40 @@ test("독자 문장: 발행 전 준비한 제목을 모든 분야에 같은 읽�
   assert.equal(buildReaderLineage(issue, copy).basis.headline.kind, "prepublish_translation");
 });
 
+test("독자 문장: 발행 전 교정 제목은 단일 기사의 요약과 이유에도 같은 대표 제목으로 쓰인다", () => {
+  const wrong = "한 달간 잠잠했던 미국과 이란의 거래소가 하룻밤 사이에 파업을 벌였습니다.";
+  const preparedHeadline = "미국과 이란, 한 달간의 소강 뒤 밤사이 공습 주고받아";
+  const issue = attachEditorialLineage({
+    ...hormuzIssue(),
+    shape: "single",
+    categoryIds: ["news"],
+    impactLens: "국제정세",
+    subject: wrong,
+    headline: wrong,
+    preparedHeadline,
+    paragraph: `뉴욕타임스 월드 상위 목록에 “${wrong}” 제목이 올라 있다.`,
+    whatHappened: `뉴욕타임스 월드 상위 목록에 “${wrong}” 제목이 올라 있다.`,
+    refs: [{ title: wrong, sourceLabel: "뉴욕타임스 월드" }],
+    sourceEvidence: [{
+      ...hormuzIssue().sourceEvidence[0],
+      title: wrong,
+      sourceLabel: "뉴욕타임스 월드",
+      originalTitle: "U.S. and Iran Exchange Strikes Overnight After Monthlong Calm"
+    }]
+  }, { selectedCategories: ["news"] });
+
+  const copy = readerIssueCopy(issue);
+  assert.equal(copy.headline, preparedHeadline);
+  assert.equal(copy.summary, `뉴욕타임스 월드가 “${preparedHeadline}”라고 보도했습니다.`);
+  for (const field of ["whyImportant", "whyNow", "watchNext"]) {
+    assert.match(copy[field], new RegExp(preparedHeadline));
+    assert.doesNotMatch(copy[field], /거래소|파업/);
+  }
+  assert.equal(issue.sourceEvidence[0].title, wrong);
+  assert.equal(issue.sourceEvidence[0].originalTitle,
+    "U.S. and Iran Exchange Strikes Overnight After Monthlong Calm");
+});
+
 test("독자 문장: 원본 이슈와 근거 계보는 바꾸지 않고 reader 필드만 추가한다", () => {
   const issue = hormuzIssue();
   const before = JSON.stringify(issue);

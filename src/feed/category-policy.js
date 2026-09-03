@@ -135,13 +135,15 @@ export function aggregateReclassification({ declaredCategory, title, prediction,
   if (!(margin >= MARGIN_MIN) || !(known >= KNOWN_MIN)) return null;
   if (categoryGuardReason(predicted, title)) return null;
   if (!untrainedOverrideAllowed({ toCategory: predicted, title, translated })) return null;
+  const hits = categoryDictionaryHits(predicted, title);
+  if (predicted === "sports" && !hits.length) return null;
   return {
     category: predicted,
     correction: {
       from: declaredCategory,
       to: predicted,
       rule: "aggregate-semantic-reclass",
-      hits: categoryDictionaryHits(predicted, title),
+      hits,
       margin: Math.round(margin * 1000) / 1000
     }
   };

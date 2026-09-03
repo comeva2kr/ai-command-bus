@@ -34,6 +34,7 @@ export function parseDealTitle(title) {
 export function isDeal(item) {
   if (!item) return false;
   if (item.isDeal === true) return true;
+  if (/(?:^|\/)hotdeal(?:\/|$|[?#])/i.test(String(item.url || item.canonicalUrl || ""))) return true;
   const t = String(item.title || "");
   // 값이 적혀 있으면 딜이다. 원화만 보면 해외 딜이 통째로 빠지므로(실측
   // 2026-08-05: 해외 게시판 21건 중 5건만 잡혔다) 달러·유로·엔도 같이 본다.

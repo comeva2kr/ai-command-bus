@@ -3,16 +3,18 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { makeArticleSummaryPipeline, isPreparedArticleSummary } from "../src/feed/article-summary.js";
+import { makeArticleSummaryPipeline, isPreparedArticleSummary, isCurrentArticleSummary, articleContentId } from "../src/feed/article-summary.js";
 import {
   CATEGORY_ROUTING_MAX_AGE_MS,
   validateCategoryRoutingSnapshot
 } from "../src/feed/category-routing.js";
 import { loadRegistry } from "../src/feed/registry.js";
+import { unsafeForLead } from "../src/feed/profanity.js";
 import {
   activateSlotCanonicalEdition,
   assertSlotCanonicalEdition,
-  buildSlotCanonicalEdition
+  buildSlotCanonicalEdition,
+  SLOT_CANONICAL_EDITION_CONTRACT
 } from "../src/feed/slot-canonical-edition.js";
 import { SLOTS } from "../src/feed/digest.js";
 import { AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS } from "../src/feed/selection-axes.js";
@@ -23,7 +25,11 @@ import { buildCategoryRoutingSnapshot } from "./build-category-routing-snapshot.
 import { buildTodayEditionInProcess, groupArticlesAsSources, validateTodayEdition } from "./build-editions.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+export const HEADLINE_REVIEW_CONTRACT = "NOWHOT-HEADLINE-REVIEW-001";
 const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
+const isSha = (value) => typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+const hasExactKeys = (value, keys) => value && typeof value === "object" && !Array.isArray(value)
+  && Object.keys(value).sort().join("|") === [...keys].sort().join("|");
 const arg = (args, name) => {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] || null : null;
@@ -77,20 +83,56 @@ export function assertSamePoolInputs({ poolRaw, packet, packetRaw, routingSnapsh
   if (routingSnapshot?.source?.packetSha256 !== packetSha256) {
     throw new Error("slot edition: routing snapshot packet SHA mismatch");
   }
+  const packetIds = (packet?.targets || []).flatMap((target) => target.sourceArticleIds || []).sort();
+  const routingIds = (routingSnapshot?.entries || []).map((entry) => entry.itemId).sort();
+  if (!packetIds.length || JSON.stringify(packetIds) !== JSON.stringify(routingIds)) {
+    throw new Error("slot edition: routing entry coverage mismatch");
+  }
+  const poolIds = poolRows(JSON.parse(poolRaw)).map((row) => row?.id).sort();
+  if (poolIds.some((id) => !id) || JSON.stringify(poolIds) !== JSON.stringify(packetIds)) {
+    throw new Error("slot edition: pool article coverage mismatch");
+  }
   return { poolSha256, packetSha256 };
+}
+
+export function assertSemanticPublicationRouting(snapshot) {
+  validateCategoryRoutingSnapshot(snapshot);
+  const invalid = snapshot.entries.filter((entry) =>
+    !["current_model", "prior_exact_hash", "deterministic_tier_policy"].includes(entry.routingBasis)
+    && !(entry.routingBasis === "withheld" && entry.categories.length === 0));
+  if (invalid.length) {
+    throw new Error(`slot edition: semantic classification required for ${invalid.length} admitted rows`);
+  }
+  return snapshot;
 }
 
 export function categoryEditionsFromUnion(unionEdition) {
   if (!Array.isArray(unionEdition?.issues)) throw new TypeError("slot edition: union issues required");
   return Object.fromEntries(CATEGORIES.map((category) => [category.id, {
     ...unionEdition,
-    issues: unionEdition.issues.filter((issue) => {
-      if (!Array.isArray(issue?.selectedByCategories)) {
+    issues: unionEdition.issues.map((issue, unionRank) => ({ issue, unionRank })).filter(({ issue }) => {
+      if (!Array.isArray(issue.selectedByCategories)) {
         throw new Error(`slot edition: selectedByCategories missing '${issue?.evidenceHash || "unknown"}'`);
       }
       return issue.selectedByCategories.includes(category.id);
-    })
+    }).sort((left, right) =>
+      (left.issue._categoryLaneRanks?.[category.id] ?? Number.MAX_SAFE_INTEGER)
+      - (right.issue._categoryLaneRanks?.[category.id] ?? Number.MAX_SAFE_INTEGER)
+      || left.unionRank - right.unionRank
+    ).slice(0, SLOT_CANONICAL_EDITION_CONTRACT.targetPerCategory).map(({ issue }) => issue)
   }]));
+}
+
+export function assertSemanticLaneCoverage(unionEdition) {
+  const editions = categoryEditionsFromUnion(unionEdition);
+  const minimum = SLOT_CANONICAL_EDITION_CONTRACT.activationMinimumPerCategory;
+  const underfilled = Object.entries(editions)
+    .filter(([, edition]) => edition.issues.length < minimum)
+    .map(([category, edition]) => `${category} ${edition.issues.length}/${minimum}`);
+  if (underfilled.length) {
+    throw new Error(`slot edition: semantic lane coverage short (${underfilled.join(", ")})`);
+  }
+  return editions;
 }
 
 const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
@@ -116,16 +158,23 @@ export function headlineNeedsPolish(issue) {
     || (headline.includes(" 및 ") && latinRatio(headline) > 0.45);
 }
 
-export async function polishIssueHeadlines(edition, { translateTitle = null, maxCalls = 24 } = {}) {
+export async function polishIssueHeadlines(edition, {
+  translateTitle,
+  translateText = null,
+  maxCalls = 24,
+  preserveContentIds = new Set()
+} = {}) {
+  if (translateTitle === undefined) translateTitle = translateText;
   if (!translateTitle) return { edition, attempted: 0, changed: 0 };
   let attempted = 0;
   let changed = 0;
   const issues = [];
   for (const issue of edition?.issues || []) {
+    if (preserveContentIds.has(articleContentId(issue))) { issues.push(issue); continue; }
     const source = headlineNeedsPolish(issue) ? headlineSource(issue) : null;
     if (!source || attempted >= maxCalls) { issues.push(issue); continue; }
     attempted += 1;
-    const translated = clean(await translateTitle(source.originalTitle));
+    const translated = clean(await translateTitle(source.originalTitle, { from: "auto", to: "ko" }));
     if (translated && /[가-힣]/.test(translated) && !headlineNeedsPolish({
       ...issue,
       subject: translated,
@@ -140,6 +189,49 @@ export async function polishIssueHeadlines(edition, { translateTitle = null, max
     }
   }
   return { edition: { ...edition, issues }, attempted, changed };
+}
+
+export function applyHeadlineReview(edition, review = null, reviewSha256 = null) {
+  if (!review) return { edition, applied: 0, receipt: null };
+  if (!hasExactKeys(review, ["contract", "entries"])
+    || review.contract !== HEADLINE_REVIEW_CONTRACT || !Array.isArray(review.entries)
+    || !review.entries.length || !isSha(reviewSha256)) {
+    throw new TypeError("slot edition headline review: invalid review");
+  }
+  const issues = new Map((edition?.issues || []).map((issue) => [issue.evidenceHash, issue]));
+  const reviewed = new Map();
+  for (const entry of review.entries) {
+    const headlineKo = clean(entry?.headlineKo);
+    if (!hasExactKeys(entry, ["evidenceHash", "originalTitle", "headlineKo"])
+      || !isSha(entry.evidenceHash) || reviewed.has(entry.evidenceHash)
+      || typeof entry.originalTitle !== "string" || !entry.originalTitle.trim()
+      || !headlineKo || !/[가-힣]/.test(headlineKo)) {
+      throw new TypeError("slot edition headline review: invalid entry");
+    }
+    if (unsafeForLead(headlineKo)) throw new Error("slot edition headline review: unsafe headline");
+    const issue = issues.get(entry.evidenceHash);
+    if (!issue) throw new Error("slot edition headline review: unknown evidenceHash");
+    if (clean(headlineSource(issue)?.originalTitle) !== clean(entry.originalTitle)) {
+      throw new Error("slot edition headline review: originalTitle mismatch");
+    }
+    reviewed.set(entry.evidenceHash, headlineKo);
+  }
+  const receipt = {
+    contract: HEADLINE_REVIEW_CONTRACT,
+    sha256: reviewSha256,
+    applied: reviewed.size
+  };
+  return {
+    edition: {
+      ...edition,
+      issues: edition.issues.map((issue) => reviewed.has(issue.evidenceHash)
+        ? { ...issue, preparedHeadline: reviewed.get(issue.evidenceHash) }
+        : issue),
+      headlineReviewReceipt: receipt
+    },
+    applied: reviewed.size,
+    receipt
+  };
 }
 
 export function foreignMajorLaneCoverage({
@@ -160,8 +252,7 @@ export function foreignMajorLaneCoverage({
   const availableAt = (row) => {
     const seen = Number.isFinite(row?.firstSeenAt) ? row.firstSeenAt : NaN;
     const published = row?.publishedAt ? Date.parse(row.publishedAt) : NaN;
-    const times = [seen, published].filter(Number.isFinite);
-    return times.length ? Math.max(...times) : NaN;
+    return Number.isFinite(published) ? published : seen;
   };
   const eligible = { news: new Set(), business: new Set(), tech: new Set() };
   const staleExcluded = { news: new Set(), business: new Set(), tech: new Set() };
@@ -190,22 +281,11 @@ export function foreignMajorLaneCoverage({
     if (!major) continue;
     for (const category of issue.selectedByCategories || []) if (selected[category]) selected[category].add(issue.evidenceHash);
   }
-  const floors = { news: 3, business: 3, tech: 2 };
-  return Object.fromEntries(Object.keys(floors).map((category) => [category, {
+  return Object.fromEntries(Object.keys(eligible).map((category) => [category, {
     eligible: eligible[category].size,
     staleExcluded: staleExcluded[category].size,
-    selected: selected[category].size,
-    required: Math.min(floors[category], eligible[category].size)
+    selected: selected[category].size
   }]));
-}
-
-export function assertForeignMajorLaneCoverage(coverage) {
-  for (const [category, row] of Object.entries(coverage)) {
-    if (row.selected < row.required) {
-      throw new Error(`slot edition: ${category} foreign-major floor ${row.selected}/${row.required}`);
-    }
-  }
-  return coverage;
 }
 
 export function editionObservationReceipt(artifact, { registry = loadRegistry() } = {}) {
@@ -272,6 +352,32 @@ export function editionObservationReceipt(artifact, { registry = loadRegistry() 
   };
 }
 
+export function reusePreparedArticleDetails(edition, previousIssues = [], nowMs = Date.now()) {
+  const facts = (issue) => JSON.stringify((issue.eventSources || []).map((row) =>
+    [row.evidenceId, row.canonicalUrl, row.sourceId, row.sourceLabel, row.sourceGroup,
+      row.title, row.originalTitle, row.originalLang, row.summary, row.publishedAt, row.image,
+      row.evidenceRole, row.canLead, row.relay]
+      .map((value) => value ?? null)).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
+  const previous = new Map(previousIssues.map((issue) => [articleContentId(issue), issue]));
+  const contentIds = new Set();
+  let reused = 0;
+  const issues = edition.issues.map((issue) => {
+    const prior = previous.get(articleContentId(issue));
+    if (!issue.eventSources?.length || !prior
+      || !["ready", "excerpt_only"].includes(prior.articleSummary?.status)
+      || !isCurrentArticleSummary(prior.articleSummary, issue, nowMs)
+      || facts(issue) !== facts(prior)) return issue;
+    reused += 1;
+    contentIds.add(articleContentId(issue));
+    return { ...issue,
+      subject: prior.subject || issue.subject,
+      headline: prior.headline || issue.headline,
+      ...(prior.preparedHeadline ? { preparedHeadline: prior.preparedHeadline } : {}),
+      articleSummary: structuredClone(prior.articleSummary) };
+  });
+  return { edition: { ...edition, issues }, reused, contentIds };
+}
+
 export async function buildSlotCanonicalEditionCandidate({
   pool,
   packet,
@@ -284,6 +390,7 @@ export async function buildSlotCanonicalEditionCandidate({
   slotId,
   evidenceAsOfMs = null,
   workDir,
+  previousArtifact = null,
   apiKey = null,
   summaryModel = process.env.NOWHOT_ARTICLE_SUMMARY_MODEL || "claude-sonnet-5",
   verifierModel = process.env.NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL || "claude-sonnet-5",
@@ -291,7 +398,9 @@ export async function buildSlotCanonicalEditionCandidate({
   fetchArticle,
   fetchImpl = fetch,
   translateText = memoizedTranslator(googleFreeTranslator({ fetchImpl })),
-  translateTitle = null,
+  translateTitle,
+  headlineReview = null,
+  headlineReviewSha256 = null,
   onUsage = null
 }) {
   const target = resolveSlotCanonicalBuildTarget({ pool, editionDate, slotId });
@@ -303,6 +412,7 @@ export async function buildSlotCanonicalEditionCandidate({
     : buildCategoryRoutingSnapshot(packet, predictions, {
         packetSha256: sha256(packetRaw), predictionsSha256: sha256(predictionsRaw)
       });
+  assertSemanticPublicationRouting(activeRoutingSnapshot);
   const identity = assertSamePoolInputs({ poolRaw, packet, packetRaw, routingSnapshot: activeRoutingSnapshot });
   const referenceNow = resolveSlotCanonicalReferenceNow(
     poolEvidenceAsOf,
@@ -321,6 +431,7 @@ export async function buildSlotCanonicalEditionCandidate({
     categories: allCategories,
     slotId: target.slotId,
     editionDate: target.editionDate,
+    reserveIssues: 8,
     editorialPreselectedPool: true,
     editorialPreselectedReferenceMs: referenceNow
   });
@@ -329,7 +440,16 @@ export async function buildSlotCanonicalEditionCandidate({
   }
   const schema = validateTodayEdition(run.edition);
   if (!schema.ok) throw new Error(`slot edition: today schema invalid: ${schema.errors.join("; ")}`);
+  const publicationLanes = assertSemanticLaneCoverage(run.edition);
+  const publicationIssues = new Set(Object.values(publicationLanes)
+    .flatMap((edition) => edition.issues));
+  const publicationEdition = {
+    ...run.edition,
+    issues: run.edition.issues.filter((issue) => publicationIssues.has(issue))
+  };
 
+  const detailReuse = reusePreparedArticleDetails(publicationEdition,
+    previousArtifact ? Object.values(assertSlotCanonicalEdition(previousArtifact).issueTable) : [], referenceNow);
   const summaryPipeline = makeArticleSummaryPipeline({
     enabled: Boolean(apiKey),
     apiKey,
@@ -345,9 +465,14 @@ export async function buildSlotCanonicalEditionCandidate({
     onUsage,
     clock: () => referenceNow
   });
-  const summarizedEdition = await summaryPipeline(run.edition);
-  const headlinePolish = await polishIssueHeadlines(summarizedEdition, { translateTitle });
-  const unionEdition = headlinePolish.edition;
+  const summarizedEdition = await summaryPipeline(detailReuse.edition);
+  const headlinePolish = await polishIssueHeadlines(summarizedEdition, {
+    translateTitle, translateText, preserveContentIds: detailReuse.contentIds
+  });
+  const headlineReviewResult = applyHeadlineReview(
+    headlinePolish.edition, headlineReview, headlineReviewSha256
+  );
+  const unionEdition = headlineReviewResult.edition;
   const unprepared = unionEdition.issues.filter((issue) => !isPreparedArticleSummary(issue.articleSummary, issue));
   if (unprepared.length) {
     const sample = unprepared.slice(0, 3).map((issue) => ({
@@ -359,9 +484,9 @@ export async function buildSlotCanonicalEditionCandidate({
     throw new Error(`slot edition: ${unprepared.length} article details are not prepared ${JSON.stringify(sample)}`);
   }
   const editionsByCategory = categoryEditionsFromUnion(unionEdition);
-  const foreignMajorCoverage = assertForeignMajorLaneCoverage(foreignMajorLaneCoverage({
+  const foreignMajorCoverage = foreignMajorLaneCoverage({
     pool, routingSnapshot: activeRoutingSnapshot, unionEdition, nowMs: referenceNow
-  }));
+  });
   const artifact = buildSlotCanonicalEdition({
     editionsByCategory,
     unionEdition,
@@ -375,7 +500,9 @@ export async function buildSlotCanonicalEditionCandidate({
     unionEdition,
     identity,
     foreignMajorCoverage,
-    headlinePolish: { attempted: headlinePolish.attempted, changed: headlinePolish.changed }
+    detailReuse: { reused: detailReuse.reused, total: publicationEdition.issues.length },
+    headlinePolish: { attempted: headlinePolish.attempted, changed: headlinePolish.changed },
+    headlineReview: headlineReviewResult.receipt
   };
 }
 
@@ -385,17 +512,20 @@ async function main() {
   const packetFile = arg(args, "--packet");
   const predictionsFile = arg(args, "--predictions");
   const routingSnapshotFile = arg(args, "--routing-snapshot");
+  const headlineReviewFile = arg(args, "--headline-review");
+  const reuseEditionFile = arg(args, "--reuse-edition");
   const editionDate = arg(args, "--date");
   const slotId = arg(args, "--slot");
   const outDir = path.resolve(arg(args, "--out-dir") || path.join(ROOT, ".nowhot-local/slot-editions"));
   const activate = args.includes("--activate");
   if (!poolFile || !packetFile || !editionDate || !slotId || (!predictionsFile && !routingSnapshotFile)) {
-    throw new Error("usage: --pool <pool.json> --packet <packet.json> (--predictions <predictions.json> | --routing-snapshot <snapshot.json>) --date YYYY-MM-DD --slot <morning|lunch|evening> [--out-dir dir] [--activate] [--allow-paid]");
+    throw new Error("usage: --pool <pool.json> --packet <packet.json> (--predictions <predictions.json> | --routing-snapshot <snapshot.json>) --date YYYY-MM-DD --slot <morning|lunch|evening> [--headline-review review.json] [--reuse-edition edition.json] [--out-dir dir] [--activate] [--allow-paid]");
   }
   const poolRaw = fs.readFileSync(poolFile, "utf8");
   const packetRaw = fs.readFileSync(packetFile, "utf8");
   const predictionsRaw = predictionsFile ? fs.readFileSync(predictionsFile, "utf8") : null;
   const routingSnapshotRaw = routingSnapshotFile ? fs.readFileSync(routingSnapshotFile, "utf8") : null;
+  const headlineReviewRaw = headlineReviewFile ? fs.readFileSync(headlineReviewFile, "utf8") : null;
   const pool = JSON.parse(poolRaw);
   const target = resolveSlotCanonicalBuildTarget({ pool, editionDate, slotId });
   const usage = [];
@@ -412,8 +542,13 @@ async function main() {
     slotId: target.slotId,
     evidenceAsOfMs: target.evidenceAsOfMs,
     workDir: path.join(outDir, `.work-${process.pid}`),
+    previousArtifact: reuseEditionFile ? assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(reuseEditionFile, "utf8"))) : null,
     apiKey,
-    translateTitle: apiKey ? memoizedTranslator(anthropicTranslator({ apiKey, onUsage: (row) => usage.push(row) })) : null,
+    translateTitle: apiKey
+      ? memoizedTranslator(anthropicTranslator({ apiKey, onUsage: (row) => usage.push(row) }))
+      : undefined,
+    headlineReview: headlineReviewRaw ? JSON.parse(headlineReviewRaw) : null,
+    headlineReviewSha256: headlineReviewRaw ? sha256(headlineReviewRaw) : null,
     onUsage: (row) => usage.push(row)
   });
   const candidateFile = path.join(outDir,
@@ -431,6 +566,8 @@ async function main() {
     packetSha256: result.identity.packetSha256,
     issueCount: result.artifact.displayOrder.length,
     headlinePolish: result.headlinePolish,
+    detailReuse: result.detailReuse,
+    headlineReview: result.headlineReview,
     laneCounts: Object.fromEntries(Object.entries(result.artifact.lanes).map(([id, rows]) => [id, rows.length])),
     detailStatuses: result.artifact.displayOrder.reduce((counts, id) => {
       const status = result.artifact.issueTable[id].articleSummary.status;

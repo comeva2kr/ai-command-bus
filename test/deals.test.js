@@ -24,6 +24,17 @@ test("원화·외화·말머리 중 하나만 있어도 딜로 본다", () => {
   assert.ok(!isDeal({ title: "오늘 회사에서 있었던 황당한 일" }));
 });
 
+test("가격이 제목에서 빠져도 핫딜 게시판 주소는 딜로 본다", () => {
+  assert.ok(isDeal({
+    title: "스팸 클래식 340g x5개+스팸 라이트 340g x5개",
+    url: "https://etoland.co.kr/hit/hotdeal/view/spam-9292949?page=2"
+  }));
+  assert.ok(!isDeal({
+    title: "대형마트 할인 경쟁을 분석한 기사",
+    url: "https://news.example.com/economy/discount-competition"
+  }));
+});
+
 test("상품군이 광고 도착지로 이어진다", () => {
   assert.equal(destForDeal("[네이버] 포크밸리 한돈 감자탕용 등뼈 냉동 1kg"), "fresh");
   assert.equal(destForDeal("[지마켓] 반스 남녀공용 로퍼 어센틱"), "fashion");

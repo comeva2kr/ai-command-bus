@@ -37,6 +37,8 @@ test("스키마: 대표 소스의 tier가 실제 성격과 맞는다", () => {
   for (const c of registry.filter((c) => /^gnews(?:-|$)/.test(c.id))) {
     assert.equal(c.sourceTier, "aggregate", c.id);
   }
+  assert.equal(byId.get("gnews-ent").categoryRouting, "declared_section",
+    "Google News 연예 토픽은 명시된 섹션을 통계 추정보다 우선한다");
   // 전문 섹션 RSS
   assert.equal(byId.get("hankyung-realestate").sourceTier, "specialist");
   assert.equal(byId.get("mk-stock").sourceTier, "specialist");

@@ -371,6 +371,8 @@ function articleText(html) {
 
 export function looksLikePageChrome(text) {
   const value = String(text || "");
+  // Match standalone site introductions, not articles with further reporting.
+  if (/^[^.!?…]{1,80}(?:은|는)\s+[^.!?…]{1,160}(?:공유|제공)하는\s+(?:온라인\s+)?(?:커뮤니티|사이트|포털)입니다[.!?…]*$/u.test(value.trim())) return true;
   if (/오늘의\s*HIT\s*30/i.test(value)) return true;
   if (/(?:rptHeader\s*\+=|읽어주기 기능은 크롬기반|구글 선호 매체 등록|구글검색 선호 추가|구글 검색 선호 매체 추가|기사 (?:소리로 듣기|읽어주기)|요약보기 자동요약|photo big-->|Your browser does not support the audio element|-->\s*가(?:\s|-->)*-->)/i.test(value.slice(0, 1200))) return true;
   const markers = [

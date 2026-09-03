@@ -45,6 +45,7 @@ function loadWorker() {
       return { ok: true, status: 200, clone: () => ({ ok: true, status: 200 }) };
     },
     URL,
+    Response,
     Promise,
     console
   };
@@ -119,6 +120,34 @@ test("서비스워커: 문서 이동은 network-first 유지 (의도된 트레�
   assert.ok(ev.responded, "navigate는 서비스워커가 처리한다");
   await ev.responded;
   assert.deepEqual(fetched, [`${ORIGIN}/briefing`], "캐시보다 네트워크를 먼저 타야 한다");
+});
+
+test("서비스워커: 오프라인 오늘 주소를 실시간 셸로 바꾸지 않는다", async () => {
+  const { listeners, sandbox, puts } = loadWorker();
+  const live = new Response("live shell");
+  sandbox.fetch = async () => { throw new TypeError("offline"); };
+  sandbox.caches.match = async (request) => {
+    const url = typeof request === "string" ? new URL(request, ORIGIN).href : request.url;
+    return url === `${ORIGIN}/live` ? live : undefined;
+  };
+  for (const pathname of ["/", "/?date=2026-09-02", "/today.html"]) {
+    const ev = fetchEvent(`${ORIGIN}${pathname}`, { mode: "navigate" });
+    listeners.get("fetch")(ev);
+    const response = await ev.responded;
+    assert.equal(response.status, 503, pathname);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.match(await response.text(), /서버에 연결할 수 없습니다/);
+  }
+  const ev = fetchEvent(`${ORIGIN}/live?tab=hot`, { mode: "navigate" });
+  listeners.get("fetch")(ev);
+  assert.equal(await ev.responded, live, "실시간 경로에만 기존 실시간 셸을 허용한다");
+  assert.deepEqual(puts, [], "연결 오류 화면은 캐시하지 않는다");
+
+  const today = new Response("today shell");
+  sandbox.caches.match = async () => today;
+  const samePage = fetchEvent(`${ORIGIN}/`, { mode: "navigate" });
+  listeners.get("fetch")(samePage);
+  assert.equal(await samePage.responded, today, "요청한 주소의 캐시는 그대로 사용한다");
 });
 
 test("서비스워커: activate가 이전 버전 캐시를 비운다 (오염된 캐시 회수 경로)", async () => {

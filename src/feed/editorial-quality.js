@@ -200,10 +200,13 @@ export function assessEditorialDraft({
   const text = `${String(headline || "")} ${String(paragraph || "")}`;
   const claimsCrossSource = /(여러\s*매체|복수\s*(?:출처|피드)|교차\s*(?:관측|확인)|서로\s*다른\s*운영그룹|함께\s*다루)/.test(text);
   const crossSupported = !claimsCrossSource || evidence && evidence.mode === "multiple_feed_observed";
-  const categoryFailures = [...new Set((categoryItems || []).map((item) => {
-    const category = item && (item.category || "news");
-    const reason = categoryGuardReason(category, item && item.title, item);
-    return reason ? `category:${category}:${reason}` : null;
+  const categoryFailures = [...new Set((categoryItems || []).flatMap((item) => {
+    const categories = Array.isArray(item?.admittedCategories) && item.admittedCategories.length
+      ? item.admittedCategories : [item?.category || "news"];
+    return categories.map((category) => {
+      const reason = categoryGuardReason(category, item?.title, item);
+      return reason ? `category:${category}:${reason}` : null;
+    });
   }).filter(Boolean))];
   const sensitiveClaim = SENSITIVE_LINEAGE_ALLEGATION.test(
     `${String(headline || "")} ${String(paragraph || "")} ${String(subject || "")}`

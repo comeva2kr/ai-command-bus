@@ -462,6 +462,8 @@ export async function collect(sources, opts = {}) {
         // 한 매체가 목록을 독식하지 않게 소스당 한 줄만 남긴다.
         if (rel.length < RELATED_MAX && !rel.some((r) => r.source === item.source)) {
           rel.push({
+            id: item.id || null,
+            url: item.url || null,
             source: item.source,
             sourceLabel: item.sourceLabel || item.source,
             kind: item.kind,

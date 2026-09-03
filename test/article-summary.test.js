@@ -309,6 +309,130 @@ test("공개 본문을 읽지 못해도 수집 때 확보한 매체 공개 요�
   assert.equal(isPreparedArticleSummary(summary, result.issues[0]), true);
 });
 
+test("NH108 짧은 공개 소개문은 접근 실패 사유와 메타데이터를 잃지 않고 미확인 상태로 남는다", async () => {
+  const input = issue();
+  input.eventSources = [{
+    evidenceId: "feed-a", sourceLabel: "기준 매체", sourceGroup: "publisher-a",
+    canonicalUrl: "https://publisher.example/feed-a",
+    summary: "<p>공개 피드는 공장 증설과 착공 일정을 전했습니다.</p>",
+    image: "https://img.example.com/feed.jpg",
+    originalTitle: "Factory expansion &amp; construction schedule",
+    publishedAt: "2026-09-03T01:00:00.000Z"
+  }];
+  const cache = new Map();
+  const result = await makeArticleSummaryPipeline({
+    completeBeforePublish: true,
+    fetchArticle: async () => ({
+      state: "unavailable", reasonCode: "ACCESS_DENIED", httpStatus: 403,
+      text: "RAW_FETCH_BODY_MUST_NOT_BE_STORED", image: null
+    }),
+    invoke: async () => assert.fail("짧은 소개문에 모델을 호출하면 안 된다"),
+    cache: { get: (key) => cache.get(key), set: (key, value) => cache.set(key, value) }
+  })({ ...edition(), issues: [input] });
+
+  const summary = result.issues[0].articleSummary;
+  assert.equal(summary.status, "source_unavailable");
+  assert.equal(summary.textKo, null);
+  assert.equal(summary.summarySourceCount, 0);
+  assert.equal(summary.unavailableReasonCode, "ACCESS_DENIED");
+  assert.deepEqual(summary.sourceLinks, [{
+    evidenceId: "feed-a", sourceLabel: "기준 매체", sourceGroup: "publisher-a",
+    url: "https://publisher.example/feed-a",
+    summary: "공개 피드는 공장 증설과 착공 일정을 전했습니다.",
+    image: "https://img.example.com/feed.jpg",
+    originalTitle: "Factory expansion & construction schedule",
+    publishedAt: "2026-09-03T01:00:00.000Z"
+  }]);
+  assert.equal(result.llmCalls, 0);
+  assert.equal(isPreparedArticleSummary(summary, result.issues[0]), true);
+  assert.doesNotMatch(JSON.stringify([...cache.values()]), /RAW_FETCH_BODY_MUST_NOT_BE_STORED/);
+});
+
+test("NH108 출처 소개문은 200자로 제한하고 정상 요약과 발췌 본문을 바꾸지 않는다", async () => {
+  const input = issue();
+  const intro = "The publisher reports factory expansion and a construction schedule. ".repeat(6);
+  input.sourceEvidence[0].summary = `${intro}FEED_TAIL_MUST_NOT_BE_STORED`;
+  for (const status of ["ready", "excerpt_only"]) {
+    const run = (item) => makeArticleSummaryPipeline({
+      enabled: status === "ready", apiKey: "test", completeBeforePublish: true,
+      fetchArticle: async (url) => ({
+        state: "available", text: "공개 기사 본문 ".repeat(100),
+        image: "https://img.example.com/body.jpg", finalUrl: url
+      }),
+      invoke: modelResponses().invoke
+    })({ ...edition(), issues: [item] });
+    const before = (await run(issue())).issues[0].articleSummary;
+    const after = (await run(input)).issues[0].articleSummary;
+
+    assert.equal(after.status, status);
+    assert.equal(after.textKo, before.textKo);
+    assert.equal(after.image, before.image);
+    assert.equal(after.sourceLinks[0].summary, intro.slice(0, 200));
+    assert.doesNotMatch(JSON.stringify(after), /FEED_TAIL_MUST_NOT_BE_STORED/);
+    assert.equal("summary" in after.sourceLinks[1], false);
+  }
+});
+
+test("NH108 공개 소개문은 화면 장식과 빈 값을 제외하고 실제 텍스트만 전달한다", async () => {
+  for (const [metadata, expected] of [
+    [{ summary: "본문 기자 Your browser does not support the audio element. 구글 선호 매체 등록 광고 실제 기사 첫 문장입니다." }, "실제 기사 첫 문장입니다."],
+    [{ excerpt: "<b>공개된 착공 일정입니다.</b>" }, "공개된 착공 일정입니다."],
+    [{ description: "The factory will open next year." }, "The factory will open next year."],
+    [{ description: "이토랜드는 유머, 연예, 정보, 이슈를 빠르게 공유하는 커뮤니티입니다…" }, undefined],
+    [{ description: "모아보기는 지역 소식과 생활 정보를 공유하는 커뮤니티입니다." }, undefined],
+    [{ description: "회사는 지역 교통 정보를 공유하는 커뮤니티를 공개했습니다." }, "회사는 지역 교통 정보를 공유하는 커뮤니티를 공개했습니다."],
+    [{ description: "이토랜드는 정보를 공유하는 커뮤니티입니다. 운영사는 3일 장애 복구를 완료했다고 밝혔습니다." }, "이토랜드는 정보를 공유하는 커뮤니티입니다. 운영사는 3일 장애 복구를 완료했다고 밝혔습니다."],
+    [{ summary: "로그인 회원가입 이용약관 개인정보처리방침 고객센터" }, undefined],
+    [{ summary: "오늘의 HIT 30 종합 유머 연예 생활 시사 이슈" }, undefined],
+    [{ summary: "<p>&nbsp;</p>" }, undefined],
+    [{ summary: "... ---" }, undefined],
+    [{ summary: { text: "not a public excerpt" } }, undefined],
+    [{}, undefined]
+  ]) {
+    const input = issue();
+    input.eventSources = [{ ...input.sourceEvidence[0], ...metadata }];
+    const result = await makeArticleSummaryPipeline({
+      completeBeforePublish: true,
+      fetchArticle: async () => ({ state: "unavailable", reasonCode: "TIMEOUT", image: null })
+    })({ ...edition(), issues: [input] });
+    const summary = result.issues[0].articleSummary;
+    assert.equal(summary.sourceLinks[0].summary, expected);
+    assert.equal(summary.unavailableReasonCode, "TIMEOUT");
+    assert.equal(summary.status, "source_unavailable");
+    assert.equal(summary.textKo, null);
+  }
+});
+
+test("NH108 공개 메타데이터는 직접 원문 정본을 따르고 Google 중계를 다시 병합하지 않는다", async () => {
+  const direct = {
+    evidenceId: "direct", sourceLabel: "KBS", sourceGroup: "kbs",
+    canonicalUrl: "https://news.kbs.co.kr/news/view.do?ncd=1",
+    summary: "직접 매체가 공개한 태풍 이동 경로입니다.",
+    image: "https://news.kbs.co.kr/photo.jpg"
+  };
+  const relay = {
+    ...direct, evidenceId: "relay", canonicalUrl: "https://news.google.com/rss/articles/opaque",
+    summary: "중계 피드의 다른 소개문", image: "https://encrypted-tbn0.gstatic.com/logo.jpg"
+  };
+  for (const eventSources of [[relay, direct], [direct, relay], [relay]]) {
+    const result = await makeArticleSummaryPipeline({
+      completeBeforePublish: true,
+      fetchArticle: async () => ({ state: "unavailable", reasonCode: "PUBLISHER_URL_UNAVAILABLE", image: null })
+    })({ ...edition(), issues: [{ ...issue(), eventSources }] });
+    const links = result.issues[0].articleSummary.sourceLinks;
+    assert.equal(links.length, 1);
+    if (eventSources.length === 1) {
+      assert.equal(links[0].url, relay.canonicalUrl);
+      assert.equal(links[0].image, undefined);
+    } else {
+      assert.equal(links[0].url, direct.canonicalUrl);
+      assert.equal(links[0].summary, direct.summary);
+      assert.equal(links[0].image, direct.image);
+      assert.doesNotMatch(JSON.stringify(links), /중계 피드|gstatic/);
+    }
+  }
+});
+
 test("같은 기사의 동시 판 생성은 요약을 한 번만 만들고 같은 정본을 공유한다", async () => {
   const cache = new Map();
   let editorCalls = 0;
@@ -475,6 +599,43 @@ test("같은 사건에 직접 언론사 URL이 새로 붙으면 과거 원문 �
   assert.equal(first.issues[0].articleSummary.status, "source_unavailable");
   assert.equal(second.issues[0].articleSummary.status, "ready");
   assert.deepEqual(fetched, [wrapper, direct]);
+});
+
+test("같은 URL에 충분한 공개 피드 발췌가 생기면 원문 없음 캐시보다 먼저 쓴다", async () => {
+  const cache = new Map();
+  const source = {
+    evidenceId: "NHE-feed", sourceId: "publisher-feed", sourceGroup: "publisher:feed",
+    sourceLabel: "공개 피드", title: "반도체 투자 계획 발표",
+    canonicalUrl: "https://publisher.example/feed-cache"
+  };
+  const base = {
+    ...issue(),
+    eventSourceSetId: "EV-feed-cache:publisher:feed",
+    eventSources: [source]
+  };
+  const pipeline = makeArticleSummaryPipeline({
+    completeBeforePublish: true,
+    cache: { get: (key) => cache.get(key), set: (key, value) => cache.set(key, value) },
+    fetchArticle: async () => ({ state: "unavailable", reasonCode: "NO_PUBLIC_BODY", image: null })
+  });
+
+  const first = await pipeline({ ...edition(), issues: [base] });
+  const second = await pipeline({
+    ...edition(),
+    issues: [{
+      ...base,
+      eventSources: [{
+        ...source,
+        summary: "공개 피드는 회사가 반도체 생산 설비 투자를 확대하고 신규 공정의 단계별 착공 일정을 공개했다고 전했습니다. " +
+          "회사는 첫 설비의 가동 목표와 후속 투자 순서를 함께 밝혔으며, 실제 집행 규모와 공급망 영향은 다음 공식 공시에서 확인해야 한다고 설명했습니다. " +
+          "신규 설비는 기존 생산 거점과 순차적으로 연결될 예정입니다."
+      }]
+    }]
+  });
+
+  assert.equal(first.issues[0].articleSummary.status, "source_unavailable");
+  assert.equal(second.issues[0].articleSummary.status, "excerpt_only");
+  assert.match(second.issues[0].articleSummary.textKo, /신규 공정의 단계별 착공 일정/);
 });
 
 test("구형 출처 경로도 같은 언론사의 직접 URL과 Google 중계 중 직접 URL만 쓴다", async () => {

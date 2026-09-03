@@ -182,6 +182,24 @@
       "sourceTier": "specialist"
     },
     {
+      "id": "ilovepcbang",
+      "label": "아이러브PC방",
+      "labelKo": "아이러브PC방",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "gaming",
+      "size": "medium",
+      "adult": false,
+      "enabled": false,
+      "frameable": false,
+      "adapter": {
+        "type": "seed",
+        "note": "Google News 중계 기사의 원 매체 카테고리 복구용 비활성 메타데이터. 직접 수집 소스로 사용하지 않는다."
+      },
+      "sourceTier": "specialist"
+    },
+    {
       "id": "pcgamer",
       "label": "PC Gamer",
       "labelKo": "PC 게이머",
@@ -1430,6 +1448,7 @@
       },
       "feedGroup": "gnews",
       "feedGroupNote": "구글뉴스 섹션은 다양성 계산에서 한 몫으로 묶는다 (2026-08-04 실측: 8개 섹션이 피드의 29%를 차지). 수집·라벨·카테고리는 그대로.",
+      "categoryRouting": "declared_section",
       "sourceTier": "aggregate"
     },
     {
@@ -2759,6 +2778,30 @@
       },
       "sourceTier": "specialist",
       "operatorGroup": "hypebeast"
+    },
+    {
+      "id": "elle-korea-fashion",
+      "label": "ELLE Korea Fashion",
+      "labelKo": "엘르 코리아 패션",
+      "country": "KR",
+      "lang": "ko",
+      "kind": "news",
+      "category": "fashion",
+      "size": "large",
+      "adult": false,
+      "enabled": true,
+      "frameable": false,
+      "httpsOk": true,
+      "defaultTags": ["fashion"],
+      "adapter": {
+        "type": "rss",
+        "url": "https://www.elle.co.kr/rss",
+        "itemFilter": { "tag": "cate_depth1", "equals": "FASHION" },
+        "note": "2026-09-03 NH108: 공식 공개 RSS 200, 15건 중 FASHION 4건·원문 링크·사진·발행 시각 확인. 혼합 피드 중 발행자가 FASHION으로 표시한 기사만 수집; 필드가 없으면 제외. 상품·쿠폰 목록은 추가하지 않는다. robots.txt: 일반 UA는 /event/notice 불허, GPTBot·CCBot은 전체 불허. 기존 서비스 수집 UA로 공개 RSS의 제목·링크·짧은 발췌를 참조하며 약관상 별도 사용 허락을 확인했다고 주장하지 않는다."
+      },
+      "sourceTier": "specialist",
+      "operatorGroup": "hll",
+      "categoryRouting": "declared_section"
     },
     {
       "id": "fashionista",

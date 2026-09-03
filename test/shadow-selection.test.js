@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 
 import {
   heatAxis, importanceAxis, changeAxis, freshnessStairValue, trustMaterials, engagementOf,
-  isAuthoritativeForeignNewsSource
+  isAuthoritativeForeignNewsSource, OVERSEAS_MARKET_SIGNAL_LEXICON, findMarketSignalMatches
 } from "../src/feed/selection-axes.js";
 import {
   SHADOW_PACK_PARAMS, SHADOW_SELECTION_CONTRACT,
@@ -139,7 +139,21 @@ test("동결: 해외 경제 사건 — marketSignal로 importance 역전 (David 
   assert.equal(domestic.overseasFormula, false, "국내 사건은 overseas 서브테이블을 타지 않는다");
   assert.equal(after.axes.importance.evidence.marketSignal, true);
   assert.deepEqual(after.axes.importance.evidence.marketSignalMatches,
-    [{ articleId: "ov1", term: "Fed" }, { articleId: "ov1", term: "rate" }]);
+    [{ articleId: "ov1", term: "Fed" }]);
+});
+
+test("해외 중요도 신호는 국가명·영어 rate 단독이 아니라 실제 파급 신호만 인정한다", () => {
+  const matches = (id, title) => findMarketSignalMatches([{ id, title }], OVERSEAS_MARKET_SIGNAL_LEXICON);
+
+  assert.deepEqual(matches("japan-festival", "일본 여행 축제가 다음 달 도쿄에서 열린다"), []);
+  assert.deepEqual(matches("china-festival", "중국 현지 축제 일정이 발표됐다"), []);
+  assert.deepEqual(matches("first-rate", "A first-rate hotel opens in London"), []);
+  assert.deepEqual(matches("fed", "Fed officials signal rate path unchanged"),
+    [{ articleId: "fed", term: "Fed" }]);
+  assert.deepEqual(matches("rates", "Central bank changes interest rates after CPI report"), [
+    { articleId: "rates", term: "CPI" },
+    { articleId: "rates", term: "interest rates" }
+  ]);
 });
 
 test("해외 주요 언론은 제목 키워드가 없어도 권위 신호와 24시간 창을 적용한다", () => {

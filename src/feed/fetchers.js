@@ -203,7 +203,10 @@ export function relatedCoverage(rawDesc, feedUrl) {
   return m ? m.length : 0;
 }
 
-export function parseRss(xml, feedUrl) {
+export function parseRss(xml, feedUrl, itemFilter = null) {
+  if (itemFilter && !/^[A-Za-z][A-Za-z0-9_:-]*$/.test(itemFilter.tag || "")) {
+    throw new TypeError("invalid RSS item filter tag");
+  }
   // feedUrl은 선택 인자다 — 안 넘겨도 기존 호출부가 그대로 돈다.
   // coverage(교차보도) 판정에만 쓴다. 없으면 description 안의 구글뉴스 링크로
   // 판정하므로 결과는 같다(2026-08-07 검수 대응).
@@ -212,6 +215,7 @@ export function parseRss(xml, feedUrl) {
   const blockRe = isAtom ? /<entry[\s>][\s\S]*?<\/entry>/gi : /<item[\s>][\s\S]*?<\/item>/gi;
   const blocks = xml.match(blockRe) || [];
   for (const block of blocks) {
+    if (itemFilter && tag(block, itemFilter.tag) !== itemFilter.equals) continue;
     const title = tag(block, "title");
     if (!title) continue;
     const rawDesc = isAtom ? tag(block, "summary") || tag(block, "content") : tag(block, "description");
@@ -224,7 +228,7 @@ export function parseRss(xml, feedUrl) {
     // 태그만 벗기면 같은 제목+매체명 나열이 발췌인 척 노출된다(실측 스크린샷,
     // 2026-07-31). 링크 목록은 발췌로 쓰지 않는다. 그 외 소스도 발췌가 제목의
     // 단순 반복으로 시작하면 중복 구간을 걷어낸다.
-    let summary = stripHtml(rawDesc);
+    let summary = stripHtml(stripCdata(rawDesc));
     if (/news\.google\.com/i.test(rawDesc)) summary = "";
     else if (summary.startsWith(title)) summary = summary.slice(title.length).trim();
     items.push({
@@ -294,8 +298,8 @@ function normalizeDate(s, now = () => Date.now()) {
   return isSaneDate(t, now()) ? new Date(t).toISOString() : null;
 }
 
-export function rssFetcher(url, fetchImpl = fetch) {
-  return async () => parseRss(await getText(url, fetchImpl), url);
+export function rssFetcher(url, fetchImpl = fetch, itemFilter = null) {
+  return async () => parseRss(await getText(url, fetchImpl), url, itemFilter);
 }
 
 // --- Hacker News (Algolia front page) ------------------------------------
@@ -628,7 +632,7 @@ export function makeFetcher(entry, fetchImpl = fetch) {
   switch (a.type) {
     case "rss":
       if (!a.url) return async () => [];
-      return rssFetcher(a.url, fetchImpl);
+      return rssFetcher(a.url, fetchImpl, a.itemFilter);
     case "reddit":
       // url holds the subreddit name (or a full url we extract the sub from)
       return redditFetcher(a.url || entry.id, fetchImpl);

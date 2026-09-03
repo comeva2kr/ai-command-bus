@@ -10,7 +10,7 @@
 // 반례(오탐 방지) 쪽에만 있고 그렇게 표시했다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lowValueReason, isLowValue } from "../src/feed/promotion.js";
+import { lowValueReason, isLowValue, promotable } from "../src/feed/promotion.js";
 
 // ── 실선별 3건 (receipts-2026-08-14-morning / receipts-2026-08-17-morning, default 콤보)
 const SELECTED_REAL_ADS = [
@@ -65,4 +65,48 @@ test("오탐 0 — '특가'를 다루는 정상 제목은 걸리지 않는다", 
     assert.equal(lowValueReason(title), null, title);
     assert.equal(isLowValue(title), false, title);
   }
+});
+
+test("오늘판 대표: 안내·채용·점술형 목록 글은 빼고 실제 보도는 남긴다", () => {
+  const lowValue = [
+    "APOD: 2026년 8월 28일 – 하늘이 파라날 위로 변합니다",
+    "오늘의 천문학 사진: 파라날의 밤하늘",
+    "NASA, 터키 Artemis Accords 서명식에 미디어 초대",
+    "Fashionista Is Hiring A Fashion Market Editor",
+    "Meghan Wood Communications는 2026년 가을 PR 뉴욕 인턴 NY를 찾고 있습니다.",
+    "[요즘IT x 노션] AI·UX 포트폴리오 출전작 모집!",
+    "오늘의 별자리 운세와 타로 카드",
+    "[지윤철학원의 오늘의 운세] 2026년 8월 28일 금요일 띠별 운세"
+  ];
+  for (const title of lowValue) assert.notEqual(lowValueReason(title), null, title);
+
+  const reports = [
+    "연구진, 파라날 밤하늘의 별 궤적 변화 분석",
+    "NASA, 터키의 Artemis Accords 서명 완료 발표",
+    "미국 고용시장 둔화에도 신규 채용 14만건 유지",
+    "정부, 1인 미디어 등록 의무화 추진",
+    "경찰, 사고 목격자를 찾고 있습니다",
+    "AI·UX 공모전 수상작과 심사 결과 발표",
+    "점술형 투자방송 소비자 피해 조사 결과",
+    "정부, 오늘의 운세 앱 개인정보 수집 규제"
+  ];
+  for (const title of reports) assert.equal(lowValueReason(title), null, `오탐: ${title}`);
+});
+
+test("오늘판 대표: 이미 딜로 분류된 커뮤니티 상품글은 빼고 일반 글은 남긴다", () => {
+  assert.equal(promotable({
+    title: "[amazonjp] 오클리 남성용 선글라스 (12,561엔/무배)",
+    kind: "community",
+    isDeal: true
+  }), false);
+  assert.equal(promotable({
+    title: "오클리 선글라스 자외선 차단 성능 비교",
+    kind: "community",
+    isDeal: false
+  }), true);
+  assert.equal(promotable({
+    title: "스팸 클래식 340g x5개+스팸 라이트 340g x5개",
+    url: "https://etoland.co.kr/hit/hotdeal/view/spam-9292949?page=2",
+    kind: "community"
+  }), false);
 });

@@ -810,6 +810,67 @@ test("G1-6: 브랜드 접미어 jo/malone/london만 겹치는 무관 기사는 �
   assert.equal(buildEventClusters([a, b]).length, 2);
 });
 
+test("G1-7: 범용 AI 동작어가 무관한 실기사를 한 사건으로 병합하지 않는다", () => {
+  const rows = [
+    ["g1g-amazon", "Amazon's HR Lead Uses AI Tool to Code and Says New Hires Should Too", "techcrunch"],
+    ["g1g-hacking", "How AI could make it harder for governments to use hacking tools", "techcrunch"],
+    ["g1g-bailey-bbc", "AI could cause global economic downturn, Andrew Bailey warns G20", "bbc-business"],
+    ["g1g-reframe", "Reframe, which uses AI and industrial robot arms to build modular homes, raised $20M", "techcrunch"],
+    ["g1g-bailey-slashdot", "Bank of England Chief Warns New AI Models Threaten Global Financial Stability", "slashdot"],
+    ["g1g-pentagon", "Pentagon launches ChatGPT Mil and Grok as approved generative AI tools", "techcrunch"]
+  ].map(([id, title, source], i) => article({ id, title, source, category: "tech",
+    publishedAt: `2026-09-01T0${i}:00:00+09:00` }));
+
+  const events = buildEventClusters(rows);
+  assert.equal(events.length, 6, "제목에 공유 고유개념이 없는 여섯 기사는 각각 별개여야 한다");
+  for (let i = 0; i < rows.length; i++) for (let j = i + 1; j < rows.length; j++) {
+    assert.notEqual(eventOf(events, rows[i].id), eventOf(events, rows[j].id),
+      `${rows[i].id}·${rows[j].id} 미병합`);
+  }
+});
+
+test("NH108: Broadcom/HPE 실기사는 earnings와 upbeat/beat만으로 병합하지 않는다", () => {
+  const broadcom = article({
+    id: "it_givxxe", source: "marketwatch-top", category: "business",
+    title: "Broadcom의 주가는 낙관적인 실적에도 불구하고 하락하여 투자자들에게 실망감을 안겨줍니다.",
+    originalTitle: "Broadcom’s stock falls despite upbeat earnings, extending a frustrating stretch for investors",
+    url: "https://www.marketwatch.com/story/broadcoms-stock-falls-despite-upbeat-earnings-extending-a-frustrating-stretch-for-investors-81de3f53?mod=mw_rss_topstories",
+    publishedAt: "2026-09-03T00:25:00.000Z", image: "https://images.mktw.net/im-33452279"
+  });
+  const hpe = article({
+    id: "it_1bm52v", source: "marketwatch-top", category: "business",
+    title: "HPE는 Dell의 뒤를 이어 AI 서버 붐을 타고 큰 수익을 달성했습니다.",
+    originalTitle: "HPE follows in Dell’s footsteps as it rides the AI server boom to a big earnings beat",
+    url: "https://www.marketwatch.com/story/hpe-follows-in-dells-footsteps-as-it-rides-the-ai-server-boom-to-a-big-earnings-beat-ec46eaea?mod=mw_rss_topstories",
+    publishedAt: "2026-09-03T00:22:00.000Z", image: "https://images.mktw.net/im-28454983"
+  });
+
+  assert.equal(decideEventMerge(broadcom, hpe).merge, false);
+  for (const rows of [[broadcom, hpe], [hpe, broadcom]]) {
+    const events = buildEventClusters(rows);
+    assert.equal(events.length, 2, "같은 발행사의 3분 간격 기사라도 서로 다른 기업이면 별개 사건이다");
+    assert.notEqual(eventOf(events, broadcom.id), eventOf(events, hpe.id));
+  }
+});
+
+test("NH108: 같은 기업의 실적 후속 보도는 publisher burst 병합을 유지한다", () => {
+  const earnings = article({
+    id: "nh108-broadcom-earnings", source: "marketwatch-top", category: "business",
+    title: "Broadcom reports earnings beat",
+    publishedAt: "2026-09-03T00:22:00.000Z"
+  });
+  const outlook = article({
+    id: "nh108-broadcom-outlook", source: "marketwatch-top", category: "business",
+    title: "Broadcom raises outlook after earnings",
+    publishedAt: "2026-09-03T00:25:00.000Z"
+  });
+
+  assert.equal(decideEventMerge(earnings, outlook).merge, false);
+  const events = buildEventClusters([earnings, outlook]);
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0].memberArticleIds, [earnings.id, outlook.id]);
+});
+
 test("같은 발행사의 같은 시각·같은 이미지는 언어판 제목이 달라도 한 사건이다", () => {
   const image = "https://biz.chosun.com/resizer/v2/same-science-image.jpg";
   const ko = article({ id: "same-edition-ko", category: "science", source: "chosunbiz",

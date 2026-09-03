@@ -408,6 +408,23 @@ test("aggregate 엔진 관통: 임계 미달 실물(건일 엑디즈)은 culture
   assert.equal(item.categoryCorrection, undefined);
 });
 
+test("aggregate 엔진 관통: 명시된 Google News 연예 섹션은 zero-hit 통계 추정이 덮지 않는다", () => {
+  const engine = new FeedEngine(null, []);
+  engine._classifier = {
+    trained: 1000,
+    predict: () => ({ category: "tech", margin: 0.5, known: 0.9 }),
+    predictExcluding: () => ({ category: "tech", margin: 0.5, known: 0.9 })
+  };
+  const item = {
+    source: "gnews-ent", kind: "news", category: "culture", topics: [],
+    title: "[ET포토] 메이드 인 코리아 시즌2, '새롭게 공개되는 9년후 이야기'",
+    url: "https://news.google.com/rss/articles/example"
+  };
+  engine._classifyItems([item]);
+  assert.equal(item.category, "culture");
+  assert.equal(item.categoryCorrection, undefined);
+});
+
 test("aggregate 엔진 관통: 학습 라벨 밖 aggregate 소스(techmeme)는 기존 predict 경로를 쓴다", () => {
   // techmeme은 TRAIN_LABELS에 없다 — 자기학습이 없으므로 LOO를 강제하지 않는다.
   const engine = new FeedEngine(null, []);
@@ -447,6 +464,87 @@ test("aggregate 교정도 매 사이클 재판정된다 — 관문을 다시 못
   engine._classifyItems([item]);
   assert.equal(item.category, "business");
   assert.equal(item.categoryCorrection, undefined);
+});
+
+test("혼합 커뮤니티는 제목의 명확한 보도 신호만 쓰고 사이트 소개문은 분야 근거로 쓰지 않는다", () => {
+  const engine = new FeedEngine(null, []);
+  engine._classifier = { trained: 0 };
+  const item = {
+    source: "instiz", kind: "community", category: "culture", topics: [],
+    title: "[단독] 지예은♥바타, 부부 된다… 12월 12일 결혼",
+    summary: "2일 취재 결과 두 사람은 결혼한다. https://m.entertain.naver.com/home/article/117/0004100682",
+    url: "https://www.instiz.net/pt/1"
+  };
+  const titleOnlyRelay = {
+    source: "theqoo", kind: "community", category: "culture", topics: [],
+    title: "[단독]지예은♥바타, 부부 된다… 12월 12일 결혼",
+    summary: "", url: "https://theqoo.net/hot/1"
+  };
+  const ordinaryMarriagePost = {
+    source: "theqoo", kind: "community", category: "culture", topics: [],
+    title: "결혼 준비 체크리스트 공유",
+    summary: "", url: "https://theqoo.net/hot/2"
+  };
+  const boilerplateSummary = {
+    source: "etoland", kind: "community", category: "art", topics: [],
+    title: "젓가락질 못하는게 가정교육 운운할 일이야?",
+    summary: "이토랜드는 유머, 연예, 정보, 이슈를 공유하는 커뮤니티입니다. 자유게시판, 갤러리, 승부예측 등 다양한 게시판을 확인하세요.",
+    url: "https://etoland.co.kr/hit/etohumor07/view/1"
+  };
+
+  engine._classifyItems([item, titleOnlyRelay, ordinaryMarriagePost, boilerplateSummary]);
+
+  assert.equal(item.category, "culture");
+  assert.equal(item.registryCategory, "culture");
+  assert.equal(titleOnlyRelay.category, "culture");
+  assert.equal(ordinaryMarriagePost.category, "humor");
+  assert.equal(boilerplateSummary.category, "humor");
+});
+
+test("IT 종합 피드의 명백한 세계정세·정치 사건만 news로 돌리고 실제 기술 정책은 유지한다", () => {
+  const engine = new FeedEngine(null, []);
+  engine._classifier = { trained: 0 };
+  const tanker = {
+    source: "etnews", kind: "news", category: "tech", topics: [],
+    title: "韓 장금상선 유조선 호르무즈서 피격…이란 블랙리스트 올라있었다",
+    url: "https://www.etnews.com/1"
+  };
+  const politics = {
+    source: "etnews", kind: "news", category: "tech", topics: ["politics"],
+    title: "국회, 특검법 재표결 일정 확정",
+    url: "https://www.etnews.com/2"
+  };
+  const techPolicy = {
+    source: "etnews", kind: "news", category: "tech", topics: ["politics"],
+    title: "정부, AI 반도체 지원 정책 발표",
+    url: "https://www.etnews.com/3"
+  };
+
+  engine._classifyItems([tanker, politics, techPolicy]);
+
+  for (const item of [tanker, politics]) {
+    assert.equal(item.category, "news");
+    assert.equal(item.registryCategory, "tech");
+    assert.equal(item.categoryCorrection.rule, "aggregate-general-news-guard");
+  }
+  assert.equal(techPolicy.category, "tech");
+  assert.equal(techPolicy.categoryCorrection, undefined);
+});
+
+test("aggregate sports 교정은 스포츠 전용어가 있을 때만 허용한다", () => {
+  assert.equal(aggregateReclassification({
+    declaredCategory: "business",
+    title: "메디포스트, 삼성바이오로직스 출신 민호성 대표 영입",
+    prediction: { category: "sports", margin: 0.11, known: 0.9 }
+  }), null);
+
+  const corrected = aggregateReclassification({
+    declaredCategory: "business",
+    title: "국가대표 은퇴 베테랑, 아시안게임 와일드카드 발탁",
+    prediction: { category: "sports", margin: 0.11, known: 0.9 }
+  });
+  assert.equal(corrected?.category, "sports");
+  assert.ok(corrected?.correction.hits.includes("국가대표"));
 });
 
 // ---------------------------------------------------------------------------

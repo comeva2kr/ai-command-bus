@@ -240,6 +240,7 @@ export async function buildTodayEditionInProcess({
   categories = null,
   slotId = null,
   editionDate = null,
+  reserveIssues = 0,
   editorialPreselectedPool = false,
   editorialPreselectedReferenceMs = null
 } = {}) {
@@ -291,6 +292,7 @@ export async function buildTodayEditionInProcess({
         asOfMs: nowMs,
         sharedCanonical: true,
         allowCarryover: false,
+        reserveIssues,
         editionDate
       });
       const body = {

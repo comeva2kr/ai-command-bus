@@ -53,7 +53,7 @@ function fixture(dir, candidate = CANDIDATE) {
   return { poolPath, packetPath };
 }
 
-test("NH91: shortlist 러너는 미분류 일반 소스 중 전역 상위 표본만 기존 유료 레일로 실행한다", async () => {
+test("NH93: shortlist 러너는 전역 반응량보다 부족 분야 미분류 후보를 먼저 실행한다", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-nh89-shortlist-"));
   const nowMs = Date.parse("2026-08-27T05:42:34.447Z");
   const approved = {
@@ -72,7 +72,7 @@ test("NH91: shortlist 러너는 미분류 일반 소스 중 전역 상위 표본
   };
   approved.candidateRecordSha256 = sha256(JSON.stringify(approved));
   const localRegistry = [
-    { id: "etnews", enabled: true, kind: "news", sourceTier: "aggregate", category: "tech", country: "KR", lang: "ko", adapter: { type: "rss" } },
+    { id: "etnews", enabled: true, kind: "news", sourceTier: "specialist", category: "tech", country: "KR", lang: "ko", adapter: { type: "rss" } },
     { id: "business-wire", enabled: true, kind: "news", sourceTier: "aggregate", category: "business", country: "KR", lang: "ko", adapter: { type: "rss" } }
   ];
   const makeArticle = (id, source, publishedAt, score) => ({
@@ -80,7 +80,7 @@ test("NH91: shortlist 러너는 미분류 일반 소스 중 전역 상위 표본
     kind: "news", lang: "ko", publishedAt, hotScorePrev: score, score
   });
   const pool = { savedAt: nowMs, rows: [
-    { item: makeArticle("selected", "etnews", "2026-08-27T04:00:00.000Z", 10) },
+    { item: { ...makeArticle("selected", "etnews", "2026-08-27T04:00:00.000Z", 10), category: "business" } },
     { item: makeArticle("already", "etnews", "2026-08-27T04:30:00.000Z", 99) },
     { item: makeArticle("other", "business-wire", "2026-08-27T04:00:00.000Z", 100) }
   ] };
@@ -122,7 +122,7 @@ test("NH91: shortlist 러너는 미분류 일반 소스 중 전역 상위 표본
     missingCategoryIds: ["tech"],
     nowMs,
     windowHours: 6,
-    maxCalls: 1,
+    maxCalls: 2,
     maxCostUsd: 0.05,
     candidateId: approved.candidateId,
     candidateDef: approved,
@@ -150,11 +150,11 @@ test("NH91: shortlist 러너는 미분류 일반 소스 중 전역 상위 표본
   assert.equal(result.status, "D2_SHADOW_SHORTLIST_MEASURED");
   const preflight = JSON.parse(fs.readFileSync(path.join(attemptDir, "preflight.json")));
   assert.equal(preflight.mode, "shortlist");
-  assert.deepEqual(preflight.sample.targetIds, ["other"]);
-  assert.equal(preflight.limits.maxCalls, 1);
+  assert.deepEqual(preflight.sample.targetIds, ["selected"]);
+  assert.equal(preflight.limits.maxCalls, 1, "실제 부족 분야 후보 수보다 호출 예산을 크게 잡지 않는다");
   assert.equal(preflight.limits.maxCostUsd, 0.05);
   const progress = fs.readFileSync(path.join(attemptDir, "progress-results.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
-  assert.deepEqual(progress.map((row) => row.itemId), ["other"]);
+  assert.deepEqual(progress.map((row) => row.itemId), ["selected"]);
 });
 
 test("D2-F: 전량 shadow는 packet 전건을 기존 유료 레일로 한 번씩만 측정한다", async () => {

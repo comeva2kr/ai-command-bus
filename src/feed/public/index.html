@@ -2257,7 +2257,7 @@ function ensureAdfitPlacement(){
     const sc = document.createElement("script");
     sc.id = "adfitLoader";
     sc.async = true;
-    sc.src = "//t1.daumcdn.net/kas/static/ba.min.js";
+    sc.src = "https://t1.kakaocdn.net/kas/static/ba.min.js";
     sc.onerror = () => adfitFallback(slot);
     document.head.appendChild(sc);
   }

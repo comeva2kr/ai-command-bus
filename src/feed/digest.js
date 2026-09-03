@@ -26,7 +26,7 @@ import { WEIGHTY } from "./interest.js";
 // 4. LLM을 부르지 않는다. 아이템당 API 호출은 이 프로젝트의 제약을 벗어나고,
 //    무엇보다 측정값에서 결정적으로 유도된 문장이라야 매번 같은 입력에 같은
 //    글이 나온다(재현 가능·검증 가능).
-import { canonicalContentUrl, eventKey, sharedTitleConcepts } from "./dedupe.js";
+import { canonicalContentUrl, eventKey, sharedTitleConcepts, titleConcepts } from "./dedupe.js";
 import {
   assessEditorialDraft,
   coverageEvidence,
@@ -36,6 +36,11 @@ import { buildSourceEvidence } from "./editorial-lineage.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import { buildEventClusters, composeEventFromMembers, decideEventMerge } from "./event-cluster.js";
 import { loadRegistry } from "./registry.js";
+import { editorialMinimumPerCategory } from "./editorial-fulfillment.js";
+import {
+  findMarketSignalMatches,
+  OVERSEAS_MARKET_SIGNAL_LEXICON
+} from "./selection-axes.js";
 
 // 해외발(국내 미보도) 판정 — David #과업3, 2026-08-17: "판별은 소스 레지스트리
 // country 필드 실코드 확인". 구성원(보도) 기사 **전부**가 해외 소스일 때만
@@ -116,14 +121,91 @@ const STATISTICAL_FILLER_CONCEPTS = new Set([
   "기록적", "증가", "감소", "급증", "급감", "발생", "넘어서", "이상", "이하", "달해", "기록", "집계"
 ]);
 
+const hasDistinctiveConcept = (concepts) => concepts.some((concept) =>
+  !concept.startsWith("num:") && !STATISTICAL_FILLER_CONCEPTS.has(concept)
+  && !/(?:했다|됐다|한다|된다|합니다|됩니다)$/u.test(concept)
+  && concept.length >= DISTINCTIVE_ENTITY_MIN_LENGTH);
+
+const hasDisjointNumericOnlyDifference = (leftTitle, rightTitle) => {
+  const uniqueAgainst = (title, otherTitle) => titleConcepts(title)
+    .filter((concept) => !sharedTitleConcepts(concept, otherTitle).length);
+  const left = uniqueAgainst(leftTitle, rightTitle);
+  const right = uniqueAgainst(rightTitle, leftTitle);
+  if (!left.length || !right.length
+      || !left.every((concept) => /^num:|^\d/u.test(concept))
+      || !right.every((concept) => /^num:|^\d/u.test(concept))) return false;
+  const numericValue = (concept) => concept.match(/\d+(?:[.,]\d+)?/u)?.[0] || "";
+  const rightNumbers = new Set(right.map(numericValue).filter(Boolean));
+  return left.map(numericValue).filter(Boolean).every((number) => !rightNumbers.has(number));
+};
+
+export function canonicalDisplayDuplicate(left, right) {
+  const shared = sharedTitleConcepts(left.title, right.title);
+  if (!shared.length) return false;
+  if (hasDisjointNumericOnlyDifference(left.title, right.title)) return false;
+  const leftAt = Date.parse(left.publishedAt || "");
+  const rightAt = Date.parse(right.publishedAt || "");
+  const leftCommunity = String(left.evidenceRole || "").startsWith("community_");
+  const rightCommunity = String(right.evidenceRole || "").startsWith("community_");
+  const crossRoleWithinDay = leftCommunity !== rightCommunity
+    && Number.isFinite(leftAt) && Number.isFinite(rightAt)
+    && Math.abs(leftAt - rightAt) <= 24 * 60 * 60 * 1000;
+  const crossRoleStrongMatch = crossRoleWithinDay && shared.length >= NEAR_DUP_CONCEPTS;
+  if (!hasDistinctiveConcept(shared) && !crossRoleStrongMatch) return false;
+  const mergeDecision = decideEventMerge({
+    title: left.title, publishedAt: left.publishedAt, source: left.operatorGroup
+  }, {
+    title: right.title, publishedAt: right.publishedAt, source: right.operatorGroup
+  });
+  if (mergeDecision.reason === "guard_numbers_only_overlap") return false;
+  if (mergeDecision.reason === "guard_number_conflict") {
+    return crossRoleStrongMatch;
+  }
+  if (shared.length >= NEAR_DUP_CONCEPTS) return true;
+  if (left.operatorGroup && left.operatorGroup === right.operatorGroup
+      && Number.isFinite(leftAt) && Number.isFinite(rightAt)
+      && Math.abs(leftAt - rightAt) < 60 * 1000) return true;
+  return leftCommunity !== rightCommunity && shared.length >= 2;
+}
+
 export function nearIssueGroups(scored, canonicalEvents = null) {
   const canonicalByArticle = new Map();
   const canonicalSizes = new Map();
   const events = canonicalEvents || buildEventClusters(scored.flatMap((cluster) => cluster.members));
+  const canonicalById = new Map(events.map((event) => [event.eventId, event]));
   for (const event of events) {
     canonicalSizes.set(event.eventId, event.memberArticleIds.length);
     for (const id of event.memberArticleIds) canonicalByArticle.set(id, event.eventId);
   }
+  const canonicalEvidenceOf = (cluster) => {
+    const eventIds = new Set(cluster.members
+      .map((item) => canonicalByArticle.get(item.id)).filter(Boolean));
+    const evidence = [...eventIds].flatMap((id) => {
+      const event = canonicalById.get(id);
+      return (event?.sourceEvidence || []).map((row) => ({
+        ...row, publishedAt: row.publishedAt || event.firstSeenAt || null
+      }));
+    });
+    return evidence.length ? evidence : cluster.members.map((item) => ({
+      articleId: item.id,
+      title: item.title,
+      operatorGroup: operationalSourceIdentity(item).ownershipGroup,
+      publishedAt: item.publishedAt || item.firstSeenAt || null,
+      evidenceRole: sourceRoleOf(item) === "community_signal" ? "community_post" : "reporting"
+    }));
+  };
+  const canonicalSurvivorPriority = (cluster) => {
+    const eventIds = new Set(cluster.members
+      .map((item) => canonicalByArticle.get(item.id)).filter(Boolean));
+    const clusterEvents = [...eventIds].map((id) => canonicalById.get(id)).filter(Boolean);
+    const evidence = clusterEvents.flatMap((event) => event.sourceEvidence || []);
+    return [
+      Number(evidence.some((row) => row.evidenceRole === "reporting")),
+      Math.max(0, ...clusterEvents.map((event) => Number(event.counts?.independentReportingGroups) || 0)),
+      evidence.length
+    ];
+  };
+  const rank = new Map(scored.map((cluster, index) => [cluster, index]));
   const groups = [];
   for (const c of scored) {
     const title = c.members[0].title;
@@ -133,7 +215,13 @@ export function nearIssueGroups(scored, canonicalEvents = null) {
       const groupedEvents = new Set(g.flatMap((m) =>
         m.members.map((item) => canonicalByArticle.get(item.id)).filter(Boolean)));
       if ([...currentEvents].some((id) => groupedEvents.has(id))) return true;
-      if (canonicalEvents) return false;
+      if (canonicalEvents) return g.every((m) => {
+        const sameCategory = m.members.some((item) =>
+          categoryIdsOf(item).some((id) => categories.has(id)));
+        if (!sameCategory) return false;
+        return canonicalEvidenceOf(c).some((left) =>
+          canonicalEvidenceOf(m).some((right) => canonicalDisplayDuplicate(left, right)));
+      });
       return g.every((m) => {
       const previousEvents = new Set(m.members.map((item) => canonicalByArticle.get(item.id)).filter(Boolean));
       const sameCategory = m.members.some((item) => categoryIdsOf(item).some((id) => categories.has(id)));
@@ -186,6 +274,14 @@ export function nearIssueGroups(scored, canonicalEvents = null) {
       });
     });
     if (hit) hit.push(c); else groups.push([c]);
+  }
+  if (canonicalEvents) {
+    for (const group of groups) group.sort((a, b) => {
+      const left = canonicalSurvivorPriority(a);
+      const right = canonicalSurvivorPriority(b);
+      return right[0] - left[0] || right[1] - left[1] || right[2] - left[2]
+        || rank.get(a) - rank.get(b);
+    });
   }
   return groups;
 }
@@ -661,6 +757,8 @@ export const CATEGORY_DOMESTIC_SHARE_BANDS = Object.freeze({
   politics: Object.freeze([0.80, 0.90]),
   tech: Object.freeze([0.50, 0.70])
 });
+// Inclusive relative weight gap; no absolute floor, including zero-weight ties.
+const DOMESTIC_GUIDE_RELATIVE_GAP = 0.10;
 
 export const MIN_ISSUES = 3; // 이보다 적으면 발행하지 않는다 — 빈 글은 자체 콘텐츠가 아니다
 
@@ -769,7 +867,8 @@ export function buildDigest(items, {
     if (Number(a.carryoverOnly) !== Number(b.carryoverOnly)) {
       return Number(a.carryoverOnly) - Number(b.carryoverOnly);
     }
-    if (!externalRank) return b.weight - a.weight;
+    if (!externalRank) return b.weight - a.weight
+      || Number(a.members.every(isOverseas)) - Number(b.members.every(isOverseas));
     if (a.externalRank !== null && b.externalRank !== null) return a.externalRank - b.externalRank;
     if (a.externalRank !== null) return -1;
     if (b.externalRank !== null) return 1;
@@ -787,7 +886,7 @@ export function buildDigest(items, {
   const deduped = eventGroups.map((group) => group[0]);
   const mergedEvidenceOf = new Map(eventGroups.map((group) => [
     group[0],
-    group.slice(1).flatMap((cluster) => cluster.members)
+    canonicalEvents ? [] : group.slice(1).flatMap((cluster) => cluster.members)
   ]));
 
   // 한 소스가 브리핑을 독식하지 않게 상한을 둔다.
@@ -816,7 +915,7 @@ export function buildDigest(items, {
     (category ? categorySourceCount(category, sourceOf(a)) - categorySourceCount(category, sourceOf(b)) : 0)
     || (perSource.get(sourceOf(a)) || 0) - (perSource.get(sourceOf(b)) || 0)
     || rankOfOriginal.get(a) - rankOfOriginal.get(b));
-  const addBalanced = (cluster, { ignoreSourceCap = false } = {}) => {
+  const addBalanced = (cluster, { ignoreSourceCap = false, checkOnly = false } = {}) => {
     if (chosen.has(cluster) || balanced.length >= maxIssues) return false;
     const src = sourceOf(cluster);
     if (!ignoreSourceCap && (perSource.get(src) || 0) >= maxPerSource) return false;
@@ -827,6 +926,7 @@ export function buildDigest(items, {
       .filter(Boolean))];
     if (subjectKey && chosenSubjects.has(subjectKey)) return false;
     if (trendTerms.some((term) => chosenTrendTerms.has(term))) return false;
+    if (checkOnly) return true;
     chosen.add(cluster);
     balanced.push(cluster);
     if (subjectKey) chosenSubjects.add(subjectKey);
@@ -844,6 +944,51 @@ export function buildDigest(items, {
   // 남은 자리는 아래 전체 중요도 순으로 채운다. 기본 브리핑은 floor=0이라
   // 기존 동작을 그대로 유지한다.
   const floor = Math.max(0, Math.floor(Number(minIssuesPerCategory) || 0));
+  const guided = new Set();
+  const guideCategory = selected.size === 1 ? [...selected][0] : null;
+  const band = CATEGORY_DOMESTIC_SHARE_BANDS[guideCategory];
+  if (floor && band) {
+    // Guide actual admissions for the published prefix, not the 22-item reserve.
+    const target = Math.min(floor, editorialMinimumPerCategory(1, maxIssues));
+    const candidates = deduped.filter((cluster) =>
+      cluster.members.some((item) => categoryIdsOf(item).includes(guideCategory)));
+    const domestic = new Map();
+    const foreignSignal = new Set();
+    for (const cluster of candidates) {
+      const members = [...cluster.members, ...(mergedEvidenceOf.get(cluster) || [])];
+      domestic.set(cluster, Number(!membersAllOverseas(members)));
+      if (cluster.draft.evidence.independentGroupCount >= 2
+          || findMarketSignalMatches(members, OVERSEAS_MARKET_SIGNAL_LEXICON).length) {
+        foreignSignal.add(cluster);
+      }
+    }
+    let domesticCount = 0;
+    let guideChanged = false;
+    while (guided.size < target) {
+      const eligible = candidates.filter((cluster) => addBalanced(cluster, { checkOnly: true }));
+      const best = eligible[0];
+      if (!best) break;
+      const distance = (cluster) => {
+        const share = (domesticCount + domestic.get(cluster)) / (guided.size + 1);
+        return Math.max(band[0] - share, 0, share - band[1]);
+      };
+      const preferred = eligible.find((cluster, index) =>
+        distance(cluster) < distance(best)
+        && cluster.carryoverOnly === best.carryoverOnly
+        && cluster.externalRank === best.externalRank
+        && Number.isFinite(cluster.weight) && Number.isFinite(best.weight)
+        && Math.abs(cluster.weight - best.weight)
+          <= DOMESTIC_GUIDE_RELATIVE_GAP * Math.max(Math.abs(cluster.weight), Math.abs(best.weight))
+        && (domestic.get(cluster) || foreignSignal.has(cluster))
+        && !eligible.slice(0, index).some((earlier) => sourceOf(earlier) === sourceOf(cluster))
+      ) || best;
+      if (preferred !== best) guideChanged = true;
+      addBalanced(preferred);
+      guided.add(preferred);
+      domesticCount += domestic.get(preferred);
+    }
+    if (!guideChanged) guided.clear();
+  }
   if (floor && selected.size) {
     const categoryCandidates = (category) => deduped.filter((cluster) =>
       cluster.members.some((item) => categoryIdsOf(item).includes(category)));
@@ -867,25 +1012,6 @@ export function buildDigest(items, {
         if (!added) break;
       }
     };
-
-    // 순위 상단이 한 지역에 몰려도 국내외 기사 공급이 충분한 분야는 제품
-    // 범위를 먼저 예약한다. 혼합 보도 사건은 국내에서 이미 다뤄진 사건이므로
-    // 국내로 센다. 출처 상한 때문에만 못 채운 경우에 한해 같은 그룹 안에서
-    // 상한을 풀고, 그 뒤의 일반 중요도 채우기는 기존 로직을 그대로 쓴다.
-    for (const category of selected) {
-      const band = CATEGORY_DOMESTIC_SHARE_BANDS[category];
-      if (!band) continue;
-      const candidates = categoryCandidates(category);
-      const target = Math.min(floor, candidates.length);
-      const domesticTarget = Math.ceil(target * band[0]);
-      const foreignTarget = Math.ceil(target * (1 - band[1]));
-      const domestic = (cluster) => !membersAllOverseas(cluster.members);
-      const foreign = (cluster) => membersAllOverseas(cluster.members);
-      fillCategoryGroup(category, candidates, domestic, domesticTarget, false);
-      fillCategoryGroup(category, candidates, foreign, foreignTarget, false);
-      fillCategoryGroup(category, candidates, domestic, domesticTarget, true);
-      fillCategoryGroup(category, candidates, foreign, foreignTarget, true);
-    }
 
     for (const category of selected) {
       for (const cluster of deduped) {
@@ -926,9 +1052,10 @@ export function buildDigest(items, {
     }
     if (!added) break;
   }
-  // 예약 순서가 분야 탭 순서가 되지 않게 원래 중요도 순서를 복원한다.
+  // Keep original importance order inside the guided publication set and reserve.
   const rankOf = rankOfOriginal;
-  balanced.sort((a, b) => rankOf.get(a) - rankOf.get(b));
+  balanced.sort((a, b) => Number(guided.has(b)) - Number(guided.has(a))
+    || rankOf.get(a) - rankOf.get(b));
 
   const issues = balanced.map((cluster) => {
     const draft = cluster.draft;

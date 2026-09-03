@@ -15,7 +15,9 @@ import {
   projectSlotCanonicalEdition
 } from "../src/feed/slot-canonical-edition.js";
 import {
-  assertForeignMajorLaneCoverage,
+  applyHeadlineReview,
+  assertSemanticLaneCoverage,
+  assertSemanticPublicationRouting,
   assertSamePoolInputs,
   categoryEditionsFromUnion,
   editionObservationReceipt,
@@ -113,6 +115,70 @@ test("읽을 수 있는 혼합 한글 제목과 무료 빌드는 유료 제목 �
   const untouched = await polishIssueHeadlines({ issues: [readable] }, { translateTitle: null });
   assert.equal(calls, 0);
   assert.strictEqual(untouched.edition.issues[0], readable);
+});
+
+test("별도 제목 번역기가 없으면 기존 무료 본문 번역기를 약한 제목 마감에 재사용한다", async () => {
+  const issue = {
+    subject: "McCarthy은 Steelers의 4 QBs이 자리를 얻었다고 말합니다.",
+    eventSources: [{
+      title: "McCarthy은 Steelers의 4 QBs이 자리를 얻었다고 말합니다.",
+      originalTitle: "McCarthy says four Steelers QBs have earned their place"
+    }]
+  };
+  let calls = 0;
+  const result = await polishIssueHeadlines({ issues: [issue] }, {
+    translateText: async (_text, options) => {
+      assert.deepEqual(options, { from: "auto", to: "ko" });
+      calls += 1;
+      return "맥카시, 스틸러스 쿼터백 4명이 자리를 얻었다고 평가";
+    }
+  });
+
+  assert.equal(calls, 1);
+  assert.equal(result.changed, 1);
+  assert.equal(result.edition.issues[0].preparedHeadline,
+    "맥카시, 스틸러스 쿼터백 4명이 자리를 얻었다고 평가");
+});
+
+test("사람이 확인한 제목은 원문과 근거 해시가 정확히 맞을 때만 준비 제목으로 적용한다", () => {
+  const evidenceHash = "9".repeat(64);
+  const originalTitle = "U.S. and Iran Exchange Strikes Overnight After Monthlong Calm";
+  const issue = {
+    evidenceHash,
+    headline: "잘못 옮긴 제목",
+    eventSources: [{ originalTitle }]
+  };
+  const review = {
+    contract: "NOWHOT-HEADLINE-REVIEW-001",
+    entries: [{
+      evidenceHash,
+      originalTitle,
+      headlineKo: "미국과 이란, 한 달간의 소강 뒤 밤사이 공습 주고받아"
+    }]
+  };
+  const applied = applyHeadlineReview({ issues: [issue] }, review, "a".repeat(64));
+
+  assert.equal(applied.applied, 1);
+  assert.equal(applied.edition.issues[0].preparedHeadline, review.entries[0].headlineKo);
+  assert.equal(applied.edition.issues[0].headline, issue.headline);
+  assert.deepEqual(applied.edition.issues[0].eventSources, issue.eventSources);
+  assert.deepEqual(applied.edition.headlineReviewReceipt, {
+    contract: review.contract,
+    sha256: "a".repeat(64),
+    applied: 1
+  });
+  assert.throws(() => applyHeadlineReview({ issues: [issue] }, {
+    ...review,
+    entries: [{ ...review.entries[0], originalTitle: "different" }]
+  }, "a".repeat(64)), /originalTitle mismatch/);
+  assert.throws(() => applyHeadlineReview({ issues: [issue] }, {
+    ...review,
+    entries: [{ ...review.entries[0], evidenceHash: "8".repeat(64) }]
+  }, "a".repeat(64)), /unknown evidenceHash/);
+  assert.throws(() => applyHeadlineReview({ issues: [issue] }, {
+    ...review,
+    entries: [{ ...review.entries[0], headlineKo: "비키니 화보를 대표 기사로 선정" }]
+  }, "a".repeat(64)), /unsafe headline/);
 });
 
 test("분류는 수집 풀을 얼린 직후 끝나도 같은 슬롯의 준비 시각으로 인정한다", () => {
@@ -332,6 +398,46 @@ test("슬롯 고정판은 기사 사진 대신 사이트 기본 로고가 들어
   assert.equal(artifact.issueTable[targetId].articleSummary.image, null);
 });
 
+test("NH108 출처 사진도 기존 안전 경계를 통과하고 정상 상세와 입력 판은 보존한다", () => {
+  for (const status of ["ready", "excerpt_only", "source_unavailable"]) {
+    const { byCategory, unionEdition } = editions();
+    const target = unionEdition.issues[0];
+    const textKo = target.articleSummary.textKo.trim();
+    target.articleSummary.textKo = textKo;
+    target.articleSummary.status = status;
+    target.articleSummary.unavailableReasonCode = status === "source_unavailable" ? "ACCESS_DENIED" : null;
+    target.articleSummary.image = "https://img.example.com/summary.jpg";
+    target.articleSummary.sourceLinks = [
+      "https://img.example.com/article.jpg",
+      "https://encrypted-tbn0.gstatic.com/news.jpg",
+      "https://www.ytn.co.kr/img/comm/ytn_sns_default.jpg",
+      "javascript:alert(1)",
+      "data:image/png;base64,abc",
+      "not-an-image-url"
+    ].map((image, index) => ({
+      url: `https://publisher.example/article-${index}`, image,
+      summary: "공개 피드의 짧은 소개문입니다.",
+      originalTitle: "Public article title", publishedAt: "2026-09-03T01:00:00.000Z"
+    }));
+    const before = structuredClone(unionEdition);
+    const artifact = buildSlotCanonicalEdition({
+      editionsByCategory: byCategory, unionEdition, builderPacketSha256: packetSha,
+      routingSnapshot: { source: { packetSha256: packetSha } }
+    });
+    const summary = artifact.issueTable[target.evidenceHash].articleSummary;
+
+    assert.deepEqual(summary.sourceLinks.map((row) => row.image), [
+      "https://img.example.com/article.jpg", null, null, null, null, null
+    ]);
+    assert.equal(summary.textKo, textKo);
+    assert.equal(summary.status, status);
+    assert.equal(summary.unavailableReasonCode, target.articleSummary.unavailableReasonCode);
+    assert.equal(summary.image, target.articleSummary.image);
+    assert.deepEqual(summary.sourceLinks[0], target.articleSummary.sourceLinks[0]);
+    assert.deepEqual(unionEdition, before);
+  }
+});
+
 test("슬롯 고정판은 과거 캐시의 게시판 HIT 목록을 기사 본문으로 얼리지 않는다", () => {
   const { byCategory, unionEdition } = editions();
   const targetId = unionEdition.issues[0].evidenceHash;
@@ -358,31 +464,80 @@ test("슬롯 고정판은 과거 캐시의 게시판 HIT 목록을 기사 본문
 
 test("한 전체판에서 14개 고정 레인을 파생하고 다른 풀 조합은 거부한다", () => {
   const { unionEdition } = editions();
+  unionEdition.issues.push(
+    issue("tech-reserve-13", ["tech"]),
+    issue("tech-reserve-14", ["tech"])
+  );
   const lanes = categoryEditionsFromUnion(unionEdition);
   assert.deepEqual(Object.keys(lanes), CATEGORIES.map((category) => category.id));
-  assert.equal(lanes.tech.issues.length, 13);
+  assert.equal(lanes.tech.issues.length, 14, "예비 후보는 최종 분야 상한까지만 채운다");
+  assert.equal(lanes.tech.issues.at(-1).evidenceHash, "evidence-tech-reserve-13");
   assert.equal(lanes.gaming.issues.length, 13);
   assert.deepEqual(
     lanes.tech.issues.find((row) => row.evidenceHash === "evidence-shared-tech-gaming"),
     lanes.gaming.issues.find((row) => row.evidenceHash === "evidence-shared-tech-gaming")
   );
 
+  const lowInTech = issue("shared-low-in-tech", ["news", "tech"]);
+  lowInTech._categoryLaneRanks = { news: 0, tech: 20 };
+  const highInTech = issue("tech-high", ["tech"]);
+  highInTech._categoryLaneRanks = { tech: 0 };
+  const ranked = categoryEditionsFromUnion({
+    ...unionEdition,
+    issues: [lowInTech, highInTech]
+  });
+  assert.deepEqual(
+    ranked.tech.issues.map((row) => row.evidenceHash),
+    ["evidence-tech-high", "evidence-shared-low-in-tech"],
+    "다른 분야에서 먼저 뽑힌 공유 사건이 기술 분야 자체 순위를 앞지르면 안 된다"
+  );
+
   const poolRaw = JSON.stringify({ rows: [{ id: "a" }] });
-  const packetRaw = JSON.stringify({ sourceSnapshot: { sha256: "ignored" } });
   const poolSha = crypto.createHash("sha256").update(poolRaw).digest("hex");
+  const packet = { sourceSnapshot: { sha256: poolSha }, targets: [{ sourceArticleIds: ["a"] }] };
+  const packetRaw = JSON.stringify(packet);
   const packetDigest = crypto.createHash("sha256").update(packetRaw).digest("hex");
   assert.doesNotThrow(() => assertSamePoolInputs({
     poolRaw,
     packetRaw,
-    packet: { sourceSnapshot: { sha256: poolSha } },
-    routingSnapshot: { source: { packetSha256: packetDigest } }
+    packet,
+    routingSnapshot: { source: { packetSha256: packetDigest }, entries: [{ itemId: "a" }] }
   }));
+  const poolWithUnclassifiedExtra = JSON.stringify({ rows: [{ id: "a" }, { id: "outside-snapshot" }] });
+  assert.throws(() => assertSamePoolInputs({
+    poolRaw: poolWithUnclassifiedExtra,
+    packetRaw,
+    packet: {
+      ...packet,
+      sourceSnapshot: { sha256: crypto.createHash("sha256").update(poolWithUnclassifiedExtra).digest("hex") }
+    },
+    routingSnapshot: { source: { packetSha256: packetDigest }, entries: [{ itemId: "a" }] }
+  }), /pool article coverage mismatch/);
   assert.throws(() => assertSamePoolInputs({
     poolRaw,
     packetRaw,
     packet: { sourceSnapshot: { sha256: "b".repeat(64) } },
-    routingSnapshot: { source: { packetSha256: packetDigest } }
+    routingSnapshot: { source: { packetSha256: packetDigest }, entries: [{ itemId: "a" }] }
   }), /pool SHA mismatch/);
+  assert.throws(() => assertSamePoolInputs({
+    poolRaw,
+    packetRaw,
+    packet,
+    routingSnapshot: { source: { packetSha256: packetDigest }, entries: [] }
+  }), /routing entry coverage mismatch/);
+});
+
+test("분야 내부 순위 표식은 최종 사용자 판에 남기지 않는다", () => {
+  const { byCategory, unionEdition } = editions();
+  unionEdition.issues[0]._categoryLaneRanks = { news: 0 };
+  const artifact = buildSlotCanonicalEdition({
+    editionsByCategory: byCategory,
+    unionEdition,
+    builderPacketSha256: packetSha,
+    routingSnapshot: { source: { packetSha256: packetSha } }
+  });
+
+  assert.equal("_categoryLaneRanks" in artifact.issueTable[unionEdition.issues[0].evidenceHash], false);
 });
 
 test("13건 미달·미준비 상세·다른 풀의 라우팅 스냅샷은 판 전체를 거부한다", () => {
@@ -413,7 +568,55 @@ test("13건 미달·미준비 상세·다른 풀의 라우팅 스냅샷은 판 �
   }), /packetSha256/);
 });
 
-test("해외 주요 매체 후보가 있으면 뉴스·경제·기술 고정판 하한을 발행 전에 확인한다", () => {
+test("발행판은 모델·동일 근거 모델·현재 패킷 deterministic만 승인한다", () => {
+  const routingSnapshot = {
+    contract: "NOWHOT-CATEGORY-ROUTING-SNAPSHOT-001",
+    snapshotId: "semantic-publication-test",
+    generatedAt: "2026-08-27T03:00:00.000Z",
+    source: { packetSha256: "a".repeat(64), predictionsSha256: "b".repeat(64) },
+    entries: [
+      { itemId: "model", evidenceHash: "c".repeat(64), categories: ["news"], routingBasis: "current_model" },
+      { itemId: "cached", evidenceHash: "d".repeat(64), categories: ["business"], routingBasis: "prior_exact_hash" },
+      { itemId: "deterministic", evidenceHash: "f".repeat(64), categories: ["tech"], routingBasis: "deterministic_tier_policy" },
+      { itemId: "withheld", evidenceHash: "e".repeat(64), categories: [], routingBasis: "withheld" }
+    ]
+  };
+  assert.doesNotThrow(() => assertSemanticPublicationRouting(routingSnapshot));
+
+  for (const routingBasis of [undefined, "specialist_registry_default", "legacy_classifier_fallback"]) {
+    const invalid = structuredClone(routingSnapshot);
+    const entry = {
+      itemId: routingBasis,
+      evidenceHash: "f".repeat(64),
+      categories: ["tech"]
+    };
+    if (routingBasis !== undefined) entry.routingBasis = routingBasis;
+    else entry.itemId = "missing-basis";
+    invalid.entries.push(entry);
+    assert.throws(() => assertSemanticPublicationRouting(invalid), /semantic classification required/);
+  }
+
+  const emptyLegacy = structuredClone(routingSnapshot);
+  emptyLegacy.entries.push({
+    itemId: "empty-legacy",
+    evidenceHash: "f".repeat(64),
+    categories: [],
+    routingBasis: "legacy_classifier_fallback"
+  });
+  assert.throws(() => assertSemanticPublicationRouting(emptyLegacy), /semantic classification required/,
+    "빈 분류도 구형 근거라면 URL·출처 규칙으로 되살아나기 전에 거부해야 한다");
+});
+
+test("분야별 의미 승인 13건 미달은 기사 요약 전에 확인한다", () => {
+  const { unionEdition } = editions();
+  assert.doesNotThrow(() => assertSemanticLaneCoverage(unionEdition));
+
+  const index = unionEdition.issues.findIndex((row) => row.selectedByCategories.includes("politics"));
+  unionEdition.issues.splice(index, 1);
+  assert.throws(() => assertSemanticLaneCoverage(unionEdition), /politics 12\/13/);
+});
+
+test("해외 주요 매체 건수는 발행 차단 조건이 아니라 관측 영수증이다", () => {
   const nowMs = Date.parse("2026-08-27T12:15:00+09:00");
   const rows = [
     ["n1", "bbc-world", "news"], ["n2", "guardian-world", "news"], ["n3", "nyt-world", "news"],
@@ -441,17 +644,17 @@ test("해외 주요 매체 후보가 있으면 뉴스·경제·기술 고정판 
   const coverage = foreignMajorLaneCoverage({ pool, routingSnapshot, unionEdition, registry, nowMs });
 
   assert.deepEqual(coverage, {
-    news: { eligible: 3, staleExcluded: 0, selected: 3, required: 3 },
-    business: { eligible: 2, staleExcluded: 0, selected: 2, required: 2 },
-    tech: { eligible: 1, staleExcluded: 0, selected: 1, required: 1 }
+    news: { eligible: 3, staleExcluded: 0, selected: 3 },
+    business: { eligible: 2, staleExcluded: 0, selected: 2 },
+    tech: { eligible: 1, staleExcluded: 0, selected: 1 }
   });
-  assert.doesNotThrow(() => assertForeignMajorLaneCoverage(coverage));
-  assert.throws(() => assertForeignMajorLaneCoverage({
-    ...coverage, news: { ...coverage.news, selected: 2 }
-  }), /news foreign-major floor 2\/3/);
+  assert.deepEqual({ ...coverage, news: { ...coverage.news, selected: 0 } }.news,
+    { eligible: 3, staleExcluded: 0, selected: 0 },
+  "선택 0건이어도 출력 좌석을 만들거나 판을 실패시키지 않는 관측값이다");
 
   const stalePool = pool.map((row) => row.id === "t1" ? {
     ...row,
+    firstSeenAt: nowMs,
     publishedAt: new Date(nowMs - 14 * 24 * 3600 * 1000).toISOString()
   } : row);
   const staleCoverage = foreignMajorLaneCoverage({
@@ -464,8 +667,7 @@ test("해외 주요 매체 후보가 있으면 뉴스·경제·기술 고정판 
     nowMs
   });
   assert.deepEqual(staleCoverage.tech,
-    { eligible: 0, staleExcluded: 1, selected: 0, required: 0 });
-  assert.doesNotThrow(() => assertForeignMajorLaneCoverage(staleCoverage));
+    { eligible: 0, staleExcluded: 1, selected: 0 });
 });
 
 test("활성화 실패는 이전 포인터를 보존하고 성공판은 날짜·슬롯별로 원자 교체한다", () => {
@@ -599,6 +801,35 @@ test("고정판 GET은 수집·요약·저장 없이 포인터 판을 필터링�
   assert.equal(response.body.slotCanonicalEdition.requestWork, "filter_only");
   assert.equal(sourceCalls, 0);
   assert.equal(summaryCalls, 0);
+});
+
+test("로컬 정본 모드는 빌드 중 요청을 처리하고 중복 빌드·유료 모드를 열지 않는다", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-scheduler-"));
+  const pointerFile = path.join(root, "active.json");
+  const poolFile = path.join(root, "pool.json");
+  activateSlotCanonicalEdition({ artifact: build(), directory: root, pointerFile });
+  fs.writeFileSync(poolFile, '{"savedAt":1,"rows":[]}\n');
+  const calls = [];
+  const pending = new Promise(() => {});
+  const server = createServer({
+    localEditorial: true,
+    slotCanonicalEditionEnabled: true,
+    slotCanonicalPointerFile: pointerFile,
+    localCanonicalPoolFile: poolFile,
+    localCanonicalPrepublishDelayMs: 1,
+    localCanonicalPrepublishCheckMs: 5,
+    localCanonicalPublisher: async (options) => { calls.push(options); await pending; },
+    file: null,
+    sources: [],
+    vapid: null
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.equal((await dispatch(server, "/api/health")).status, 200);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].poolFile, poolFile);
+  assert.equal(calls[0].outDir, root);
+  assert.equal(calls[0].allowPaid, false);
 });
 
 test("날짜만 지정한 고정판 GET도 그 날짜의 현재 슬롯 판을 읽는다", async () => {

@@ -11,6 +11,7 @@ import {
   validateCategoryRoutingSnapshot
 } from "../src/feed/category-routing.js";
 import {
+  buildCategoryRoutingSnapshot,
   buildRecoveredCategoryRoutingSnapshot,
   parseProgress
 } from "../tools/build-category-routing-snapshot.mjs";
@@ -87,6 +88,163 @@ test("분야별 판 합집합은 정본 출처 집합이 같은 사건을 한 �
   assert.deepEqual(new Set(merged.issues[0].selectedByCategories), new Set(["news", "science"]));
 });
 
+test("분야별 판 합집합은 사건 ID가 달라도 같은 최종 사건을 한 장으로 표시한다", () => {
+  const edition = (issue) => ({
+    generatedAt: "2026-09-01T10:00:00.000Z",
+    issues: [issue],
+    sections: [],
+    itemCount: 1,
+    overseasShare: 0
+  });
+  const issue = ({ eventId, category, score, evidenceRole, sourceId, title }) => ({
+    evidenceHash: hash(eventId.at(-1)),
+    event: { eventId },
+    eventSourceSetId: `${eventId}:${sourceId}`,
+    headline: title,
+    categoryIds: [category],
+    selectedByCategories: [category],
+    metrics: { score },
+    sourceEvidence: [{
+      evidenceId: `${eventId}-evidence`,
+      title,
+      sourceId,
+      ownershipGroup: sourceId,
+      publishedAt: "2026-09-01T09:00:00.000Z",
+      evidenceRole
+    }]
+  });
+
+  const merged = mergeCategoryEditions([
+    { category: "humor", edition: edition(issue({
+      eventId: "EV-community-1",
+      category: "humor",
+      score: 110,
+      evidenceRole: "community_post",
+      sourceId: "clien",
+      title: "스페인 모레노, 한국축구 지휘봉"
+    })) },
+    { category: "sports", edition: edition(issue({
+      eventId: "EV-reporting-2",
+      category: "sports",
+      score: 100,
+      evidenceRole: "reporting",
+      sourceId: "yna-sports",
+      title: "한국 축구 첫 스페인 사령탑 모레노, 임시감독으로 A매치 6경기 지휘"
+    })) }
+  ], ["humor", "sports"], 28, false);
+
+  assert.equal(merged.issues.length, 1);
+  assert.equal(merged.issues[0].event.eventId, "EV-reporting-2",
+    "커뮤니티 반응보다 보도 기사를 대표로 남긴다");
+  assert.deepEqual(merged.issues[0].selectedByCategories, ["sports"],
+    "서로 다른 사건을 화면 중복으로 접을 때 탈락한 사건의 분야까지 넘기지 않는다");
+  assert.deepEqual(merged.issues[0].sourceEvidence.map((row) => row.sourceId), ["yna-sports"],
+    "서로 다른 사건의 근거를 합치지는 않는다");
+});
+
+test("분야별 합집합도 결혼 보도와 커뮤니티 전재를 한 장으로 접되 다른 분기 수치는 합치지 않는다", () => {
+  const edition = (issue) => ({
+    generatedAt: "2026-09-02T03:00:00.000Z", issues: [issue], sections: [], itemCount: 1, overseasShare: 0
+  });
+  const issue = ({ eventId, category, score, evidenceRole, sourceId, title, firstPublishedAt }) => ({
+    evidenceHash: hash(eventId.at(-1)),
+    event: { eventId },
+    eventSourceSetId: `${eventId}:${sourceId}`,
+    headline: title,
+    firstPublishedAt,
+    categoryIds: [category],
+    selectedByCategories: [category],
+    metrics: { score },
+    sourceEvidence: [{ title, sourceId, ownershipGroup: sourceId, publishedAt: null, evidenceRole }]
+  });
+  const mergePair = (left, right) => mergeCategoryEditions([
+    { category: left.categoryIds[0], edition: edition(left) },
+    { category: right.categoryIds[0], edition: edition(right) }
+  ], [left.categoryIds[0], right.categoryIds[0]], 28, false);
+
+  const wedding = mergePair(issue({
+    eventId: "EV-wedding-community", category: "humor", score: 110,
+    evidenceRole: "community_post", sourceId: "instiz",
+    title: "[단독] 지예은♥바타, 부부 된다… 12월 12일 결혼",
+    firstPublishedAt: "2026-09-01T22:53:00.000Z"
+  }), issue({
+    eventId: "EV-wedding-report", category: "culture", score: 100,
+    evidenceRole: "reporting", sourceId: "ytn",
+    title: "지예은♥바타, 공개 열애 5개월 만에 결혼 발표…인생 함께 하기로 약속",
+    firstPublishedAt: "2026-09-02T00:10:00.000Z"
+  }));
+  assert.equal(wedding.issues.length, 1);
+  assert.equal(wedding.issues[0].event.eventId, "EV-wedding-report");
+
+  const quarters = mergePair(issue({
+    eventId: "EV-quarter-one", category: "humor", score: 110,
+    evidenceRole: "community_post", sourceId: "community",
+    title: "삼성전자 1분기 영업이익 6조원 기록",
+    firstPublishedAt: "2026-09-02T00:00:00.000Z"
+  }), issue({
+    eventId: "EV-quarter-two", category: "business", score: 100,
+    evidenceRole: "reporting", sourceId: "business-news",
+    title: "삼성전자 2분기 영업이익 6조원 기록",
+    firstPublishedAt: "2026-09-02T00:10:00.000Z"
+  }));
+  assert.equal(quarters.issues.length, 2, "서로 다른 분기 실적은 별개 사건이어야 한다");
+});
+
+test("대표 기사 한 건만 후보에 남아도 사건 전체의 복수 분야를 보존한다", async () => {
+  const now = Date.parse("2026-09-01T12:00:00+09:00");
+  const rows = [
+    { id: "pc-tech", title: "게임용 PC 그래픽카드 성능 비교", category: "tech",
+      source: "tech-feed", url: "https://tech.example.com/pc", score: 100 },
+    { id: "pc-gaming", title: "게임용 PC 그래픽카드 성능 비교", category: "gaming",
+      source: "gaming-feed", url: "https://gaming.example.com/pc", score: 90 }
+  ].map((row, index) => ({
+    ...row,
+    kind: "news",
+    commentCount: 0,
+    coverage: 0,
+    publishedAt: new Date(now - (index + 1) * 60_000).toISOString()
+  }));
+  const routing = {
+    ...snapshot,
+    snapshotId: "full-event-category-test",
+    generatedAt: new Date(now - 60_000).toISOString(),
+    counts: { classifiedArticles: 2, withheldArticles: 0 },
+    entries: rows.map((row) => ({
+      itemId: row.id,
+      evidenceHash: sha,
+      categories: [row.category],
+      contentType: "news"
+    }))
+  };
+  const registry = rows.map((row) => ({
+    id: row.source,
+    kind: "news",
+    category: row.category,
+    sourceTier: "specialist",
+    categoryRouting: "declared_section"
+  }));
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    rows.map((row) => new JsonSource(row.source, async () => [row], "news"))
+  );
+  const router = createCategoryRouter(routing, registry, { now: () => now });
+  engine.editorialCategoryRouter = (items) => router.project(items);
+  engine.editorialCategoryRoutingStatus = router.status;
+
+  const briefing = await engine.briefing({
+    categories: ["tech"],
+    slotId: "lunch",
+    personalized: true,
+    maxIssues: 1,
+    perCategory: 1,
+    candidateLimit: 1
+  });
+
+  assert.equal(briefing.issues.length, 1);
+  assert.deepEqual(new Set(briefing.issues[0].categoryIds), new Set(["tech", "gaming"]));
+  assert.deepEqual(briefing.issues[0].selectedByCategories, ["tech"]);
+});
+
 test("분야별 판을 합칠 때 이미 확정한 사건 문안을 다시 덮지 않는다", () => {
   const eventSourceSetId = "EV-flood:guardian|bbc";
   const base = {
@@ -134,7 +292,7 @@ test("여러 완료 attempt의 progress를 한 복구 입력으로 합친다", (
   assert.deepEqual(merged.results.map((row) => row.itemId), ["a", "b"]);
 });
 
-test("중단된 현재 분류판은 현재 결과→동일 해시 과거 v2→전문 뉴스 섹션 순으로만 복구한다", () => {
+test("중단된 현재 분류판은 현재 모델→동일 해시 과거 모델→현재 패킷 deterministic 순으로 복구한다", () => {
   const packet = {
     sourceSnapshot: { savedAt: "2026-08-26T12:00:00.000Z" },
     candidate: { candidateId: "current" },
@@ -142,7 +300,7 @@ test("중단된 현재 분류판은 현재 결과→동일 해시 과거 v2→�
       ["current-rekey", hash("a"), "aggregate", "news", "news"],
       ["current-empty", hash("b"), "special-news", "news", "news"],
       ["prior", hash("c"), "aggregate", "news", "news"],
-      ["laundered", hash("8"), "aggregate", "news", "business"],
+      ["cached", hash("8"), "aggregate", "news", "business"],
       ["prior-empty", hash("d"), "special-news", "news", "news"],
       ["retired-specialist", hash("9"), "mixed-tech", "news", "tech"],
       ["special", hash("e"), "special-news", "news", "news"],
@@ -155,7 +313,14 @@ test("중단된 현재 분류판은 현재 결과→동일 해시 과거 v2→�
       sourceId,
       contentKindHint,
       legacyCategory,
-      sourceArticleIds: [itemId]
+      sourceArticleIds: [itemId],
+      deterministicRouting: {
+        categories: [itemId === "politics-special" ? "politics"
+          : itemId === "community" ? "humor"
+            : itemId === "retired-specialist" ? "tech" : "business"],
+        contentType: contentKindHint,
+        routingBasis: "deterministic_tier_policy"
+      }
     }))
   };
   const current = {
@@ -170,12 +335,12 @@ test("중단된 현재 분류판은 현재 결과→동일 해시 과거 v2→�
     entries: [
       { itemId: "old-prior", evidenceHash: hash("c"), categories: ["tech"], contentType: "news",
         sourceId: "aggregate", routingBasis: "current_model" },
-      { itemId: "old-laundered", evidenceHash: hash("8"), categories: ["business"], contentType: "news",
+      { itemId: "old-cached", evidenceHash: hash("8"), categories: ["business"], contentType: "news",
         sourceId: "aggregate", routingBasis: "prior_exact_hash" },
       { itemId: "old-prior-empty", evidenceHash: hash("d"), categories: [], contentType: "news",
         sourceId: "special-news", routingBasis: "withheld" },
       { itemId: "old-retired-specialist", evidenceHash: hash("9"), categories: ["tech"], contentType: "news",
-        sourceId: "mixed-tech", routingBasis: "specialist_registry_default" }
+        sourceId: "mixed-tech", routingBasis: "deterministic_tier_policy" }
     ]
   };
   const registry = [
@@ -195,30 +360,31 @@ test("중단된 현재 분류판은 현재 결과→동일 해시 과거 v2→�
   assert.deepEqual(byId.get("current-rekey").categories, ["politics"], "같은 근거 해시면 기사 ID가 바뀌어도 현재 판정을 쓴다");
   assert.deepEqual(byId.get("current-empty").categories, [], "현재 모델의 명시적 보류는 폴백하면 안 된다");
   assert.deepEqual(byId.get("prior").categories, ["tech"]);
-  assert.deepEqual(byId.get("laundered").categories, [], "출처가 세탁된 과거 판정은 종합 피드에서 부활시키지 않는다");
-  assert.deepEqual(byId.get("prior-empty").categories, ["business"], "빈 과거 행은 판정이 아니므로 현재 전문 섹션 정책으로 복구한다");
-  assert.deepEqual(byId.get("retired-specialist").categories, [], "전문 등급에서 강등된 혼합 피드는 과거 기본값으로 재승인하지 않는다");
+  assert.deepEqual(byId.get("cached").categories, ["business"], "동일 근거의 모델 판정은 회차가 바뀌어도 유지한다");
+  assert.deepEqual(byId.get("prior-empty").categories, ["business"]);
+  assert.deepEqual(byId.get("retired-specialist").categories, ["tech"],
+    "과거 deterministic은 prior로 재사용하지 않고 현재 패킷에서 다시 계산한 값만 쓴다");
   assert.deepEqual(byId.get("special").categories, ["business"]);
   assert.deepEqual(byId.get("politics-special").categories, ["politics"]);
-  assert.deepEqual(byId.get("community").categories, []);
-  assert.deepEqual(byId.get("aggregate").categories, []);
+  assert.deepEqual(byId.get("community").categories, ["humor"]);
+  assert.deepEqual(byId.get("aggregate").categories, ["business"]);
   assert.deepEqual(Object.fromEntries([...byId].map(([id, entry]) => [id, entry.routingBasis])), {
     "current-rekey": "current_model",
     "current-empty": "current_model",
-    prior: "current_model",
-    laundered: "withheld",
-    "prior-empty": "specialist_registry_default",
-    "retired-specialist": "withheld",
-    special: "specialist_registry_default",
-    "politics-special": "specialist_registry_default",
-    community: "withheld",
-    aggregate: "withheld"
+    prior: "prior_exact_hash",
+    cached: "prior_exact_hash",
+    "prior-empty": "deterministic_tier_policy",
+    "retired-specialist": "deterministic_tier_policy",
+    special: "deterministic_tier_policy",
+    "politics-special": "deterministic_tier_policy",
+    community: "deterministic_tier_policy",
+    aggregate: "deterministic_tier_policy"
   });
   assert.deepEqual(recovered.counts.routingBasis, {
-    current_model: 3, prior_exact_hash: 0, specialist_registry_default: 3, withheld: 4
+    current_model: 2, prior_exact_hash: 2, deterministic_tier_policy: 6, withheld: 0
   });
-  assert.equal(recovered.counts.modelClassifiedArticles, 3);
-  assert.equal(recovered.counts.admittedArticles, 5);
+  assert.equal(recovered.counts.modelClassifiedArticles, 2);
+  assert.equal(recovered.counts.admittedArticles, 9);
 
   const projected = createCategoryRouter(recovered, registry, {
     now: () => Date.parse(recovered.generatedAt) + 1_000
@@ -230,14 +396,18 @@ test("중단된 현재 분류판은 현재 결과→동일 해시 과거 v2→�
   })));
   assert.deepEqual(projected.map((row) => [row.routingOriginalId, row.categoryRoutingBasis]), [
     ["current-rekey", "current_model"],
-    ["prior", "current_model"],
-    ["prior-empty", "specialist_registry_default"],
-    ["special", "specialist_registry_default"],
-    ["politics-special", "specialist_registry_default"]
+    ["prior", "prior_exact_hash"],
+    ["cached", "prior_exact_hash"],
+    ["prior-empty", "deterministic_tier_policy"],
+    ["retired-specialist", "deterministic_tier_policy"],
+    ["special", "deterministic_tier_policy"],
+    ["politics-special", "deterministic_tier_policy"],
+    ["community", "deterministic_tier_policy"],
+    ["aggregate", "deterministic_tier_policy"]
   ]);
 });
 
-test("routingBasis 없는 과거 판정은 직접 모델 스냅샷일 때만 재사용한다", () => {
+test("직접 모델 판정은 근거를 명시하고 근거 없는 과거 판정은 재사용하지 않는다", () => {
   const packet = {
     sourceSnapshot: { savedAt: "2026-08-27T01:00:00.000Z" },
     targets: [{
@@ -249,17 +419,6 @@ test("routingBasis 없는 과거 판정은 직접 모델 스냅샷일 때만 재
       sourceArticleIds: ["aggregate-row"]
     }]
   };
-  const prior = {
-    ...snapshot,
-    source: { ...snapshot.source, candidateId: "measured-model" },
-    entries: [{
-      itemId: "old-row",
-      evidenceHash: hash("a"),
-      categories: ["tech"],
-      contentType: "news",
-      sourceId: "aggregate"
-    }]
-  };
   const registry = [{
     id: "aggregate", enabled: true, kind: "news", sourceTier: "aggregate", category: "business"
   }];
@@ -268,24 +427,117 @@ test("routingBasis 없는 과거 판정은 직접 모델 스냅샷일 때만 재
     priorSnapshotSha256: hash("4"), registrySha256: hash("5"), categoryPolicySha256: hash("6")
   };
 
-  const direct = buildRecoveredCategoryRoutingSnapshot(packet, { results: [] }, prior, registry, source);
+  const direct = buildCategoryRoutingSnapshot(packet, {
+    generatedAt: "2026-08-27T01:01:00.000Z",
+    candidate: { candidateId: "measured-model" },
+    results: [{
+      itemId: "aggregate-row",
+      status: "classified",
+      classification: classification(hash("a"), ["tech"])
+    }]
+  }, source);
   assert.deepEqual(direct.entries[0].categories, ["tech"]);
   assert.equal(direct.entries[0].routingBasis, "current_model");
 
-  const recovered = buildRecoveredCategoryRoutingSnapshot(packet, { results: [] }, {
-    ...prior,
-    source: { ...prior.source, recoveryPolicy: "legacy-recovery" }
-  }, registry, source);
-  assert.deepEqual(recovered.entries[0].categories, []);
-  assert.equal(recovered.entries[0].routingBasis, "withheld");
+  const recovered = buildRecoveredCategoryRoutingSnapshot(packet, { results: [] }, direct, registry, source);
+  assert.deepEqual(recovered.entries[0].categories, ["tech"]);
+  assert.equal(recovered.entries[0].routingBasis, "prior_exact_hash",
+    "동일 해시의 모델 판정은 세 번째 판에서도 유료 재분류 없이 유지해야 한다");
+
+  const missingBasis = {
+    ...direct,
+    entries: direct.entries.map(({ routingBasis: _routingBasis, ...entry }) => entry)
+  };
+  const rejected = buildRecoveredCategoryRoutingSnapshot(packet, { results: [] }, missingBasis, registry, source);
+  assert.deepEqual(rejected.entries[0].categories, []);
+  assert.equal(rejected.entries[0].routingBasis, "withheld",
+    "근거 필드가 없는 오래된 행을 모델 판정으로 추정하면 안 된다");
 });
 
-test("API 장애 복구를 명시한 경우에만 현재 기존 분류를 정직하게 사용한다", () => {
+test("NH101: 사전 중요도 판정은 해외 주요 세계·경제 기사만 통과시키고 판정값을 투영한다", () => {
+  const packet = {
+    sourceSnapshot: { savedAt: "2026-09-01T03:00:00.000Z" },
+    targets: [
+      { itemId: "iran", evidenceHash: hash("a"), sourceId: "nyt-world", contentKindHint: "news",
+        sourceArticleIds: ["iran"], deterministicRouting: { categories: ["news"], contentType: "news",
+          routingBasis: "deterministic_tier_policy" } },
+      { itemId: "tupac", evidenceHash: hash("b"), sourceId: "bbc-world", contentKindHint: "news",
+        sourceArticleIds: ["tupac"], deterministicRouting: { categories: ["news"], contentType: "news",
+          routingBasis: "deterministic_tier_policy" } },
+      { itemId: "fed", evidenceHash: hash("c"), sourceId: "cnbc-economy", contentKindHint: "news",
+        sourceArticleIds: ["fed"], deterministicRouting: { categories: ["business"], contentType: "news",
+          routingBasis: "deterministic_tier_policy" } },
+      { itemId: "domestic", evidenceHash: hash("d"), sourceId: "khan", contentKindHint: "news",
+        sourceArticleIds: ["domestic"], deterministicRouting: { categories: ["news"], contentType: "news",
+          routingBasis: "deterministic_tier_policy" } }
+    ]
+  };
+  const predictions = {
+    generatedAt: "2026-09-01T03:01:00.000Z",
+    results: packet.targets.map((target) => ({
+      itemId: target.itemId, status: "failed", failureCode: "NO_MODEL_CALL"
+    }))
+  };
+  const source = { packetSha256: hash("1"), predictionsSha256: hash("2") };
+  const registry = [
+    { id: "nyt-world", enabled: true, kind: "news", category: "news", country: "US",
+      editorialAuthority: "global_major", categoryRouting: "declared_section" },
+    { id: "bbc-world", enabled: true, kind: "news", category: "news", country: "GB",
+      editorialAuthority: "global_major", categoryRouting: "declared_section" },
+    { id: "cnbc-economy", enabled: true, kind: "news", category: "business", country: "US",
+      editorialAuthority: "global_major", categoryRouting: "declared_section" },
+    { id: "khan", enabled: true, kind: "news", category: "news", country: "KR" }
+  ];
+  const review = {
+    contract: "NOWHOT-EDITORIAL-IMPORTANCE-001",
+    generatedAt: "2026-09-01T03:00:30.000Z",
+    source: { packetSha256: hash("1"), promptVersion: "nh101-v1", reviewers: ["claude", "grok", "codex"] },
+    entries: [
+      { evidenceHash: hash("a"), important: true, reasonClass: "security", koreaImpact: "direct" },
+      { evidenceHash: hash("b"), important: false, reasonClass: "none", koreaImpact: "none" },
+      { evidenceHash: hash("c"), important: true, reasonClass: "market", koreaImpact: "direct" }
+    ]
+  };
+
+  const routed = buildCategoryRoutingSnapshot(packet, predictions, source, {
+    editorialImportanceReview: review,
+    registry
+  });
+  assert.deepEqual(routed.entries.map((entry) => [entry.itemId, entry.categories, entry.editorialImportance]), [
+    ["domestic", ["news"], undefined],
+    ["fed", ["business"], "pass"],
+    ["iran", ["news"], "pass"],
+    ["tupac", [], "fail"]
+  ]);
+
+  const projected = createCategoryRouter(routed, registry, {
+    now: () => Date.parse(routed.generatedAt) + 1_000
+  }).project([
+    { id: "iran", source: "nyt-world", title: "U.S. and Iran exchange strikes", category: "news" },
+    { id: "tupac", source: "bbc-world", title: "Inside the Tupac trial", category: "news" },
+    { id: "fed", source: "cnbc-economy", title: "Fed inflation decision", category: "business" },
+    { id: "domestic", source: "khan", title: "국내 주요 뉴스", category: "news" }
+  ]);
+  assert.deepEqual(projected.map((row) => [row.id, row.editorialImportance]), [
+    ["iran", "pass"], ["fed", "pass"], ["domestic", undefined]
+  ]);
+
+  assert.throws(() => buildCategoryRoutingSnapshot(packet, predictions, source, {
+    editorialImportanceReview: { ...review, entries: review.entries.slice(0, 2) }, registry
+  }), /importance.*coverage/i);
+  assert.throws(() => buildCategoryRoutingSnapshot(packet, predictions, source, {
+    editorialImportanceReview: { ...review, source: { ...review.source, packetSha256: hash("9") } }, registry
+  }), /importance.*packet/i);
+});
+
+test("API 장애 복구도 요청 시 레거시 폴백 없이 현재 패킷 deterministic만 사용한다", () => {
   const packet = {
     sourceSnapshot: { savedAt: "2026-08-27T01:00:00.000Z" },
     targets: [
       { itemId: "community-row", evidenceHash: hash("a"), sourceId: "community",
-        contentKindHint: "community", legacyCategory: "humor", sourceArticleIds: ["community-row"] },
+        contentKindHint: "community", legacyCategory: "humor", sourceArticleIds: ["community-row"],
+        deterministicRouting: { categories: ["humor"], contentType: "community",
+          routingBasis: "deterministic_tier_policy" } },
       { itemId: "aggregate-row", evidenceHash: hash("b"), sourceId: "aggregate",
         contentKindHint: "news", legacyCategory: "politics", sourceArticleIds: ["aggregate-row"] }
     ]
@@ -302,11 +554,11 @@ test("API 장애 복구를 명시한 경우에만 현재 기존 분류를 정직
   });
 
   assert.deepEqual(recovered.entries.map((entry) => [entry.categories, entry.routingBasis]), [
-    [["politics"], "legacy_classifier_fallback"],
-    [["humor"], "legacy_classifier_fallback"]
+    [[], "withheld"],
+    [["humor"], "deterministic_tier_policy"]
   ]);
   assert.equal(recovered.source.recoveryPolicy,
-    "current_model_then_exact_prior_then_specialist_then_legacy_classifier");
+    "current_model_then_exact_prior_then_current_packet_deterministic");
 });
 
 test("v2 카테고리 라우팅은 복수 분야를 보존하고 미분류·미승인·성인 글을 보류한다", () => {
@@ -326,17 +578,15 @@ test("v2 카테고리 라우팅은 복수 분야를 보존하고 미분류·미�
     { id: "adult-new", title: "성인 글", source: "adult", category: "life" }
   ]);
 
-  assert.deepEqual(rows.map((row) => [row.routingOriginalId, row.category]), [
-    ["pc", "tech"],
-    ["world", "news"]
-  ]);
+  assert.deepEqual(rows.map((row) => [row.routingOriginalId, row.category]), [["pc", "tech"]]);
   assert.deepEqual(rows[0].admittedCategories, ["tech", "gaming"]);
-  assert.equal(rows[1].categoryRoutingBasis, "declared_specialist_section");
   assert.equal(rows.some((row) => row.routingOriginalId === "off"), false,
     "명시적으로 보류된 글은 전문소스 폴백으로 되살리면 안 된다");
+  assert.equal(rows.some((row) => row.routingOriginalId === "world"), false,
+    "스냅샷에 없는 전문소스도 요청 시점에 되살리지 않는다");
 });
 
-test("스냅샷 생성 뒤 들어온 새 글은 다음 분류판 전까지 기존 실시간 카테고리를 유지한다", () => {
+test("스냅샷 생성 뒤 들어온 새 글은 다음 패킷 전까지 요청 경로에서 보류한다", () => {
   const generatedAtMs = Date.parse(snapshot.generatedAt);
   const router = createCategoryRouter(snapshot, [], { now: () => generatedAtMs + 60_000 });
   const rows = router.project([
@@ -348,11 +598,7 @@ test("스냅샷 생성 뒤 들어온 새 글은 다음 분류판 전까지 기�
       publishedAt: new Date(generatedAtMs + 1_000).toISOString() }
   ]);
 
-  assert.deepEqual(rows.map((row) => row.routingOriginalId), ["fresh-general"]);
-  assert.equal(rows[0].category, "news");
-  assert.equal("admittedCategories" in rows[0], false,
-    "실시간 폴백 카테고리를 LLM 승인 분야로 위장하면 안 된다");
-  assert.equal(rows[0].categoryRoutingBasis, "post_snapshot_declared_category");
+  assert.deepEqual(rows, []);
 });
 
 test("해외 주요 원문 소스는 권위·전문 섹션 메타데이터를 명시한다", () => {
@@ -373,22 +619,73 @@ test("해외 주요 원문 소스는 권위·전문 섹션 메타데이터를 �
   }
 });
 
-test("실제 오늘판 랭킹은 최신 해외 주요 언론을 반응 없는 뉴스라는 이유로 탈락시키지 않는다", async () => {
+test("실제 오늘판은 중요한 해외 보도만 남기고 해외 주요 언론의 가벼운 단신을 자리 채우기로 쓰지 않는다", async () => {
   const now = Date.parse("2026-08-24T12:00:00+09:00");
   const foreign = {
     id: "foreign-major",
-    title: "글로벌 시장, 중앙은행 결정 대기",
+    title: "연준이 기준금리를 동결해 글로벌 채권 시장이 흔들렸습니다.",
     url: "https://www.bbc.co.uk/news/articles/foreign-major",
     category: "business",
     source: "bbc-business",
     score: 0,
     commentCount: 0,
     coverage: 0,
+    publishedAt: new Date(now - 17 * 3600 * 1000).toISOString()
+  };
+  const foreignCorroborating = {
+    id: "foreign-major-corroborating",
+    title: "연준 기준금리 동결에 글로벌 채권시장 변동성 확대",
+    url: "https://www.theguardian.com/business/foreign-major",
+    category: "business",
+    source: "guardian-business",
+    score: 0,
+    commentCount: 0,
+    coverage: 0,
     publishedAt: new Date(now - 18 * 3600 * 1000).toISOString()
   };
-  const domestic = Array.from({ length: 6 }, (_, index) => ({
+  const foreignFiller = {
+    id: "foreign-filler",
+    title: "런던 투자자 콘퍼런스가 다음 달 돌아온다",
+    url: "https://www.marketwatch.com/story/foreign-filler",
+    category: "business",
+    source: "marketwatch-top",
+    score: 0,
+    commentCount: 0,
+    coverage: 0,
+    publishedAt: new Date(now - 60 * 60 * 1000).toISOString()
+  };
+  const foreignTechFiller = {
+    id: "foreign-tech-filler",
+    title: "런던 개발자 콘퍼런스가 다음 달 돌아온다",
+    url: "https://www.theverge.com/foreign-tech-filler",
+    category: "tech",
+    source: "the-verge",
+    score: 0,
+    commentCount: 0,
+    coverage: 0,
+    publishedAt: new Date(now - 60 * 60 * 1000).toISOString()
+  };
+  const foreignTech = {
+    id: "foreign-tech-major",
+    title: "Nvidia AI 반도체 공급 중단으로 국내 데이터센터 계획 차질",
+    url: "https://www.bbc.co.uk/news/articles/foreign-tech-major",
+    category: "tech",
+    source: "bbc-technology",
+    score: 0,
+    commentCount: 0,
+    coverage: 0,
+    publishedAt: new Date(now - 18 * 3600 * 1000).toISOString()
+  };
+  const domesticTopics = [
+    "반도체 수출액 사상 최고 기록", "시중은행 가계대출 금리 조정",
+    "완성차 내수 판매 회복", "조선업 신규 선박 수주", "백화점 소비 심리 개선",
+    "바이오 신약 투자 확대", "항공 국제선 운임 인하", "철강 원자재 가격 안정",
+    "배터리 핵심 소재 공급 계약", "건설 현장 원가 부담 완화", "게임사 분기 매출 발표",
+    "통신사 데이터 요금 개편", "식품 장바구니 물가 둔화", "화학업계 원료 확보"
+  ];
+  const domestic = domesticTopics.map((topic, index) => ({
     id: `domestic-${index}`,
-    title: `국내 기업 실적과 시장 동향 ${index}`,
+    title: topic,
     url: `https://local-${index}.example.com/article`,
     category: "business",
     source: `local-${index}`,
@@ -397,13 +694,25 @@ test("실제 오늘판 랭킹은 최신 해외 주요 언론을 반응 없는 �
     coverage: 0,
     publishedAt: new Date(now - 60 * 60 * 1000).toISOString()
   }));
-  const rows = [foreign, ...domestic];
+  const rows = [foreign, foreignCorroborating, foreignFiller, foreignTechFiller, foreignTech, ...domestic];
   const sources = [
     new JsonSource("bbc-business", async () => [foreign], "news"),
+    new JsonSource("guardian-business", async () => [foreignCorroborating], "news"),
+    new JsonSource("marketwatch-top", async () => [foreignFiller], "news"),
+    new JsonSource("the-verge", async () => [foreignTechFiller], "news"),
+    new JsonSource("bbc-technology", async () => [foreignTech], "news"),
     ...domestic.map((item) => new JsonSource(item.source, async () => [item], "news"))
   ];
   const routeRegistry = [
     { id: "bbc-business", kind: "news", category: "business", sourceTier: "specialist",
+      country: "GB", editorialAuthority: "global_major", categoryRouting: "declared_section" },
+    { id: "guardian-business", kind: "news", category: "business", sourceTier: "specialist",
+      country: "GB", editorialAuthority: "global_major", categoryRouting: "declared_section" },
+    { id: "marketwatch-top", kind: "news", category: "business", sourceTier: "specialist",
+      country: "US", editorialAuthority: "global_major", categoryRouting: "declared_section" },
+    { id: "the-verge", kind: "news", category: "tech", sourceTier: "specialist",
+      country: "US", editorialAuthority: "global_major", categoryRouting: "declared_section" },
+    { id: "bbc-technology", kind: "news", category: "tech", sourceTier: "specialist",
       country: "GB", editorialAuthority: "global_major", categoryRouting: "declared_section" },
     ...domestic.map((item) => ({ id: item.source, kind: "news", category: "business", sourceTier: "specialist" }))
   ];
@@ -412,7 +721,9 @@ test("실제 오늘판 랭킹은 최신 해외 주요 언론을 반응 없는 �
     generatedAt: new Date(now - 60 * 60 * 1000).toISOString(),
     counts: { classifiedArticles: rows.length, withheldArticles: 0 },
     entries: rows.map((row) => ({ itemId: row.id, evidenceHash: sha,
-      categories: ["business"], contentType: "news" }))
+      categories: [row.category], contentType: "news",
+      ...(row.id === "foreign-major" ? { editorialImportance: "pass" }
+        : row.id === "foreign-filler" ? { editorialImportance: "fail" } : {}) }))
   };
   const engine = new FeedEngine(new FeedStore({ clock: () => new Date(now).toISOString() }), sources);
   const router = createCategoryRouter(integrationSnapshot, routeRegistry, { now: () => now });
@@ -426,32 +737,91 @@ test("실제 오늘판 랭킹은 최신 해외 주요 언론을 반응 없는 �
 
   assert.ok(business, "경제 섹션이 있어야 한다");
   assert.ok(business.items.some((item) => item.id === "foreign-major"),
-    "반응 수치가 없어도 최신 해외 주요 언론 보도는 경제 상위 목록에 들어와야 한다");
+    "반응 수치가 없어도 한국 사용자에게 직접 영향이 큰 해외 경제 보도는 남아야 한다");
+  assert.equal(business.items.some((item) => item.id === "foreign-filler"), false,
+    "해외 주요 언론이라는 이유만으로 가벼운 행사 단신이 국내 중요 보도를 밀어내면 안 된다");
   assert.ok(briefing.issues.some((issue) => issue.refs.some((ref) => ref.id === "foreign-major")),
     "섹션 후보뿐 아니라 사용자가 읽는 최종 브리핑 카드에도 해외 주요 보도가 남아야 한다");
+  assert.equal(briefing.issues.some((issue) => issue.refs.some((ref) => ref.id === "foreign-filler")), false,
+    "최종 카드에서도 해외 비율을 위한 필러를 만들면 안 된다");
   assert.equal(briefing.issues[0].refs[0].id, "foreign-major",
     "해외 주요 언론 권위 신호가 후보에서 사라지지 않고 최종 이슈 순위까지 전달돼야 한다");
+  assert.equal(briefing.issues[0].headline, foreign.title,
+    "검수 통과한 주요 보도는 사건 출처를 다시 고정한 뒤에도 실제 기사 제목을 유지해야 한다");
   assert.equal(briefing.sections.some((section) => section.category !== "business"), false,
     "선택하지 않은 분야는 노출하면 안 된다");
+
+  const techBriefing = await engine.briefing({
+    categories: ["tech"], slotId: "lunch", personalized: true, perCategory: 1
+  });
+  assert.ok(techBriefing.issues.some((issue) => issue.refs.some((ref) => ref.id === "foreign-tech-major")),
+    "해외 중요 신호는 경제뿐 아니라 기술 분야에서도 최종 카드까지 전달돼야 한다");
+  assert.equal(techBriefing.issues[0].refs[0].id, "foreign-tech-major",
+    "기술 분야에서도 한국에 영향이 큰 해외 보도가 가벼운 해외 단신보다 앞서야 한다");
 });
 
-test("분류 스냅샷이 낡아도 마지막 v2 판을 유지하되 새 기사 폴백을 LLM 승인으로 위장하지 않는다", () => {
+test("검수된 주요 해외 다중보도의 정본 제목은 대표 기사 제목과 같다", async () => {
+  const now = Date.parse("2026-09-01T13:40:00+09:00");
+  const rows = [
+    {
+      id: "nepal-bbc",
+      title: "가족들이 애타게 기다리는 동안 네팔 구조대원들은 수력발전소 노동자들을 찾기 위해 산허리를 폭파했습니다.",
+      url: "https://www.bbc.co.uk/news/articles/nepal",
+      source: "bbc-world", category: "news", score: 0, commentCount: 0, coverage: 5,
+      publishedAt: new Date(now - 60 * 60 * 1000).toISOString()
+    },
+    {
+      id: "nepal-guardian",
+      title: "네팔 구조대원, 수력발전 터널에 갇힌 수백명 구조 위해 달려가",
+      url: "https://www.theguardian.com/world/nepal",
+      source: "guardian-world", category: "news", score: 0, commentCount: 0, coverage: 5,
+      publishedAt: new Date(now - 2 * 60 * 60 * 1000).toISOString()
+    }
+  ];
+  const routeRegistry = rows.map((row) => ({
+    id: row.source, kind: "news", category: "news", sourceTier: "general",
+    country: "GB", editorialAuthority: "global_major", categoryRouting: "declared_section"
+  }));
+  const integrationSnapshot = {
+    ...snapshot,
+    generatedAt: new Date(now - 60 * 1000).toISOString(),
+    counts: { classifiedArticles: rows.length, withheldArticles: 0 },
+    entries: rows.map((row) => ({
+      itemId: row.id, evidenceHash: sha, categories: ["news"], contentType: "news",
+      ...(row.id === "nepal-bbc" ? { editorialImportance: "pass" } : {})
+    }))
+  };
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    rows.map((row) => new JsonSource(row.source, async () => [row], "news"))
+  );
+  const router = createCategoryRouter(integrationSnapshot, routeRegistry, { now: () => now });
+  engine.editorialCategoryRouter = (items) => router.project(items);
+  engine.editorialCategoryRoutingStatus = router.status;
+
+  const briefing = await engine.briefing({
+    categories: ["news"], slotId: "lunch", personalized: true, maxIssues: 4, perCategory: 4
+  });
+  const target = briefing.issues.find((issue) => issue.refs.some((ref) => ref.id === "nepal-bbc"));
+
+  assert.ok(target);
+  assert.deepEqual(new Set(target.refs.map((ref) => ref.id)), new Set(["nepal-bbc", "nepal-guardian"]));
+  assert.equal(target.subject, rows[0].title);
+  assert.equal(target.headline, rows[0].title);
+});
+
+test("분류 스냅샷이 낡아도 마지막 v2 판만 유지하고 스냅샷 밖 기사는 보류한다", () => {
   const item = { id: "fresh", title: "국회 예산안 본회의 표결", source: "mixed", category: "news", topics: ["politics"] };
   const router = createCategoryRouter(snapshot, [], {
     now: () => Date.parse(snapshot.generatedAt) + CATEGORY_ROUTING_MAX_AGE_MS + 1
   });
 
-  assert.deepEqual(router.project([item]), [{
-    ...item,
-    routingOriginalId: "fresh",
-    registryCategory: "news",
-    categoryRoutingBasis: "snapshot_stale_declared_category"
-  }]);
+  assert.deepEqual(router.project([item]), []);
   assert.equal(router.status.mode, "v2");
   assert.equal(router.status.state, "snapshot_stale_last_good_v2");
 });
 
-test("판 기준 시각보다 미래에 생성된 분류 스냅샷은 기존 카테고리로 폴백한다", () => {
+test("판 기준 시각보다 미래에 생성된 분류 스냅샷도 스냅샷 밖 기사를 되살리지 않는다", () => {
   const referenceNow = Date.parse(snapshot.generatedAt) - 60_000;
   const item = {
     id: "future-snapshot-item",
@@ -462,12 +832,7 @@ test("판 기준 시각보다 미래에 생성된 분류 스냅샷은 기존 카
   };
   const router = createCategoryRouter(snapshot, [], { now: () => referenceNow });
 
-  assert.deepEqual(router.project([item], referenceNow), [{
-    ...item,
-    routingOriginalId: item.id,
-    registryCategory: "tech",
-    categoryRoutingBasis: "snapshot_stale_declared_category"
-  }]);
+  assert.deepEqual(router.project([item], referenceNow), []);
   assert.equal(router.status.state, "snapshot_stale_last_good_v2");
 });
 
@@ -909,6 +1274,38 @@ test("편집 단계가 한 이슈로 확정한 여러 보도 묶음은 출처 �
   assert.equal(canonical.confidence.code, "multiple_feed_observed");
 });
 
+test("집계 피드가 붙어도 독자에게 남은 직접 보도가 한 곳이면 단일 출처로 표기한다", async () => {
+  const now = Date.parse("2026-09-02T19:00:00+09:00");
+  const title = "OpenAI는 Hugging Face 해킹 이후 새 모델 개발을 연기했습니다.";
+  const direct = {
+    id: "direct", source: "the-verge", sourceLabel: "더 버지", title,
+    url: "https://www.theverge.com/example", canonicalUrl: "https://www.theverge.com/example",
+    kind: "news", category: "tech", admittedCategories: ["tech"],
+    publishedAt: new Date(now).toISOString()
+  };
+  const aggregate = {
+    id: "aggregate", source: "techmeme", sourceLabel: "Techmeme",
+    title: "METR 연구원 Ajeya Cotra와의 OpenAI-Hugging Face 사건 조사와 Q&A",
+    url: "https://www.techmeme.com/example", canonicalUrl: "https://www.techmeme.com/example",
+    kind: "community", category: "tech", admittedCategories: ["tech"],
+    publishedAt: new Date(now - 60_000).toISOString()
+  };
+  const engine = new FeedEngine(
+    new FeedStore({ clock: () => new Date(now).toISOString() }),
+    [direct, aggregate].map((row) => new JsonSource(row.source, async () => [row], row.kind))
+  );
+
+  const [canonical] = await engine.canonicalEventSources([{
+    refs: [direct, aggregate],
+    selectedByCategories: ["tech"]
+  }], { asOfMs: now });
+
+  assert.equal(canonical.evidence.mode, "single_feed_observed");
+  assert.notEqual(canonical.confidence.code, "multiple_feed_observed");
+  assert.doesNotMatch(canonical.whyHot, /서로 다른 운영그룹/);
+  assert.doesNotMatch(canonical.watchNext, /서로 다른 운영그룹/);
+});
+
 test("사건 멤버가 고정된 이슈는 다른 참조 사건의 출처를 섞지 않는다", async () => {
   const now = Date.parse("2026-08-28T19:00:00+09:00");
   const insider = {
@@ -942,7 +1339,7 @@ test("사건 멤버가 고정된 이슈는 다른 참조 사건의 출처를 섞
   assert.deepEqual(canonical.eventSources.map((row) => row.sourceId), ["techmeme"]);
 });
 
-test("레거시 복구 판정만 명시적 URL 섹션으로 바로잡고 모델 판정은 건드리지 않는다", () => {
+test("요청 라우터는 레거시 행도 URL로 다시 분류하지 않고 스냅샷 값만 투영한다", () => {
   const routing = {
     ...snapshot,
     generatedAt: "2026-08-28T10:00:00.000Z",
@@ -961,8 +1358,80 @@ test("레거시 복구 판정만 명시적 URL 섹션으로 바로잡고 모델 
   ]);
 
   assert.deepEqual(rows.map((row) => [row.id, row.category, row.categoryRoutingBasis]), [
-    ["movie", "culture", "legacy_url_section_recovery"],
-    ["world", "news", "legacy_url_section_recovery"],
+    ["movie", "business", "legacy_classifier_fallback"],
+    ["world", "business", "legacy_classifier_fallback"],
     ["model", "business", "current_model"]
   ]);
+});
+
+test("요청 라우터는 Google 뉴스 발행사 라벨로 스냅샷 분야를 덮지 않는다", () => {
+  const routing = {
+    ...snapshot,
+    generatedAt: "2026-08-28T10:00:00.000Z",
+    entries: ["inven", "duplicate", "url", "generalist", "direct"].map((itemId, index) => ({
+      itemId,
+      evidenceHash: hash(["a", "b", "c", "d", "e"][index]),
+      categories: [itemId === "generalist" ? "culture" : itemId === "direct" ? "humor" : "tech"],
+      contentType: "news",
+      routingBasis: "legacy_classifier_fallback"
+    }))
+  };
+  const registry = [
+    { id: "inven", label: "인벤", category: "gaming", kind: "community", enabled: false },
+    { id: "dup-game", label: "중복매체", category: "gaming", kind: "news" },
+    { id: "dup-tech", label: "중복매체", category: "tech", kind: "news" },
+    { id: "mk-news", label: "매일경제", category: "business", kind: "news" },
+    { id: "clien", label: "클리앙", category: "tech", kind: "community" }
+  ];
+  const rows = createCategoryRouter(routing, registry, {
+    now: () => Date.parse("2026-08-28T10:01:00.000Z")
+  }).project([
+    { id: "inven", source: "gnews-tech", sourceLabel: "인벤", title: "AVA 신규 헌팅 필드 공개",
+      url: "https://news.google.com/articles/a", category: "tech" },
+    { id: "duplicate", source: "gnews-tech", sourceLabel: "중복매체", title: "중복 매체 기사",
+      url: "https://news.google.com/articles/b", category: "tech" },
+    { id: "url", source: "gnews-tech", sourceLabel: "인벤", title: "기술 섹션 기사",
+      url: "https://publisher.example.com/technology/article/c", category: "tech" },
+    { id: "generalist", source: "gnews-ent", sourceLabel: "매일경제", title: "연예 기사",
+      url: "https://news.google.com/articles/d", category: "culture" },
+    { id: "direct", source: "clien", sourceLabel: "클리앙", title: "정치 토론",
+      url: "https://www.clien.net/service/board/park/1", category: "humor" }
+  ]);
+
+  assert.deepEqual(rows.map((row) => [row.id, row.category, row.categoryRoutingBasis]), [
+    ["inven", "tech", "legacy_classifier_fallback"],
+    ["duplicate", "tech", "legacy_classifier_fallback"],
+    ["url", "tech", "legacy_classifier_fallback"],
+    ["generalist", "culture", "legacy_classifier_fallback"],
+    ["direct", "humor", "legacy_classifier_fallback"]
+  ]);
+});
+
+test("Google 뉴스 발행사 정체성 보정도 요청 시점이 아니라 패킷 전에 끝나야 한다", () => {
+  const routing = {
+    ...snapshot,
+    generatedAt: "2026-08-28T10:00:00.000Z",
+    entries: [{
+      itemId: "r2",
+      evidenceHash: hash("f"),
+      categories: ["tech"],
+      contentType: "news",
+      routingBasis: "legacy_classifier_fallback"
+    }]
+  };
+  const [row] = createCategoryRouter(routing, loadRegistry(), {
+    now: () => Date.parse("2026-08-28T10:01:00.000Z")
+  }).project([{
+    id: "r2",
+    source: "gnews-tech",
+    sourceLabel: "아이러브PC방",
+    title: "R2, 오리지널 리부트 서버 초기화 및 이벤트 예고",
+    url: "https://news.google.com/rss/articles/opaque",
+    category: "tech"
+  }]);
+
+  assert.deepEqual(
+    [row.category, row.categoryRoutingBasis],
+    ["tech", "legacy_classifier_fallback"]
+  );
 });

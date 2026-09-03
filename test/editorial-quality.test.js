@@ -203,6 +203,115 @@ test("편집 분야: 출처 라벨이나 비유 한 단어가 실제 사건 분�
   assert.equal(categoryGuardReason("auto", "테슬라 교통사고 안전성 분석"), null);
 });
 
+test("편집 분야: 복구 경로의 출처 분류보다 실제 제목 문맥을 우선한다", () => {
+  assert.equal(
+    categoryGuardReason("tech", "저축은행, 상반기 순이익 7658억원…전년比 198% 개선"),
+    "finance-earnings-without-tech-subject"
+  );
+  assert.equal(
+    categoryGuardReason("tech", "저축은행 모바일뱅킹 해킹 후 순이익 공시"),
+    null,
+    "금융업 기사라도 기술 주제가 분명하면 기술판에 남겨야 한다"
+  );
+  assert.equal(
+    categoryGuardReason("tech", "韓총리, 규제 타파 확실히 챙기겠다…모두의 성장 강조"),
+    "government-slogan-without-tech-subject"
+  );
+  assert.equal(
+    categoryGuardReason("tech", "인터넷은행, 중·저신용대출 확대…3사 2분기 목표 달성"),
+    "finance-earnings-without-tech-subject"
+  );
+  for (const title of [
+    "총리, 5G 주파수 추가 할당",
+    "총리, 로봇산업 규제 합리화",
+    "정부, AI 규제 합리화",
+    "정부, 자율주행 규제 완화",
+    "인터넷은행 AI 신용평가 도입",
+    "인터넷은행, 코어뱅킹 시스템 전면 재구축",
+    "카드사, 애플페이 도입 확대",
+    "카카오뱅크, 금감원 제재에 비대면 서비스 중단"
+  ]) assert.equal(categoryGuardReason("tech", title), null, `정상 기술 기사 오탐: ${title}`);
+  assert.equal(
+    categoryGuardReason("tech", "Grand Theft Auto VI를 완료하는 데 80시간 이상이 걸릴 수 있습니다"),
+    "gaming-without-tech-subject"
+  );
+  assert.equal(
+    categoryGuardReason("tech", "GTA 6 데모가 PC에 악성 코드를 설치해 보안 연구진이 분석"),
+    null,
+    "게임을 소재로 한 실제 보안 기사는 기술판에 남겨야 한다"
+  );
+  assert.equal(categoryGuardReason("tech", "Cloudflare R2 장애로 앱 접속 불가"), null);
+
+  assert.equal(
+    categoryGuardReason("fashion", "Lee 병헌과 오징어 게임 제작자 황동혁이 Sci-Fi 스릴러로 재회"),
+    "culture-work-without-fashion-subject"
+  );
+  assert.equal(categoryGuardReason("fashion", "샤넬 컬렉션 다큐멘터리 개봉"), null);
+  assert.equal(categoryGuardReason("fashion", "영화 의상 디자이너가 공개한 룩북"), null);
+
+  assert.equal(
+    categoryGuardReason("realestate", "지금 당장 서비스에 쓸만한 API ① 지도·교통·날씨·주식·부동산 편"),
+    "multi-domain-api-listicle"
+  );
+  assert.equal(categoryGuardReason("realestate", "국토부, 부동산 실거래 API 표준 의무화"), null);
+  assert.equal(categoryGuardReason("realestate", "청약 알림 API 출시"), null);
+
+  assert.equal(
+    categoryGuardReason("science", "NASA Ames에서 공무원 선서"),
+    "civic-ceremony-without-science-subject"
+  );
+  assert.equal(
+    categoryGuardReason("science", "신임 국장 공무원 선서식에서 우주망원경 관측 계획 발표"),
+    null
+  );
+  assert.equal(categoryGuardReason("science", "동부전선서 북한군 MDL 월선"), null);
+  assert.equal(
+    categoryGuardReason("science", "507 기계식 무브먼트"),
+    null,
+    "공학 콘텐츠일 수 있는 논쟁적 제목은 한 사례만으로 차단하지 않는다"
+  );
+
+  assert.equal(
+    categoryGuardReason("life", "임단협 난항 HD현대중 노조, 2일부터 단계별 파업"),
+    "industrial-labor-without-life-subject"
+  );
+  assert.equal(categoryGuardReason("life", "병원 노조 파업으로 응급실 수술 지연"), null);
+  assert.equal(categoryGuardReason("life", "파업 중인 남편 도시락 준비기"), null);
+});
+
+test("편집 분야: 대표 분야뿐 아니라 승인된 복수 분야를 모두 검증한다", () => {
+  const misplaced = assessEditorialDraft({
+    headline: "Magnitude 7.4 quake rocks western Colombia, killing at least 111 people",
+    paragraph: "현지 당국이 강진 피해와 구조 현황을 발표한 사건 보도입니다.",
+    subject: "Magnitude 7.4 quake rocks western Colombia, killing at least 111 people",
+    evidence: { mode: "single_feed_observed" },
+    sourceLabels: ["Slashdot"],
+    categoryItems: [{
+      kind: "news",
+      category: "news",
+      admittedCategories: ["news", "science"],
+      title: "Magnitude 7.4 quake rocks western Colombia, killing at least 111 people"
+    }]
+  });
+  assert.equal(misplaced.pass, false);
+  assert.ok(misplaced.failures.includes("category:science:incident-without-science-subject"));
+
+  const genuineMultiCategory = assessEditorialDraft({
+    headline: "게임용 PC 견적과 그래픽카드 성능 비교",
+    paragraph: "게임 성능과 부품 구성을 함께 비교한 기술 기사입니다.",
+    subject: "게임용 PC 견적과 그래픽카드 성능 비교",
+    evidence: { mode: "single_feed_observed" },
+    sourceLabels: ["테크리뷰"],
+    categoryItems: [{
+      kind: "news",
+      category: "tech",
+      admittedCategories: ["tech", "gaming"],
+      title: "게임용 PC 견적과 그래픽카드 성능 비교"
+    }]
+  });
+  assert.equal(genuineMultiCategory.pass, true);
+});
+
 test("자체 브리핑: 폭력을 직접 권하는 커뮤니티 제목은 후보에서 제외한다", () => {
   const result = assessEditorialDraft({
     headline: "개독을 때려죽여야하는 이유",
