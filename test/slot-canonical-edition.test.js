@@ -757,20 +757,47 @@ test("활성화 실패는 이전 포인터를 보존하고 성공판은 날짜·
   assert.equal(projected.editionDate, "2026-08-27");
   assert.equal(projected.slot.id, "lunch");
 
-  assert.throws(() => reader.read({
-    date: "2026-08-27", slotId: "evening", categories: ["news"]
-  }), (error) => error?.code === "SLOT_CANONICAL_EDITION_UNAVAILABLE");
-
-  assert.throws(() => reader.read({
-    date: "2026-08-28", slotId: "morning", categories: ["news"]
-  }), (error) => error?.code === "SLOT_CANONICAL_EDITION_UNAVAILABLE"
-    && /모닝판은 아직 준비되지 않았습니다/.test(error.message));
+  for (const [date, slotId] of [["2026-08-27", "evening"], ["2026-08-28", "morning"]]) {
+    const fallback = reader.read({ date, slotId, categories: ["news"] });
+    assert.equal(fallback.serving.fallback, true);
+    assert.equal(fallback.serving.requestedDate, date);
+    assert.equal(fallback.serving.requestedSlotId, slotId);
+    assert.equal(fallback.serving.servedDate, "2026-08-27");
+    assert.equal(fallback.serving.servedSlotId, "lunch");
+    assert.deepEqual(fallback.issues, projected.issues);
+    assert.equal(fallback.llmCalls, 0);
+  }
+  assert.deepEqual(fs.readFileSync(pointerFile), before);
 
   const emptyPointer = path.join(root, "empty.json");
   fs.writeFileSync(emptyPointer, JSON.stringify({ editions: {} }));
   assert.throws(() => makeSlotCanonicalEditionReader({ pointerFile: emptyPointer }).read({
     date: "2026-08-27", slotId: "evening", categories: ["news"]
   }), /이브닝판은 아직 준비되지 않았습니다/);
+});
+
+test("누락판 복구는 24시간 안의 가장 최근 정상판만 쓰고 미래·위조 포인터를 제외한다", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-fallback-"));
+  const pointerFile = path.join(root, "active.json");
+  for (const [slotId, slotLabel] of [["morning", "모닝"], ["lunch", "런치"]]) {
+    activateSlotCanonicalEdition({ artifact: build({ slotId, slotLabel }), directory: root, pointerFile });
+  }
+  const pointer = JSON.parse(fs.readFileSync(pointerFile));
+  const lunch = pointer.editions["2026-08-27:lunch"];
+  pointer.editions["2026-08-28:lunch"] = lunch;
+  pointer.editions["2026-08-27:evening"] = { ...lunch, file: "../outside.json" };
+  fs.writeFileSync(pointerFile, JSON.stringify(pointer));
+  const reader = makeSlotCanonicalEditionReader({ pointerFile });
+  const query = { date: "2026-08-28", slotId: "morning", categories: ["news", "tech"] };
+  assert.equal(reader.read(query).serving.servedSlotId, "lunch");
+  pointer.editions["2026-08-27:evening"] = lunch;
+  fs.writeFileSync(pointerFile, JSON.stringify(pointer));
+  assert.equal(reader.read(query).serving.servedSlotId, "lunch");
+  pointer.editions["2026-08-27:lunch"] = { ...lunch, contentSha256: "0".repeat(64) };
+  fs.writeFileSync(pointerFile, JSON.stringify(pointer));
+  assert.equal(reader.read(query).serving.servedSlotId, "morning");
+  assert.throws(() => reader.read({ ...query, date: "2026-08-29" }),
+    (error) => error.code === "SLOT_CANONICAL_EDITION_UNAVAILABLE");
 });
 
 test("같은 날짜의 모닝·런치·이브닝은 한 포인터에 독립적으로 누적된다", () => {
@@ -852,12 +879,13 @@ test("고정판 GET은 수집·요약·저장 없이 포인터 판을 필터링�
   activateSlotCanonicalEdition({ artifact: build(), directory: root, pointerFile });
   let sourceCalls = 0;
   let summaryCalls = 0;
+  let nowMs = Date.parse("2026-08-27T12:10:00+09:00");
   const server = createServer({
     localEditorial: true,
     localEditorialInventorySchedule: false,
     slotCanonicalEditionEnabled: true,
     slotCanonicalPointerFile: pointerFile,
-    clock: () => Date.parse("2026-08-27T12:10:00+09:00"),
+    clock: () => nowMs,
     file: null,
     sources: [{ id: "must-not-run", kind: "news", fetch: async () => { sourceCalls += 1; return []; } }],
     articleSummaryPipeline: async (edition) => { summaryCalls += 1; return edition; },
@@ -868,6 +896,14 @@ test("고정판 GET은 수집·요약·저장 없이 포인터 판을 필터링�
   assert.equal(response.status, 200);
   assert.equal(response.body.issues.length, 25);
   assert.equal(response.body.slotCanonicalEdition.requestWork, "filter_only");
+  nowMs = Date.parse("2026-08-28T07:01:00+09:00");
+  const missing = await dispatch(server, "/api/today?categories=tech,gaming");
+  assert.equal(missing.status, 200);
+  assert.equal(missing.body.serving.fallback, true);
+  assert.equal(missing.body.serving.requestedSlotId, "morning");
+  assert.equal(missing.body.serving.servedSlotId, "lunch");
+  assert.deepEqual(missing.body.issues, response.body.issues);
+  assert.equal((await dispatch(server, "/api/today?date=2026-08-28&slot=evening&categories=tech")).status, 409);
   assert.equal(sourceCalls, 0);
   assert.equal(summaryCalls, 0);
 });

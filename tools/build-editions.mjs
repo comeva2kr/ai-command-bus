@@ -265,6 +265,7 @@ export async function buildTodayEditionInProcess({
     const server = createServer({
       sources: preparedSources,
       localEditorial: true,
+      slotCanonicalEditionEnabled: false,    // 생성기는 운영 포인터·예약기를 상속하지 않는다.
       localEditorialLlmEnabled: false,        // LLM 호출 0 계약
       localEditorialInventorySchedule: false, // 배경 재고 점검 없음(1회성 도구)
       file: storeFile,

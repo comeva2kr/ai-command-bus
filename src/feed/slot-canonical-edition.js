@@ -5,6 +5,8 @@ import path from "node:path";
 import { buildReaderLineage, readerIssueCopy } from "./editorial-reader-copy.js";
 import { cleanArticleTextChrome, isJunkImage, looksLikePageChrome } from "./enrich.js";
 import { CATEGORIES } from "./taxonomy.js";
+import { slotAsOfMs } from "./editorial-inventory.js";
+import { EDITORIAL_SERVING_CONTRACT } from "./editorial-serving.js";
 
 export const SLOT_CANONICAL_EDITION_CONTRACT = Object.freeze({
   stableId: "NOWHOT-SLOT-CANONICAL-EDITION-001",
@@ -395,6 +397,19 @@ export function activateSlotCanonicalEdition({ artifact, directory, pointerFile 
 
 export function makeSlotCanonicalEditionReader({ pointerFile }) {
   const cache = new Map();
+  function load(entry, key) {
+    const base = path.resolve(path.dirname(pointerFile));
+    const artifactFile = path.resolve(base, entry.file);
+    if (artifactFile !== base && !artifactFile.startsWith(`${base}${path.sep}`)) fail("pointer file escapes directory");
+    let artifact = cache.get(artifactFile);
+    if (!artifact) {
+      artifact = assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(artifactFile, "utf8")));
+      cache.set(artifactFile, artifact);
+    }
+    if (artifact.artifactId !== entry.artifactId || artifact.contentSha256 !== entry.contentSha256
+      || pointerKey(artifact.editionDate, artifact.slot.id) !== key) fail("pointer identity mismatch");
+    return artifact;
+  }
   return {
     read({ date, slotId, categories, selectionMode, explicit }) {
       let pointer;
@@ -402,29 +417,34 @@ export function makeSlotCanonicalEditionReader({ pointerFile }) {
       catch { fail(`active pointer unavailable: ${pointerFile}`); }
       const exactKey = pointerKey(date, slotId);
       const entry = pointer?.editions?.[exactKey];
-      if (!entry?.file) {
+      let artifact = entry?.file ? load(entry, exactKey) : null;
+      if (!artifact) {
+        const requestedAt = slotAsOfMs(date, slotId);
+        const candidates = Object.entries(pointer?.editions || {}).map(([key, row]) => {
+          const [candidateDate, candidateSlot] = key.split(":");
+          const at = /^\d{4}-\d{2}-\d{2}$/.test(candidateDate) && slotOrder.has(candidateSlot)
+            ? slotAsOfMs(candidateDate, candidateSlot) : NaN;
+          return { key, row, at };
+        }).filter(({ row, at }) => row?.file && at < requestedAt
+          && requestedAt - at <= EDITORIAL_SERVING_CONTRACT.maxFallbackAgeMs)
+          .sort((a, b) => b.at - a.at);
+        for (const candidate of candidates) {
+          try { artifact = load(candidate.row, candidate.key); break; }
+          catch { /* An invalid older candidate must not hide another verified edition. */ }
+        }
+      }
+      if (!artifact) {
         const slotLabel = { morning: "모닝", lunch: "런치", evening: "이브닝" }[slotId] || slotId;
         const error = new Error(`${date} ${slotLabel}판은 아직 준비되지 않았습니다. 다른 시간대를 선택해 주세요.`);
         error.code = "SLOT_CANONICAL_EDITION_UNAVAILABLE";
         throw error;
-      }
-      const base = path.resolve(path.dirname(pointerFile));
-      const artifactFile = path.resolve(base, entry.file);
-      if (artifactFile !== base && !artifactFile.startsWith(`${base}${path.sep}`)) fail("pointer file escapes directory");
-      let artifact = cache.get(artifactFile);
-      if (!artifact) {
-        artifact = assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(artifactFile, "utf8")));
-        if (artifact.artifactId !== entry.artifactId || artifact.contentSha256 !== entry.contentSha256) {
-          fail("pointer identity mismatch");
-        }
-        cache.set(artifactFile, artifact);
       }
       return projectSlotCanonicalEdition(artifact, {
         categories,
         selectionMode,
         explicit,
         validated: true,
-        fallback: false,
+        fallback: pointerKey(artifact.editionDate, artifact.slot.id) !== exactKey,
         requestedDate: date,
         requestedSlotId: slotId
       });

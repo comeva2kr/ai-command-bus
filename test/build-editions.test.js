@@ -253,6 +253,27 @@ test("v1 생성 경로: 기존 편성 파이프라인을 리슨 없이 통과해
   assert.equal(run.edition.slot.id, "lunch");
 });
 
+test("판 생성기는 운영 고정판 환경에서도 기존 포인터 대신 주입 기사로 생성한다", async () => {
+  const previous = process.env.NOWHOT_SLOT_CANONICAL_EDITION;
+  process.env.NOWHOT_SLOT_CANONICAL_EDITION = "1";
+  try {
+    const dir = tmpDir();
+    const run = await buildTodayEditionInProcess({
+      sources: groupArticlesAsSources(await normalizedV1Articles()),
+      nowMs: NOW_MS,
+      storeFile: path.join(dir, "store.json"),
+      poolFile: path.join(dir, "pool.json"),
+      query: "/api/today?categories=business&slot=lunch"
+    });
+    assert.equal(run.status, 200, JSON.stringify(run.body));
+    assert.ok(run.edition.issues.length > 0);
+    assert.equal(run.edition.slotCanonicalEdition, undefined);
+  } finally {
+    if (previous === undefined) delete process.env.NOWHOT_SLOT_CANONICAL_EDITION;
+    else process.env.NOWHOT_SLOT_CANONICAL_EDITION = previous;
+  }
+});
+
 test("v2 생성 경로: shadow 선별 → 같은 편집 문장 계층 → 오늘판 스키마 200", async () => {
   const dir = tmpDir();
   const articles = await normalizedV2Articles();
