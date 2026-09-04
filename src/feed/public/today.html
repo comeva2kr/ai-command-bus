@@ -230,12 +230,12 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 <script src="/navigation-history.js"></script>
 <script src="/notice-guide.js"></script>
 <script>
-const state={userId:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
+const state={userId:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
 const $=(id)=>document.getElementById(id);
 const esc=(value)=>String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const todayHistory=NowHotHistory.create("today");
 function todaySnapshot(){
-  return {userId:state.userId,edition:state.edition,y:$("issueDetail").classList.contains("open")?state.listScrollY:window.scrollY};
+  return {userId:state.userId,edition:state.edition,pinnedEdition:state.pinnedEdition,y:$("issueDetail").classList.contains("open")?state.listScrollY:window.scrollY};
 }
 function saveTodayNavigation(){
   if(state.edition)todayHistory.save(todaySnapshot(),$("issueDetail").querySelector(".detail-panel").scrollTop);
@@ -721,6 +721,7 @@ function render(edition){
 }
 
 function renderError(error){
+  state.edition=null;
   if(error.code==="EDITORIAL_EDITION_NOT_SERVEABLE"){
     const serving=error.body?.serving||{};
     const availableCategories=Array.isArray(serving.availableCategories)?serving.availableCategories:[];
@@ -752,6 +753,14 @@ function renderError(error){
     $("issues").innerHTML=`<div class="empty"><h2>아직 보여드릴 검증판이 없습니다</h2><p>현재판과 최근 24시간의 이전판이 모두 제공 기준을 통과하지 못했습니다.</p><button class="retry" type="button" title="다시 확인" aria-label="다시 확인">↻</button></div>`;
     $("issues").querySelector("button").onclick=()=>loadEdition(true,state.editionDate);
     return;
+  }
+  $("dateLine").textContent=`${state.editionDate||kstDate(new Date())} · 요청한 판 불러오기 실패`;
+  $("editionTitle").textContent="오늘판을 불러오지 못했습니다";
+  $("editionLead").textContent="다시 시도하거나 다른 날짜·시간대를 선택해 주세요.";
+  $("metrics").innerHTML="<dt>제공 상태</dt><dd>불러오기 실패</dd>";
+  for(const button of $("slots").querySelectorAll("button")){
+    const active=button.dataset.slot===state.slot;
+    button.classList.toggle("active",active);button.setAttribute("aria-selected",String(active));
   }
   $("issues").innerHTML=`<div class="error"><h2>오늘판을 불러오지 못했습니다</h2><p>${esc(error.message)}</p><button class="retry" type="button" title="다시 시도" aria-label="다시 시도">↻</button></div>`;
   $("issues").querySelector("button").onclick=()=>loadEdition(true,state.editionDate);
@@ -809,9 +818,9 @@ function toggleCategory(category){
   });
 }
 
-for(const button of $("slots").querySelectorAll("button"))button.onclick=()=>{state.slot=button.dataset.slot;loadEdition(false,state.editionDate)};
-$("editionDate").onchange=(event)=>{state.editionDate=event.currentTarget.value;loadEdition(false,event.currentTarget.value)};
-$("refresh").onclick=()=>loadEdition(true,state.editionDate);
+for(const button of $("slots").querySelectorAll("button"))button.onclick=()=>{state.pinnedEdition=true;state.slot=button.dataset.slot;loadEdition(false,state.editionDate)};
+$("editionDate").onchange=(event)=>{state.pinnedEdition=true;state.editionDate=event.currentTarget.value;loadEdition(false,event.currentTarget.value)};
+$("refresh").onclick=()=>{if(!state.pinnedEdition){state.slot=null;state.editionDate=null}loadEdition(true,state.editionDate)};
 
 function setupViewSwitch(){
   const nav=document.querySelector("[data-view-switch]");
@@ -856,6 +865,7 @@ if("serviceWorker" in navigator){
     const initialDate=initialQuery.get("date");
     if(["morning","lunch","evening"].includes(initialSlot))state.slot=initialSlot;
     if(/^\d{4}-\d{2}-\d{2}$/.test(initialDate||""))state.editionDate=initialDate;
+    state.pinnedEdition=Boolean(state.slot||state.editionDate);
     const saved=localStorage.getItem("feed_uid");
     const isNewVisitor=!saved;
     const [session,config]=await Promise.all([
@@ -865,7 +875,12 @@ if("serviceWorker" in navigator){
     state.userId=session.userId;localStorage.setItem("feed_uid",session.userId);
     if(Array.isArray(session.briefingCategories)&&session.briefingCategories.length){state.categories=session.briefingCategories;state.confirmedCategories=[...session.briefingCategories]}
     const snapshot=todayHistory.snapshot();
-    if(snapshot?.userId===state.userId && snapshot.edition){
+    const returning=performance.getEntriesByType("navigation")[0]?.type==="back_forward";
+    if(snapshot?.userId===state.userId && snapshot.edition
+      && (!initialDate||initialDate===(snapshot.edition.serving?.requestedDate||snapshot.edition.editionDate))
+      && (!initialSlot||initialSlot===(snapshot.edition.serving?.requestedSlotId||snapshot.edition.slot.id))
+      && (state.pinnedEdition||snapshot.pinnedEdition||issueDetailFromHash()||returning)){
+      state.pinnedEdition=state.pinnedEdition||Boolean(snapshot.pinnedEdition);
       render(snapshot.edition);state.listScrollY=snapshot.y||0;window.scrollTo(0,state.listScrollY);
       restoreTodayDetail();
     }else await loadEdition(false,state.editionDate);

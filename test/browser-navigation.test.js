@@ -56,7 +56,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   context.setDefaultTimeout(4000);
   t.after(() => context.close());
   const requests = [];
-  const controls = { itemStatus: 200, itemCode: "", delayItem: 0 };
+  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [] };
   await context.addInitScript(({ realWorker, guideState, releaseId }) => {
     if (!localStorage.getItem("__fixture_seeded")) {
       localStorage.clear();
@@ -92,7 +92,11 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
       if (url.pathname === "/api/communities") body = { communities: [{ id: "test", label: "Test", enabled: true, adult: false, liveCount: 18 }] };
       if (url.pathname === "/api/feed") body = { items, nextCursor: 18, exhausted: true };
       if (url.pathname === "/api/digest") body = { count: 1, top: [items[0]] };
-      if (url.pathname === "/api/today") body = edition;
+      if (url.pathname === "/api/today") {
+        controls.todayQueries.push(url.search);
+        return route.fulfill({ status: controls.todayStatus, json: controls.todayStatus === 200
+          ? controls.todayEdition : { error: "요청한 판이 없습니다", code: "SLOT_CANONICAL_EDITION_UNAVAILABLE" } });
+      }
       if (url.pathname === "/api/item") {
         if (controls.delayItem) await new Promise((resolve) => setTimeout(resolve, controls.delayItem));
         body = controls.itemStatus === 200 ? items.find((item) => item.id === url.searchParams.get("itemId"))
@@ -170,6 +174,38 @@ test("browser: Live list source shortcut returns to the same filter/sort/scroll"
   assert.equal(await page.locator("#sortBar .active").getAttribute("data-sort"), "latest");
   assert.equal(await page.locator("#chips .active").innerText(), "경제");
   assert.equal(await page.locator("#detail.open").count(), 0);
+});
+
+test("browser: Today list reload and refresh fetch the current due edition instead of pinning lunch", options, async (t) => {
+  const { page, controls } = await fixture(t, "/");
+  await page.waitForSelector("#issues article");
+  controls.todayEdition = { ...edition, editionId: "SCE-new-morning", editionDate: "2026-09-04", slot: { id: "morning", label: "모닝" } };
+  await page.reload();
+  await page.waitForFunction(() => document.getElementById("editionTitle").textContent === "모닝 오늘판");
+  assert.equal(controls.todayQueries.length, 2);
+  assert.ok(!new URLSearchParams(controls.todayQueries.at(-1)).has("slot"));
+  await page.click("#refresh");
+  await page.waitForFunction(() => document.getElementById("refresh").getAttribute("aria-busy") === "false");
+  assert.ok(!new URLSearchParams(controls.todayQueries.at(-1)).has("date"));
+  assert.ok(!new URLSearchParams(controls.todayQueries.at(-1)).has("slot"));
+});
+
+test("browser: Today errors clear stale edition chrome and explicit selection survives reload", options, async (t) => {
+  const { page, controls } = await fixture(t, "/");
+  await page.waitForSelector("#issues article");
+  controls.todayStatus = 409;
+  await page.click('#slots [data-slot="morning"]');
+  await page.waitForSelector("#issues .error");
+  assert.equal(await page.locator("#editionTitle").innerText(), "오늘판을 불러오지 못했습니다");
+  assert.equal(await page.locator('#slots [data-slot="morning"]').getAttribute("aria-selected"), "true");
+  assert.ok(!(await page.locator("#metrics").innerText()).includes("현재판 검증"));
+  controls.todayStatus = 200;
+  await page.click("#issues .retry");
+  await page.waitForSelector("#issues article");
+  const calls = controls.todayQueries.length;
+  await page.reload();
+  await page.waitForSelector("#issues article");
+  assert.equal(controls.todayQueries.length, calls);
 });
 
 test("browser: Today keeps exact edition and issue through original/Back/Forward/reload without refetch", options, async (t) => {
