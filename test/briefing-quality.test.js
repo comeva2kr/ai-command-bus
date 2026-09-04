@@ -6,6 +6,7 @@ import { eventKey, normalizeForDedupe, isSameEvent, MIN_KEY_LEN,
   sharedTitleConceptCount, sharedTitleWordCount } from "../src/feed/dedupe.js";
 import { hasProfanity, maskProfanity } from "../src/feed/profanity.js";
 import { loadRegistry } from "../src/feed/registry.js";
+import { SeedSource } from "../src/feed/content.js";
 
 // refs가 이제 사건(병합 포함) 구성원 전체를 투영한다(David #6, 2026-08-17) —
 // 근접 중복 변주는 더 이상 "그중 하나만 refs에 남는다"가 아니라 "한 이슈의
@@ -414,13 +415,33 @@ test("루트는 자체 편집 홈이고 기존 개인화 앱은 /live noindex로
 
 test("AdFit 심사 모드는 자체 편집 홈에 한 단위만 두고 다른 광고와 /live를 비운다", async () => {
   const { createServer } = await import("../src/feed/server.js");
-  const prev = { a: process.env.ADSENSE_CLIENT, f: process.env.ADFIT_UNIT_MOBILE, e: process.env.ADFIT_ENABLED };
+  const prev = {
+    a: process.env.ADSENSE_CLIENT,
+    f: process.env.ADFIT_UNIT_MOBILE,
+    e: process.env.ADFIT_ENABLED,
+    p: process.env.AD_PREVIEW,
+    c: process.env.COUPANG_PARTNER_ID
+  };
   try {
     // (1) AdFit 심사 모드: 검색·심사용 편집 홈에만 정확히 한 단위.
     process.env.ADSENSE_CLIENT = "ca-pub-TEST";
     process.env.ADFIT_UNIT_MOBILE = "DAN-TEST";
     process.env.ADFIT_ENABLED = "1";
-    let server = createServer({ dev: true });
+    process.env.AD_PREVIEW = "1";
+    process.env.COUPANG_PARTNER_ID = "AF-test";
+    const titles = [
+      "반도체 공장 투자 확대 계획 발표", "인공지능 검색 서비스 새 기능 공개",
+      "스마트폰 운영체제 보안 업데이트 배포", "클라우드 데이터센터 전력 효율 개선",
+      "로봇 배송 실증 사업 지역 확대", "양자컴퓨팅 오류 정정 기술 개발",
+      "전기차 배터리 충전 속도 향상", "위성 통신망 상용 서비스 개시",
+      "게임 엔진 그래픽 렌더링 기술 공개", "오픈소스 데이터베이스 새 버전 출시",
+      "의료 영상 진단 소프트웨어 승인", "반도체 장비 수출 실적 증가"
+    ];
+    const reviewSource = new SeedSource(titles.map((title, i) => ({
+      id: `review-${i}`, title, url: `https://example.com/review-${i}`,
+      kind: "news", category: "tech", publishedAt: new Date().toISOString(), sourceRank: i
+    })));
+    let server = createServer({ dev: true, sources: [reviewSource] });
     await new Promise((r) => server.listen(0, r));
     let port = server.address().port;
     let html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
@@ -444,12 +465,24 @@ test("AdFit 심사 모드는 자체 편집 홈에 한 단위만 두고 다른 �
     assert.equal(cfg.adfit.reviewMode, true);
     assert.equal(cfg.monetization.enabled, false);
     assert.equal(cfg.coupang, null);
+    const session = await (await fetch(`http://127.0.0.1:${port}/api/session`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}"
+    })).json();
+    await fetch(`http://127.0.0.1:${port}/api/survey`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: session.userId, answers: { categories: ["tech"] } })
+    });
+    const feed = await (await fetch(`http://127.0.0.1:${port}/api/feed?userId=${session.userId}&limit=30`)).json();
+    assert.equal(feed.items.some((item) => item.via === "ad"), false,
+      "심사 모드에서 실시간 API도 제휴 광고 카드를 반환하면 안 된다");
     server.closeAllConnections?.(); await new Promise((r) => server.close(r));
 
     // (2) 설정이 없으면 편집 홈도 완전 무광고.
     delete process.env.ADSENSE_CLIENT;
     delete process.env.ADFIT_UNIT_MOBILE;
     delete process.env.ADFIT_ENABLED;
+    delete process.env.AD_PREVIEW;
+    delete process.env.COUPANG_PARTNER_ID;
     server = createServer({ dev: true });
     await new Promise((r) => server.listen(0, r));
     port = server.address().port;
@@ -463,6 +496,8 @@ test("AdFit 심사 모드는 자체 편집 홈에 한 단위만 두고 다른 �
     if (prev.a) process.env.ADSENSE_CLIENT = prev.a; else delete process.env.ADSENSE_CLIENT;
     if (prev.f) process.env.ADFIT_UNIT_MOBILE = prev.f; else delete process.env.ADFIT_UNIT_MOBILE;
     if (prev.e) process.env.ADFIT_ENABLED = prev.e; else delete process.env.ADFIT_ENABLED;
+    if (prev.p) process.env.AD_PREVIEW = prev.p; else delete process.env.AD_PREVIEW;
+    if (prev.c) process.env.COUPANG_PARTNER_ID = prev.c; else delete process.env.COUPANG_PARTNER_ID;
   }
 });
 

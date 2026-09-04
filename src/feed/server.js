@@ -2131,6 +2131,7 @@ export function createServer(opts = {}) {
   // 빼고, 색인 가능한 자체 편집 페이지에만 AdFit 한 단위를 둔다.
   const adfitReviewMode = () =>
     process.env.ADFIT_ENABLED === "1" && Boolean(process.env.ADFIT_UNIT_MOBILE);
+  engine.monetizationDisabled = adfitReviewMode();
   // pick — 회전 인덱스. 예전엔 인자를 안 넘겨 pick=0으로 고정됐고, 그래서
   // 32장 재고가 있어도 **모든 방문자가 매 페이지에서 같은 배너 한 장**을 봤다
   // (2026-08-03 검수 실측: /briefing·/trends·/ranking 전부 tech 배너).

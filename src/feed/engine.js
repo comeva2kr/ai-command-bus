@@ -2475,6 +2475,7 @@ export class FeedEngine {
   // paramOverrides — 화면마다 광고 밀도가 달라야 할 때만 쓴다(핫딜 모아보기).
   // 세션 총량 캡·민감 글 인접 규칙은 그대로 적용된다.
   _monetize(userId, user, batch, cursor, narrowSource = false, paramOverrides = null) {
+    if (this.monetizationDisabled) return { items: batch, slots: [] };
     const partnerId = process.env.COUPANG_PARTNER_ID || null;
     const preview = Boolean(process.env.AD_PREVIEW);
     if (!partnerId && !preview) return { items: batch, slots: [] }; // 절대원칙1: dummy content 금지
