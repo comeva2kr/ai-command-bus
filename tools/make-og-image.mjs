@@ -21,10 +21,11 @@ import { fileURLToPath } from "node:url";
 const W = 1200, H = 630;
 const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "og.png");
 
-// 브랜드 색 — index.html의 --color-accent(#e02b0f)와 어두운 배경에서 가져왔다.
-const BG = [19, 18, 17];        // #131211
-const ACCENT = [224, 43, 15];   // #e02b0f
-const WARM = [255, 106, 82];    // #ff6a52
+// 앱 아이콘과 같은 색. 공유 카드에서도 같은 브랜드로 보여야 한다.
+const BG = [0x11, 0x13, 0x19];      // #111319
+const INK = [0xe8, 0xea, 0xf0];     // #e8eaf0
+const SIGNAL = [0xff, 0x4b, 0x3e];  // #ff4b3e
+const GRID = [0x35, 0x39, 0x45];
 
 const crcTable = (() => {
   const t = new Int32Array(256);
@@ -90,33 +91,53 @@ for (let y = 0; y < H; y++) {
   }
 }
 
-// 불꽃 — 원을 겹치면 얼룩으로 보인다. 높이에 따라 폭이 변하는 실루엣을
-// 직접 계산해 그린다. 아래가 넓고 위로 갈수록 좁아지며 끝이 한쪽으로 휜다.
-//   t: 0(바닥) → 1(꼭대기)
-//   halfWidth(t) = 넓이 곡선, lean(t) = 휘어짐
-function flame(cx, baseY, height, width, color, glow) {
-  const halfW = (t) => Math.sin(Math.PI * Math.pow(t, 0.62)) * width * (1 - t * 0.12);
-  const lean = (t) => Math.pow(t, 2.1) * height * 0.13;   // 끝이 오른쪽으로
-  for (let s = 0; s <= height; s++) {
-    const t = s / height;
-    const y = baseY - s;
-    const hw = halfW(t);
-    const cxAt = cx + lean(t);
-    for (let x = Math.floor(cxAt - hw); x <= Math.ceil(cxAt + hw); x++) {
-      const d = Math.abs(x - cxAt) / (hw || 1);
-      const edge = Math.min(1, (1 - d) * hw / 1.6);     // 가장자리 부드럽게
-      if (edge <= 0) continue;
-      // 아래쪽이 진하고 위로 갈수록 옅어진다 — 불꽃의 자연스러운 명암.
-      const a = glow * (1 - t * 0.28) * edge;
-      put(x, y, color, a);
+const distToSegment = (px, py, [x1, y1], [x2, y2]) => {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  const t = Math.max(0, Math.min(1, len2 ? ((px - x1) * dx + (py - y1) * dy) / len2 : 0));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+};
+
+function stroke(points, width, color) {
+  const half = width / 2;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i], b = points[i + 1];
+    const left = Math.floor(Math.min(a[0], b[0]) - half - 1);
+    const right = Math.ceil(Math.max(a[0], b[0]) + half + 1);
+    const top = Math.floor(Math.min(a[1], b[1]) - half - 1);
+    const bottom = Math.ceil(Math.max(a[1], b[1]) + half + 1);
+    for (let y = top; y <= bottom; y++) {
+      for (let x = left; x <= right; x++) {
+        const alpha = Math.max(0, Math.min(1, half + 0.75 - distToSegment(x + 0.5, y + 0.5, a, b)));
+        if (alpha) put(x, y, color, alpha * 255);
+      }
     }
   }
 }
 
-const CX = W / 2, BASE = H / 2 + 168;
-flame(CX, BASE, 336, 132, ACCENT, 236);          // 바깥 불꽃
-flame(CX + 6, BASE - 26, 250, 84, WARM, 240);    // 안쪽 불꽃
-flame(CX + 10, BASE - 58, 150, 42, [255, 226, 210], 235); // 심지
+function disc(cx, cy, radius, color) {
+  for (let y = Math.floor(cy - radius - 1); y <= Math.ceil(cy + radius + 1); y++) {
+    for (let x = Math.floor(cx - radius - 1); x <= Math.ceil(cx + radius + 1); x++) {
+      const alpha = Math.max(0, Math.min(1, radius + 0.75 - Math.hypot(x + 0.5 - cx, y + 0.5 - cy)));
+      if (alpha) put(x, y, color, alpha * 255);
+    }
+  }
+}
+
+// 카카오 카드에서 작아져도 형태가 읽히도록 앱 아이콘의 상승선을 넓게 확대한다.
+const SCALE = 1.55;
+const map = ([x, y]) => [W / 2 + (x - 256) * SCALE, H / 2 + (y - 256) * SCALE];
+const lineA = [[88, 368], [176, 330], [244, 346]].map(map);
+const lineB = [[244, 346], [344, 150], [424, 214]].map(map);
+const dot = map([344, 150]);
+
+for (const y of [138, 315, 492]) {
+  for (let x = 170; x <= W - 170; x++) put(x, y, GRID, 34);
+}
+stroke(lineA, 42 * SCALE, INK);
+stroke(lineB, 42 * SCALE, SIGNAL);
+disc(dot[0], dot[1], 30 * SCALE, SIGNAL);
+disc(dot[0], dot[1], 13 * SCALE, BG);
 
 fs.writeFileSync(OUT, encodePNG(px, W, H));
 console.log(`og.png  ${W}x${H}  ${fs.statSync(OUT).size} bytes`);

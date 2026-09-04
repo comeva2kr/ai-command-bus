@@ -109,6 +109,7 @@ test("번역 링크: 되는 척하는 버튼을 남겨 두지 않았다", async 
 test("발견 경로: 구글 Discover·카톡 공유 자격을 갖췄다", async () => {
   const { readFileSync, statSync } = await import("node:fs");
   const html = readFileSync("src/feed/public/index.html", "utf8");
+  const today = readFileSync("src/feed/public/today.html", "utf8");
   const server = readFileSync("src/feed/server.js", "utf8");
 
   // max-image-preview:large가 없으면 **구글 Discover 진입 자체가 안 된다.**
@@ -123,7 +124,9 @@ test("발견 경로: 구글 Discover·카톡 공유 자격을 갖췄다", async 
   assert.match(shell, /noindex,follow/, "얇은 페이지는 색인만 막는다");
   // og:image가 512 정사각 앱 아이콘이면 카톡 미리보기가 작은 정사각형으로 뜬다.
   // 한국에서 링크가 퍼지는 가장 큰 경로가 카톡이다.
-  assert.match(html, /og:image" content="https:\/\/nowhot\.kr\/og\.png"/);
+  for (const [name, src] of [["index.html", html], ["today.html", today], ["server.js", server]]) {
+    assert.match(src, /og\.png\?v=20260904-brand/, `${name}: 카카오 공유 이미지 캐시 버전 누락`);
+  }
   assert.match(html, /og:image:width" content="1200"/);
   assert.ok(!/og:image[^>]*icon-512/.test(html), "앱 아이콘을 공유 이미지로 쓰면 안 된다");
   assert.match(html, /twitter:card" content="summary_large_image"/);

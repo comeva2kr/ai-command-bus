@@ -241,7 +241,7 @@ function sharePage(data, origin, id) {
   // 주는 것 자체가 결함이므로 이 수정의 근거는 SVG 지원 여부와 무관하다).
   const shareImage = data.image && /^https?:\/\//i.test(data.image)
     ? data.image
-    : `${origin}/og.png`;
+    : `${origin}/og.png?v=20260904-brand`;
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
@@ -2458,7 +2458,7 @@ ${noindex
 <meta property="og:description" content="${escapeHtml(desc)}">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="지금핫 NowHot">
-<meta property="og:image" content="https://nowhot.kr/og.png">
+<meta property="og:image" content="https://nowhot.kr/og.png?v=20260904-brand">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="alternate" type="application/rss+xml" title="지금핫 NowHot" href="https://nowhot.kr/rss.xml">
 <script type="application/ld+json">${JSON.stringify({
