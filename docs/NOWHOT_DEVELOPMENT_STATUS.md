@@ -1,6 +1,20 @@
 # NOWHOT-DEVELOPMENT-STATUS-001
 
-## 현재 판정
+## 책임자 인수 기준 — 2026-09-05
+
+- David 직접 지시로 Codex 세션 `01a06e74-02a6-7682-a618-f9afa6936d87`이 지금핫 책임을 인수했다. Orca CLI를 통한 Codex 구현·Claude 제품/편집 검수·Cursor Grok 구조/회귀 검수를 유지한다.
+- 인수 근거와 재개 경로: [책임자 인수 기록](reports/NOWHOT_OWNER_TAKEOVER_2026-09-05.md). 로컬 코드 HEAD `e59c8fd`; 이번 변경은 인수 문서 연결뿐이며 제품·판본·운영 변경 없음.
+- 아래 NH112 배포 완료는 9월 4일의 완료 기록이다. 이후 같은 날 19시대 Orca 광고 재심사 감사에서 Google AdSense·Kakao AdFit 모두 HOLD·미제출로 판정됐다. 배포 완료와 광고 신청 준비/승인을 구분하며, 현재 운영 재검증이나 보류 원인 수리 완료로 표현하지 않는다.
+
+## 현재 판정 — NH113 운영 장애 복구
+
+- `DEVCHG-NOWHOT-20260905-200` / `NOWHOT-TODAY-PUBLISHING-RECOVERY-001`: 누락된 Docker 발행기·자식 예약기 재귀·누락판 409·브라우저 런치 고정을 수정했다.
+- 운영 코드 `b5517ebd183be970dd81fdc7744aa2e901a05968`, 2026-09-05 07:34 KST 배포/preflight PASS. 모닝 `SCE-310f1fb916c40db6`, 기본56·선택3분야42·14분야 각14·전체 고유195, filter_only·LLM0.
+- 관련 서버 테스트52/52와 실제 Chrome15/15 PASS, 공개 모바일 크기·상세·새로고침 확인. 검수 런치 SHA 보존, 누락된 과거 이브닝은 날짜를 밝힌 런치 대체 표시.
+- Codex GPT-6 책임 구현/운영 검증, Orca Fable5.1 max·Cursor Grok4.6 xhigh 독립 검수 회수 및 worker release 완료. [최종 복구 보고](reports/NOWHOT_NH113_TODAY_OUTAGE_RECOVERY_2026-09-05.md).
+- 다음 실제 발행 시각의 경과 관측·과거 이브닝 원판 복원·장문 요약·광고 재심사 완료를 주장하지 않는다. First Principles 게이트: PASS.
+
+## 직전 NH112 완료 기록 (9월 4일 시점)
 
 - 단계: NH112 수용판 보존형 안내·튜토리얼 및 AdFit 심사 모드 Live 광고 차단 · 운영 배포·공개 검증 완료
 - 환경: 로컬 복제본 + `https://nowhot.kr` 운영판

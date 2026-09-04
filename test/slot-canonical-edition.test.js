@@ -796,6 +796,8 @@ test("누락판 복구는 24시간 안의 가장 최근 정상판만 쓰고 미�
   pointer.editions["2026-08-27:lunch"] = { ...lunch, contentSha256: "0".repeat(64) };
   fs.writeFileSync(pointerFile, JSON.stringify(pointer));
   assert.equal(reader.read(query).serving.servedSlotId, "morning");
+  assert.throws(() => reader.read({ ...query, date: "2026-08-27", slotId: "lunch" }),
+    (error) => error.code === "SLOT_CANONICAL_EDITION_INVALID");
   assert.throws(() => reader.read({ ...query, date: "2026-08-29" }),
     (error) => error.code === "SLOT_CANONICAL_EDITION_UNAVAILABLE");
 });

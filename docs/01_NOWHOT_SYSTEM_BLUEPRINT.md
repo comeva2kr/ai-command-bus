@@ -2321,3 +2321,16 @@ David 배포 승인: NH111의 검수된 기사 선택·순서·출처·사진·�
 운영 반영은 commit·push·VM 판본 seed·compose build 뒤 공개 URL과 헤더로 별도 확인한다.
 상세: `docs/reports/NOWHOT_NH112_RELEASE_ONBOARDING_DEPLOY_2026-09-04.md`.
 truth: NH112_PREDEPLOY_GO·ACCEPTED_EDITION_PRESERVED·SHARED_ONE_TIME_GUIDE·TODAY_LIVE_HISTORY_PRESERVED·FULL_TEST_1925_PASS·CHROME_13_PASS·STAGING_PASS·NO_PAID_API·LIVE_PENDING.
+
+## NH113 — 오늘판 발행·조회 장애 복구 (2026-09-05)
+
+안정 ID `NOWHOT-TODAY-PUBLISHING-RECOVERY-001`, 변경 `DEVCHG-NOWHOT-20260905-200`.
+운영 `b5517eb`에서 발행기/필수 JSON을 Docker에 포함하고 import 빌드 검사를 추가했다.
+일회 생성기는 운영 고정판/예약 모드를 상속하지 않는다. 정확한 판이 없으면 기존
+24시간 계약 안에서 정상 이전판 하나를 날짜·슬롯을 밝혀 제공한다. 일반 새로고침은
+최신판을 조회하며, 명시 과거 선택과 상세/원문 Back은 보존한다.
+모닝 `SCE-310f1fb916c40db6` 실제 운영 활성화, 기본56·선택3분야42·14분야 각14,
+기존 검수 런치 SHA 보존. 관련 서버52·Chrome15 PASS, 운영 preflight·모바일 크기 확인.
+NH112의 과거 LIVE_PENDING 표기는 당시 기록이며 현재 운영 상태는 이 항목과
+`docs/reports/NOWHOT_NH113_TODAY_OUTAGE_RECOVERY_2026-09-05.md`를 따른다.
+truth: NH113_CURRENT_MORNING_LIVE·SCHEDULER_PACKAGED·NESTED_BUILDER_OFF·LABELED_FALLBACK·RELOAD_FRESH·ACCEPTED_LUNCH_PRESERVED·NO_PAID_API·NEXT_SLOT_ELAPSED_NOT_OBSERVED.
