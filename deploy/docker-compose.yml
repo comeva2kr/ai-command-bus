@@ -19,6 +19,9 @@ services:
       - FEED_TRANSLATE=1               # 해외 소스 한글 번역
       # 새 오늘판 출시 플래그. 장애 시 0으로 바꾸고 컨테이너를 재시작하면 기존 홈으로 즉시 복귀.
       - NOWHOT_LOCAL_EDITORIAL=${NOWHOT_LOCAL_EDITORIAL:-1}
+      # 검수 완료된 슬롯판만 읽는다. 포인터와 판본은 유저 데이터와 같은 영속 볼륨에 둔다.
+      - NOWHOT_SLOT_CANONICAL_EDITION=${NOWHOT_SLOT_CANONICAL_EDITION:-1}
+      - NOWHOT_SLOT_CANONICAL_POINTER=${NOWHOT_SLOT_CANONICAL_POINTER:-/data/slot-editions/active.json}
       # 오늘판의 카테고리 입력만 v2 분류 스냅샷으로 교체. v1이면 기존 분류 그대로.
       - NOWHOT_CATEGORY_ROUTING=${NOWHOT_CATEGORY_ROUTING:-v2}
       - PUSH_DIGEST_MS=3600000         # 시간당 관심글 digest push

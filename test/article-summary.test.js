@@ -2072,6 +2072,8 @@ test("실모델 검증 전 배포와 스테이징은 장문 요약을 기본으�
   assert.match(staging, /NOWHOT_ARTICLE_SUMMARY: process\.env\.NOWHOT_ARTICLE_SUMMARY \|\| "0"/);
   assert.match(staging, /NOWHOT_CATEGORY_ROUTING: process\.env\.NOWHOT_CATEGORY_ROUTING \|\| "v2"/);
   assert.match(staging, /NOWHOT_SLOT_CANONICAL_EDITION: process\.env\.NOWHOT_SLOT_CANONICAL_EDITION \|\| "1"/);
+  assert.match(compose, /NOWHOT_SLOT_CANONICAL_EDITION=\$\{NOWHOT_SLOT_CANONICAL_EDITION:-1\}/);
+  assert.match(compose, /NOWHOT_SLOT_CANONICAL_POINTER=\$\{NOWHOT_SLOT_CANONICAL_POINTER:-\/data\/slot-editions\/active\.json\}/);
   assert.match(staging, /NOWHOT_ARTICLE_SUMMARY_MODEL: process\.env\.NOWHOT_ARTICLE_SUMMARY_MODEL \|\| "claude-sonnet-5"/);
   assert.match(staging, /NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL: process\.env\.NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL \|\| "claude-sonnet-5"/);
 });

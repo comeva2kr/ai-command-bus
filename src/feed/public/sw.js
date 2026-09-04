@@ -6,9 +6,9 @@
 //   - navigations are network-first, falling back only to the same page offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v144"; // v144: acknowledged app navigation avoids stacked details
+const CACHE = "feed-shell-v145"; // v145: shared one-time tutorial and release notice
 const SHELL = ["/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
-  "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js"];
+  "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js", "/notice-guide.js"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

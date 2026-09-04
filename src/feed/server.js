@@ -316,7 +316,7 @@ function cacheHeadersFor(ext) {
     : "public, max-age=604800";
 }
 
-function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "") {
+function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "", pageExtras = null) {
   const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
   const filePath = path.join(PUBLIC_DIR, rel);
   // prevent path traversal outside PUBLIC_DIR
@@ -389,11 +389,17 @@ function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "") {
       }
     }
 
-    if ((adsense || ga) && ext === ".html" && rel === "index.html") {
+    if ((adsense || ga) && ext === ".html" && ["index.html", "today.html"].includes(rel)) {
       let tags = "";
       if (adsense) tags += `<meta name="google-adsense-account" content="${escapeHtml(adsense)}">\n`;
       if (ga) tags += `<script async src="https://www.googletagmanager.com/gtag/js?id=${ga}"></script>\n<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','${ga}');</script>\n`;
       buf = Buffer.from(buf.toString("utf8").replace("</head>", tags + "</head>"));
+    }
+    if (pageExtras && ext === ".html") {
+      let html = buf.toString("utf8");
+      if (pageExtras.headHtml) html = html.replace("</head>", `${pageExtras.headHtml}</head>`);
+      if (pageExtras.bodyHtml) html = html.replace("<!-- NOWHOT_DISPLAY_AD -->", pageExtras.bodyHtml);
+      buf = Buffer.from(html);
     }
     // ETag는 **주입 후 최종 바이트** 기준이어야 한다. 파일 mtime으로 만들면
     // 시드 주입·애드센스 태그가 바뀌어도 같은 ETag가 나가 304로 옛 화면이 남는다.
@@ -4696,7 +4702,12 @@ ${rankingRows(list, (above) => {
         }
       }
       if (p === "/" && req.method === "GET") {
-        if (localEditorial) return serveStatic(res, "/today.html");
+        if (localEditorial) {
+          return serveStatic(res, "/today.html", "", "", {
+            headHtml: adLoadersHtml(true),
+            bodyHtml: displayAdHtml()
+          });
+        }
         homeSeedSnapshot();
         const inner = editorialHomeHtml(editorialBriefingSnapshot());
         return sendHtml(res, editionShell(

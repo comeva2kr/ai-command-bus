@@ -2294,3 +2294,30 @@ MarketWatch 노출과 확인된 UI 잔재는 0, `llmUsage []`다. 전체 테스�
 Claude와 Cursor Grok의 독립 공격 검수는 모두 GO(P0/P1 0)다. 라이브·push·deploy는 별도다.
 상세: `docs/reports/NOWHOT_NH111_FINAL_LOCAL_RELEASE_2026-09-04.md`.
 truth: NH111_LOCAL_FINAL_ACTIVE·ACCEPTED_SELECTION_PRESERVED·ARTICLE_TEXT_ONLY_REPAIR·PAYWALL_NEW_INGEST_DISABLED·ALL_14_LANES_14·ALL_91_PAIRS_EXACT_UNION·REQUEST_FILTER_ONLY·REQUEST_LLM_ZERO·FULL_TEST_NO_FAILURE·CHROME_9_PASS·STAGING_PRODUCT_PASS_AD_CREDENTIAL_UNVERIFIED·LIVE_UNCHANGED.
+
+### NH112 대규모 업데이트 안내·튜토리얼·검수판 배포 (2026-09-04)
+
+David 배포 승인: NH111의 검수된 기사 선택·순서·출처·사진·요약을 그대로 운영에
+옮기고, 새 이용자 사용법과 기존 이용자 업데이트 소식을 Today/Live 공용 안내로 제공한다.
+
+- 새 이용자는 Today와 Live의 차이, 관심 분야 선택, 기사 상세·원문 이동을 한 번만 본다.
+  기존 이용자는 아직 보지 않은 최신 업데이트만 한 번 본다. 두 화면은 기존
+  `feed_onboarded_v1`·`feed_seen_release` 저장값을 공유한다.
+- 상세·알림 딥링크를 안내가 가리지 않는다. 목록에서 뜬 안내는 브라우저/Android
+  뒤로가기로 닫히며 목록에 남는다. 안내 위에서 상세가 열리면 상세→안내→목록 순서를
+  유지하고 기존 history state를 덮어쓰지 않는다.
+- 공지는 사용자가 체감하는 변화와 Today/Live 사용법만 보여준다. 새 프레임워크,
+  실시간 API 호출, 기사 재편성, 유료 LLM 호출은 추가하지 않는다.
+- 운영은 검수 완료 슬롯 포인터 `/data/slot-editions/active.json`만 읽는다. 판본 파일을
+  먼저 검증·설치하고 포인터를 마지막에 바꾼다. 장애 시 `NOWHOT_LOCAL_EDITORIAL=0`으로
+  기존 홈에 즉시 복귀한다.
+- Today에도 기존 광고 로더·단일 표시 슬롯과 검색/심사 메타를 같은 서버 경로로 넣는다.
+  Live에는 광고 네트워크 SDK를 직접 싣지 않는다. 기술 준비와 광고 플랫폼 승인은
+  서로 다른 사실로 보고한다.
+
+배포 전 전체 `node:test` 1,925/1,925, 실제 Chrome 내비게이션 13/13,
+격리 스테이징 102개 소스·2,347건과 제품 점검 전부 PASS다. 로컬 기본판은
+`SCE-0b991485de03a38a`, 14개 분야 각 14건, 요청 경로 `filter_only`, LLM 0이다.
+운영 반영은 commit·push·VM 판본 seed·compose build 뒤 공개 URL과 헤더로 별도 확인한다.
+상세: `docs/reports/NOWHOT_NH112_RELEASE_ONBOARDING_DEPLOY_2026-09-04.md`.
+truth: NH112_PREDEPLOY_GO·ACCEPTED_EDITION_PRESERVED·SHARED_ONE_TIME_GUIDE·TODAY_LIVE_HISTORY_PRESERVED·FULL_TEST_1925_PASS·CHROME_13_PASS·STAGING_PASS·NO_PAID_API·LIVE_PENDING.

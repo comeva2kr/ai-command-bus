@@ -466,6 +466,49 @@ test("AdFit 심사 모드는 자체 편집 홈에 한 단위만 두고 다른 �
   }
 });
 
+test("오늘판 정적 홈도 색인 가능하고 선택한 광고 심사 지면만 한 단위 노출한다", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const prev = { a: process.env.ADSENSE_CLIENT, f: process.env.ADFIT_UNIT_MOBILE, e: process.env.ADFIT_ENABLED };
+  const readPages = async () => {
+    const server = createServer({ dev: true, localEditorial: true });
+    await new Promise((r) => server.listen(0, r));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    try {
+      return {
+        root: await (await fetch(`${base}/`)).text(),
+        live: await (await fetch(`${base}/live`)).text()
+      };
+    } finally {
+      server.closeAllConnections?.();
+      await new Promise((r) => server.close(r));
+    }
+  };
+  try {
+    process.env.ADSENSE_CLIENT = "ca-pub-TEST";
+    delete process.env.ADFIT_UNIT_MOBILE;
+    delete process.env.ADFIT_ENABLED;
+    let { root, live } = await readPages();
+    assert.match(root, /<link rel="canonical" href="https:\/\/nowhot\.kr\/">/);
+    assert.doesNotMatch(root, /noindex/);
+    assert.match(root, /google-adsense-account/);
+    assert.match(root, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
+    assert.equal((root.match(/class="adsbygoogle"/g) || []).length, 1);
+    assert.doesNotMatch(live, /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i);
+
+    process.env.ADFIT_UNIT_MOBILE = "DAN-TEST";
+    process.env.ADFIT_ENABLED = "1";
+    ({ root, live } = await readPages());
+    assert.match(root, /t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/);
+    assert.equal((root.match(/class="kakao_ad_area"/g) || []).length, 1);
+    assert.doesNotMatch(root, /pagead2\.googlesyndication\.com|class="adsbygoogle"|쿠팡 파트너스/);
+    assert.doesNotMatch(live, /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i);
+  } finally {
+    if (prev.a) process.env.ADSENSE_CLIENT = prev.a; else delete process.env.ADSENSE_CLIENT;
+    if (prev.f) process.env.ADFIT_UNIT_MOBILE = prev.f; else delete process.env.ADFIT_UNIT_MOBILE;
+    if (prev.e) process.env.ADFIT_ENABLED = prev.e; else delete process.env.ADFIT_ENABLED;
+  }
+});
+
 test("홈에 크롤러가 읽을 정적 글 목록이 심긴다 (네이버는 JS를 실행하지 않는다)", async () => {
   // 실측 2026-08-03: 홈 175KB 중 정적 텍스트가 1,499B(0%)였다. 크롤러가 읽는
   // 것은 "준비 중 / 메뉴 / 화면 테마"뿐이고 글 목록은 전부 JS로 그려진다.
@@ -474,7 +517,7 @@ test("홈에 크롤러가 읽을 정적 글 목록이 심긴다 (네이버는 JS
   const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
 
   // 주입은 스켈레톤 자리를 대체한다 — 사용자도 같은 것을 본다(클로킹 아님)
-  assert.match(src, /function serveStatic\(res, urlPath, seedHtml = "", ownSeedHtml = ""\)/,
+  assert.match(src, /function serveStatic\(res, urlPath, seedHtml = "", ownSeedHtml = "", pageExtras = null\)/,
     "serveStatic이 seed와 자체 콘텐츠 seed를 받아야 한다");
   // 2026-08-06: 애드핏 4차 반려("아웃링크 비중이 높다") 대응으로 만든 자체
   // 콘텐츠 블록이 **JS로만 채워져서** 원본 HTML에는 빈 section이었다.

@@ -3,7 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="robots" content="noindex,nofollow">
+<meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="description" content="국내외 뉴스와 커뮤니티의 공개 반응을 분야별로 골라 한국어 요약과 함께 제공하는 지금핫 오늘판입니다.">
+<meta property="og:title" content="지금핫 NowHot 오늘판">
+<meta property="og:description" content="국내외 주요 뉴스와 화제를 분야별로 한눈에 확인하세요.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="지금핫 NowHot">
+<meta property="og:image" content="https://nowhot.kr/og.png">
+<link rel="canonical" href="https://nowhot.kr/">
 <title>지금핫 오늘판</title>
 <script>
 (function(){
@@ -104,6 +111,9 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .selection-list{list-style:none;margin:0;padding:0}.selection-list li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
 .selection-list li:last-child{border-bottom:0}.selection-list span{color:var(--sub)}
 .rail-link{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line);font-weight:850;font-size:13px;color:var(--blue)}
+.ad-slot{margin-top:18px;padding:14px 0;border-top:1px solid var(--line);overflow:hidden;text-align:center}
+.ad-mark{display:block;margin:0 0 8px;color:var(--sub);font-size:10px;font-weight:800;text-align:left}
+.adsbygoogle{min-height:100px}
 .empty,.error{padding:60px 0;border-bottom:1px solid var(--line)}
 .empty h2,.error h2{font-size:22px;margin:0 0 8px}.empty p,.error p{margin:0;color:var(--sub)}
 .retry{margin-top:18px;width:42px;height:42px;border:1px solid var(--line);background:var(--paper);border-radius:6px;cursor:pointer;font-size:20px}
@@ -201,6 +211,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
     <aside class="rail" aria-label="이번 판 요약">
       <section class="rail-section"><h2>이번 판</h2><dl class="metric-list" id="metrics"><dt>상태</dt><dd>준비 중</dd></dl></section>
       <section class="rail-section"><h2>선택 분야</h2><ul class="selection-list" id="selection"><li><span>불러오는 중</span><b>—</b></li></ul><a class="rail-link" href="/live"><span>실시간 피드 보기</span><span aria-hidden="true">→</span></a></section>
+      <!-- NOWHOT_DISPLAY_AD -->
     </aside>
   </div>
 </div>
@@ -217,6 +228,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 <div class="toast hidden" id="toast" role="status"></div>
 
 <script src="/navigation-history.js"></script>
+<script src="/notice-guide.js"></script>
 <script>
 const state={userId:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
 const $=(id)=>document.getElementById(id);
@@ -845,7 +857,11 @@ if("serviceWorker" in navigator){
     if(["morning","lunch","evening"].includes(initialSlot))state.slot=initialSlot;
     if(/^\d{4}-\d{2}-\d{2}$/.test(initialDate||""))state.editionDate=initialDate;
     const saved=localStorage.getItem("feed_uid");
-    const session=await json("/api/session",{method:"POST",body:JSON.stringify({userId:saved})});
+    const isNewVisitor=!saved;
+    const [session,config]=await Promise.all([
+      json("/api/session",{method:"POST",body:JSON.stringify({userId:saved})}),
+      json("/api/config").catch(()=>({}))
+    ]);
     state.userId=session.userId;localStorage.setItem("feed_uid",session.userId);
     if(Array.isArray(session.briefingCategories)&&session.briefingCategories.length){state.categories=session.briefingCategories;state.confirmedCategories=[...session.briefingCategories]}
     const snapshot=todayHistory.snapshot();
@@ -853,6 +869,7 @@ if("serviceWorker" in navigator){
       render(snapshot.edition);state.listScrollY=snapshot.y||0;window.scrollTo(0,state.listScrollY);
       restoreTodayDetail();
     }else await loadEdition(false,state.editionDate);
+    NowHotNoticeGuide.show({release:config.release,isNewVisitor,skip:Boolean(issueDetailFromHash())});
   }catch(error){renderError(error)}
 })();
 </script>

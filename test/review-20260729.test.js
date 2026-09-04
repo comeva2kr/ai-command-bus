@@ -252,15 +252,17 @@ test("검수1: 기본(프로덕션) 설정에서는 시드·샘플 데이터가 
 // 정적 검증한다(test/monetize.test.js의 index.html 검증과 동일 패턴).
 // ---------------------------------------------------------------------------
 
-async function indexHtml() {
+async function publicAsset(name) {
   const fs = await import("node:fs");
   const path = await import("node:path");
   const { fileURLToPath } = await import("node:url");
   return fs.readFileSync(
-    path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "index.html"),
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", name),
     "utf8"
   );
 }
+
+const indexHtml = () => publicAsset("index.html");
 
 test("검수6: 취향 선택 화면에 로그인 유도가 있고, 이미 로그인했거나 provider가 없으면 안 뜬다", async () => {
   const html = await indexHtml();
@@ -279,30 +281,32 @@ test("검수6: 취향 선택 화면에 로그인 유도가 있고, 이미 로그
 
 test("검수7: 최초 진입 온보딩이 있고, 한 번 보면 다시 안 뜨며, 벽이 되지 않는다", async () => {
   const html = await indexHtml();
-  const fn = html.slice(html.indexOf("function maybeShowOnboarding"), html.indexOf("// Soft, dismissible invitation"));
-  assert.ok(fn.length > 100, "온보딩 함수를 찾지 못했다");
+  const guide = await publicAsset("notice-guide.js");
 
   // 한 번만 — 다시 뜨면 짜증이다
-  assert.ok(fn.includes("ONBOARD_KEY"), "본 적 있는지 기록해야");
-  assert.ok(/localStorage\.setItem\(ONBOARD_KEY/.test(fn), "닫을 때 기록해야");
+  assert.match(guide, /const ONBOARD_KEY = "feed_onboarded_v1"/);
+  assert.match(guide, /const RELEASE_KEY = "feed_seen_release"/);
+  assert.match(guide, /write\(ONBOARD_KEY, "1"\)/, "본 적 있는지 기록해야");
 
   // 벽이 되면 안 된다 (설문 벽을 걷어낸 결정을 되돌리지 않는다)
-  assert.ok(fn.includes("Escape"), "ESC로 닫을 수 있어야");
-  assert.ok(fn.includes("e.target === back"), "바깥을 눌러도 닫혀야");
+  assert.match(guide, /event\.key === "Escape"/, "ESC로 닫을 수 있어야");
+  assert.match(guide, /event\.target === root/, "바깥을 눌러도 닫혀야");
 
   // 저장소가 막힌 브라우저(사파리 프라이빗 등)에서 매번 뜨면 안 된다
-  assert.ok(/catch\s*\{\s*done = true/.test(fn), "localStorage 접근 실패 시 조용히 생략해야");
+  assert.match(guide, /catch \{ return undefined; \}/, "localStorage 접근 실패 시 조용히 생략해야");
 
-  // 실제로 쓸모 있는 세 가지를 알려주는지 — 아웃링크/학습/소스필터
-  assert.match(html, /카드를 누르면 원문으로/);
-  assert.match(html, /취향이 맞춰져요/);
-  assert.match(html, /메뉴에서 커뮤니티를 골라요/);
+  // 신규 이용자가 두 화면의 차이와 상세 사용법을 바로 이해해야 한다
+  assert.match(guide, /오늘판/);
+  assert.match(guide, /실시간/);
+  assert.match(guide, /한국어 요약, 사진과 출처/);
+  assert.match(html, /<script src="\/notice-guide\.js"><\/script>/);
 });
 
-test("검수7: 이미 취향을 맞춘 유저에겐 온보딩을 다시 띄우지 않는다", async () => {
+test("검수7: Today와 Live가 같은 신규 방문 판정과 안내 모듈을 쓴다", async () => {
   const html = await indexHtml();
-  assert.match(
-    html, /if\(!s\.surveyed\) maybeShowOnboarding\(\);/,
-    "설문을 마친 계정(다른 기기 로그인 등)에는 사용법 설명이 다시 뜨면 안 된다"
-  );
+  const today = await publicAsset("today.html");
+  assert.match(html, /const isNewVisitor = !state\.userId;/);
+  assert.match(today, /const isNewVisitor=!saved;/);
+  assert.match(html, /NowHotNoticeGuide\.show/);
+  assert.match(today, /NowHotNoticeGuide\.show/);
 });

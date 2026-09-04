@@ -13,6 +13,11 @@ after(async () => { await browser?.close(); });
 const options = { skip: !chromium, timeout: 30000 };
 const origin = "https://nowhot.test";
 const category = { id: "business", label: "경제" };
+const release = {
+  id: "2026-09-04-major",
+  title: "오늘판과 실시간을 새롭게 정리했어요",
+  items: ["오늘판은 미리 준비된 브리핑을 바로 보여줘요."]
+};
 const items = Array.from({ length: 18 }, (_, i) => ({
   id: `post-${i}`, title: `Public article ${i}`, summary: `Public feed excerpt for article ${i}.`,
   url: `https://publisher.test/article-${i}`, source: "test", kind: "news", category: "business",
@@ -31,7 +36,7 @@ const edition = {
   }))
 };
 
-async function fixture(t, path = "/live", realWorker = false) {
+async function fixture(t, path = "/live", realWorker = false, guideState = "seen") {
   let base = origin;
   if (realWorker) {
     const server = createServer((req, res) => {
@@ -52,8 +57,15 @@ async function fixture(t, path = "/live", realWorker = false) {
   t.after(() => context.close());
   const requests = [];
   const controls = { itemStatus: 200, itemCode: "", delayItem: 0 };
-  await context.addInitScript((realWorker) => {
-    localStorage.setItem("feed_uid", "reader");
+  await context.addInitScript(({ realWorker, guideState, releaseId }) => {
+    if (!localStorage.getItem("__fixture_seeded")) {
+      localStorage.clear();
+      if (guideState !== "new") localStorage.setItem("feed_uid", "reader");
+      if (guideState !== "new") localStorage.setItem("feed_onboarded_v1", "1");
+      if (guideState === "seen") localStorage.setItem("feed_seen_release", releaseId);
+      if (guideState === "returning") localStorage.setItem("feed_seen_release", "older-release");
+      localStorage.setItem("__fixture_seeded", "1");
+    }
     window.__localNotifications = 0;
     window.__workerMessage = null;
     if (realWorker === "legacy") {
@@ -67,7 +79,7 @@ async function fixture(t, path = "/live", realWorker = false) {
       addEventListener: (name, fn) => { if (name === "message") window.__workerMessage = fn; }
     } });
     Object.defineProperty(window, "Notification", { value: { permission: "granted", requestPermission: async () => "granted" } });
-  }, realWorker);
+  }, { realWorker, guideState, releaseId: release.id });
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     requests.push(url.pathname);
@@ -75,7 +87,7 @@ async function fixture(t, path = "/live", realWorker = false) {
     if (url.origin !== base) return route.abort();
     if (url.pathname.startsWith("/api/")) {
       let body = {};
-      if (url.pathname === "/api/config") body = { categories: [category], topics: [], ads: {} };
+      if (url.pathname === "/api/config") body = { categories: [category], topics: [], ads: {}, release };
       if (url.pathname === "/api/session") body = { userId: "reader", surveyed: true, showTopics: [], briefingCategories: ["business"] };
       if (url.pathname === "/api/communities") body = { communities: [{ id: "test", label: "Test", enabled: true, adult: false, liveCount: 18 }] };
       if (url.pathname === "/api/feed") body = { items, nextCursor: 18, exhausted: true };
@@ -271,4 +283,59 @@ test("browser: real service-worker notification replaces a detail; Back returns 
   await page.goForward();
   await page.waitForFunction(() => document.getElementById("detailTitle")?.textContent === "Public article 1");
   }
+});
+
+test("browser: a new visitor gets one shared Today/Live tutorial and Back keeps the Today list", options, async (t) => {
+  const { page } = await fixture(t, "/?date=2026-09-03&slot=lunch", false, "new");
+  await page.waitForSelector('#nhGuide[data-kind="tutorial"]');
+  assert.match(await page.locator("#nhGuide").innerText(), /오늘판/);
+  assert.match(await page.locator("#nhGuide").innerText(), /실시간/);
+  assert.ok(await page.locator("article").count());
+  await page.goBack();
+  await page.waitForFunction(() => !document.getElementById("nhGuide"));
+  assert.equal(new URL(page.url()).pathname, "/");
+  assert.ok(await page.locator("article").count());
+  assert.deepEqual(await page.evaluate(() => ({
+    onboarded: localStorage.getItem("feed_onboarded_v1"),
+    release: localStorage.getItem("feed_seen_release")
+  })), { onboarded: "1", release: "2026-09-04-major" });
+  await page.reload();
+  await page.waitForSelector("article");
+  assert.equal(await page.locator("#nhGuide").count(), 0);
+});
+
+test("browser: a returning visitor sees a release once across Today and Live", options, async (t) => {
+  const { page, base } = await fixture(t, "/?date=2026-09-03&slot=lunch", false, "returning");
+  await page.waitForSelector('#nhGuide[data-kind="release"]');
+  assert.match(await page.locator("#nhGuide").innerText(), /오늘판과 실시간/);
+  await page.click("[data-nh-guide-close]");
+  await page.waitForFunction(() => !document.getElementById("nhGuide"));
+  assert.equal(await page.evaluate(() => localStorage.getItem("feed_seen_release")), release.id);
+  await page.goto(base + "/live");
+  await page.waitForSelector('#feed [data-id="post-0"]');
+  assert.equal(await page.locator("#nhGuide").count(), 0);
+});
+
+test("browser: detail navigation above the tutorial unwinds detail, tutorial, then the Live list", options, async (t) => {
+  const { page } = await fixture(t, "/live", false, "new");
+  await page.waitForSelector('#nhGuide[data-kind="tutorial"]');
+  await page.waitForSelector('#feed [data-id="post-0"]');
+  await page.evaluate(() => window.__workerMessage({ data: { type: "NOWHOT_NAVIGATE", url: "https://nowhot.test/live#post-post-1" } }));
+  await page.waitForSelector("#detail.open");
+  await page.goBack();
+  await page.waitForFunction(() => !document.querySelector("#detail.open"));
+  assert.equal(await page.locator("#nhGuide").count(), 1);
+  await page.goBack();
+  await page.waitForFunction(() => !document.getElementById("nhGuide"));
+  assert.equal(new URL(page.url()).hash, "");
+  assert.ok(await page.locator('#feed [data-id="post-0"]').count());
+});
+
+test("browser: a first deep link skips the guide but the next list visit still gets the tutorial", options, async (t) => {
+  const { page, base } = await fixture(t, "/live#post-post-1", false, "new");
+  await page.waitForSelector("#detail.open");
+  assert.equal(await page.locator("#nhGuide").count(), 0);
+  await page.goto(base + "/live");
+  await page.waitForSelector('#nhGuide[data-kind="tutorial"]');
+  assert.equal(await page.locator('#nhGuide[data-kind="release"]').count(), 0);
 });
