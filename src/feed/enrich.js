@@ -243,6 +243,32 @@ function normalizeArticleText(value) {
 
 export function cleanArticleTextChrome(value) {
   let text = normalizeArticleText(value);
+  const hasHighsnobietyAppPrompt = /(?:계속(?:해서)?\s*)?(?:최신\s*)?소식을 받고 싶(?:지 않습니까|으십니까|으신가요)\?\s*지금 Highsnobiety 앱을 다운로드하세요\./i.test(text);
+  text = text
+    .replace(/전체\s*페이지를\s*읽으시려면\s*회원가입\s*(?:및|또는)\s*로그인을\s*해\s*주세요[.!?]*/gi, " ")
+    .replace(/기사\s*제목\s*내용을\s*입력해\s*주세요[.!?]*(?:\s*삭제하시겠습니까[.!?]*)?(?:\s*등록이\s*완료되었습니다[.!?]*)?/gi, " ")
+    .replace(/(?:계속(?:해서)?\s*)?(?:최신\s*)?소식을 받고 싶(?:지 않습니까|으십니까|으신가요)\?\s*지금 Highsnobiety 앱을 다운로드하세요\.\s*/gi, " ")
+    .replace(/(^\s*|[.!?]["'’”]\s+)\bshop\s+[A-Z][A-Za-z0-9&'’.-]*(?:\s+[A-Z][A-Za-z0-9&'’.-]*){0,2}(?=\s+[가-힣]|$)\s*/g, "$1")
+    .replace(/(^\s*|[.!?]["'’”]?\s+)(?:[A-Z][A-Za-z0-9&'’.-]*\s+){1,3}쇼핑하기(?=\s+[A-Za-z0-9]|$)\s*/g, "$1");
+  if (hasHighsnobietyAppPrompt) {
+    text = text.replace(/(^\s*|[.!?]["'’”]?\s+)(?:[A-Z][A-Za-z0-9&'’.-]*\s+){1,3}쇼핑(?=\s|$)\s*/g, "$1");
+  }
+  text = text
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const yonhapPromo = "연합뉴스만의 특별한 뉴스 서비스를 경험해보세요!";
+  const yonhapGoogle = "구글 검색에서 연합뉴스 기사를 우선적으로 보여줍니다.";
+  if (text.startsWith(yonhapPromo)) {
+    const markerAt = text.slice(0, 1200).indexOf(yonhapGoogle);
+    if (markerAt >= 0) text = text.slice(markerAt + yonhapGoogle.length).trim();
+  }
+
+  const galleryMeta = text.slice(0, 1400).match(
+    /(?:패션|Fashion)(?:\s*제공)?\s*\d+\s*시간\s*전\s*[\d,.]+\s*조회수\s*[\d,.]+\s*댓글(?:\s*댓글)*\s*저장(?:\s*요약)?\s*/u
+  );
+  if (galleryMeta) text = text.slice(galleryMeta.index + galleryMeta[0].length).trim();
+
   const head = text.slice(0, 700);
   const readAloud = head.match(/읽어주기 기능은 크롬기반의 브라우저에서만 사용하실 수 있습니다\.\s*AI 요약\s*/i);
   if (readAloud) text = text.slice(readAloud.index + readAloud[0].length).trim();
@@ -330,6 +356,11 @@ function sectionText(html, tag) {
 function articleBodyText(html) {
   const source = String(html || "");
   const opening = /<([a-z][\w:-]*)\b(?=[^>]*(?:\bid|\bitemprop)\s*=\s*["']articleBody["'])[^>]*>/i.exec(source);
+  const inner = elementInnerHtml(source, opening);
+  return inner ? publicText(inner) : "";
+}
+
+function elementInnerHtml(source, opening) {
   if (!opening) return "";
   const tag = opening[1];
   const tags = new RegExp(`<\\/?${tag}\\b[^>]*>`, "gi");
@@ -340,9 +371,16 @@ function articleBodyText(html) {
   while ((match = tags.exec(source))) {
     if (/^<\//.test(match[0])) depth -= 1;
     else if (!/\/\s*>$/.test(match[0])) depth += 1;
-    if (depth === 0) return publicText(source.slice(start, match.index));
+    if (depth === 0) return source.slice(start, match.index);
   }
   return "";
+}
+
+function elleArticleText(html) {
+  const source = String(html || "");
+  const opening = /<([a-z][\w:-]*)\b[^>]*\bclass\s*=\s*["'][^"']*\batc_body_cont\b[^"']*["'][^>]*>/i.exec(source);
+  const inner = elementInnerHtml(source, opening);
+  return inner ? paragraphText(inner) : "";
 }
 
 function paragraphText(html) {
@@ -354,10 +392,12 @@ function paragraphText(html) {
 }
 
 function articleText(html) {
-  const explicit = [jsonLdArticleBody(html), articleBodyText(html)];
+  const publisherBody = elleArticleText(html);
+  const explicit = [jsonLdArticleBody(html), articleBodyText(html), publisherBody];
   const explicitLongest = explicit.reduce((longest, text) => text.length > longest.length ? text : longest, "");
   if (explicitLongest) {
-    return explicitLongest.length >= ARTICLE_TEXT_MIN
+    const minimum = explicitLongest === publisherBody ? EXCERPT_MAX : ARTICLE_TEXT_MIN;
+    return explicitLongest.length >= minimum
       ? { text: explicitLongest, tooShort: false }
       : { text: null, tooShort: true };
   }

@@ -201,20 +201,44 @@ export function applyHeadlineReview(edition, review = null, reviewSha256 = null)
   const issues = new Map((edition?.issues || []).map((issue) => [issue.evidenceHash, issue]));
   const reviewed = new Map();
   for (const entry of review.entries) {
-    const headlineKo = clean(entry?.headlineKo);
-    if (!hasExactKeys(entry, ["evidenceHash", "originalTitle", "headlineKo"])
+    const sourceUrl = clean(entry?.sourceUrl);
+    const summaryOnly = Object.hasOwn(entry || {}, "sourceUrl");
+    const headlineKo = summaryOnly ? null : clean(entry?.headlineKo);
+    const hasSummaryReview = Object.hasOwn(entry || {}, "articleSummaryTextKo");
+    const articleSummaryTextKo = hasSummaryReview ? clean(entry.articleSummaryTextKo) : null;
+    const entryKeys = summaryOnly
+      ? ["evidenceHash", "sourceUrl", "articleSummaryTextKo"]
+      : ["evidenceHash", "originalTitle", "headlineKo",
+        ...(hasSummaryReview ? ["articleSummaryTextKo"] : [])];
+    let sourceProtocol = null;
+    try { sourceProtocol = new URL(sourceUrl).protocol; } catch { /* validated below */ }
+    if (!hasExactKeys(entry, entryKeys)
       || !isSha(entry.evidenceHash) || reviewed.has(entry.evidenceHash)
-      || typeof entry.originalTitle !== "string" || !entry.originalTitle.trim()
-      || !headlineKo || !/[가-힣]/.test(headlineKo)) {
+      || (summaryOnly
+        ? (!hasSummaryReview || !sourceUrl || !["http:", "https:"].includes(sourceProtocol))
+        : (typeof entry.originalTitle !== "string" || !entry.originalTitle.trim()
+          || !headlineKo || !/[가-힣]/.test(headlineKo)))) {
       throw new TypeError("slot edition headline review: invalid entry");
     }
-    if (unsafeForLead(headlineKo)) throw new Error("slot edition headline review: unsafe headline");
+    if (headlineKo && unsafeForLead(headlineKo)) throw new Error("slot edition headline review: unsafe headline");
     const issue = issues.get(entry.evidenceHash);
     if (!issue) throw new Error("slot edition headline review: unknown evidenceHash");
-    if (clean(headlineSource(issue)?.originalTitle) !== clean(entry.originalTitle)) {
+    if (summaryOnly) {
+      const issueSourceUrls = [
+        ...(issue.eventSources || []),
+        ...(issue.articleSummary?.sourceLinks || [])
+      ].flatMap((row) => [clean(row?.url), clean(row?.canonicalUrl)]).filter(Boolean);
+      if (!issueSourceUrls.includes(sourceUrl)) {
+        throw new Error("slot edition headline review: sourceUrl mismatch");
+      }
+    } else if (clean(headlineSource(issue)?.originalTitle) !== clean(entry.originalTitle)) {
       throw new Error("slot edition headline review: originalTitle mismatch");
     }
-    reviewed.set(entry.evidenceHash, headlineKo);
+    if (hasSummaryReview && (!articleSummaryTextKo || !/[가-힣]/.test(articleSummaryTextKo)
+      || !["ready", "excerpt_only"].includes(issue.articleSummary?.status))) {
+      throw new TypeError("slot edition headline review: invalid summary review");
+    }
+    reviewed.set(entry.evidenceHash, { headlineKo, articleSummaryTextKo });
   }
   const receipt = {
     contract: HEADLINE_REVIEW_CONTRACT,
@@ -224,9 +248,17 @@ export function applyHeadlineReview(edition, review = null, reviewSha256 = null)
   return {
     edition: {
       ...edition,
-      issues: edition.issues.map((issue) => reviewed.has(issue.evidenceHash)
-        ? { ...issue, preparedHeadline: reviewed.get(issue.evidenceHash) }
-        : issue),
+      issues: edition.issues.map((issue) => {
+        const entry = reviewed.get(issue.evidenceHash);
+        if (!entry) return issue;
+        return {
+          ...issue,
+          ...(entry.headlineKo ? { preparedHeadline: entry.headlineKo } : {}),
+          ...(entry.articleSummaryTextKo ? {
+            articleSummary: { ...issue.articleSummary, textKo: entry.articleSummaryTextKo }
+          } : {})
+        };
+      }),
       headlineReviewReceipt: receipt
     },
     applied: reviewed.size,

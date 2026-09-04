@@ -141,6 +141,10 @@ export async function sendPush(subscription, payload, keys, opts = {}) {
 
 // --- digest push fan-out (server-side re-engagement job) ---
 
+const digestPushRuns = new WeakSet();
+const kstDay = (time) => Math.floor((time + 9 * 3600_000) / 86400_000);
+const pushItemIds = (item) => [item.id, ...(item.canonicalAliases || []).map((alias) => alias.id)].filter(Boolean);
+
 // Check every subscribed user's non-consuming digest (engine.digest) and push
 // the ones that actually have unseen matches right now. `sendImpl` stands in
 // for sendPush in tests so this runs with no network access; production wiring
@@ -151,37 +155,64 @@ export async function sendPush(subscription, payload, keys, opts = {}) {
 export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
   const send = opts.sendImpl || sendPush;
   const limit = opts.limit || 5;
+  const clock = opts.clock || Date.now;
   let sent = 0;
   let failed = 0;
   if (!vapidKeys || !vapidKeys.publicKey || !vapidKeys.privateKey) return { sent, failed };
+  if (digestPushRuns.has(store)) return { sent, failed };
 
-  for (const user of store.users.values()) {
-    const sub = user.pushSubscription;
-    if (!sub || !sub.endpoint) continue; // no real subscription (or the VAPID-less local-only fallback)
+  digestPushRuns.add(store);
+  try {
+    for (const user of store.users.values()) {
+      const sub = user.pushSubscription;
+      if (!sub || !sub.endpoint) continue; // no real subscription (or the VAPID-less local-only fallback)
 
-    let digest;
-    try {
-      digest = await engine.digest(user.id, { limit });
-    } catch {
-      continue; // e.g. user disappeared mid-loop; skip rather than fail the whole batch
+      const now = new Date(clock()).getTime();
+      const deliveryTimes = (user.pushDeliveryTimes || []).map((at) => Date.parse(at)).filter(Number.isFinite);
+      // Successful deliveries alone consume the KST daily budget and four-hour gap.
+      if (deliveryTimes.filter((at) => kstDay(at) === kstDay(now)).length >= 3
+          || deliveryTimes.some((at) => now - at < 4 * 3600_000)) continue;
+      const excluded = new Set((user.pushNotified || []).map((row) => row.id));
+
+      let digest;
+      try {
+        digest = await engine.digest(user.id, { limit, minScore: opts.minScore, excludeIds: [...excluded] });
+      } catch {
+        continue; // e.g. user disappeared mid-loop; skip rather than fail the whole batch
+      }
+      if (!digest || !digest.count) continue;
+      const items = (digest.top || []).filter((item) => item?.id && !item.adult
+        && !(item.topics || []).includes("adult")
+        && !pushItemIds(item).some((id) => excluded.has(id)));
+      if (!items.length) continue; // no safe, newly eligible preview — stay quiet
+
+      const top = items[0];
+      const payload = JSON.stringify({
+        title: "지금핫",
+        body: `관심글 ${digest.count}개가 올라왔어요 · ${String(top.title || "").slice(0, 30)}`,
+        url: `/live#post-${encodeURIComponent(top.id)}`
+      });
+
+      let response;
+      try {
+        response = await send(sub, payload, vapidKeys, { subject: vapidKeys.subject });
+      } catch {
+        failed += 1;
+        continue;
+      }
+      if (response?.status >= 200 && response.status < 300) {
+        await store.recordPushDelivery(user.id, [...new Set(items.flatMap(pushItemIds))], new Date(clock()).toISOString());
+        sent += 1;
+      } else {
+        failed += 1;
+        if ((response?.status === 404 || response?.status === 410)
+            && store.getUser(user.id)?.pushSubscription?.endpoint === sub.endpoint) {
+          store.savePushSubscription(user.id, null);
+        }
+      }
     }
-    if (!digest || !digest.count) continue; // nothing new — stay quiet
-
-    // never put a 19금 title on a lock screen (same principle as the share
-    // page): preview the first non-adult match, or stay generic
-    const top = (digest.top || [])[0];
-    const payload = JSON.stringify({
-      title: "지금핫",
-      body: `관심글 ${digest.count}개가 올라왔어요` + (top ? ` · ${top.title.slice(0, 30)}` : ""),
-      url: top ? `/live#post-${top.id}` : "/live"
-    });
-
-    try {
-      await send(sub, payload, vapidKeys, { subject: vapidKeys.subject });
-      sent += 1;
-    } catch {
-      failed += 1;
-    }
+  } finally {
+    digestPushRuns.delete(store);
   }
   return { sent, failed };
 }

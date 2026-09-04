@@ -595,6 +595,73 @@ test("cleanArticleTextChrome: 짧은 기사 뒤 음성·공유·제보·저작�
   );
 });
 
+test("cleanArticleTextChrome: 가입 유도·CMS 안내만 지우고 로그인 관련 기사 문장은 보존한다", () => {
+  const article = "정부는 공공 서비스 로그인 절차와 회원 보호 기준을 개편한다고 밝혔습니다. 후속 시행 일정은 다음 달 공개됩니다.";
+  const chrome = "전체 페이지를 읽으시려면 회원가입 및 로그인을 해주세요! 기사 제목 내용을 입력해주세요. 삭제하시겠습니까? 등록이 완료되었습니다.";
+  const quoted = "담당자는 화면에 '삭제하시겠습니까?'와 '등록이 완료되었습니다.'라는 문구가 차례로 표시됐다고 설명했습니다.";
+
+  assert.equal(cleanArticleTextChrome(`${chrome} ${article}`), article);
+  assert.equal(cleanArticleTextChrome(article), article);
+  assert.equal(cleanArticleTextChrome(quoted), quoted);
+});
+
+test("cleanArticleTextChrome: 연합뉴스·하입비스트·하이스노바이어티 UI만 걷고 기사 본문은 보존한다", () => {
+  const article = "정부는 새 정책의 적용 범위와 시행 일정을 공개했습니다. 후속 수치는 다음 달 발표될 예정입니다.";
+
+  assert.equal(cleanArticleTextChrome(
+    `연합뉴스만의 특별한 뉴스 서비스를 경험해보세요! 송고 2026-09-04 10:23 송고 2026년09월04일 10시23분 기사 제목과 부제 구글 검색에서 연합뉴스 기사를 우선적으로 보여줍니다. ${article}`
+  ), article);
+  assert.equal(cleanArticleTextChrome(
+    `1/8 Alpha Industries 2/8 Alpha Industries 8/8 Alpha Industries 패션 6시간 전 113 조회수 0 댓글 댓글 저장 요약 ${article}`
+  ), article);
+  assert.equal(cleanArticleTextChrome(
+    `13 중 1 질 샌더 13 중 2 질 샌더 13 of 13 Jil Sander 패션 15시간 전 551 조회수 0 댓글 댓글 저장 ${article}`
+  ), article);
+  assert.equal(cleanArticleTextChrome(
+    `계속해서 소식을 받고 싶으십니까? 지금 Highsnobiety 앱을 다운로드하세요. shop Satisfy ${article} Air Jordan 쇼핑하기 AJ11 ${article}`
+  ), `${article} AJ11 ${article}`);
+  assert.equal(cleanArticleTextChrome(
+    `${article} Air Jordan 쇼핑하기 AJ11's 최초 협업 제품입니다.`
+  ), `${article} AJ11's 최초 협업 제품입니다.`);
+
+  const quoted = "취재진은 앱 다운로드 증가와 온라인 쇼핑 산업의 변화를 함께 분석했습니다.";
+  assert.equal(cleanArticleTextChrome(quoted), quoted);
+
+  for (const ordinary of [
+    "Coupang 쇼핑몰 매출이 늘었습니다.",
+    "Naver 쇼핑 라이브 거래액이 증가했습니다.",
+    "Amazon 쇼핑객이 늘었습니다.",
+    "SSG 쇼핑센터가 문을 열었습니다.",
+    "You can shop Nike Air Max online now.",
+    "Amazon 쇼핑하기 기능이 새로 열렸습니다.",
+    "앞 문장입니다. shop Nike 매장이 문을 열었습니다."
+  ]) {
+    assert.equal(cleanArticleTextChrome(ordinary), ordinary);
+  }
+});
+
+test("fetchPublicArticle: 본문 전용 컨테이너가 있으면 주변 추천·상품 목록을 섞지 않는다", async () => {
+  const article = "아침저녁으로 선선해지면서 긴팔 파자마와 포근한 홈웨어를 찾는 사람이 늘고 있습니다. 편안한 착용감과 소재를 확인해야 합니다. ".repeat(3).trim();
+  const result = await fetchPublicArticle("https://publisher.example/article/42", {
+    fetchImpl: async () => streamRes({
+      body: `<meta property="og:title" content="가을 홈웨어 고르는 법"><main>
+        <h1>가을 홈웨어 고르는 법</h1>
+        <div class="atc_body"><div class="atc_body_cont">
+          <div class="atc_mask_login"><p>전체 페이지를 읽으시려면 회원가입 및 로그인을 해주세요!</p></div>
+          <div><p>${article}</p><div class="shopping_wrap2">상품 자세히 보기</div>
+          <div class="ab_related_article"><h2>전혀 다른 추천 기사 제목</h2></div></div>
+        </div></div>
+        <div class="tag_atc_list"><p>본문 밖 추천 기사입니다.</p></div>
+      </main>`,
+      url: "https://publisher.example/article/42"
+    }),
+    expectedTitle: "가을 홈웨어 고르는 법"
+  });
+
+  assert.equal(result.state, "available");
+  assert.equal(result.text, article);
+});
+
 test("fetchPublicArticle: Google 뉴스 중계 주소를 실제 언론사 원문으로 풀어 본문과 사진을 읽는다", async () => {
   const googleUrl = "https://news.google.com/rss/articles/opaque-article-id?oc=5";
   const publisherUrl = "https://news.kbs.co.kr/news/view.do?ncd=8644224";

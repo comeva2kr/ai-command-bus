@@ -216,10 +216,34 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 </div>
 <div class="toast hidden" id="toast" role="status"></div>
 
+<script src="/navigation-history.js"></script>
 <script>
-const state={userId:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null};
+const state={userId:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
 const $=(id)=>document.getElementById(id);
 const esc=(value)=>String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+const todayHistory=NowHotHistory.create("today");
+function todaySnapshot(){
+  return {userId:state.userId,edition:state.edition,y:$("issueDetail").classList.contains("open")?state.listScrollY:window.scrollY};
+}
+function saveTodayNavigation(){
+  if(state.edition)todayHistory.save(todaySnapshot(),$("issueDetail").querySelector(".detail-panel").scrollTop);
+}
+function issueDetailFromHash(){
+  try{
+    const match=location.hash.match(/^#issue-([^/]+)\/([^/]+)$/);
+    return match?{editionId:decodeURIComponent(match[1]),issueId:decodeURIComponent(match[2])}:null;
+  }catch{return null}
+}
+function restoreTodayDetail(){
+  const detail=issueDetailFromHash();
+  if(!detail || detail.editionId!==state.edition?.editionId)return false;
+  const index=state.edition.issues.findIndex(issue=>(issue.evidenceHash||issue.id||issue.clusterId)===detail.issueId);
+  if(index<0)return false;
+  openIssueDetail(index);return true;
+}
+addEventListener("pagehide",saveTodayNavigation);
+addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")saveTodayNavigation()});
+addEventListener("pageshow",event=>{if(event.persisted)restoreTodayDetail()});
 
 function externalHref(value){
   try{const url=new URL(value);return url.protocol==="http:"||url.protocol==="https:"?url.href:null}catch{return null}
@@ -359,7 +383,7 @@ function sourceTranslationHtml(issue,sources){
     : "원문이 열리면 브라우저의 번역 기능을 선택하세요.";
   return `<div class="detail-translation">
     ${source.originalTitle?`<p class="detail-basis"><b>${esc(source.sourceLabel)} 원문 제목</b><br>${esc(source.originalTitle)}</p>`:""}
-    <div class="detail-originals"><a id="detailTranslate" href="${esc(href)}" ${mobile?"":'target="_blank" rel="noopener noreferrer"'} aria-describedby="detailTranslationHint">${esc(source.sourceLabel)} ${mobile?"네이버 앱에서 번역":"원문 열고 번역"}</a></div>
+    <div class="detail-originals"><a id="detailTranslate" href="${esc(href)}" ${mobile?"":'rel="noopener noreferrer"'} aria-describedby="detailTranslationHint">${esc(source.sourceLabel)} ${mobile?"네이버 앱에서 번역":"원문 열고 번역"}</a></div>
     <p class="detail-basis" id="detailTranslationHint">${hint}</p>
   </div>`;
 }
@@ -440,7 +464,7 @@ function renderIssues(edition){
     const cats=(issue.categoryIds||[]).map((id)=>edition.availableCategories.find((category)=>category.id===id)?.label||id).join(" · ");
     const directSources=issueSourceLinks(issue);
     const refLabels=new Set(directSources.map((row)=>row.sourceLabel));
-    const linked=directSources.map((row)=>`<a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer" title="${esc(row.title)}">${esc(row.sourceLabel)}</a>`);
+    const linked=directSources.map((row)=>`<a href="${esc(row.url)}" rel="noopener noreferrer" title="${esc(row.title)}">${esc(row.sourceLabel)}</a>`);
     const observed=(issue.eventSources?.length?[]:issue.evidence?.sources||[]).filter((source)=>!refLabels.has(source.label)).map((source)=>`<span>${esc(source.label)}</span>`);
     const sources=[...linked,...observed].join("");
     const published=issue.firstPublishedAt?`<time class="published-time" datetime="${esc(issue.firstPublishedAt)}">${esc(formatListKst(issue.firstPublishedAt))} KST</time>`:"";
@@ -469,7 +493,7 @@ function resetIssueDetail(){
   $("detailContent").innerHTML="";
 }
 
-function closeIssueDetail(){
+function hideIssueDetail(){
   const overlay=$("issueDetail");
   if(!overlay.classList.contains("open"))return;
   state.detailRevision+=1;
@@ -480,11 +504,21 @@ function closeIssueDetail(){
   state.detailOpener=null;state.detailReturnFocus=null;
   resetIssueDetail();
   returnFocus?.focus?.();
+  window.scrollTo(0,state.listScrollY);
+}
+function closeIssueDetail(){
+  if(todayHistory.current()?.view==="detail")history.back();else hideIssueDetail();
 }
 
 function openIssueDetail(index,returnFocus=null){
   const issue=state.edition?.issues?.[index];
   if(!issue)return;
+  const detail={editionId:state.edition.editionId,issueId:issue.evidenceHash||issue.id||issue.clusterId};
+  if(!detail.editionId||!detail.issueId)return;
+  if($("issueDetail").classList.contains("open")&&JSON.stringify(todayHistory.current()?.detail)===JSON.stringify(detail))return;
+  if(!$("issueDetail").classList.contains("open"))state.listScrollY=window.scrollY;
+  const entry=todayHistory.open(detail,todaySnapshot(),`#issue-${encodeURIComponent(detail.editionId)}/${encodeURIComponent(detail.issueId)}`);
+  state.listScrollY=todayHistory.snapshot()?.y||0;
   state.detailRevision+=1;
   const copy=issue.reader||{};
   const title=copy.headline||issue.headline;
@@ -538,7 +572,7 @@ function openIssueDetail(index,returnFocus=null){
   const imageHtml=image
     ? `<div><img class="detail-image" src="${esc(image)}" alt="${esc(title)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><p class="detail-image-status" role="status" aria-live="polite" hidden>사진을 불러오지 못했습니다.</p></div>`
     : `<p class="detail-image-status" role="status">기사에서 사용할 수 있는 사진을 확인하지 못했습니다.</p>`;
-  const sourceLinks=resolvedSources.map((row)=>`<a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">${esc(row.sourceLabel)} ${row.relay?"중계 링크 열기":"원문 보기"} ↗</a>`);
+  const sourceLinks=resolvedSources.map((row)=>`<a href="${esc(row.url)}" rel="noopener noreferrer">${esc(row.sourceLabel)} ${row.relay?"중계 링크 열기":"원문 보기"} ↗</a>`);
   const points=[
     ["왜 중요한가",copy.whyImportant||issue.whyImportant],
     ["새로 달라진 점",copy.change||issue.changedSincePrevious],
@@ -551,6 +585,7 @@ function openIssueDetail(index,returnFocus=null){
     <section class="detail-section"><h3>브리핑 포인트</h3><dl class="detail-points">${points.map(([label,value])=>`<div class="detail-point"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl></section>
     ${sourceLinks.length?`<section class="detail-section"><h3>출처</h3>${sourceTranslationHtml(issue,resolvedSources)}<nav class="detail-originals" aria-label="출처 링크">${sourceLinks.join("")}</nav></section>`:""}`;
   $("detailClose").focus();
+  $("issueDetail").querySelector(".detail-panel").scrollTop=entry?.detailScroll||0;
 }
 
 $("detailClose").onclick=closeIssueDetail;
@@ -565,6 +600,21 @@ function focusTrap(event){
   else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}
 }
 document.addEventListener("keydown",(event)=>{if(event.key==="Escape")closeIssueDetail();else focusTrap(event)});
+$("detailContent").addEventListener("click",event=>{
+  const link=event.target.closest("a");
+  if(link && !link.target)saveTodayNavigation();
+});
+$("issueDetail").querySelector(".detail-panel").addEventListener("scroll",()=>
+  todayHistory.save(null,$("issueDetail").querySelector(".detail-panel").scrollTop),{passive:true});
+addEventListener("popstate",()=>{
+  hideIssueDetail();
+  const snapshot=todayHistory.snapshot();
+  if(snapshot?.userId===state.userId && snapshot.edition){
+    if(snapshot.edition.editionId!==state.edition?.editionId)render(snapshot.edition);
+    state.listScrollY=snapshot.y||0;window.scrollTo(0,state.listScrollY);
+  }
+  restoreTodayDetail();
+});
 
 function renderRail(edition){
   const fixture=edition.candidateContract?.metrics||{};
@@ -709,7 +759,10 @@ async function loadEdition(announce=false,targetDate=null,categories=state.categ
     if(targetDate)query.set("date",targetDate);
     const edition=await json(`/api/today?${query}`,{signal:loadController.signal});
     if(loadRevision!==state.loadRevision)return;
-    render(edition);if(announce)toast("오늘판을 새로 정리했습니다");
+    render(edition);
+    if(!restoreTodayDetail())todayHistory.ensure(todaySnapshot());
+    saveTodayNavigation();
+    if(announce)toast("오늘판을 새로 정리했습니다");
   }catch(error){if(error.name!=="AbortError"&&loadRevision===state.loadRevision)renderError(error)}finally{
     if(loadRevision===state.loadRevision)$("refresh").setAttribute("aria-busy","false");
   }
@@ -765,6 +818,22 @@ function setupViewSwitch(){
 setupViewSwitch();
 
 if("serviceWorker" in navigator){
+  navigator.serviceWorker.addEventListener("message",event=>{
+    const data=event.data||{};
+    const href=NowHotHistory.webUrl(data.url,true);
+    if(!href)return;
+    if(data.type==="NOWHOT_NAVIGATE"){
+      saveTodayNavigation();
+      event.ports?.[0]?.postMessage({handled:true});
+      location.assign(href);
+    }
+    if(data.type==="NOWHOT_DIGEST"){
+      let banner=$("foregroundDigest");
+      if(!banner){banner=document.createElement("div");banner.id="foregroundDigest";banner.className="detail-basis";document.querySelector("main").prepend(banner)}
+      banner.innerHTML=`<b>${esc(data.title||"지금핫")}</b> ${esc(data.body||"")} <a href="${esc(href)}">보기</a> <button type="button" aria-label="알림 닫기">×</button>`;
+      banner.querySelector("button").onclick=()=>banner.remove();
+    }
+  });
   window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
 }
 
@@ -779,7 +848,11 @@ if("serviceWorker" in navigator){
     const session=await json("/api/session",{method:"POST",body:JSON.stringify({userId:saved})});
     state.userId=session.userId;localStorage.setItem("feed_uid",session.userId);
     if(Array.isArray(session.briefingCategories)&&session.briefingCategories.length){state.categories=session.briefingCategories;state.confirmedCategories=[...session.briefingCategories]}
-    await loadEdition();
+    const snapshot=todayHistory.snapshot();
+    if(snapshot?.userId===state.userId && snapshot.edition){
+      render(snapshot.edition);state.listScrollY=snapshot.y||0;window.scrollTo(0,state.listScrollY);
+      restoreTodayDetail();
+    }else await loadEdition(false,state.editionDate);
   }catch(error){renderError(error)}
 })();
 </script>

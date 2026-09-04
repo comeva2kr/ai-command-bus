@@ -356,10 +356,10 @@ async function excerptSummary(row, { translateText, nowMs }) {
     };
     excerptBasis = "publisher_feed_excerpt";
   }
-  let textKo = publicExcerpt(anchor.result.text);
+  let textKo = publicExcerpt(cleanArticleTextChrome(anchor.result.text));
   if (!substantialKoreanSummary(textKo) && typeof translateText === "function") {
     const translated = await translateText(textKo, { from: "auto", to: "ko" });
-    if (substantialKoreanSummary(translated)) textKo = publicExcerpt(translated);
+    if (substantialKoreanSummary(translated)) textKo = publicExcerpt(cleanArticleTextChrome(translated));
   }
   if (!substantialKoreanSummary(textKo)) return null;
   return {

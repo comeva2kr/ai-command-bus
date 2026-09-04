@@ -375,6 +375,12 @@ test("registry loads the community DB and summarizes it", () => {
   assert.ok(s.byLang.en > 0 && s.byLang.ja > 0, "overseas languages present");
 });
 
+test("유료 본문 비중이 높은 MarketWatch는 신규 수집에서 제외한다", () => {
+  const entry = loadRegistry().find((source) => source.id === "marketwatch-top");
+  assert.equal(entry?.enabled, false);
+  assert.equal(buildSources([entry], { seed: false, fetcher: async () => [] }).length, 0);
+});
+
 test("buildSources only emits fetchable sources and tags seed items", async () => {
   const reg = loadRegistry();
   const sources = buildSources(reg);

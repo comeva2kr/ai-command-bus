@@ -520,7 +520,7 @@ export function createServer(opts = {}) {
               // 자체 서술이다 — 이 페이지의 자체 콘텐츠 비중이 8.5%뿐이었다.
               const note = i.editorialNote
                 ? `<p class="seed-note">${escapeHtml(i.editorialNote)}</p>` : "";
-              return `<li><a href="/live#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>` +
+              return `<li><a href="${livePostHref(i)}">${escapeHtml(maskProfanity(i.title))}</a>` +
                 `<span class="seed-src">${meta}${src}</span>${note}${summary}</li>`;
             }).join("") + `</ol>`;
           } else {
@@ -610,6 +610,10 @@ export function createServer(opts = {}) {
   }
   sources.push(new StorePostsSource(store));
   const engine = new FeedEngine(store, opts.sources || sources);
+  const livePostHref = (item) => {
+    engine.rememberPublishedItem(item);
+    return `/live#post-${encodeURIComponent(item.id)}`;
+  };
   const localEditorial = opts.localEditorial != null
     ? Boolean(opts.localEditorial)
     : process.env.NOWHOT_LOCAL_EDITORIAL === "1";
@@ -1299,6 +1303,7 @@ export function createServer(opts = {}) {
   const LOCAL_INVENTORY_SCHEDULE_ENABLED = localEditorial && !slotCanonicalEditionEnabled &&
     !process.env.NODE_TEST_CONTEXT && opts.localEditorialInventorySchedule !== false;
   const LOCAL_CANONICAL_SCHEDULE_ENABLED = localEditorial && slotCanonicalEditionEnabled &&
+    process.env.NOWHOT_SLOT_CANONICAL_PREPUBLISH !== "0" &&
     (!process.env.NODE_TEST_CONTEXT || typeof opts.localCanonicalPublisher === "function") &&
     opts.localCanonicalPrepublishSchedule !== false;
   let localInventoryPending = null;
@@ -2655,7 +2660,7 @@ ${noindex ? "" : displayAdHtml()}
   };
   const rankRow = (i, n) => {
     const bits = evidenceBits(i);
-    return `<li value="${n}"><div><a href="/live#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+    return `<li value="${n}"><div><a href="${livePostHref(i)}">${escapeHtml(maskProfanity(i.title))}</a>
       <span class="m">${escapeHtml(i.sourceLabel)} · ${escapeHtml(i.categoryLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span>
       ${heatBar(i.heat)}</div></li>`;
   };
@@ -2723,7 +2728,7 @@ ${noindex ? "" : displayAdHtml()}
       ${is.essay ? `<p>${escapeHtml(maskProfanity(is.essay))}</p>` : ""}
       <p>${escapeHtml(maskProfanity(is.paragraph))}</p>
       <div class="m"><span class="tone">${escapeHtml(is.tone)}</span> · 관련 글 ${is.refs.length}건</div>
-      <ul>${is.refs.map((r) => `<li><a href="/live#post-${encodeURIComponent(r.id)}">${escapeHtml(maskProfanity(r.title))}</a>
+      <ul>${is.refs.map((r) => `<li><a href="${livePostHref(r)}">${escapeHtml(maskProfanity(r.title))}</a>
         <span class="m">${escapeHtml(r.sourceLabel)}${evidenceBits(r).length ? " · " + evidenceBits(r).join(" · ") : ""}</span></li>`).join("")}</ul>
     </section>`).join("");
 
@@ -2789,7 +2794,7 @@ const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) 
       // 섹션 전부가 같은 템플릿 문장 + 제목 나열이었고 설명 문장이 0개였다 —
       // 애드핏이 요구한 "자체 콘텐츠"의 반대편이다. 피드에는 이미 summary가
       // 있는데 브리핑에서 한 줄도 쓰지 않고 있었다.
-      return `<li><a href="/live#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+      return `<li><a href="${livePostHref(i)}">${escapeHtml(maskProfanity(i.title))}</a>
         <span class="m">${escapeHtml(i.sourceLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></li>`;
     }).join("");
     const html = `<section><h2><a href="/briefing/${encodeURIComponent(sec.category)}" style="color:inherit">${escapeHtml(sec.label)}</a></h2>
@@ -2969,11 +2974,12 @@ const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) 
           if (i.score > 0) bits.push(`추천 ${i.score}`);
           if (i.commentCount > 0) bits.push(`댓글 ${i.commentCount}`);
           if (i.coverage >= 3) bits.push(`${i.coverage}개 매체 보도`);
+          const link = `${origin}${livePostHref(i)}`;
           items.push({
             title: i.title,
-            link: `${origin}/live#post-${encodeURIComponent(i.id)}`,
+            link,
             desc: `${i.sourceLabel || ""}${bits.length ? " — " + bits.join(" · ") : ""} (지금핫 실측)`,
-            guid: `${origin}/live#post-${encodeURIComponent(i.id)}`
+            guid: link
           });
         }
         const body = `<?xml version="1.0" encoding="UTF-8"?>
@@ -3081,7 +3087,7 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         const b = await currentBriefing();
         const dateStr = kstLabel(b.generatedAt);
         const debateHtml = b.debate
-          ? `<section><h2>오늘의 논쟁</h2><p>가장 많은 댓글이 달린 글은 <b>“${escapeHtml(b.debate.title)}”</b>(${escapeHtml(b.debate.sourceLabel)})입니다 — 댓글 ${fmtNum(b.debate.commentCount)}개가 이어지고 있습니다. <a href="/live#post-${encodeURIComponent(b.debate.id)}">지금핫 댓글로 의견 남기기 →</a></p></section>`
+          ? `<section><h2>오늘의 논쟁</h2><p>가장 많은 댓글이 달린 글은 <b>“${escapeHtml(b.debate.title)}”</b>(${escapeHtml(b.debate.sourceLabel)})입니다 — 댓글 ${fmtNum(b.debate.commentCount)}개가 이어지고 있습니다. <a href="${livePostHref(b.debate)}">지금핫 댓글로 의견 남기기 →</a></p></section>`
           : "";
         const archiveDates = store.listEditionDates ? store.listEditionDates().slice(-14).reverse() : [];
         const archiveHtml = archiveDates.length > 1
@@ -3423,7 +3429,7 @@ ${AD(null, null, 10, "communities")}
 ${rankingNav("")}
 ${cats ? `<p>지금 ${escapeHtml(b.label)}에서 가장 많이 다뤄지는 분야는 ${cats} 순입니다.</p>` : ""}
 <section><h2>반응량 TOP ${b.items.length}</h2>
-<ol class="rank">${b.items.map((i) => `<li><div><a href="/live#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+<ol class="rank">${b.items.map((i) => `<li><div><a href="${livePostHref(i)}">${escapeHtml(maskProfanity(i.title))}</a>
   <span class="m">${escapeHtml(categoryLabel(i.category))}${evidenceBits(i).length ? " · " + evidenceBits(i).join(" · ") : ""}</span></div></li>`).join("")}</ol></section>
 ${AD(b.items[0] && b.items[0].category, null, 12, "community_mid")}
 <p class="muted"><a href="/communities">다른 커뮤니티 순위도 보기 →</a></p>`;
@@ -3512,7 +3518,7 @@ ${AD(null, null, 14, "keywords")}`;
 ${rankingNav("")}
 ${srcs ? `<p>이 키워드는 ${srcs} 순으로 언급되고 있습니다.</p>` : ""}
 <section><h2>관련 글</h2>
-<ol class="rank">${k.items.map((i) => `<li><div><a href="/live#post-${encodeURIComponent(i.id)}">${escapeHtml(maskProfanity(i.title))}</a>
+<ol class="rank">${k.items.map((i) => `<li><div><a href="${livePostHref(i)}">${escapeHtml(maskProfanity(i.title))}</a>
   <span class="m">${escapeHtml(i.sourceLabel || i.source)}${evidenceBits(i).length ? " · " + evidenceBits(i).join(" · ") : ""}</span></div></li>`).join("")}</ol></section>
 ${AD(k.categories[0] && k.categories[0].key, null, 16, "keyword_mid")}
 <p class="muted"><a href="/keywords">다른 화제 키워드도 보기 →</a></p>`;
@@ -4078,9 +4084,14 @@ ${rankingRows(list, (above) => {
         const userId = url.searchParams.get("userId");
         const itemId = url.searchParams.get("itemId");
         if (!store.getUser(userId)) return send(res, 400, { error: "unknown user" });
-        const item = await engine.getItem(userId, itemId);
-        if (!item) return send(res, 404, { error: "not found" });
-        return send(res, 200, item);
+        try {
+          const item = await engine.getItem(userId, itemId, { explain: true });
+          if (!item) return send(res, 404, { error: "not found", code: "ITEM_UNAVAILABLE" });
+          return send(res, 200, item);
+        } catch (err) {
+          if (err.status === 403) return send(res, 403, { error: err.message, code: err.code });
+          throw err;
+        }
       }
 
       if (p === "/api/signal" && req.method === "POST") {

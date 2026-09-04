@@ -7,6 +7,7 @@
 // navigation; the server just keeps handing out the next best unseen batch.
 
 import fs from "node:fs";
+import { ArticleArchive } from "./article-archive.js";
 import { collect, SeedSource, resolveCap } from "./content.js";
 import { loadRegistry } from "./registry.js";
 import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, UNTRAINED_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY, categoryGuardReason, isGeneralNewsGuardReason } from "./classify.js";
@@ -1082,6 +1083,7 @@ export class FeedEngine {
     // 뒤에서 돈다. 48시간 보존 상한은 그대로라 오래된 글이 되살아나지 않는다.
     this._poolFile = process.env.FEED_POOL_FILE
       || (store && store.file ? String(store.file).replace(/\.json$/, "") + "-pool.json" : null);
+    this._articleArchive = new ArticleArchive(store?.file ? `${store.file}.articles` : null);
     this._clock = store && store.clock ? store.clock : null; // injectable time for tests
     // 카테고리 분류기 (David 2026-07-29 "칼같은 인덱싱"). 프로세스 수명 동안
     // 구글뉴스 섹션 라벨을 계속 흡수한다 — 15분마다 새 제목 수백 건이 공짜
@@ -1250,7 +1252,7 @@ export class FeedEngine {
       // **규칙을 바꾸기 전에 들어온 글**이 그대로 남는다 — 2026-08-05 배포
       // 직후 라이브에서 2건이 그 상태였다. 길목에서 한 번 더 걸어 두면
       // 오래된 항목도 즉시 정리되고, 나중에 다른 경로가 생겨도 새지 않는다.
-      if (item.translated && item.summaryTranslated === false && item.summary) item.summary = "";
+      this._cleanItemSummary(item);
     }
     return this._cache;
   }
@@ -1587,6 +1589,8 @@ export class FeedEngine {
     let parsed;
     try { parsed = JSON.parse(fs.readFileSync(this._poolFile, "utf8")); } catch { return false; }
     if (!parsed || !Array.isArray(parsed.rows) || !parsed.rows.length) return false;
+    // Old pool rows may no longer be suitable for ranking, but their links still work.
+    for (const row of parsed.rows) this._rememberArticle(row?.item);
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     if (!Number.isFinite(parsed.savedAt) || now - parsed.savedAt > maxAgeMs) return false;
     for (const row of parsed.rows) {
@@ -2531,6 +2535,7 @@ export class FeedEngine {
   // a note from whichever templates only need the item's own fields; only
   // the source-outlier template is unavailable without it.
   _decorate(item, score, user, editorialContext = null) {
+    this._rememberArticle(item);
     const rating = user.ratings[item.id];
     const saved = Array.isArray(user.saved) && user.saved.includes(item.id);
     const reasons = user.preferences ? explain(item, user.preferences).map(reasonLabel) : [];
@@ -2610,10 +2615,51 @@ export class FeedEngine {
 
   // Resolve a list of item ids to decorated items (for the 스크랩 list).
   async resolveItems(userId, ids) {
-    const items = await this._items();
-    const byId = new Map(items.map((i) => [i.id, i]));
-    const user = this.store.getUser(userId) || { ratings: {}, saved: [] };
-    return ids.map((id) => byId.get(id)).filter(Boolean).map((it) => this._decorate(it, 0, user));
+    return (await Promise.all(ids.map((id) => this.getItem(userId, id)))).filter(Boolean);
+  }
+
+  _rememberArticle(item) {
+    try { this._articleArchive?.remember(this._cleanItemSummary(item)); }
+    catch (err) { console.error("[article-archive] write failed:", err.message); }
+  }
+
+  _cleanItemSummary(item) {
+    if (item?.translated && item.summaryTranslated === false) item.summary = "";
+    return item;
+  }
+
+  rememberPublishedItem(item) {
+    // SSR cards can be shortened DTOs; preserve the actual article, not that DTO.
+    const saved = this._articleArchive?.get(item?.id);
+    const full = (saved && this._findItem(this._cache || [], saved.id))
+      || this._findItem(this._cache || [], item?.id) || saved || item;
+    this._rememberArticle(full);
+  }
+
+  async _detailContext(itemId) {
+    let items = this._cache || [];
+    const lookup = () => {
+      const saved = this._articleArchive?.get(itemId);
+      return (saved && this._findItem(items, saved.id))
+        || this._findItem(items, itemId) || saved;
+    };
+    let item = lookup();
+    if (!item && !this._cache && this._poolFile && !this._archivePoolRead) {
+      this._archivePoolRead = true;
+      // Recover existing links even if the old pool is too stale to seed a new feed.
+      try {
+        const rows = JSON.parse(fs.readFileSync(this._poolFile, "utf8")).rows;
+        for (const row of Array.isArray(rows) ? rows : []) this._rememberArticle(row?.item);
+      } catch (err) {
+        if (err.code !== "ENOENT") console.error("[article-archive] pool recovery failed:", err.message);
+      }
+      item = lookup();
+    }
+    if (!item) {
+      items = await this._items();
+      item = lookup();
+    }
+    return { item: this._cleanItemSummary(item), items };
   }
 
   // 아이템 조회는 이 헬퍼 한 벌만 쓴다 — 상한 목록에 없으면 누적 풀(48h)에서
@@ -2636,8 +2682,7 @@ export class FeedEngine {
   async rate(userId, itemId, signal) {
     if (![1, 0, -1].includes(signal)) throw new Error("signal must be 1, 0, or -1");
     const user = this.store.requireUser(userId);
-    const items = await this._items();
-    const item = this._findItem(items, itemId);
+    const { item } = await this._detailContext(itemId);
     if (!item) throw new Error(`unknown item: ${itemId}`);
 
     const previousSignal = Number(user.ratings[itemId] && user.ratings[itemId].signal || 0);
@@ -2662,19 +2707,20 @@ export class FeedEngine {
   // Public share metadata for an item (for OG tags on a shared link). Adult
   // items get no public share page.
   async shareData(itemId) {
-    const items = await this._items();
-    const item = this._findItem(items, itemId);
+    const { item } = await this._detailContext(itemId);
     if (!item) return null;
     // 관리자가 차단한 소스는 공유 카드로도 안 내보낸다 — getItem이 상세에
     // 거는 것과 같은 관문. 예전엔 공유 경로에 이 관문이 아예 없었다.
     const disabled = this.store.disabledSources ? this.store.disabledSources() : null;
     if (disabled && disabled.has(item.source)) return null;
+    this._rememberArticle(item);
     return {
       id: item.id,
       title: item.title,
       summary: item.summary,
       category: categoryLabel(item.category),
       source: sourceLabel(item.source),
+      url: item.url,
       // 공유 카드에 기사 사진을 싣기 위해 함께 내보낸다. 2026-08-02 검수 실측:
       // /p?id= 5개 글의 og:image가 전부 사이트 로고(icon.svg) 상수였고, 정작
       // 같은 글의 API에는 실제 사진이 있었다(피드 60건 중 45건 보유).
@@ -2688,10 +2734,9 @@ export class FeedEngine {
   // personalization.
   async signal(userId, itemId, event) {
     const user = this.store.requireUser(userId);
-    const items = await this._items();
     // 풀 폴백 필수 — 상한 목록만 보면 방금 서빙된 글의 열람(open)이
     // 발자취(user.opened)에서 조용히 빠진다.
-    const item = this._findItem(items, itemId);
+    const { item } = await this._detailContext(itemId);
     if (!item) return { ok: false };
     const { step } = applyImplicit(this.store.learningPreferences(userId), item, event || {});
     this.store.refreshPreferenceProjection(userId);
@@ -2702,10 +2747,10 @@ export class FeedEngine {
   // A non-consuming preview of the best unseen items — the payload behind a
   // "관심글 N개가 올라왔어요" re-engagement notification. Does NOT mark items seen,
   // so opening the app afterwards still shows them in the feed.
-  async digest(userId, { limit = 5, minScore = 1.0 } = {}) {
+  async digest(userId, { limit = 5, minScore = 1.0, excludeIds = [] } = {}) {
     const user = this.store.requireUser(userId);
     const items = await this._items();
-    const seen = new Set(user.seen);
+    const seen = new Set([...(user.seen || []), ...(user.opened || []), ...excludeIds]);
 
     const muted = new Set(user.mutedSources || []);
     const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
@@ -2715,7 +2760,7 @@ export class FeedEngine {
         !muted.has(i.source) &&
         !disabled.has(i.source) &&
         !topicsBlocked(i, showTopics) &&
-        !seen.has(i.id)
+        !seen.has(i.id) && !(i.canonicalAliases || []).some((a) => seen.has(a.id))
     );
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     // Same hot-only gate as the main feed (see getFeed) — the digest previews
@@ -3713,13 +3758,12 @@ export class FeedEngine {
     return out;
   }
 
-  async getItem(userId, itemId) {
-    const items = await this._items();
+  async getItem(userId, itemId, { explain = false } = {}) {
     // 상한 목록에 없으면 **누적 풀(48h)에서 찾는다.** 피드가 내놓은 글이
     // 다음 수집 사이클의 소스별 상한 재편성에서 빠질 수 있다 — 그러면 방금
     // 누른 글인데 "이 글은 지금 목록에 없어요"가 떴다(David 2026-08-07,
     // Alphabet 기사 실측: 풀 8,403 vs 상한 1,973). 풀에는 그대로 있다.
-    const item = this._findItem(items, itemId);
+    const { item, items } = await this._detailContext(itemId);
     if (!item) return null;
     const user = this.store.getUser(userId);
     const showTopics = new Set((user && user.showTopics) || []);
@@ -3728,8 +3772,12 @@ export class FeedEngine {
     // 정치를 끈 사용자나 관리자가 차단한 소스의 글이 상세 직접 접근(공유 링크,
     // 검색 색인, 예전 기록)으로는 그대로 열렸다. 관문을 두 벌로 두면 한쪽이
     // 반드시 샌다 — 오늘만 이 유형을 세 번 만났다.
-    if (topicsBlocked(item, showTopics)) return null;
-    if (disabled && disabled.has(item.source)) return null;
+    const reason = disabled?.has(item.source) ? "SOURCE_DISABLED"
+      : topicsBlocked(item, showTopics) ? "TOPIC_FILTERED" : null;
+    if (reason) {
+      if (explain) throw Object.assign(new Error(reason), { status: 403, code: reason });
+      return null;
+    }
     // never surface a 19금 item to a user who isn't verified + opted in
     const decorated = this._decorate(item, 0, user || { ratings: {} });
     return {

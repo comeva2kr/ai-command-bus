@@ -181,6 +181,75 @@ test("사람이 확인한 제목은 원문과 근거 해시가 정확히 맞을 
   }, "a".repeat(64)), /unsafe headline/);
 });
 
+test("제목 검수에서 확인한 요약 교정은 같은 근거에만 적용하고 나머지 상세 메타데이터는 보존한다", () => {
+  const evidenceHash = "7".repeat(64);
+  const originalTitle = "Fed Governor Waller indicates he will support holding rates steady";
+  const articleSummary = {
+    status: "excerpt_only",
+    textKo: "월러 연준 총재는 금리 동결을 지지한다고 말했습니다. 월러 의원은 물가 흐름도 설명했습니다.",
+    sourceEvidenceId: "event-source:waller",
+    sourceLinks: [{ evidenceId: "event-source:waller", originalTitle }],
+    image: "https://images.example/waller.jpg"
+  };
+  const issue = {
+    evidenceHash,
+    headline: "기존 제목",
+    eventSources: [{ originalTitle }],
+    articleSummary
+  };
+  const corrected = "크리스토퍼 월러 연방준비제도 이사는 금리 동결을 지지한다고 말했습니다. 월러 이사는 물가 흐름도 설명했습니다.";
+  const review = {
+    contract: "NOWHOT-HEADLINE-REVIEW-001",
+    entries: [{
+      evidenceHash,
+      originalTitle,
+      headlineKo: "월러 연준 이사, 금리 동결 지지 시사",
+      articleSummaryTextKo: corrected
+    }]
+  };
+
+  const applied = applyHeadlineReview({ issues: [issue] }, review, "b".repeat(64));
+  assert.equal(applied.edition.issues[0].articleSummary.textKo, corrected);
+  assert.deepEqual({ ...applied.edition.issues[0].articleSummary, textKo: articleSummary.textKo }, articleSummary);
+  assert.throws(() => applyHeadlineReview({ issues: [{ ...issue, eventSources: [{ originalTitle: "다른 원문" }] }] }, review, "b".repeat(64)), /originalTitle mismatch/);
+});
+
+test("원문 제목이 없는 기사도 정확한 출처 URL과 근거 해시에 묶인 본문 교정만 허용한다", () => {
+  const evidenceHash = "6".repeat(64);
+  const sourceUrl = "https://www.elle.co.kr/article/1909047";
+  const articleSummary = {
+    status: "excerpt_only",
+    textKo: "제휴 문구와 추천 기사까지 섞인 본문",
+    sourceEvidenceId: "event-source:elle",
+    sourceLinks: [{ evidenceId: "event-source:elle", url: sourceUrl }],
+    image: "https://images.example/elle.jpg"
+  };
+  const issue = {
+    evidenceHash,
+    headline: "홈웨어도 가을맞이",
+    eventSources: [{ title: "홈웨어도 가을맞이", originalTitle: null, url: sourceUrl }],
+    articleSummary
+  };
+  const corrected = "아침저녁으로 선선해지면서 긴팔 파자마와 포근한 홈웨어를 찾는 시기입니다.";
+  const review = {
+    contract: "NOWHOT-HEADLINE-REVIEW-001",
+    entries: [{ evidenceHash, sourceUrl, articleSummaryTextKo: corrected }]
+  };
+
+  const applied = applyHeadlineReview({ issues: [issue] }, review, "c".repeat(64));
+  assert.equal(applied.edition.issues[0].articleSummary.textKo, corrected);
+  assert.equal(applied.edition.issues[0].preparedHeadline, undefined);
+  assert.deepEqual({ ...applied.edition.issues[0].articleSummary, textKo: articleSummary.textKo }, articleSummary);
+  assert.throws(() => applyHeadlineReview({ issues: [issue] }, {
+    ...review,
+    entries: [{ ...review.entries[0], sourceUrl: "https://www.elle.co.kr/article/other" }]
+  }, "c".repeat(64)), /sourceUrl mismatch/);
+  assert.throws(() => applyHeadlineReview({ issues: [issue] }, {
+    ...review,
+    entries: [{ ...review.entries[0], sourceUrl: "javascript:alert(1)" }]
+  }, "c".repeat(64)), /invalid entry/);
+});
+
 test("분류는 수집 풀을 얼린 직후 끝나도 같은 슬롯의 준비 시각으로 인정한다", () => {
   const poolEvidenceAsOf = Date.parse("2026-08-27T12:20:37.780Z");
   const routingGeneratedAt = "2026-08-27T12:23:46.000Z";
@@ -830,6 +899,41 @@ test("로컬 정본 모드는 빌드 중 요청을 처리하고 중복 빌드·�
   assert.equal(calls[0].poolFile, poolFile);
   assert.equal(calls[0].outDir, root);
   assert.equal(calls[0].allowPaid, false);
+});
+
+test("고정판 사전발행 OFF는 판 조회를 유지하고 예약 빌드만 막는다", async () => {
+  const previous = process.env.NOWHOT_SLOT_CANONICAL_PREPUBLISH;
+  process.env.NOWHOT_SLOT_CANONICAL_PREPUBLISH = "0";
+  try {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-manual-"));
+    const pointerFile = path.join(root, "active.json");
+    const poolFile = path.join(root, "pool.json");
+    activateSlotCanonicalEdition({ artifact: build(), directory: root, pointerFile });
+    fs.writeFileSync(poolFile, '{"savedAt":1,"rows":[]}\n');
+    let calls = 0;
+    const server = createServer({
+      localEditorial: true,
+      slotCanonicalEditionEnabled: true,
+      slotCanonicalPointerFile: pointerFile,
+      localCanonicalPoolFile: poolFile,
+      clock: () => Date.parse("2026-08-27T12:10:00+09:00"),
+      localCanonicalPrepublishDelayMs: 1,
+      localCanonicalPrepublishCheckMs: 5,
+      localCanonicalPublisher: async () => { calls += 1; },
+      file: null,
+      sources: [],
+      vapid: null
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const response = await dispatch(server, "/api/today?categories=news");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.slotCanonicalEdition.requestWork, "filter_only");
+    assert.equal(calls, 0);
+  } finally {
+    if (previous == null) delete process.env.NOWHOT_SLOT_CANONICAL_PREPUBLISH;
+    else process.env.NOWHOT_SLOT_CANONICAL_PREPUBLISH = previous;
+  }
 });
 
 test("날짜만 지정한 고정판 GET도 그 날짜의 현재 슬롯 판을 읽는다", async () => {

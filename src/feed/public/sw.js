@@ -6,9 +6,9 @@
 //   - navigations are network-first, falling back only to the same page offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v142"; // v142: 오늘 연결 실패를 실시간 화면으로 대체하지 않는다
+const CACHE = "feed-shell-v144"; // v144: acknowledged app navigation avoids stacked details
 const SHELL = ["/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
-  "/icon-192.png", "/apple-touch-icon.png"];
+  "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -22,14 +22,48 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Focus an existing tab (or open one, at the notification's deep link) when
-// a notification is clicked.
+function appUrl(value) {
+  try {
+    const url = new URL(value, self.location.origin);
+    return /^https?:$/.test(url.protocol) && url.origin === self.location.origin
+      && !url.username && !url.password && ["/", "/live", "/today.html", "/index.html", "/p"].includes(url.pathname)
+      ? url.href : null;
+  } catch { return null; }
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/live";
+  const url = appUrl(event.notification.data?.url || "/live") || appUrl("/live");
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-      for (const c of clients) if ("focus" in c) return c.focus();
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
+      const apps = clients.filter((client) => appUrl(client.url) && "focus" in client);
+      const target = apps.find((client) => client.url === url) || apps.find((client) => client.focused)
+        || (apps.length === 1 ? apps[0] : null);
+      if (target) {
+        // navigate() adds a history entry even for a fragment. Let the app replace its detail.
+        if (target.postMessage && typeof MessageChannel !== "undefined") {
+          const handled = await new Promise((resolve) => {
+            const channel = new MessageChannel();
+            const finish = (ok) => {
+              clearTimeout(timer);
+              channel.port1.close(); channel.port2.close();
+              resolve(ok);
+            };
+            const timer = setTimeout(() => finish(false), 500);
+            channel.port1.onmessage = (reply) => finish(reply.data?.handled === true);
+            try { target.postMessage({ type: "NOWHOT_NAVIGATE", url }, [channel.port2]); }
+            catch { finish(false); }
+          });
+          if (handled) return target.focus();
+        }
+        if (target.navigate) {
+          // A pre-update page has no receiver. Force the new shell, not a same-document hash jump.
+          const fresh = new URL(url);
+          fresh.searchParams.set("nh-notification", String(Date.now()));
+          const navigated = await target.navigate(fresh.href).catch(() => null);
+          if (navigated) return navigated.focus();
+        }
+      }
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );
@@ -42,13 +76,29 @@ self.addEventListener("notificationclick", (event) => {
 self.addEventListener("push", (event) => {
   let data = { title: "지금핫", body: "관심글이 올라왔어요", url: "/live" };
   try { if (event.data) data = { ...data, ...event.data.json() }; } catch {}
+  const url = appUrl(data.url) || appUrl("/live");
   event.waitUntil(
-    self.registration.showNotification(data.title, {
+    self.clients.matchAll({ type: "window" }).then((clients) => {
+      // Chrome permits an in-page notification only for an open, focused app.
+      // web.dev/articles/push-notifications-common-notification-patterns
+      // Safari requires showNotification for every push: webkit.org/blog/12945/meet-web-push/
+      const brands = self.navigator?.userAgentData?.brands;
+      const ua = self.navigator?.userAgent || "";
+      const chrome = brands ? brands.some((row) => row.brand === "Google Chrome")
+        : /\bChrome\/\d/.test(ua) && !/\b(?:Edg|OPR|SamsungBrowser)\//.test(ua);
+      const foreground = chrome && clients.find((client) => appUrl(client.url)
+        && client.focused && client.visibilityState === "visible" && client.postMessage);
+      if (foreground) {
+        foreground.postMessage({ type: "NOWHOT_DIGEST", title: data.title, body: data.body, url });
+        return;
+      }
+      return self.registration.showNotification(data.title, {
       body: data.body,
       icon: "/icon.svg",
       badge: "/icon.svg",
       tag: "feed-digest",
-      data: { url: data.url || "/live" }
+      data: { url }
+      });
     })
   );
 });

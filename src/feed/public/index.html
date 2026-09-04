@@ -1368,6 +1368,7 @@
 
   <div class="toast" id="toast"></div>
 
+<script src="/navigation-history.js"></script>
 <script type="module">
 const API = {
   async session(userId) { return post("/api/session", { userId }); },
@@ -1476,7 +1477,16 @@ function pendingEnd(){
 }
 async function get(u){
   pendingStart();
-  try { const r = await fetch(u); if(!r.ok) throw new Error((await r.json()).error||r.status); return r.json(); }
+  try {
+    const r = await fetch(u);
+    if(!r.ok){
+      const body = await r.json().catch(()=>({}));
+      const error = new Error(body.error || String(r.status));
+      error.status = r.status; error.code = body.code;
+      throw error;
+    }
+    return r.json();
+  }
   finally { pendingEnd(); }
 }
 async function post(u,b){
@@ -1528,6 +1538,36 @@ const state = {
   openedSet: new Set(), skipSignaled: new Set(), // skip detection bookkeeping
   immersion: false
 };
+const liveHistory = NowHotHistory.create("live");
+let detailRevision = 0;
+function liveSnapshot(){
+  return { userId:state.userId, source:state.activeSource, category:state.activeCategory,
+    sort:state.sortMode, y:state.openItemId?state.feedScrollY:window.scrollY,
+    pages:state.pagesLoaded, cursor:state.cursor, exhausted:state.exhausted,
+    items:[...state.cardsById.keys()].map(id=>state.itemsById.get(id)).filter(Boolean) };
+}
+function saveLiveNavigation(){
+  liveHistory.save(liveSnapshot(),document.getElementById("detailPanel").scrollTop);
+}
+function restoreLiveList(snapshot){
+  if(!snapshot || snapshot.userId!==state.userId || !Array.isArray(snapshot.items))return false;
+  state.activeSource=snapshot.source; state.activeCategory=snapshot.category; state.sortMode=snapshot.sort;
+  state.feedScrollY=snapshot.y||0; state.cursor=snapshot.cursor; state.pagesLoaded=snapshot.pages;
+  state.exhausted=snapshot.exhausted; state.prefetch=null;
+  state.cardsById.clear(); document.getElementById("feed").innerHTML="";
+  for(const item of snapshot.items){
+    const source=state.registry.find(row=>row.id===item.source);
+    if(source && (!source.enabled || source.adult))continue;
+    appendCard(item);
+  }
+  setupSortBar(); renderChips(); renderSourceChips(); refreshDrawerFilters();
+  [...document.getElementById("chips").children].forEach((button,index)=>
+    button.classList.toggle("active",index===0?!state.activeCategory:state.config.categories[index-1]?.id===state.activeCategory));
+  window.scrollTo(0,state.feedScrollY);
+  return true;
+}
+addEventListener("pagehide",saveLiveNavigation);
+addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")saveLiveNavigation()});
 function markRead(id){ if(state.readSet.has(id)) return; state.readSet.add(id);
   localStorage.setItem("feed_read", JSON.stringify([...state.readSet].slice(-1000))); }
 history.scrollRestoration = "manual"; // we restore scroll ourselves, precisely
@@ -1542,7 +1582,11 @@ addEventListener("pageshow", (e)=>{
   if(!isBack) return;
   if(resumable()) return;   // 자리 복원이 페이지까지 다시 불러 온다 — 그쪽이 정확하다
   let y = 0; try { y = Number(sessionStorage.getItem(SCROLL_KEY) || 0); } catch {}
-  if(y > 0) requestAnimationFrame(()=> requestAnimationFrame(()=> window.scrollTo(0, y)));
+  if(y > 0){
+    const restore=()=>window.scrollTo(0,y);
+    requestAnimationFrame(()=>requestAnimationFrame(restore));
+    setTimeout(restore,250); // Chrome may apply focused-link restoration after pageshow.
+  }
 });
 
 // ── 읽던 자리로 돌아오기 (David 2026-08-05 2차 리포트 4번, "심각")
@@ -1629,6 +1673,7 @@ function resumable(){
 }
 
 async function resumeOrLoad(){
+  if(restoreLiveList(liveHistory.snapshot()))return;
   const plan = resumable();
   if(!plan){ clearReading(); await loadMore(); return; }
   // 복원이 끝나기 전에는 카드를 누를 수 없게 한다. 페이지를 채우는 몇 초 동안
@@ -1793,7 +1838,8 @@ setupViewSwitch();
   // 무한스크롤은 복원이 끝난 뒤에 건다 — 문서가 짧을 때 미리 걸면
   // 1400px 마진 안에 센티널이 바로 들어와 필요 없는 페이지까지 받아온다.
   const restored = resumeOrLoad().then(()=> setupInfiniteScroll());
-  openFromHash();
+  if(state.pendingWorkerUrl){const url=state.pendingWorkerUrl;state.pendingWorkerUrl=null;workerNavigate(url)}
+  else openFromHash();
   // 이미 취향을 맞춘 적 있는 계정이면(다른 기기에서 로그인해 온 경우 등)
   // 사용법 설명은 건너뛴다 — 아는 사람에게 다시 띄우면 방해다.
   if(!s.surveyed) maybeShowOnboarding();
@@ -2443,45 +2489,42 @@ function maybeShowRelease(release){
 
 // deep-link: a shared /p?id link bounces to /live#post-<id>; open that post
 function openFromHash(){
-  const h = location.hash;
-  // 새로고침(버튼·당겨서 새로고침)은 홈으로 (David 2026-08-01). 상세를 열어둔
-  // 채 새로고침하면 URL이 #post-…라 상세가 다시 열렸는데, 사용자 기대는
-  // "새로고침 = 홈 다시 보기"다. 딥링크(브리핑·공유 링크)로 처음 들어온
-  // 경우(navigation type "navigate")는 종전대로 상세를 연다 — 둘을 가르는
-  // 기준이 내비게이션 타입이다.
-  const nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
-  // 공유 페이지(/p)에서 넘어온 경우는 새로고침이 아니다 — 일부 브라우저가
-  // 그 전환을 reload로 보고해 공유링크가 홈으로 튕겼다(실사용 제보 2026-08-02).
-  const fromShare = document.referrer && document.referrer.includes("/p?id=");
-  if(!fromShare && nav && nav.type === "reload" && h && h.startsWith("#post-")){
-    history.replaceState({ view:"feed" }, "", location.pathname + location.search);
-    return;
-  }
-  if(h && h.startsWith("#post-")){
-    const id = decodeURIComponent(h.slice("#post-".length));
-    // fromHash=true: 이미 이 URL로 들어왔으므로 히스토리를 **더 쌓지 않는다**.
-    // 안 그러면 브리핑/랭킹에서 글을 열고 뒤로가기 했을 때 첫 번째 뒤로가기가
-    // 앱 피드로 빠지고, 브리핑으로 돌아가려면 두 번 눌러야 한다
-    // (David 실사용 2026-08-01: "뒤로가기하면 보고 있던 브리핑 위치로").
-    if(id) openDetail(id, { fromHash: true });
-  }
+  const id=postIdFromHash(location.hash);
+  if(id)return openDetail(id,{fromHash:true});
+  liveHistory.ensure(liveSnapshot());
+}
+function postIdFromHash(hash){
+  try{return hash.startsWith("#post-")?decodeURIComponent(hash.slice(6))||null:null}catch{return null}
+}
+function workerNavigate(value){
+  const href=NowHotHistory.webUrl(value,true);
+  if(!href)return;
+  if(!state.config){state.pendingWorkerUrl=href;return}
+  const url=new URL(href);
+  if(url.pathname!==location.pathname||url.search!==location.search){saveLiveNavigation();location.assign(href);return}
+  const id=postIdFromHash(url.hash);
+  if(id)openDetail(id);else location.assign(href);
 }
 
 // ---- 관심글 알림 (digest + web push) ----
 async function showDigest(){
   let d; try { d = await API.digest(state.userId); } catch { return; }
   if(!d || !d.count) return;
+  renderDigest(d);
+}
+function renderDigest(d){
   const bar = document.getElementById("digestBar");
   const top = d.top && d.top[0] ? d.top[0].title : "";
   const notifyBtn = ("Notification" in window && Notification.permission !== "granted")
     ? '<button id="dNotify">🔔 알림 받기</button>' : "";
-  bar.innerHTML = `<div class="dtext"><b>관심글 ${d.count}개</b>가 올라왔어요${top?` · "${escapeHtml(top.slice(0,24))}…"`:""}</div>${notifyBtn}<button class="dclose" id="dClose">✕</button>`;
+  bar.innerHTML = d.type==="NOWHOT_DIGEST"
+    ? `<div class="dtext"><b>${escapeHtml(d.title||"지금핫")}</b> ${escapeHtml(d.body||"")}</div><button id="dOpen">보기</button><button class="dclose" id="dClose">✕</button>`
+    : `<div class="dtext"><b>관심글 ${d.count}개</b>가 올라왔어요${top?` · "${escapeHtml(top.slice(0,24))}…"`:""}</div>${notifyBtn}<button class="dclose" id="dClose">✕</button>`;
   bar.classList.remove("hidden");
   bar.querySelector("#dClose").onclick = ()=> bar.classList.add("hidden");
   const nb = bar.querySelector("#dNotify");
   if(nb) nb.onclick = enableNotifications;
-  // if already permitted, fire a real local notification via the service worker
-  if("Notification" in window && Notification.permission === "granted") pushLocalNotification(d);
+  const open=bar.querySelector("#dOpen");if(open)open.onclick=()=>workerNavigate(d.url);
 }
 // VAPID public key comes base64url-encoded from the server; pushManager.subscribe
 // wants it as a raw Uint8Array (applicationServerKey).
@@ -2495,9 +2538,7 @@ async function enableNotifications(){
   if(!("Notification" in window)){ toast("이 브라우저는 알림을 지원하지 않아요"); return; }
   const perm = await Notification.requestPermission();
   if(perm !== "granted"){ toast("알림이 거부되었어요"); return; }
-  // create a real push subscription when the server has VAPID configured
-  // (GET /api/push/vapid-key); without a key, degrade to local-only
-  // notifications like before — the digest banner still works either way.
+  // OS notifications come only from a real server push subscription.
   let sub = null;
   try {
     const reg = await navigator.serviceWorker.ready;
@@ -2512,19 +2553,10 @@ async function enableNotifications(){
       }
     }
   } catch {}
-  try { await API.subscribePush(state.userId, sub ? sub.toJSON() : { local: true }); } catch {}
+  if(!sub){toast("푸시 알림 연결을 준비하지 못했어요");return}
+  try { await API.subscribePush(state.userId, sub.toJSON()); } catch {toast("알림 연결에 실패했어요");return}
   toast("알림을 켰어요");
-  const d = await API.digest(state.userId).catch(()=>null);
-  if(d && d.count) pushLocalNotification(d);
-}
-async function pushLocalNotification(d){
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    reg.showNotification("지금핫", {
-      body: `관심글 ${d.count}개가 올라왔어요` + (d.top&&d.top[0]?` · ${d.top[0].title.slice(0,30)}`:""),
-      icon: "/icon.svg", badge: "/icon.svg", tag: "feed-digest"
-    });
-  } catch {}
+  showDigest();
 }
 
 // ---- ☰ 드로어 (소스별 보기·필터·링크제출·내공간 ) ----
@@ -3508,6 +3540,7 @@ function renderBatch(res){
   ensureAdfitPlacement(); // 애드핏 지면 1장 — 목록 끝, 수익 슬롯과 자리를 나눈다
   if(res.exhausted){ state.exhausted=true; setSentinel(false, "새 화제글을 모으는 중… 평가할수록 더 정확해져요"); }
   else setSentinel(false);
+  saveLiveNavigation();
 }
 
 async function loadMore(){
@@ -3838,12 +3871,12 @@ function appendCard(item){
     </div>
     <div class="card-row">
     <div class="card-main">
-    <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ` <a class="newtab-hint" href="${escapeHtml(item.url)}" target="_blank" rel="noopener" title="${escapeHtml(srcLabel(item.source))} 원문 바로 열기 (새 탭)">${ic('external',14)}</a>` : ''}</h3>
+    <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ` <a class="newtab-hint" href="${escapeHtml(item.url)}" rel="noopener" title="${escapeHtml(srcLabel(item.source))} 원문 바로 열기">${ic('external',14)}</a>` : ''}</h3>
     ${heatRuleHtml(item)}
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     ${item.editorialNote?`<div class="editorial-note">${escapeHtml(item.editorialNote)}</div>`:''}
     <p>${escapeHtml(item.summary)}</p>
-    ${item.via!=="me" && item.url ? `<div class="card-out"><a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 원문 보기 →</a></div>` : ''}
+    ${item.via!=="me" && item.url ? `<div class="card-out"><a href="${escapeHtml(item.url)}" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 원문 보기 →</a></div>` : ''}
     ${statusBadgesHtml(item) || (item.reasons&&item.reasons.length) ? `<div class="reasons">${statusBadgesHtml(item)}${(item.reasons||[]).map(r=>`<span class="why">${escapeHtml(r)}</span>`).join("")}</div>` : ''}
     </div>
     ${cardThumbHtml(item)}
@@ -3873,7 +3906,7 @@ function appendCard(item){
     // "첫 화면에서 눌렸나, 한참 내려가서 눌렸나"를 알 수 있다.
     Track.click(item, state.cardsById ? state.cardsById.size : 0);
     // 원문 앵커(.newtab-hint / .card-out a)는 이제 진짜 <a href>다.
-    // 브라우저 기본 동작(새 탭)에 맡긴다 — 여기서 가로채 openOriginal을 부르면
+    // 브라우저 기본 동작(같은 창)에 맡긴다 — 여기서 가로채 openOriginal을 부르면
     // **크롤러에게만 링크이고 사람에게는 아닌** 이상한 상태가 된다.
     // 클릭 기록은 바로 위에서 이미 남겼다.
     if(e.target.closest(".newtab-hint, .card-out a")) return;
@@ -3974,35 +4007,38 @@ function markOpened(itemId){
   const card = state.cardsById.get(itemId); if(card) card.classList.add("read");
 }
 
-// Collected items (via !== "me") leave the app entirely for the original, in
-// a new tab — legal.md's out-link model, and 's 2026-07-24 final call to
-// drop the in-app iframe viewer in favor of this uniformly for every source
-// (no more per-source frameable branching, no mixed-content/frame-busting
-// edge cases to defend against). rel=noopener blocks the new tab from
-// reaching back into window.opener.
 function openOriginal(item){
+  const url=NowHotHistory.webUrl(item.url);
+  if(!url)return;
+  if(state.openItemId!==item.id){
+    state.feedScrollY=window.scrollY;
+    liveHistory.open({itemId:item.id},liveSnapshot(),"#post-"+encodeURIComponent(item.id));
+    state.openItemId=item.id;
+  }
   markOpened(item.id);
-  window.open(item.url, "_blank", "noopener,noreferrer");
+  saveLiveNavigation();
+  location.assign(url);
 }
 
 async function openDetail(itemId, opts){
-  state.feedScrollY = window.scrollY;             // remember exactly where we were
+  if(state.openItemId===itemId && liveHistory.current()?.detail?.itemId===itemId)return;
+  if(!state.openItemId)state.feedScrollY=liveHistory.snapshot()?.y??window.scrollY;
+  const entry=liveHistory.open({itemId},liveSnapshot(),"#post-"+encodeURIComponent(itemId),!!opts?.fromHash);
+  if(!entry)return;
+  state.feedScrollY=liveHistory.snapshot()?.y??state.feedScrollY;
+  const revision=++detailRevision;
   markOpened(itemId);
   state.openedAt = Date.now(); state.openItemId = itemId;
-  // 딥링크 진입(브리핑·랭킹·공유 링크)이면 현재 항목을 교체 — 뒤로가기 한 번에
-  // 이전 문서(브리핑 등)로 돌아가고 브라우저가 그 스크롤 위치를 복원한다.
-  const st = { view:"detail", itemId };
-  const url = "#post-"+encodeURIComponent(itemId);
-  if(opts && opts.fromHash) history.replaceState(st, "", url);
-  else history.pushState(st, "", url);
-  await renderDetail(itemId);
+  await renderDetail(itemId,revision);
+  if(revision!==detailRevision)return;
   const d = document.getElementById("detail");
   // 스크롤은 플로팅 패널이 담당한다 — 뒤 리스트는 잠가서 배경 스크롤 이탈 방지
-  document.getElementById("detailPanel").scrollTop = 0;
   d.classList.add("open"); d.setAttribute("aria-hidden","false");
   document.body.style.overflow = "hidden";
+  document.getElementById("detailPanel").scrollTop=entry.detailScroll||0;
 }
 function closeDetail(){
+  detailRevision++;
   const d = document.getElementById("detail");
   const p = document.getElementById("detailPanel");
   // dwell signal: how long was this post actually read?
@@ -4040,11 +4076,20 @@ document.getElementById("detail").addEventListener("click", (e)=>{
   d.addEventListener("touchend", (e)=>{ if(!fromEdge) return; const t=e.changedTouches[0];
     if(t.clientX-sx>70 && Math.abs(t.clientY-sy)<60) history.back(); }, {passive:true});
 })();
-window.addEventListener("popstate", (e)=>{
-  if(document.getElementById("detail").classList.contains("open")) closeDetail();
+window.addEventListener("popstate", ()=>{
+  closeDetail();
   if(!document.getElementById("space").classList.contains("hidden")) closeSpace();
   if(document.getElementById("drawer").classList.contains("open")) closeDrawer();
+  const entry=liveHistory.current();
+  if(entry?.view==="detail")openDetail(entry.detail.itemId,{fromHash:true});
+  else if(entry?.view==="list")window.scrollTo(0,liveHistory.snapshot()?.y||0);
 });
+document.getElementById("detailPanel").addEventListener("scroll",()=>
+  liveHistory.save(null,document.getElementById("detailPanel").scrollTop),{passive:true});
+window.addEventListener("pageshow",(event)=>{
+  if(event.persisted && state.userId)openFromHash();
+});
+window.addEventListener("hashchange",()=>{if(state.config)openFromHash()});
 
 // 해외 글: 원문 보기 ↔ 번역본 보기 (David 2026-08-06).
 //
@@ -4234,27 +4279,39 @@ function ourReadingHtml(item){
   return `<section class="our-reading" aria-label="지금핫이 정리한 것">${parts.join("")}</section>`;
 }
 
-async function renderDetail(itemId){
+async function renderDetail(itemId,revision=detailRevision){
   const body = document.getElementById("detailBody");
+  document.getElementById("detailSrc").textContent="";
+  document.getElementById("shareBtn").onclick=null;
   body.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><div class="loading-msg">글을 불러오는 중…</div></div>';
   let item;
   try { item = await API.item(state.userId, itemId); }
   catch(e){
-    // **보여서 누른 글은 무조건 열린다** (David 2026-08-07: "납득 안돼").
-    // 서버 쪽 사정(소스별 상한 재편성·수집 사이클 사이 id 변동)으로 조회가
-    // 실패해도, 카드를 그릴 때 쓴 데이터가 브라우저에 그대로 있다 — 그걸로
-    // 그린다. 댓글·관련글만 빠질 뿐 제목·본문·원문 링크는 전부 있다.
+    if(revision!==detailRevision)return;
+    const temporary=!e.status||e.status>=500||e.status===429;
     const cached = state.itemsById.get(itemId);
-    if(cached){ item = { ...cached, thread: [], related: [] }; }
+    const source=state.registry.find(row=>row.id===cached?.source);
+    if(temporary && cached && cached.source!=="me" && source?.enabled && !source.adult){
+      item = { ...cached, thread: [], related: [] };
+    }
     else {
-      // 캐시조차 없는 경우: 공유 링크·오래된 즐겨찾기 등 이 세션에서 그린 적
-      // 없는 글뿐이다 — 그때만 안내를 보여준다.
-      body.innerHTML = '<div class="loading-wrap"><div class="loading-msg">이 글은 지금 목록에 없어요<br>' +
-        '<span style="font-size:13px;opacity:.75">시간이 지나 내려갔을 수 있어요</span></div>' +
-        '<a class="readmore" href="/live" style="margin-top:14px">지금 화제글 보러가기 →</a></div>';
+      const restricted=[401,403,451].includes(e.status);
+      const missing=[404,410].includes(e.status);
+      const message=e.code==="TOPIC_FILTERED"?"콘텐츠 설정으로 이 글의 표시가 제한되어 있어요"
+        :e.code==="SOURCE_DISABLED"?"이 출처는 현재 이용이 제한되어 있어요"
+        :restricted?"이 글은 현재 접근이 제한되어 있어요"
+        :missing?"이 글을 찾을 수 없어요"
+        :temporary?"일시적으로 글을 불러오지 못했어요. 연결을 확인하고 다시 시도해 주세요."
+        :"세션을 확인하지 못했어요. 새로고침 후 다시 시도해 주세요.";
+      body.innerHTML=`<div class="loading-wrap"><div class="loading-msg" role="status">${escapeHtml(message)}</div>${e.code==="TOPIC_FILTERED"?'<button class="readmore" id="detailSettings">콘텐츠 설정</button>':temporary?'<button class="readmore" id="detailRetry">다시 시도</button>':""}</div>`;
+      const settings=document.getElementById("detailSettings");
+      if(settings)settings.onclick=()=>{addEventListener("popstate",openDrawer,{once:true});history.back()};
+      const retry=document.getElementById("detailRetry");
+      if(retry)retry.onclick=()=>renderDetail(itemId,++detailRevision);
       return;
     }
   }
+  if(revision!==detailRevision)return;
   item.thread = item.thread || []; item.related = item.related || [];
   document.getElementById("detailSrc").innerHTML =
     `<span class="dot" style="display:inline-block;background:${srcColor(item.source)}"></span> <span style="color:${srcColor(item.source)};font-weight:700">${srcLabel(item.source)}</span> · ${item.categoryLabel}`;
@@ -4312,7 +4369,7 @@ async function renderDetail(itemId){
            둘이 같은 뜻으로 보였다(David 2026-08-06: "글만 다르고 같은 뜻 버튼이
            두 개"). 이 버튼의 실제 목적은 **우리는 발췌만 싣는다**는 것이고,
            그건 바로 아래 고지문이 이미 하는 말이다. 매체 이름으로 부른다. -->
-      <a class="readmore" href="${item.url}" target="_blank" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 전체 글 보기 →</a>
+      <a class="readmore original-link" href="${escapeHtml(NowHotHistory.webUrl(item.url)||"#")}" rel="noopener">${escapeHtml(srcLabel(item.source))}에서 전체 글 보기 →</a>
       ${item.translated && item.url ? `${/Android|iPhone|iPad/i.test(navigator.userAgent) ? `<a class="readmore readmore-alt" href="naversearchapp://inappbrowser?url=${encodeURIComponent(item.url)}&target=new&version=6">네이버 앱으로 한국어 번역 보기 →</a>
       <div class="trans-note-sm">열린 화면 <b>상단의 “번역”</b> 한 번만 누르면 전체가 한국어로 나와요</div>` : ""}
       <div class="trans-hint">${browserTransHint()}</div>` : ""}
@@ -4335,7 +4392,11 @@ async function renderDetail(itemId){
   if(item.url && item.source!=="me"){
     const h = document.getElementById("detailTitle");
     h.style.cursor = "pointer"; h.title = "원문 열기";
-    h.onclick = ()=> window.open(item.url, "_blank", "noopener");
+    h.onclick = ()=>openOriginal(item);
+    body.querySelector(".original-link").onclick=(event)=>{
+      if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+      event.preventDefault();openOriginal(item);
+    };
   }
   const dUp=document.getElementById("dUp"), dDown=document.getElementById("dDown");
   dUp.onclick = async ()=>{ const on=dUp.classList.contains("on"); dUp.classList.toggle("on",!on); dDown.classList.remove("on");
@@ -4390,6 +4451,13 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({ "&":"&amp;","
 
 // register the service worker so the app is installable + works offline
 if("serviceWorker" in navigator){
+  navigator.serviceWorker.addEventListener("message",(event)=>{
+    if(event.data?.type==="NOWHOT_NAVIGATE" && NowHotHistory.webUrl(event.data.url,true)){
+      workerNavigate(event.data.url);
+      event.ports?.[0]?.postMessage({handled:true});
+    }
+    if(event.data?.type==="NOWHOT_DIGEST")renderDigest(event.data);
+  });
   window.addEventListener("load", ()=> navigator.serviceWorker.register("/sw.js").catch(()=>{}));
 }
 </script>

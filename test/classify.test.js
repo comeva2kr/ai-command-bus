@@ -481,6 +481,12 @@ test("카드 기본 동작: 내부 상세 우선, 원문은 ↗ 지름길 (아�
     "원문 지름길은 진짜 <a href>여야 한다 — 크롤러가 읽을 수 있어야 한다");
   assert.match(html, /class="card-out"[\s\S]{0,200}href="\$\{escapeHtml\(item\.url\)\}"/,
     "카드에 출처로 나가는 앵커가 있어야 한다");
+  assert.doesNotMatch(html, /class="newtab-hint"[^>]*target="_blank"/,
+    "원문 지름길은 같은 창에서 열려야 Back으로 목록에 돌아온다");
+  assert.doesNotMatch(html, /class="card-out"[\s\S]{0,200}<a[^>]*target="_blank"/,
+    "카드 원문 링크는 같은 창에서 열려야 한다");
+  assert.match(html, /class="card-go"[^>]*target="_blank"/,
+    "광고 링크의 기존 새 창 동작은 유지한다");
   assert.match(handler, /closest\("\.newtab-hint, \.card-out a"\)\) return/,
     "앵커는 브라우저 기본 동작에 맡긴다 — 가로채면 크롤러에게만 링크가 된다");
 

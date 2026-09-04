@@ -134,6 +134,9 @@ test("오늘판 상세는 출처 운영그룹으로 직접 URL을 우선하고 �
   assert.match(detail, /Google 뉴스 중계 링크/, "중계 링크만 남은 상태를 사용자에게 구분하지 않는다");
   assert.match(detail, /const sourceInventory=/, "준비된 요약은 출처 종류를 다시 원문으로 뭉갠다");
   assert.match(detail, /readyText[\s\S]{0,120}\$\{sourceInventory\}/, "준비된 요약에서 원문·중계 구분을 버린다");
+  const list = html.slice(html.indexOf("function renderIssues(edition){"), html.indexOf("function closeIssueDetail"));
+  assert.doesNotMatch(list, /directSources\.map\([^\n]+target="_blank"/,
+    "오늘판 목록의 원문은 같은 창에서 열려야 Back으로 보던 목록에 돌아온다");
   assert.doesNotMatch(detail, /copy\.watchNext\|\|issue\.watchNext/, "상세에 편집되지 않은 내부 후속 문구를 다시 노출한다");
 });
 
@@ -184,21 +187,29 @@ function renderTodayDetail(issue, navigator = { userAgent: "Chrome Desktop" }) {
   const html = readFileSync("src/feed/public/today.html", "utf8");
   const script = html.slice(html.indexOf("const state="), html.indexOf('document.addEventListener("keydown"'));
   const elements = new Map();
+  const location = { href: "https://nowhot.test/", origin: "https://nowhot.test", pathname: "/", search: "" };
+  const history = { state: null, replaceState(value) { this.state = value; }, pushState(value) { this.state = value; } };
+  const saved = new Map();
+  const sessionStorage = { getItem: key => saved.get(key) || null, setItem: (key, value) => saved.set(key, value) };
+  const window = { scrollY: 0 };
+  new Function("window", "history", "location", "sessionStorage",
+    readFileSync("src/feed/public/navigation-history.js", "utf8"))(window, history, location, sessionStorage);
   const document = { body: { style: {} }, activeElement: null, getElementById(id) {
     if (!elements.has(id)) elements.set(id, {
-      innerHTML: "", textContent: "", attributes: {}, classList: new Set(),
+      innerHTML: "", textContent: "", attributes: {}, classList: Object.assign(new Set(), { contains(value) { return this.has(value); } }),
       setAttribute(name, value) { this.attributes[name] = value; },
       querySelectorAll() { return []; },
+      querySelector() { return document.getElementById("detailPanel"); },
       focus() { document.activeElement = this; }
     });
     return elements.get(id);
   } };
-  const links = new Function("document", "navigator", "fetch", "issue", `${script}
-    state.edition={issues:[issue],availableCategories:[]};
+  const links = new Function("document", "navigator", "fetch", "issue", "NowHotHistory", "window", "addEventListener", `${script}
+    state.edition={editionId:"SCE-test",issues:[{evidenceHash:"issue-test",...issue}],availableCategories:[]};
     renderIssues(state.edition);
     openIssueDetail(0);
     return issueSourceLinks(issue);
-  `)(document, navigator, () => assert.fail("상세에서 새 fetch를 호출했다"), issue);
+  `)(document, navigator, () => assert.fail("상세에서 새 fetch를 호출했다"), issue, window.NowHotHistory, window, () => {});
   assert.equal(document.activeElement, elements.get("detailClose"));
   return { html: elements.get("detailContent").innerHTML, list: elements.get("issues").innerHTML, links };
 }
@@ -226,7 +237,8 @@ test("NH108 Today 번역은 모바일 네이버 앱과 PC 정본 링크 한 개�
     assert.equal(result.list, plain.list);
     assert.deepEqual(result.links, plain.links);
   }
-  assert.match(desktop.html, /id="detailTranslate"[^>]*href="https:\/\/publisher.example\/article\?q=%ED%95%9C%EA%B8%80&amp;part=2#text"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
+  assert.match(desktop.html, /id="detailTranslate"[^>]*href="https:\/\/publisher.example\/article\?q=%ED%95%9C%EA%B8%80&amp;part=2#text"[^>]*rel="noopener noreferrer"/);
+  assert.doesNotMatch(desktop.html, /id="detailTranslate"[^>]*target=/);
   assert.match(desktop.html, /브라우저의 번역 기능/);
   assert.ok(mobile.html.includes(`naversearchapp://inappbrowser?url=${encodeURIComponent(new URL(source.url).href)}&amp;target=new&amp;version=6`));
   assert.match(mobile.html, /앱이 열리지 않으면 아래 원문 링크/);

@@ -233,6 +233,26 @@ test("발행 전 완성 모드는 모델 장애에도 이미 읽은 공개 원�
   assert.equal(isCurrentArticleSummary(summary, result.issues[0], Date.parse("2026-08-27T09:01:00.000Z")), true);
 });
 
+test("발행 전 공개 원문 발췌는 가입 유도·CMS 문구를 제거한 뒤 고정한다", async () => {
+  const article = "회사는 신규 제품의 공개 일정과 공급 계획을 발표했습니다. 세부 판매 지역과 후속 일정도 함께 안내했습니다. ".repeat(10);
+  const chrome = "전체 페이지를 읽으시려면 회원가입 및 로그인을 해주세요! 기사 제목 내용을 입력해주세요. 삭제하시겠습니까? 등록이 완료되었습니다.";
+  const result = await makeArticleSummaryPipeline({
+    completeBeforePublish: true,
+    fetchArticle: async (url) => ({
+      state: "available",
+      text: `${chrome} ${article}`,
+      image: "https://img.example.com/article.jpg",
+      finalUrl: url
+    }),
+    clock: () => Date.parse("2026-09-04T03:00:00.000Z")
+  })(edition());
+
+  const summary = result.issues[0].articleSummary;
+  assert.equal(summary.status, "excerpt_only");
+  assert.match(summary.textKo, /신규 제품의 공개 일정/);
+  assert.doesNotMatch(summary.textKo, /회원가입|내용을 입력해주세요|삭제하시겠습니까|등록이 완료되었습니다/);
+});
+
 test("보류 출처는 사건 근거에 남아도 기사 요약 앵커와 사진보다 뒤에 놓인다", async () => {
   const admittedText = "승인된 기사 본문은 회사의 투자 계획과 실행 일정을 구체적으로 설명했습니다. ".repeat(20);
   const withheldText = "보류된 기사 본문은 사건을 다른 관점에서 전했습니다. ".repeat(20);
@@ -2051,8 +2071,16 @@ test("실모델 검증 전 배포와 스테이징은 장문 요약을 기본으�
   assert.match(compose, /NOWHOT_ARTICLE_SUMMARY=\$\{NOWHOT_ARTICLE_SUMMARY:-0\}/);
   assert.match(staging, /NOWHOT_ARTICLE_SUMMARY: process\.env\.NOWHOT_ARTICLE_SUMMARY \|\| "0"/);
   assert.match(staging, /NOWHOT_CATEGORY_ROUTING: process\.env\.NOWHOT_CATEGORY_ROUTING \|\| "v2"/);
+  assert.match(staging, /NOWHOT_SLOT_CANONICAL_EDITION: process\.env\.NOWHOT_SLOT_CANONICAL_EDITION \|\| "1"/);
   assert.match(staging, /NOWHOT_ARTICLE_SUMMARY_MODEL: process\.env\.NOWHOT_ARTICLE_SUMMARY_MODEL \|\| "claude-sonnet-5"/);
   assert.match(staging, /NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL: process\.env\.NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL \|\| "claude-sonnet-5"/);
+});
+
+test("스테이징은 고정판을 읽되 다음 슬롯 사전발행은 실행하지 않는다", () => {
+  const staging = readFileSync("tools/staging.mjs", "utf8");
+  const server = readFileSync("src/feed/server.js", "utf8");
+  assert.match(staging, /NOWHOT_SLOT_CANONICAL_PREPUBLISH: "0"/);
+  assert.match(server, /process\.env\.NOWHOT_SLOT_CANONICAL_PREPUBLISH !== "0"/);
 });
 
 test("기사 콘텐츠 ID는 선택 분야·출처 구성 변화와 무관하고 사건이 바뀔 때만 바뀐다", () => {

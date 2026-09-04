@@ -2231,3 +2231,66 @@ ELLE도 들어 있으므로 대조군과의 동일성은 신규 공급 효과까
 기존 교차언어 Broadcom/브로드컴 중복과 경제·정치 복수 분류 경계 사례는 보고서의 잔여
 관찰로 남긴다. 이번의 상세·가이드 보완 완료를 제품 전체 결함 0으로 확대하지 않는다.
 truth: NH108_REVIEWED_LOCAL_ACTIVE·ALL_14_LANES_14·ALL_91_PAIRS_VERIFIED·PREPARED_DETAILS_REUSED·BASELINE_PRESERVED·FULL_TEST_1871_PASS·NO_PAID_API·NO_LIVE_CHANGE.
+
+### NH109 알림·뒤로가기·기사 링크 연속성 (2026-09-03)
+
+David 승인: NH108의 기사 구성·분류·요약·고정 판본을 유지하고 반복 알림,
+Android 뒤로가기 이탈, 목록에서 내려간 기사의 빈 상세를 함께 수리한다.
+Codex 구현, Claude 알림·제품 검수, Cursor Grok 구조·회귀 검수를 교차한다.
+
+| 단계 | 최소 변경 | 상태 |
+| --- | --- | --- |
+| 1 원인·합의 | 라이브 JS/SW와 로컬 공통 코드 대조, 읽음/발송·history·48h 풀 만료 재현 | 완료 |
+| 2 실패 재현 | 같은 기사 재알림, 콜드 상세 진입, 풀 제외·재시작 이후 링크를 무료 테스트로 고정 | 완료 |
+| 3 공통 수정 | 성공 발송/열람 이력, 앱 소유 목록→상세 history, 기존 저장 패턴으로 공개 발췌 영속 조회 | 완료: 로컬 코드 |
+| 4 통합 검수 | 기존 창/새 창·원문 왕복·목록 위치·Today·오래된 링크·조회 장애·기존 토픽/관리자 제한 | 완료: 집중 45/45, 실제 Chrome SW 현재/구페이지, PC/모바일 에뮬 |
+| 5 결과 대조 | Claude/Grok 실제 diff 공격 검수, 로컬 실행과 배포 상태 분리 보고 | 완료: 두 모델 합의, 14:21 KST 로컬 재기동·14:22 화면 재검증 |
+
+일반 알림은 KST 날짜당 최대 3회·성공 발송 간 최소 4시간으로 묶고, 이미 알린 글이나
+열어 본 글만 남으면 보내지 않는다. 운영 환경의 예약 간격 변경은 별도 배포 범위다.
+Live 응답·알림·공유에 쓰인 공개 기사만 별도 작은 파일에 보관하고, Today는 기존
+불변 판본을 그대로 쓴다. 원문 전체·사용자 정보는 보관하지 않고, 기록을 선별 풀에
+다시 넣지 않는다. 임의 30일 만료로 링크를 다시 깨뜨리지 않는다.
+원문은 같은 창으로 열고 뒤로가기는 상세→보던 목록으로 복원한다. 목록에서의
+정상 이탈은 허용하며 외부 앱의 창 닫기까지 통제한다고 약속하지 않는다.
+기존 요약·편성 재생성, 유료 API, 실제 푸시, commit/push/운영 배포는 실행하지 않는다.
+
+최종 독립 검수에서 발견한 별칭의 과거 분류 재노출, 보관 글의 홈 목록 재진입,
+SSR/RSS 링크 미보관, 의도적으로 비운 영문 발췌 복원을 공통 조회/출력 경계에서 수리했다.
+실제 Chrome의 `WindowClient.navigate()`가 상세 A 위에 B를 쌓던 반례도 확인했다.
+SW v144는 기존 앱의 이동 처리에 ACK를 먼저 받고, 구페이지가 500ms 안에 응답하지
+않을 때만 새 문서를 연다. 현재/구페이지 모두 B→뒤로가기 목록→앞으로가기 B를 확인했다.
+전체 검사 결과는 1,905 PASS·실패 0·기존 동시성 파일 180초 시간초과 취소 1이다.
+그 파일의 단독 재검사는 6/6 PASS(97.8초)이며 전체 일괄 실행 PASS로 바꿔 기록하지 않는다.
+NH108 active 포인터·모닝·점심 SHA-256은 변경 0, 점심 단독 14분야·모든 91쌍과
+상세 열기 새 API 0을 재검증했다. 실제 Android 단말·운영 배포는 아직 검증하지 않았다.
+상세 근거: `docs/reports/NOWHOT_NH109_CONTINUITY_FIX_2026-09-03.md`.
+truth: NH109_LOCAL_APPLIED·ACCEPTED_EDITION_BYTES_UNCHANGED·FOCUSED_45_PASS·REAL_SW_BACK_PASS·THREE_PARTY_REVIEW·NO_PAID_CONTENT_API·NO_REAL_PUSH·NO_COMMIT_OR_DEPLOY.
+
+### NH111 수용판 보존형 기사 정리·유료 소스 제외 (2026-09-04)
+
+David 확정 지시: 현재 마음에 드는 기사 구성과 NH107~109 동작은 유지하고,
+검수에서 확인된 잘못된 기사 본문·직함과 유료벽 소스만 한 번에 정리한다.
+
+- 편성을 다시 돌려 고치지 않는다. 현재 검수된 `displayOrder`·`lanes`·
+  `routingSnapshot`을 입력으로 삼아 본문 정리 결과만 기존 슬롯 빌더로 다시 봉인한다.
+- 사이트별 본문은 공통 추출기에서 정확한 기사 컨테이너를 우선한다. UI 제거는 확인된
+  고정 문구와 문장 경계에만 적용하며 쇼핑·로그인 등을 다룬 정상 기사 문장은 보존한다.
+- 사람 검수 교정은 `evidenceHash`와 원제목 또는 정확한 `sourceUrl`이 동시에 맞을 때만
+  `articleSummary.textKo`에 적용한다. 제목·사진·출처·분류·순서는 바꾸지 않는다.
+- 신규 유료벽 전용 소스는 수집하지 않는다. MarketWatch Top Stories는 비활성화하되
+  과거에 노출한 기사 permalink/archive는 깨뜨리지 않는다.
+- Today 요청은 발행 전 완성된 슬롯 파일을 필터링만 한다. 스테이징도 실제 로컬과 같은
+  슬롯 정본 플래그를 기본값으로 사용하되 예약 사전발행은 끈다. 클릭 시
+  수집·번역·요약·LLM을 호출하지 않고 스테이징도 검수된 포인터를 바꾸지 않는다.
+
+최종 로컬판 `SCE-0b991485de03a38a`는 고유 사건 195개, 14개 분야 각 14건,
+91개 두 분야 조합 27~28건의 정확 합집합이다. 기준 검수판 대비 24건의
+`articleSummary.textKo`만 바뀌었고 제목·출처·사진·분류·순서 변화는 0이다.
+MarketWatch 노출과 확인된 UI 잔재는 0, `llmUsage []`다. 전체 테스트는
+1,920건 중 1,911 PASS·실패 0·브라우저 환경 SKIP 9이며 실제 Chrome 9/9가 통과했다.
+무과금 스테이징은 오늘판 제품 검사를 모두 통과했고 홈 응답은 4ms였다. 로컬에 없는
+쿠팡 운영 자격증명 한 항목만 미검증(exit 2)이며 이를 전체 스테이징 PASS로 표현하지 않는다.
+Claude와 Cursor Grok의 독립 공격 검수는 모두 GO(P0/P1 0)다. 라이브·push·deploy는 별도다.
+상세: `docs/reports/NOWHOT_NH111_FINAL_LOCAL_RELEASE_2026-09-04.md`.
+truth: NH111_LOCAL_FINAL_ACTIVE·ACCEPTED_SELECTION_PRESERVED·ARTICLE_TEXT_ONLY_REPAIR·PAYWALL_NEW_INGEST_DISABLED·ALL_14_LANES_14·ALL_91_PAIRS_EXACT_UNION·REQUEST_FILTER_ONLY·REQUEST_LLM_ZERO·FULL_TEST_NO_FAILURE·CHROME_9_PASS·STAGING_PRODUCT_PASS_AD_CREDENTIAL_UNVERIFIED·LIVE_UNCHANGED.

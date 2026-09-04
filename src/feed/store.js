@@ -291,6 +291,15 @@ export class FeedStore {
     return user.notifyEnabled;
   }
 
+  recordPushDelivery(userId, itemIds, at = nowIso(this.clock)) {
+    const user = this.requireUser(userId);
+    const sent = new Map((user.pushNotified || []).map((row) => [row.id, row]));
+    for (const id of itemIds) if (typeof id === "string" && id) sent.set(id, { id, at });
+    user.pushNotified = [...sent.values()].slice(-3000);
+    user.pushDeliveryTimes = [...(user.pushDeliveryTimes || []), at].slice(-12);
+    this._persist();
+  }
+
   // Mark a user as age-verified (real deployments wire this to an actual
   // 성인인증/PASS flow; here it records the verified result).
 
@@ -1242,6 +1251,7 @@ export class FeedStore {
       const list = (user.opened || []).filter((id) => id !== itemId);
       list.push(itemId);
       user.opened = list.slice(-100);
+      this.markSeen(userId, [itemId]);
     }
     // 신호는 열람·스크롤마다 오는 고빈도 경로 — 동기 저장은 recordTraffic이
     // 겪은 것과 같은 종류의 TTFB 세금이라 디바운스로 맞춘다(_persistSoon 참조).
