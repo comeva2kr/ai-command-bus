@@ -4,7 +4,7 @@
 
 대상: NH111 검수판을 보존한 Today/Live 대규모 업데이트
 
-판정: **배포 전 GO, 운영 반영·공개 검증 대기**
+판정: **운영 배포·공개 검증 PASS**
 
 ## 이용자 결과
 
@@ -52,12 +52,35 @@
 | 요청 처리 | 홈 1ms, 상세 사전 준비, 요청 중 LLM 호출 0 |
 | diff | `git diff --check` PASS |
 
+## 운영 결과
+
+- 코드 commit `0b613c114c952b9878626749dce89fb08912b1ad`를 `main`과 운영 VM에 반영했다.
+- `https://nowhot.kr` 공개 preflight는 Today·Live·광고·정책·피드 검사를 모두 통과했다.
+- `x-nowhot-check` 직접 대조 결과 Today는 검수판 `SCE-0b991485de03a38a`의 56건을 유지했고,
+  요청 중 LLM 호출은 0이었다.
+- AdFit 심사 모드에서 Live API 광고 0건, AdFit unit 없음, 쿠팡 데이터 없음, 광고 SDK 없음이
+  함께 확인됐다. 홈페이지는 신규 Kakao SDK와 단일 AdFit 지면만 유지했다.
+- 공개 Chrome 대조는 PC 1280x800과 모바일 390x844에서 Today 56건·상세 열기·Live 10건·
+  가로 넘침 없음·페이지 오류 없음을 확인했다. 실제 Android 실기기 검증으로 확대해 표현하지 않는다.
+- `/about`, `/terms`, `/privacy`, `/robots.txt`, `/sitemap.xml`, `/ads.txt`는 모두 공개 응답했다.
+  별도 `/contact` 경로는 없지만 연락처는 앞의 세 정책 페이지에 표시된다.
+
+## 광고 신청 판정
+
+- **Kakao AdFit:** 공개 지면·신규 SDK·정책 페이지 기준으로 매체 심사 신청 또는 재심사 요청이 가능한
+  사이트 상태다. 최종 승인은 Kakao 심사 결과가 있어야 확정된다.
+- **Google AdSense:** 사이트 소유권 확인 수단, 공개 콘텐츠, 정책 페이지, crawler 파일 기준으로
+  사이트 연결·심사 요청이 가능한 상태다. AdSense 화면에서 사이트가 `Ready`가 되기 전에는 승인이나
+  광고 게재 완료로 보지 않는다.
+- 남은 외부 변수는 양 플랫폼의 콘텐츠 독창성·실질적 기여도 판단이다. 현재 Today의 한국어 편집 필드와
+  자체 구성은 심사에 유리하지만 승인을 보장하지는 않는다.
+
 ## 운영 순서와 복귀
 
-1. 포인터가 참조하는 11개 검수 판본을 VM 영속 볼륨에 복사하고 해시를 대조한다.
-2. 판본 파일을 먼저 설치하고 `active.json` 포인터를 마지막에 원자 교체한다.
-3. commit을 `main`에 push한 뒤 VM을 정확한 commit으로 reset하고 compose build한다.
-4. `x-nowhot-check` 헤더로 Today/Live/API/정책 페이지/광고 파일을 공개 검증한다.
+1. 포인터가 참조하는 11개 검수 판본을 VM 영속 볼륨에 복사하고 해시를 대조했다.
+2. 판본 파일을 먼저 설치하고 `active.json` 포인터를 마지막에 원자 교체했다.
+3. commit을 `main`에 push한 뒤 VM을 정확한 commit으로 reset하고 compose build했다.
+4. `x-nowhot-check` 헤더로 Today/Live/API/정책 페이지/광고 파일을 공개 검증했다.
 5. 결함 시 `NOWHOT_LOCAL_EDITORIAL=0`으로 기존 홈에 즉시 복귀한다.
 
 광고 코드를 실을 수 있는 기술 조건과 Kakao AdFit·Google AdSense의 실제 심사 승인은
@@ -77,10 +100,11 @@
   Codex·Claude·Cursor Grok 상호 반례 검수.
 - First Principles 게이트: PASS.
 - 개발현황 반영 / 대상 안정 ID: `NOWHOT-DEVELOPMENT-STATUS-001`.
-- 개발현황 반영 / 변경 레코드: `DEVCHG-NOWHOT-20260904-198`.
-- 개발현황 반영 / 대조 결과: 코드·고정판·실제 Chrome·전체 테스트·스테이징 일치.
-- 금지선 준수: 유료 API/기사 우회·검수판 재편성 없음. 운영 반영 전 사실은 미완료로 표기.
-- David 행동 필요 여부: 없음. 승인된 배포와 공개 검증을 이어서 수행한다.
-- Telegram 알림 필요 여부: 배포 종료 시 기존 운영 규칙에 따라 1회.
+- 개발현황 반영 / 변경 레코드: `DEVCHG-NOWHOT-20260904-199`.
+- 개발현황 반영 / 대조 결과: commit·운영 VM·고정판·공개 API·PC/모바일 Chrome·preflight 일치.
+- 금지선 준수: 유료 API/기사 우회·검수판 재편성 없음. 플랫폼 승인을 운영 배포와 구분했다.
+- David 행동 필요 여부: 광고 플랫폼 화면에서 신청 또는 재심사 요청만 남음.
+- Telegram 알림 필요 여부: 배포 종료 알림 1회 필요, 이 작업에서는 발송 경로를 실행하지 않음.
 - 이익 우선·과잉방어 점검: 기존 키와 브라우저 history를 재사용해 새 시스템을 만들지 않았다.
-- 하지 않은 일: 판본 재생성, 전량 재요약, 유료 LLM 호출, 플랫폼 승인 완료 주장.
+- 하지 않은 일: 판본 재생성, 전량 재요약, 유료 LLM 호출, 실제 Android 실기기 검증,
+  광고 플랫폼 승인 완료 주장.

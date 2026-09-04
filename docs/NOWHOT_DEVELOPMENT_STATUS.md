@@ -2,12 +2,12 @@
 
 ## 현재 판정
 
-- 단계: NH112 수용판 보존형 안내·튜토리얼 및 AdFit 심사 모드 Live 광고 차단 완료 · 운영 배포 전
-- 환경: 로컬 복제본
-- 운영 반영: 없음
-- 현재 검증: 전체 1,925건 중 PASS 1,912·실패0·SKIP13, 실제 Chrome 별도 13/13 · 14개 분야 각14·91개 두 분야 조합 정확 합집합 · 격리 스테이징 103개 소스/2,807건 비광고 항목 전부 PASS, 쿠팡 운영 자격증명 1항만 로컬 미검증 · 심사 모드 hot/latest/deals 광고0·비심사 광고 유지 실측 · Claude/Cursor Grok 최종 GO(P0 0)
+- 단계: NH112 수용판 보존형 안내·튜토리얼 및 AdFit 심사 모드 Live 광고 차단 · 운영 배포·공개 검증 완료
+- 환경: 로컬 복제본 + `https://nowhot.kr` 운영판
+- 운영 반영: 코드 commit `0b613c114c952b9878626749dce89fb08912b1ad`, 공개 preflight 전부 PASS
+- 현재 검증: 전체 1,925건 중 PASS 1,912·실패0·SKIP13, 배포 전 실제 Chrome 13/13 · 운영 PC/모바일 Chrome Today56·상세·Live10·overflow/pageerror 0 · 14개 분야 각14·91개 두 분야 조합 정확 합집합 · 공개 심사 모드 Live 광고/SDK/제휴 데이터0·홈 AdFit 단일 지면 · Claude/Cursor Grok 최종 GO(P0 0)
 - 현재 보존판: 2026-09-04 점심 `SCE-0b991485de03a38a`(콘텐츠 SHA `0b991485…38722`) · 기존 검수 선정·순서·lane·routing 불변, 기사 상세 텍스트만 근거 결속 정리
-- 현재 상세 보고: `docs/reports/NOWHOT_NH112_RELEASE_ONBOARDING_DEPLOY_2026-09-04.md` · 실제 Android 단말/라이브 배포 완료 아님
+- 현재 상세 보고: `docs/reports/NOWHOT_NH112_RELEASE_ONBOARDING_DEPLOY_2026-09-04.md` · 라이브 배포 완료, 실제 Android 단말 검증은 별도
 - 직전 전체 회귀: 1,023개 통과, 실패 0 (`DEVCHG-NOWHOT-20260811-016`)
 - 직전 변경 전체 회귀: 1,031개 통과, 실패 0 (`DEVCHG-NOWHOT-20260811-017`)
 - 직전 변경 전체 회귀: 1,037개 통과, 실패 0 (`DEVCHG-NOWHOT-20260811-021`) · late-backfill as-of 우선 복원·v6 재고
@@ -432,6 +432,8 @@ append-only로 추가했다. 표의 위치는 실행 순서를 나타내며 숫�
 | DEVCHG-NOWHOT-20260904-197 | 2026-09-04 | **NH112 대규모 업데이트 안내·튜토리얼 및 검수판 배포 후보**. NH111의 `SCE-0b991485de03a38a` 선택·순서·출처·사진·요약은 재생성하지 않고, 기존 Live 온보딩/릴리스 키를 승계한 공용 `notice-guide.js` 하나로 Today/Live를 연결했다. 새 이용자는 사용법 1회, 기존 이용자는 새 릴리스 ID별 공지 1회만 보며 상세 딥링크는 건너뛴다. 안내와 상세가 겹친 경우 Android/브라우저 Back은 상세→안내→기존 목록 순서이고 기존 history state를 보존한다. SW v145가 공용 파일을 캐시한다. Today에 기존 단일 광고 지면·AdSense/AdFit 로더와 canonical/검색 메타를 서버에서 주입하고 Live 광고 분리는 유지했다. 운영 compose는 검수 슬롯 포인터를 영속 볼륨에서 읽고 `NOWHOT_LOCAL_EDITORIAL=0` 즉시 복귀 플래그를 유지한다. 전체 1,925/1,925·실제 Chrome 13/13·격리 스테이징 102소스/2,347건 전부 PASS, 로컬판 56건·분야당14·요청 LLM0. 개인 `.serena/.superpowers`와 유료 API 호출은 제외. commit/push/VM seed/공개 검증은 다음 배포 단계라 아직 라이브 완료로 표현하지 않는다. | 배포 전 GO·라이브 대기 |
 
 | DEVCHG-NOWHOT-20260904-198 | 2026-09-04 | **NH112 AdFit 심사 모드 Live 제휴 카드 공통 차단**. 운영 자격증명 공개 전 점검에서 `/api/feed`에 `via=ad` 2건이 남는 결함을 발견했다. 서버의 기존 `adfitReviewMode()` 결과를 피드 엔진에 전달하고 유일한 공통 `_monetize()` 입구에서 원래 기사와 빈 슬롯을 반환해 hot·latest·deals를 함께 닫았다. 심사 모드 광고0·비심사 광고1을 별도 실측했고 전체 1,925건 중 PASS1,912·실패0·SKIP13, 격리 스테이징 103소스/2,807건 비광고 전부 PASS다. 로컬의 쿠팡 운영 자격증명 부재로 광고 1항은 공개 운영 점검에서 최종 확인한다. Claude와 Cursor Grok 독립 적대검수 모두 GO(P0 0). 기사 선정·분류·Today 정본·요약·튜토리얼은 불변이고 유료 API 호출은 0이다. | 배포 전 GO·운영 광고 점검 대기 |
+
+| DEVCHG-NOWHOT-20260904-199 | 2026-09-04 | **NH112 운영 배포·공개 검증 종료**. 코드 commit `0b613c114c952b9878626749dce89fb08912b1ad`를 `main`과 운영 VM에 반영하고 검수판 `SCE-0b991485de03a38a` 및 콘텐츠 SHA를 보존했다. 공개 preflight 전부 PASS, 직접 API에서 Today56·4분야·LLM0, AdFit 심사 모드 Live 광고/SDK/쿠팡 데이터0, 홈 신규 Kakao SDK·AdFit 단일 지면을 확인했다. 공개 Chrome PC1280x800·모바일390x844에서 Today56·상세·Live10·가로넘침/페이지오류0, 정책3면·robots·sitemap·ads.txt 공개 응답을 확인했다. Kakao AdFit·Google AdSense는 사이트 측 신청 준비 완료이며 플랫폼 최종 승인은 별도다. 판본 재생성·전량 재요약·유료 API 호출0, 실제 Android 실기기 검증과 Telegram 종료 알림은 수행하지 않았다. | 운영 배포·공개 검증 PASS |
 
 ## 완료 판정 규칙
 
