@@ -6,6 +6,11 @@ WORKDIR /app
 # Only source is needed; there are no dependencies to install.
 COPY package.json ./
 COPY src ./src
+COPY tools ./tools
+COPY test/fixtures/selection-d1-candidates.json ./test/fixtures/selection-d1-candidates.json
+
+# The scheduled publisher must load in the shipped image, not just the checkout.
+RUN node --input-type=module -e "await import('./tools/run-slot-canonical-prepublish.mjs')"
 
 ENV PORT=4000
 EXPOSE 4000

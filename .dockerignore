@@ -1,6 +1,14 @@
 .git
 node_modules
-test
+test/*
+!test/fixtures
+test/fixtures/*
+!test/fixtures/selection-d1-candidates.json
 docs
 *.md
 feed-data.json
+.env
+**/.env
+.nowhot-local
+._*
+**/._*
