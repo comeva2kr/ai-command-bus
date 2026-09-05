@@ -10,7 +10,7 @@
 
 - 안정 ID `NOWHOT-EVENT-SOURCE-EXCERPT-INTEGRITY-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-211`. [NH124 구현·검증·운영 보고](reports/NOWHOT_NH124_EVENT_SOURCE_EXCERPT_FIX_2026-09-05.md).
 - 사건 오병합·대표 제목/링크 불일치·원문 발췌 오염·기존 Live 풀 우회·Techmeme 제목을 공통 함수에서 수리했다. Fable 구현/Grok 독립 검토 GO, 완료 워커 release·ACK 완료. 새 업데이트 이력/공지 연결.
-- 로컬 핵심190/190·파이프라인150/150·최종콘텐츠300/300·공지 Chrome3/3. 기존 sourceRegistry 잠금 실패와 광역 스위트의 기존 실패는 별도 기록한다. 교정 후보 `SCE-52a3395bf1acdcb2` 전체193/선택56·분야별14·제목 링크 누락0 검증, 운영 결과는 배포 후 추가한다. First Principles 게이트: PASS.
+- 로컬 핵심190/190·파이프라인150/150·최종콘텐츠300/300·공지 Chrome3/3. 기존 sourceRegistry 잠금 실패와 광역 스위트의 기존 실패는 별도 기록한다. 운영 `68145ab` 18:03:07 배포·18:03:36 preflight OK, 18:04:07 교정판 `SCE-52a3395bf1acdcb2` 활성화. 원본/다른판 보존·전체193/선택56·분야별14·제목 링크 누락0·공개 내용 일치. Chrome393에서 Today56/광고6·상단고정·핫/최신 종류100% 각10/10·설정복원·오류0 확인. First Principles 게이트: PASS.
 - 실제 iPhone·19:05 이브닝 후속·AdSense/AdFit 재신청 준비는 아직 별도 확인 대상이다.
 
 ## 직전 NH123 배포 후 운영·콘텐츠·광고 준비 점검

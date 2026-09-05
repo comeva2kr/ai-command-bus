@@ -3,7 +3,7 @@
 - 안정 ID: `NOWHOT-EVENT-SOURCE-EXCERPT-INTEGRITY-001`
 - 변경 레코드: `DEVCHG-NOWHOT-20260905-211`
 - 입력 분류: 승인. David의 “진행해”에 따라 NH123에서 발견한 현재 화면 결함을 수리한다.
-- 상태: 코드·후보 검증 완료, 운영 배포/활성화 결과는 아래에 추가한다.
+- 상태: **운영 배포·교정판 활성화·공개 API/모바일 검증 완료**. 코드 `68145ab8b21e57e152ac4c7b8cb57106bce7a46d`, 교정 런치 `SCE-52a3395bf1acdcb2`.
 
 ## 원인과 수정
 
@@ -41,7 +41,11 @@
 
 ## 운영 결과
 
-배포 후 실제 commit·컨테이너·preflight·새 활성 포인터·공개 API·모바일 결과를 이 절에 기록한다.
+- main push 성공. VM HEAD `68145ab8b21e57e152ac4c7b8cb57106bce7a46d`, 컨테이너 시작 **18:03:07 KST**, 자동 preflight **18:03:36 OK**. `/tmp/nh124-runtime-final.txt`.
+- **18:04:07 KST** 기존 원자 활성화 함수로 런치 포인터만 새 정본으로 교체했다. 기존 파일 바이트 SHA `7fb57acd1be797ce615fcf25f328dead38ed9954bbc972bbf86db1d4647b3077` 전후 일치, 다른 날짜/슬롯 포인터 전부 보존, `/data/slot-editions/active-before-nh124.json` 백업. `/tmp/nh124-activation-receipt.json`.
+- 공개 `/api/today?categories=news,business,tech,humor`가 새 ID·56건·`slot_canonical_verified`·fallback false를 반환했다. 모든 공개 reader/articleSummary를 검증 후보와 대조해 일치했다. 독일 사이트 카드에는 BBC+p25만 있고 제목 원문의 p25 링크가 있으며 Nvidia/METR은 섞이지 않는다. `/tmp/nh124-public-today.json`, `/tmp/nh124-public-config.json`.
+- 개인 프로필과 분리한 공개 Chrome393×852: Today56/쿠팡6·빈 광고 제목0, 관심 분야 top59=헤더 bottom59, Live 핫/최신 줄도59, 가로 넘침0. 커뮤100 핫10/10·최신10/10·새로고침 복원10/10, 뉴스100 핫10/10·최신10/10, JS 오류0. Root가 Today/Live 최종 스크린샷을 직접 확인했다. `/tmp/nh124-mobile-proof.json`, `/tmp/nh124-today-mobile.png`, `/tmp/nh124-live-hot-mobile.png`.
+- 공개 새 공지 제목/3항목·닫은 뒤 Live에서 재표시0·업데이트 기록10건 확인. 독일 사이트 상세를 실제로 열어 BBC/p25 원문 링크와 쿠팡 링크를 확인했고 이전 PCGamer/p17 오연결은0이다. `/tmp/nh124-public-notice-detail-proof.json` 및 popup/detail PNG. 첫 임시 QA는 닫기 버튼이2개라 selector strict 오류가 났으며 `.first()`로 지정한 뒤 전 시나리오 PASS; 제품 오류로 계수하지 않는다.
 
 ## 남은 한계
 
