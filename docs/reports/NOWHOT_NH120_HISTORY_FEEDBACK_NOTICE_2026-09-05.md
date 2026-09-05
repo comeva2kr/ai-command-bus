@@ -12,6 +12,7 @@
 - 최종 공지/튜토리얼5/5 실제 Chrome PASS. 최신 공지 제목과 내용·확인 버튼이393px 화면에 보이며 상단부터 열린다. 신규 방문 튜토리얼·공유 상세·뒤로가기·오늘/실시간 한 번 표시 계약 유지. Fable 기존6건 보존 확인, Grok 비공개 접수 GO(`msg_48be5275dc37`)와 로컬2/2 독립 재검증 회수; 두 워커 모두 완료 후 release/ack 처리했다. [Grok 검토](NOWHOT_NH120_GROK_FEEDBACK_REVIEW_2026-09-05.md).
 - 운영1차 `31699ef9296b67598a06afedd13dabe4c8e5c53c`, 2026-09-05 12:17:08 KST 배포·12:17:36 자동 preflight OK. 공개 별도 preflight 전부 PASS. 공개 Chrome에서 새 공지5항목/scrollTop0/Today→Live 재표시0, 소개7건/최신1건 펼침, 양쪽 메뉴, 접수 화면, 잘못된 짧은 요청400/미인증 관리자401 확인. 실제 접수는 로컬 시험에서만 수행했다. 현재 런치56이슈·광고5개(인접 콘텐츠 제외 조건에 따라 개수 변동), 320/393/1100px 가로 넘침0.
 - 1차 공개 검증 후 기존 PWA의 cache-first `/notice-guide.js`가 예전 파일을 계속 줄 수 있음을 확인했다. Today/Live 두 호출과 SW precache에 `?v=20260905`, 셸 캐시v146을 함께 반영해 이전 활성 워커에서도 새 주소를 즉시 요청한다. 오래된 무버전 스크립트 캐시를 주입한 실제 SW 반례 및 공지/알림 회귀를 추가 검증한다. 최종 운영 영수증은 후속 기록한다.
+- 최종 캐시/공지/알림 실제 Chrome7/7 PASS. 운영 `7768f7c11a39644cc265869e31acbe2b9895abe0` 2026-09-05 12:21:06 KST 컨테이너 교체·12:21:35 자동 preflight OK. 공개 build `NmB8uSzQ`, 양쪽 화면의 버전 자산 주소와 SWv146 확인. 최종 공개 Chrome에서도 활성 SW에 예전 무버전 파일을 의도적으로 캐시한 뒤 Today로 이동: staleLoaded=false, 버전 주소 사용, 팝업5항목/scrollTop0 PASS. 전용 프로필/브라우저 종료. 운영 `/data/feed.json`의 `serviceFeedback` 배열 초기화 확인(0건); 고객/시험 요청을 운영 접수함에 넣지 않았다.
 
 ## WRC 보고
 
