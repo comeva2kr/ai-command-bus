@@ -12,14 +12,29 @@
     line-height:1.7; font-size:15px; }
   .wrap { max-width:720px; margin:0 auto; padding:32px 20px 80px; }
   h1 { font-size:22px; margin:0 0 4px; }
-  h2 { font-size:17px; margin:32px 0 10px; padding-top:16px; border-top:1px solid var(--line); }
+  h2 { font-size:17px; margin:32px 0 10px; padding-top:16px; border-top:1px solid var(--line); scroll-margin-top:16px; }
   .muted { color:var(--muted); font-size:13px; }
   a { color:var(--accent); }
   .back { display:inline-block; margin-bottom:20px; color:var(--accent); text-decoration:none; }
+  .quick { margin:0; font-size:13.5px; color:var(--muted); }
+  .quick a { text-decoration:none; }
   table { border-collapse:collapse; width:100%; font-size:13.5px; margin:10px 0; }
   th, td { border:1px solid var(--line); padding:8px 10px; text-align:left; }
   th { background:var(--card); width:120px; }
   ul { padding-left:20px; }
+  /* 업데이트 내역 — 브라우저 기본 details/summary. 항목은 서버가 RELEASES
+     (release-notes.js)로 아래 자리표시자에 채우므로 이 파일에 베껴 두지 않는다. */
+  .releases { margin:12px 0; }
+  .release { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin:0 0 8px; }
+  .release summary { cursor:pointer; font-size:14px; }
+  .release summary time { color:var(--muted); font-size:13px; margin-right:8px; font-variant-numeric:tabular-nums; }
+  .release summary .release-title { font-weight:600; }
+  .release summary .release-id { display:inline-block; margin-left:8px; color:var(--muted); font-size:12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .release[open] summary { border-bottom:1px solid var(--line); padding-bottom:8px; margin-bottom:6px; }
+  .release ul { margin:0; font-size:14px; }
+  .release li { margin:4px 0; }
+  .releases:not(:empty) + .releases-empty { display:none; }
 </style>
 </head>
 <body>
@@ -27,6 +42,7 @@
   <a class="back" href="/">← 지금핫으로 돌아가기</a>
   <h1>지금핫 NowHot 소개</h1>
   <p class="muted">여러 커뮤니티와 뉴스에서 지금 가장 화제인 글만 모아, 내 취향에 맞게 보여드리는 큐레이션 서비스입니다.</p>
+  <p class="quick"><a href="#updates">업데이트 기록</a> · <a href="/feedback">개선 요청</a></p>
 
   <h2>운영 주체</h2>
   <table>
@@ -46,8 +62,10 @@
       숫자를 지어내지 않는 것이 이 코멘트의 원칙입니다.</li>
     <li><b>개인 취향 학습</b> — 관심 카테고리를 고르면 좋아요/싫어요 반응을 학습해 피드가 점점 취향에 맞게
       바뀝니다. 뉴스 성향 균형도 슬라이더로 직접 조절할 수 있습니다.</li>
-    <li><b>오늘의 브리핑</b> — 매일의 화제를 카테고리별로 정리한 <a href="/briefing">자체 편집 브리핑</a>을
-      제공합니다.</li>
+    <li><b>오늘판</b> — 모닝(07:00)·런치(12:00)·이브닝(19:00) 전에 준비된 판을 <a href="/">오늘판</a>에서
+      날짜와 시간대별로 봅니다. 관심 분야를 고르면 그 분야의 기사만 모아 보여주고, 제목을 누르면 준비된
+      한국어 요약·사진·최초 발행 시각과 원문 출처를 한 화면에서 확인합니다. 현재 판이 준비되지 않은 경우 검증된 직전 판으로
+      대신 보여주고 그 사실을 표시합니다.</li>
     <li><b>자체 커뮤니티</b> — 글마다 지금핫 자체 댓글을 남길 수 있고, 직접 글을 쓰거나 링크를 제보할 수도
       있습니다.</li>
   </ul>
@@ -60,6 +78,13 @@
     <li>화제성 수치는 실측 공개 데이터만 사용하며, 지어낸 숫자를 쓰지 않습니다.</li>
     <li>광고·제휴 콘텐츠에는 AD 표기와 대가성 문구를 명시합니다.</li>
   </ul>
+
+  <h2 id="updates">업데이트 기록</h2>
+  <p class="muted">지금핫이 바뀔 때마다 안내한 내용을 최신순으로 모았습니다. 날짜와 버전은 안내 당시 그대로이며,
+    최신 항목만 펼쳐 둡니다.</p>
+  <div class="releases" id="releaseHistory"><!-- NOWHOT_RELEASE_HISTORY --></div>
+  <p class="muted releases-empty">업데이트 내역을 불러오지 못했습니다. 잠시 후 다시 열어 주세요.</p>
+  <p>불편한 점이나 바라는 기능이 있으면 <a href="/feedback">개선 요청</a>으로 보내주세요.</p>
 
   <p class="muted">개인정보 처리에 대한 안내는 <a href="/privacy.html">개인정보처리방침</a>을 참고하세요.</p>
   <p class="muted">ⓒ 페퍼클럽 · 지금핫 NowHot</p>

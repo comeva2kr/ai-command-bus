@@ -66,6 +66,33 @@ export class FeedStore {
     return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 22)}`;
   }
 
+  addServiceFeedback(userId, { kind, message, requestId, build } = {}) {
+    this.requireUser(userId);
+    const reject = (status, text) => { throw Object.assign(new Error(text), { status }); };
+    if (!["suggestion", "bug", "other"].includes(kind) || typeof message !== "string" ||
+        message.trim().length < 5 || message.trim().length > 2000 ||
+        typeof requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+      reject(400, "종류를 선택하고 내용을 5~2,000자로 입력해 주세요.");
+    }
+    message = message.trim();
+    const records = this.serviceFeedback ||= [];
+    const previous = records.find((r) => r.userId === userId && r.requestId === requestId);
+    if (previous) {
+      if (previous.kind !== kind || previous.message !== message) reject(409, "이미 접수된 요청입니다. 새 요청으로 보내 주세요.");
+      return previous;
+    }
+    const createdAt = nowIso(this.clock);
+    if (records.filter((r) => r.userId === userId && Date.parse(r.createdAt) > Date.parse(createdAt) - 86400000).length >= 5) {
+      reject(429, "하루에 5건까지 보낼 수 있어요. 잠시 후 다시 이용해 주세요.");
+    }
+    // Complete cold-cache writes first so a later cold-file failure cannot undo a saved receipt.
+    if (this._coldDirty) this._persist();
+    const record = { id: this._id("request"), userId, kind, message, requestId, build, createdAt };
+    records.push(record);
+    try { this._persist(); } catch (error) { records.pop(); throw error; }
+    return record;
+  }
+
   createUser(userId) {
     const id = userId || this._id("user");
     if (this.users.has(id)) return this.users.get(id);
@@ -2019,6 +2046,7 @@ export class FeedStore {
       users: [...this.users.values()],
       posts: this.posts || [],
       submissions: this.submissions || [],
+      serviceFeedback: this.serviceFeedback || [],
       ourDealsList: this.ourDealsList || [],
       adminDisabledSources: this.adminDisabledSources || [],
       adminBannedWords: this.adminBannedWords || [],
@@ -2103,6 +2131,7 @@ export class FeedStore {
       this.commentsByItem = new Map();
       this.posts = data.posts || [];
       this.submissions = data.submissions || [];
+      this.serviceFeedback = data.serviceFeedback || [];
       this.ourDealsList = data.ourDealsList || [];
       this.adminDisabledSources = data.adminDisabledSources || [];
       this.adminBannedWords = data.adminBannedWords || [];

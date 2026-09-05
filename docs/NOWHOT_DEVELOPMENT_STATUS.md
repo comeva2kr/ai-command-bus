@@ -6,7 +6,12 @@
 - 인수 근거와 재개 경로: [책임자 인수 기록](reports/NOWHOT_OWNER_TAKEOVER_2026-09-05.md). 로컬 코드 HEAD `e59c8fd`; 이번 변경은 인수 문서 연결뿐이며 제품·판본·운영 변경 없음.
 - 아래 NH112 배포 완료는 9월 4일의 완료 기록이다. 이후 같은 날 19시대 Orca 광고 재심사 감사에서 Google AdSense·Kakao AdFit 모두 HOLD·미제출로 판정됐다. 배포 완료와 광고 신청 준비/승인을 구분하며, 현재 운영 재검증이나 보류 원인 수리 완료로 표현하지 않는다.
 
-## 현재 판정 — NH119 오늘판 관심 분야 상단 고정
+## 현재 판정 — NH120 업데이트 기록·개선 요청·오늘 공지
+
+- 안정 ID `NOWHOT-RELEASE-HISTORY-FEEDBACK-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-207`. [NH120 구현·검증·운영 영수증](reports/NOWHOT_NH120_HISTORY_FEEDBACK_NOTICE_2026-09-05.md).
+- 소개에 기존6건+오늘1건 버전 기록을 연결하고 Today/Live 메뉴에서 비공개 개선 요청을 접수한다. 기존 저장소의 원자 저장·소유권/관리자 인증을 사용하며 저장 성공 후에만 번호를 준다. 오늘 공지는 같은 RELEASES에서 한 번만 표시한다. 관련33/33 및 후속4/4 검사 PASS, 운영 영수증은 통합 후 기록한다. First Principles 게이트: PASS.
+
+## 직전 NH119 오늘판 관심 분야 상단 고정
 
 - 안정 ID `NOWHOT-TODAY-STICKY-CATEGORIES-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-206`. [NH119 검증·운영 영수증](reports/NOWHOT_NH119_TODAY_STICKY_CATEGORIES_2026-09-05.md).
 - Today CSS3규칙으로 관심 분야를 헤더 아래에 고정하고 데스크톱 요약 레일 겹침을 해소했다. 격리 Chrome393/320/1100px에서 고정 위치·버튼 접근·가로 탐색·다크/상세·가로 넘침0 검증 PASS. Fable 검토 GO·worker release 완료. 운영 `7c8f968` 11:51:07 KST 배포·11:51:34 자동 preflight OK, 공개 모바일59px/데스크톱65px 고정과56이슈/6광고 보존 확인. First Principles 게이트: PASS.

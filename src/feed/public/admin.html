@@ -234,7 +234,7 @@
 <script>
 const TABS = [
   ["dashboard","대시보드"], ["analytics","행동 분석"], ["finance","수익·지출"],
-  ["communities","커뮤니티"], ["posts","게시글"],
+  ["communities","커뮤니티"], ["posts","게시글"], ["feedback","개선 요청"],
   ["ads","광고"], ["ourdeals","우리 딜"],
   ["comments","댓글"], ["words","금지어"], ["users","사용자"], ["blueprint","개발관리"]
 ];
@@ -281,6 +281,7 @@ async function render(){
     if (active==="blueprint") return renderBlueprint(panel);
     if (active==="communities") return renderCommunities(panel);
     if (active==="posts") return renderPosts(panel);
+    if (active==="feedback") return renderServiceFeedback(panel);
     if (active==="comments") return renderComments(panel);
     if (active==="words") return renderWords(panel);
     if (active==="users") return renderUsers(panel);
@@ -1809,6 +1810,17 @@ async function renderCommunities(panel){
 }
 async function toggleCommunity(id, disabled){
   await api("/api/admin/community",{method:"POST",body:JSON.stringify({id,disabled})}); render();
+}
+
+async function renderServiceFeedback(panel){
+  const { requests } = await api("/api/admin/feedback");
+  if(!requests.length){ panel.innerHTML='<p class="empty">접수된 개선 요청이 없습니다.</p>'; return; }
+  const labels = { suggestion:"개선 제안", bug:"오류 신고", other:"기타" };
+  panel.innerHTML = '<p class="muted">최근 접수 200건 · 관리자에게만 표시됩니다.</p>' + requests.map(r=>`<div class="row-card">
+    <strong>${esc(labels[r.kind] || r.kind)}</strong> <span class="muted">${when(r.createdAt)}</span>
+    <p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(r.message)}</p>
+    <div class="muted" style="font-size:12px;overflow-wrap:anywhere">${esc(r.id)} · ${esc(r.userId)} · 빌드 ${esc(r.build)}</div>
+  </div>`).join("");
 }
 
 async function renderPosts(panel){

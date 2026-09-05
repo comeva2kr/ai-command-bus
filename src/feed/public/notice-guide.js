@@ -55,7 +55,7 @@
     if (!active) return;
     if (event.key === "Escape") close();
     if (event.key === "Tab") {
-      const controls = [...active.root.querySelectorAll("button")];
+      const controls = [...active.root.querySelectorAll("button,a[href]")];
       if (!controls.length) return;
       const first = controls[0], last = controls.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
@@ -100,21 +100,28 @@
     iconClose.type = "button";
     iconClose.setAttribute("aria-label", "안내 닫기");
     iconClose.dataset.nhGuideClose = "";
-    const tag = make("p", "nh-guide-tag", tutorial ? "처음 사용하기" : "대규모 업데이트");
+    const tag = make("p", "nh-guide-tag", tutorial ? "처음 사용하기" : "업데이트 소식");
     const title = make("h2", "", tutorial ? "지금핫에 오신 걸 환영해요" : release.title || "지금핫이 새로워졌어요");
     title.id = "nhGuideTitle";
     const lead = make("p", "nh-guide-lead", tutorial
       ? "오늘 꼭 볼 흐름은 정리해서, 지금 뜨는 흐름은 빠르게 보여드립니다."
-      : "기존에 잘 되던 기능은 유지하고, 더 빠르고 편하게 읽도록 다듬었습니다.");
+      : `${release.date || ""} 업데이트한 내용을 알려드립니다.`.trim());
     card.append(iconClose, tag, title, lead);
 
     if (!tutorial && release?.items?.length) {
       const list = make("ul", "nh-guide-list");
       for (const item of release.items.slice(0, 5)) list.append(make("li", "", item));
       card.append(list);
+      const historyLink = make("a", "", "이전 업데이트 보기 →");
+      historyLink.href = "/about#updates";
+      const historyLine = make("p", "nh-guide-tip");
+      historyLine.append(historyLink);
+      card.append(historyLine);
     }
-    addUsage(card);
-    card.append(make("p", "nh-guide-tip", "제목을 누르면 준비된 한국어 요약, 사진과 출처를 보고 원문으로 이동할 수 있습니다."));
+    if (tutorial) {
+      addUsage(card);
+      card.append(make("p", "nh-guide-tip", "제목을 누르면 준비된 한국어 요약, 사진과 출처를 보고 원문으로 이동할 수 있습니다."));
+    }
     const ok = make("button", "nh-guide-ok", tutorial ? "지금핫 시작하기" : "확인했어요");
     ok.type = "button";
     ok.dataset.nhGuideClose = "";
@@ -126,7 +133,7 @@
     root.addEventListener("click", (event) => { if (event.target === root || event.target.closest("[data-nh-guide-close]")) close(); });
     document.body.append(root);
     history.pushState({ ...(history.state || {}), nhNotice: token }, "", location.href);
-    ok.focus();
+    iconClose.focus();
     return true;
   }
 

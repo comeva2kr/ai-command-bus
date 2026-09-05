@@ -13,6 +13,7 @@ after(async () => { await browser?.close(); });
 const options = { skip: !chromium, timeout: 30000 };
 const origin = "https://nowhot.test";
 const category = { id: "business", label: "경제" };
+const { latestRelease } = await import("../src/feed/release-notes.js");
 const release = {
   id: "2026-09-04-major",
   title: "오늘판과 실시간을 새롭게 정리했어요",
@@ -127,6 +128,23 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   await page.goto(base + path);
   return { page, requests, controls, context, base };
 }
+
+test("browser: Today service menu remains reachable on narrow screens", options, async (t) => {
+  const { page, base } = await fixture(t, "/");
+  await page.waitForSelector(".issue");
+  for (const width of [320,393,1100]) {
+    await page.setViewportSize({width,height:852});
+    await page.locator(".service-menu summary").click();
+    const link=page.locator('.service-menu a[href="/feedback"]');
+    assert.equal(await link.isVisible(),true);
+    const bounds=await page.locator(".topbar-inner").evaluate(el=>({width:document.documentElement.clientWidth,right:el.querySelector(".service-menu").getBoundingClientRect().right,overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth}));
+    assert.ok(bounds.right<=bounds.width);assert.equal(bounds.overflow,0);
+    await page.locator(".service-menu summary").click();
+  }
+  await page.locator(".service-menu summary").click();
+  await page.locator('.service-menu a[href="/feedback"]').click();
+  assert.equal(page.url(),base+"/feedback");
+});
 
 test("browser: restored Live list uses the current Coupang inventory", options, async (t) => {
   const { page, controls } = await fixture(t);
@@ -549,10 +567,23 @@ test("browser: a new visitor gets one shared Today/Live tutorial and Back keeps 
   assert.equal(await page.locator("#nhGuide").count(), 0);
 });
 
+test("browser: the full release opens at its title on mobile", options, async (t) => {
+  const { page } = await fixture(t, "/");
+  await page.waitForSelector(".issue");
+  await page.setViewportSize({width:393,height:852});
+  await page.evaluate(release=>NowHotNoticeGuide.show({release}),latestRelease());
+  const bounds=await page.locator(".nh-guide").evaluate(el=>({scroll:el.scrollTop,top:el.getBoundingClientRect().top,title:el.querySelector("h2").getBoundingClientRect().top}));
+  assert.equal(bounds.scroll,0);assert.ok(bounds.title>=bounds.top);
+  await page.screenshot({path:"/tmp/nh120-new-popup-mobile.png"});
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(()=>!document.getElementById("nhGuide"));
+});
+
 test("browser: a returning visitor sees a release once across Today and Live", options, async (t) => {
   const { page, base } = await fixture(t, "/?date=2026-09-03&slot=lunch", false, "returning");
   await page.waitForSelector('#nhGuide[data-kind="release"]');
   assert.match(await page.locator("#nhGuide").innerText(), /오늘판과 실시간/);
+  assert.equal(await page.locator('#nhGuide a[href="/about#updates"]').count(), 1);
   await page.click("[data-nh-guide-close]");
   await page.waitForFunction(() => !document.getElementById("nhGuide"));
   assert.equal(await page.evaluate(() => localStorage.getItem("feed_seen_release")), release.id);

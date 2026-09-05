@@ -46,7 +46,7 @@ import { makeFetcher } from "./fetchers.js";
 import { memoizedTranslator } from "./translate.js";
 import { anthropicTranslator, fallbackTranslator, googleFreeTranslator } from "./translator.js";
 import { TOPIC_CATALOG, FILTERABLE_TOPICS, FILTER_KEYS } from "./topics.js";
-import { latestRelease } from "./release-notes.js";
+import { latestRelease, releaseHistoryHtml } from "./release-notes.js";
 import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
@@ -324,6 +324,9 @@ function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "", pageExtras =
   fs.readFile(filePath, (err, buf) => {
     if (err) return send(res, 404, { error: "not found" });
     const ext = path.extname(filePath);
+    if (rel === "about.html") {
+      buf = Buffer.from(buf.toString("utf8").replace("<!-- NOWHOT_RELEASE_HISTORY -->", releaseHistoryHtml()));
+    }
     // 애드센스 사이트 소유 확인 + 광고 로더 (ADSENSE_CLIENT = "ca-pub-…").
     // 심사 단계에서는 이 스크립트 존재 자체가 사이트 확인 수단이다. env가
     // 없으면 아무것도 주입하지 않는다 — 광고 없는 배포는 완전히 무광고.
@@ -2940,6 +2943,32 @@ const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) 
         return true;
       };
 
+      if (p === "/api/feedback" && req.method === "POST") {
+        if ((req.headers["content-type"] || "").split(";")[0].trim().toLowerCase() !== "application/json") {
+          return send(res, 415, { error: "JSON 요청이 필요합니다." });
+        }
+        if (req.headers["sec-fetch-site"] === "cross-site" ||
+            (req.headers.origin && req.headers.origin !== originOf(req))) {
+          return send(res, 403, { error: "지금핫 화면에서 다시 보내 주세요." });
+        }
+        const cookies = parseCookies(req.headers.cookie);
+        if (!(cookies[SESSION_COOKIE] && store.sessionUser(cookies[SESSION_COOKIE])) &&
+            !(cookies[DEVICE_COOKIE] && cookies[KEY_COOKIE])) {
+          return send(res, 403, { error: "화면을 새로고침한 뒤 다시 보내 주세요." });
+        }
+        let body;
+        try { body = await readBody(req); } catch { return send(res, 400, { error: "요청 내용을 읽지 못했어요." }); }
+        if (!body || typeof body !== "object" || Array.isArray(body)) return send(res, 400, { error: "요청 내용을 확인해 주세요." });
+        try {
+          if (denied(body.userId)) return;
+          const record = store.addServiceFeedback(body.userId, { kind: body.kind, message: body.message, requestId: body.requestId, build: buildId() });
+          return send(res, 201, { ok: true, id: record.id, createdAt: record.createdAt });
+        } catch (error) {
+          const status = [400, 409, 429].includes(error.status) ? error.status : 503;
+          return send(res, status, { error: status === 503 ? "저장하지 못했어요. 내용을 그대로 두고 다시 보내 주세요." : error.message });
+        }
+      }
+
       if (p === "/api/health") return send(res, 200, {
         ok: true,
         categoryRouting: engine.editorialCategoryRoutingStatus
@@ -4211,6 +4240,9 @@ ${rankingRows(list, (above) => {
       // --- admin API (token-guarded) ---
       if (p.startsWith("/api/admin/")) {
         if (!isAdmin(req, url)) return send(res, 401, { error: "admin auth required" });
+        if (p === "/api/admin/feedback" && req.method === "GET") {
+          return send(res, 200, { requests: (store.serviceFeedback || []).slice(-200).reverse() });
+        }
 
         if (p === "/api/admin/product-blueprint" && req.method === "GET") {
           const localEditorialEvidence = await localEditorialEvidenceSnapshot();
@@ -4680,7 +4712,7 @@ ${rankingRows(list, (above) => {
       // 정책 페이지는 확장자 없는 주소로도 열린다. 심사관·크롤러·다른 사이트가
       // 관행적으로 /privacy, /terms, /about을 치는데 예전엔 전부 404였다
       // (2026-08-04 실측). 링크가 죽으면 "필수 페이지 없음"으로 판정된다.
-      const STATIC_ALIASES = { "/privacy": "/privacy.html", "/terms": "/terms.html", "/about": "/about.html" };
+      const STATIC_ALIASES = { "/privacy": "/privacy.html", "/terms": "/terms.html", "/about": "/about.html", "/feedback": "/feedback.html" };
       if (STATIC_ALIASES[p] && req.method === "GET") return serveStatic(res, STATIC_ALIASES[p]);
 
       // --- shareable link with OG tags (crawlers read this; humans bounce to app) ---

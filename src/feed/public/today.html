@@ -57,6 +57,9 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .icon-button{margin-left:auto;width:38px;height:38px;display:grid;place-items:center;border:1px solid var(--line);background:var(--paper);border-radius:6px;cursor:pointer}
 .icon-button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2}
 .icon-button[aria-busy="true"] svg{animation:turn .8s linear infinite}
+.service-menu{position:relative;flex-shrink:0}.service-menu summary{list-style:none;margin:0;font-size:20px}.service-menu summary::-webkit-details-marker{display:none}
+.service-menu nav{position:absolute;right:0;top:calc(100% + 10px);width:190px;padding:8px;background:var(--paper);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow)}
+.service-menu nav a{display:block;padding:10px;border-radius:4px}.service-menu nav a:hover{background:var(--soft)}
 @keyframes turn{to{transform:rotate(360deg)}}
 .page{max-width:1160px;margin:0 auto;padding:34px 22px 80px}
 .edition-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;border-bottom:1px solid var(--line);padding-bottom:24px}
@@ -159,7 +162,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
   .page{padding-top:26px}.layout{grid-template-columns:1fr;gap:22px}.rail{position:static;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;padding-top:0}.rail-section+ .rail-section{border-top:3px solid var(--ink)}
 }
 @media(max-width:620px){
-  .topbar-inner{height:58px;padding:0 16px;gap:14px}.brand{flex-basis:112px;font-size:18px}.brand-copy{display:flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.05}.brand-en{display:none}.brand-identity{font-size:10px}.view-tabs{margin-left:2px;grid-template-columns:repeat(2,minmax(50px,1fr))}.view-tabs a{padding:0 8px}.icon-button{width:34px;height:34px}
+  .topbar-inner{height:58px;padding:0 16px;gap:8px}.brand{flex-basis:auto;font-size:18px}.brand-copy{display:flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.05}.brand-en{display:none}.brand-identity{font-size:10px}.view-tabs{margin-left:2px;grid-template-columns:repeat(2,minmax(50px,1fr))}.view-tabs a{padding:0 8px}.icon-button{width:34px;height:34px;flex-shrink:0}
   .page{padding:22px 16px 64px}.edition-head{grid-template-columns:1fr;gap:18px}.edition-head h1{font-size:28px}.edition-lead{font-size:14px}
   .edition-controls{display:grid;grid-template-columns:1fr}.edition-date{width:100%;height:44px}.slot-tabs{grid-template-columns:repeat(3,1fr);width:100%}.category-band{top:59px;margin-left:-16px;margin-right:-16px;padding-left:16px}.band-head{padding-right:16px}.category-list{padding-right:16px}
   .layout{margin-top:0}.issue{grid-template-columns:32px minmax(0,1fr);gap:10px;padding:23px 0 25px}.issue:first-child{padding-top:25px}.issue h2,.issue:first-child h2{font-size:21px;line-height:1.38}
@@ -185,6 +188,16 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
     <button class="icon-button" id="refresh" type="button" title="오늘판 새로고침" aria-label="오늘판 새로고침">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"/><path d="M19 11a7 7 0 1 0 1 5"/></svg>
     </button>
+    <details class="service-menu">
+      <summary class="icon-button" aria-label="메뉴">☰</summary>
+      <nav aria-label="서비스 정보">
+        <a href="/about">서비스 소개</a>
+        <a href="/about#updates">업데이트 기록</a>
+        <a href="/feedback">개선 요청</a>
+        <a href="/terms">이용약관</a>
+        <a href="/privacy">개인정보처리방침</a>
+      </nav>
+    </details>
   </div>
 </header>
 
