@@ -26,6 +26,19 @@
 - 18:40 이후 정상 발행기 자체 준비를 기다린다. 현재판을 강제 재발행하거나 시스템 시각을 바꾸지 않았다. 예약 등록과 실제 예약 실행/발행 성공은 별개다.
 - 후속 담당은 이 보고서·최신 개발현황을 읽고 실제 현재 시각을 확인한다. 공개 `/api/today?categories=news,business,tech,humor`의 date/slot/serving/editionId를 조회한 뒤, VM `/data/slot-editions/active.json`·새 이브닝 영수증과 비교한다. 성공·실패 모두 이 대화에 결과를 보고하고 아래에 후속 증거를 추가한다.
 
+### 19:05 예약 실행 결과 — 자동 이브닝 확인 완료
+
+- `automation-3`이 **2026-09-05 19:05:26 KST**에 이 대화에서 실행됐다. 실제 시계19:05:47과 공개 응답을 확인했으며 아래는 오후의 미확인 상태를 갱신하는 후속 증거다. 변경 레코드 `DEVCHG-NOWHOT-20260905-212`, 안정 ID는 본 보고의 `NOWHOT-POSTRELEASE-VALIDATION-001`을 유지한다.
+- 판 ID **`SCE-8679215252e32946`**, SHA `8679215252e329464ee470261b821498932c93aa9c189fa37f2c3807779e697f`. 기본 `/api/today`와 선택4분야 요청 모두 **9월5일 evening·55건·slot_canonical_verified·fallback false**. 저장 정본의 같은 분야 투영과 공개 issues를 전부 대조해 일치했다. 분야별14건이며 중복 사건을 합친 선택4분야 고유 수가55다.
+- VM 포인터 `updatedAt=2026-09-05T09:44:54.659Z`(**18:44:54 KST**), 같은 시각의 candidate/edition/receipt 파일 존재. 동결 준비 입력은18:43 저장됐다. 응답의 generatedAt/verifiedAt18:33:30은 입력 기준 시각이며 실제 파일 생성/활성화 시각과 구분한다. 정본 전체191·발췌153·원문불가38·LLM 사용 배열0. 영수증의 `candidate_ready`만으로 활성화를 주장하지 않고 실제 active pointer와 공개 응답까지 확인했다.
+- 운영 HEAD는 NH124 제품 `68145ab8b21e57e152ac4c7b8cb57106bce7a46d`, 컨테이너18:03:07 기동 유지. 기존 자동 발행 경로의 `allowPaid:false`·타이머·활성화 코드를 대조했다. 최근40분 `[slot-canonical]` HOLD 로그0. 성공 로그 문자열은 따로 출력하지 않는 경로이며 저장 영수증/포인터가 성공 근거다. 이번 확인은 발행기·빌더·활성화 함수를 실행하지 않았다.
+- **19:07:43 KST** 격리 Chrome393×852의 실제 nowhot.kr에서 날짜9월5일·제목 ‘이브닝 오늘판’·이브닝 탭 선택·55기사·쿠팡6개·가로 넘침0·JS 오류0 확인, Root가 스크린샷을 직접 열람했다. 날짜/슬롯 쿼리·시계 모의 없이 현재 기본 페이지로 진입했다. 19:00:00 순간을 녹화한 증거는 아니며 19:05 이후 정상 전환 확인이다. 실제 iPhone 증거로 올리지 않는다.
+- 증거: `/tmp/nh125-evening-public.json`, `/tmp/nh125-evening-default.json`, `/tmp/nh125-evening-runtime.txt`, `/tmp/nh125-evening-files.txt`, `/tmp/nh125-evening-artifact/`, `/tmp/nh125-evening-artifact-proof.json`, `/tmp/nh125-evening-browser-proof.json`, `/tmp/nh125-evening-public-mobile.png`.
+- 작업 시작 전 확인한 MD: 자동 주입 AGENTS.md·Ponytail Full·메모리 요약; 직접 읽음 WRC START_HERE/Canonical13원칙·§11.1/Wiki/Enforcement/Live Board/Read Index 관련 범위와 wrc-start 스킬; 미읽음/불가 무관한 보드 과거 하단·iPhone 실기기; 전용 README·최신 개발현황·NH123/NH124·발행기/server 현재 코드·위 운영 자료. 메모리는 현재 운영 재검증 원칙에만 사용했다.
+- 적용한 규칙: 이미 승인한 1회 확인, 13원칙 전부, 읽기/격리 QA·문서 기록만, 임시 브라우저 코드 전 Corridor. First Principles 게이트: **PASS**.
+- 개발현황 반영: 최신 NH124 항목의 이브닝 미확인을 완료로 갱신하고 본 후속/`DEVCHG-NOWHOT-20260905-212`에 연결했다. 코드 배포/교정 런치와 이브닝 자동 발행 확인을 구분했다.
+- 금지선 준수: 강제 발행·날짜/시각 조작·유료 호출·광고 클릭·계정 제출·개인 브라우저·원본 정본 수정0. David 행동 필요 여부: 이번 확인에는 없음. Telegram 알림 필요 여부: 없음, 이 대화에서 보고. 이익 우선·과잉방어 점검: GO, 정상 운영은 그대로 두고 최소 증거만 대조했다. 하지 않은 일: 새 제품 수정/배포·전체 콘텐츠 재검수·광고 신청·iPhone 확인·메모리 쓰기. 이번 1회 확인은 종료한다.
+
 ## 3자 검토
 
 - Root: 발행 설정/저장판/운영/모바일 검증 및 종합 판정.
