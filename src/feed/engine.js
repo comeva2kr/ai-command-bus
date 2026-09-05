@@ -22,7 +22,7 @@ import { chosenCategories, ensureForeignShare, isForeignItem, FOREIGN_WINDOW } f
 // 무관한 광고보다 더 나쁘다(2026-08-06 실측, engine의 adDest 주석 참고).
 const AD_MATCH_OFF = new Set(["news", "politics"]);
 import { promotable, isLowValue } from "./promotion.js";
-import { isJunkImage } from "./enrich.js";
+import { isJunkImage, cleanArticleTextChrome, looksLikePageChrome } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
 import { canonicalContentUrl } from "./dedupe.js";
 import { buildEventClusters, composeEventFromMembers } from "./event-cluster.js";
@@ -152,12 +152,14 @@ function preferredPresentationMembers(members, canLead) {
             < Number(isGoogleNewsRedirect(current?.canonicalUrl || current?.url))
           || Number(isGoogleNewsRedirect(item?.canonicalUrl || item?.url))
               === Number(isGoogleNewsRedirect(current?.canonicalUrl || current?.url))
-            && publisherEditionRank(item) < publisherEditionRank(current));
+            && (publisherEditionRank(item) < publisherEditionRank(current)
+              || publisherEditionRank(item) === publisherEditionRank(current)
+                && presentationOrder(item, current, canLead) < 0));
     if (better) representatives.set(group, item);
   }
   const selected = [...representatives.values()];
-  const primary = selected.filter(canLead).sort(eventSourceOrder);
-  const withheld = selected.filter((item) => !canLead(item)).sort(eventSourceOrder);
+  const primary = selected.filter(canLead).sort((a, b) => presentationOrder(a, b, canLead));
+  const withheld = selected.filter((item) => !canLead(item)).sort((a, b) => presentationOrder(a, b, canLead));
   const chosen = new Set(selected);
   return [...primary, ...withheld, ...(members || []).filter((item) => !chosen.has(item)).sort(eventSourceOrder)];
 }
@@ -228,8 +230,7 @@ function attachCanonicalEventSources(issue, index) {
   const event = composeEventFromMembers(members);
   const canonicalMembers = preferredPresentationMembers(leadMembers, index.canLead);
   const canonicalEvent = composeEventFromMembers(leadMembers);
-  const presentationLead = [...canonicalMembers].sort((a, b) =>
-    presentationOrder(a, b, index.canLead))[0];
+  const presentationLead = canonicalMembers[0];
   const draftMembers = presentationLead
     ? [presentationLead, ...canonicalMembers.filter((item) => item !== presentationLead)]
     : canonicalMembers;
@@ -2549,6 +2550,10 @@ export class FeedEngine {
 
   _cleanItemSummary(item) {
     if (item?.translated && item.summaryTranslated === false) item.summary = "";
+    else if (typeof item?.summary === "string" && item.via !== "ourdeal" && !["ad", "affiliate"].includes(item.kind)) {
+      const summary = cleanArticleTextChrome(item.summary);
+      item.summary = looksLikePageChrome(summary) ? "" : summary;
+    }
     return item;
   }
 

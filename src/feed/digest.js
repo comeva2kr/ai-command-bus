@@ -153,10 +153,12 @@ export function canonicalDisplayDuplicate(left, right) {
   const crossRoleStrongMatch = crossRoleWithinDay && shared.length >= NEAR_DUP_CONCEPTS;
   if (!hasDistinctiveConcept(shared) && !crossRoleStrongMatch) return false;
   const mergeDecision = decideEventMerge({
-    title: left.title, publishedAt: left.publishedAt, source: left.operatorGroup
+    title: left.title, originalTitle: left.originalTitle, publishedAt: left.publishedAt, source: left.operatorGroup
   }, {
-    title: right.title, publishedAt: right.publishedAt, source: right.operatorGroup
+    title: right.title, originalTitle: right.originalTitle, publishedAt: right.publishedAt, source: right.operatorGroup
   });
+  if ((left.originalTitle || right.originalTitle)
+      && mergeDecision.reason === "guard_entity_overlap_min") return false;
   if (mergeDecision.reason === "guard_numbers_only_overlap") return false;
   if (mergeDecision.reason === "guard_number_conflict") {
     return crossRoleStrongMatch;
@@ -189,6 +191,7 @@ export function nearIssueGroups(scored, canonicalEvents = null) {
     return evidence.length ? evidence : cluster.members.map((item) => ({
       articleId: item.id,
       title: item.title,
+      originalTitle: item.originalTitle || null,
       operatorGroup: operationalSourceIdentity(item).ownershipGroup,
       publishedAt: item.publishedAt || item.firstSeenAt || null,
       evidenceRole: sourceRoleOf(item) === "community_signal" ? "community_post" : "reporting"

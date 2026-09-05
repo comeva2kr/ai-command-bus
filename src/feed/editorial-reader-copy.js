@@ -9,7 +9,7 @@ const deepFreeze = (value) => {
 
 export const EDITORIAL_READER_COPY_CONTRACT = deepFreeze({
   stableId: "NOWHOT-EDITORIAL-READER-COPY-CONTRACT-001",
-  version: 12,
+  version: 13,
   fingerprintVersion: 3,
   mode: "response_only_press_style_projection",
   visibleFields: ["headline", "summary", "whyImportant", "whyNow", "change", "watchNext", "confidenceLabel"],
@@ -592,7 +592,16 @@ export function buildReaderLineage(issue, copy = readerIssueCopy(issue)) {
 }
 
 export function readerIssueCopy(issue) {
-  const headline = readerHeadline(issue);
+  let headline = readerHeadline(issue);
+  const source = (issue?.eventSources || []).find((row) =>
+    clean(row.title) === clean(issue?.subject || issue?.headline));
+  if (source?.sourceId === "techmeme") {
+    // 집계 피드의 저자/매체 꼬리만 제외한다. API/SDK 등 기사 내용 괄호는 보존.
+    headline = headline.replace(/\s*\([A-Z][A-Za-z.’'-]*(?:\s+[A-Z][A-Za-z.’'-]*){1,3}\/[^()]{2,60}\)[.!。]?\s*$/, "");
+    if (/\bSources:/i.test(clean(source.originalTitle))) {
+      headline = headline.replace(/(^|[.!?;]\s+)출처\s*[:：]\s*/g, "$1소식통: ");
+    }
+  }
   return {
     headline: headline.length > MAX_READER_LENGTH.headline
       ? `${headline.slice(0, MAX_READER_LENGTH.headline - 1).trim()}…`

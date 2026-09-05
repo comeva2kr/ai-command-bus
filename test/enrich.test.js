@@ -640,6 +640,149 @@ test("cleanArticleTextChrome: 연합뉴스·하입비스트·하이스노바이�
   }
 });
 
+// ---- NH124: 발췌 오염 (NH123 실측 원문 그대로) ------------------------------
+
+test("cleanArticleTextChrome: 연합뉴스 사진 설명·크레딧·기자 이메일을 걷고 본문 발신지부터 남긴다", () => {
+  const body35 = "(서울=연합뉴스) 임성호 김민지 기자 = 삼성전자의 가전 등 완제품을 담당하는 디바이스경험(DX) 부문 직원 중심으로 구성된 삼성전자 노동조합 동행(이하 동행노조)이 이재용 삼성전자 회장 자택 앞에서 보상 격차 해소를 촉구하는 집회를 열기로 했다. 5일 업계에 따르면, 동행노조는 오는 18일 발대식을 시작으로 집회 및 1인 시위를 이어갈 계획이다.";
+  // NH123 오늘판 #35: 사진 설명이 자기 발신지·날짜·기자 이메일까지 달고 본문 앞에 붙었다.
+  assert.equal(
+    cleanArticleTextChrome(`(수원=연합뉴스) 홍기원 기자 = 16일 경기도 수원시 영통구 삼성전자 수원사업장 앞에서 삼성전자노동조합 동행(동행노조) 조합원들이 성과급 격차 등에 반발하며 구호를 외치고 있다. 2026.7.16 xanadu@yna.co.kr ${body35}`),
+    body35
+  );
+  // #3: 설명이 여러 문장이고 날짜 표기가 8월인 경우도 마지막 "날짜 이메일" 뒤 발신지부터다.
+  const body3 = "(서울=연합뉴스) 김지헌 기자 = 조현 외교부 장관이 대홍수가 발생한 네팔을 방문한다고 외교부가 5일 밝혔다. 외교부는 조 장관이 이날부터 7일까지 네팔을 방문, 시시르 커날 네팔 외교장관과 한-네팔 외교장관 회담을 갖는다고 밝혔다.";
+  assert.equal(
+    cleanArticleTextChrome(`(서울=연합뉴스) 윤동진 기자 = 조현 외교부 장관이 26일 외교부에서 네팔 홍수 우리 국민 실종 관련 재외국민보호대책본부 회의를 주재하고 있다. 2026.8.26 mon@yna.co.kr ${body3}`),
+    body3
+  );
+  // #20·#31·#29·#16: 대괄호 사진 크레딧은 본문 앞·문단 사이 어디에 있어도 지운다.
+  const body20a = "(랄릿푸르[네팔]=연합뉴스) 손현규 특파원 = \"9천명 가까이 사망한 2015년 네팔 강진 때와는 구호 상황이 다릅니다.\" 2000년 네팔에 정착한 교민 문광진(55)씨는 2년 뒤부터 현지에서 구호 활동을 시작했다.";
+  const body20b = "그때 기억이 문씨를 서두르라고 재촉했다. 지난달 26일 대홍수가 발생한 다음 날부터 지금까지 집중적으로 구호 활동을 했다.";
+  assert.equal(
+    cleanArticleTextChrome(`[네팔 교민 문광진씨 제공. 재판매 및 DB 금지] ${body20a} [네팔 교민 문광진씨 제공. 재판매 및 DB 금지] ${body20b}`),
+    `${body20a} ${body20b}`
+  );
+  const body31 = "(서울=연합뉴스) 임성호 기자 = 전국 주유소 기름값이 지난주 대비 소폭 내리며 16주 연속 하락세를 이어갔다. 5일 한국석유공사 유가정보시스템 오피넷에 따르면 전국 주유소 휘발유 평균 판매가는 전주 대비 L당 1.1원 내린 1천860.2원이었다.";
+  assert.equal(cleanArticleTextChrome(`[연합뉴스 자료사진] ${body31}`), body31);
+  assert.equal(cleanArticleTextChrome(`[촬영 조승한] ${body31}`), body31);
+  // #29: "[제작] 사진합성·일러스트" 크레딧과, 짧은 기사라 발췌 끝까지 남던 기자 이메일.
+  const body29 = "(익산=연합뉴스) 정경재 기자 = 새벽에 자전거 탄 노인을 차로 치어 숨지게 하고 달아난 외국인 유학생이 경찰 조사를 받고 있다. 경찰 관계자는 \"정확한 사고 경위를 조사하고 있다\"고 말했다.";
+  assert.equal(
+    cleanArticleTextChrome(`[이태호 제작] 사진합성·일러스트 ${body29} jaya@yna.co.kr 제보는 카카오톡 okjebo <저작권자(c) 연합뉴스, 무단 전재-재배포 금지>`),
+    body29
+  );
+});
+
+test("cleanArticleTextChrome: 본문 속 날짜·이메일·대괄호 문장은 기사 내용으로 보존한다", () => {
+  // 발신지가 뒤따르지 않는 날짜, 문장 안의 이메일, 크레딧이 아닌 대괄호는 건드리지 않는다.
+  for (const article of [
+    "(서울=연합뉴스) 김민지 기자 = 정부는 2026.9.5 발표에서 신고는 report@example.go.kr으로 접수한다고 밝혔다. 접수 기한은 2026.9.30까지다.",
+    "[속보] 정부가 추가경정예산안을 발표했다. 재원은 [기금 전용]과 국채 발행으로 마련한다.",
+    // Grok 반례: 크레딧이 아닌 제목 라벨과, 끝에 오는 연합 외 이메일은 기사 내용이다.
+    "[제작비 논란] 드라마 제작진이 예산 집행 내역을 공개했다. [촬영본 유출] 사건은 경찰이 수사 중이다.",
+    "행사 참가 신청과 문의는 press@example.com",
+    "취재진의 문의 이메일 press@example.com에 회사는 답하지 않았다. 후속 조치는 다음 주 공개된다.",
+    "쿠팡 파트너스 수수료 체계가 바뀐다는 소식에 판매자들이 대응에 나섰다. 카드 수수료 인하도 함께 논의된다."
+  ]) {
+    assert.equal(cleanArticleTextChrome(article), article);
+  }
+  // 끝의 이메일 한 토큰만 지우고, 그 앞 문장은 그대로다.
+  assert.equal(
+    cleanArticleTextChrome("경찰은 정확한 사고 경위를 조사하고 있다고 말했다. jaya@yna.co.kr"),
+    "경찰은 정확한 사고 경위를 조사하고 있다고 말했다."
+  );
+});
+
+test("cleanArticleTextChrome: 엔가젯 머리 크롬과 테크크런치 메뉴·플레이어 안내를 걷고 영문 본문부터 남긴다", () => {
+  // NH123 #27·#30: 카테고리·제목·부제·바이라인·사진 크레딧·구글 위젯이 번역 전 본문 앞에 있었다.
+  const engadget = "Continuing the trend of trying to make Windows 11 suck less, Microsoft today announced Project Zenith, a new \"ready-to-code distraction free Windows experience\" for powerful developer hardware with 64GB of RAM.";
+  assert.equal(
+    cleanArticleTextChrome(`Big Tech Microsoft Microsoft announces Project Zenith, a clutter-free Windows experience meant to entice developers But you'll need a powerful system with 64GB of RAM to use it. By Devindra Hardawar Sept. 4, 2026 10:05 am EST dennizn/Shutterstock Add Engadget on Google: Preferred Source Google Discover ${engadget}`),
+    engadget
+  );
+  // #9: 영상 페이지는 사이트 메뉴 뒤 "Loading the player…" 다음이 설명 본문이다.
+  const techcrunch = "It’s officially the Ternus era at Apple. Tim Cook stepped down as CEO this week, handing the company to former hardware chief John Ternus, whose first memo promised a “huge launch next week”.";
+  assert.equal(
+    cleanArticleTextChrome(`Latest AI Amazon Apps Biotech & Health Climate Cloud Computing Commerce Crypto Enterprise EVs Fintech Fundraising Gadgets Gaming Google Government & Policy Hardware Instagram Layoffs Media & Entertainment Meta Microsoft Privacy Robotics Security Social Space Startups TikTok Transportation Venture Staff Events Startup Battlefield StrictlyVC Newsletters Podcasts Videos Partner Content TechCrunch Brand Studio Contact Us Loading the player… ${techcrunch}`),
+    techcrunch
+  );
+  // 이미 번역돼 정본·캐시에 고정된 발췌(NH123 #27·#30·#9 실측 번역문)도 같은 경계에서 자른다.
+  const engadgetKo = "Windows 11을 덜 짜증나게 만들려는 추세에 따라 Microsoft는 오늘 64GB의 RAM 및 다양한 용량을 갖춘 강력한 개발자 하드웨어를 위한 새로운 Project Zenith를 발표했습니다.";
+  assert.equal(
+    cleanArticleTextChrome(`Big Tech Microsoft Microsoft는 개발자의 관심을 끌기 위한 깔끔한 Windows 환경인 Project Zenith를 발표했습니다. 그러나 이를 사용하려면 64GB의 RAM이 포함된 강력한 시스템이 필요합니다. 작성자: Devindra Hardawar 2026년 9월 4일 오전 10:05 EST dennizn/Shutterstock Google에 Engadget 추가: 기본 소스 Google Discover ${engadgetKo}`),
+    engadgetKo
+  );
+  const techcrunchKo = "이제 Apple의 공식적으로 Ternus 시대가 되었습니다. Tim Cook는 이번 주에 CEO에서 물러나 회사를 전 하드웨어 책임자인 John Ternus에게 넘겼습니다.";
+  assert.equal(
+    cleanArticleTextChrome(`2026년 중단: OpenAI, Anthropic, Replit 등이 6개 산업 단계를 차지합니다. 지금 티켓 25% 할인 인기 수요로 돌아옴: Disrupt에서 최대 $300 할인 최신 AI Amazon Apps 생명 공학 및 건강 기후 클라우드 컴퓨팅 상거래 암호화 기업 EVs 핀테크 기금 모금 가제트 게임 Google 정부 및 정책 하드웨어 Instagram 해고 미디어 및 엔터테인먼트 메타 Microsoft 개인 정보 보호 로봇 공학 보안 소셜 공간 스타트업 TikTok 교통 벤처 직원 이벤트 스타트업 Battlefield StrictlyVC 뉴스레터 팟캐스트 동영상 파트너 콘텐츠 TechCrunch Brand Studio 문의하기 플레이어 로드 중… ${techcrunchKo}`),
+    techcrunchKo
+  );
+  // 위젯 문구가 본문 속에 인용된 평범한 영문은 700자 머리 밖이면 건드리지 않는다.
+  const plain = "Google Discover traffic fell for several publishers this quarter, according to the report. Analysts expect the trend to continue.";
+  assert.equal(cleanArticleTextChrome(plain), plain);
+});
+
+test("cleanArticleTextChrome: 게시자 제휴 고지문만 지우고 상품·가격·쿠폰 내용은 남긴다", () => {
+  // NH123 실시간 1위 이토랜드 핫딜 og:description 원문 그대로.
+  assert.equal(
+    cleanArticleTextChrome("금강만두 육개장, 630g, 5개 https://toss.im/_m/PnW9x5l8 ✱ 이 포스팅은 토스쇼핑 쉐어링크 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다. 금강만두 육개장, 630g, 5개 https://toss.im/_m/PnW9x5l8"),
+    "금강만두 육개장, 630g, 5개 https://toss.im/_m/PnW9x5l8 금강만두 육개장, 630g, 5개 https://toss.im/_m/PnW9x5l8"
+  );
+  const deal = "LG 27인치 QHD 모니터 249,000원, 카드 할인 쿠폰 적용 시 219,000원 무료배송. 오늘 자정까지 진행되는 특가입니다.";
+  assert.equal(
+    cleanArticleTextChrome(`${deal} 본 게시물은 쿠팡 파트너스 활동의 일환으로 이에 따른 일정액의 수수료를 제공받을 수 있습니다.`),
+    deal
+  );
+  assert.equal(cleanArticleTextChrome("이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다."), "");
+});
+
+test("fetchPublicArticle: 문단 폴백은 figure 사진 설명·header 메뉴·script 템플릿 문단을 본문으로 읽지 않는다", async () => {
+  // 연합뉴스 구조(2026-09-05 실측): 첫 <article>은 <header> 안의 세 줄 요약이라 짧아 문단 폴백으로 떨어지고,
+  // 본문 <p> 사이에 <figure><figcaption><p> 사진 설명이 끼며, 가입 유도 문구는 핸들바 <script> 템플릿 안 <p>,
+  // 기자 이메일은 마지막 <p>다.
+  const sentence = "삼성전자 노동조합 동행이 이재용 회장 자택 앞에서 보상 격차 해소를 촉구하는 집회를 열기로 했다고 업계가 5일 밝혔다. ";
+  const body = `(서울=연합뉴스) 임성호 김민지 기자 = ${sentence.repeat(6).trim()}`;
+  const html = `<header><p class="menu-link">Latest</p><p class="menu-link">Contact Us</p>
+      <article class="story-summary"><p>노조가 집회를 연다는 세 줄 요약입니다.</p></article></header>
+    <script id="loginBefore01_Template" type="text/x-handlebars-template"><div><p class="txt01">연합뉴스만의 특별한 뉴스 서비스를 경험해보세요!</p></div></script>
+    <article id="articleWrap">
+      <figure class="image-zone01"><img src="/photo.jpg"><figcaption><strong>사진 제목</strong><p class="txt-desc">(수원=연합뉴스) 홍기원 기자 = 16일 수원사업장 앞에서 조합원들이 구호를 외치고 있다. 2026.7.16 xanadu@yna.co.kr</p></figcaption></figure>
+      <p>${body}</p>
+      <figure><figcaption><p class="txt-desc">[연합뉴스 자료사진]</p></figcaption></figure>
+      <p>재계에서는 무리한 요구라는 비판이 나온다.</p>
+      <p>sh@yna.co.kr<br/></p>
+      <p class="txt-copyright">제보는 카카오톡 okjebo</p>
+    </article>
+    <footer><p>다양한 채널에서 연합뉴스를 만나보세요!</p></footer>`;
+  const result = await fetchPublicArticle("https://www.yna.co.kr/view/AKR20260903152600003", {
+    fetchImpl: async () => streamRes({ body: html })
+  });
+  assert.equal(result.state, "available");
+  const text = cleanArticleTextChrome(result.text);
+  assert.ok(text.startsWith("(서울=연합뉴스) 임성호 김민지 기자 = 삼성전자 노동조합"), text.slice(0, 80));
+  assert.ok(text.endsWith("재계에서는 무리한 요구라는 비판이 나온다."), text.slice(-80));
+  for (const noise of ["홍기원", "xanadu@yna.co.kr", "자료사진", "Contact Us", "특별한 뉴스 서비스", "세 줄 요약", "sh@yna.co.kr", "다양한 채널"]) {
+    assert.ok(!text.includes(noise), noise);
+  }
+});
+
+test("makeEnricher: og:description의 게시자 제휴 고지는 지우고 사이트 소개 크롬은 발췌로 쓰지 않는다", async () => {
+  const pages = new Map([
+    ["https://etoland.example/hit/hotdeal/view/1", `<meta property="og:description" content="금강만두 육개장, 630g, 5개 https://toss.im/_m/PnW9x5l8 ✱ 이 포스팅은 토스쇼핑 쉐어링크 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.">`],
+    ["https://etoland.example/hit/hotdeal/view/2", `<meta property="og:description" content="이토랜드는 유머, 연예, 정보, 이슈를 빠르게 공유하는 커뮤니티입니다.">`],
+    ["https://etoland.example/hit/freebbs/view/3", `<meta property="og:description" content="정말 계속 떨어지네요. 환율이 1350원 아래로 내려온 건 올해 처음입니다.">`]
+  ]);
+  const fetchImpl = async (url) => mockRes({ body: pages.get(url), url });
+  const enricher = makeEnricher({ fetchImpl });
+  const items = [...pages.keys()].map((url) => ({ url, image: "https://cdn.example.com/x.jpg", summary: "", title: "핫딜" }));
+  const { attempted, filled } = await enricher.enrich(items);
+  assert.equal(attempted, 3);
+  assert.equal(filled, 2);
+  assert.equal(items[0].summary, "금강만두 육개장, 630g, 5개 https://toss.im/_m/PnW9x5l8");
+  assert.equal(items[1].summary, "", "사이트 소개문은 그 글의 발췌가 아니다");
+  assert.equal(items[2].summary, "정말 계속 떨어지네요. 환율이 1350원 아래로 내려온 건 올해 처음입니다.");
+});
+
 test("fetchPublicArticle: 본문 전용 컨테이너가 있으면 주변 추천·상품 목록을 섞지 않는다", async () => {
   const article = "아침저녁으로 선선해지면서 긴팔 파자마와 포근한 홈웨어를 찾는 사람이 늘고 있습니다. 편안한 착용감과 소재를 확인해야 합니다. ".repeat(3).trim();
   const result = await fetchPublicArticle("https://publisher.example/article/42", {

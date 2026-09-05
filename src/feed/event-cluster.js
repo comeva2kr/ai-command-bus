@@ -41,7 +41,7 @@ const sha = (value) => createHash("sha256").update(String(value || "")).digest("
 // 값만 쓴다. 표본 밖에서 자의로 넓히지 않는다(David).
 export const EVENT_MERGE_RULES = Object.freeze({
   stableId: "NOWHOT-EVENT-CLUSTER-CONTRACT-001",
-  version: 1,
+  version: 2,
   // 한/한 결합 임계 3: 처음 설계값은 2였으나, 오병합 유도 픽스처
   // ("성장률 전망 수정" vs "해수면 상승 전망 수정" — 일반 명사 2개 겹침)가
   // 병합돼 임계를 올렸다(오병합이면 임계를 올린다 — v4 절대 조건).
@@ -74,6 +74,8 @@ const EVENT_GENERIC_TOKENS = new Set([
   // 보도 상투어 announce/say 활용형 — EV-83c3f0dcdddf6157(무관 앨범 발표
   // 6건 병합, "announces/new/album/hear"), EV-9fcaf3253767a5a0("fire/ai/says").
   "announce", "announces", "announced", "say", "says", "said",
+  // 보도·시점·일반 행위자는 사건 정체성이 아니다(NH124 실제 오병합).
+  "report", "reports", "claims", "incident", "incidents", "week", "weeks", "agent", "agents",
   // 기능어 — "new": EV-83c3f0dcdddf6157·EV-8626d45bf101265f("hiring/new/york"),
   // "can"(조동사): EV-606ccd6127cef311("scientists/brain/can").
   "new", "can",
@@ -138,7 +140,15 @@ function eventTitle(article) {
 // 직함·상투어를 추가로 걷고 한/영 별칭을 접는다.
 export function eventEntityTokens(title) {
   const out = [];
-  for (const concept of titleConcepts(title)) {
+  // 하나의 회사 이름을 두 개의 독립 근거로 세지 않는다. 한/영 제목에서
+  // 영문 이름 뒤 한국어 조사도 같은 이름으로 비교한다.
+  const normalized = String(title || "")
+    // ponytail: 명시적인 report claims 제목의 before 배경절만 제외한다.
+    // 다른 문형은 실제 오병합 표본이 생기면 확장하며 원문·강한 식별 키는 보존한다.
+    .replace(/\s+before\s+[^,]+,\s*report claims[.!]?$/i, "")
+    .replace(/\bhugging\s+face(?=[^a-z]|$)/gi, "huggingface")
+    .replace(/([a-z0-9])(?:으로|에서|에게|까지|부터|처럼|보다|에|가|이|은|는|을|를|의|와|과|도|만)(?=\s|[^\p{L}\p{N}]|$)/giu, "$1");
+  for (const concept of titleConcepts(normalized)) {
     if (EVENT_GENERIC_TOKENS.has(concept)) continue;
     const particleStem = concept.replace(/(?:으로|로)$/u, "");
     out.push(CROSS_LANGUAGE_ENTITY_ALIASES.get(concept)
@@ -164,7 +174,8 @@ function tokenMatch(a, b) {
   if (a === b) return true;
   if (FOLLOW_UP_EVENT_CORES.has(a) || FOLLOW_UP_EVENT_CORES.has(b)) return false;
   const korean = /^[가-힣]+$/.test(a) && /^[가-힣]+$/.test(b);
-  if (Math.min(a.length, b.length) < (korean ? 2 : 3)) return false;
+  // open/openai, arm/harm은 다른 낱말이다. 합성어·조사 비교는 한글에만 쓴다.
+  if (!korean || Math.min(a.length, b.length) < 2) return false;
   return a.startsWith(b) || b.startsWith(a) || a.endsWith(b) || b.endsWith(a);
 }
 
@@ -396,6 +407,7 @@ function finalizeEvent(bucket) {
     sourceEvidence: articles.map((article) => ({
       articleId: article.id || null,
       title: article.title || "",
+      originalTitle: article.originalTitle || null,
       sourceId: article.source || null,
       sourceLabel: article.sourceLabel || article.source || null,
       operatorGroup: operationalSourceIdentity(article).ownershipGroup,

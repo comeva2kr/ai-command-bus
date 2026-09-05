@@ -980,9 +980,10 @@ test("같은 사건의 출처 정본은 선택 분야가 달라도 같고 직접
   assert.equal(oneEvent.headline, twoEvent.headline);
   assert.equal(oneEvent.whyImportant, businessEvent.whyImportant);
   assert.equal(oneEvent.whyImportant, twoEvent.whyImportant);
-  assert.deepEqual(oneEvent.eventSources.map((row) => row.sourceId), ["business-paper", "bbc-world"]);
-  assert.deepEqual(businessEvent.eventSources.map((row) => row.sourceId), ["business-paper", "bbc-world"]);
-  assert.deepEqual(twoEvent.eventSources.map((row) => row.sourceId), ["business-paper", "bbc-world"]);
+  assert.deepEqual(oneEvent.eventSources.map((row) => row.sourceId), ["business-world", "bbc-world"]);
+  assert.deepEqual(businessEvent.eventSources.map((row) => row.sourceId), ["business-world", "bbc-world"]);
+  assert.deepEqual(twoEvent.eventSources.map((row) => row.sourceId), ["business-world", "bbc-world"]);
+  assert.equal(oneEvent.subject, oneEvent.eventSources[0].title);
   assert.match(oneEvent.eventSources[0].summary, /공개 피드에 제공한 설명/);
   assert.deepEqual(businessEvent.eventSources.map((row) => row.summary), oneEvent.eventSources.map((row) => row.summary));
   assert.deepEqual(twoEvent.eventSources.map((row) => row.summary), oneEvent.eventSources.map((row) => row.summary));
@@ -1185,6 +1186,26 @@ test("같은 사건에 직접 언론사 URL이 있으면 Google 뉴스 중계보
     "같은 매체의 중계 링크는 직접 기사와 별도 출처로 부풀리지 않는다");
 });
 
+test("NH124: 같은 매체의 최신 대표 제목과 원문 링크가 같은 기사를 가리킨다", async () => {
+  const now = Date.parse("2026-09-05T12:00:00+09:00");
+  const rows = [
+    { id: "older", title: "네팔 홍수 실종자 수색 구조 작업 계속", source: "techmeme" },
+    { id: "newer", title: "네팔 홍수 실종자 수색 구조 작업 확대", source: "techmeme" },
+    { id: "other", title: "네팔 홍수 실종자 수색 구조 작업 현황", source: "bbc-technology" }
+  ].map((row, index) => ({ ...row, sourceLabel: row.source, kind: "news", category: "news",
+    url: `https://${row.source}.example.com/${row.id}`,
+    publishedAt: new Date(now - (3 - index) * 60_000).toISOString() }));
+  const engine = new FeedEngine(new FeedStore({ clock: () => new Date(now).toISOString() }),
+    [new JsonSource("techmeme", async () => rows.slice(0, 2), "news"),
+      new JsonSource("bbc-technology", async () => rows.slice(2), "news")]);
+  const [canonical] = await engine.canonicalEventSources([
+    { refs: rows.map((row) => ({ ...row, canonicalUrl: row.url })) }
+  ], { asOfMs: now });
+  assert.equal(canonical.eventSources.find((row) => row.sourceId === "techmeme").title, rows[1].title);
+  assert.ok(canonical.eventSources.some((row) => row.title === canonical.subject));
+  assert.equal(canonical.eventSources.length, 2);
+});
+
 test("같은 발행사의 한국어판과 외국어판이 함께 있으면 한국어 원문을 대표로 쓴다", async () => {
   const now = Date.parse("2026-08-28T14:00:00+09:00");
   const image = "https://biz.chosun.com/resizer/v2/same.jpg";
@@ -1274,7 +1295,7 @@ test("편집 단계가 한 이슈로 확정한 여러 보도 묶음은 출처 �
   assert.equal(canonical.confidence.code, "multiple_feed_observed");
 });
 
-test("집계 피드가 붙어도 독자에게 남은 직접 보도가 한 곳이면 단일 출처로 표기한다", async () => {
+test("커뮤니티 반응이 붙어도 독자에게 남은 직접 보도가 한 곳이면 단일 출처로 표기한다", async () => {
   const now = Date.parse("2026-09-02T19:00:00+09:00");
   const title = "OpenAI는 Hugging Face 해킹 이후 새 모델 개발을 연기했습니다.";
   const direct = {
@@ -1284,9 +1305,9 @@ test("집계 피드가 붙어도 독자에게 남은 직접 보도가 한 곳이
     publishedAt: new Date(now).toISOString()
   };
   const aggregate = {
-    id: "aggregate", source: "techmeme", sourceLabel: "Techmeme",
+    id: "aggregate", source: "hackernews", sourceLabel: "해커뉴스",
     title: "METR 연구원 Ajeya Cotra와의 OpenAI-Hugging Face 사건 조사와 Q&A",
-    url: "https://www.techmeme.com/example", canonicalUrl: "https://www.techmeme.com/example",
+    url: "https://news.ycombinator.com/item?id=123", canonicalUrl: "https://news.ycombinator.com/item?id=123",
     kind: "community", category: "tech", admittedCategories: ["tech"],
     publishedAt: new Date(now - 60_000).toISOString()
   };
@@ -1301,6 +1322,7 @@ test("집계 피드가 붙어도 독자에게 남은 직접 보도가 한 곳이
   }], { asOfMs: now });
 
   assert.equal(canonical.evidence.mode, "single_feed_observed");
+  assert.equal(canonical.eventSources.length, 1);
   assert.notEqual(canonical.confidence.code, "multiple_feed_observed");
   assert.doesNotMatch(canonical.whyHot, /서로 다른 운영그룹/);
   assert.doesNotMatch(canonical.watchNext, /서로 다른 운영그룹/);

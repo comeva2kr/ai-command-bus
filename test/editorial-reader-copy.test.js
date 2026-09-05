@@ -202,6 +202,22 @@ test("독자 문장: 저장 내부의 이전 판 표현을 대중적인 브리�
   assert.doesNotMatch(copy.change, /이전 판|새 사건/);
 });
 
+test("NH124: Techmeme의 저자 꼬리와 Sources 번역만 교정하고 기사 정보는 보존한다", () => {
+  const title = "출처: Anthropic는 9월 말 IPO 안내서를 공개할 것으로 예상됩니다 (Robert Hart/The Verge).";
+  const issue = { subject: title, refs: [{ title }], eventSources: [{ sourceId: "techmeme", title,
+    originalTitle: "Sources: Anthropic is expected to publish its IPO prospectus in late September (Robert Hart/The Verge)" }] };
+  assert.equal(readerIssueCopy(issue).headline,
+    "소식통: Anthropic는 9월 말 IPO 안내서를 공개할 것으로 예상됩니다");
+  const product = "새 개발도구 공개 (API/SDK)";
+  assert.equal(readerIssueCopy({ subject: product, eventSources: [{ sourceId: "techmeme", title: product,
+    originalTitle: "New development tools (API/SDK)" }] }).headline, product);
+  assert.match(readerIssueCopy({ ...issue, eventSources: [{ sourceId: "other", title }] }).headline, /^출처:/);
+  const profile = "John Ternus의 프로필입니다. 출처: Cook는 완벽한 승계를 준비했습니다(Michael Acton/Financial Times).";
+  assert.equal(readerIssueCopy({ subject: profile, eventSources: [{ sourceId: "techmeme", title: profile,
+    originalTitle: "A profile of John Ternus; sources: Cook considered the perfect succession (Michael Acton/Financial Times)" }] }).headline,
+  "John Ternus의 프로필입니다. 소식통: Cook는 완벽한 승계를 준비했습니다");
+});
+
 test("독자 문장: 긴 원문 제목은 사건명을 보존한 채 화면 제한 안으로 줄인다", () => {
   const title = "WX242 무선 전동드라이버 ($17) ETENWOLF 에어펌프 S3 ($28) 샤오미 미지아 차량용 무선 청소기 ($34) WORX WU139.1 무선 전동드릴 ($41) 생활용품 할인 모음";
   const copy = readerIssueCopy({

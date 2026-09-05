@@ -264,6 +264,20 @@ export function cleanArticleTextChrome(value) {
     if (markerAt >= 0) text = text.slice(markerAt + yonhapGoogle.length).trim();
   }
 
+  // 연합뉴스 사진 표기. 대괄호 크레딧은 실측 형식 네 가지만 지운다 — "[… 자료사진]",
+  // "[촬영 이름]", "[… 제작] 사진합성·일러스트", "[… 제공. 재판매 및 DB 금지]". "[제작비 논란]",
+  // "[촬영본 유출]" 같은 제목 라벨은 이 형식이 아니라 남는다(Grok 반례). 사진 설명은
+  // "(장소=연합뉴스) 기자 = 설명. 2026.9.4 abc@yna.co.kr" 뒤에 진짜 본문 발신지가 다시 온다.
+  // 마지막 "날짜 [이메일]" 다음에 발신지 표기가 이어질 때만 그 앞을 사진 설명으로 본다 —
+  // 본문 속 날짜나 이메일 문장은 이 조건을 만족하지 않는다(NH123 #3·#16·#20·#23·#29·#31·#35).
+  text = text
+    .replace(/\[[^\[\]]{0,60}?(?:자료사진|촬영\s+[^\[\]]{1,20}|제공\.?\s*재판매\s*및\s*DB\s*금지)\]\s*/g, " ")
+    .replace(/\[[^\[\]]{0,60}?제작\]\s*사진합성·일러스트\s*/g, " ");
+  const yonhapDateline = /\b\d{4}\.\d{1,2}\.\d{1,2}\.?\s+(?:[\w.+-]+@yna\.co\.kr\s+)?(?=\((?:[^()]|\([^()]*\))*=연합뉴스\)\s)/g;
+  let captionEnd = -1;
+  for (const caption of text.slice(0, 1400).matchAll(yonhapDateline)) captionEnd = caption.index + caption[0].length;
+  if (captionEnd > 0) text = text.slice(captionEnd).trim();
+
   const galleryMeta = text.slice(0, 1400).match(
     /(?:패션|Fashion)(?:\s*제공)?\s*\d+\s*시간\s*전\s*[\d,.]+\s*조회수\s*[\d,.]+\s*댓글(?:\s*댓글)*\s*저장(?:\s*요약)?\s*/u
   );
@@ -309,8 +323,29 @@ export function cleanArticleTextChrome(value) {
   const imageViewer = text.slice(0, 500).match(/이미지 확대\s*닫기\s*이미지 확대 보기\s*/);
   if (imageViewer) text = text.slice(imageViewer.index + imageViewer[0].length).trim();
 
+  // 영문 기사는 번역 전에 여기를 지난다. 엔가젯은 카테고리·제목·부제·바이라인·사진 크레딧
+  // 뒤에 "Add Engadget on Google: Preferred Source Google Discover" 위젯이 오고 본문이
+  // 시작한다. 테크크런치 영상 페이지는 사이트 메뉴 뒤 "Loading the player…" 자리표시 다음이
+  // 설명 본문이다(NH123 #27·#30·#9). 이미 번역돼 정본·캐시에 고정된 발췌는 같은 경계가
+  // "Google에 Engadget 추가: 기본 소스 Google Discover", "플레이어 로드 중…"으로 남아 있어
+  // 번역문 형태도 같은 자리에서 자른다(정본 고정 단계 재정리 경로).
+  const engadgetWidget = text.slice(0, 700).match(/(?:Add Engadget on Google:\s*Preferred Source|Google에서?\s*Engadget\s*추가:?\s*기본 소스)\s*Google Discover\s*/i);
+  if (engadgetWidget) text = text.slice(engadgetWidget.index + engadgetWidget[0].length).trim();
+  const playerPlaceholder = text.slice(0, 700).match(/(?:^|\s)(?:Loading the player|플레이어 로드 중)(?:…|\.{3})\s*/);
+  if (playerPlaceholder) text = text.slice(playerPlaceholder.index + playerPlaceholder[0].length).trim();
+
+  // 게시자 자신의 제휴 고지문("이 포스팅은 ○○ 활동의 일환으로, 이에 따른 일정액의 수수료를
+  // 제공받습니다")은 그 글의 내용이 아니고, 우리 화면에 실리면 지금핫의 고지처럼 읽힌다
+  // (NH123 실시간 1위 이토랜드 핫딜). 고지 문장만 지우고 상품·가격·쿠폰 내용은 그대로 둔다.
+  // 지금핫 자체 광고 고지(ad-copy.js AD_DISCLOSURE)는 광고 슬롯이 상수로 그리며 이 함수를
+  // 지나지 않는다.
+  text = text.replace(/(?:^|\s)[✱※*]?\s*(?:이|본)\s*(?:포스팅|게시물|글)은\s+[^.!?]{0,40}?활동의 일환으로,?\s*이에 따른 일정액의 수수료를 (?:제공|지급)받(?:을 수 있)?습니다[.!]?/g, " ");
+
   const chromeTail = text.match(/\s(?:닫기 음성으로 듣기|제보는 카카오톡|연합뉴스TV 기사문의 및 제보|<저작권자|이야기를 실시간으로 팔로우하세요\.?\s*하위 섹션)/i);
   if (chromeTail) text = text.slice(0, chromeTail.index).trim();
+  // 기사 끝의 연합뉴스 기자 이메일 한 토큰("…말했다. jaya@yna.co.kr")만 지운다. 다른 주소나
+  // 문장 안의 이메일("문의는 press@example.com")은 기사 내용일 수 있어 건드리지 않는다.
+  text = text.replace(/\s+[\w.+-]+@yna\.co\.kr\s*$/, "");
   return normalizeArticleText(text);
 }
 
@@ -383,11 +418,20 @@ function elleArticleText(html) {
   return inner ? paragraphText(inner) : "";
 }
 
+// 문단 폴백은 페이지 전체에서 <p>를 모은다. 그래서 publicText가 컨테이너째 걷어내는
+// figure·header·nav·footer·aside와 script 템플릿 안의 <p>도 그대로 딸려 왔다 — 연합뉴스의
+// <figcaption><p class="txt-desc">(장소=연합뉴스) 기자 = 사진 설명 2026.9.4 abc@yna.co.kr</p>,
+// 핸들바 <script> 템플릿 속 가입 유도 <p>, 테크크런치 헤더 메가메뉴 <p>가 발췌 첫머리를 채운
+// 원인이다(NH123 #3·#23·#35·#9). form은 일부러 남긴다 — 옛 게시판은 본문 전체를 <form>으로
+// 감싸고, 이 폴백이 그 글의 마지막 통로다.
+const PARAGRAPH_SKIP_BLOCKS = /<(figure|header|nav|footer|aside|script|style|noscript|template|svg)\b[^>]*>[\s\S]*?<\/\1>/gi;
+
 function paragraphText(html) {
   const paragraphs = [];
+  const source = String(html || "").replace(PARAGRAPH_SKIP_BLOCKS, " ");
   const re = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
   let match;
-  while ((match = re.exec(String(html || "")))) paragraphs.push(publicText(match[1]));
+  while ((match = re.exec(source))) paragraphs.push(publicText(match[1]));
   return normalizeArticleText(paragraphs.join(" "));
 }
 
@@ -412,7 +456,7 @@ function articleText(html) {
 export function looksLikePageChrome(text) {
   const value = String(text || "");
   // Match standalone site introductions, not articles with further reporting.
-  if (/^[^.!?…]{1,80}(?:은|는)\s+[^.!?…]{1,160}(?:공유|제공)하는\s+(?:온라인\s+)?(?:커뮤니티|사이트|포털)입니다[.!?…]*$/u.test(value.trim())) return true;
+  if (/^[^.!?…]{1,80}(?:은|는)\s+[^.!?…]{1,160}(?:공유|제공)하는\s+(?:온라인\s+)?(?:커뮤니티|사이트|포털)입니다[.!?…]*(?:\s*[^.!?…]{0,120}(?:참여하세요|확인하세요|만나보세요)[.!?…]*)?$/u.test(value.trim())) return true;
   if (/오늘의\s*HIT\s*30/i.test(value)) return true;
   if (/(?:rptHeader\s*\+=|읽어주기 기능은 크롬기반|구글 선호 매체 등록|구글검색 선호 추가|구글 검색 선호 매체 추가|기사 (?:소리로 듣기|읽어주기)|요약보기 자동요약|photo big-->|Your browser does not support the audio element|-->\s*가(?:\s|-->)*-->)/i.test(value.slice(0, 1200))) return true;
   const markers = [
@@ -828,9 +872,14 @@ export function makeEnricher({
     if (!meta) return false;
     let touched = false;
     if (!item.image && meta.image) { item.image = meta.image; touched = true; }
+    // og:description도 원문 발췌와 같은 정리를 지난다 — 실시간 요약 칸은 이 값을 그대로
+    // 그려서 게시자의 제휴 고지문이 지금핫 고지처럼 보였다(NH123 실시간 이토랜드 핫딜).
+    // 사이트 소개·메뉴 같은 페이지 크롬은 그 글의 발췌가 아니므로 비워 둔다
+    // (article-summary.js sourceLinks와 같은 판정). 캐시 형식은 그대로다.
+    const desc = !item.summary && meta.desc ? cleanArticleTextChrome(meta.desc) : "";
     // U+FFFD(\uFFFD)가 남았으면 디코딩 실패 잔재 — 깨진 발췌는 없느니만 못하다
-    if (!item.summary && meta.desc && meta.desc !== item.title && !meta.desc.includes("\uFFFD")) {
-      item.summary = meta.desc; touched = true;
+    if (desc && desc !== item.title && !desc.includes("\uFFFD") && !looksLikePageChrome(desc)) {
+      item.summary = desc; touched = true;
     }
     return touched;
   }

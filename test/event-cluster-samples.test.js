@@ -19,6 +19,7 @@ import {
   sharedEventTokens
 } from "../src/feed/event-cluster.js";
 import { operationalSourceIdentity } from "../src/feed/editorial-source-identity.js";
+import { nearIssueGroups } from "../src/feed/digest.js";
 
 const article = (over) => ({
   id: over.id,
@@ -34,6 +35,41 @@ const article = (over) => ({
 
 const eventOf = (events, articleId) => events.find((event) =>
   event.memberArticleIds.includes(articleId) || event.reactionArticleIds.includes(articleId));
+
+test("NH124: Hugging Face 인수·조사·독일 웹사이트 사건은 분리하고 같은 사건 보도는 보존한다", () => {
+  const rows = [
+    article({ id: "nvidia", source: "pcgamer", category: "tech", publishedAt: "2026-09-04T09:13:42Z",
+      title: "Nvidia는 AI에 돈을 투자하여 Hugging Face를 130억 달러에 인수했습니다.",
+      originalTitle: "Nvidia puts its money where its mouth is on open weight AI, moving to buy Hugging Face for $13 billion" }),
+    article({ id: "reaction", source: "geeknews", category: "tech", kind: "community", publishedAt: "2026-09-04T00:31:31Z",
+      title: "Nvidia, Hugging Face를 약 19조원에 인수하기로 공식 합의" }),
+    article({ id: "website", source: "techmeme", category: "tech", publishedAt: "2026-09-04T18:52:31Z",
+      title: "OpenAI는 몇 주 전에 DseWiki 독일 웹사이트 사건에 대해 알았지만 Hugging Face 사건 이후 이를 비밀로 유지했습니다.",
+      originalTitle: "Report: OpenAI learned of the DseWiki German website incident weeks ago but kept it under wraps as it grappled with the Hugging Face fallout (Robert Hart/The Verge)" }),
+    article({ id: "probe", source: "techmeme", category: "tech", publishedAt: "2026-09-04T14:30:00Z",
+      title: "OpenAI가 Hugging Face 사건에 대한 METR 조사를 제한하고 에이전트가 Hugging Face를 공격한 기간을 일주일로 제한한 방법",
+      originalTitle: "How OpenAI limited METR's probe into the Hugging Face incident, dictating terms and restricting its scope to the single week when agents attacked Hugging Face (Dylan Freedman/New York Times)" }),
+    article({ id: "bbc", source: "bbc-technology", category: "tech", publishedAt: "2026-09-04T14:59:13Z",
+      title: "OpenAI 요원은 Hugging Face 해킹 이전에 독일 웹사이트를 하이재킹했습니다.",
+      originalTitle: "OpenAI agents hijacked German website before Hugging Face hack, report claims" }),
+    article({ id: "california", source: "techmeme", category: "tech", publishedAt: "2026-09-04T21:55:01Z",
+      title: "캘리포니아 AG Rob Bonta는 Hugging Face 해킹에 대해 OpenAI를 조사하고 있습니다.",
+      originalTitle: "California AG Rob Bonta is investigating OpenAI over the Hugging Face hack in July, after more than a dozen states joined Alabama in its investigation (Chase DiFeliciantonio/Politico)" })
+  ];
+  assert.equal(decideEventMerge(rows[4], rows[5]).merge, false, "배경으로 언급한 과거 해킹은 독일 사이트 주사건이 아니다");
+  for (const ordered of [rows, [...rows].reverse()]) {
+    const events = buildEventClusters(ordered);
+    assert.equal(events.length, 4);
+    assert.equal(eventOf(events, "nvidia"), eventOf(events, "reaction"));
+    assert.equal(eventOf(events, "website"), eventOf(events, "bbc"));
+    assert.notEqual(eventOf(events, "probe"), eventOf(events, "website"));
+    assert.notEqual(eventOf(events, "nvidia"), eventOf(events, "website"));
+    const scored = ordered.filter((row) => row.kind === "news").map((row) => ({ members: [row] }));
+    assert.equal(nearIssueGroups(scored, events).length, 4,
+      "번역 제목의 겹침이 원문에서 분리한 사건을 다시 합치지 않는다");
+  }
+  assert.deepEqual(sharedEventTokens("open model released", "OpenAI product launched"), []);
+});
 
 // ---------------------------------------------------------------------------
 // 표본 1 — DeepSeek 한/영 이중 게재 (tech 영문 HN + business 한국어 연합뉴스TV)

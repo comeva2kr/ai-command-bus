@@ -6,7 +6,14 @@
 - 인수 근거와 재개 경로: [책임자 인수 기록](reports/NOWHOT_OWNER_TAKEOVER_2026-09-05.md). 로컬 코드 HEAD `e59c8fd`; 이번 변경은 인수 문서 연결뿐이며 제품·판본·운영 변경 없음.
 - 아래 NH112 배포 완료는 9월 4일의 완료 기록이다. 이후 같은 날 19시대 Orca 광고 재심사 감사에서 Google AdSense·Kakao AdFit 모두 HOLD·미제출로 판정됐다. 배포 완료와 광고 신청 준비/승인을 구분하며, 현재 운영 재검증이나 보류 원인 수리 완료로 표현하지 않는다.
 
-## 현재 판정 — NH123 배포 후 운영·콘텐츠·광고 준비 점검
+## 현재 판정 — NH124 사건·출처·발췌 정합성 수리
+
+- 안정 ID `NOWHOT-EVENT-SOURCE-EXCERPT-INTEGRITY-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-211`. [NH124 구현·검증·운영 보고](reports/NOWHOT_NH124_EVENT_SOURCE_EXCERPT_FIX_2026-09-05.md).
+- 사건 오병합·대표 제목/링크 불일치·원문 발췌 오염·기존 Live 풀 우회·Techmeme 제목을 공통 함수에서 수리했다. Fable 구현/Grok 독립 검토 GO, 완료 워커 release·ACK 완료. 새 업데이트 이력/공지 연결.
+- 로컬 핵심190/190·파이프라인150/150·최종콘텐츠300/300·공지 Chrome3/3. 기존 sourceRegistry 잠금 실패와 광역 스위트의 기존 실패는 별도 기록한다. 교정 후보 `SCE-52a3395bf1acdcb2` 전체193/선택56·분야별14·제목 링크 누락0 검증, 운영 결과는 배포 후 추가한다. First Principles 게이트: PASS.
+- 실제 iPhone·19:05 이브닝 후속·AdSense/AdFit 재신청 준비는 아직 별도 확인 대상이다.
+
+## 직전 NH123 배포 후 운영·콘텐츠·광고 준비 점검
 
 - 안정 ID `NOWHOT-POSTRELEASE-VALIDATION-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-210`. [NH123 통합 검증·다음 수정 우선순위](reports/NOWHOT_NH123_POSTRELEASE_VALIDATION_2026-09-05.md).
 - 운영 코드 `f95164b` 유지. 현재 런치56·정본 검증·광고5, 모바일 Chrome393px에서 오늘/실시간 상단 고정·가로 넘침0·핫/최신 커뮤 및 뉴스100% 각10/10·새로고침 설정 복원 PASS. 실제 iPhone 확인은 David 답변 대기다.

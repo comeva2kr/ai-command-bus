@@ -3695,6 +3695,25 @@ test("번역: 규칙 이전에 들어온 글도 내보낼 때 걸러진다", asy
   assert.equal(it.title, "한글 제목");
 });
 
+test("NH124: 이미 수집된 발췌도 게시자 고지와 사이트 소개를 정리한다", async () => {
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const product = "금강만두 육개장, 630g, 5개";
+  const disclosure = "이 포스팅은 토스쇼핑 쉐어링크 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.";
+  const stale = { id: "s", kind: "community", async fetch() {
+    return [
+      { id: "deal", title: "만두 할인", summary: `${product} ✱ ${disclosure}`, url: "https://x/1", source: "etoland-deal" },
+      { id: "site", title: "커뮤니티 새 글", summary: "이토랜드는 유머, 연예, 정보, 이슈를 빠르게 공유하는 커뮤니티입니다. 자유게시판, 갤러리, 승부예측 등 다양한 이야기에 참여하세요.", url: "https://x/2", source: "etoland" }
+    ];
+  } };
+  const engine = new FeedEngine(null, [stale]);
+  const items = await engine.pool();
+  assert.equal(items.find(i => i.id === "deal").summary, product);
+  assert.equal(items.find(i => i.id === "site").summary, "");
+  assert.equal(engine._cleanItemSummary({ kind: "affiliate", summary: disclosure }).summary, disclosure);
+  const reporting = "이토랜드는 정보를 공유하는 커뮤니티입니다. 운영사는 5일 새로운 정책을 발표했다.";
+  assert.equal(engine._cleanItemSummary({ kind: "news", summary: reporting }).summary, reporting);
+});
+
 test("성인 필터가 통째로 없다 — 글을 걸러내지 않는다", async () => {
   // David 2026-08-05: "성인글을 차단하는 기능을 따로 넣을 필요는 없어.
   //                    필터 기능 자체를 없애기만 하면 돼." / "성인 필터로 글 걸러내지마"
