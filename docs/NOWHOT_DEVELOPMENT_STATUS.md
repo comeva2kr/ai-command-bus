@@ -11,7 +11,7 @@
 - 안정 ID `NOWHOT-TODAY-LIVE-ADS-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-205`. [NH118 원인·검증·운영 영수증](reports/NOWHOT_NH118_TODAY_LIVE_ADS_2026-09-05.md).
 - 오늘판에 기존 쿠팡 재고를 연결해 글03 뒤부터10글 간격과 상세 요약 아래 표시한다. 현재 개인 오늘판의 빈 심사 광고 주입을 제거하며 기사 데이터·순서·번호는 보존한다.
 - 실시간 몰입 모드 `display:contents`를 숨김으로 오인하던 공통 검사를 수정했다. 별도로 실제 Chrome의 `.ad-card` 사용자 에이전트 숨김 규칙을 직접 확인했으며 차단 설정은 건드리지 않았다.
-- 관련 서버235/235·실제 Chrome23/23·구문/diff PASS. 운영 영수증은 연결 보고서에 기록한다. First Principles 게이트: PASS.
+- 관련 서버235/235·실제 Chrome24/24·구문/diff PASS. Orca Fable/Grok GO 회수·워커 release 완료. 1차 운영6ae62cd·공개 오늘판56이슈/쿠팡6개 확인. 마지막 검토 보완과 운영 영수증은 연결 보고서에 기록한다. First Principles 게이트: PASS.
 
 ## 직전 NH117 기존 쿠팡 광고 복구
 

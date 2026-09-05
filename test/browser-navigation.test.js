@@ -187,6 +187,26 @@ test("browser: Today affiliates preserve issue order, detail and restored invent
   assert.equal(await page.locator("#issues .ad-coupang").count(), 2);
 });
 
+test("browser: Today ads honor excluded neighbors and partner URL boundaries", options, async (t) => {
+  const { page, controls } = await fixture(t, "/");
+  await page.waitForSelector("#issues .issue");
+  controls.coupang = { ...affiliateInventory, items: [...affiliateInventory.items,
+    { ...affiliateInventory.items[0], href: "https://link.coupang.com.evil.test/a", hook: "INVALID AFFILIATE" }] };
+  controls.todayEdition = structuredClone(edition);
+  controls.todayEdition.issues[2].categoryIds = ["politics"];
+  controls.todayEdition.issues[13].adUnsafe = true;
+  await page.reload();
+  await page.waitForSelector("#issues .issue");
+  assert.equal(await page.locator("#issues .ad-coupang").count(), 0);
+  assert.equal(await page.locator("#issues .issue").count(), items.length);
+  await page.locator("[data-open-issue='2']").click();
+  assert.equal(await page.locator("#detailContent .ad-coupang").count(), 0);
+  await page.getByRole("button", { name: "기사 요약 닫기" }).click();
+  await page.locator("[data-open-issue='0']").click();
+  assert.match(await page.locator("#detailContent .ad-coupang a").getAttribute("href"), /^https:\/\/link\.coupang\.com\//);
+  assert.doesNotMatch(await page.locator("#detailContent").innerText(), /INVALID AFFILIATE/);
+});
+
 test("browser: cold Live detail owns a list entry; Back/Forward/reload preserve intent", options, async (t) => {
   const { page } = await fixture(t, "/live#post-post-0");
   await page.waitForSelector("#detail.open");

@@ -119,7 +119,8 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .ad-coupang .go-line,.ad-coupang .go-dest{display:block;margin-top:8px;color:var(--sub);font-size:13px}
 .ad-coupang .ad-go{display:block;min-height:44px;padding-top:12px;color:var(--blue);font-weight:800}
 .ad-coupang .go-thumb{flex:0 0 88px;width:88px}.ad-coupang img{display:block;width:88px;height:88px;object-fit:cover}
-.ad-coupang .ad-disclosure{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--sub)}
+.ad-coupang .ad-mark,.ad-coupang .ad-disclosure{font-size:12px;color:var(--sub)}
+.ad-coupang .ad-disclosure{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line)}
 .adsbygoogle{min-height:100px}
 .empty,.error{padding:60px 0;border-bottom:1px solid var(--line)}
 .empty h2,.error h2{font-size:22px;margin:0 0 8px}.empty p,.error p{margin:0;color:var(--sub)}
@@ -240,6 +241,7 @@ const state={userId:null,coupang:null,categories:null,confirmedCategories:null,s
 const $=(id)=>document.getElementById(id);
 const esc=(value)=>String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const todayHistory=NowHotHistory.create("today");
+const todayAdOffset=Math.floor(Math.random()*997);
 function todaySnapshot(){
   return {userId:state.userId,edition:state.edition,pinnedEdition:state.pinnedEdition,y:$("issueDetail").classList.contains("open")?state.listScrollY:window.scrollY};
 }
@@ -469,18 +471,21 @@ function renderCategories(edition){
   }
 }
 
-function todayAdHtml(issue,index,slot,seen=new Set()){
+function todayAdHtml(issue,index,slot,seen=new Set(),nextIssue=null){
+  if([issue,nextIssue].some(row=>row&&(row.adUnsafe||(row.categoryIds||[]).some(cat=>["politics","religion","adult"].includes(cat)))))return "";
   const cp=state.coupang;
   const items=(cp?.items||[]).filter(item=>/^https:\/\/link\.coupang\.com\//.test(item.href));
   if(!items.length||!cp.disclosure)return "";
   const categories=issue.categoryIds||[];
   const unused=items.filter(item=>!seen.has(item.dest||item.href));
-  const matching=unused.filter(item=>categories.includes(item.category));
+  const related=categories.flatMap(cat=>({business:["tech","life"],news:["tech","life"],culture:["life"]}[cat]||[]));
+  const matching=unused.filter(item=>categories.includes(item.category)||related.includes(item.category));
   const pool=matching.length?matching:unused.length?unused:items;
-  const item=pool[index%pool.length];seen.add(item.dest||item.href);
+  const rotate=index+todayAdOffset;
+  const item=pool[rotate%pool.length];seen.add(item.dest||item.href);
   const context={business:"news",news:"news",tech:"tech",gaming:"tech",humor:"fun",culture:"fun",sports:"hobby"}[categories[0]]||"life";
   const variants=cp.matrix?.[item.dest]?.[context];
-  const copy=variants?.[index%variants.length]||{};
+  const copy=variants?.[rotate%variants.length]||{};
   const href=new URL(item.href);href.searchParams.set("subId",`${slot}-${index}`);
   const image=externalHref(item.img);
   return `<aside class="ad-slot ad-coupang" aria-label="쿠팡 제휴 광고">
@@ -520,7 +525,7 @@ function renderIssues(edition){
         ${change?`<div class="change-row"><b>새로 달라진 점</b><p>${esc(change)}</p></div>`:""}
         ${watchNext?`<div class="change-row"><b>다음 확인</b><p>${esc(watchNext)}</p></div>`:""}
       </div>
-    </article>${index>=2&&(index-2)%10===0?todayAdHtml(issue,index,"today-feed",seenAds):""}`;
+    </article>${index>=2&&(index-2)%10===0?todayAdHtml(issue,index,"today-feed",seenAds,edition.issues[index+1]):""}`;
   }).join("");
   for(const article of $("issues").querySelectorAll("article[data-issue-index]"))article.onclick=(event)=>{
     if(event.target.closest("a,button"))return;

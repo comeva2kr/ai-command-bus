@@ -94,10 +94,15 @@ const liveNetworkTag = /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)
 ok("/live가 광고 네트워크 SDK를 직접 로드하지 않음", !liveNetworkTag);
 
 if (localEditorial) {
-  ok("오늘판 쿠팡 지면·재고 연결", /todayAdHtml\(issue,index,"today-feed",seenAds\)/.test(html)
+  ok("오늘판 쿠팡 지면·재고 연결", /todayAdHtml\(issue,index,"today-feed",seenAds,/.test(html)
     && /state\.coupang=config\.coupang/.test(html));
   ok("오늘판에 빈 심사 광고·네트워크 SDK 없음", !/kakao_ad_area|class="adsbygoogle"/.test(html)
     && !/<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i.test(html));
+  if (reviewMode) {
+    const briefingHtml = await (await fetch(BASE + "/briefing", { headers: CHECK_HEADERS })).text();
+    ok("기존 브리핑 심사 지면 AdFit 한 단위 유지", (briefingHtml.match(/class="kakao_ad_area"/g) || []).length === 1
+      && /t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/.test(briefingHtml));
+  }
 } else if (reviewMode) {
   const units = (html.match(/class="kakao_ad_area"/g) || []).length;
   ok("심사 홈에 AdFit 한 단위", units === 1, `${units}개`);

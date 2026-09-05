@@ -16,13 +16,15 @@
 
 - 수정 전 실제 설치 Chrome에서 2건 실패 재현: 몰입 모드 800ms 뒤 광고 CTA0, 오늘판 광고 표시 timeout.
 - 수정 후 관련 서버235/235 PASS: briefing-quality, inline-js, affiliate-card, monetize, coupang-banner, coupang, ad-matrix.
-- 실제 Chrome browser-navigation23/23 PASS, skip0. 새 오늘판 목록/상세/재로드, 글 번호01–18 보존, 글03 뒤 첫 광고·18글에2광고, 도착지 중복 회피, 이미지 실패 후 본문/고지 보존. 몰입 모드 광고 유지와 명시적 숨김 시 광고 제거 둘 다 검사.
+- 실제 Chrome browser-navigation24/24 PASS, skip0. 새 오늘판 목록/상세/재로드, 글 번호01–18 보존, 글03 뒤 첫 광고·18글에2광고, 도착지 중복 회피, 이미지 실패 후 본문/고지 보존. 몰입 모드 광고 유지와 명시적 숨김 시 광고 제거 둘 다 검사. 제외 이슈 양옆·상세와 공식 호스트 위장 링크 차단 검사도 수정 전 FAIL, 수정 후 PASS.
 - 구문 검사와 `git diff --check` PASS. 운영 배포와 공개 화면 확인은 아래 영수증으로 별도 기록한다.
-- Orca Grok 최종 패치 검토 GO, 최초 진단에서 실제 Chrome과 몰입 모드를 혼동한 설명을 바로잡았으며 [Grok 최종 보고](NOWHOT_NH118_GROK_LIVE_AD_REVIEW_2026-09-05.md)에 두 원인을 구분했다. 최종 디스패치 `ctx_0970862f4f86` release 완료. Fable은 오늘판 최소 적용안과 몰입 모드 반례를 먼저 전달했고 최종 문서 작성 중이다.
+- Orca Grok 최종 패치 검토 GO, 최초 진단에서 실제 Chrome과 몰입 모드를 혼동한 설명을 바로잡았으며 [Grok 최종 보고](NOWHOT_NH118_GROK_LIVE_AD_REVIEW_2026-09-05.md)에 두 원인을 구분했다. [Fable 최종 보고](NOWHOT_NH118_FABLE_TODAY_AD_REVIEW_2026-09-05.md)도 GO. 두 검토자는 초기 패치를 검토했으며 마지막 보완의 최종 실행 증거는 책임자 검사다. 두 워커 최종 디스패치 `ctx_0970862f4f86`, `ctx_2202510afac2` release 완료.
+- Fable 권고4건 반영: 방문별 재고/문구 회전·인접 분야 연결, 제외 분야와 adUnsafe 이슈 양옆 건너뜀, AD/고지12px, Today 예외 정책과 기존 `/briefing` AdFit1단위 공개 사전 점검. 새로운 의존성 없음. 검토 보고의 David 기기 원인 추정은 직접 확인된 전용 Chrome에 한정하며 아이폰까지 확정하지 않는다.
 
 ## 운영 영수증
 
-배포 전. 운영 적용/모바일 화면 완료를 아직 주장하지 않는다.
+- 1차 운영 코드 `6ae62cdacd020f18477c5cb9e1e73d84f1485c5b`: 2026-09-05 11:18:07 KST 배포, 11:18:33 자동 preflight OK. 실제 공개 내장 브라우저393×852에서 오늘판56이슈·쿠팡6개, 글03/13/23/33/43/53 뒤, 광고 이미지6개 정상·가로 넘침0 확인.
+- 마지막 검토 보완의 운영 영수증은 추가 기록한다. David 아이폰 실기기 표시 완료는 아직 주장하지 않는다.
 
 ## WRC 보고
 

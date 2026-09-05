@@ -529,7 +529,7 @@ test("오늘판 정적 홈은 색인을 유지하고 쿠팡 지면을 연결한�
     assert.match(root, /google-adsense-account/);
     assert.doesNotMatch(root, /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i);
     assert.match(root, /state\.coupang=config\.coupang/);
-    assert.match(root, /todayAdHtml\(issue,index,"today-feed",seenAds\)/);
+    assert.match(root, /todayAdHtml\(issue,index,"today-feed",seenAds,/);
     assert.doesNotMatch(live, /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i);
 
     process.env.ADFIT_UNIT_MOBILE = "DAN-TEST";
