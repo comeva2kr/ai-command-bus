@@ -113,6 +113,13 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .rail-link{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line);font-weight:850;font-size:13px;color:var(--blue)}
 .ad-slot{margin-top:18px;padding:14px 0;border-top:1px solid var(--line);overflow:hidden;text-align:center}
 .ad-mark{display:block;margin:0 0 8px;color:var(--sub);font-size:10px;font-weight:800;text-align:left}
+.ad-coupang{margin:0;padding:24px 0;border-bottom:1px solid var(--line);text-align:left}
+.ad-coupang .ad-native{display:block}.ad-coupang .go-row{display:flex;gap:18px;align-items:flex-start}
+.ad-coupang .go-text{flex:1;min-width:0}.ad-coupang .go-text b{display:block;font-size:19px;line-height:1.4}
+.ad-coupang .go-line,.ad-coupang .go-dest{display:block;margin-top:8px;color:var(--sub);font-size:13px}
+.ad-coupang .ad-go{display:block;min-height:44px;padding-top:12px;color:var(--blue);font-weight:800}
+.ad-coupang .go-thumb{flex:0 0 88px;width:88px}.ad-coupang img{display:block;width:88px;height:88px;object-fit:cover}
+.ad-coupang .ad-disclosure{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--sub)}
 .adsbygoogle{min-height:100px}
 .empty,.error{padding:60px 0;border-bottom:1px solid var(--line)}
 .empty h2,.error h2{font-size:22px;margin:0 0 8px}.empty p,.error p{margin:0;color:var(--sub)}
@@ -211,7 +218,6 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
     <aside class="rail" aria-label="이번 판 요약">
       <section class="rail-section"><h2>이번 판</h2><dl class="metric-list" id="metrics"><dt>상태</dt><dd>준비 중</dd></dl></section>
       <section class="rail-section"><h2>선택 분야</h2><ul class="selection-list" id="selection"><li><span>불러오는 중</span><b>—</b></li></ul><a class="rail-link" href="/live"><span>실시간 피드 보기</span><span aria-hidden="true">→</span></a></section>
-      <!-- NOWHOT_DISPLAY_AD -->
     </aside>
   </div>
 </div>
@@ -230,7 +236,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 <script src="/navigation-history.js"></script>
 <script src="/notice-guide.js"></script>
 <script>
-const state={userId:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
+const state={userId:null,coupang:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
 const $=(id)=>document.getElementById(id);
 const esc=(value)=>String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const todayHistory=NowHotHistory.create("today");
@@ -463,11 +469,34 @@ function renderCategories(edition){
   }
 }
 
+function todayAdHtml(issue,index,slot,seen=new Set()){
+  const cp=state.coupang;
+  const items=(cp?.items||[]).filter(item=>/^https:\/\/link\.coupang\.com\//.test(item.href));
+  if(!items.length||!cp.disclosure)return "";
+  const categories=issue.categoryIds||[];
+  const unused=items.filter(item=>!seen.has(item.dest||item.href));
+  const matching=unused.filter(item=>categories.includes(item.category));
+  const pool=matching.length?matching:unused.length?unused:items;
+  const item=pool[index%pool.length];seen.add(item.dest||item.href);
+  const context={business:"news",news:"news",tech:"tech",gaming:"tech",humor:"fun",culture:"fun",sports:"hobby"}[categories[0]]||"life";
+  const variants=cp.matrix?.[item.dest]?.[context];
+  const copy=variants?.[index%variants.length]||{};
+  const href=new URL(item.href);href.searchParams.set("subId",`${slot}-${index}`);
+  const image=externalHref(item.img);
+  return `<aside class="ad-slot ad-coupang" aria-label="쿠팡 제휴 광고">
+    <p class="ad-mark">AD · 쿠팡 파트너스</p>
+    <a class="ad-native" href="${esc(href.href)}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
+      <span class="go-row"><span class="go-text"><b>${esc(copy.hook||item.hook)}</b><span class="go-line">${esc(copy.line||item.brand)}</span><span class="ad-go">${esc(copy.cta||"쿠팡에서 보기")} →</span><span class="go-dest">${esc(item.brand)}</span></span>
+      ${image?`<span class="go-thumb"><img src="${esc(image)}" width="88" height="88" alt="${esc(item.brand)}" loading="eager" onerror="this.parentNode.remove()"></span>`:""}</span></a>
+    <p class="ad-disclosure">${esc(cp.disclosure)}</p></aside>`;
+}
+
 function renderIssues(edition){
   if(!edition.issues.length){
     $("issues").innerHTML=`<div class="empty"><h2>이번 판은 아직 정리 중입니다</h2><p>선택 분야의 유효 후보가 더 모이면 같은 자리에서 이어집니다.</p></div>`;
     return;
   }
+  const seenAds=new Set();
   $("issues").innerHTML=edition.issues.map((issue,index)=>{
     const copy=issue.reader||{};
     const watchNext=copy.watchNext||"";
@@ -491,7 +520,7 @@ function renderIssues(edition){
         ${change?`<div class="change-row"><b>새로 달라진 점</b><p>${esc(change)}</p></div>`:""}
         ${watchNext?`<div class="change-row"><b>다음 확인</b><p>${esc(watchNext)}</p></div>`:""}
       </div>
-    </article>`;
+    </article>${index>=2&&(index-2)%10===0?todayAdHtml(issue,index,"today-feed",seenAds):""}`;
   }).join("");
   for(const article of $("issues").querySelectorAll("article[data-issue-index]"))article.onclick=(event)=>{
     if(event.target.closest("a,button"))return;
@@ -594,6 +623,7 @@ function openIssueDetail(index,returnFocus=null){
     <h2 id="detailTitle">${esc(title)}</h2>
     ${imageHtml}
     <section class="detail-section"><h3>기사 요약</h3><div class="detail-summary">${publishedHtml}<p class="detail-basis">${esc(basis)}</p>${summaryHtml}</div></section>
+    ${todayAdHtml(issue,index,"today-detail")}
     <section class="detail-section"><h3>브리핑 포인트</h3><dl class="detail-points">${points.map(([label,value])=>`<div class="detail-point"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl></section>
     ${sourceLinks.length?`<section class="detail-section"><h3>출처</h3>${sourceTranslationHtml(issue,resolvedSources)}<nav class="detail-originals" aria-label="출처 링크">${sourceLinks.join("")}</nav></section>`:""}`;
   $("detailClose").focus();
@@ -872,6 +902,7 @@ if("serviceWorker" in navigator){
       json("/api/session",{method:"POST",body:JSON.stringify({userId:saved})}),
       json("/api/config").catch(()=>({}))
     ]);
+    state.coupang=config.coupang||null;
     state.userId=session.userId;localStorage.setItem("feed_uid",session.userId);
     if(Array.isArray(session.briefingCategories)&&session.briefingCategories.length){state.categories=session.briefingCategories;state.confirmedCategories=[...session.briefingCategories]}
     const snapshot=todayHistory.snapshot();

@@ -4702,10 +4702,8 @@ ${rankingRows(list, (above) => {
       }
       if (p === "/" && req.method === "GET") {
         if (localEditorial) {
-          return serveStatic(res, "/today.html", "", "", {
-            headHtml: adLoadersHtml(true),
-            bodyHtml: displayAdHtml()
-          });
+          // 오늘판은 기존 쿠팡 재고를 본문·상세에서 사용한다 (David, NH118).
+          return serveStatic(res, "/today.html");
         }
         homeSeedSnapshot();
         const inner = editorialHomeHtml(editorialBriefingSnapshot());

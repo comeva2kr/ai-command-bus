@@ -502,7 +502,7 @@ test("AdFit 심사 모드는 편집 홈에 한 단위만 두고 실시간 쿠팡
   }
 });
 
-test("오늘판 정적 홈도 색인 가능하고 선택한 광고 심사 지면만 한 단위 노출한다", async () => {
+test("오늘판 정적 홈은 색인을 유지하고 쿠팡 지면을 연결한다", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const prev = { a: process.env.ADSENSE_CLIENT, f: process.env.ADFIT_UNIT_MOBILE, e: process.env.ADFIT_ENABLED };
   const readPages = async () => {
@@ -527,16 +527,16 @@ test("오늘판 정적 홈도 색인 가능하고 선택한 광고 심사 지면
     assert.match(root, /<link rel="canonical" href="https:\/\/nowhot\.kr\/">/);
     assert.doesNotMatch(root, /noindex/);
     assert.match(root, /google-adsense-account/);
-    assert.match(root, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
-    assert.equal((root.match(/class="adsbygoogle"/g) || []).length, 1);
+    assert.doesNotMatch(root, /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i);
+    assert.match(root, /state\.coupang=config\.coupang/);
+    assert.match(root, /todayAdHtml\(issue,index,"today-feed",seenAds\)/);
     assert.doesNotMatch(live, /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i);
 
     process.env.ADFIT_UNIT_MOBILE = "DAN-TEST";
     process.env.ADFIT_ENABLED = "1";
     ({ root, live } = await readPages());
-    assert.match(root, /t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/);
-    assert.equal((root.match(/class="kakao_ad_area"/g) || []).length, 1);
-    assert.doesNotMatch(root, /pagead2\.googlesyndication\.com|class="adsbygoogle"|쿠팡 파트너스/);
+    assert.doesNotMatch(root, /kakao_ad_area|pagead2\.googlesyndication\.com|class="adsbygoogle"/);
+    assert.match(root, /쿠팡 파트너스/);
     assert.doesNotMatch(live, /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i);
   } finally {
     if (prev.a) process.env.ADSENSE_CLIENT = prev.a; else delete process.env.ADSENSE_CLIENT;

@@ -2160,11 +2160,14 @@ function dropIfAdBlocked(card){
   if(!card) return;
   const check = () => {
     const body = card.querySelector("a.card-go");
+    // 몰입 모드의 display:contents 링크는 자체 박스가 없지만 본문은 보인다.
+    const content = body && getComputedStyle(body).display === "contents"
+      ? body.querySelector(".go-text") : body;
     const hidden = !body
-      || body.offsetParent === null
-      || body.getBoundingClientRect().height < 8
       || getComputedStyle(body).display === "none"
-      || getComputedStyle(body).visibility === "hidden";
+      || getComputedStyle(body).visibility === "hidden"
+      || !content || content.offsetParent === null
+      || content.getBoundingClientRect().height < 8;
     if(hidden) card.remove();
   };
   // 차단기는 렌더 직후에 손대므로 한 프레임 뒤에 본다. 느린 확장을 감안해

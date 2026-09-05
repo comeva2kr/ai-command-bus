@@ -93,7 +93,12 @@ ok("/live는 noindex", /<meta name="robots" content="noindex,follow">/.test(live
 const liveNetworkTag = /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i.test(liveHtml);
 ok("/live가 광고 네트워크 SDK를 직접 로드하지 않음", !liveNetworkTag);
 
-if (reviewMode) {
+if (localEditorial) {
+  ok("오늘판 쿠팡 지면·재고 연결", /todayAdHtml\(issue,index,"today-feed",seenAds\)/.test(html)
+    && /state\.coupang=config\.coupang/.test(html));
+  ok("오늘판에 빈 심사 광고·네트워크 SDK 없음", !/kakao_ad_area|class="adsbygoogle"/.test(html)
+    && !/<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i.test(html));
+} else if (reviewMode) {
   const units = (html.match(/class="kakao_ad_area"/g) || []).length;
   ok("심사 홈에 AdFit 한 단위", units === 1, `${units}개`);
   ok("심사 홈은 AdFit SDK만 로드", /t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/.test(html)

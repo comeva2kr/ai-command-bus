@@ -18,6 +18,12 @@ const release = {
   title: "오늘판과 실시간을 새롭게 정리했어요",
   items: ["오늘판은 미리 준비된 브리핑을 바로 보여줘요."]
 };
+const affiliateInventory = {
+  disclosure: "이 포스팅은 쿠팡 파트너스 활동의 일환으로 수수료를 제공받습니다.",
+  items: ["a", "b", "c"].map(id => ({ category: "business", dest: id,
+    href: `https://link.coupang.com/a/fixture-${id}`, img: "https://banner.test/unavailable.png",
+    hook: `쿠팡 상품 ${id}`, brand: `쿠팡 쇼핑 ${id}` }))
+};
 const items = Array.from({ length: 18 }, (_, i) => ({
   id: `post-${i}`, title: `Public article ${i}`, summary: `Public feed excerpt for article ${i}.`,
   url: `https://publisher.test/article-${i}`, source: "test", kind: "news", category: "business",
@@ -136,6 +142,49 @@ test("browser: restored Live list uses the current Coupang inventory", options, 
   assert.equal(await page.locator("#feed .card:not(.ad-card)").count(), items.length);
   assert.match(await page.locator("#feed .ad-card").first().innerText(), /쿠팡 파트너스[\s\S]*수수료/);
   assert.match(await page.locator("#feed .ad-card a.card-go").first().getAttribute("href"), /^https:\/\/link\.coupang\.com\//);
+});
+
+test("browser: Live immersion retains affiliate content when its image fails", options, async (t) => {
+  const { page, controls } = await fixture(t);
+  await page.waitForSelector("#feed .card");
+  controls.coupang = affiliateInventory;
+  await page.evaluate(() => localStorage.setItem("feed_immersion", "1"));
+  await page.reload();
+  await page.waitForSelector("body.immersion #feed .card");
+  // The blocker cleanup runs on the next frame and again after 600 ms.
+  await page.waitForTimeout(800);
+  assert.ok(await page.locator("#feed .ad-card .go-cta").count() > 0);
+  assert.equal(await page.locator("#feed .ad-card .go-thumb").count(), 0);
+  assert.match(await page.locator("#feed .ad-card").first().innerText(), /쿠팡 파트너스[\s\S]*수수료/);
+  // An explicit content blocker remains respected even in immersion mode.
+  await page.addStyleTag({ content: ".ad-card .card-go { display:none!important }" });
+  await page.getByRole("tab", { name: "최신", exact: true }).click();
+  await page.waitForTimeout(800);
+  assert.equal(await page.locator("#feed .ad-card").count(), 0);
+});
+
+test("browser: Today affiliates preserve issue order, detail and restored inventory", options, async (t) => {
+  const { page, controls } = await fixture(t, "/");
+  await page.waitForSelector("#issues .issue");
+  assert.equal(await page.locator("#issues .ad-coupang").count(), 0);
+  controls.coupang = affiliateInventory;
+  await page.reload();
+  await page.waitForSelector("#issues .ad-coupang a", { state: "visible" });
+  const numbers = await page.locator("#issues .issue-number").allTextContents();
+  assert.deepEqual(numbers, items.map((_, i) => String(i + 1).padStart(2, "0")));
+  assert.equal(await page.locator("#issues .ad-coupang").count(), 2);
+  assert.equal(await page.locator("#issues .ad-coupang").first().evaluate(el => el.previousElementSibling.dataset.issueIndex), "2");
+  const links = await page.locator("#issues .ad-coupang a").evaluateAll(nodes => nodes.map(a => a.href));
+  assert.equal(new Set(links).size, 2);
+  assert.ok(links.every(href => href.startsWith("https://link.coupang.com/")));
+  await page.locator("[data-open-issue='0']").click();
+  await page.waitForSelector("#detailContent .ad-coupang a", { state: "visible" });
+  assert.match(await page.locator("#detailContent .ad-coupang").innerText(), /쿠팡 파트너스[\s\S]*수수료/);
+  await page.getByRole("button", { name: "기사 요약 닫기" }).click();
+  await page.reload();
+  await page.waitForSelector("#issues .ad-coupang");
+  assert.equal(await page.locator("#issues .issue").count(), items.length);
+  assert.equal(await page.locator("#issues .ad-coupang").count(), 2);
 });
 
 test("browser: cold Live detail owns a list entry; Back/Forward/reload preserve intent", options, async (t) => {
