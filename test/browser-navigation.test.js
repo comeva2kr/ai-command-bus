@@ -188,13 +188,19 @@ test("browser: Today affiliates preserve issue order, detail and restored invent
   controls.coupang = affiliateInventory;
   await page.reload();
   await page.waitForSelector("#issues .ad-coupang a", { state: "visible" });
+  assert.equal(await page.locator("#issues .ad-coupang h2 .issue-title-button").count(), 2,
+    "광고도 기사와 같은 제목 구조를 사용한다");
+  assert.equal(await page.locator("#issues .ad-coupang img,#issues .ad-coupang .ad-go").count(), 0,
+    "기사 목록에 없는 썸네일과 별도 구매 버튼 행을 두지 않는다");
+  assert.equal(await page.locator("#issues .ad-coupang .change-row .ad-disclosure").count(), 2,
+    "제휴 고지도 기사 하단 행의 서식으로 제공한다");
   for (const width of [320, 393, 1100]) {
     await page.setViewportSize({ width, height: 852 });
     const style = await page.locator("#issues .ad-coupang").first().evaluate(ad => {
       const issue = ad.previousElementSibling;
       const row = el => { const s = getComputedStyle(el); return [s.gridTemplateColumns, s.gap, s.padding, s.borderBottom]; };
       const title = el => { const s = getComputedStyle(el); return [s.fontSize, s.lineHeight, s.fontWeight]; };
-      return { ad: row(ad), issue: row(issue), adTitle: title(ad.querySelector(".ad-title")),
+      return { ad: row(ad), issue: row(issue), adTitle: title(ad.querySelector("h2")),
         issueTitle: title(issue.querySelector("h2")), right: ad.getBoundingClientRect().right,
         overflow: ad.scrollWidth > ad.clientWidth, mark: ad.querySelector(".ad-mark").textContent };
     });
@@ -203,7 +209,7 @@ test("browser: Today affiliates preserve issue order, detail and restored invent
     assert.equal(style.overflow, false);
     assert.ok(style.right <= width);
     assert.equal(style.mark, "AD");
-    await page.locator("#issues .ad-coupang").first().screenshot({ path: `/tmp/nh121-today-ad-${width}.png` });
+    await page.locator("#issues .ad-coupang").first().screenshot({ path: `/tmp/nh122-today-ad-${width}.png` });
   }
   await page.setViewportSize({ width: 1100, height: 760 });
   const numbers = await page.locator("#issues .issue-number").allTextContents();
@@ -216,6 +222,7 @@ test("browser: Today affiliates preserve issue order, detail and restored invent
   await page.locator("[data-open-issue='0']").click();
   await page.waitForSelector("#detailContent .ad-coupang a", { state: "visible" });
   assert.match(await page.locator("#detailContent .ad-coupang").innerText(), /쿠팡 파트너스[\s\S]*수수료/);
+  assert.equal(await page.locator("#detailContent .ad-coupang h2 .issue-title-button").isVisible(), true);
   await page.getByRole("button", { name: "기사 요약 닫기" }).click();
   await page.reload();
   await page.waitForSelector("#issues .ad-coupang");

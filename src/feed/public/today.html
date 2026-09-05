@@ -93,7 +93,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .published-time{font-weight:700;white-space:nowrap}
 .lane{color:var(--red)}.lane.coverage{color:var(--blue)}.lane.debate{color:var(--gold)}.lane.applause{color:var(--green)}
 .separator{width:1px;height:11px;background:var(--line)}
-.issue h2,.ad-title{font-size:24px;line-height:1.34;margin:0;font-weight:880;word-break:keep-all;overflow-wrap:anywhere}
+.issue h2,.ad-coupang h2{font-size:24px;line-height:1.34;margin:0;font-weight:880;word-break:keep-all;overflow-wrap:anywhere}
 .issue:first-child h2{font-size:29px}
 .issue-title-button{display:block;width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:left;font:inherit;font-weight:inherit;line-height:inherit;cursor:pointer;word-break:inherit;overflow-wrap:inherit}
 .editorial-grid{display:grid;grid-template-columns:1fr;gap:0;margin-top:19px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
@@ -114,11 +114,6 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .selection-list{list-style:none;margin:0;padding:0}.selection-list li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
 .selection-list li:last-child{border-bottom:0}.selection-list span{color:var(--sub)}
 .rail-link{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line);font-weight:850;font-size:13px;color:var(--blue)}
-.ad-coupang .ad-native{display:block;min-width:0}.ad-coupang .go-row{display:flex;gap:18px;align-items:flex-start}
-.ad-coupang .ad-title{flex:1;min-width:0}
-.ad-coupang .go-thumb{flex:0 0 88px;width:88px}.ad-coupang img{display:block;width:88px;height:88px;object-fit:cover}
-.ad-coupang .ad-go{display:block;min-height:44px;padding-top:12px;color:var(--blue);font-size:13px;font-weight:800}
-.ad-coupang .ad-disclosure{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);color:var(--sub);font-size:12px;line-height:1.55}
 #detailContent .ad-coupang{margin-top:24px;padding:18px 0 0;border-top:1px solid var(--line);border-bottom:0}
 .adsbygoogle{min-height:100px}
 .empty,.error{padding:60px 0;border-bottom:1px solid var(--line)}
@@ -161,7 +156,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
   .topbar-inner{height:58px;padding:0 16px;gap:8px}.brand{flex-basis:auto;font-size:18px}.brand-copy{display:flex;flex-direction:column;align-items:flex-start;gap:1px;line-height:1.05}.brand-en{display:none}.brand-identity{font-size:10px}.view-tabs{margin-left:2px;grid-template-columns:repeat(2,minmax(50px,1fr))}.view-tabs a{padding:0 8px}.icon-button{width:34px;height:34px;flex-shrink:0}
   .page{padding:22px 16px 64px}.edition-head{grid-template-columns:1fr;gap:18px}.edition-head h1{font-size:28px}.edition-lead{font-size:14px}
   .edition-controls{display:grid;grid-template-columns:1fr}.edition-date{width:100%;height:44px}.slot-tabs{grid-template-columns:repeat(3,1fr);width:100%}.category-band{top:59px;margin-left:-16px;margin-right:-16px;padding-left:16px}.band-head{padding-right:16px}.category-list{padding-right:16px}
-  .layout{margin-top:0}.issue,.ad-coupang{grid-template-columns:32px minmax(0,1fr);gap:10px;padding:23px 0 25px}.issue:first-child{padding-top:25px}.issue h2,.issue:first-child h2,.ad-title{font-size:21px;line-height:1.38}
+  .layout{margin-top:0}.issue,.ad-coupang{grid-template-columns:32px minmax(0,1fr);gap:10px;padding:23px 0 25px}.issue:first-child{padding-top:25px}.issue h2,.issue:first-child h2,.ad-coupang h2{font-size:21px;line-height:1.38}
   .editorial-grid{grid-template-columns:1fr}.editorial-point{padding:12px 0}.change-row{grid-template-columns:1fr;gap:4px}
   .detail-overlay{align-items:flex-end;padding:0}.detail-panel{width:100%;max-height:92dvh;border-width:1px 0 0;border-radius:8px 8px 0 0}.detail-content{padding:22px 18px calc(30px + env(safe-area-inset-bottom))}.detail-content h2{font-size:23px}.detail-summary p{font-size:15px}.detail-point{grid-template-columns:1fr;gap:4px}
   .rail{grid-template-columns:1fr;gap:0}.rail-section+ .rail-section{border-top:1px solid var(--line)}
@@ -496,18 +491,15 @@ function todayAdHtml(issue,index,slot,seen=new Set(),nextIssue=null){
   const variants=cp.matrix?.[item.dest]?.[context];
   const copy=variants?.[rotate%variants.length]||{};
   const href=new URL(item.href);href.searchParams.set("subId",`${slot}-${index}`);
-  const image=externalHref(item.img);
-  // 오늘판 서식 그대로: 글 번호 자리에 AD, 킥커·제목·본문 상자 타이포는 이슈 행과 공유한다.
   return `<aside class="ad-slot ad-coupang" aria-label="쿠팡 제휴 광고">
     <div class="ad-mark">AD</div>
     <div>
       <div class="issue-kicker"><span>광고</span><span class="separator"></span><span>${esc(item.brand)}</span></div>
-      <a class="ad-native" href="${esc(href.href)}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">
-        <span class="go-row"><b class="ad-title">${esc(copy.hook||item.hook)}</b>${image?`<span class="go-thumb"><img src="${esc(image)}" width="88" height="88" alt="${esc(item.brand)}" loading="eager" onerror="this.parentNode.remove()"></span>`:""}</span>
-        <div class="editorial-grid"><div class="editorial-point"><b>쿠팡 파트너스</b><p class="go-line">${esc(copy.line||item.brand)}</p></div></div>
-        <span class="ad-go">${esc(copy.cta||"쿠팡에서 보기")} →</span>
-      </a>
-      <p class="ad-disclosure">${esc(cp.disclosure)}</p>
+      <h2><a class="issue-title-button" href="${esc(href.href)}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">${esc(copy.hook||item.hook)}</a></h2>
+      <div class="editorial-grid">
+        <div class="editorial-point"><b>상품 안내</b><p>${esc(copy.line||item.brand)}</p></div>
+      </div>
+      <div class="change-row"><b>광고 안내</b><p class="ad-disclosure">${esc(cp.disclosure)}</p></div>
     </div></aside>`;
 }
 

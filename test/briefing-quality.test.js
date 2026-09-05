@@ -524,7 +524,8 @@ test("오늘판 정적 홈은 색인을 유지하고 쿠팡 지면을 연결한�
     process.env.ADFIT_ENABLED = "1";
     ({ root, live } = await readPages());
     assert.doesNotMatch(root, /kakao_ad_area|pagead2\.googlesyndication\.com|class="adsbygoogle"/);
-    assert.match(root, /쿠팡 파트너스/);
+    assert.match(root, /aria-label="쿠팡 제휴 광고"/);
+    assert.match(root, /class="ad-disclosure">\$\{esc\(cp\.disclosure\)\}/);
     assert.doesNotMatch(live, /<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i);
   } finally {
     if (prev.a) process.env.ADSENSE_CLIENT = prev.a; else delete process.env.ADSENSE_CLIENT;
