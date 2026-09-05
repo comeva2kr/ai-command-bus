@@ -6,7 +6,14 @@
 - 인수 근거와 재개 경로: [책임자 인수 기록](reports/NOWHOT_OWNER_TAKEOVER_2026-09-05.md). 로컬 코드 HEAD `e59c8fd`; 이번 변경은 인수 문서 연결뿐이며 제품·판본·운영 변경 없음.
 - 아래 NH112 배포 완료는 9월 4일의 완료 기록이다. 이후 같은 날 19시대 Orca 광고 재심사 감사에서 Google AdSense·Kakao AdFit 모두 HOLD·미제출로 판정됐다. 배포 완료와 광고 신청 준비/승인을 구분하며, 현재 운영 재검증이나 보류 원인 수리 완료로 표현하지 않는다.
 
-## 현재 판정 — NH122 오늘판 광고의 기사 구조 적용
+## 현재 판정 — NH123 배포 후 운영·콘텐츠·광고 준비 점검
+
+- 안정 ID `NOWHOT-POSTRELEASE-VALIDATION-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-210`. [NH123 통합 검증·다음 수정 우선순위](reports/NOWHOT_NH123_POSTRELEASE_VALIDATION_2026-09-05.md).
+- 운영 코드 `f95164b` 유지. 현재 런치56·정본 검증·광고5, 모바일 Chrome393px에서 오늘/실시간 상단 고정·가로 넘침0·핫/최신 커뮤 및 뉴스100% 각10/10·새로고침 설정 복원 PASS. 실제 iPhone 확인은 David 답변 대기다.
+- Orca Fable/Grok 검수 회수·완료 워커 release·ACK 완료. 다른 사건 병합·대표 제목의 원문 링크 누락이 다음 수정1순위이고 발췌 오염·번역/절단·일부 분류도 발견됐다. 전부 수리 완료로 표현하지 않는다. 쿠팡은 유지하며 AdSense/AdFit 재신청은 최초 HTML·콘텐츠 구분·등록 상태 확인이 남았다. 광고사 반려/승인 판정은 아니다.
+- 기존 발행기는 매5분·다음 슬롯20분 전 준비한다. 오늘 19:05 KST 이브닝 자동 발행 확인을 이 대화 heartbeat `automation-3`으로 1회 예약·readback했다. 아직 실행 성공은 미확인이다. 제품 변경·배포0. First Principles 게이트: PASS.
+
+## 직전 NH122 오늘판 광고의 기사 구조 적용
 
 - 안정 ID `NOWHOT-TODAY-AD-ARTICLE-LAYOUT-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-209`. [NH122 구현·검증·운영 영수증](reports/NOWHOT_NH122_TODAY_AD_ARTICLE_LAYOUT_2026-09-05.md).
 - NH121의 바깥 서식만 같다는 판정을 보완한다. 광고 제목·본문·하단 행을 기사 구조로 공유하고 썸네일/독립 CTA/전용 CSS를 삭제했다. AD·제휴 고지·원본 링크/선정 규칙을 유지한다.
