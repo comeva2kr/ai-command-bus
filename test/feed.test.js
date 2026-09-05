@@ -2887,10 +2887,10 @@ test("communities.json: all 10 sources added 2026-07-24 are registered, enabled,
   const { loadRegistry } = await import("../src/feed/registry.js");
   const reg = loadRegistry();
   const expected = {
-    "44bits": { lang: "ko", kind: "community", type: "rss" },
-    yozm: { lang: "ko", kind: "community", type: "rss" },
-    outstanding: { lang: "ko", kind: "community", type: "rss" },
-    techmeme: { lang: "en", kind: "community", type: "rss" },
+    "44bits": { lang: "ko", kind: "news", type: "rss" },
+    yozm: { lang: "ko", kind: "news", type: "rss" },
+    outstanding: { lang: "ko", kind: "news", type: "rss" },
+    techmeme: { lang: "en", kind: "news", type: "rss" },
     slashdot: { lang: "en", kind: "community", type: "rss" },
     ddanzi: { lang: "ko", kind: "news", type: "rss" },
     slownews: { lang: "ko", kind: "news", type: "rss" },

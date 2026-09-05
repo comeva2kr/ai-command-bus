@@ -147,3 +147,21 @@ test("커뮤만: 공급이 없으면 뉴스로 채우지 않고, 명시 소스·
   assert.equal(dealFeed.items[0]?.kind, "community");
   assert.equal(dealFeed.items[0]?.isDeal, true);
 });
+
+test("커뮤로 저장됐던 편집 매체도 현재 출처 종류로 복구해 커뮤만에서 제외한다", async () => {
+  const store = new FeedStore();
+  const sources = ["44bits", "yozm", "outstanding", "techmeme"].map(id =>
+    new JsonSource(id, async () => [{ id, title: `${id} 검증용 편집 기사 충분한 제목`,
+      url: `https://${id}.test/article`, category: "tech", publishedAt: new Date().toISOString()
+    }], "community"));
+  const engine = new FeedEngine(store, sources);
+  const user = store.createUser("mix-legacy-publisher");
+  for (const source of sources) {
+    const feed = await engine.getFeed(user.id, { source: source.id, markSeen: false });
+    assert.equal(feed.items[0]?.kind, "news", source.id);
+  }
+  store.setMixBalance(user.id, -1);
+  for (const sort of ["hot", "latest"]) {
+    assert.deepEqual((await engine.getFeed(user.id, { sort, markSeen: false })).items, [], sort);
+  }
+});

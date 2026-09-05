@@ -1518,6 +1518,10 @@ function saveLiveNavigation(){
 function restoreLiveList(snapshot){
   if(!snapshot || snapshot.userId!==state.userId || !Array.isArray(snapshot.items))return false;
   if((snapshot.mixBalance ?? 0)!==state.mixBalance)return false;
+  if(snapshot.items.some(item=>{
+    const kind=state.registry.find(row=>row.id===item.source)?.kind;
+    return ["news","community"].includes(item.kind) && ["news","community"].includes(kind) && item.kind!==kind;
+  }))return false;
   state.feedRevision++; state.loading=false; state.prefetching=false;
   state.activeSource=snapshot.source; state.activeCategory=snapshot.category; state.sortMode=snapshot.sort;
   state.feedScrollY=snapshot.y||0; state.cursor=snapshot.cursor; state.pagesLoaded=snapshot.pages;

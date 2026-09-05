@@ -56,7 +56,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   context.setDefaultTimeout(4000);
   t.after(() => context.close());
   const requests = [];
-  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, feedHandler: null };
+  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, sourceKind: "news", feedHandler: null };
   await context.addInitScript(({ realWorker, guideState, releaseId }) => {
     if (!localStorage.getItem("__fixture_seeded")) {
       localStorage.clear();
@@ -89,7 +89,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
       let body = {};
       if (url.pathname === "/api/config") body = { categories: [category], topics: [], ads: {}, release };
       if (url.pathname === "/api/session") body = { userId: "reader", surveyed: true, showTopics: [], briefingCategories: ["business"], mixBalance: controls.mixBalance };
-      if (url.pathname === "/api/communities") body = { communities: [{ id: "test", label: "Test", enabled: true, adult: false, liveCount: 18 }] };
+      if (url.pathname === "/api/communities") body = { communities: [{ id: "test", label: "Test", kind: controls.sourceKind, enabled: true, adult: false, liveCount: 18 }] };
       if (url.pathname === "/api/feed") body = controls.feedHandler ? await controls.feedHandler(url) : { items, nextCursor: 18, exhausted: true };
       if (url.pathname === "/api/mix") {
         controls.mixBalance = route.request().postDataJSON().balance;
@@ -131,6 +131,17 @@ test("browser: cold Live detail owns a list entry; Back/Forward/reload preserve 
   await page.goForward();
   await page.waitForSelector("#detail.open");
   assert.match(await page.locator("#detailTitle").innerText(), /Public article 0/);
+});
+
+test("browser: Live reload replaces a snapshot when the registered source kind changes", options, async (t) => {
+  const { page, controls } = await fixture(t);
+  await page.waitForSelector('#feed [data-id="post-0"]');
+  controls.sourceKind = "community";
+  controls.feedHandler = async () => ({ items: items.map(item => ({ ...item, kind: "community" })), nextCursor: 18, exhausted: true });
+  await page.reload();
+  await page.waitForSelector('#feed [data-id="post-0"]');
+  assert.equal(await page.locator("#feed .badge.news").count(), 0);
+  assert.equal(await page.locator("#feed .badge.community").count(), 18);
 });
 
 for (const delayed of ["loadMore", "prefetch"]) {

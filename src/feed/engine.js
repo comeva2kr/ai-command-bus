@@ -1164,6 +1164,10 @@ export class FeedEngine {
     }
     this._ensureCategoryIntegrityMetadata();
     for (const item of this._cache) {
+      const registeredKind = this._itemSourceMetadata.get(item.source)?.kind;
+      if (["news", "community"].includes(item.kind) && ["news", "community"].includes(registeredKind)) {
+        item.kind = registeredKind;
+      }
       const registeredCategory = this._itemRegistryCategories.get(item.source);
       const registeredDeal = this._dealSources.has(item.source);
       if (registeredDeal && registeredCategory) {
