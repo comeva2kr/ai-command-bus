@@ -30,7 +30,12 @@
 
 ## 운영 영수증
 
-배포 전 상태: 쿠팡 데이터0·실제 광고0. 운영 반영과 공개 화면 확인은 아직 완료로 기록하지 않는다.
+- 운영 코드 `c2757dd050037380ae63d5ab2644f2a2baf50346`. main fast-forward push 뒤 자동 배포 2026-09-05 10:52:08 KST, 새 컨테이너 시작 `2026-09-05T01:52:08.191776316Z`, 자동 preflight 10:52:40 KST PASS.
+- 공개 `/api/config` 빌드 `ovv2OFp9`: `monetization.enabled=true`, `coupang.items=18`, `adfit.reviewMode=true`, `adfit.mobileUnit=null`. 배포 전 재고0에서18로 복구됐다.
+- 공개 도메인에 별도로 실행한 `node tools/preflight.mjs https://nowhot.kr` 전부 PASS. 광고 슬롯2·깨진 카드0·수동 재고18·피드10페이지, 편집 홈 AdFit1·쿠팡/AdSense 제외, Live AdFit 단위/SDK 미전달, 오늘판56 확인. 실행 로그 `/tmp/nowhot-nh117-public-preflight.log`.
+- 확장이 없는 Codex 내장 브라우저의 공개 `/live`, 393×852: 핫 콘텐츠20·광고2, 새로고침으로 저장 목록 복원 후에도20·2, 최신20·2, 핫딜10·3. 카드 본문·쿠팡 링크·제휴 고지 표시, 핫/최신 이미지 로드, 가로 넘침0. 타이어 쿠팡 광고 이미지·본문·CTA·고지가 함께 보이는 화면을 직접 캡처해 육안 확인했다. 링크를 클릭하지 않았다.
+- 기존 전용 Chrome에서는 광고 카드0 및 쿠팡 배너 이미지 요청 `net::ERR_BLOCKED_BY_CLIENT`를 관측했다. 서버 차단은 해제됐지만 이 브라우저의 콘텐츠 차단은 별개이며 설정을 바꾸거나 우회하지 않았다. 실제 iPhone Safari 결과로 확대 주장하지 않는다.
+- 검사 종료 시 전용 브라우저의 정렬은 핫으로 되돌리고 임시 모바일 크기를 해제했다. 계정·파트너 ID·18개 기본 링크 변경 없음.
 
 ## WRC 보고
 
