@@ -9,7 +9,6 @@
 // 아예 정해 두는 방식을 카피해, 고른 카테고리에 최소 지분을 준다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { ensureTasteShare, capOneCategory, chosenCategories, TASTE_MIN_SHARE } from "../src/feed/taste-share.js";
 
 const mk = (id, category) => ({ id, category, title: `t${id}` });
@@ -63,29 +62,4 @@ test("명시적으로 고른 것만 본다 — 학습된 가중치로는 지분�
   assert.equal(chosenCategories({ preferences: { categories: { sports: 1 } } }).size, 0);
   assert.equal(chosenCategories({ surveyAnswers: { categories: ["sports"] } }).size, 1);
   assert.equal(chosenCategories(null).size, 0);
-});
-
-test("취향 보장은 이미 관문을 지난 후보에서만 끌어온다", () => {
-  // 뮤트·차단·정치·성인·신선도 관문을 두 벌로 두면 언젠가 한쪽만 고쳐진다.
-  // 실제로 첫 판이 그래서 뮤트한 소스가 되돌아왔고 기존 테스트가 잡았다.
-  const src = readFileSync("src/feed/engine.js", "utf8");
-  assert.match(src, /const tastePool = \(tasteBase \|\| \[\]\)\.filter\(/, "후보를 따로 거른다");
-  assert.ok(!/tastePool[\s\S]{0,200}topicsBlocked/.test(src), "관문을 두 벌로 뒀다");
-  // 인스턴스 필드로 두면 동시 요청이 서로 덮어쓴다.
-  assert.match(src, /let tasteBase = null;/);
-  assert.ok(!/this\._tasteBase/.test(src));
-});
-
-test("싫어요를 눌러 학습된 것은 지분 보장에서 뺀다", async () => {
-  // 검수(2026-08-06 P0)가 재현했다: 설문에서 스포츠를 고른 뒤 스포츠 글에
-  // 싫어요를 25번 눌러 rank.js가 hated로 판정했는데도 첫 페이지의 60%가
-  // 스포츠였다. 아무리 싫어요를 눌러도 안 통하는 피드는 애매하게 섞이는 것보다
-  // 나쁘다 — 관문을 두 벌로 둔 대가다.
-  const src = readFileSync("src/feed/engine.js", "utf8");
-  const block = src.slice(src.indexOf("let arranged = balanced;"),
-                          src.indexOf("if (cats.size) {"));
-  assert.match(block, /categorySets\(user\.preferences, rankParams\(\)\)/,
-    "학습된 hated를 안 본다");
-  assert.match(block, /filter\(\(c\) => !hatedCats\.has\(c\)\)/,
-    "hated를 지분 보장에서 안 뺀다");
 });

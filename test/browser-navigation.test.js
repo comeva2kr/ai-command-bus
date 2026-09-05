@@ -144,7 +144,24 @@ test("browser: Live reload replaces a snapshot when the registered source kind c
   assert.equal(await page.locator("#feed .badge.community").count(), 18);
 });
 
-for (const delayed of ["loadMore", "prefetch"]) {
+test("browser: Live only requests the next page when approaching the list bottom", options, async (t) => {
+  const { page, controls, requests } = await fixture(t);
+  await page.waitForSelector('#feed [data-id="post-0"]');
+  controls.feedHandler = url => Number(url.searchParams.get("cursor")) === 0
+    ? { items, nextCursor: 18, exhausted: false }
+    : { items: [{ ...items[0], id: "next-visible" }], nextCursor: 19, exhausted: true };
+  const before = requests.filter(path => path === "/api/feed").length;
+  await page.click('#sortBar [data-sort="latest"]');
+  await page.waitForSelector('#feed [data-id="post-17"]');
+  await page.waitForTimeout(150);
+  assert.equal(requests.filter(path => path === "/api/feed").length, before + 1,
+    "offscreen speculative pages must not be consumed as seen");
+  await page.locator("#sentinel").scrollIntoViewIfNeeded();
+  await page.waitForSelector('#feed [data-id="next-visible"]');
+  assert.equal(requests.filter(path => path === "/api/feed").length, before + 2);
+});
+
+for (const delayed of ["loadMore", "pagination"]) {
   test(`browser: Live mix ignores delayed ${delayed} news after community-only selection`, options, async (t) => {
     const { page, controls } = await fixture(t);
     await page.waitForSelector('#feed [data-id="post-0"]');
@@ -159,12 +176,16 @@ for (const delayed of ["loadMore", "prefetch"]) {
       if (controls.mixBalance === -1) return cursor === 0
         ? { items: community, nextCursor: 18, exhausted: delayed === "loadMore" }
         : { items: [{ ...community[0], id: "community-next" }], nextCursor: 19, exhausted: true };
-      if (delayed === "prefetch" && cursor === 0) return { items, nextCursor: 18, exhausted: false };
+      if (delayed === "pagination" && cursor === 0) return { items, nextCursor: 18, exhausted: false };
       started();
       await held;
       return { items: [staleNews], nextCursor: 19, exhausted: true };
     };
     await page.click('#sortBar [data-sort="latest"]');
+    if (delayed === "pagination") {
+      await page.waitForSelector('#feed [data-id="post-17"]');
+      await page.locator("#sentinel").scrollIntoViewIfNeeded();
+    }
     await pending;
     await page.click("#menuBtn");
     const mixSaved = page.waitForResponse(res => new URL(res.url()).pathname === "/api/mix");
@@ -179,14 +200,14 @@ for (const delayed of ["loadMore", "prefetch"]) {
     await (await staleResponse).finished();
     await page.waitForSelector("#netbar", { state: "detached" });
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    if (delayed === "prefetch") {
+    if (delayed === "pagination") {
       await page.click("#drawerClose");
       await page.locator("#sentinel").scrollIntoViewIfNeeded();
       await page.waitForFunction(() => document.querySelectorAll("#feed .card").length === 19);
     }
     assert.equal(await page.locator('#feed [data-id="stale-news"]').count(), 0, "a superseded feed response must not enter the new list");
     assert.equal(await page.locator("#feed .badge.news").count(), 0);
-    assert.equal(await page.locator("#feed .badge.community").count(), delayed === "prefetch" ? 19 : 18);
+    assert.equal(await page.locator("#feed .badge.community").count(), delayed === "pagination" ? 19 : 18);
   });
 }
 

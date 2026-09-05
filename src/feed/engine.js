@@ -16,7 +16,7 @@ import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
 import { AD_DISCLOSURE as COUPANG_DISCLOSURE } from "./ad-copy.js";
 import { destForDeal, destForText, destForTags, ensureDealShare, capDeals, dealRank } from "./deals.js";
-import { chosenCategories, ensureTasteShare, capOneCategory, ensureForeignShare, isForeignItem, FOREIGN_WINDOW } from "./taste-share.js";
+import { chosenCategories, ensureForeignShare, isForeignItem, FOREIGN_WINDOW } from "./taste-share.js";
 
 // 상품군 사전을 걸지 않는 분류. 사건·시사 기사에 "연관 광고"가 붙으면
 // 무관한 광고보다 더 나쁘다(2026-08-06 실측, engine의 adDest 주석 참고).
@@ -38,7 +38,7 @@ import {
   slotById,
   isOverseas
 } from "./digest.js";
-import { rankParams, categorySets, selectDiverse } from "./rank.js";
+import { rankParams, categorySets, selectDiverse, globalScore } from "./rank.js";
 import {
   rankItems,
   diversify,
@@ -67,7 +67,7 @@ import {
   editorialMinimumPerCategory
 } from "./editorial-fulfillment.js";
 import { sampleSources, evaluate, summarize } from "./health.js";
-import { hotGate, rankBySource, topPerSource, roundRobinInterleave, sourceHotScores, hotParams, latestInterleave, diversityKey, COVERAGE_MAX } from "./ingest.js";
+import { hotGate, rankBySource, sourceHotScores, hotParams, latestInterleave, diversityKey, COVERAGE_MAX } from "./ingest.js";
 import { FILTERABLE_TOPICS, NO_DEAL_TOPIC } from "./topics.js";
 import { specialistCorrection, aggregateReclassification, untrainedOverrideAllowed, isTranslatedTitle } from "./category-policy.js";
 import { buildEditorialNote } from "./editorial.js";
@@ -1942,15 +1942,20 @@ export class FeedEngine {
     const showTopics = new Set(user.showTopics || []);
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     const mixBalance = Number.isFinite(user.mixBalance) ? user.mixBalance : 0;
+    const selectedHotCategories = sort === "hot" && !category ? chosenCategories(user) : new Set();
+    const hatedCategories = categorySets(user.preferences, rankParams()).hated;
 
     let unseen;
     let collabBoosts = new Map();
     // 홈 경로의 passesGates를 앵커 재검증이 그대로 쓰도록 승격해 둔다
     // (관문 두 벌 금지 — 앵커용 관문을 따로 만들지 않는다).
-    let anchorGate = null;
+    let anchorEntries = [];
+    const floorHated = hatedCategories;
     // 취향 지분 보장이 끌어올 후보. **인스턴스 필드로 두면 안 된다** —
     // 아래에 await가 끼어 있어 다른 요청이 그 사이에 덮어쓴다.
     let tasteBase = null;
+    const hotScores = new Map();
+    let recycling = false;
     if (source) {
       // "submit" is a pseudo-source: every user-submitted out-link, grouped by
       // provenance (via) rather than by the item's own out-link domain (which
@@ -2010,6 +2015,8 @@ export class FeedEngine {
         (sort === "deals" || !((mixBalance === -1 && i.kind === "news") ||
           (mixBalance === 1 && i.kind === "community"))) &&
         !(hideDeals && i.isDeal === true) &&
+        (!selectedHotCategories.size || selectedHotCategories.has(i.category) || i.via === "ourdeal") &&
+        (sort === "deals" || !hatedCategories.has(i.category)) &&
         !muted.has(i.source) &&
         !disabled.has(i.source) &&
         // mainFeed:false — 수집은 하되 통합 피드에서만 뺀다. 소스 칩으로
@@ -2018,8 +2025,25 @@ export class FeedEngine {
         !topicsBlocked(i, showTopics) &&
         (!category || i.category === category) &&
         !tooOld(i, now);
-      anchorGate = passesGates;
-      const base = items.filter((i) => passesGates(i) && !seen.has(i.id));
+      let base = items.filter((i) => passesGates(i) && !seen.has(i.id));
+      // 새로고침 고정 글도 선발 전에 넣어 같은 출처·상품 상한을 적용한다.
+      if (base.length && !category && cursor === 0 && markSeen && sort === "hot") {
+        const saved = user.homeAnchors;
+        const anchoredMs = saved?.at ? Date.parse(saved.at) : NaN;
+        if (Array.isArray(saved?.ids) && Number.isFinite(anchoredMs) && now - anchoredMs <= HOME_ANCHOR_TTL_MS) {
+          for (const id of saved.ids.slice(0, Math.min(HOME_ANCHOR_COUNT, Math.max(0, limit - 1)))) {
+            const found = this._findItem(items, id);
+            if (found && passesGates(found)) {
+              anchorEntries.push({ item: found, score: 0 });
+              if (!base.some(item => item.id === id)) base.push(found);
+            }
+          }
+        }
+      }
+      if (!base.length && sort === "hot") {
+        base = items.filter(passesGates);
+        recycling = true;
+      }
       // ── 안 본 글이 하나도 없으면 본 글을 다시 내보낸다 (2026-08-07 장애)
       //
       // 무한 재로드 버그가 돌 때마다 markSeen을 남겨, 탭을 열어뒀던 사용자는
@@ -2069,22 +2093,7 @@ export class FeedEngine {
       // 뮤트한 소스가 취향 보장 경로로 되돌아와 테스트가 잡았다).
       tasteBase = base;
 
-      // "게시판별 핫 + 다양성 라운드로빈" (David 2026-07-24 redesign). Every
-      // active source is already a community's own best/hot board (see
-      // ingest.js's rankBySource header comment for why even a 0-engagement
-      // RSS source still has a meaningful hot rank — its own collection
-      // order). This: (1) ranks each source's items hot-first, (2) keeps only
-      // each source's top HOT_PER_SOURCE hottest, (3) interleaves round-robin
-      // across sources so the stream alternates boards instead of one board's
-      // list dominating. Personalization only breaks ties *within* a round —
-      // diversity wins over taste here by design ("다양성 > 개인화").
       collabBoosts = collaborativeBoosts(this.store, userId);
-      // hotScore (2026-07-24 hot-curation v1, ingest.js's rankBySource/
-      // sourceHotScores) is now each source's internal sort key — HN-gravity
-      // time decay + per-source robust-z/percentile normalization + Bayesian
-      // small-sample shrinkage, so a stale-but-still-rank-0 RSS item can no
-      // longer win its source's top-K cut just because nothing displaced it.
-      const rankedBySource = pool.length ? rankBySource(pool, now) : new Map();
       const seed = cursor + 1;
 
       if (sort === "deals") {
@@ -2180,60 +2189,41 @@ export class FeedEngine {
       const exposure = this.store.sourceExposureFor ? this.store.sourceExposureFor(userId) : {};
       const balance = Number.isFinite(user.leanBalance) ? user.leanBalance : 0;
 
-      // "개인화 유저"의 판별: user.preferences는 createUser가 빈 벡터를 만들어
-      // **항상 truthy**다 — 진짜 기준은 취향 신호가 실제로 존재하는가이다
-      // (설문 완료, 피드백 이력, 브라우징 워밍업 중 하나).
-      const personalized = Boolean(user.surveyed || (user.feedbackCount || 0) > 0 || user.warmStarted);
-      if (personalized) {
-        // ── 골격 v2: 아이템 경쟁 + 다양성 제약 (rank.js, docs/redesign-rank.md) ──
-        //
-        // 예전 라운드로빈은 조직 원리가 "소스 순번"이라 취향이 구성에 개입할
-        // 수 없었다(페르소나 실측: 정반대 취향 6명의 첫 페이지가 동일). 이제
-        // 글 하나하나가 (화제성 + 취향)으로 전역 경쟁하고, 다양성(소스 상한·
-        // 연속 금지·노출 이력)은 제약조건으로 내려간다.
-        //
-        // topPerSource 컷 없이 풀 전체가 후보다 — 소스 내 7위 이하도 취향에
-        // 맞으면 도달 가능(예전 구조의 영구 불가시 결함 해소).
-        const entries = [];
-        for (const list of rankedBySource.values()) for (const e of list) entries.push(e);
-        const params = rankParams();
-        const { picked, hated } = categorySets(user.preferences, params);
-        const cands = entries.map((e) => ({
-          item: e.item,
-          // 두 슬라이더 모두 hot에 승수로 — 라운드로빈 가중치의 v2 대응물.
-          // 축이 달라서(뉴스 내부 성향 / 뉴스↔커뮤 비율) 곱해도 서로를 상쇄하지 않는다.
-          hot: (e.hotScore ?? 0)
-            * leanMultiplier(e.item.source, balance)
-            * mixMultiplier(e.item, mixBalance),
-          taste: Math.tanh(tasteScore(e.item, user.preferences) / 2),
-          collab: collabBoosts.get(e.item.id) || 0
-        }));
-        const sel = selectDiverse(cands, {
-          limit, minGap, exposure, firstPage: cursor === 0, picked, hated,
-          // 비율 슬라이더는 점수(위 mixMultiplier)와 쿼터(여기) 양쪽에 건다 —
-          // 점수만으로는 소스 상한에 막혀 구성이 안 바뀐다(rank.js capFor 주석).
-          mixBalance
+      // 모든 핫 이용자는 같은 인기·취향 선발기를 쓴다. 취향이 없는 이용자의
+      // 빈 벡터는 인기 점수만 남기므로 설문 전후에 순서 원리가 바뀌지 않는다.
+      // 출처별 측정값·편집 순위는 보존하고, 전체 후보가 같은 선발기에서 경쟁한다.
+      const entries = [...rankBySource(pool, now).values()].flat();
+      const params = rankParams();
+      const { picked, hated } = categorySets(user.preferences, params);
+      const cands = entries.map((e) => ({
+        item: e.item,
+        // 두 슬라이더 모두 hot에 승수로 — 라운드로빈 가중치의 v2 대응물.
+        // 축이 달라서(뉴스 내부 성향 / 뉴스↔커뮤 비율) 곱해도 서로를 상쇄하지 않는다.
+        hot: (e.hotScore ?? 0)
+          * leanMultiplier(e.item.source, balance)
+          * mixMultiplier(e.item, mixBalance),
+        taste: Math.tanh(tasteScore(e.item, user.preferences) / 2),
+        collab: collabBoosts.get(e.item.id) || 0
+      }));
+      for (const c of cands) hotScores.set(c.item.id, globalScore(c.hot, c.taste, c.collab, params));
+      let remaining = cands;
+      const selected = [];
+      let sel;
+      do {
+        sel = selectDiverse(remaining, {
+          limit, minGap, exposure, firstPage: cursor === 0, picked, hated, mixBalance,
+          anchors: anchorEntries.map(entry => entry.item.id)
         }, params);
-        this._lastSelectMeta = { shortfall: sel.shortfall, bannedHatedCount: sel.bannedHatedCount };
-        unseen = sel.picks.map((item) => ({
-          item,
-          score: scoreItem(item, user.preferences, { now, seed, collabBoosts, explore: 0 })
-        }));
-      } else {
-        // ── 익명: 기존 라운드로빈 그대로 (회귀 0 보증) ──
-        const topK = topPerSource(rankedBySource);
-        const scoreFn = (item, rank, hasSignal, hotScoreVal) => hotScoreVal ?? 0;
-        const weights = new Map();
-        if (balance !== 0) {
-          for (const src of topK.keys()) {
-            const m = leanMultiplier(src, balance);
-            if (m !== 1) weights.set(src, m);
-          }
-        }
-        const interleaved = roundRobinInterleave(topK, { minGap, scoreFn, exposure, weights });
-        this._lastSelectMeta = null;
-        unseen = interleaved.map((item) => ({ item, score: 0 }));
-      }
+        selected.push(...sel.picks);
+        const ids = new Set(sel.picks.map(item => item.id));
+        remaining = remaining.filter(c => !ids.has(c.item.id));
+      } while (recycling && sel.picks.length && selected.length < cursor + limit && remaining.length);
+      anchorEntries = anchorEntries.filter(entry => selected.some(item => item.id === entry.item.id));
+      this._lastSelectMeta = { shortfall: sel.shortfall, bannedHatedCount: sel.bannedHatedCount };
+      unseen = (recycling ? selected.slice(cursor, cursor + limit) : selected).map((item) => ({
+        item,
+        score: scoreItem(item, user.preferences, { now, seed, collabBoosts, explore: 0 })
+      }));
     }
     // diversify so a page isn't dominated by one source/category (a no-op
     // when every candidate already shares the same `source`). For the home
@@ -2242,6 +2232,7 @@ export class FeedEngine {
     // pass here would only undo that structure for no benefit.
     // 소스 보기: seen 필터가 없으므로 cursor를 진짜 오프셋으로 쓴다.
     // 홈: seen 기반 페이지네이션 그대로(항상 앞에서 limit개).
+    // 직접 등록한 고지된 상품만 별도 배치한다. 외부 딜은 핫 점수로 경쟁한다.
     // ── 딜 조정은 **페이지를 자르기 전에** 한다.
     //
     // 처음엔 잘라 낸 페이지에서 딜을 덜어냈다. 그러면 한 페이지가 limit보다
@@ -2265,87 +2256,15 @@ export class FeedEngine {
       // 뮤트한 소스의 딜이 그대로 보였고, 관리자가 막은 소스도 딜 경로로 샜다.
       // tasteBase는 base(모든 관문 통과)와 같은 목록이다.
       const dealPool = (tasteBase || [])
-        .filter((i) => i.isDeal === true && !inList.has(i.id) && !seen.has(i.id));
+        .filter((i) => i.via === "ourdeal" && i.isDeal === true && !inList.has(i.id) && !seen.has(i.id));
       const withShare = ensureDealShare(list, dealPool, { is: (i) => i.isDeal === true });
       const balanced = capDeals(withShare, { is: (i) => i.isDeal === true });
 
-      // ── 고른 취향이 피드의 주인이 되게 (2026-08-06)
-      //
-      // 실측: 스포츠만 고른 사용자의 피드가 sports 32% · humor 45%였다.
-      // 점수 경쟁에 맡기면 추천 수가 큰 커뮤니티가 이긴다(LinkedIn이 말하는
-      // 캘리브레이션 실패). X의 For You가 In-Network 지분을 아예 정해 두는 것과
-      // 같은 방식으로, 고른 카테고리에 최소 지분을 준다.
-      //
-      // **재료가 없으면 있는 만큼만.** 스포츠 글이 풀에 2%면 그만큼만 채워진다 —
-      // 없는 것을 만들지 않는다.
-      let arranged = balanced;
-      // 설문에서 고른 것 — 단, **학습이 싫다고 판정한 것은 뺀다**.
-      //
-      // 검수(2026-08-06 P0)가 재현했다: 설문에서 스포츠를 고른 뒤 스포츠 글에
-      // 싫어요를 25번 눌러 rank.js가 hated로 판정했는데도, 첫 페이지의 60%가
-      // 스포츠였다. chosenCategories는 설문 스냅샷(surveyAnswers)만 보고
-      // 학습 가중치(preferences)는 안 보기 때문이다.
-      //
-      // 이건 내가 세운 원칙 "관문을 두 벌로 두지 않는다"를 그대로 어긴 것이다 —
-      // rank.js의 hated 게이트와 여기 지분 보장이 서로 다른 값을 보고,
-      // 뒤엣것이 앞엣것을 무력화했다. **아무리 싫어요를 눌러도 안 통하는 피드**는
-      // 애매하게 섞이는 것보다 나쁘다. rank.js가 이미 계산한 hated를 그대로 쓴다.
-      const { hated: hatedCats } = categorySets(user.preferences, rankParams());
-      const cats = new Set([...chosenCategories(user)].filter((c) => !hatedCats.has(c)));
-      // 카테고리를 명시했으면 다른 카테고리를 끌어오지 않는다 — "부동산을 보겠다"는
-      // 명시적 의사이고, 거기에 취향 지분을 섞으면 요청과 다른 화면이 된다
-      // (David 2026-08-07 실측: 부동산 요청에 auto·life가 섞여 나왔다).
-      if (cats.size && !category) {
-        const inNow = new Set(arranged.map((i) => i.id));
-        const tastePool = (tasteBase || []).filter(
-          (i) => cats.has(i.category) && !inNow.has(i.id)
-        );
-        const r = ensureTasteShare(arranged, tastePool, { cats });
-        arranged = capOneCategory(r.items);
-      }
-      unseen = arranged.map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
+      // 취향과 출처 상한은 selectDiverse에서 한 번만 결정한다.
+      unseen = balanced.map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
     }
 
-    // ── 새로고침 앵커 (HOME_ANCHOR_* 상수 주석 참조) — 직전 첫 화면의 상위
-    // 앵커가 아직 살아 있고(풀 폴백 포함) 관문을 통과하면 이번 첫 화면
-    // 머리에 유지한다. 앵커는 이미 seen이라 새 글 소비와 겹치지 않는다.
-    // hated 카테고리는 앵커로도 안 남긴다 — selectDiverse가 전 페이지에서
-    // 하드 배제한 것을 앵커가 15분 더 붙잡고 있으면 "아무리 싫어요를 눌러도
-    // 안 통하는 피드"의 창이 된다(검수 라운드4).
-    const anchorEntries = [];
-    let floorHated = EMPTY_TOPICS;
-    if (!source && !category) {
-      floorHated = categorySets(user.preferences, rankParams()).hated;
-      if (cursor === 0 && markSeen && sort !== "deals" && anchorGate) {
-        const saved = user.homeAnchors;
-        const anchoredMs = saved && saved.at ? Date.parse(saved.at) : NaN;
-        if (saved && Array.isArray(saved.ids) && Number.isFinite(anchoredMs) && now - anchoredMs <= HOME_ANCHOR_TTL_MS) {
-          // limit-1 클램프: 아주 작은 limit(API 직접 호출)에서도 페이지가
-          // limit를 넘지 않고, 새 글 칸이 최소 하나는 남는다(검수 라운드4).
-          for (const id of saved.ids.slice(0, Math.min(HOME_ANCHOR_COUNT, Math.max(0, limit - 1)))) {
-            const found = this._findItem(items, id);
-            if (found && anchorGate(found) && !floorHated.has(found.category)) {
-              anchorEntries.push({ item: found, score: 0 });
-            }
-          }
-        }
-      }
-    }
-
-    let fresh;
-    if (source) {
-      fresh = diversify(unseen).slice(cursor, cursor + limit);
-    } else if (anchorEntries.length) {
-      // 중복 제거 — 앵커가 seen 상한(3,000) 밖으로 밀려나면 unseen 후보로
-      // 돌아올 수 있다(검수 라운드4가 실측으로 확인한 실제 경로. 전부-seen
-      // 재활용 폴백은 위에서 조기 반환이라 여기 도달하지 않는다).
-      const anchorIds = new Set(anchorEntries.map((a) => a.item.id));
-      fresh = anchorEntries.concat(
-        unseen.filter((r) => !anchorIds.has(r.item.id)).slice(0, Math.max(0, limit - anchorEntries.length))
-      );
-    } else {
-      fresh = unseen.slice(0, limit);
-    }
+    let fresh = source ? diversify(unseen).slice(cursor, cursor + limit) : unseen.slice(0, limit);
 
     // ── 해외 글 페이지 하한 (5.7 B단계 채택안, 2026-08-08)
     //
@@ -2378,7 +2297,7 @@ export class FeedEngine {
       const poolDonors = (tasteBase || [])
         .filter((i) => isForeignItem(i) && !inPage.has(i.id) && !donorIds.has(i.id) &&
           !seen.has(i.id) && !floorHated.has(i.category))
-        .sort((a, b) => String(b.publishedAt || "").localeCompare(String(a.publishedAt || "")));
+        .sort((a, b) => (hotScores.get(b.id) || 0) - (hotScores.get(a.id) || 0));
       for (const i of poolDonors) { donorIds.add(i.id); donors.push({ item: i, score: 0 }); }
       fresh = ensureForeignShare(fresh, donors, {
         is: (r) => isForeignItem(r.item),
@@ -2405,7 +2324,7 @@ export class FeedEngine {
       return d;
     });
 
-    if (markSeen && batch.length) {
+    if (markSeen && !recycling && batch.length) {
       this.store.markSeen(userId, batch.map((b) => b.id));
       // feed the round-robin fairness ledger (see the `exposure` block above)
       // regardless of view — a source shown via source= should count too, so
@@ -2425,7 +2344,7 @@ export class FeedEngine {
     // 이번 첫 화면의 상위를 다음 새로고침의 앵커로 기억한다. 같은 앵커가
     // 유지되는 동안은 처음 잡힌 시각을 보존한다(store.rememberHomeAnchors) —
     // 그래야 연속 새로고침으로 TTL이 영원히 늘어나지 않는다.
-    if (!source && !category && cursor === 0 && markSeen && sort !== "deals" && batch.length) {
+    if (!source && !category && cursor === 0 && markSeen && !recycling && sort !== "deals" && batch.length) {
       this.store.rememberHomeAnchors(userId, batch.slice(0, HOME_ANCHOR_COUNT).map((b) => b.id));
     }
 

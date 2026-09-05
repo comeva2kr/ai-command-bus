@@ -109,6 +109,23 @@ test("limit이 아주 작아도 페이지가 limit를 넘지 않는다", async (
   assert.ok(b.items.length <= 2, `limit=2인데 ${b.items.length}건`);
 });
 
+test("이전 앵커도 새 핫 페이지의 출처 상한에 포함된다", async () => {
+  const store = new FeedStore();
+  const user = store.createUser({});
+  const engine = new FeedEngine(store);
+  engine._cache = mkItems(40).map((item, i) => ({
+    ...item, source: i < 3 ? "same" : `source-${i % 10}`, category: "tech"
+  }));
+  store.rememberHomeAnchors(user.id, ["i0", "i1", "i2"]);
+  store.markSeen(user.id, ["i0", "i1", "i2"]);
+  store.getUser(user.id).mixBalance = -1;
+  const page = await engine.getFeed(user.id, { limit: 10 });
+  assert.equal(page.items.length, 10);
+  assert.equal(new Set(page.items.map(item => item.id)).size, 10);
+  assert.equal(page.items.filter(item => item.source === "same").length, 2);
+  assert.deepEqual(page.items.filter(item => item.source === "same").map(item => item.id), ["i0", "i1"]);
+});
+
 test("전부 본 뒤 재활용 폴백도 nextCursor로 페이지가 전진한다", async () => {
   // 검수 라운드4가 잡은 기존 결함 — 폴백 응답만 nextCursor가 없어 클라가
   // 같은 재활용 페이지를 무한 반복하며 같은 카드를 계속 쌓았다.

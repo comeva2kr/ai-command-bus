@@ -210,8 +210,7 @@ test("engine serves unseen batches and never repeats within a session", async ()
   const store = new FeedStore({ clock: fixedClock });
   const engine = new FeedEngine(store, [new SeedSource()]);
   const user = store.createUser("u1");
-  store.saveSurvey(user.id, { categories: ["auto"], tags: ["cars"], communities: ["bobae"] });
-
+  // 취향 범위를 좁히지 않고 공통 페이지네이션을 검증한다.
   const seen = new Set();
   let cursor = 0;
   for (let i = 0; i < 3; i++) {
@@ -1148,12 +1147,12 @@ test("hotGate respects HOT_MIN_PERCENTILE / HOT_TOP_N overrides", async () => {
   assert.equal(topN.filter((r) => r.hot).length, 2, "topN overrides the fraction and keeps exactly N");
 });
 
-test("골격 v2: 개인화 홈은 소스 하위권 글도 도달 가능하고(컷 제거), 익명 홈은 top-K 컷 유지", async () => {
+test("Hot: 설문 전후 모두 같은 인기 선발기를 쓰며 소스 하위 글도 도달 가능", async () => {
   const store = new FeedStore({ clock: fixedClock });
   // 10 items, one source, engagement 90..0 descending — default HOT_PER_SOURCE
   // (6) keeps only the top 6; the bottom 4 are excluded from the home feed.
   const clien = new JsonSource(
-    "clien",
+    "public-tech",
     async () =>
       Array.from({ length: 10 }, (_, i) => ({
         id: `c${i}`,
@@ -1181,7 +1180,7 @@ test("골격 v2: 개인화 홈은 소스 하위권 글도 도달 가능하고(�
   // 지목한 지점). 이제 충분히 스크롤하면 전부 도달 가능해야 한다.
   for (let i = 0; i < 10; i++) assert.ok(seenIds.has(`c${i}`), `c${i}: 개인화 홈에서 도달 가능해야 (컷 제거)`);
 
-  // 익명 유저는 기존 라운드로빈 + top-K 컷 그대로 (회귀 0 보증)
+  // 설문 전에도 같은 전체 후보 선발기를 쓴다.
   const anon = store.createUser("hotfeed_anon");
   const anonSeen = new Set();
   for (let c = 0; c < 6; c++) {
@@ -1189,15 +1188,15 @@ test("골격 v2: 개인화 홈은 소스 하위권 글도 도달 가능하고(�
     for (const i of f.items) anonSeen.add(i.id);
     if (f.exhausted) break;
   }
-  for (let i = 6; i < 10; i++) assert.ok(!anonSeen.has(`c${i}`), `c${i}: 익명 홈은 top-6 컷 유지`);
+  for (let i = 0; i < 10; i++) assert.ok(anonSeen.has(`c${i}`), `c${i}: 익명도 전체 후보에서 선택`);
 
   // sanity check: the same source's excluded posts ARE reachable through
   // source= (the board-view chip bypasses the top-K cut entirely) — proves
   // this is a home-feed-only cut, not data loss. Fresh user, since `user`
   // above already has the top 6 marked seen from paging the default feed.
   const u2 = store.createUser("hotfeed_u_src");
-  const bySource = await engine.getFeed(u2.id, { cursor: 0, limit: 10, source: "clien" });
-  assert.equal(bySource.items.length, 10, "source= view still surfaces every item the home feed cut down to top-6");
+  const bySource = await engine.getFeed(u2.id, { cursor: 0, limit: 10, source: "public-tech" });
+  assert.equal(bySource.items.length, 10, "source= view still surfaces every item");
 });
 
 test("default getFeed still includes a signal-less source's items even when a louder source exists", async () => {
@@ -1506,7 +1505,7 @@ test("taste bias cannot reverse a large hotScore gap at default weight — 화�
 // appear at all) and the ticket's own acceptance target: with N active
 // sources, scrolling far enough must surface every one of them at least once,
 // and no top-8 clique may dominate more than 60% of the stream.
-test("getFeed home feed: scrolling far enough surfaces EVERY active source at least once, and the top 8 never exceed 60% of the stream (2026-07-24 round-robin starvation fix)", async () => {
+test("getFeed Hot: 인기 후보를 먼저 보여주고 소진되면 조용한 출처에도 도달한다", async () => {
   const store = new FeedStore({ clock: fixedClock });
   const sources = [];
   // 8 "loud" sources: real engagement numbers, plenty of items (mirrors
@@ -1577,15 +1576,11 @@ test("getFeed home feed: scrolling far enough surfaces EVERY active source at le
     assert.ok(byCount.has(s.id), `${s.id} never appeared across ${shown.length} shown items — starved`);
   }
 
-  // no top-8 clique dominates more than 60% of the stream
-  const top8Total = [...byCount.values()].sort((a, b) => b - a).slice(0, 8).reduce((a, b) => a + b, 0);
-  assert.ok(
-    top8Total / shown.length <= 0.6,
-    `top 8 sources account for ${Math.round((top8Total / shown.length) * 100)}% of the stream (want <=60%)`
-  );
+  assert.ok(shown.slice(0, 100).filter(src => src.startsWith("loud")).length >= 90,
+    "화제성 있는 공급이 충분할 때 무반응 출처를 할당량 때문에 먼저 보내지 않는다");
 });
 
-test("getFeed home feed hits David's diversity target: first 15 span >=8 sources, no source exceeds 3, and each item is drawn from its own board's top ranks", async () => {
+test("getFeed Hot: 반응 있는 다섯 출처로 첫 페이지를 채우고 출처별 상한을 지킨다", async () => {
   const store = new FeedStore({ clock: fixedClock });
   const sources = [];
   for (let s = 0; s < 10; s++) {
@@ -1617,7 +1612,7 @@ test("getFeed home feed hits David's diversity target: first 15 span >=8 sources
   assert.equal(feed.items.length, 15);
   const bySource = new Map();
   for (const i of feed.items) bySource.set(i.source, (bySource.get(i.source) || 0) + 1);
-  assert.ok(bySource.size >= 8, `expected >=8 distinct sources in the first 15, got ${bySource.size}`);
+  assert.equal(bySource.size, 5, "반응 있는 다섯 출처를 우선한다");
   for (const [src, count] of bySource) assert.ok(count <= 3, `${src} appeared ${count} times, exceeding the 3-per-source cap`);
   // every served item must be within its own source's top HOT_PER_SOURCE (6)
   // engagement/collection rank — never something the board itself buried.
@@ -2447,7 +2442,6 @@ test("engine hides politics/religion items by default; per-user toggle (showTopi
   const engine = new FeedEngine(store, [source]);
 
   const user = store.createUser("topicfilter1");
-  store.saveSurvey(user.id, { categories: ["news", "tech"] });
   const f1 = await engine.getFeed(user.id, { cursor: 0, limit: 20 });
   const ids1 = f1.items.map((i) => i.id);
   assert.ok(!ids1.includes(politicsItem.id), "politics hidden by default");
@@ -2456,7 +2450,6 @@ test("engine hides politics/religion items by default; per-user toggle (showTopi
 
   // toggle politics on for a fresh user (avoid seen-set masking from user 1)
   const user2 = store.createUser("topicfilter2");
-  store.saveSurvey(user2.id, { categories: ["news", "tech"] });
   store.setTopicFilter(user2.id, "politics", true);
   const f2 = await engine.getFeed(user2.id, { cursor: 0, limit: 20 });
   const ids2 = f2.items.map((i) => i.id);

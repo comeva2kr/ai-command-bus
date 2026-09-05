@@ -4,12 +4,59 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { rankParams, categorySets, globalScore, selectDiverse } from "../src/feed/rank.js";
+import { FeedEngine } from "../src/feed/engine.js";
+import { FeedStore } from "../src/feed/store.js";
 
 const P = rankParams();
+
+test("Hot engine: 반응 없는 외부 딜을 인기글 사이에 강제로 넣지 않는다", async () => {
+  const now = Date.parse("2026-09-05T01:00:00Z");
+  const store = new FeedStore({ clock: () => new Date(now).toISOString() });
+  const engine = new FeedEngine(store);
+  const user = store.createUser("hot-quality");
+  store.saveSurvey(user.id, { categories: ["tech"], communities: [], avoid: [] });
+  engine._cache = Array.from({ length: 30 }, (_, i) => ({
+    id: `hot-${i}`, source: `public-${i % 10}`, kind: "community", category: "tech",
+    title: `검증용 기술 화제 소식 ${i}`, url: `https://public.test/post/${i}`,
+    tags: [], score: 1000 - i, commentCount: 100, publishedAt: new Date(now - 3600000).toISOString()
+  }));
+  const cold = { id: "cold-deal", source: "cold-shop", kind: "community", category: "life",
+    title: "반응 없는 지난 할인 행사", url: "https://public.test/deal", score: 0, commentCount: 0,
+    tags: [], sourceRank: 100, isDeal: true, publishedAt: new Date(now - 40 * 3600000).toISOString() };
+  engine._cache.unshift(cold);
+  const feed = await engine.getFeed(user.id, { markSeen: false, limit: 10 });
+  assert.equal(feed.items.length, 10);
+  assert.ok(!feed.items.some(item => item.id === cold.id));
+  const deals = await engine.getFeed(user.id, { markSeen: false, sort: "deals" });
+  assert.ok(deals.items.some(item => item.id === cold.id), "핫딜에서 직접 찾는 기능은 유지");
+  store.markSeen(user.id, engine._cache.map(item => item.id));
+  cold.hotScorePrev = 100;
+  const recycled = await engine.getFeed(user.id, { markSeen: false, limit: 10 });
+  const next = await engine.getFeed(user.id, { markSeen: false, cursor: 10, limit: 10 });
+  assert.ok(recycled.items.every(item => item.category === "tech"));
+  assert.ok(!next.items.some(item => recycled.items.some(first => first.id === item.id)));
+});
 
 function mk(id, source, category, hot, taste = 0, collab = 0) {
   return { item: { id, source, category, title: id }, hot, taste, collab };
 }
+
+test("Hot engine: 커뮤 반응 수가 있어도 뉴스 출처의 편집 순위를 보존한다", async () => {
+  const now = Date.parse("2026-09-05T01:00:00Z");
+  const store = new FeedStore({ clock: () => new Date(now).toISOString() });
+  const user = store.createUser({});
+  const engine = new FeedEngine(store);
+  engine._cache = Array.from({ length: 8 }, (_, i) => ({
+    id: `news-${i}`, source: "news-board", kind: "news", category: "tech",
+    title: `편집 순위 검증 기사 ${i}`, url: `https://example.org/news/${i}`,
+    sourceRank: 7 - i, score: 0, commentCount: 0, tags: [],
+    publishedAt: new Date(now - 3600000).toISOString()
+  }));
+  engine._cache.push({ ...engine._cache[0], id: "community", source: "public-board",
+    kind: "community", url: "https://example.org/community", score: 100 });
+  const page = await engine.getFeed(user.id, { limit: 9, markSeen: false });
+  assert.equal(page.items.find(item => item.kind === "news").id, "news-7");
+});
 
 test("categorySets: 설문 선택(+1)은 picked, 명시 회피(-1.5)는 hated, 애매한 값은 중립", () => {
   const { picked, hated } = categorySets({ categories: { tech: 1.0, business: -1.5, life: 0.2 } });
@@ -120,18 +167,37 @@ test("selectDiverse: 극단적 점수 격차는 페널티로 못 뒤집는다 (�
   assert.equal(r.picks[0].id, "viral", "다양성 페널티가 화제성 자체를 삼키면 안 됨");
 });
 
-test("selectDiverse: 누적 노출 격차가 기아 방지선을 넘으면 덜 본 소스를 먼저 보낸다", () => {
+test("selectDiverse: 오래 본 출처의 새 인기글을 무반응 글보다 뒤로 보내지 않는다", () => {
   const cands = [
     mk("loud", "seen-a-lot", "tech", 1.5),
     mk("quiet", "never-seen", "tech", 0.01)
   ];
   const r = selectDiverse(cands, {
     limit: 1,
-    exposure: new Map([["seen-a-lot", 11], ["never-seen", 0]]),
+    exposure: new Map([["seen-a-lot", 10000], ["never-seen", 0]]),
     picked: new Set(),
     hated: new Set()
   }, P);
-  assert.equal(r.picks[0].id, "quiet");
+  assert.equal(r.picks[0].id, "loud");
+});
+
+test("selectDiverse: 커뮤만을 골라도 한 출처의 페이지 상한은 늘어나지 않는다", () => {
+  const cands = Array.from({length: 30}, (_, i) => ({
+    ...mk(`community-${i}`, i < 10 ? "loud" : `other-${i}`, "tech", i < 10 ? 1 : 0.4),
+    item: { id: `community-${i}`, source: i < 10 ? "loud" : `other-${i}`, category: "tech", kind: "community" }
+  }));
+  const r = selectDiverse(cands, { limit: 10, mixBalance: -1 }, P);
+  assert.equal(r.picks.filter(i => i.source === "loud").length, 2);
+});
+
+test("selectDiverse: 직접 등록한 상품도 핫 한 페이지를 채우지 않는다", () => {
+  const cands = Array.from({length: 20}, (_, i) => ({
+    ...mk(`offer-${i}`, `source-${i}`, "tech", i < 8 ? 2 : 0.5),
+    item: { id: `offer-${i}`, source: `source-${i}`, category: "tech", via: i < 8 ? "ourdeal" : "api" }
+  }));
+  const page = selectDiverse(cands, { limit: 10 }, P).picks;
+  assert.equal(page.length, 10);
+  assert.equal(page.filter(item => item.via === "ourdeal").length, 1);
 });
 
 test("selectDiverse: 공급 부족 시 쿼터를 클램프하고 shortfall을 정직하게 보고", () => {
@@ -146,14 +212,14 @@ test("selectDiverse: 공급 부족 시 쿼터를 클램프하고 shortfall을 �
   assert.equal(r.picks.length, 10, "부족해도 페이지는 다른 글로 채운다");
 });
 
-test("selectDiverse: 중립 카테고리 최소 비율 — 취향이 강해도 탐색 창이 유지된다", () => {
+test("selectDiverse: 관심 밖 글을 할당량 때문에 강제로 채우지 않는다", () => {
   const cands = [
     ...Array.from({ length: 15 }, (_, i) => mk(`p${i}`, `ps${i % 5}`, "gaming", 0.6 - i * 0.02, 0.9)),
     ...Array.from({ length: 5 }, (_, i) => mk(`o${i}`, `os${i}`, "science", 0.2 - i * 0.02, 0))
   ];
   const r = selectDiverse(cands, { limit: 10, firstPage: true, picked: new Set(["gaming"]), hated: new Set() }, P);
   const other = r.picks.filter((i) => i.category === "science").length;
-  assert.ok(other >= Math.ceil(P.otherShare * 10) - 0, `중립 ${other}개 — 필터버블 방지 하한`);
+  assert.ok(other <= Math.ceil(P.otherShare * 10), `관심 밖 글 ${other}개 — 탐색 상한`);
 });
 
 test("selectDiverse: 취향 여러 개 고른 유저의 쿼터를 한 카테고리가 독식하지 못한다 (실사용 회귀 재현)", () => {
@@ -176,14 +242,14 @@ test("selectDiverse: 취향 여러 개 고른 유저의 쿼터를 한 카테고�
     `고른 다른 카테고리도 나와야 — 실제 ${JSON.stringify(byCat)}`);
 });
 
-test("selectDiverse: 단일 취향 유저는 카테고리 상한과 쿼터가 같아 경험 불변 (6/10)", () => {
+test("selectDiverse: 단일 취향은 공급이 충분하면 60% 상한에 묶이지 않는다", () => {
   const cands = [
     ...Array.from({ length: 12 }, (_, i) => mk(`a${i}`, `as${i}`, "auto", 0.6 - i * 0.01, 0.8)),
     ...Array.from({ length: 8 }, (_, i) => mk(`o${i}`, `os${i}`, "life", 0.3 - i * 0.01, 0))
   ];
   const r = selectDiverse(cands, { limit: 10, firstPage: true, picked: new Set(["auto"]), hated: new Set() }, P);
   const autoN = r.picks.filter((i) => i.category === "auto").length;
-  assert.equal(autoN, Math.ceil(P.firstPickedShare * 10), "단일 취향 1페이지는 여전히 쿼터만큼");
+  assert.ok(autoN > Math.ceil(P.firstPickedShare * 10), "관심 글을 60%만 남기려고 밀어내지 않는다");
 });
 
 test("selectDiverse: 안 고른 카테고리는 화제성이 아무리 높아도 페이지 30%를 못 넘는다 (실사용 회귀의 본체)", () => {

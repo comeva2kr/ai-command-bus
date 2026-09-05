@@ -109,7 +109,7 @@ test("isForeignItem: 번역됨·번역대상·비한국어 원문 모두 해외�
 
 // ── 엔진 통합 — 익명·개인화 두 경로 모두 (검수 라운드2: 개인화가 구멍이었다)
 
-function rig() {
+function rig({ foreignCount = 6 } = {}) {
   const domestic = (src, cat) =>
     new JsonSource(src, async () =>
       Array.from({ length: 10 }, (_, i) => ({
@@ -117,9 +117,9 @@ function rig() {
         score: 300 - i * 10, commentCount: 40, category: cat, publishedAt: hoursAgoIso(3 + i)
       })), "community");
   const foreign = new JsonSource("archdaily", async () =>
-    Array.from({ length: 6 }, (_, i) => ({
+    Array.from({ length: foreignCount }, (_, i) => ({
       id: `arch-${i}`, title: `해외 기사 ${i}`, url: `https://example.org/arch/${i}`,
-      translated: true, originalLang: "en", publishedAt: hoursAgoIso(2 + i)
+      category: "art", translated: true, originalLang: "en", publishedAt: hoursAgoIso(2 + i)
     })), "news");
   const store = new FeedStore();
   const engine = new FeedEngine(store, [domestic("c1", "humor"), domestic("c2", "tech"), domestic("c3", "sports"), foreign]);
@@ -166,7 +166,8 @@ test("엔진 통합: 앵커가 있는 새로고침 페이지에도 해외 하한
   // 검수 라운드4 P1 재현 — 하한을 병합 전 후보 목록에 걸면 앵커 병합이
   // 꼬리 3칸을 잘라 하한 슬롯이 12~15% 확률로 잘려나갔다. 이제 하한은
   // 최종 페이지에 걸리므로 앵커와 자리 경쟁이 없다.
-  const { store, engine } = rig();
+  // 선발기가 해외 글을 1건보다 많이 고를 수 있으므로 네 페이지 공급을 둔다.
+  const { store, engine } = rig({ foreignCount: 12 });
   await engine.refresh();
   const user = store.createUser({});
   await engine.getFeed(user.id, { limit: 10 });        // 앵커를 심는다
@@ -178,7 +179,7 @@ test("엔진 통합: 앵커가 있는 새로고침 페이지에도 해외 하한
   }
 });
 
-test("엔진 통합(개인화): selectDiverse가 자른 페이지에도 해외 글이 나온다", async () => {
+test("엔진 통합(개인화): 해외 하한도 명시한 관심 분야 안에서만 채운다", async () => {
   // 검수 라운드2 P0 — 하한의 동기였던 David 계정이 정확히 이 코호트였는데
   // 구버전 하한은 여기서 아무것도 안 했다.
   const { store, engine } = rig();
@@ -187,7 +188,12 @@ test("엔진 통합(개인화): selectDiverse가 자른 페이지에도 해외 �
   store.saveSurvey(user.id, { categories: ["humor"] });
   const feed = await engine.getFeed(user.id, { limit: 10 });
   const got = feed.items.filter(isForeignItem).length;
-  assert.ok(got >= 1, `개인화 첫 페이지(10건) 해외 ${got}건 — 하한 1 미달`);
+  assert.equal(got, 0, "유머 선택에 관심 밖 예술 기사를 끼워넣지 않는다");
+  assert.ok(feed.items.every(item => item.category === "humor"));
+  const artReader = store.createUser("art-reader");
+  store.saveSurvey(artReader.id, { categories: ["humor", "art"] });
+  const withArt = await engine.getFeed(artReader.id, { limit: 10 });
+  assert.ok(withArt.items.some(isForeignItem), "관심 분야의 해외 공급은 그대로 노출");
   assert.equal(feed.items.length, 10);
   assert.equal(new Set(feed.items.map((i) => i.id)).size, 10, "중복 없음");
 });

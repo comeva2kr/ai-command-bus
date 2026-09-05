@@ -1,20 +1,9 @@
 import { diversityKey } from "./ingest.js";
-// 추천 골격 v2 — "소스 순번"에서 "아이템 경쟁 + 다양성 제약"으로.
-// (설계: docs/redesign-rank.md, 2026-07-31 설계 검수 완료. David 지시:
-//  "개인화를 쓸모있게 — 타오바오처럼", 페르소나 실측: 취향 정반대 6명의
-//  첫 페이지가 동일했던 구조적 결함의 해소.)
-//
-// 이 모듈은 **개인화 유저 전용**이다. 익명 유저는 기존 라운드로빈 경로를
-// 그대로 탄다(engine.js) — "익명은 예전과 동일" 보증.
-//
-// 원리:
-//   global = hot + T·taste + C·collab      (덧셈 — hot이 로지스틱 유계라 성립)
-//   selectDiverse: 전역 점수순 greedy 선발 + 자격 검사(하드 제약) + 쿼터 룩어헤드
-//
-// 다양성은 이제 주인이 아니라 **제약조건**이다: 페이지당 소스 상한, 같은 소스
-// 연속 금지, 노출 이력 로그 페널티는 지키되, 어떤 글이 뽑히느냐는 글 자신의
-// 점수가 정한다. 소스 개수가 구성을 정하던 구조(tech 소스 11개 → tech 37%)가
-// 여기서 해소된다.
+import { eventKey, canonicalContentUrl } from "./dedupe.js";
+import { DEAL_MAX_SHARE } from "./deals.js";
+// 핫은 공통 후보의 화제성·취향 점수로 선발한다. 명시한 관심 분야는 엔진에서
+// 먼저 좁히고, 여기서는 출처·카테고리의 과도한 반복과 싫어하는 분야를 막는다.
+// 새로고침 앵커도 같은 상한 안에서만 우선한다.
 
 // ---------------------------------------------------------------------------
 // 튜너블 — opts > env > 기본값 (ingest.js hotParams와 같은 관례)
@@ -31,19 +20,9 @@ export function rankParams(opts = {}) {
     // 0.4·tanh(taste/2)면 설문 1회 선택(카테고리 +1.0)으로 +0.18의 전역 이점.
     tasteW: opts.tasteW ?? envNum("RANK_TASTE_W", 0.4),
     collabW: opts.collabW ?? envNum("RANK_COLLAB_W", 0.2),
-    // 소스 노출 이력 페널티(로그) — 무한 증가라 어떤 점수 격차도 결국 추월된다
-    // (= 모든 소스가 언젠가 등장). 로그라서 예전 정수 exposure 1순위 정렬처럼
-    // 균등 배분으로는 붕괴하지 않는다.
-    // 0.15로는 velocity 보너스가 큰 소스들이 스트림의 84%를 독식했다(편중
-    // 방지 테스트 실측). 0.55면 같은 픽스처에서 top8이 60% 아래로 내려오면서도
-    // 극단 점수 격차(바이럴 vs 사망)는 못 뒤집는다 — rank.test.js가 양방향 고정.
+    // 노출 이력은 가까운 점수의 순서만 보정한다. 누적 이용량이 새 인기글을
+    // 영구히 묻지 않도록 실제 감점은 아래에서 0.15로 제한한다.
     exposureW: opts.exposureW ?? envNum("RANK_EXPOSURE_W", 0.55),
-    // 장기 스크롤 기아 방지선. 로그 감점만으로는 반응 격차가 큰 소스가 여러
-    // 페이지에 걸쳐 70%를 차지할 수 있었다. 활성 후보가 있는 동안 한 소스가
-    // 최소 노출 소스보다 이 값 이상 앞서지 못하게 하고, 대안이 없을 때만 푼다.
-    maxExposureLead: opts.maxExposureLead ?? envNum("RANK_MAX_EXPOSURE_LEAD", 10),
-    // 같은 페이지 안에서 이미 뽑힌 소스의 반복 페널티
-    pageRepeatW: opts.pageRepeatW ?? envNum("RANK_PAGE_REPEAT_W", 0.2),
     // 같은 페이지 안에서 이미 뽑힌 **카테고리**의 반복 페널티 (2026-08-01,
     // 실사용자 회귀: 취향을 여러 개 고른 유저의 쿼터를 화제성 상위 카테고리
     // 하나(자동차 뉴스 급증)가 통째로 먹었다 — 소스 상한은 소스가 제각각이라
@@ -66,8 +45,8 @@ export function rankParams(opts = {}) {
     // 은 유지하므로 필터버블로는 가지 않는다.
     // 0.4 -> 0.5 (David 2026-08-01 승인: 2차 검수 "순도 42~50%" 지적 수용,
     // 탐색 창 otherShare 0.2는 유지하므로 필터버블 하한은 지켜진다)
-    laterPickedShare: opts.laterPickedShare ?? envNum("RANK_LATER_PICKED_SHARE", 0.5),
-    // 매 페이지: 중립(안 고름·안 싫음) 카테고리 최소 비율 — 탐색 창(검수5+3의 20% 하한)
+    laterPickedShare: opts.laterPickedShare ?? envNum("RANK_LATER_PICKED_SHARE", 0.6),
+    // 관심 밖 글은 점수 경쟁으로만 들어오며, 있더라도 이 비율을 넘기지 않는다.
     otherShare: opts.otherShare ?? envNum("RANK_OTHER_SHARE", 0.2),
     // vec.categories 문턱: 설문 선택은 +1.0, 명시적 회피는 큰 음수로 내려간다
     pickMin: opts.pickMin ?? envNum("RANK_PICK_MIN", 0.5),
@@ -114,6 +93,7 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
   const picked = opts.picked instanceof Set ? opts.picked : new Set();
   const hated = opts.hated instanceof Set ? opts.hated : new Set();
   const exposure = opts.exposure || null;
+  const anchors = new Map((opts.anchors || []).map((id, index, ids) => [id, ids.length - index]));
   // 커뮤니티(오락성) ↔ 뉴스(소식성) 비율 슬라이더 (-1 커뮤 ~ 0 균형 ~ +1 뉴스).
   const mixBalance = Number.isFinite(opts.mixBalance) ? opts.mixBalance : 0;
   const exposureOf = (src) => {
@@ -142,6 +122,19 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
     pool = cands.filter((c) => !isHated(c));
   }
 
+  // 재시작한 풀에도 같은 글의 여러 수집 ID가 남을 수 있다. 공급량을 세기
+  // 전에 같은 URL 또는 같은 출처의 동일 제목을 한 번만 남긴다.
+  const urls = new Set(), titles = new Set();
+  pool = [...pool].sort((a, b) => b.global - a.global).filter((c) => {
+    const url = canonicalContentUrl(c.item.canonicalUrl || c.item.url);
+    const title = eventKey(c.item.title);
+    const key = title && `${c.item.source}:${title}`;
+    if ((url && urls.has(url)) || (key && titles.has(key))) return false;
+    if (url) urls.add(url);
+    if (key) titles.add(key);
+    return true;
+  });
+
   // 쿼터는 공급량으로 클램프 — 없는 걸 있는 척하지 않는다(정직한 부족 처리).
   const cap = Math.max(1, Math.ceil(params.pageSourceShare * limit));
   // 종류별 소스 상한 — 비율 슬라이더가 실제로 먹는 지점.
@@ -156,7 +149,7 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
   // 자격 후보가 없으면 cap이 풀리고 양쪽이 다시 흐른다.
   const capFor = (c) => {
     const k = c.item && c.item.kind;
-    if (!mixBalance || (k !== "news" && k !== "community")) return cap;
+    if (!mixBalance || Math.abs(mixBalance) === 1 || (k !== "news" && k !== "community")) return cap;
     const dir = k === "news" ? 1 : -1;
     return Math.max(1, Math.round(cap * (1 + dir * mixBalance * 0.8)));
   };
@@ -164,8 +157,7 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
   const pickedShare = firstPage ? params.firstPickedShare : params.laterPickedShare;
   const pickedTarget = picked.size ? Math.ceil(pickedShare * limit) : 0;
   const minPicked = Math.min(pickedTarget, pickedSupply);
-  const otherSupply = pool.filter(isOther).length;
-  const minOther = Math.min(Math.ceil(params.otherShare * limit), otherSupply);
+
 
   const remaining = [...pool].sort((a, b) => b.global - a.global);
   const out = [];
@@ -174,7 +166,7 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
   const catCap = Math.max(1, Math.ceil(params.pageCatShare * limit));
   const neutralCatCap = Math.max(1, Math.ceil(params.pageNeutralCatShare * limit));
   // 고른 카테고리는 쿼터만큼(0.6), 안 고른 카테고리는 탐색 허용치(0.3)까지만.
-  const catCapFor = (c) => (isPicked(c) ? catCap : neutralCatCap);
+  const catCapFor = (c) => (isPicked(c) ? (picked.size === 1 ? limit : catCap) : neutralCatCap);
   // 중립 **합계** 상한 = 탐색 창 크기(otherShare)와 동일 (David 2026-08-01
   // "안 고른 카테고리는 안 나와야 하는 거 아냐"에 대한 절충): 취향을 세팅한
   // 유저의 페이지는 고른 것 8 + 탐색 2로 고정된다. 카테고리별 상한만으로는
@@ -187,42 +179,24 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
   while (out.length < limit && remaining.length) {
     const slotsLeft = limit - out.length;
     const needP = Math.max(0, minPicked - pickedCount);
-    const needO = Math.max(0, minOther - otherCount);
     const recentSrcs = out.slice(-minGap).map((c) => diversityKey(c.item));
 
     // 쿼터 룩어헤드: 남은 슬롯이 미충족 쿼터 합과 같아지면 그 클래스만 자격.
     const quotaOk = (c) => {
-      if (needP + needO < slotsLeft) return true;
+      if (needP < slotsLeft) return true;
       // 슬롯이 쿼터에 딱 맞게 남음 — 쿼터를 채우는 후보만
-      return (needP > 0 && isPicked(c)) || (needO > 0 && isOther(c));
+      return needP > 0 && isPicked(c);
     };
 
-    const exposureLead = Number(params.maxExposureLead);
-    let minimumExposure = Infinity;
-    if (Number.isFinite(exposureLead) && exposureLead >= 0) {
-      const activeSources = new Set(remaining.map((entry) => diversityKey(entry.item)));
-      for (const src of activeSources) {
-        minimumExposure = Math.min(
-          minimumExposure,
-          exposureOf(src) + (pagePicks.get(src) || 0)
-        );
-      }
-    }
-    const exposureLeadOk = (c) => {
-      if (!Number.isFinite(exposureLead) || exposureLead < 0) return true;
-      const src = diversityKey(c.item);
-      const current = exposureOf(src) + (pagePicks.get(src) || 0);
-      return current <= minimumExposure + exposureLead;
-    };
-
-    const eligible = (relaxCap, relaxCat, relaxGap, relaxExposureLead = false) =>
+    const eligible = (relaxCap, relaxCat, relaxGap) =>
       remaining.filter(
         (c) =>
+          (c.item.via !== "ourdeal" || !out.some(chosen => chosen.item.via === "ourdeal")) &&
+          (!c.item.isDeal || out.filter(chosen => chosen.item.isDeal).length < Math.max(1, Math.floor(limit * DEAL_MAX_SHARE))) &&
           (relaxCap || (pagePicks.get(diversityKey(c.item)) || 0) < capFor(c)) &&
           (relaxCat || (pageCats.get(c.item.category) || 0) < catCapFor(c)) &&
           (relaxCat || !isOther(c) || otherCount < neutralTotalCap) &&
           (relaxGap || !recentSrcs.includes(diversityKey(c.item))) &&
-          (relaxExposureLead || exposureLeadOk(c)) &&
           quotaOk(c)
       );
 
@@ -232,10 +206,7 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
     let feasible = eligible(false, false, false);
     if (!feasible.length) feasible = eligible(false, true, false);
     if (!feasible.length) feasible = eligible(true, true, false);
-    if (!feasible.length) feasible = eligible(false, false, false, true);
-    if (!feasible.length) feasible = eligible(false, true, false, true);
-    if (!feasible.length) feasible = eligible(true, true, false, true);
-    if (!feasible.length) feasible = eligible(true, true, true, true);
+    if (!feasible.length) feasible = eligible(true, true, true);
     if (!feasible.length) break; // 쿼터 자체를 채울 공급이 없음 (이미 클램프됐으므로 도달 드묾)
 
     // 소프트 페널티를 얹은 조정 점수로 최종 선택
@@ -243,9 +214,8 @@ export function selectDiverse(cands, opts = {}, params = rankParams()) {
     let bestAdj = -Infinity;
     for (const c of feasible) {
       const adj =
-        c.global -
-        params.exposureW * Math.log(1 + exposureOf(diversityKey(c.item))) -
-        params.pageRepeatW * (pagePicks.get(diversityKey(c.item)) || 0) -
+        (anchors.get(c.item.id) || 0) * 1000000 + c.global -
+        Math.min(0.15, params.exposureW * Math.log(1 + exposureOf(diversityKey(c.item)))) -
         params.pageCatRepeatW * (pageCats.get(c.item.category) || 0);
       if (adj > bestAdj) { bestAdj = adj; best = c; }
     }

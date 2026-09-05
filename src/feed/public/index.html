@@ -1486,7 +1486,6 @@ async function post(u,b){
 const state = {
   userId: localStorage.getItem("feed_uid") || null,
   cursor: 0, loading: false, exhausted: false, feedRevision: 0, mixBalance: 0,
-  prefetch: null, prefetching: false, // 다음 페이지 선반입 버퍼
   activeCategory: localStorage.getItem("feed_cat") || null, config: null,
   // 정렬 모드: hot(추천) | latest(최신순, #12). 새로고침 간 유지.
   sortMode: localStorage.getItem("feed_sort") === "latest" ? "latest" : "hot",
@@ -1508,7 +1507,7 @@ const liveHistory = NowHotHistory.create("live");
 let detailRevision = 0;
 function liveSnapshot(){
   return { userId:state.userId, source:state.activeSource, category:state.activeCategory,
-    sort:state.sortMode, mixBalance:state.mixBalance, y:state.openItemId?state.feedScrollY:window.scrollY,
+    sort:state.sortMode, rankingVersion:1, mixBalance:state.mixBalance, y:state.openItemId?state.feedScrollY:window.scrollY,
     pages:state.pagesLoaded, cursor:state.cursor, exhausted:state.exhausted,
     items:[...state.cardsById.keys()].map(id=>state.itemsById.get(id)).filter(Boolean) };
 }
@@ -1518,14 +1517,15 @@ function saveLiveNavigation(){
 function restoreLiveList(snapshot){
   if(!snapshot || snapshot.userId!==state.userId || !Array.isArray(snapshot.items))return false;
   if((snapshot.mixBalance ?? 0)!==state.mixBalance)return false;
+  if(snapshot.sort === "hot" && snapshot.rankingVersion !== 1)return false;
   if(snapshot.items.some(item=>{
     const kind=state.registry.find(row=>row.id===item.source)?.kind;
     return ["news","community"].includes(item.kind) && ["news","community"].includes(kind) && item.kind!==kind;
   }))return false;
-  state.feedRevision++; state.loading=false; state.prefetching=false;
+  state.feedRevision++; state.loading=false;
   state.activeSource=snapshot.source; state.activeCategory=snapshot.category; state.sortMode=snapshot.sort;
   state.feedScrollY=snapshot.y||0; state.cursor=snapshot.cursor; state.pagesLoaded=snapshot.pages;
-  state.exhausted=snapshot.exhausted; state.prefetch=null;
+  state.exhausted=snapshot.exhausted;
   state.cardsById.clear(); document.getElementById("feed").innerHTML="";
   for(const item of snapshot.items){
     const source=state.registry.find(row=>row.id===item.source);
@@ -2660,9 +2660,8 @@ function refreshSpaceFilters(spaceBody){
 }
 // 토픽 필터가 바뀌면 후보군이 달라지므로 피드를 새로 로드
 function reloadFeed(msg){
-  state.feedRevision++; state.prefetching = false;
+  state.feedRevision++;
   state.cursor = 0; state.exhausted = false; state.loading = false;
-  state.prefetch = null; // 조건이 바뀌었으니 선반입분은 버린다
   state.cardsById.clear();
   document.getElementById("feed").innerHTML =
     '<div id="feedSkel"><div style="padding:16px;border-bottom:1px solid var(--line)">' +
@@ -2935,12 +2934,11 @@ function wireKakaoAppLogin(container){
 }
 // refresh the underlying feed without scrolling the space away
 function reloadFeedSilently(){
-  state.feedRevision++; state.prefetching = false;
+  state.feedRevision++;
   // 취향·성향 조정으로 목록이 통째로 달라진다. 옛 페이지 수·좌표를 그대로
   // 적용하면 엉뚱한 자리로 간다(적대적 검수 지적).
   state.pagesLoaded = 0; clearReading();
   state.cursor = 0; state.exhausted = false; state.loading = false;
-  state.prefetch = null;
   state.cardsById.clear();
   document.getElementById("feed").innerHTML =
     '<div id="feedSkel"><div style="padding:16px;border-bottom:1px solid var(--line)">' +
@@ -3385,27 +3383,8 @@ function setSource(id, container, btn){
 // 로드 완료 훅에서 부르던 것이 로드→재로드 무한 루프를 만들었다.)
 
 // ---- feed ----
-// 무한 스크롤 = **선반입(prefetch) 파이프라인** (David 2026-08-01: "리스트
-// 아래까지 내리면 그때 로딩하지 말고, 반 스텝 빠르게 움직여 지연 없게").
-//
-// 예전엔 센티넬이 보일 때 요청을 시작해서, 빨리 스크롤하면 스피너를 봤다.
-// 이제 두 겹으로 앞선다:
-//   ① 한 페이지를 렌더하면 **곧바로 다음 페이지를 백그라운드로 받아 둔다**
-//      (state.prefetch에 보관 — 화면에는 아직 안 붙인다).
-//   ② 센티넬 감지 여유를 1400px로 넓혀, 바닥 한참 전에 붙이기가 시작된다.
-// 이미 받아 둔 페이지가 있으면 네트워크 대기 0 — 렌더만 하므로 체감 지연이 없다.
-// 스피너는 정말로 준비된 게 없을 때만 뜬다.
-function prefetchNext(){
-  if(state.prefetch || state.prefetching || state.exhausted) return;
-  state.prefetching = true;
-  const revision = state.feedRevision;
-  const cursor = state.cursor, src = state.activeSource, sort = state.sortMode;
-  API.feed(state.userId, cursor, 10, src, sort, state.activeCategory).then((res)=>{
-    // 그 사이 필터·정렬이 바뀌었으면 이 결과는 버린다(엉뚱한 페이지 방지)
-    if(revision === state.feedRevision && src === state.activeSource && sort === state.sortMode && cursor === state.cursor) state.prefetch = res;
-  }).catch(()=>{}).finally(()=>{ if(revision === state.feedRevision) state.prefetching = false; });
-}
-
+// 하단 1400px 전에 다음 페이지를 받아 바로 붙인다. 화면에 붙이지 않을
+// 별도 선반입은 서버의 읽음 기록을 먼저 소비하므로 하지 않는다.
 function renderBatch(res){
   const sk = document.getElementById("feedSkel"); if(sk) sk.remove();
   state.cursor = res.nextCursor;
@@ -3414,7 +3393,7 @@ function renderBatch(res){
   for(const item of res.items) appendCard(item);
   maybeInsertAdfit(); // 쿠팡 제휴 카드를 본문 사이에 (config에 광고단위 있을 때만)
   ensureAdfitPlacement(); // 애드핏 지면 1장 — 목록 끝, 수익 슬롯과 자리를 나눈다
-  if(res.exhausted){ state.exhausted=true; setSentinel(false, "새 화제글을 모으는 중… 평가할수록 더 정확해져요"); }
+  if(res.exhausted){ state.exhausted=true; setSentinel(false, "현재 설정으로 볼 수 있는 글을 다 봤어요. 다른 정렬이나 오늘판도 확인해 보세요."); }
   else setSentinel(false);
   saveLiveNavigation();
 }
@@ -3422,21 +3401,19 @@ function renderBatch(res){
 async function loadMore(){
   if(state.loading || state.exhausted) return;
   const revision = state.feedRevision;
-  // 선반입해 둔 페이지가 있으면 즉시 렌더 — 네트워크 대기 없음
-  if(state.prefetch){
-    const res = state.prefetch; state.prefetch = null;
-    renderBatch(res);
-    prefetchNext();               // 다음 것도 미리
-    return;
-  }
   state.loading = true; setSentinel(true);
+  let rendered = false;
   try {
     const res = await API.feed(state.userId, state.cursor, 10, state.activeSource, state.sortMode, state.activeCategory);
     if(revision !== state.feedRevision) return;
-    renderBatch(res);
-    prefetchNext();
+    renderBatch(res); rendered = true;
   } catch(e){ if(revision === state.feedRevision) setSentinel(false, "불러오지 못했어요 — 당겨서 다시 시도"); }
-  finally { if(revision === state.feedRevision) state.loading=false; }
+  finally {
+    if(revision === state.feedRevision) {
+      state.loading=false;
+      if(rendered && !state.exhausted && document.getElementById("sentinel").getBoundingClientRect().top < innerHeight + 1400) loadMore();
+    }
+  }
 }
 
 // 상태 배지 묶음 — 헤더가 아니라 **하단 이유칩 줄**에 붙는다 (David 2026-08-01:
