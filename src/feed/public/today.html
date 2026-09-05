@@ -131,7 +131,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .detail-meta{min-width:0;color:var(--sub);font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .detail-close{margin-left:auto;width:38px;height:38px;display:grid;place-items:center;border:1px solid var(--line);border-radius:6px;background:var(--paper);font-size:25px;line-height:1;cursor:pointer}
 .detail-content{padding:26px 30px calc(34px + env(safe-area-inset-bottom));overflow-wrap:anywhere}
-.detail-content h2{margin:0;font-size:28px;line-height:1.35;word-break:keep-all;overflow-wrap:anywhere}
+.detail-content>h2{margin:0;font-size:28px;line-height:1.35;word-break:keep-all;overflow-wrap:anywhere}
 .detail-image{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;margin:22px 0 0;border-radius:6px;background:var(--soft)}
 .detail-image-status{margin:8px 0 0;color:var(--sub);font-size:13px}
 .detail-section{margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
@@ -158,7 +158,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
   .edition-controls{display:grid;grid-template-columns:1fr}.edition-date{width:100%;height:44px}.slot-tabs{grid-template-columns:repeat(3,1fr);width:100%}.category-band{top:59px;margin-left:-16px;margin-right:-16px;padding-left:16px}.band-head{padding-right:16px}.category-list{padding-right:16px}
   .layout{margin-top:0}.issue,.ad-coupang{grid-template-columns:32px minmax(0,1fr);gap:10px;padding:23px 0 25px}.issue:first-child{padding-top:25px}.issue h2,.issue:first-child h2,.ad-coupang h2{font-size:21px;line-height:1.38}
   .editorial-grid{grid-template-columns:1fr}.editorial-point{padding:12px 0}.change-row{grid-template-columns:1fr;gap:4px}
-  .detail-overlay{align-items:flex-end;padding:0}.detail-panel{width:100%;max-height:92dvh;border-width:1px 0 0;border-radius:8px 8px 0 0}.detail-content{padding:22px 18px calc(30px + env(safe-area-inset-bottom))}.detail-content h2{font-size:23px}.detail-summary p{font-size:15px}.detail-point{grid-template-columns:1fr;gap:4px}
+  .detail-overlay{align-items:flex-end;padding:0}.detail-panel{width:100%;max-height:92dvh;border-width:1px 0 0;border-radius:8px 8px 0 0}.detail-content{padding:22px 18px calc(30px + env(safe-area-inset-bottom))}.detail-content>h2{font-size:23px}.detail-summary p{font-size:15px}.detail-point{grid-template-columns:1fr;gap:4px}
   .rail{grid-template-columns:1fr;gap:0}.rail-section+ .rail-section{border-top:1px solid var(--line)}
 }
 @media(prefers-reduced-motion:reduce){.icon-button[aria-busy="true"] svg,.sk{animation:none}.view-indicator{transition:none}}
@@ -497,7 +497,7 @@ function todayAdHtml(issue,index,slot,seen=new Set(),nextIssue=null){
       <div class="issue-kicker"><span>광고</span><span class="separator"></span><span>${esc(item.brand)}</span></div>
       <h2><a class="issue-title-button" href="${esc(href.href)}" target="_blank" rel="nofollow sponsored noopener" referrerpolicy="unsafe-url">${esc(copy.hook||item.hook)}</a></h2>
       <div class="editorial-grid">
-        <div class="editorial-point"><b>상품 안내</b><p>${esc(copy.line||item.brand)}</p></div>
+        <div class="editorial-point"><b>쿠팡 파트너스</b><p>${esc(copy.line||item.brand)}</p></div>
       </div>
       <div class="change-row"><b>광고 안내</b><p class="ad-disclosure">${esc(cp.disclosure)}</p></div>
     </div></aside>`;

@@ -223,6 +223,9 @@ test("browser: Today affiliates preserve issue order, detail and restored invent
   await page.waitForSelector("#detailContent .ad-coupang a", { state: "visible" });
   assert.match(await page.locator("#detailContent .ad-coupang").innerText(), /쿠팡 파트너스[\s\S]*수수료/);
   assert.equal(await page.locator("#detailContent .ad-coupang h2 .issue-title-button").isVisible(), true);
+  assert.equal(await page.locator("#detailContent .ad-coupang h2").evaluate(el => getComputedStyle(el).fontSize),
+    await page.locator("#issues .ad-coupang h2").first().evaluate(el => getComputedStyle(el).fontSize),
+    "상세 광고도 목록의 기사 제목 서식을 유지한다");
   await page.getByRole("button", { name: "기사 요약 닫기" }).click();
   await page.reload();
   await page.waitForSelector("#issues .ad-coupang");
