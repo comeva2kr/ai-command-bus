@@ -188,6 +188,24 @@ test("browser: Today affiliates preserve issue order, detail and restored invent
   controls.coupang = affiliateInventory;
   await page.reload();
   await page.waitForSelector("#issues .ad-coupang a", { state: "visible" });
+  for (const width of [320, 393, 1100]) {
+    await page.setViewportSize({ width, height: 852 });
+    const style = await page.locator("#issues .ad-coupang").first().evaluate(ad => {
+      const issue = ad.previousElementSibling;
+      const row = el => { const s = getComputedStyle(el); return [s.gridTemplateColumns, s.gap, s.padding, s.borderBottom]; };
+      const title = el => { const s = getComputedStyle(el); return [s.fontSize, s.lineHeight, s.fontWeight]; };
+      return { ad: row(ad), issue: row(issue), adTitle: title(ad.querySelector(".ad-title")),
+        issueTitle: title(issue.querySelector("h2")), right: ad.getBoundingClientRect().right,
+        overflow: ad.scrollWidth > ad.clientWidth, mark: ad.querySelector(".ad-mark").textContent };
+    });
+    assert.deepEqual(style.ad, style.issue, `${width}: 광고와 오늘판 행 서식`);
+    assert.deepEqual(style.adTitle, style.issueTitle, `${width}: 광고와 기사 제목 서식`);
+    assert.equal(style.overflow, false);
+    assert.ok(style.right <= width);
+    assert.equal(style.mark, "AD");
+    await page.locator("#issues .ad-coupang").first().screenshot({ path: `/tmp/nh121-today-ad-${width}.png` });
+  }
+  await page.setViewportSize({ width: 1100, height: 760 });
   const numbers = await page.locator("#issues .issue-number").allTextContents();
   assert.deepEqual(numbers, items.map((_, i) => String(i + 1).padStart(2, "0")));
   assert.equal(await page.locator("#issues .ad-coupang").count(), 2);
@@ -589,7 +607,7 @@ test("browser: the full release opens at its title on mobile", options, async (t
   await page.evaluate(release=>NowHotNoticeGuide.show({release}),latestRelease());
   const bounds=await page.locator(".nh-guide").evaluate(el=>({scroll:el.scrollTop,top:el.getBoundingClientRect().top,title:el.querySelector("h2").getBoundingClientRect().top}));
   assert.equal(bounds.scroll,0);assert.ok(bounds.title>=bounds.top);
-  await page.screenshot({path:"/tmp/nh120-new-popup-mobile.png"});
+  await page.screenshot({path:"/tmp/nh121-new-popup-mobile.png"});
   await page.keyboard.press("Escape");
   await page.waitForFunction(()=>!document.getElementById("nhGuide"));
 });

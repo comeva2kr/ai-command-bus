@@ -11,7 +11,6 @@ import { pickBanner, loadBanners } from "./manual-products.js";
 import { buildReport } from "./datastory.js";
 import { barsSvg, lineSvg, CHART_CSS } from "./chart.js";
 import { adCopy, AD_DISCLOSURE, withSubId } from "./ad-copy.js";
-import { makeWriter } from "./llm.js";
 import {
   EDITORIAL_LLM_CANARY_CONTRACT,
   EDITORIAL_LLM_CONTRACT,
@@ -30,7 +29,7 @@ import { mergeCostBuckets, profitAndLoss, daysInMonth } from "./costs.js";
 import { communityRanking, sourceBest, keywordIndex, keywordPage } from "./pages.js";
 import { loadMatrix, pickVariant } from "./ad-matrix.js";
 import { makeIndexNow } from "./indexnow.js";
-import { maskProfanity, unsafeForLead } from "./profanity.js";
+import { maskProfanity } from "./profanity.js";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -316,7 +315,7 @@ function cacheHeadersFor(ext) {
     : "public, max-age=604800";
 }
 
-function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "", pageExtras = null) {
+function serveStatic(res, urlPath, seedHtml = "", pageExtras = null) {
   const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
   const filePath = path.join(PUBLIC_DIR, rel);
   // prevent path traversal outside PUBLIC_DIR
@@ -335,12 +334,6 @@ function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "", pageExtras =
 
     // 홈 정적 콘텐츠 — 호출부(라우트)가 engine으로 만들어 넘긴다.
     // serveStatic은 engine을 모르는 순수 파일 서빙 함수라 여기서 만들 수 없다.
-    // 브리핑 스트립 자리에 정적 링크를 심는다.
-    //
-    // 스트립은 JS로 채워지므로 크롤러에게는 빈 div다. 자체 콘텐츠 페이지로 가는
-    // 유일한 통로가 그 안에 있는데 색인에서는 안 보이는 상태였다. 여기에 정적
-    // <a>를 넣어두면 크롤러가 읽고, JS가 뜨면 실제 브리핑 카드가 같은 자리를
-    // 대체한다(seed-list와 같은 방식). 별도 칩줄을 두는 것보다 화면이 깔끔하다.
     if (ext === ".html" && rel === "index.html") {
       // 화면이 자기 빌드를 알 수 있게 심는다. /api/config가 주는 값과 다르면
       // 낡은 화면이라는 뜻이고, 클라이언트가 스스로 한 번 새로고침한다.
@@ -355,28 +348,6 @@ function serveStatic(res, urlPath, seedHtml = "", ownSeedHtml = "", pageExtras =
         '<meta name="nh-build" content="dev">',
         `<meta name="nh-build" content="${escapeHtml(buildId())}">`));
     }
-    if (ownSeedHtml && ext === ".html" && rel === "index.html") {
-      const h0 = buf.toString("utf8");
-      const mk0 = '<section class="own-block" id="ownBlock" hidden aria-label="지금핫이 직접 쓴 오늘의 브리핑"></section>';
-      if (h0.includes(mk0)) {
-        buf = Buffer.from(h0.replace(mk0,
-          '<section class="own-block" id="ownBlock" aria-label="지금핫이 직접 쓴 오늘의 브리핑">'
-          + ownSeedHtml + '</section>'));
-      }
-    }
-    if (ext === ".html" && rel === "index.html") {
-      const html0 = buf.toString("utf8");
-      const mk = '<div class="brief-strip" id="briefStrip" hidden></div>';
-      if (html0.includes(mk)) {
-        buf = Buffer.from(html0.replace(mk,
-          '<div class="brief-strip" id="briefStrip">' +
-          '<a class="bs-seed" href="/briefing">지금 브리핑</a>' +
-          '<a class="bs-seed" href="/ranking/daily">화제 랭킹 TOP 20</a>' +
-          '<a class="bs-seed" href="/trends">실시간 트렌드</a>' +
-          '</div>'));
-      }
-    }
-
     if (seedHtml && ext === ".html" && rel === "index.html") {
       const html = buf.toString("utf8");
       const marker = '<div id="feedSkel">';
@@ -442,50 +413,13 @@ export function createServer(opts = {}) {
   // every provider's token/userinfo endpoints with no network access (server
   // itself always defaults to the real global fetch).
   // 홈에 심는 자체 콘텐츠(SSR seed)를 만든다. **요청 밖에서** 돈다.
-  // 여기서 도는 briefing()·rankingTop()은 수만 건 풀을 훑는 동기 계산이라,
+  // 여기서 도는 rankingTop()은 수만 건 풀을 훑는 동기 계산이라,
   // 요청 안에서 부르면 그 시간만큼 서버가 통째로 멈춘다(실측 4.0초).
   const HOME_SEED_TTL_MS = 3 * 60 * 1000;
   const HOME_SEED_RETRY_MS = 20 * 1000;   // 빈 결과였을 때의 재시도 간격
   const homeSeed = { html: null, at: 0, building: false };
   async function buildHomeSeed() {
     let seed = "";
-    let ownSeed = "";
-
-        // 자체 콘텐츠 블록(#ownBlock)도 서버에서 채운다.
-        //
-        // 검수(2026-08-06)에서 잡힌 것: 애드핏 반려 대응으로 만든 그 블록이
-        // **JS로만 채워져서** 원본 HTML에는 빈 <section>이었다. 심사·크롤러가
-        // JS를 안 돌리면 여전히 "아웃링크 비중이 높은" 화면 그대로다.
-        // 바로 아래 briefStrip·feedSkel에는 이미 같은 처방을 해 뒀는데
-        // 정작 이번 산출물만 빠뜨렸다 — 국지적으로 본 대가다.
-        try {
-          // **홈은 seed를 기다리지 않는다.**
-          //
-          // briefing()·rankingTop()은 수집 풀(_items)과 외부 트렌드 호출을
-          // 거친다. 풀이 비어 있으면 84개 소스를 다 모을 때까지 기다리는데,
-          // 그동안 **홈이 통째로 막힌다** — 실측(2026-08-06): /api/health와
-          // /api/config는 40~200ms인데 / 만 45초 타임아웃이었다.
-          //
-          // seed는 크롤러·심사 봇을 위한 덤이지 홈이 뜨는 조건이 아니다.
-          // 제때 안 오면 없이 내보내고, JS가 뜨면 어차피 같은 자리를 채운다.
-          const b = await engine.briefing();
-          const one = ((b && b.issues) || []).find((i) => i && i.headline && i.paragraph);
-          if (one) {
-            const slotName = (b.slot && b.slot.label) ? `${b.slot.label} 브리핑` : "지금 브리핑";
-            ownSeed =
-              `<div class="ob-head"><span class="ob-tag">${escapeHtml(slotName)}</span></div>` +
-              (b.digestSummary ? `<p class="ob-sum">${escapeHtml(b.digestSummary)}</p>` : "") +
-              `<ol><li><a href="/briefing">` +
-              `<span class="ob-h">${escapeHtml(one.headline)}</span>` +
-              `<span class="ob-p">${escapeHtml(String(one.paragraph).slice(0, 120))}</span>` +
-              `</a></li></ol>` +
-              // 우리 데이터로 쓴 리포트 한 줄 (reportStoryLine 주석 참조).
-              // 캐시가 콜드면 빈 문자열 — 홈이 리포트 계산을 기다리지 않는다.
-              (() => { const st = reportStoryLine(); return st
-                ? `<p class="ob-story">${escapeHtml(st)} <a href="/report">리포트 전체 보기 →</a></p>` : ""; })() +
-              `<a class="ob-more" href="/briefing">오늘의 브리핑 전체 보기 →</a>`;
-          }
-        } catch { /* 편성 전이면 빈 블록 그대로 — 홈은 계속 뜬다 */ }
         try {
           // rankingTop은 { generatedAt, items } 를 돌려준다 — 배열이 아니다.
           const top = ((await engine.rankingTop(20)) || {}).items || [];
@@ -495,7 +429,7 @@ export function createServer(opts = {}) {
           // (2026-08-04 실측: 링크 0개).
           const navHtml =
             `<nav class="seed-nav" aria-label="지금핫이 만드는 페이지">` +
-            [["/briefing", "오늘의 브리핑"], ["/ranking/daily", "화제 랭킹"],
+            [["/", "오늘판"], ["/ranking/daily", "화제 랭킹"],
              ["/communities", "커뮤니티 순위"], ["/keywords", "화제 키워드"],
                ["/report", "데이터 리포트"],
              ["/trends", "실시간 트렌드"]]
@@ -541,7 +475,7 @@ export function createServer(opts = {}) {
           // 모드에서는 비어 있는 것이 정상이다(실수집 배포에서만 채워진다).
         }
       
-    return { seed, ownSeed };
+    return { seed };
   }
 
   // 요청은 이미 만들어 둔 시드만 읽는다. 갱신은 뒤에서 돌려 실시간 피드와
@@ -549,7 +483,7 @@ export function createServer(opts = {}) {
   const homeSeedSnapshot = () => {
     const cached = homeSeed.html;
     const age = cached ? Date.now() - homeSeed.at : Infinity;
-    const ttl = cached && (cached.seed || cached.ownSeed)
+    const ttl = cached && cached.seed
       ? HOME_SEED_TTL_MS : HOME_SEED_RETRY_MS;
     if (age > ttl && !homeSeed.building) {
       homeSeed.building = true;
@@ -557,7 +491,7 @@ export function createServer(opts = {}) {
         if (next) { homeSeed.html = next; homeSeed.at = Date.now(); }
       }).catch(() => {}).finally(() => { homeSeed.building = false; });
     }
-    return cached || { seed: "", ownSeed: "" };
+    return cached || { seed: "" };
   };
 
   const authStates = new AuthStateStore();
@@ -1944,7 +1878,7 @@ export function createServer(opts = {}) {
   });
   if (indexNowKey()) {
     const notify = () => {
-      indexNow.ping(["/", "/briefing", "/report"]).catch(() => {});
+      indexNow.ping(["/", "/report"]).catch(() => {});
     };
     notify();
     const t = setInterval(notify, Number(process.env.INDEXNOW_INTERVAL_MS || 6 * 3600 * 1000));
@@ -1971,155 +1905,6 @@ export function createServer(opts = {}) {
   // 대가성 문구는 **법적 의무**이고 쿠팡도 "활동 준수 사항을 지키지 않으면
   // 수익금 지급이 중단될 수 있습니다"라고 명시한다. 배너가 렌더될 때 반드시
   // 함께 나가야 하므로 같은 함수 안에서 붙인다 — 따로 두면 한쪽만 빠진다.
-  // 브리핑 해설 생성기. ANTHROPIC_API_KEY가 없으면 호출 자체를 안 하고
-  // 규칙 기반 브리핑이 그대로 나간다 — 로컬 개발과 키 미설정 배포가 안 깨진다.
-  // 해설 캐시를 우리가 직접 들고 있는다. makeWriter 안의 기본 캐시를 쓰면
-  // "이미 있는지"를 밖에서 물어볼 수 없어, 캐시 미스일 때 사용자가 API 응답을
-  // 그대로 기다리게 된다(아래 withEssay 주석 참조).
-  const essayCache = new Map();
-  const llmWriter = makeWriter({
-    onUsage: (u) => { try { store.recordLlmCall(u); } catch {} },
-    apiKey: process.env.ANTHROPIC_API_KEY || null,
-    store: { get: (k) => essayCache.get(k), set: (k, v) => essayCache.set(k, v) },
-    log: (m) => console.log(m)
-  });
-  const essayPending = new Set();
-  // 슬롯(모닝/런치/이브닝)과 이슈 구성이 같으면 같은 해설을 쓴다. 15분마다
-  // 갱신되는 브리핑이 매번 API를 부르지 않도록 헤드라인 조합을 키에 넣는다.
-  const llmKey = (b) => `${b.date}|${b.slot}|${(b.issues || []).map((i) => i.headline).join("|")}`;
-  // 해설은 **기다리지 않는다** (2026-08-04, David 실기기 제보 "지금 브리핑
-  // 누르면 아무것도 안 되는 것 같다").
-  //
-  // 실측: /briefing 응답이 24초였다. 캐시는 있었지만 미스일 때 LLM API 응답을
-  // 요청 안에서 그대로 기다렸다. 24초면 사용자는 고장으로 판단하고 떠난다 —
-  // 해설이 붙은 페이지를 24초 뒤에 보여주는 것보다, 해설 없는 페이지를 즉시
-  // 보여주고 다음 방문에 해설을 붙이는 쪽이 낫다.
-  //
-  // 캐시에 있으면 쓰고, 없으면 규칙 기반 브리핑을 즉시 내보내면서 생성만
-  // 뒤에서 돌린다. 같은 키로 중복 호출하지 않도록 진행 중 표시를 둔다 —
-  // 없으면 첫 방문자 여러 명이 동시에 같은 API를 부른다.
-  const withEssay = async (b) => {
-    if (!b || !b.publishable) return b;
-    const key = llmKey(b);
-    const hit = essayCache.get(key);
-    if (hit) return hit;
-    if (!essayPending.has(key)) {
-      essayPending.add(key);
-      llmWriter(b, key)
-        .catch((e) => console.warn("[llm] 해설 생성 실패:", e && e.message))
-        .finally(() => essayPending.delete(key));
-    }
-    return b;
-  };
-
-  // ── 하루 3편 편성 (David 2026-08-04) ─────────────────────────────────────
-  //
-  // "15분마다 갱신될 필요는 없지 않니? 사람들 활동시간 기준으로 아침 점심
-  //  저녁에만 한번씩 브리핑 해도 될 것 같은데 내용 충실하게 해서."
-  //
-  // 예전엔 요청이 올 때마다 그 순간의 풀로 다시 만들었다. 그래서 (1) 캐시가
-  // 빗나가면 사용자가 LLM 응답을 24초 기다렸고, (2) 15분마다 내용이 바뀌어
-  // "오늘의 브리핑"이라 부를 만한 고정된 편이 없었으며, (3) 날짜별 아카이브에
-  // 해설이 한 건도 남지 않았다.
-  //
-  // 이제 슬롯 시각(아침 7시·점심 12시·저녁 19시 KST)에 한 번 만들어 저장하고,
-  // 페이지는 읽기만 한다. 해설도 그 시점에 함께 붙여 저장하므로 아카이브에
-  // 영구히 남는다.
-  const kstDate = (ms) => new Date(ms + 9 * 3600 * 1000).toISOString().slice(0, 10);
-  const kstHour = (ms) => new Date(ms + 9 * 3600 * 1000).getUTCHours();
-  const SLOT_ORDER = SLOTS.map((x) => x.id);
-
-  // 지금 시각에 "이미 발행됐어야 하는" 슬롯. 발행 시각을 지나지 않았으면 null.
-  function dueSlot(nowMs) {
-    const h = kstHour(nowMs);
-    let due = null;
-    for (const sl of SLOTS) if (h >= sl.publishHour) due = sl;
-    return due;   // 새벽(0~6시)이면 null — 전날 이브닝을 그대로 쓴다
-  }
-
-  // 진행 중인 편성. 타이머와 페이지 요청이 **동시에** 저장 여부를 확인하면
-  // 둘 다 "아직 없다"로 통과해 같은 편을 두 번 만든다 — 해설 API가 20초쯤
-  // 걸려서 그 창이 넓다. 실측(2026-08-04 배포 직후): 같은 편이 두 번 발행됐고
-  // 그만큼 토큰을 두 번 썼다. 약속(Promise)을 공유해 한 번만 만든다.
-  const briefingInFlight = new Map();
-  async function buildAndStoreBriefing(slotId, nowMs) {
-    const date = kstDate(nowMs);
-    const key = `${date}|${slotId}`;
-    const running = briefingInFlight.get(key);
-    if (running) return running;
-    const p = _buildAndStoreBriefing(slotId, nowMs, date)
-      .finally(() => briefingInFlight.delete(key));
-    briefingInFlight.set(key, p);
-    return p;
-  }
-
-  async function _buildAndStoreBriefing(slotId, nowMs, date) {
-    const base = await engine.briefing({ slotId });
-    if (!base || !base.publishable) return null;
-    // 해설은 **여기서만** 기다린다. 사용자 요청이 아니라 배경 작업이라
-    // 24초가 걸려도 아무도 기다리지 않는다.
-    let full = base;
-    try { full = await llmWriter(base, llmKey(base)); } catch (e) {
-      console.warn("[briefing] 해설 생성 실패, 규칙 기반으로 발행:", e && e.message);
-    }
-    store.saveBriefing(date, slotId, full);
-    console.log(`[briefing] ${date} ${slotId} 발행 — 이슈 ${(full.issues || []).length}개, 해설 ${full.llm ? full.llm.written : 0}개`);
-    return full;
-  }
-
-  // 저장본을 읽는다. 아직 없으면(첫 기동·새 슬롯 직후) 즉시 만들어 채운다.
-  async function currentBriefing() {
-    const now = Date.now();
-    const date = kstDate(now);
-    const due = dueSlot(now);
-    if (due) {
-      const stored = store.getBriefing(date, due.id);
-      if (stored) return stored;
-      const made = await buildAndStoreBriefing(due.id, now);
-      if (made) return made;
-    }
-    // 오늘 것이 아직 없으면 어제 마지막 편이라도 보여준다 — 빈 화면보다 낫다.
-    const y = kstDate(now - 24 * 3600 * 1000);
-    return store.latestBriefing(date, SLOT_ORDER) || store.latestBriefing(y, SLOT_ORDER)
-      || withEssay(await engine.briefing());
-  }
-
-  // 편집 홈은 요청 중 수집이나 LLM 생성을 시작하지 않는다. 이미 발행된 최신본만
-  // 읽고, 없으면 준비 상태를 정직하게 보여준다.
-  function editorialBriefingSnapshot() {
-    const now = Date.now();
-    const today = kstDate(now);
-    const yesterday = kstDate(now - 24 * 3600 * 1000);
-    const due = dueSlot(now);
-    return (due && store.getBriefing(today, due.id)) ||
-      store.latestBriefing(today, SLOT_ORDER) ||
-      store.latestBriefing(yesterday, SLOT_ORDER) || (() => {
-        const dates = store.listEditionDates ? store.listEditionDates().slice().reverse() : [];
-        for (const date of dates) {
-          const ed = store.getDailyEdition ? store.getDailyEdition(date) : null;
-          if (ed && ed.briefing && ed.briefing.publishable) return ed.briefing;
-        }
-        return null;
-      })();
-  }
-
-  // 슬롯 시각마다 한 번씩 발행. 정각을 놓쳐도(재기동 등) 다음 점검에서
-  // 저장본이 없으면 만든다 — 정각 트리거가 아니라 "있어야 할 게 있는가"로 본다.
-  const BRIEFING_CHECK_MS = Number(process.env.BRIEFING_CHECK_MS || 5 * 60 * 1000);
-  async function briefingTick() {
-    try {
-      const now = Date.now();
-      const due = dueSlot(now);
-      if (!due) return;
-      if (store.getBriefing(kstDate(now), due.id)) return;
-      await buildAndStoreBriefing(due.id, now);
-    } catch (e) { console.warn("[briefing] 편성 점검 실패:", e && e.message); }
-  }
-  if (process.env.FEED_LIVE) {
-    setInterval(briefingTick, BRIEFING_CHECK_MS).unref?.();
-    setTimeout(briefingTick, 30_000).unref?.();   // 기동 직후 수집이 끝난 뒤
-  }
-
   // 광고 문구 행렬. 배치가 파일을 새로 쓰면 다음 기동 때 반영된다.
   const adMatrix = loadMatrix();
   if (adMatrix) {
@@ -2194,7 +1979,7 @@ export function createServer(opts = {}) {
     return Date.now() - reportCache.at > ttl;
   };
   // 갱신은 응답 뒤로 민다 — 지금 요청은 있는 것으로 답한다. /report와
-  // 홈(reportStoryLine)이 같은 갱신 한 벌을 쓴다.
+  // 리포트 요청은 같은 캐시 갱신을 공유한다.
   const scheduleReportRefresh = () => {
     if (reportCache.building) return;
     reportCache.building = true;
@@ -2207,28 +1992,6 @@ export function createServer(opts = {}) {
     });
   };
 
-  // 홈 자체 서술용 리포트 한 줄 (2026-08-08 설계 채택안 B) — 우리만 가진
-  // 집계 데이터로 쓴 실측 문장을 홈 자체 콘텐츠 블록까지 내린다(/report와
-  // 같은 자산, 이미 캐시된 계산의 재노출). **캐시를 읽기만 한다** —
-  // reportNow()는 콜드 스타트에 동기 빌드를 하는데(리포트 페이지의 의도된
-  // 트레이드), 홈 경로에서 그걸 부르면 2026-08-07 TTFB 사고와 같은 클래스다.
-  // 홈은 "제때 안 오면 없이" 원칙 그대로 — 콜드면 조용히 빠진다.
-  const reportStoryLine = () => {
-    // 캐시가 낡았으면 백그라운드 갱신만 건다(동기 빌드 절대 금지 — 홈 경로).
-    // 이게 없으면 /report 방문이 없는 장수 프로세스에서 날짜가 박힌 문장이
-    // 무기한 굳고, 웜업이 집계-전 리포트를 잡은 경우 재시도도 없다(검수).
-    if (reportStale()) scheduleReportRefresh();
-    const r = reportCache.data;
-    if (!r || !r.publishable) return null;
-    const s = (r.sections || []).find((x) => x && x.id === "landscape");
-    const line = s && Array.isArray(s.paragraphs) ? s.paragraphs[0] : null;
-    if (!line) return null;
-    // 길이 상한 — 홈 첫 화면의 화제글 노출 예산(v92→v93 회귀 조건)을 문장
-    // 길이 변동으로부터 지킨다. 잘림은 말줄임표로 정직하게 표시하고 전문은
-    // /report 링크가 담당한다.
-    const str = String(line);
-    return str.length > 160 ? str.slice(0, 159) + "…" : str;
-  };
   // 부팅 90초 뒤 리포트 캐시를 백그라운드로 한 번 데워 둔다 — 이 배포
   // 체계(하루 십수 회)는 재시작마다 캐시가 콜드라, 워밍 없이는 /report에
   // 누가 들어올 때까지 홈의 리포트 한 줄이 계속 비어 있게 된다. 90초는
@@ -2251,7 +2014,7 @@ export function createServer(opts = {}) {
   // 처음 보는 사람이 된다 — 취향도 재방문도 거기서 끊긴다.
   // 계정을 만들지는 않는다(빈 계정이 늘지 않게). 식별자만 준다.
   // 사람이 읽는 발행 페이지들. 여기 들른 사람도 다음에 알아봐야 한다.
-  const PUBLISHED_PATH = /^\/(briefing|ranking|report|communities|community|keywords|keyword|trends)(\/|$)/;
+  const PUBLISHED_PATH = /^\/(ranking|report|communities|community|keywords|keyword|trends)(\/|$)/;
 
   const ensureVisitor = (req, res) => {
     const existing = parseCookies(req.headers.cookie)[VISITOR_COOKIE];
@@ -2461,7 +2224,6 @@ ${noindex
 <meta property="og:site_name" content="지금핫 NowHot">
 <meta property="og:image" content="https://nowhot.kr/og.png?v=20260904-brand">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="alternate" type="application/rss+xml" title="지금핫 NowHot" href="https://nowhot.kr/rss.xml">
 <script type="application/ld+json">${JSON.stringify({
   "@context": "https://schema.org",
   "@type": canonicalPath === "/" ? "WebSite" : "CollectionPage",
@@ -2726,122 +2488,17 @@ ${noindex ? "" : displayAdHtml()}
     }
     return out;
   };
-  // ④ 이슈 다이제스트 렌더 — 브리핑의 본문.
-  // 예전엔 카테고리마다 같은 템플릿 한 줄 + 원문 발췌였다. 발췌 자리에 원문
-  // URL과 영어 원문이 그대로 실려, 애드핏이 지적한 "외부 콘텐츠 비중"을 우리
-  // 손으로 증명하고 있었다(2026-08-03 실측). 이제 본문은 전부 우리가 측정한
-  // 값으로 쓴 문장이고(digest.js), 외부 원문은 한 줄도 싣지 않는다.
-  const issuesHtml = (b) => (b.issues || []).map((is, n) => `<section class="issue">
-      <h2>${n + 1}. ${escapeHtml(maskProfanity(is.headline))}</h2>
-      ${is.essay ? `<p>${escapeHtml(maskProfanity(is.essay))}</p>` : ""}
-      <p>${escapeHtml(maskProfanity(is.paragraph))}</p>
-      <div class="m"><span class="tone">${escapeHtml(is.tone)}</span> · 관련 글 ${is.refs.length}건</div>
-      <ul>${is.refs.map((r) => `<li><a href="${livePostHref(r)}">${escapeHtml(maskProfanity(r.title))}</a>
-        <span class="m">${escapeHtml(r.sourceLabel)}${evidenceBits(r).length ? " · " + evidenceBits(r).join(" · ") : ""}</span></li>`).join("")}</ul>
-    </section>`).join("");
-
-  const editorialHomeHtml = (briefing) => {
-    const issues = briefing && briefing.publishable
-      ? (briefing.issues || []).filter((i) => i && i.headline && i.paragraph).slice(0, 3)
-      : [];
-    const issueBlocks = issues.length
-      ? issues.map((issue, index) => `<section class="issue">
-          <h2>${index + 1}. ${escapeHtml(maskProfanity(issue.headline))}</h2>
-          <p>${escapeHtml(maskProfanity(issue.paragraph))}</p>
-          <p class="muted"><span class="tone">${escapeHtml(issue.tone || "관찰")}</span> · 관련 신호 ${Array.isArray(issue.refs) ? issue.refs.length : 0}건</p>
-        </section>`).join("")
-      : `<section class="issue"><h2>오늘의 편집본 준비 중</h2>
-          <p>발행 기준을 충족한 반응 데이터가 모이면 이 자리에 핵심 이슈와 근거 수치를 싣습니다. 빈 목록을 기사처럼 발행하지 않습니다.</p></section>`;
-    const stats = briefing
-      ? `공개 반응 ${fmtNum(briefing.itemCount || 0)}건 · 출처 ${fmtNum(briefing.sourceCount || 0)}곳`
-      : "공개 추천·댓글·보도량을 같은 기준으로 집계";
-    const story = reportStoryLine();
-    return `<p class="home-kicker">NOWHOT EDITORIAL</p>
-<h1>지금핫</h1>
-<p class="home-lead">커뮤니티와 뉴스의 공개 반응을 직접 계측하고, 지금 함께 번지는 이슈와 흐름을 짧게 해설합니다.</p>
-<div class="home-actions"><a class="primary" href="/briefing">오늘의 브리핑</a><a href="/live">실시간 피드</a><a href="/report">데이터 리포트</a></div>
-<section><h2>지금 읽어야 할 흐름</h2><p class="muted">${escapeHtml(stats)} · 원문 전문을 복제하지 않고 측정값과 교차 출처로 편집합니다.</p>${issueBlocks}
-<p><a href="/briefing">브리핑 전체 읽기 →</a></p></section>
-<section><h2>데이터로 본 지금</h2>
-<p>${escapeHtml(story || "날짜별 반응 스냅샷을 누적해 하루 목록에서는 보이지 않는 출처 분포와 화제의 지속 시간을 비교합니다.")}</p>
-<p><a href="/report">집계 리포트와 방법론 보기 →</a></p></section>
-<section><h2>어떻게 고르나</h2>
-<p>단순 조회수 합계 대신 각 출처 안에서 평소보다 얼마나 이례적으로 반응했는지 보고, 여러 곳에서 같은 이슈가 확인될수록 비중을 높입니다.</p>
-<p>수집한 제목과 공개 지표는 발견을 위한 단서로만 쓰고, 편집 문장과 그래프는 지금핫이 보유한 측정 기록으로 만듭니다.</p></section>
-<nav class="nav" aria-label="지금핫 둘러보기"><a href="/briefing">브리핑</a><a href="/report">리포트</a><a href="/ranking/daily">랭킹</a><a href="/about">소개</a></nav>`;
-  };
-
-  // 브리핑 본문 사이사이에 광고를 넣는다 (David 2026-08-06 "그 안에도 연관 광고
-  // 사이사이 넣고"). 예전엔 가운데 딱 한 장이었다 — 9개 섹션짜리 글에 광고
-  // 하나면 스크롤하는 사람 대부분이 지나치지 못하고 지나간다.
-  //
-  // **그 섹션이 무엇에 관한 글인지 보고 고른다.** 대표 글 제목에서 상품군을
-  // 읽어(destForText) 그 도착지 배너를 쓴다. 뉴스·시사 섹션에는 걸지 않는다 —
-  // 사건 기사 옆에 "문맥이 맞아 보이는" 광고가 붙는 것이 무관한 광고보다
-  // 나쁘다(2026-08-06 피드에서 겪은 것과 같은 이유).
-// 우리가 "가장 뜨거운 글은 …입니다"라고 **직접 쓰는 문장**의 주어를 고른다.
-// 성적 표현이 든 제목은 건너뛰고 다음 순위로 — 글을 지우는 게 아니라
-// 대표로 내세우지 않을 뿐이다(피드에는 그대로 남는다).
-// 전부 걸리면 예전과 같이 1위를 쓴다(악화시키지 않는다).
-const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) || (arr || [])[0];
-
-  const BRIEF_AD_EVERY = 3;   // 세 섹션마다 한 장
-  const briefingSectionsHtml = (b, mid = "", AD = coupangBannerHtml) => { let midPlaced = false; let adNo = 0; return b.sections.map((sec, secIdx) => {
-    const lead = pickLead(sec.items);
-    // 실측이 0인 지표는 문장에서 아예 뺀다 — "추천 0·댓글 86을 모으며 화제의
-    // 중심"은 자기모순이다(적대적 검수 2026-07-31, 태호·지영 페르소나 지적).
-    const leadParts = [];
-    if (lead.score > 0) leadParts.push(`추천 ${fmtNum(lead.score)}`);
-    if (lead.commentCount > 0) leadParts.push(`댓글 ${fmtNum(lead.commentCount)}`);
-    const leadLine = leadParts.length
-      ? `현재 반응은 ${leadParts.join(" · ")} — ${escapeHtml(sec.label)} 화제의 중심입니다.`
-      : (lead.coverage >= 3 ? `여러 매체가 동시에 다루고 있는 사안입니다.` : `${escapeHtml(lead.sourceLabel)}의 상위 글로 올라와 있습니다.`);
-    const rows = sec.items.map((i) => {
-      const bits = evidenceBits(i);
-      // 발췌를 실으면 비로소 "요약"이 된다. 2026-08-02 검수 실측에서는 10개
-      // 섹션 전부가 같은 템플릿 문장 + 제목 나열이었고 설명 문장이 0개였다 —
-      // 애드핏이 요구한 "자체 콘텐츠"의 반대편이다. 피드에는 이미 summary가
-      // 있는데 브리핑에서 한 줄도 쓰지 않고 있었다.
-      return `<li><a href="${livePostHref(i)}">${escapeHtml(maskProfanity(i.title))}</a>
-        <span class="m">${escapeHtml(i.sourceLabel)}${bits.length ? " · " + bits.join(" · ") : ""}</span></li>`;
-    }).join("");
-    const html = `<section><h2><a href="/briefing/${encodeURIComponent(sec.category)}" style="color:inherit">${escapeHtml(sec.label)}</a></h2>
-      <p>${escapeHtml(sec.label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(maskProfanity(lead.title))}”</b>(${escapeHtml(lead.sourceLabel)})입니다. ${leadLine}</p>
-      <ul>${rows}</ul></section>`;
-    if (mid && !midPlaced) { midPlaced = true; return html + mid; }
-    // 첫 광고는 위의 mid가 이미 놨다. 그 뒤로 BRIEF_AD_EVERY 섹션마다 한 장씩,
-    // 마지막 섹션 뒤에는 놓지 않는다(글 끝에 광고만 남는 모양은 피한다).
-    const isLast = secIdx === b.sections.length - 1;
-    if (mid && !isLast && (secIdx + 1) % BRIEF_AD_EVERY === 0) {
-      adNo += 1;
-      const dest = AD_MATCH_OFF_CATS.has(sec.category)
-        ? null
-        : destForText(sec.items[0] && sec.items[0].title);
-      const ad = AD(sec.category, null, 3 + adNo, `brief_s${secIdx + 1}`, dest);
-      if (ad) return html + ad;
-    }
-    return html;
-  }).join(""); };
-  // 자체 콘텐츠 상호 링크.
-  //
-  // 실측(2026-08-03): sitemap에 /briefing/tech 등 카테고리 브리핑 10개가 있는데
-  // **어느 페이지에서도 링크가 없는 고아 페이지**였다. 구글은 내부 링크로
-  // 발견 가능한지를 중요하게 보고, 링크 없는 페이지는 색인 우선순위가 낮다.
-  // 사용자 쪽으로도 이득이다 — 검색으로 한 페이지에 들어온 사람이 다른 자체
-  // 콘텐츠로 넘어갈 길이 생기면 체류·페이지뷰가 늘고 그게 곧 광고 수익이다.
   const ownContentNav = (current = "") => {
-    const cats = [...new Set(registry.filter((c) => c.enabled && c.category).map((c) => c.category))];
     const links = [
-      { href: "/briefing", label: "지금 브리핑" },
+      { href: "/", label: "오늘판" },
       { href: "/ranking/daily", label: "화제 랭킹" },
       { href: "/trends", label: "실시간 트렌드" },
       { href: "/communities", label: "커뮤니티 순위" },
       { href: "/keywords", label: "화제 키워드" },
       { href: "/report", label: "데이터 리포트" },
-      ...cats.map((c) => ({ href: `/briefing/${encodeURIComponent(c)}`, label: `${categoryLabel(c)} 브리핑` }))
     ].filter((l) => l.href !== current);
     return `<nav class="own-links" aria-label="지금핫이 만든 다른 콘텐츠">
-      <h2>다른 브리핑도 보기</h2>
+      <h2>다른 콘텐츠 보기</h2>
       <ul>${links.map((l) => `<li><a href="${l.href}">${escapeHtml(l.label)}</a></li>`).join("")}</ul>
     </nav>`;
   };
@@ -2850,7 +2507,7 @@ const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) 
     <a href="/ranking/daily" class="${active === "daily" ? "on" : ""}">일간</a>
     <a href="/ranking/weekly" class="${active === "weekly" ? "on" : ""}">주간</a>
     <a href="/ranking/monthly" class="${active === "monthly" ? "on" : ""}">월간</a>
-    <a href="/briefing">브리핑</a></div>`;
+    <a href="/">오늘판</a></div>`;
 
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
@@ -2974,63 +2631,19 @@ const pickLead = (arr) => (arr || []).find((i) => i && !unsafeForLead(i.title)) 
         categoryRouting: engine.editorialCategoryRoutingStatus
       });
 
-      // "오늘의 브리핑" — 실측 데이터로 서버가 직접 작성하는 일일 편집 페이지.
-      // 애드핏 보류 사유("대부분 아웃링크, 자체 콘텐츠 부족") 대응이자 애드센스
-      // "부가가치" 요건 보강. 문장은 전부 실측 수치로만 조립한다(숫자 조작 금지).
-      // ---- RSS 피드 (2026-08-03) ------------------------------------------
-      //
-      // 네이버 서치어드바이저는 사이트맵과 **별개로 RSS를 받아** 새 글을 훨씬
-      // 빨리 수집한다. 우리는 브리핑이 하루 3회 갱신되는 구조라 RSS가 붙으면
-      // 그 리듬을 검색엔진이 따라온다.
-      //
-      // 싣는 것은 **우리가 쓴 문장**뿐이다 — 이슈 문단과 실측 지표. 외부 원문
-      // 본문을 RSS로 재배포하면 저작권 문제이자, 애드핏이 지적한 "외부 콘텐츠
-      // 비중"을 스스로 키우는 짓이다.
-      if (p === "/rss.xml" && req.method === "GET") {
-        const origin = originOf(req);
-        const b = await currentBriefing();
-        const rankTop = ((await engine.rankingTop(20)) || {}).items || [];
-        const now = new Date().toUTCString();
-        const esc = (t) => escapeHtml(maskProfanity(String(t || "")));
-        const items = [];
-        // 1) 이번 편 브리핑 이슈 — 우리가 쓴 문단이 그대로 description이 된다
-        for (const is of (b.issues || [])) {
-          items.push({
-            title: `${b.slot ? b.slot.label + " · " : ""}${is.headline}`,
-            link: `${origin}/briefing`,
-            desc: is.paragraph,
-            guid: `${origin}/briefing#${encodeURIComponent(is.headline)}`
-          });
-        }
-        // 2) 화제 랭킹 상위 — 설명은 원문 발췌가 아니라 우리 실측 지표다
-        for (const i of rankTop.slice(0, 15)) {
-          const bits = [];
-          if (i.score > 0) bits.push(`추천 ${i.score}`);
-          if (i.commentCount > 0) bits.push(`댓글 ${i.commentCount}`);
-          if (i.coverage >= 3) bits.push(`${i.coverage}개 매체 보도`);
-          const link = `${origin}${livePostHref(i)}`;
-          items.push({
-            title: i.title,
-            link,
-            desc: `${i.sourceLabel || ""}${bits.length ? " — " + bits.join(" · ") : ""} (지금핫 실측)`,
-            guid: link
-          });
-        }
-        const body = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0"><channel>
-<title>지금핫 NowHot — 커뮤니티·뉴스 실시간 인기글</title>
-<link>${esc(origin)}/</link>
-<description>여러 커뮤니티와 주요 뉴스에서 지금 가장 화제인 글을 지금핫이 실측 반응 수치로 정리합니다.</description>
-<language>ko</language>
-<lastBuildDate>${now}</lastBuildDate>
-${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}</link>` +
-  `<guid isPermaLink="false">${esc(it.guid)}</guid><description>${esc(it.desc)}</description>` +
-  `<pubDate>${now}</pubDate></item>`).join("\n")}
-</channel></rss>
-`;
-        res.writeHead(200, { "content-type": "application/rss+xml; charset=utf-8" });
-        res.end(body);
-        return;
+      // NH121: 옛 브리핑과 송출 RSS 종료. 오늘판 편집기·수집 RSS는 유지한다.
+      if ((p === "/api/briefing" || p === "/rss.xml") && req.method === "GET") {
+        return send(res, 410, {
+          code: "LEGACY_BRIEFING_RETIRED",
+          error: "기존 오늘의 브리핑과 RSS 제공이 종료되었습니다."
+        }, { "cache-control": "no-store", "x-robots-tag": "noindex" });
+      }
+      if ((p === "/briefing" || p.startsWith("/briefing/")) && req.method === "GET") {
+        res.writeHead(410, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" });
+        return res.end(`<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>기존 브리핑 종료 — 지금핫</title><style>body{max-width:640px;margin:80px auto;padding:24px;font-family:system-ui,sans-serif;line-height:1.7}a{color:#d42d12}</style></head>
+<body><main><h1>기존 오늘의 브리핑을 종료했습니다</h1><p>이 주소의 브리핑과 RSS는 더 이상 제공하지 않습니다. 새로운 오늘판에서 관심 분야별 소식을 확인해 주세요.</p><a href="/">오늘판 보기 →</a></main></body></html>`);
       }
 
       // ---- IndexNow 키 파일 -------------------------------------------------
@@ -3061,7 +2674,6 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
           "Disallow: /admin",
           "Disallow: /p?",           // 공유 링크는 앱으로 튕기는 중계 페이지
           `Sitemap: ${origin}/sitemap.xml`,
-          `Sitemap: ${origin}/rss.xml`,
           ""
         ].join("\n"));
         return;
@@ -3086,25 +2698,11 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         };
         const urls = [
           { loc: "/", freq: "hourly", pri: "1.0", mod: liveMod },
-          { loc: "/briefing", freq: "hourly", pri: "0.9", mod: liveMod },
           { loc: "/report", freq: "daily", pri: "0.8", mod: liveMod },
           { loc: "/about", freq: "monthly", pri: "0.4", mod: fileMod("about.html") },
           { loc: "/terms", freq: "yearly", pri: "0.2", mod: fileMod("terms.html") },
           { loc: "/privacy", freq: "yearly", pri: "0.2", mod: fileMod("privacy.html") }
         ];
-        // 날짜별 아카이브는 실제로 발행 기준을 통과한 편만 색인한다.
-        const dates = store.listEditionDates ? store.listEditionDates().slice(-90) : [];
-        const briefDates = new Set([...dates, ...(store.briefingDates ? store.briefingDates() : [])]);
-        for (const d of briefDates) {
-          const day = SLOTS.map((sl) => store.getBriefing(d, sl.id)).filter(Boolean);
-          const legacy = store.getDailyEdition ? store.getDailyEdition(d) : null;
-          const published = day.some((x) => x && x.publishable) ||
-            Boolean(legacy && legacy.briefing && legacy.briefing.publishable);
-          if (!published) continue;
-          const savedAt = day.length ? Math.max(...day.map((x) => x.savedAt || 0)) : 0;
-          urls.push({ loc: `/briefing/${d}`, freq: "never", pri: "0.5", mod: savedAt ? isoOf(savedAt) : undefined });
-        }
-
         const body = `<?xml version="1.0" encoding="UTF-8"?>\n` +
           `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
           urls.map((u) =>
@@ -3115,76 +2713,6 @@ ${items.map((it) => `<item><title>${esc(it.title)}</title><link>${esc(it.link)}<
         res.writeHead(200, { "content-type": "application/xml; charset=utf-8" });
         res.end(body);
         return;
-      }
-
-      if (p === "/briefing" && req.method === "GET") {
-        const b = await currentBriefing();
-        const dateStr = kstLabel(b.generatedAt);
-        const debateHtml = b.debate
-          ? `<section><h2>오늘의 논쟁</h2><p>가장 많은 댓글이 달린 글은 <b>“${escapeHtml(b.debate.title)}”</b>(${escapeHtml(b.debate.sourceLabel)})입니다 — 댓글 ${fmtNum(b.debate.commentCount)}개가 이어지고 있습니다. <a href="${livePostHref(b.debate)}">지금핫 댓글로 의견 남기기 →</a></p></section>`
-          : "";
-        const archiveDates = store.listEditionDates ? store.listEditionDates().slice(-14).reverse() : [];
-        const archiveHtml = archiveDates.length > 1
-          ? `<section><h2>지난 브리핑</h2><div class="nav">${archiveDates.slice(-14).reverse().map((d) => `<a href="/briefing/${d}">${d}</a>`).join("")}</div></section>`
-          : "";
-        // ⑤ 편성 — 하루 3편. 예전엔 슬롯 이름 세 개를 <span>으로 나열만 해서
-        // 누를 수도 없고 무엇인지도 알 수 없었다(David 실기기 제보: "눌러서
-        // 들어가도 뭔 모닝 런치 이브닝, 만들다 만 형태"). 발행 시각과 그 편의
-        // 성격을 함께 보여주고, 이미 발행된 편은 실제로 눌러 갈 수 있게 한다.
-        const todayKey = kstDate(Date.now());
-        const curSlotId = b.slot ? b.slot.id : null;
-        const nowHour = kstHour(Date.now());
-        const slotNav = `<nav class="slot-rail" aria-label="오늘의 편성">` + SLOTS.map((sl) => {
-          const saved = store.getBriefing(todayKey, sl.id);
-          const isCur = sl.id === curSlotId;
-          const published = Boolean(saved);
-          const cls = [isCur ? "on" : "", published ? "" : "pending"].filter(Boolean).join(" ");
-          const inner2 = `<b>${escapeHtml(sl.label)}</b><span class="t">${sl.publishHour}시</span>` +
-            `<span class="d">${published ? escapeHtml(sl.lead || "") : (nowHour < sl.publishHour ? "발행 예정" : "준비 중")}</span>`;
-          // 지금 보고 있는 편은 링크로 만들지 않는다 — 자기 자신으로 가는 링크는
-          // 사용자를 헷갈리게 하고 크롤러에게도 의미가 없다.
-          return published && !isCur
-            ? `<a class="slot-item ${cls}" href="/briefing/${todayKey}?slot=${sl.id}">${inner2}</a>`
-            : `<span class="slot-item ${cls}">${inner2}</span>`;
-        }).join("") + `</nav>`;
-        const slotLabel = b.slot ? b.slot.label : "";
-        // publishable=false = 수집이 얇아 이슈가 MIN_ISSUES 미만. 빈 글을 발행하지
-        // 않는다 — 알맹이 없는 페이지는 자체 콘텐츠가 아니라 오히려 감점이다.
-        const bodyHtml = b.publishable
-          ? `${slotNav}${issuesHtml(b)}`
-          : `<p class="muted">이 시간대는 아직 정리할 만큼 화제가 모이지 않았습니다. 다음 편에서 이어집니다.</p>`;
-        // 이 페이지에 나가는 광고는 한 묶음으로 본다 — 같은 상품이 두 번
-        // 나오지 않고, 문구도 자리마다 다른 것이 나온다.
-        const AD = adPage(Boolean(b.publishable));
-        // 첫 광고도 **바로 위 글**에 맞춘다. 예전엔 category·dest를 둘 다
-        // null로 넘겨서, 정작 가장 눈에 띄는 자리만 문맥과 무관했다.
-        const sec0 = (b.sections && b.sections[0]) || null;
-        const cat0 = sec0 && !AD_MATCH_OFF_CATS.has(sec0.category) ? sec0.category : null;
-        const dest0 = cat0 && sec0.items[0] ? destForText(sec0.items[0].title) : null;
-        const secL = b.sections && b.sections.length ? b.sections[b.sections.length - 1] : null;
-        const catL = secL && !AD_MATCH_OFF_CATS.has(secL.category) ? secL.category : null;
-        const destL = catL && secL.items[0] ? destForText(secL.items[0].title) : null;
-        const inner = `<h1>지금 브리핑 · ${escapeHtml(slotLabel)}</h1>
-<p class="muted">${dateStr} ${escapeHtml(slotLabel)} · 커뮤니티·뉴스 ${b.sourceCount}곳에서 모은 ${b.itemCount}건을 정리했습니다.
-${b.slot && b.slot.lead ? escapeHtml(b.slot.lead) + " 위주로 봅니다. " : ""}원문 인용 없이 우리가 잰 수치로만 씁니다.</p>
-<p class="muted small">하루 세 번 — 아침 7시·점심 12시·저녁 7시에 한 편씩 발행합니다. 각 편은 그 시간대에 새로 화제가 된 것만 봅니다.</p>
-${bodyHtml}
-${b.essay || b.digestSummary ? `<section class="issue"><h2>종합 분석</h2>${b.essay ? `<p>${escapeHtml(maskProfanity(b.essay))}</p>` : ""}${b.digestSummary ? `<p>${escapeHtml(b.digestSummary)}</p>` : ""}</section>` : ""}
-${rankingNav("")}
-<h2 style="margin-top:28px">분야별 상위 글</h2>
-${briefingSectionsHtml(b, AD(cat0, null, 3, "brief_mid", dest0), AD)}
-${debateHtml}
-${archiveHtml}`;
-        return sendHtml(res, editionShell(`지금 브리핑 · ${escapeHtml(slotLabel)} (${dateStr})`, `${dateStr} ${slotLabel} — 클리앙·뽐뿌·보배드림·이토랜드 등 커뮤니티와 뉴스에서 지금 화제인 이슈를 지금핫이 실측 반응 수치로 정리했습니다.`, inner, "/briefing", ownContentNav("/briefing"), AD(catL, null, 7, "page_bot", destL), !b.publishable));
-      }
-
-      // 홈 최상단 브리핑 스트립용 원자료 (David 2026-07-31: "최상단에 테마별로
-      // 시간별 브리핑") — 클라이언트는 섹션별 대표 이슈만 카드로 얹는다.
-      if (p === "/api/briefing" && req.method === "GET") {
-        // story: 우리 데이터로 쓴 리포트 한 줄(홈 자체 서술 보강, 채택안 B).
-        // SSR(buildHomeSeed)과 같은 헬퍼를 써서 첫 페인트와 JS 이후 화면이
-        // 같은 문장을 보인다 — 한쪽만 고치면 "약속과 실물 불일치"가 된다.
-        return send(res, 200, { ...(await engine.briefing()), story: reportStoryLine() });
       }
 
       // 로컬 고도화 후보: 기존 수집·랭킹·브리핑을 사용자의 명시적 카테고리로
@@ -3341,80 +2869,6 @@ ${AD(null, null, 6, "trends_mid")}
 <p class="muted">트렌드 집계 출처: trends24.in · 지금핫은 트윗 본문을 수집·게재하지 않습니다.
 "우리 피드 N건"은 지금 우리 수집 풀에서 그 말이 제목에 들어간 글의 수이며, 우리가 직접 센 값입니다.</p>`;
         return sendHtml(res, editionShell("실시간 트렌드", "지금 한국에서 가장 많이 언급되는 실시간 트렌드 키워드 TOP 20 — 지금핫", inner, "/trends", ownContentNav("/trends"), "", true));
-      }
-
-      // /briefing/<YYYY-MM-DD> = 일별 아카이브, /briefing/<카테고리> = 라이브
-      // 카테고리 브리핑. 아카이브는 스냅샷이 쌓인 날짜만 존재한다(날조 없음).
-      if (p.startsWith("/briefing/") && req.method === "GET") {
-        const seg = decodeURIComponent(p.slice("/briefing/".length));
-        if (/^\d{4}-\d{2}-\d{2}$/.test(seg)) {
-          // 그날 발행된 편들을 보여준다. 슬롯을 지정하면 그 편, 없으면 마지막 편.
-          // 예전엔 dailyEdition(수집 스냅샷)을 읽어서 **해설이 없었다** —
-          // 지금은 하루 3편을 해설과 함께 저장하므로 아카이브에도 그대로 남는다.
-          const wantSlot = url.searchParams.get("slot");
-          const day = SLOTS.map((sl) => ({ def: sl, data: store.getBriefing(seg, sl.id) })).filter((x) => x.data);
-          let picked = wantSlot ? day.find((x) => x.def.id === wantSlot) : day[day.length - 1];
-          // 새 저장본이 없는 지난 날짜는 예전 스냅샷으로 폴백한다 — 이미 색인된
-          // 주소가 갑자기 404가 되면 그건 우리 손해다.
-          let b = picked && picked.data;
-          if (!b) {
-            const ed = store.getDailyEdition ? store.getDailyEdition(seg) : null;
-            b = ed && ed.briefing;
-          }
-          if (!b) return send(res, 404, { error: "no edition for that date" });
-          const AD = adPage(Boolean(b.publishable));
-
-          const dates = store.briefingDates ? store.briefingDates() : [];
-          const at = dates.indexOf(seg);
-          const prev = at > 0 ? dates[at - 1] : null;
-          const next = at >= 0 && at < dates.length - 1 ? dates[at + 1] : null;
-          // 홈 브리핑과 같은 레일을 쓴다 — 화면마다 다른 모양이면 같은 기능인 걸
-          // 알아보지 못한다. 그날 발행되지 않은 편은 흐리게 두고 누를 수 없게 한다.
-          const slotNav = `<nav class="slot-rail" aria-label="그날의 편성">` + SLOTS.map((sl) => {
-            const has = day.find((x) => x.def.id === sl.id);
-            const isCur = picked && picked.def.id === sl.id;
-            const inner2 = `<b>${escapeHtml(sl.label)}</b><span class="t">${sl.publishHour}시</span>` +
-              `<span class="d">${has ? escapeHtml(sl.lead || "") : "발행 없음"}</span>`;
-            const cls = [isCur ? "on" : "", has ? "" : "pending"].filter(Boolean).join(" ");
-            return has && !isCur
-              ? `<a class="slot-item ${cls}" href="/briefing/${seg}?slot=${sl.id}">${inner2}</a>`
-              : `<span class="slot-item ${cls}">${inner2}</span>`;
-          }).join("") + `</nav>`;
-          const dayNav = `<nav class="day-nav" aria-label="날짜 이동">` +
-            (prev ? `<a href="/briefing/${prev}">← ${prev}</a>` : `<span></span>`) +
-            `<span class="day-cur">${seg}</span>` +
-            (next ? `<a href="/briefing/${next}">${next} →</a>` : `<span></span>`) +
-            `</nav>`;
-          const slotLabel = picked ? ` · ${picked.def.label}` : "";
-          const inner = `<h1>${seg} 브리핑${escapeHtml(slotLabel)}</h1>
-<p class="muted">화제글 ${b.itemCount}건 / 소스 ${b.sourceCount}곳${b.slot && b.slot.lead ? ` · ${escapeHtml(b.slot.lead)}` : ""}</p>
-<p class="muted small">하루 세 번 — 아침 7시·점심 12시·저녁 7시에 한 편씩 발행합니다.</p>
-${dayNav}${slotNav}
-${b.publishable ? issuesHtml(b) : '<p class="muted">이 편은 발행 기준을 충족할 만큼 신호가 모이지 않았습니다.</p>'}
-${b.essay || b.digestSummary ? `<section class="issue"><h2>종합 분석</h2>${b.essay ? `<p>${escapeHtml(maskProfanity(b.essay))}</p>` : ""}${b.digestSummary ? `<p>${escapeHtml(b.digestSummary)}</p>` : ""}</section>` : ""}
-${rankingNav("")}
-<h2 style="margin-top:28px">분야별 상위 글</h2>
-${briefingSectionsHtml(b, AD(null, null, 4, "archive_mid"))}`;
-          return sendHtml(res, editionShell(`${seg} 브리핑${slotLabel}`, `${seg} 커뮤니티와 뉴스에서 가장 화제였던 글 — 지금핫 브리핑 아카이브`, inner, `/briefing/${seg}`, ownContentNav(), AD(null, null, 5, "archive_bot"), !b.publishable));
-        }
-        // 카테고리 내부 기준(하한 없음) — 전국 랭킹 기준을 빌리면 무반응
-        // 뉴스가 많은 카테고리(자동차 등)가 텅 비어 보인다 (2026-08-01 실측).
-        const catTop = await engine.categoryTop(seg, 10);
-        const catItems = catTop.items;
-        if (!catItems.length) return send(res, 404, { error: "unknown category" });
-        const AD = adPage(false);
-        const all = { generatedAt: catTop.generatedAt };
-        const label = catItems[0].categoryLabel;
-        const lead = pickLead(catItems);
-        const leadBits = evidenceBits(lead);
-        const inner = `<h1>${escapeHtml(label)} 브리핑</h1>
-<p class="muted">${kstLabel(all.generatedAt)} · 지금 ${escapeHtml(label)} 분야에서 가장 화제인 글을 실측 반응 기준으로 정리했습니다. 수집은 15분마다 돌고, 이 목록은 그때마다 최신 반응을 반영합니다.</p>
-${rankingNav("")}
-<p>지금 ${escapeHtml(label)} 분야에서 가장 뜨거운 글은 <b>“${escapeHtml(lead.title)}”</b>(${escapeHtml(lead.sourceLabel)})입니다${leadBits.length ? ` — ${leadBits.join(" · ")}` : ""}.</p>
-${rankingRows(catItems, (above) => AD(
-  AD_MATCH_OFF_CATS.has(seg) ? null : seg, null, 1, "briefcat_mid",
-  AD_MATCH_OFF_CATS.has(seg) || !above ? null : destForText(above.title)))}`;
-        return sendHtml(res, editionShell(`${label} 인기글 브리핑`, `${label} 분야에서 지금 가장 화제인 커뮤니티 글과 뉴스 — 지금핫이 실측 반응 수치로 정리했습니다.`, inner, `/briefing/${encodeURIComponent(seg)}`, ownContentNav(`/briefing/${encodeURIComponent(seg)}`), "", true));
       }
 
       // 화제 랭킹 TOP 20 — 일간(라이브) / 주간·월간(일별 스냅샷 병합).
@@ -4737,12 +4191,8 @@ ${rankingRows(list, (above) => {
           // 오늘판은 기존 쿠팡 재고를 본문·상세에서 사용한다 (David, NH118).
           return serveStatic(res, "/today.html");
         }
-        homeSeedSnapshot();
-        const inner = editorialHomeHtml(editorialBriefingSnapshot());
-        return sendHtml(res, editionShell(
-          "지금핫 — 공개 반응 데이터로 읽는 오늘의 이슈",
-          "커뮤니티와 뉴스의 공개 반응을 직접 계측해 지금 함께 번지는 이슈와 흐름을 해설합니다.",
-          inner, "/"));
+        res.writeHead(307, { location: "/live", "cache-control": "no-cache" });
+        return res.end();
       }
       if (p === "/index.html" && req.method === "GET") {
         res.writeHead(308, { location: "/live", "cache-control": "no-cache" });
@@ -4750,7 +4200,7 @@ ${rankingRows(list, (above) => {
       }
       if (p === "/live" && req.method === "GET") {
         const cached = homeSeedSnapshot();
-        return serveStatic(res, "/index.html", cached.seed, cached.ownSeed);
+        return serveStatic(res, "/index.html", cached.seed);
       }
       if (req.method === "GET") {
         return serveStatic(res, p);

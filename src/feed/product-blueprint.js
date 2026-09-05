@@ -2558,9 +2558,9 @@ export const PRODUCT_BLUEPRINT = deepFreeze({
     { path: "/", role: "최신 개인 브리핑 판본", index: "index", acceptance: "선택 분야의 국내외 필수·화제·유용 정보를 고정 개수 없이 한 페이지에 완결", state: "local_candidate" },
     { path: "/live", role: "같은 셸의 실시간 모드", index: "noindex", acceptance: "홈 복귀·개인화·필터·읽던 위치 보존", state: "local_candidate" },
     { path: "/story/:clusterId", role: "사건 단위 상세", index: "conditional", acceptance: "타임라인·측정 근거·출처·해설·관전", state: "planned" },
-    { path: "/briefing", role: "판본 아카이브", index: "index", acceptance: "날짜와 아침·낮·저녁 판본을 탐색하되 오늘 본문을 복제하지 않음", state: "role_change" },
-    { path: "/briefing/YYYY-MM-DD", role: "하루 판본 색인", index: "index", acceptance: "해당 날짜의 세 판과 수정 이력을 제공", state: "existing_to_upgrade" },
-    { path: "/briefing/YYYY-MM-DD/:edition", role: "검증된 개별 판본", index: "index", acceptance: "발행 당시 근거·구성·이전 판과의 차이를 고정", state: "planned" },
+    { path: "/briefing", role: "종료된 기존 브리핑", index: "noindex", acceptance: "410 종료 안내와 오늘판 링크; 과거 기록은 보존", state: "retired" },
+    { path: "/briefing/YYYY-MM-DD", role: "종료된 기존 브리핑", index: "noindex", acceptance: "410 종료 안내와 오늘판 링크; 과거 기록은 보존", state: "retired" },
+    { path: "/briefing/YYYY-MM-DD/:edition", role: "종료된 기존 브리핑", index: "noindex", acceptance: "410 종료 안내와 오늘판 링크; 과거 기록은 보존", state: "retired" },
     { path: "/report", role: "방법론·데이터 리포트", index: "index", acceptance: "측정 정의와 한계를 구체적으로 공개", state: "existing_to_upgrade" }
   ],
   contentContract: [

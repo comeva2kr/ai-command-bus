@@ -843,7 +843,7 @@ test("오늘판 API: 같은 분야의 24시간 이내 검증판만 반복 보류
   });
   const base = await listen(server);
   try {
-    await fetch(`${base}/api/briefing`);
+    await fetch(`${base}/communities`);
     now = "2026-08-11T07:05:00+09:00";
     const morningResponse = await fetch(`${base}/api/today?categories=business&slot=morning`);
     const morning = await morningResponse.json();
@@ -880,7 +880,7 @@ test("오늘판 API: 이전 검증 영수증 지문이 달라지면 같은 판�
   });
   const morningBase = await listen(morningServer);
   try {
-    await fetch(`${morningBase}/api/briefing`);
+    await fetch(`${morningBase}/communities`);
     morningNow = "2026-08-11T07:05:00+09:00";
     const response = await fetch(`${morningBase}/api/today?categories=business&slot=morning`);
     assert.equal(response.status, 200);

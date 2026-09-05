@@ -62,7 +62,7 @@ services:
       - GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}
       # 카카오 애드핏 모바일 배너 광고단위(공개값).
       - ADFIT_UNIT_MOBILE=${ADFIT_UNIT_MOBILE:-}
-      # 1이면 AdFit 심사 모드: 이전 SSR 홈·/briefing·발행 아카이브·/report 같은
+      # 1이면 AdFit 심사 모드: /report 같은
       # 자체 편집 지면에만 한 단위를 두고, 그 지면의 AdSense·쿠팡은 끈다.
       # 개인 오늘판과 /live는 쿠팡을 독립적으로 제공하며 AdFit 단위·SDK를 전달하지 않는다.
       # 기본값은 꺼짐. 재심사 직전 검증된 릴리스에서만 1로 전환한다.

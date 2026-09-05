@@ -45,9 +45,8 @@ test("몰입: 정확히 한 콘텐츠씩 넘어간다 (scroll-snap-stop)", () =>
     "stop:always가 없으면 세게 튕길 때 두세 칸이 한 번에 지나간다");
 });
 
-test("몰입: 상단 브리핑·트렌드 스트립을 숨긴다 (공간 확보)", () => {
-  assert.match(html, /body\.immersion #briefStrip[\s\S]{0,60}display:none/,
-    "David 지시: 몰입 중에는 상단 스트립이 공간을 많이 먹으니 뺀다");
+test("몰입: 종료된 브리핑 스트립이 공간을 차지하지 않는다", () => {
+  assert.doesNotMatch(html, /id="briefStrip"|id="ownBlock"/);
 });
 
 test("몰입: 사진이 남는 공간을 갖고, 글이 길면 사진이 줄어든다", () => {

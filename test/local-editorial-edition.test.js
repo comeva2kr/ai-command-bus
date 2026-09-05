@@ -1227,7 +1227,7 @@ test("검수 패킷 고정: 42행을 파일에 보존하고 재시작 뒤 같은
   }
 });
 
-test("서버: 로컬 플래그가 오늘판 홈·선택 저장을 열고 꺼지면 기존 홈을 보존한다", async () => {
+test("서버: 오늘판 홈·선택·지난 판은 유지하고 플래그가 꺼지면 실시간으로 이동한다", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const adminToken = "editorial-review-test";
   const canaryDir = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-canary-test-"));
@@ -1267,7 +1267,7 @@ test("서버: 로컬 플래그가 오늘판 홈·선택 저장을 열고 꺼지�
       "07시 전 전날 판을 보여줄 때 전날 모닝·런치 탭까지 잠그면 안 된다");
     assert.match(home, /query\.set\("date",targetDate\)/,
       "전날 판의 다른 슬롯을 누를 때 표시 날짜를 서버에 전달해야 한다");
-    await fetch(`${base}/api/briefing`).then((res) => res.json());
+    await fetch(`${base}/communities`).then((res) => res.text());
     testNow = Date.parse("2026-08-10T13:00:00+09:00");
     const session = await fetch(`${base}/api/session`, {
       method: "POST",

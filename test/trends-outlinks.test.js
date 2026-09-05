@@ -37,7 +37,7 @@ test("/trends는 우리 페이지로 가는 길을 더하되 X 길을 막지 않
   // 그랬다 — 눌러도 아무 데도 못 가는 화면이 된다. 그건 심사를 위해 기능을
   // 줄인 것이다(David 2026-08-06: "목적을 위해 어거지로 맞추지마").
   const src = readFileSync("src/feed/server.js", "utf8");
-  const route = src.slice(src.indexOf('if (p === "/trends"'), src.indexOf('if (p.startsWith("/briefing/")'));
+  const route = src.slice(src.indexOf('if (p === "/trends"'), src.indexOf('if (p === "/communities"'));
   assert.match(route, /mineHref = `\/keyword\//, "우리 키워드 페이지로 안 보낸다");
   assert.match(route, /x\.searchUrl/, "X로 가는 길이 사라졌다 — 눌러도 갈 곳이 없는 키워드가 생긴다");
   assert.match(route, /우리 피드 \$\{x\.hits\}건/, "실측값을 화면에 안 적는다");

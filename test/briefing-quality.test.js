@@ -354,10 +354,10 @@ test("sitemap.xml은 자체 편집 페이지만 담고 실시간·유틸리티 �
     // 오리진은 요청 호스트에서 만든다(originOf) — 테스트 서버는 127.0.0.1이다.
     // 도메인을 하드코딩하면 스테이징·로컬에서 틀린 sitemap이 나가는 것을 놓친다.
     const origin = `http://127.0.0.1:${port}`;
-    for (const must of ["/", "/briefing", "/report"]) {
+    for (const must of ["/", "/report"]) {
       assert.ok(xml.includes(`<loc>${origin}${must}</loc>`), `sitemap에 ${must}가 없다`);
     }
-    for (const excluded of ["/live", "/ranking/daily", "/trends", "/communities", "/keywords"]) {
+    for (const excluded of ["/briefing", "/rss.xml", "/live", "/ranking/daily", "/trends", "/communities", "/keywords"]) {
       assert.ok(!xml.includes(`<loc>${origin}${excluded}</loc>`), `유틸리티 지면 ${excluded}가 sitemap에 들어갔다`);
     }
     // 개인화 API는 색인 대상이 아니다
@@ -384,21 +384,15 @@ test("robots.txt가 sitemap을 가리키고 개인화·관리 경로를 막는�
   }
 });
 
-test("루트는 자체 편집 홈이고 기존 개인화 앱은 /live noindex로 분리된다", async () => {
+test("오늘판 플래그가 꺼지면 옛 홈을 부활시키지 않고 /live로 이동한다", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const server = createServer({ dev: true });
   await new Promise((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
-    const root = await (await fetch(`${base}/`)).text();
-    assert.match(root, /<link rel="canonical" href="https:\/\/nowhot\.kr\/">/);
-    assert.doesNotMatch(root, /<meta name="robots" content="noindex,follow">/);
-    assert.match(root, /<h1>지금핫<\/h1>/);
-    assert.match(root, /어떻게 고르나/);
-    assert.match(root, /href="\/live"/);
-    const body = root.slice(root.indexOf("<body"));
-    assert.doesNotMatch(body, /<a[^>]+href="https?:\/\//,
-      "편집 홈 본문은 외부 링크 모음이어서는 안 된다");
+    const root = await fetch(`${base}/`, { redirect: "manual" });
+    assert.equal(root.status, 307);
+    assert.equal(root.headers.get("location"), "/live");
 
     const live = await (await fetch(`${base}/live`)).text();
     assert.match(live, /<link rel="canonical" href="https:\/\/nowhot\.kr\/live">/);
@@ -413,7 +407,7 @@ test("루트는 자체 편집 홈이고 기존 개인화 앱은 /live noindex로
   }
 });
 
-test("AdFit 심사 모드는 편집 홈에 한 단위만 두고 실시간 쿠팡은 유지한다", async (t) => {
+test("AdFit 설정이 옛 브리핑을 복원하지 않고 실시간 쿠팡은 유지한다", async (t) => {
   const { createServer } = await import("../src/feed/server.js");
   const prev = {
     a: process.env.ADSENSE_CLIENT,
@@ -446,16 +440,10 @@ test("AdFit 심사 모드는 편집 홈에 한 단위만 두고 실시간 쿠팡
     await new Promise((r) => server.listen(0, r));
     let port = server.address().port;
     let html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
-    assert.equal((html.match(/class="kakao_ad_area"/g) || []).length, 1,
-      "편집 홈의 AdFit 지면은 정확히 한 단위여야 한다");
-    assert.match(html, /t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/, "AdFit SDK가 있어야 한다");
-    assert.doesNotMatch(html, /pagead2\.googlesyndication\.com|class="adsbygoogle"/,
-      "심사 모드에서 AdSense를 함께 로드하면 안 된다");
-    assert.doesNotMatch(html, /link\.coupang\.com|쿠팡 파트너스/,
-      "심사 모드 편집 지면에 제휴 광고를 섞으면 안 된다");
-    assert.match(html, /class="ad-mark"/, "AD 표기가 있어야 한다");
-    assert.ok(html.indexOf("<h1>") < html.indexOf('<div class="ad-slot">'),
-      "본문이 광고보다 앞서야 한다");
+    assert.doesNotMatch(html, /<script[^>]+src=["'][^"']*kakaocdn/i);
+    const retired = await fetch(`http://127.0.0.1:${port}/briefing`);
+    assert.equal(retired.status, 410);
+    assert.doesNotMatch(await retired.text(), /kakao_ad_area|link\.coupang\.com/);
 
     const live = await (await fetch(`http://127.0.0.1:${port}/live`)).text();
     assert.match(live, /<meta name="robots" content="noindex,follow">/);
@@ -488,8 +476,8 @@ test("AdFit 심사 모드는 편집 홈에 한 단위만 두고 실시간 쿠팡
     await new Promise((r) => server.listen(0, r));
     port = server.address().port;
     html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
-    assert.doesNotMatch(html, /adsbygoogle/);
-    assert.doesNotMatch(html, /kakao_ad_area/);
+    assert.doesNotMatch(html, /class="adsbygoogle"|<script[^>]+src=["'][^"']*googlesyndication/i);
+    assert.doesNotMatch(html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ""), /class="kakao_ad_area"/);
     // CSS 규칙(.ad-slot{})은 항상 있어도 무해하다 — 실제 지면 div만 없으면 된다
     assert.ok(!html.includes('<div class="ad-slot">'), '광고 설정이 없으면 지면이 없어야 한다');
     server.closeAllConnections?.(); await new Promise((r) => server.close(r));
@@ -553,15 +541,10 @@ test("홈에 크롤러가 읽을 정적 글 목록이 심긴다 (네이버는 JS
   const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
 
   // 주입은 스켈레톤 자리를 대체한다 — 사용자도 같은 것을 본다(클로킹 아님)
-  assert.match(src, /function serveStatic\(res, urlPath, seedHtml = "", ownSeedHtml = "", pageExtras = null\)/,
+  assert.match(src, /function serveStatic\(res, urlPath, seedHtml = "", pageExtras = null\)/,
     "serveStatic이 seed와 자체 콘텐츠 seed를 받아야 한다");
-  // 2026-08-06: 애드핏 4차 반려("아웃링크 비중이 높다") 대응으로 만든 자체
-  // 콘텐츠 블록이 **JS로만 채워져서** 원본 HTML에는 빈 section이었다.
-  // 바로 옆 briefStrip·feedSkel에는 이미 같은 처방을 해 뒀는데 정작 그 산출물만
-  // 빠뜨렸다 — 크롤러·심사 봇에게는 반려 사유 그대로였다.
-  assert.match(src, /ownSeedHtml && ext === "\.html" && rel === "index\.html"/,
-    "자체 콘텐츠 블록에 서버 시드가 없다");
-  assert.match(src, /await engine\.briefing\(\)/, "홈 자체 콘텐츠 시드는 브리핑에서 뽑는다");
+  assert.doesNotMatch(src, /ownSeedHtml|await engine\.briefing\(\)/,
+    "실시간 초기 화면이 옛 브리핑을 만들면 안 된다");
   assert.match(src, /seedHtml && ext === "\.html" && rel === "index\.html"/);
   assert.match(src, /rankingTop\(20\)/, "홈 seed는 화제 랭킹에서 뽑는다");
   // 2026-08-04: 제목만 심던 것을 출처·실측 반응·발췌까지로 넓혔다. 제목 12줄로는
@@ -571,7 +554,7 @@ test("홈에 크롤러가 읽을 정적 글 목록이 심긴다 (네이버는 JS
   // 서비스 구성이 첫 화면에서 드러나야 한다 — /communities·/keywords는
   // 만들어 놓고도 홈에서 갈 링크가 0개였다.
   assert.match(src, /seed-nav/, "자체 페이지로 가는 내비게이션");
-  for (const href of ["/briefing", "/ranking/daily", "/communities", "/keywords", "/trends"]) {
+  for (const href of ["/", "/ranking/daily", "/communities", "/keywords", "/trends"]) {
     assert.ok(src.includes(`"${href}"`), `홈 내비에 ${href} 누락`);
   }
   // rankingTop은 { generatedAt, items } 를 준다 — 배열로 착각하면 조용히 빈다
@@ -590,19 +573,7 @@ test("홈에 크롤러가 읽을 정적 글 목록이 심긴다 (네이버는 JS
 });
 
 // ── 2026-08-04 David 실기기 제보 2건 ────────────────────────────────────────
-test("브리핑: LLM 해설을 요청 안에서 기다리지 않는다", async () => {
-  const fs = await import("node:fs");
-  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
-  // 실측: /briefing 응답이 24초였다. 캐시는 있었지만 미스일 때 API 응답을
-  // 요청 안에서 그대로 기다렸다 — 사용자에겐 "아무것도 안 되는" 화면이다.
-  // 해설 없는 페이지를 즉시 주고 생성은 뒤에서 돌린다.
-  assert.match(src, /const hit = essayCache\.get\(key\);/, "캐시 적중 여부를 밖에서 물어볼 수 있어야 한다");
-  assert.match(src, /if \(hit\) return hit;/);
-  assert.match(src, /essayPending/, "같은 키로 중복 호출하면 첫 방문자 여러 명이 같은 API를 부른다");
-  // await로 기다리면 안 된다 — 이게 무너지면 다시 24초가 된다
-  const fn = src.slice(src.indexOf("const withEssay = async"), src.indexOf("const withEssay = async") + 900);
-  assert.ok(!/await llmWriter/.test(fn), "해설 생성을 await하면 요청이 다시 막힌다");
-});
+
 
 test("랭킹: 목록이 광고로 쪼개져도 순위 번호가 이어진다", async () => {
   const fs = await import("node:fs");
@@ -635,20 +606,7 @@ test("편성: 슬롯마다 보는 구간과 해외 비중이 다르다", async (
   assert.equal(isOverseas(null), false);
 });
 
-test("편성: 요청이 아니라 슬롯 시각에 만들어 저장한다", async () => {
-  const fs = await import("node:fs");
-  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
-  // 예전엔 요청마다 다시 만들어서 (1) 캐시 미스 시 24초 대기 (2) 15분마다 내용이
-  // 바뀌어 "오늘의 브리핑"이라 부를 편이 없었고 (3) 아카이브에 해설이 0건이었다.
-  assert.match(src, /function dueSlot/, "지금 발행됐어야 할 슬롯을 판단해야 한다");
-  assert.match(src, /store\.saveBriefing/, "만든 편을 저장해야 아카이브에 남는다");
-  assert.match(src, /async function currentBriefing/, "페이지는 저장본을 읽는다");
-  // 배경 작업에서는 해설을 기다린다 — 아무도 그 시간을 체감하지 않는다
-  const bg = src.slice(src.indexOf("async function buildAndStoreBriefing"), src.indexOf("async function buildAndStoreBriefing") + 900);
-  assert.match(bg, /await llmWriter/, "배경 생성에서는 해설을 붙여 저장한다");
-  // 정각을 놓쳐도(재기동 등) 다음 점검에서 채운다
-  assert.match(src, /if \(store\.getBriefing\(kstDate\(now\), due\.id\)\) return;/, "이미 있으면 다시 만들지 않는다");
-});
+
 
 test("store: 브리핑 저장·조회·최근 편 되찾기", async () => {
   const { FeedStore } = await import("../src/feed/store.js");
@@ -664,16 +622,7 @@ test("store: 브리핑 저장·조회·최근 편 되찾기", async () => {
   assert.deepEqual(store.briefingDates(), ["2026-08-04"]);
 });
 
-test("편성: 같은 편을 두 번 만들지 않는다 (타이머와 요청의 경합)", async () => {
-  const fs = await import("node:fs");
-  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
-  // 실측(2026-08-04 배포 직후): 같은 편이 두 번 발행됐다. 타이머와 페이지
-  // 요청이 동시에 저장 여부를 확인하면 둘 다 "아직 없다"로 통과한다 —
-  // 해설 API가 20초쯤 걸려 그 창이 넓다. 토큰도 두 번 쓴다.
-  assert.match(src, /briefingInFlight/, "진행 중인 편성을 공유해야 한다");
-  assert.match(src, /const running = briefingInFlight\.get\(key\);/);
-  assert.match(src, /if \(running\) return running;/, "이미 만들고 있으면 그 약속을 함께 기다린다");
-});
+
 
 test("편성: mainFeed:false 소스는 브리핑·랭킹에서도 빠진다", async () => {
   const fs = await import("node:fs");
@@ -712,24 +661,7 @@ test("편성: 게임은 유머판·매니악 커뮤니티가 아닌 국내외 �
     "루리웹 유머판을 게임 전문 뉴스로 다시 오인하면 안 된다");
 });
 
-test("편성 화면: 슬롯이 무엇인지 알 수 있고 발행된 편은 눌러 갈 수 있다", async () => {
-  const fs = await import("node:fs");
-  const src = fs.readFileSync(new URL("../src/feed/server.js", import.meta.url), "utf8");
-  // David 실기기 제보: "눌러서 들어가도 뭔 모닝 런치 이브닝, 만들다 만 형태".
-  // 예전엔 슬롯 이름 세 개를 <span>으로 나열만 해서 누를 수도 없고 무엇인지도
-  // 알 수 없었다. 발행 시각과 그 편의 성격을 함께 보여준다.
-  assert.match(src, /slot-rail/, "편성 레일 누락");
-  assert.match(src, /\$\{sl\.publishHour\}시/, "발행 시각을 보여줘야 무엇인지 안다");
-  assert.match(src, /escapeHtml\(sl\.lead \|\| ""\)/, "그 편의 성격 설명");
-  assert.match(src, /href="\/briefing\/\$\{todayKey\}\?slot=\$\{sl\.id\}"/, "발행된 편은 실제 링크");
-  assert.match(src, /published && !isCur/, "지금 보는 편은 자기 자신으로 링크하지 않는다");
-  // 홈 브리핑과 아카이브가 같은 모양을 써야 같은 기능인 걸 알아본다
-  const rails = src.match(/slot-rail/g) || [];
-  assert.ok(rails.length >= 3, `레일이 ${rails.length}곳 — 홈·아카이브·CSS 모두 필요`);
-  // "15분마다 갱신"은 이제 사실이 아니다 — 하루 3편이다
-  assert.ok(!/브리핑[^<]*15분마다 갱신됩니다/.test(src), "옛 갱신 주기 문구가 남아 있다");
-  assert.match(src, /하루 세 번 — 아침 7시·점심 12시·저녁 7시/, "실제 편성 주기를 밝힌다");
-});
+
 
 test("브리핑: 검색 급상승과 이어지는 중요 소식이 대표로 올라온다", async () => {
   // David 2026-08-05: "트렌드 지수가 높은 관심사와 연관된 소식 중 가장 인용도

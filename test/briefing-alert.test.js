@@ -1,75 +1,8 @@
-// 새 브리핑 편성 알림 + 브리핑 본문 사이사이 연관 광고 (David 2026-08-06).
-//
-// "오늘의 브리핑 하루 세번 업데이트되면, 눌러서 보기전까지 보기좋게 깜빡이게
-//  하자. 먼저 보기 유도하게. (그 안에도 연관 광고 사이사이 넣고) 고급스럽게
-//  깜빡이자 튀지않고 은은하게."
+// NH121: 옛 브리핑 종료. 공용 광고 선택 기능은 유지한다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const html = () => readFileSync("src/feed/public/index.html", "utf8");
-const server = () => readFileSync("src/feed/server.js", "utf8");
-
-test("편성 식별은 날짜+슬롯이다 — generatedAt이 아니다", () => {
-  const h = html();
-  // generatedAt은 재생성될 때마다 바뀐다. 그걸 쓰면 같은 편성인데도 계속
-  // 새것으로 읽혀서, 이미 본 사람에게도 알림이 멈추지 않는다.
-  assert.match(h, /function briefEditionId\(b\)/);
-  assert.match(h, /\(b\.slot && b\.slot\.id\)/, "슬롯 id를 안 쓴다");
-  // 한국 날짜로 잘라야 한다 — 서버가 UTC로 주므로 그냥 자르면 저녁 편성이
-  // 다음 날로 넘어가 매일 밤 한 번씩 잘못 표시된다.
-  assert.match(h, /9 \* 3600 \* 1000/, "KST 보정이 없다");
-});
-
-test("본 편성은 기억하고, 다시 깜빡이지 않는다", () => {
-  const h = html();
-  assert.match(h, /const BRIEF_SEEN_KEY = "nh_brief_seen"/);
-  assert.match(h, /markBriefSeen\(edition\)/, "클릭 시 읽음 기록이 없다");
-  assert.match(h, /classList\.remove\("is-new", ?"is-new-quiet"\)/, "누른 뒤에도 표시가 남는다");
-  // 읽음 여부로 클래스가 갈린다
-  assert.match(h, /const isNew = edition && briefSeen\(\) !== edition/);
-});
-
-test("깜빡임이 튀지 않는다 — 호흡, 그리고 움직임 축소 존중", () => {
-  const h = html();
-  // opacity 0↔1 점멸이 아니라 테두리·글로우가 차오르는 방식이어야 한다.
-  assert.match(h, /@keyframes briefBreathe/);
-  // 5초로 시작했다가 3초로 줄였다 — David 실기기 "눈에 너무 안 띄어"(2026-08-06).
-  // 느리면 눈이 변화에 적응해 정지한 것처럼 보인다. 세기가 아니라 리듬 문제였다.
-  // 2초 밑으로 내려가면 그때는 깜빡임이 되어 "튀지 않게"를 어긴다.
-  const dur = Number((h.match(/\.brief-card\.is-new\{[^}]*animation:briefBreathe (\d+(?:\.\d+)?)s/) || [])[1]);
-  assert.ok(dur >= 2.5 && dur <= 4, `호흡 주기가 ${dur}초 — 2.5~4초 밖이면 튀거나 안 보인다`);
-  // 글자를 흔들면 읽는 데 방해가 된다.
-  assert.ok(!/\.brief-card\.is-new \.bc-title\{[^}]*animation/.test(h),
-    "제목에 애니메이션이 걸렸다");
-  // 스트립 전체가 한꺼번에 맥동하면 은은한 게 아니라 화면이 깜빡이는 것이다.
-  // 호흡하는 카드는 대표 한 장뿐이고, 카테고리 카드는 조용한 표시만 받는다.
-  assert.match(h, /is-new-quiet/, "카테고리 카드까지 전부 호흡한다");
-  assert.ok(!/\.brief-card\.is-new-quiet\{[^}]*animation/.test(h),
-    "조용한 표시에 애니메이션이 걸렸다");
-  // 움직임 축소 설정에서는 표식만 남기고 멈춘다 — 알림을 없애지는 않는다.
-  const rm = h.match(/@media \(prefers-reduced-motion: reduce\)\{[\s\S]{0,400}?\}\s*\}/g) || [];
-  assert.ok(rm.some((b) => b.includes(".brief-card.is-new")), "움직임 축소 대응이 없다");
-});
-
-test("브리핑 본문에 광고가 사이사이 들어간다", () => {
-  const s = server();
-  // 예전엔 가운데 딱 한 장이었다 — 9개 섹션짜리 글에 광고 하나면 대부분 지나친다.
-  assert.match(s, /const BRIEF_AD_EVERY = 3/);
-  assert.match(s, /\(secIdx \+ 1\) % BRIEF_AD_EVERY === 0/);
-  // 마지막 섹션 뒤에는 놓지 않는다 — 글 끝에 광고만 남는 모양은 피한다.
-  assert.match(s, /const isLast = secIdx === b\.sections\.length - 1/);
-  assert.match(s, /mid && !isLast &&/);
-});
-
-test("브리핑 광고도 그 섹션의 상품군을 따라가되, 시사에는 걸지 않는다", () => {
-  const s = server();
-  assert.match(s, /destForText\(sec\.items\[0\] && sec\.items\[0\]\.title\)/,
-    "섹션 대표 글로 상품군을 읽지 않는다");
-  assert.match(s, /AD_MATCH_OFF_CATS\.has\(sec\.category\)/,
-    "뉴스·시사 섹션에도 문맥 매칭이 걸린다");
-  assert.match(s, /const AD_MATCH_OFF_CATS = new Set\(\["news", "politics"\]\)/);
-});
 
 test("배너를 도착지로 고를 수 있다 — 없으면 조용히 기존 순서로", async () => {
   const { pickBanner } = await import("../src/feed/manual-products.js");
@@ -79,4 +12,47 @@ test("배너를 도착지로 고를 수 있다 — 없으면 조용히 기존 �
   // 없는 도착지를 달라고 해도 광고가 사라지면 안 된다.
   const fallback = pickBanner({ dest: "존재하지않는도착지" });
   assert.ok(fallback, "없는 도착지를 요청했더니 광고가 통째로 사라졌다");
+});
+
+
+test("옛 브리핑·RSS는 수집/발행 없이 GET·HEAD 410을 내고 오늘판은 유지한다", async () => {
+  const { createServer } = await import("../src/feed/server.js");
+  const { JsonSource } = await import("../src/feed/content.js");
+  let collected = 0;
+  const srv = createServer({ localEditorial: true, localEditorialInventorySchedule: false,
+    sources: [new JsonSource("clien", async () => { collected++; return []; }, "community")] });
+  await new Promise(resolve => srv.listen(0, resolve));
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    for (const path of ["/briefing", "/briefing/2026-09-04?slot=lunch", "/briefing/tech", "/briefing/%3Cscript%3E", "/api/briefing", "/rss.xml"]) {
+      for (const method of ["GET", "HEAD"]) {
+        const response = await fetch(base + path, { method });
+        assert.equal(response.status, 410, path);
+        assert.equal(response.headers.get("cache-control"), "no-store");
+        assert.equal(response.headers.get("x-robots-tag"), "noindex");
+        const body = await response.text();
+        if (method === "HEAD") assert.equal(body, "");
+        else if (path.startsWith("/briefing")) {
+          assert.match(body, /종료했습니다/);
+          assert.match(body, /href="\/"/);
+          assert.doesNotMatch(body, /<script|kakao_ad_area|link\.coupang\.com|<article/);
+        } else assert.equal(JSON.parse(body).code, "LEGACY_BRIEFING_RETIRED");
+      }
+    }
+    assert.equal(collected, 0, "종료 주소는 수집이나 새 브리핑을 만들지 않는다");
+    const today = await fetch(base + "/");
+    assert.equal(today.status, 200);
+    assert.match(await today.text(), /id="issues"/);
+    const live = await (await fetch(base + "/live")).text();
+    assert.doesNotMatch(live, /\/api\/briefing|href="\/briefing|id="ownBlock"|id="briefStrip"/);
+    const sitemap = await (await fetch(base + "/sitemap.xml")).text();
+    assert.doesNotMatch(sitemap, /\/briefing|\/rss\.xml/);
+    const source = readFileSync("src/feed/server.js", "utf8");
+    assert.doesNotMatch(source, /briefingTick|currentBriefing|withEssay|makeWriter|saveBriefing\(/);
+    assert.match(readFileSync("src/feed/engine.js", "utf8"), /await this\.briefing\(/,
+      "오늘판이 사용하는 공용 편집 함수는 유지한다");
+  } finally {
+    srv.closeAllConnections?.();
+    await new Promise(resolve => srv.close(resolve));
+  }
 });

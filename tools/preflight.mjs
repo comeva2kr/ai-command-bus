@@ -98,18 +98,9 @@ if (localEditorial) {
     && /state\.coupang=config\.coupang/.test(html));
   ok("오늘판에 빈 심사 광고·네트워크 SDK 없음", !/kakao_ad_area|class="adsbygoogle"/.test(html)
     && !/<script[^>]+src=["'][^"']*(?:kakaocdn|googlesyndication)[^"']*["']/i.test(html));
-  if (reviewMode) {
-    const briefingHtml = await (await fetch(BASE + "/briefing", { headers: CHECK_HEADERS })).text();
-    ok("기존 브리핑 심사 지면 AdFit 한 단위 유지", (briefingHtml.match(/class="kakao_ad_area"/g) || []).length === 1
-      && /t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/.test(briefingHtml));
-  }
-} else if (reviewMode) {
-  const units = (html.match(/class="kakao_ad_area"/g) || []).length;
-  ok("심사 홈에 AdFit 한 단위", units === 1, `${units}개`);
-  ok("심사 홈은 AdFit SDK만 로드", /t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/.test(html)
-    && !/pagead2\.googlesyndication\.com|link\.coupang\.com/.test(html));
 } else {
-  ok("AdFit 심사 모드 꺼짐", !reviewMode);
+  const root = await fetch(BASE + "/", { headers: CHECK_HEADERS, redirect: "manual" });
+  ok("오늘판 비활성 루트는 실시간으로 이동", root.status === 307 && root.headers.get("location") === "/live");
 }
 if (liveMonetization) {
   const inventory = cfg.body?.coupang?.items || [];
@@ -136,17 +127,22 @@ ok("광고 썸네일이 자리와 무관", (css.match(/#feed[^{;]*\.card-go \.go
 
 // ── 4. 자체 콘텐츠 — 애드핏 4차 반려 대응
 // 로컬 고도화 플래그에서는 정적 셸과 실제 API 편집 결과를 함께 본다. 운영 플래그가
-// 꺼진 서버는 기존 SSR 편집 홈 계약을 그대로 확인한다.
-const legacyEditorialHome = /<h1>지금핫<\/h1>/.test(html) && /어떻게 고르나/.test(html);
-const localEditorialHome = /<title>지금핫 오늘판<\/title>/.test(html)
-  && /id="issues"/.test(html) && /id="categories"/.test(html) && /href="\/live"/.test(html);
-ok("루트가 자체 편집 홈", localEditorial ? localEditorialHome : legacyEditorialHome,
-  localEditorial ? "로컬 개인 오늘판" : "기존 SSR 편집 홈");
-const rootBody = html.slice(html.indexOf("<body"));
-ok("편집 홈 본문에 외부 링크 목록 없음", !/<a[^>]+href="https?:\/\//i.test(rootBody));
-const brief = await json("/api/briefing");
-const issues = ((brief.body && brief.body.issues) || []).filter((i) => i && i.headline && i.paragraph);
-ok("우리가 쓴 브리핑 문단이 있음", issues.length >= 3, `${issues.length}건`);
+// 꺼진 서버는 /live로 이동하고 옛 브리핑을 다시 만들지 않는다.
+if (localEditorial) {
+  ok("루트가 오늘판", /<title>지금핫 오늘판<\/title>/.test(html)
+    && /id="issues"/.test(html) && /id="categories"/.test(html));
+  const rootBody = html.slice(html.indexOf("<body"));
+  ok("편집 홈 본문에 외부 링크 목록 없음", !/<a[^>]+href="https?:\/\//i.test(rootBody));
+}
+for (const path of ["/api/briefing", "/rss.xml"]) {
+  const retired = await json(path);
+  ok(path + " 종료", retired.status === 410 && retired.body?.code === "LEGACY_BRIEFING_RETIRED");
+}
+const ended = await fetch(BASE + "/briefing", { headers: CHECK_HEADERS });
+const endedHtml = await ended.text();
+ok("기존 브리핑 종료 안내", ended.status === 410 && /종료했습니다/.test(endedHtml)
+  && /href="\/"/.test(endedHtml) && !/kakao_ad_area|link\.coupang\.com/.test(endedHtml));
+ok("실시간에서 옛 브리핑 연결 제거", !/\/api\/briefing|href="\/briefing/.test(liveHtml));
 if (localEditorial) {
   const today = await json("/api/today?categories=news,business,tech,humor");
   const ownIssues = ((today.body && today.body.issues) || []).filter((issue) =>

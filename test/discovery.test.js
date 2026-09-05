@@ -4,6 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
+import { JsonSource } from "../src/feed/content.js";
+
 import { makeIndexNow } from "../src/feed/indexnow.js";
 
 async function withServer(env, fn) {
@@ -13,7 +15,10 @@ async function withServer(env, fn) {
     if (v == null) delete process.env[k]; else process.env[k] = v;
   }
   const { createServer } = await import("../src/feed/server.js");
-  const server = createServer({ dev: true });
+  const server = createServer({ localEditorial: true, localEditorialInventorySchedule: false,
+    sources: [new JsonSource("clien", async () => [{ id: "discovery", title: "새 반도체 공정 연구 공개",
+      url: "https://example.com/discovery", kind: "community", category: "tech", score: 500,
+      commentCount: 120, publishedAt: new Date().toISOString() }], "community")] });
   await new Promise((r) => server.listen(0, r));
   try {
     await fn(`http://127.0.0.1:${server.address().port}`);
@@ -26,20 +31,11 @@ async function withServer(env, fn) {
   }
 }
 
-test("RSS: 유효한 피드를 내고 외부 원문 본문을 싣지 않는다", async () => {
-  // 네이버는 사이트맵과 별개로 RSS를 받아 새 글을 훨씬 빨리 수집한다.
-  // 단 RSS에 외부 원문을 실으면 저작권 문제이자, 애드핏이 지적한 "외부 콘텐츠
-  // 비중"을 스스로 키우는 짓이다 — 우리가 쓴 문장과 실측 지표만 싣는다.
+test("RSS: 종료된 피드는 오늘판으로 이관하지 않는다", async () => {
   await withServer({}, async (base) => {
     const res = await fetch(`${base}/rss.xml`);
-    assert.equal(res.status, 200);
-    assert.match(res.headers.get("content-type") || "", /rss\+xml/);
-    const xml = await res.text();
-    assert.match(xml, /^<\?xml version="1\.0" encoding="UTF-8"\?>/);
-    assert.match(xml, /<rss version="2\.0">/);
-    assert.match(xml, /<\/rss>\s*$/);
-    assert.match(xml, /<title>지금핫 NowHot/);
-    assert.match(xml, /<language>ko<\/language>/);
+    assert.equal(res.status, 410);
+    assert.equal((await res.json()).code, "LEGACY_BRIEFING_RETIRED");
   });
 });
 
@@ -98,14 +94,7 @@ test("구조화 데이터: /live 앱과 편집 홈·콘텐츠 페이지의 역�
   assert.equal(ld.publisher.name, "페퍼클럽");
 
   await withServer({}, async (base) => {
-    const root = await (await fetch(`${base}/`)).text();
-    const rm = root.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
-    assert.ok(rm, "편집 홈에도 JSON-LD가 있어야 한다");
-    const site = JSON.parse(rm[1]);
-    assert.equal(site["@type"], "WebSite");
-    assert.equal(site.url, "https://nowhot.kr/");
-
-    const html = await (await fetch(`${base}/briefing`)).text();
+    const html = await (await fetch(`${base}/ranking/daily`)).text();
     const mm = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
     assert.ok(mm, "자체 콘텐츠 페이지에도 JSON-LD가 있어야 한다");
     const j = JSON.parse(mm[1]);
@@ -114,15 +103,15 @@ test("구조화 데이터: /live 앱과 편집 홈·콘텐츠 페이지의 역�
   });
 });
 
-test("RSS 위치를 robots와 각 페이지 head가 알린다", async () => {
+test("종료 RSS는 robots와 각 페이지 head에서 제거한다", async () => {
   await withServer({}, async (base) => {
     const robots = await (await fetch(`${base}/robots.txt`)).text();
-    assert.ok(robots.includes("/rss.xml"), "robots가 RSS를 알려야 한다");
-    const html = await (await fetch(`${base}/briefing`)).text();
-    assert.match(html, /rel="alternate" type="application\/rss\+xml"/);
+    assert.ok(!robots.includes("/rss.xml"), "종료 RSS를 알리지 않는다");
+    const html = await (await fetch(`${base}/ranking/daily`)).text();
+    assert.doesNotMatch(html, /rel="alternate" type="application\/rss\+xml"/);
   });
   const home = fs.readFileSync(new URL("../src/feed/public/index.html", import.meta.url), "utf8");
-  assert.match(home, /rel="alternate" type="application\/rss\+xml"/);
+  assert.doesNotMatch(home, /rel="alternate" type="application\/rss\+xml"/);
 });
 
 test("자체 콘텐츠 페이지가 서로 링크된다 (고아 페이지 방지)", async () => {
@@ -131,14 +120,11 @@ test("자체 콘텐츠 페이지가 서로 링크된다 (고아 페이지 방지
   // 중요하게 보고, 링크 없는 페이지는 색인 우선순위가 낮다. 사용자 쪽으로도
   // 검색 유입이 다음 페이지로 넘어갈 통로가 없으면 한 장 보고 나간다.
   await withServer({}, async (base) => {
-    const html = await (await fetch(`${base}/briefing`)).text();
+    const html = await (await fetch(`${base}/ranking/daily`)).text();
     assert.match(html, /class="own-links"/, "상호 링크 영역이 있어야 한다");
-    const cats = [...html.matchAll(/href="\/briefing\/([a-z]+)"/g)].map((m) => m[1]);
-    assert.ok(cats.length >= 5, `카테고리 브리핑 링크가 부족: ${cats.length}개`);
-    // 자기 자신은 링크하지 않는다
-    assert.ok(!html.includes('<li><a href="/briefing">'), "현재 페이지를 자기 자신에게 링크하면 안 된다");
-    // 다른 자체 콘텐츠로도 이어져야 한다
-    assert.match(html, /href="\/ranking\/daily"/);
+    assert.doesNotMatch(html, /href="\/briefing/);
+    assert.match(html, /href="\/"/);
+    assert.match(html, /href="\/communities"/);
     assert.match(html, /href="\/trends"/);
   });
 });

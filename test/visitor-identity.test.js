@@ -22,11 +22,11 @@ const vidOf = (res) => {
 };
 
 test("발행 페이지에서도 표식이 심긴다", async () => {
-  // 처음엔 정적 파일 서빙 직전에 호출을 뒀는데, /briefing 같은 발행 페이지는
+  // 처음엔 정적 파일 서빙 직전에 호출을 뒀는데, /ranking/daily 같은 발행 페이지는
   // 그보다 위에서 응답하고 끝나 표식이 안 심겼다. 라우트 분기보다 앞이어야 한다.
   const { srv, base } = await listen();
   try {
-    for (const path of ["/", "/briefing", "/report"]) {
+    for (const path of ["/", "/ranking/daily", "/report"]) {
       assert.ok(vidOf(await fetch(`${base}${path}`)), `${path}에서 표식이 안 심겼다`);
     }
   } finally { srv.close(); }
@@ -43,7 +43,7 @@ test("표식만 들고 다시 오면 같은 사람이다", async () => {
   // localStorage가 날아가도(브라우저 정리·사파리 ITP) 이어져야 한다.
   const { srv, base } = await listen();
   try {
-    const vid = vidOf(await fetch(`${base}/briefing`));
+    const vid = vidOf(await fetch(`${base}/ranking/daily`));
     const mk = () => fetch(`${base}/api/session`, {
       method: "POST", headers: { "content-type": "application/json", cookie: `nh_vid=${vid}` }, body: "{}"
     }).then((r) => r.json());

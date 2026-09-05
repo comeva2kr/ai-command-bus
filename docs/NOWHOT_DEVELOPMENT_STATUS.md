@@ -6,7 +6,13 @@
 - 인수 근거와 재개 경로: [책임자 인수 기록](reports/NOWHOT_OWNER_TAKEOVER_2026-09-05.md). 로컬 코드 HEAD `e59c8fd`; 이번 변경은 인수 문서 연결뿐이며 제품·판본·운영 변경 없음.
 - 아래 NH112 배포 완료는 9월 4일의 완료 기록이다. 이후 같은 날 19시대 Orca 광고 재심사 감사에서 Google AdSense·Kakao AdFit 모두 HOLD·미제출로 판정됐다. 배포 완료와 광고 신청 준비/승인을 구분하며, 현재 운영 재검증이나 보류 원인 수리 완료로 표현하지 않는다.
 
-## 현재 판정 — NH120 업데이트 기록·개선 요청·오늘 공지
+## 현재 판정 — NH121 기존 브리핑 종료·오늘판 광고 서식 통일
+
+- 안정 ID `NOWHOT-LEGACY-BRIEFING-RETIREMENT-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-208`. [NH121 구현·검증·운영 영수증](reports/NOWHOT_NH121_BRIEFING_RETIREMENT_TODAY_ADS_2026-09-05.md).
+- 옛 `/briefing*`·API·송출 RSS는410 종료. Live 연결·SEO 발송·자동 발행 제거, Today 공용 편집 함수/수집 RSS·랭킹·과거 저장값 보존. 광고는 Today 행과 같은 서식에 AD·쿠팡·제휴 고지를 유지한다. 새 이력/팝업2항목 추가.
+- 로컬 통합456/456·Chrome28/28·320/393/1100 줄맞춤/넘침/기사 수 보존 PASS. Fable 광고/Root 통합, Grok 종료 경로 GO. 운영 배포·공개 검증 대기. First Principles 게이트: PASS.
+
+## 직전 NH120 업데이트 기록·개선 요청·오늘 공지
 
 - 안정 ID `NOWHOT-RELEASE-HISTORY-FEEDBACK-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-207`. [NH120 구현·검증·운영 영수증](reports/NOWHOT_NH120_HISTORY_FEEDBACK_NOTICE_2026-09-05.md).
 - 소개에 기존6건+오늘1건 버전 기록을 연결하고 Today/Live 메뉴에서 비공개 개선 요청을 접수한다. 기존 저장소의 원자 저장·소유권/관리자 인증을 사용하며 저장 성공 후에만 번호를 준다. 오늘 공지는 같은 RELEASES에서 한 번만 표시한다. 관련33/33·후속4/4·최종 캐시/공지7/7 PASS, Fable/Grok GO 회수 및 release 완료. 최종 운영 `7768f7c` 12:21:06 KST 배포·12:21:35 preflight OK. 공개 소개7건·양쪽 메뉴·접수 검증400/관리자401·팝업1회 및 기존 무버전 캐시 우회 확인. 실제 접수/재시작 복원은 로컬 시험, 운영 저장소 배열 초기화 확인·실제 고객 요청은 미제출. First Principles 게이트: PASS.

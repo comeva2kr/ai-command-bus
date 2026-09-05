@@ -3493,35 +3493,7 @@ test("트래픽 카운터: 재시작(직렬화 왕복) 후에도 수치가 유�
 });
 
 // --- 오늘의 브리핑 (애드핏 재심사 대응: 자체 콘텐츠 + 운영 주체 표시) --------
-test("/briefing: 실측 데이터 기반 자체 페이지가 렌더되고 정치·성인은 제외된다", async () => {
-  const { createServer } = await import("../src/feed/server.js");
-  const { JsonSource } = await import("../src/feed/content.js");
-  const at = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString();
-  const src = new JsonSource("clien", async () => [
-    { id: "b1", title: "화제의 기술 글", url: "https://c/1", category: "tech", score: 500, commentCount: 100, publishedAt: at(2), sourceRank: 0 },
-    { id: "b2", title: "두번째 기술 글", url: "https://c/2", category: "tech", score: 100, commentCount: 40, publishedAt: at(3), sourceRank: 1 },
-    { id: "b3", title: "국힘 민주당 정치 글", url: "https://c/3", category: "news", score: 900, commentCount: 300, publishedAt: at(1), sourceRank: 2 },
-    { id: "b4", title: "일상 글 하나", url: "https://c/4", category: "life", score: 10, commentCount: 2, publishedAt: at(4), sourceRank: 3 }
-  ], "community");
-  const server = createServer({ sources: [src] });
-  await new Promise((r) => server.listen(0, r));
-  try {
-    const res = await fetch(`http://localhost:${server.address().port}/briefing`);
-    assert.equal(res.status, 200);
-    const html = await res.text();
-    // 2026-08-03: 브리핑이 시간대 편성(모닝/런치/이브닝)으로 바뀌었다.
-    assert.match(html, /지금 브리핑/);
-    assert.match(html, /(모닝|런치|이브닝)/, "편성이 표기되어야 한다");
-    // 검색 노출용 머리 — 없으면 구글이 스니펫을 만들 재료가 없다
-    assert.match(html, /<link rel="canonical"/, "canonical이 있어야 한다");
-    assert.match(html, /<meta name="description"/);
-    assert.match(html, /화제의 기술 글/, "실측 상위 글이 실려야");
-    assert.match(html, /추천 500/, "수치는 실측 그대로");
-    assert.ok(!html.includes("정치 글"), "정치 태그 글은 브리핑에서 제외");
-    assert.match(html, /페퍼클럽/, "운영 주체 표기 (애드핏 소유관계 사유 대응)");
-    assert.match(html, /#post-b1/, "내부 상세(자체 댓글)로 링크 — 아웃링크가 아니라");
-  } finally { server.close(); }
-});
+
 
 test("운영 주체 표기: about·privacy·드로어에 페퍼클럽이 명시된다", async () => {
   const fs = await import("node:fs");
@@ -3532,7 +3504,7 @@ test("운영 주체 표기: about·privacy·드로어에 페퍼클럽이 명시�
   assert.match(fs.readFileSync(path.join(pub, "privacy.html"), "utf8"), /페퍼클럽/);
   const idx = fs.readFileSync(path.join(pub, "index.html"), "utf8");
   assert.match(idx, /페퍼클럽/, "드로어 운영자 표기");
-  assert.match(idx, /href="\/briefing"/, "브리핑 진입점");
+  assert.doesNotMatch(idx, /href="\/briefing"/, "옛 브리핑 진입점 제거");
   // 2026-08-04: 정책 페이지를 확장자 없는 정식 주소로 통일했다(/about, /terms,
   // /privacy). 심사관·크롤러가 관행적으로 치는 주소가 전부 404였다.
   assert.match(idx, /href="\/about"/, "소개 진입점");

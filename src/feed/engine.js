@@ -1848,14 +1848,14 @@ export class FeedEngine {
       } catch (e) { console.warn("[health] 판정 실패:", e.message); }
     }
 
-    // ---- 일별 에디션 스냅샷 (브리핑+화제랭킹, 자체 콘텐츠 아카이브) --------
+    // ---- 일별 랭킹 스냅샷 --------
     // 사이클마다 그날(KST) 키로 덮어쓴다 — 하루의 마지막 기록이 최종판.
-    // /briefing/<날짜> 아카이브와 /ranking 주간·월간 집계의 원천 데이터다.
+    // /ranking 주간·월간 집계를 유지하고, 옛 브리핑 저장값은 보존만 한다.
     if (this.store && this.store.saveDailyEdition) {
       try {
         const dateKey = new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
         this.store.saveDailyEdition(dateKey, {
-          briefing: await this.briefing(),
+          briefing: this.store.getDailyEdition?.(dateKey)?.briefing,
           ranking: await this.rankingTop(30)
         });
       } catch {

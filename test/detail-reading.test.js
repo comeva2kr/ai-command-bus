@@ -357,7 +357,7 @@ test("홈 seed가 비면 3분이 아니라 곧 다시 시도한다", async () =>
   const { readFileSync } = await import("node:fs");
   const src = readFileSync("src/feed/server.js", "utf8");
   assert.match(src, /HOME_SEED_RETRY_MS/, "빈 결과용 재시도 간격이 없다");
-  assert.match(src, /cached && \(cached\.seed \|\| cached\.ownSeed\)[\s\S]{0,120}HOME_SEED_RETRY_MS/,
+  assert.match(src, /cached && cached\.seed[\s\S]{0,120}HOME_SEED_RETRY_MS/,
     "빈 결과와 실제 콘텐츠를 구분하지 않는다");
 });
 

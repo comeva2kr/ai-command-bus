@@ -623,7 +623,7 @@ test("발행 페이지도 방문을 센다 — 검색 유입의 착지점이다"
   await new Promise((r) => server.listen(0, r));
   try {
     const base = `http://localhost:${server.address().port}`;
-    for (const path of ["/briefing", "/ranking/daily", "/communities"]) {
+    for (const path of ["/report", "/ranking/daily", "/communities"]) {
       const html = await (await fetch(`${base}${path}`)).text();
       assert.match(html, /\/api\/track/, `${path} 에 측정이 없다`);
       assert.match(html, /type:"view", entry:true/, `${path} 에 유입 기록이 없다`);

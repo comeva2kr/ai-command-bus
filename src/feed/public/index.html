@@ -43,7 +43,6 @@
      상태로 운영하고 있었다. 미리보기 길이도 함께 푼다. -->
 <meta name="robots" content="noindex,follow">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="alternate" type="application/rss+xml" title="지금핫 NowHot" href="/rss.xml">
 <!-- 구조화 데이터 — 검색엔진이 이 사이트가 무엇인지 기계적으로 읽는 경로.
      실제와 다른 것을 선언하면 리치 결과에서 제외되므로 사실만 적는다. -->
 <script type="application/ld+json">
@@ -294,20 +293,6 @@
   /* 좌우 패딩은 헤더(16px)와 정렬 — 없으면 칩이 화면 왼쪽에 딱 붙는다
       */
   .sort-bar { display: flex; gap: 8px; padding: 10px 16px 0; margin: 0 0 4px; }
-
-  /* 지금 브리핑 스트립 — 가로 스크롤 카드 */
-  /* JS 전에 크롤러·사용자가 보는 정적 링크. 실제 브리핑 카드가 오면 대체된다. */
-  .bs-seed{flex:none;font-size:12.5px;font-weight:700;color:var(--text);text-decoration:none;
-    border:1px solid var(--line);padding:6px 12px;white-space:nowrap}
-  .brief-strip { display: flex; gap: 10px; overflow-x: auto; padding: 12px 16px 2px;
-    scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .brief-strip::-webkit-scrollbar { display: none; }
-  .brief-card { flex: 0 0 185px; background: var(--card); border: 1px solid var(--line);
-    border-radius: 14px; padding: 10px 12px; text-decoration: none; }
-  .brief-card .bc-cat { color: var(--accent); font-size: 12px; font-weight: 700; margin-bottom: 4px; }
-  .brief-card .bc-title { color: var(--text); font-size: 13px; line-height: 1.45;
-    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  .brief-card .bc-meta { color: var(--muted); font-size: 11.5px; margin-top: 6px; }
 
   /* feed */
   #feed { padding: 8px 12px 0; }
@@ -584,7 +569,7 @@
   html,body{background:var(--color-bg);color:var(--color-text);
     font-family:"Archivo","Pretendard",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
   /* radius 0 전면 — 예외 없음 (DESIGN.md) */
-  .card,.chip,.badge,.rate,.mute-btn,.icon-btn,.menu-btn,.brief-card,.why,
+  .card,.chip,.badge,.rate,.mute-btn,.icon-btn,.menu-btn,.why,
   .detail-panel,.detail-img,.modal,.onb,.drawer,.meter-bar,.meter-fill,
   .card-thumb,.card-thumb img,button,input,textarea,select,.editorial-note,
   .sort-bar .chip,.readmore,.comment-form textarea,.ad-disclosure-pop,.orig-title,
@@ -661,31 +646,6 @@
   .go-dest{display:block;margin-top:2px;color:var(--muted);
     font:600 11px/1.3 var(--font-body);letter-spacing:-.01em}
 
-  /* 지금핫이 직접 쓴 것 — 홈 앞자리 (애드핏 P0-A, 2026-08-06)
-     반려 사유: "자체 콘텐츠가 아닌 외부 콘텐츠, 외부 링크가 많은 비중".
-     실측: 자체 콘텐츠 77쪽을 이미 만들어 놓고도 홈에서는 142px 가로 스트립
-     한 줄(첫 화면의 17%)만 내주고 나머지는 전부 아웃링크 카드였다.
-     안 만든 게 아니라 안 보이던 것이라, 앞자리를 내주는 것으로 고친다. */
-  /* 자리를 미리 잡아 둔다 — /api/briefing 응답 뒤에 높이가 통째로 튀어나오면
-     첫 화면이 한 번 밀린다(레이아웃 시프트, 검수 2026-08-06). */
-  .own-block{padding:14px 16px 4px;border-bottom:1px solid var(--color-divider);min-height:132px}
-  .own-block[hidden]{display:none;min-height:0}
-  .own-block .ob-head{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
-  .own-block .ob-tag{color:var(--color-accent);font:800 10px var(--font-heading);
-    letter-spacing:.1em;text-transform:uppercase}
-  .own-block .ob-when{color:var(--muted);font-size:11.5px}
-  .own-block .ob-sum{margin:0 0 10px;color:var(--color-text);font-size:13.5px;line-height:1.5}
-  .own-block ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-  /* radius 0 전면 — 예외 없음(디자인 규칙). 처음에 10px로 넣었다가 검수에서 잡혔다. */
-  .own-block li a{display:block;padding:10px 12px;border:1px solid var(--line);
-    background:var(--card-2);text-decoration:none}
-  .own-block .ob-h{display:block;color:var(--color-text);font-weight:800;font-size:14px;line-height:1.35}
-  .own-block .ob-p{display:block;margin-top:4px;color:var(--muted);font-size:12.5px;line-height:1.5}
-  .own-block .ob-story{margin:8px 0 0;color:var(--color-text);opacity:.78;font-size:12.5px;line-height:1.5}
-  .own-block .ob-story a{color:var(--color-accent);text-decoration:none}
-  .own-block .ob-more{display:inline-block;margin:10px 0 6px;color:var(--color-accent);
-    font-weight:800;font-size:12.5px;text-decoration:none}
-
   /* 버튼 없는 안내바 — 바꿀 원문 발췌가 없을 때. 누를 것이 없으므로
      오른쪽 여백을 비우고 문구만 남긴다. */
   .trans-bar-flat{justify-content:flex-start}
@@ -716,51 +676,6 @@
     font:800 10.5px var(--font-heading);letter-spacing:.06em;margin-right:6px}
   .our-reading .rel-title{color:var(--color-text);font-weight:700;font-size:13.5px;line-height:1.4}
   .our-reading .rel-meta{display:block;margin-top:3px;color:var(--muted);font-size:11.5px}
-
-  /* 브리핑 스트립 카드 */
-  .brief-strip{padding:12px 16px 14px;border-bottom:1px solid var(--color-divider)}
-  .brief-card{background:transparent;border:1px solid var(--line)}
-  .brief-card .bc-cat{color:var(--color-accent);font:800 10px var(--font-heading);
-    letter-spacing:.1em;text-transform:uppercase}
-  .brief-card .bc-title{color:var(--color-text);font-weight:800;letter-spacing:-.01em}
-  .brief-card .bc-meta{color:var(--muted)}
-  /* 새 편성 알림 — 눌러서 보기 전까지 은은하게 (David 2026-08-06)
-     "보기좋게 깜밖이게 하자. 먼저 보기 유도하게. 고급스럽게, 튀지않고 은은하게."
-
-     깜빡임(opacity 0↔1)은 싸구려로 보인다. 대신 **숨쉬는 테두리**로 한다:
-     accent 색 테두리와 아주 옅은 글로우가 3초 주기로 차올랐다 잦아든다.
-     처음엔 5초로 뒀는데 David 실기기에서 "눈에 너무 안 띄어"였다(2026-08-06) —
-     느리면 눈이 변화에 적응해 버려서 정지한 것처럼 보인다. 세기는 그대로 두고
-     주기만 줄인다. 튀지 않으면서 알아채게 하는 건 밝기가 아니라 리듬이다.
-     글자는 건드리지 않는다 — 읽는 데 방해가 되면 은은한 게 아니다.
-     한 번 보고 나면 클래스가 빠져 완전히 멈춘다. */
-  .brief-card.is-new{border-color:color-mix(in srgb,var(--color-accent) 45%,var(--line));
-    animation:briefBreathe 3s ease-in-out infinite}
-  @keyframes briefBreathe{
-    0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--color-accent) 0%,transparent);
-            border-color:color-mix(in srgb,var(--color-accent) 28%,var(--line))}
-    50%    {box-shadow:0 0 0 3px color-mix(in srgb,var(--color-accent) 12%,transparent);
-            border-color:color-mix(in srgb,var(--color-accent) 62%,var(--line))}
-  }
-  /* 새로 왔다는 표식 — 라벨 앞의 작은 점. 같은 호흡으로 맥동한다.
-     글자("NEW" 같은 배지)를 넣지 않는 이유: 카드 제목과 경쟁해서 튄다. */
-  .brief-card.is-new .bc-cat::before{content:"";display:inline-block;width:5px;height:5px;
-    border-radius:50%;background:var(--color-accent);margin-right:6px;vertical-align:middle;
-    animation:briefDot 3s ease-in-out infinite}
-  @keyframes briefDot{0%,100%{opacity:.35;transform:scale(.85)}50%{opacity:1;transform:scale(1)}}
-  /* 카테고리 카드는 **호흡하지 않는다.** 스트립 10장이 한꺼번에 맥동하면
-     그건 은은한 게 아니라 화면 전체가 깜빡이는 것이다(실측 2026-08-06:
-     11장 중 10장이 동시에 숨쉬었다). 유도할 자리는 하나면 충분하다 —
-     대표 카드만 호흡하고, 나머지는 라벨 색만 살짝 살린다. */
-  .brief-card.is-new-quiet .bc-cat{color:var(--color-accent)}
-  .brief-card.is-new-quiet{border-color:color-mix(in srgb,var(--color-accent) 22%,var(--line))}
-
-  /* 움직임을 줄이라고 설정한 사용자에게는 **정지한 표식**만 남긴다 —
-     알림을 없애는 게 아니라 움직임만 없앤다. */
-  @media (prefers-reduced-motion: reduce){
-    .brief-card.is-new{animation:none;border-color:color-mix(in srgb,var(--color-accent) 55%,var(--line))}
-    .brief-card.is-new .bc-cat::before{animation:none;opacity:1}
-  }
 
   /* 열기 눈금 — 시그니처, 애니메이션은 여기에만 */
   .heat{display:flex;align-items:flex-end;gap:3px;height:20px;margin:10px 0 2px}
@@ -820,7 +735,6 @@
   body.immersion{max-width:100%}
   body.immersion .fab{display:none}
   /* ③ 상단 스트립 제거 — 몰입 중에는 한 글에만 집중 */
-  body.immersion #briefStrip,
   body.immersion #digestBar{display:none!important}
 
   body.immersion #feed{height:var(--imm-h,calc(100vh - var(--header-h,60px)));
@@ -1071,8 +985,6 @@
     .card .rate.up.on,.card .rate.down.on,.card .rate.save.on,
     .detail-actions .rate.up.on,.detail-actions .rate.down.on{animation:none}
   }
-  .brief-card{border-color:color-mix(in srgb,var(--color-text) 34%,transparent)}
-  .brief-card .bc-meta{color:color-mix(in srgb,var(--color-text) 72%,transparent)}
   .chip{border-color:color-mix(in srgb,var(--color-text) 34%,transparent);font-weight:600}
   .ic use{stroke:currentColor}
   /* 본문 가독성 (David 실기기 2026-08-01: 화이트 모드에서 발췌·제목이 안 읽힘)
@@ -1106,7 +1018,6 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
 <symbol id="i-hot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="2 19 7 14 11 16 16 8 21 3"></polyline><polyline points="15 3 21 3 21 9"></polyline></g></symbol>
 <symbol id="i-latest" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><circle cx="12" cy="12" r="9"></circle><polyline points="12 6 12 12 16.5 14.5"></polyline></g></symbol>
-<symbol id="i-briefing" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><line x1="3" y1="5" x2="21" y2="5"></line><line x1="3" y1="10" x2="21" y2="10"></line><line x1="3" y1="15" x2="13" y2="15"></line><line x1="3" y1="20" x2="10" y2="20"></line></g></symbol>
 <symbol id="i-ranking" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><rect x="3" y="13" width="5" height="8"></rect><rect x="9.5" y="8" width="5" height="13"></rect><rect x="16" y="3" width="5" height="18"></rect></g></symbol>
 <symbol id="i-comment" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><polyline points="8 17 3 17 3 4 21 4 21 17 13 17 8 22 8 17"></polyline></g></symbol>
 <symbol id="i-share" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter"><line x1="12" y1="2" x2="12" y2="15"></line><polyline points="7 7 12 2 17 7"></polyline><polyline points="4 12 4 22 20 22 20 12"></polyline></g></symbol>
@@ -1206,7 +1117,6 @@
            인라인 style은 전부 클래스로 뺐다 — 값이 코드에 박히면 테마가
            바뀔 때 여기만 안 따라온다. -->
       <nav class="drawer-sec drawer-nav" aria-label="지금핫이 만드는 페이지">
-        <a class="drawer-link" href="/briefing">오늘의 브리핑</a>
         <a class="drawer-link" href="/ranking/daily">화제 랭킹 TOP 20</a>
         <a class="drawer-link" href="/communities">커뮤니티 순위</a>
         <a class="drawer-link" href="/keywords">화제 키워드</a>
@@ -1229,17 +1139,8 @@
 
   <div id="digestBar" class="digest hidden"></div>
 
-  <!-- 지금 브리핑 스트립 
-       — 카테고리별 대표 이슈 카드, /api/briefing 실측 데이터. 탭하면 자체
-       브리핑 페이지(/briefing/<cat>)로 -->
-  <section class="own-block" id="ownBlock" hidden aria-label="지금핫이 직접 쓴 오늘의 브리핑"></section>
-  <div class="brief-strip" id="briefStrip" hidden></div>
-
   <!-- 정렬 바 (#12, "상단에 필터링 옵션에 최신순도") — 핫=기존 추천,
        최신=시간버킷×소스 인터리브의 중립 최신 뷰 (engine.js sort:"latest") -->
-  <!-- 자체 콘텐츠로 가는 정적 링크는 브리핑 스트립(#briefStrip) 안에 서버가
-       심는다 — 2026-08-03에 여기 별도 칩줄을 뒀더니 스트립과 같은 곳을 가리키는
-       줄이 둘이 되어 상단이 어정쩡해졌다(David 지적). 링크는 한 자리에만 둔다. -->
   <div class="sort-bar" id="sortBar" role="tablist" aria-label="정렬">
     <button class="chip active" data-sort="hot" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-hot"></use></svg>핫</button>
     <button class="chip" data-sort="latest" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-latest"></use></svg>최신</button>
@@ -1799,7 +1700,7 @@ setupViewSwitch();
   state.registry = communitiesRes.communities || [];
   const anyLive = state.registry.some(c => (c.liveCount || 0) > 0);
   state.communities = state.registry.filter(c => c.enabled && !c.adult && (!anyLive || (c.liveCount || 0) > 0));
-  setupBrandHome(); setupThemeChips(); loadBriefStrip(); setupSortBar(); renderChips(); renderSourceChips(); refreshDrawerFilters();
+  setupBrandHome(); setupThemeChips(); setupSortBar(); renderChips(); renderSourceChips(); refreshDrawerFilters();
   setupCompose(); setupSpace(); setupDrawer(); setupSkipObserver(); setupAdImpressionObserver();
   Track.view();
   // 이탈은 pagehide가 가장 확실하고, 모바일에서 탭 전환만 하는 경우를 위해
@@ -2731,7 +2632,7 @@ function prependCard(item){
 // ---- 내 공간 (my space) ----
 function setupSpace(){
   // entry point moved from a home FAB into the ☰ drawer (setupDrawer wires
-  // #drawerSpaceBtn) 
+  // #drawerSpaceBtn)
   document.getElementById("spaceBack").onclick = ()=>{
     if(location.hash.startsWith("#space")) history.back(); else closeSpace();
   };
@@ -3069,7 +2970,7 @@ function setupBrandHome(){
     state.activeSource = null; state.activeCategory = null;
     localStorage.removeItem("feed_src"); localStorage.removeItem("feed_cat");
     reloadFeed("최신 화제글을 새로 불러왔어요");
-    loadBriefStrip();
+
   };
   // 메뉴 버튼(☰)이 .brand 안에 있어 클릭이 여기까지 버블링된다 —
   // 버튼/링크에서 시작한 클릭은 무시한다 (David 실기기: 메뉴 눌렀는데
@@ -3078,62 +2979,6 @@ function setupBrandHome(){
   el.onkeydown = (e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); } };
 }
 
-// ---- 브리핑 편성 읽음 표시 (David 2026-08-06) ----
-//
-// "하루 세 번 업데이트되면, 눌러서 보기 전까지 보기좋게 깜빡이게 하자.
-//  먼저 보기 유도하게."
-//
-// 편성 하나를 가리키는 값이 필요하다. generatedAt은 재생성될 때마다 바뀌므로
-// 그걸 쓰면 같은 편성인데도 계속 새것으로 읽힌다. **날짜 + 슬롯(morning/
-// lunch/evening)**이 사람이 말하는 "이번 브리핑"과 같은 단위다.
-//
-// 한국 날짜로 자른다 — 서버가 UTC로 주므로 그냥 자르면 저녁 편성이 다음 날로
-// 넘어가 매일 밤 한 번씩 잘못 표시된다.
-function briefEditionId(b){
-  if(!b || !b.generatedAt) return null;
-  const kst = new Date(new Date(b.generatedAt).getTime() + 9 * 3600 * 1000);
-  const day = kst.toISOString().slice(0, 10);
-  return `${day}-${(b.slot && b.slot.id) || "now"}`;
-}
-
-const BRIEF_SEEN_KEY = "nh_brief_seen";
-function briefSeen(){ try { return localStorage.getItem(BRIEF_SEEN_KEY) || ""; } catch { return ""; } }
-function markBriefSeen(id){ if(!id) return; try { localStorage.setItem(BRIEF_SEEN_KEY, id); } catch {} }
-
-// 홈 앞자리의 "지금핫이 직접 쓴 것".
-//
-// 지어내지 않는다 — 서버(digest.js)가 실측으로 쓴 headline·paragraph를 그대로
-// 옮긴다. 문단이 없는 이슈는 건너뛴다(제목만 있는 줄은 자체 콘텐츠가 아니다).
-function renderOwnBlock(b, hh, mm){
-  const el = document.getElementById("ownBlock");
-  if(!el) return;
-  // **이슈 하나만 펼친다.**
-  //
-  // 셋을 펼쳤더니 블록이 423px가 되어, 헤더·스트립·정렬바·고지문까지 더한
-  // 첫 카드 시작점이 841px이 됐다 — 뷰포트 812px보다 아래다. 실측(2026-08-06,
-  // 375×812): 첫 화면에 **화제글이 한 건도 안 보였다.** 자체 콘텐츠 비중을
-  // 올리려다 이 서비스가 하는 일 자체를 첫 화면에서 지운 셈이다.
-  // 목표는 비중 확보이지 피드를 가리는 게 아니다. 나머지는 /briefing으로 보낸다.
-  const issues = (b.issues || []).filter(i => i && i.headline && i.paragraph).slice(0, 1);
-  if(!issues.length){ el.hidden = true; return; }
-  const slotName = (b.slot && b.slot.label) ? b.slot.label + " 브리핑" : "지금 브리핑";
-  el.innerHTML =
-    `<div class="ob-head">
-       <span class="ob-tag">${escapeHtml(slotName)}</span>
-       <span class="ob-when">${hh}:${mm} 편성 · 하루 세 번</span>
-     </div>` +
-    (b.digestSummary ? `<p class="ob-sum">${escapeHtml(b.digestSummary)}</p>` : "") +
-    `<ol>` + issues.map(i =>
-      `<li><a href="/briefing">
-         <span class="ob-h">${escapeHtml(i.headline)}</span>
-         <span class="ob-p">${escapeHtml(String(i.paragraph).slice(0, 120))}</span>
-       </a></li>`).join("") + `</ol>` +
-    (b.story ? `<p class="ob-story">${escapeHtml(b.story)} <a href="/report">리포트 전체 보기 →</a></p>` : "") +
-    `<a class="ob-more" href="/briefing">오늘의 브리핑 전체 보기 →</a>`;
-  el.hidden = false;
-}
-
-// ---- 지금 브리핑 스트립 (자체 콘텐츠 홈 노출) ----
 // 낡은 화면을 스스로 갱신한다.
 //
 // ── 왜 (David 2026-08-06 "얼마나 기다려야 되는데 새로고침 해도 이지랄인데")
@@ -3176,73 +3021,6 @@ function ensureFreshBuild(serverBuild){
       .finally(go);
   } else go();
   return true;
-}
-
-async function loadBriefStrip(){
-  const el = document.getElementById("briefStrip");
-  // 비어 있는 채로 기다리지 않게 스켈레톤 먼저 (실패하면 조용히 숨김)
-  el.innerHTML = '<div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card"></div>';
-  el.hidden = false;
-  try {
-    const [b, tr] = await Promise.all([
-      get("/api/briefing"),
-      get("/api/trends").catch(()=>null) // 트렌드는 부가 — 실패해도 스트립은 뜬다
-    ]);
-    if(!b.sections || !b.sections.length){ el.hidden = true; return; }
-    const ob0 = document.getElementById("ownBlock"); if(ob0) ob0.hidden = true;
-    const t = new Date(b.generatedAt);
-    const hh = String(t.getHours()).padStart(2,"0"), mm = String(t.getMinutes()).padStart(2,"0");
-    // 브리핑은 하루 세 번 편성이다(모닝·런치·이브닝). 예전엔 여기에
-    // "15분 갱신"이라고 써 있었는데 **사실이 아니다** — 편성으로 바꾼 뒤에도
-    // 문구가 남아 있었다(David 2026-08-05 2차 리포트 2번). 수집이 15분마다
-    // 도는 것과 브리핑이 발행되는 주기는 다른 이야기다.
-    // ── 우리가 직접 쓴 것을 홈 앞자리에 펼친다 (애드핏 P0-A) ──
-    // buildDigest가 만든 issues는 headline과 paragraph를 갖춘 **완결된 문장**이다.
-    // 그걸 /briefing 안에만 두고 홈에는 제목 한 줄짜리 가로 카드만 내보내고
-    // 있었다. 여기서 펼치면 없는 것을 지어내지 않고도 첫 화면의 자체 콘텐츠
-    // 비중이 올라간다 — 실제로 우리가 쓴 글이다.
-    renderOwnBlock(b, hh, mm);
-
-    const slotName = (b.slot && b.slot.label) ? b.slot.label : "";
-    // 이번 편성을 아직 안 봤으면 은은하게 알린다. 본 뒤에는 완전히 멈춘다.
-    const edition = briefEditionId(b);
-    const isNew = edition && briefSeen() !== edition;
-    const newCls = isNew ? " is-new" : "";
-    // 스트립의 "지금 브리핑" 카드는 **ownBlock이 있으면 넣지 않는다.**
-    // 같은 라벨("모닝 브리핑 · 10:58 편성 · 하루 세 번")이 150px 간격으로 두 번
-    // 나와서 콘텐츠가 아니라 중복 패딩으로 보였다(검수 2026-08-06).
-    const ownShown = !!(document.getElementById("ownBlock") && !document.getElementById("ownBlock").hidden);
-    el.innerHTML =
-      (ownShown ? "" : `<a class="brief-card${newCls}" href="/briefing" style="flex-basis:140px">
-        <div class="bc-cat">${slotName ? escapeHtml(slotName)+" 브리핑" : "지금 브리핑"}</div>
-        <div class="bc-title">${escapeHtml((b.slot && b.slot.lead) || "이 시간 화제 종합 정리")}</div>
-        <div class="bc-meta">${hh}:${mm} 편성 · 하루 세 번</div></a>`) +
-      (tr && tr.trends && tr.trends.length ? `<a class="brief-card" href="/trends">
-        <div class="bc-cat">X 트렌드</div>
-        <div class="bc-title">${escapeHtml(tr.trends.slice(0,3).map(t=>t.name).join(" · "))}</div>
-        <div class="bc-meta">실시간 TOP ${tr.trends.length} →</div></a>` : "") +
-      b.sections.map(s=>{
-        const lead = s.items[0];
-        return `<a class="brief-card${newCls ? " is-new-quiet" : ""}" href="/briefing/${encodeURIComponent(s.category)}">
-          <div class="bc-cat">${escapeHtml(s.label)}</div>
-          <div class="bc-title">${escapeHtml(lead.title)}</div>
-          <div class="bc-meta">화제글 ${s.items.length}건 정리 →</div></a>`;
-      }).join("");
-    el.hidden = false;
-
-    // 브리핑으로 넘어가는 순간 읽음으로 적는다. 링크는 문서를 떠나므로
-    // 여기서 적어 두지 않으면 돌아왔을 때 또 새것으로 보인다.
-    if(isNew){
-      el.addEventListener("click", (e)=>{
-        if(!e.target.closest(".brief-card")) return;
-        markBriefSeen(edition);
-        el.querySelectorAll(".brief-card").forEach(c=>c.classList.remove("is-new","is-new-quiet"));
-      }, { once: true });
-    }
-  } catch {
-    el.hidden = true;
-    const ob = document.getElementById("ownBlock"); if(ob) ob.hidden = true;
-  }
 }
 
 // ---- 화면 테마 (라이트 / 다크 / 시스템 설정) — David 2026-08-01 ----

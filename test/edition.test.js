@@ -72,12 +72,18 @@ test("store: 일별 에디션 저장·조회·날짜목록 + 재시작 왕복", 
 test("refresh가 오늘(KST) 에디션 스냅샷을 남긴다", async () => {
   const store = new FeedStore();
   const engine = new FeedEngine(store, communitySources());
+  engine.briefing = async () => { throw new Error("retired publisher was called"); };
   await engine.refresh();
   const dates = store.listEditionDates();
   assert.equal(dates.length, 1, "오늘 날짜 하나");
   const ed = store.getDailyEdition(dates[0]);
-  assert.ok(ed.briefing && ed.ranking, "브리핑+랭킹 둘 다 저장");
+  assert.equal(ed.briefing, undefined, "옛 브리핑은 새로 생성하지 않는다");
+  assert.ok(ed.ranking, "랭킹 저장 유지");
   assert.ok(ed.ranking.items.length > 0, "랭킹 항목이 실제로 있음");
+  const historic = { issues: [{ headline: "보존할 옛 브리핑" }] };
+  store.saveDailyEdition(dates[0], { briefing: historic, ranking: ed.ranking });
+  await engine.refresh();
+  assert.deepEqual(store.getDailyEdition(dates[0]).briefing, historic, "기존 기록은 보존한다");
 });
 
 // ---- 서버 라우트 ----------------------------------------------------------
@@ -99,8 +105,8 @@ test("서버: /api/briefing, /briefing/<cat>, /ranking/* 라우트가 자체 콘
   const port = server.address().port;
   try {
     const api = await fetchPath(port, "/api/briefing");
-    assert.equal(api.status, 200);
-    assert.ok(JSON.parse(api.body).sections.length >= 1, "브리핑 섹션 존재");
+    assert.equal(api.status, 410);
+    assert.equal(JSON.parse(api.body).code, "LEGACY_BRIEFING_RETIRED");
 
     const daily = await fetchPath(port, "/ranking/daily");
     assert.equal(daily.status, 200);
@@ -109,11 +115,11 @@ test("서버: /api/briefing, /briefing/<cat>, /ranking/* 라우트가 자체 콘
     assert.ok(daily.body.includes("페퍼클럽"), "운영주체 표기");
 
     const cat = await fetchPath(port, "/briefing/tech");
-    assert.equal(cat.status, 200);
+    assert.equal(cat.status, 410);
     assert.ok(cat.body.includes("브리핑"), "카테고리 브리핑 렌더");
 
     const missing = await fetchPath(port, "/briefing/2020-01-01");
-    assert.equal(missing.status, 404, "없는 아카이브는 정직하게 404");
+    assert.equal(missing.status, 410, "옛 아카이브도 종료 안내");
 
     // 주간: 아직 하루치뿐 — 집계 중 표기가 있어야 한다 (날조 금지의 표시면)
     const weekly = await fetchPath(port, "/ranking/weekly");

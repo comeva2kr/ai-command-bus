@@ -141,7 +141,7 @@ test("색인: 실시간·집계 유틸리티는 열어 두되 noindex이고 site
   const { readFileSync } = await import("node:fs");
   const src = readFileSync("src/feed/server.js", "utf8");
   assert.match(src, /noindex,follow/, "색인만 막고 링크는 따라가게 둔다");
-  const sitemap = src.slice(src.indexOf('if (p === "/sitemap.xml"'), src.indexOf('if (p === "/briefing"'));
+  const sitemap = src.slice(src.indexOf('if (p === "/sitemap.xml"'), src.indexOf('if (p === "/api/today"'));
   for (const path of ["/live", "/ranking/daily", "/trends", "/communities", "/keywords", "/keyword/", "/community/"]) {
     assert.ok(!sitemap.includes(`loc: "${path}"`) && !sitemap.includes(`loc: \`${path}`),
       `${path}가 sitemap 생성부에 남았다`);
@@ -186,7 +186,7 @@ test("사이트맵: lastmod가 있어야 구글이 바뀐 걸 안다", async () 
   // 정책 문서는 파일 수정 시각이 진짜 값이다.
   assert.match(src, /const liveMod = isoOf\(engine\.lastRefreshedAt \|\| Date\.now\(\)\)/);
   assert.match(src, /fileMod\("terms\.html"\)/);
-  assert.match(src, /savedAt \? isoOf\(savedAt\) : undefined/, "저장 기록이 없으면 lastmod를 비운다");
+  assert.doesNotMatch(src, /urls\.push\(\{ loc: `\/briefing/, "종료 아카이브는 사이트맵에서 제외한다");
 });
 
 test("설명문: 없는 소스를 검색 스니펫에 광고하지 않는다", async () => {
