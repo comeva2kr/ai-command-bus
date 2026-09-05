@@ -56,7 +56,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   context.setDefaultTimeout(4000);
   t.after(() => context.close());
   const requests = [];
-  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, sourceKind: "news", feedHandler: null };
+  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, sourceKind: "news", feedHandler: null, coupang: null };
   await context.addInitScript(({ realWorker, guideState, releaseId }) => {
     if (!localStorage.getItem("__fixture_seeded")) {
       localStorage.clear();
@@ -87,7 +87,8 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
     if (url.origin !== base) return route.abort();
     if (url.pathname.startsWith("/api/")) {
       let body = {};
-      if (url.pathname === "/api/config") body = { categories: [category], topics: [], ads: {}, release };
+      if (url.pathname === "/api/config") body = { categories: [category], topics: [], ads: {}, release,
+        coupang: controls.coupang, monetization: { enabled: Boolean(controls.coupang) } };
       if (url.pathname === "/api/session") body = { userId: "reader", surveyed: true, showTopics: [], briefingCategories: ["business"], mixBalance: controls.mixBalance };
       if (url.pathname === "/api/communities") body = { communities: [{ id: "test", label: "Test", kind: controls.sourceKind, enabled: true, adult: false, liveCount: 18 }] };
       if (url.pathname === "/api/feed") body = controls.feedHandler ? await controls.feedHandler(url) : { items, nextCursor: 18, exhausted: true };
@@ -120,6 +121,22 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   await page.goto(base + path);
   return { page, requests, controls, context, base };
 }
+
+test("browser: restored Live list uses the current Coupang inventory", options, async (t) => {
+  const { page, controls } = await fixture(t);
+  await page.waitForSelector("#feed .card");
+  assert.equal(await page.locator("#feed .ad-card").count(), 0);
+  controls.coupang = {
+    disclosure: "이 포스팅은 쿠팡 파트너스 활동의 일환으로 수수료를 제공받습니다.",
+    items: [{ category: "business", dest: "shop", href: "https://link.coupang.com/a/fixture",
+      hook: "필요한 상품을 확인해 보세요", brand: "쿠팡 쇼핑" }]
+  };
+  await page.reload();
+  await page.waitForSelector("#feed .ad-card a.card-go", { state: "visible" });
+  assert.equal(await page.locator("#feed .card:not(.ad-card)").count(), items.length);
+  assert.match(await page.locator("#feed .ad-card").first().innerText(), /쿠팡 파트너스[\s\S]*수수료/);
+  assert.match(await page.locator("#feed .ad-card a.card-go").first().getAttribute("href"), /^https:\/\/link\.coupang\.com\//);
+});
 
 test("browser: cold Live detail owns a list entry; Back/Forward/reload preserve intent", options, async (t) => {
   const { page } = await fixture(t, "/live#post-post-0");

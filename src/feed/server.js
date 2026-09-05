@@ -2126,12 +2126,10 @@ export function createServer(opts = {}) {
   }
 
   const COUPANG_DISCLOSURE = AD_DISCLOSURE;
-  // ADFIT_ENABLED=1은 단순히 피드 광고를 켜는 스위치가 아니라 심사 지면을
-  // 고정하는 모드다. 이때는 외부 링크가 계속 갱신되는 /live에서 모든 광고를
-  // 빼고, 색인 가능한 자체 편집 페이지에만 AdFit 한 단위를 둔다.
+  // 심사 모드는 편집 지면의 AdFit 배치만 결정한다.
+  // /live의 기존 쿠팡 제휴 링크는 이 모드와 독립적으로 제공한다.
   const adfitReviewMode = () =>
     process.env.ADFIT_ENABLED === "1" && Boolean(process.env.ADFIT_UNIT_MOBILE);
-  engine.monetizationDisabled = adfitReviewMode();
   // pick — 회전 인덱스. 예전엔 인자를 안 넘겨 pick=0으로 고정됐고, 그래서
   // 32장 재고가 있어도 **모든 방문자가 매 페이지에서 같은 배너 한 장**을 봤다
   // (2026-08-03 검수 실측: /briefing·/trends·/ranking 전부 tech 배너).
@@ -3580,7 +3578,7 @@ ${rankingRows(list, (above) => {
         // an ad (docs/monetization.md "①앱 전역 상단 1회 통합 고지").
         const reviewMode = adfitReviewMode();
         const monetization = {
-          enabled: !reviewMode && (Boolean(process.env.COUPANG_PARTNER_ID) || Boolean(process.env.AD_PREVIEW))
+          enabled: Boolean(process.env.COUPANG_PARTNER_ID) || Boolean(process.env.AD_PREVIEW)
         };
         // 소셜 로그인: provider별 클라이언트 id/secret 둘 다 있어야 활성 —
         // 키가 하나도 없으면 빈 배열이라 클라이언트는 로그인 버튼을 아예
@@ -3633,7 +3631,7 @@ ${rankingRows(list, (above) => {
         // 것은 link.coupang.com 클릭이지 이미지가 아니다. 링크는 내비게이션이라
         // 차단 목록의 서브리소스 규칙에 걸리지 않는다. 덤으로 피드 카드와 같은
         // 디자인이 되어 다크모드에서 흰 배너가 튀는 문제도 사라진다.
-        const coupang = reviewMode ? null : (() => {
+        const coupang = (() => {
           // 카테고리당 하나가 아니라 **전 재고**를 내려보낸다. 예전엔 첫 배너만
           // 담아서 32장 중 24장이 앱에서 영원히 도달 불가였다(검수 실측).
           // 카피도 여기서 붙인다 — 클라이언트가 같은 표를 복사해 두면 한쪽만

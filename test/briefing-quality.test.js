@@ -413,7 +413,7 @@ test("루트는 자체 편집 홈이고 기존 개인화 앱은 /live noindex로
   }
 });
 
-test("AdFit 심사 모드는 자체 편집 홈에 한 단위만 두고 다른 광고와 /live를 비운다", async () => {
+test("AdFit 심사 모드는 편집 홈에 한 단위만 두고 실시간 쿠팡은 유지한다", async (t) => {
   const { createServer } = await import("../src/feed/server.js");
   const prev = {
     a: process.env.ADSENSE_CLIENT,
@@ -442,6 +442,7 @@ test("AdFit 심사 모드는 자체 편집 홈에 한 단위만 두고 다른 �
       kind: "news", category: "tech", publishedAt: new Date().toISOString(), sourceRank: i
     })));
     let server = createServer({ dev: true, sources: [reviewSource] });
+    t.after(() => { server.closeAllConnections?.(); server.close(); });
     await new Promise((r) => server.listen(0, r));
     let port = server.address().port;
     let html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
@@ -463,8 +464,8 @@ test("AdFit 심사 모드는 자체 편집 홈에 한 단위만 두고 다른 �
     const cfg = await (await fetch(`http://127.0.0.1:${port}/api/config`)).json();
     assert.equal(cfg.adfit.mobileUnit, null, "실시간 클라이언트로 AdFit 단위를 내려보내면 안 된다");
     assert.equal(cfg.adfit.reviewMode, true);
-    assert.equal(cfg.monetization.enabled, false);
-    assert.equal(cfg.coupang, null);
+    assert.equal(cfg.monetization.enabled, true, "애드핏 심사 설정이 기존 쿠팡 수익화를 끄지 않는다");
+    assert.ok(cfg.coupang.items.length > 0, "설정된 제휴 링크를 실시간 클라이언트에 전달한다");
     const session = await (await fetch(`http://127.0.0.1:${port}/api/session`, {
       method: "POST", headers: { "content-type": "application/json" }, body: "{}"
     })).json();
@@ -473,8 +474,8 @@ test("AdFit 심사 모드는 자체 편집 홈에 한 단위만 두고 다른 �
       body: JSON.stringify({ userId: session.userId, answers: { categories: ["tech"] } })
     });
     const feed = await (await fetch(`http://127.0.0.1:${port}/api/feed?userId=${session.userId}&limit=30`)).json();
-    assert.equal(feed.items.some((item) => item.via === "ad"), false,
-      "심사 모드에서 실시간 API도 제휴 광고 카드를 반환하면 안 된다");
+    assert.equal(feed.items.some((item) => item.via === "ad"), true,
+      "실시간 API의 쿠팡 슬롯도 심사용 편집 지면과 독립적으로 동작한다");
     server.closeAllConnections?.(); await new Promise((r) => server.close(r));
 
     // (2) 설정이 없으면 편집 홈도 완전 무광고.

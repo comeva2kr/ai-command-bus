@@ -1532,6 +1532,7 @@ function restoreLiveList(snapshot){
     if(source && (!source.enabled || source.adult))continue;
     appendCard(item);
   }
+  maybeInsertAdfit();
   setupSortBar(); renderChips(); renderSourceChips(); refreshDrawerFilters();
   [...document.getElementById("chips").children].forEach((button,index)=>
     button.classList.toggle("active",index===0?!state.activeCategory:state.config.categories[index-1]?.id===state.activeCategory));

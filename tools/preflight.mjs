@@ -7,7 +7,7 @@
 //
 // 그래서 매번 도는 항목으로 고정한다. 아래 셋은 전부 그날 실제로 깨진 것이다:
 //   1. 무한스크롤    — capDeals가 페이지를 짧게 만들어 "다 봤음"으로 뒤집혔다
-//   2. 광고 모드     — AdFit 심사 중 다른 네트워크와 실시간 피드 광고가 섞이지 않음
+//   2. 광고 모드     — 편집 홈 AdFit과 실시간 쿠팡이 각 지면에서 동작함
 //   3. 지면 분리     — /는 자체 편집 홈, /live는 기존 개인화 앱
 //   4. 자체 콘텐츠   — 홈 첫 화면에서 우리가 쓴 글이 차지하는 비중
 //
@@ -70,14 +70,12 @@ if (!s.body || !s.body.userId) {
   const uid2 = (s2.body && s2.body.userId) || uid;
   const f = await json(`/api/feed?userId=${uid2}&limit=30`);
   const ads = ((f.body && f.body.items) || []).filter((x) => x.via === "ad");
-  if (reviewMode) {
-    ok("심사 모드에서 /live 광고 슬롯을 비움", ads.length === 0, `${ads.length}건`);
-  } else if (liveMonetization) {
+  if (liveMonetization) {
     ok("광고 슬롯이 나온다", ads.length > 0, `${ads.length}건`);
   } else {
     ok("수익화 미설정 피드가 무광고", ads.length === 0, `${ads.length}건`);
   }
-  if (!reviewMode && ads.length) {
+  if (ads.length) {
     const broken = ads.filter((a) => !a.url || !a.image || !a.hook);
     ok("광고 카드가 온전함", broken.length === 0, `깨진 카드 ${broken.length}건`);
     const flat = ads.filter((a) => !a.productName || a.productName === a.hook);
@@ -100,10 +98,14 @@ if (reviewMode) {
   ok("심사 홈에 AdFit 한 단위", units === 1, `${units}개`);
   ok("심사 홈은 AdFit SDK만 로드", /t1\.kakaocdn\.net\/kas\/static\/ba\.min\.js/.test(html)
     && !/pagead2\.googlesyndication\.com|link\.coupang\.com/.test(html));
-  ok("심사 모드 /live 제휴 데이터 없음",
-    cfg.body && cfg.body.coupang === null && cfg.body.monetization && cfg.body.monetization.enabled === false);
 } else {
   ok("AdFit 심사 모드 꺼짐", !reviewMode);
+}
+if (liveMonetization) {
+  const inventory = cfg.body?.coupang?.items || [];
+  ok("실시간 쿠팡 재고·링크·이미지 제공", inventory.length > 0 &&
+    inventory.every(item => /^https:\/\/link\.coupang\.com\//.test(item.href) && item.img && item.hook),
+    `${inventory.length}종`);
 }
 
 // ── 3-B. 광고 카드가 **한 곳에서만** 그려지는가 (2026-08-06)
