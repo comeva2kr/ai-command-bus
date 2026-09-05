@@ -10,7 +10,7 @@
 
 - 안정 ID `NOWHOT-TODAY-AD-ARTICLE-LAYOUT-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-209`. [NH122 구현·검증·운영 영수증](reports/NOWHOT_NH122_TODAY_AD_ARTICLE_LAYOUT_2026-09-05.md).
 - NH121의 바깥 서식만 같다는 판정을 보완한다. 광고 제목·본문·하단 행을 기사 구조로 공유하고 썸네일/독립 CTA/전용 CSS를 삭제했다. AD·제휴 고지·원본 링크/선정 규칙을 유지한다.
-- 로컬 Chrome28/28·관련90/90 및 공개 데이터 미리보기(런치56/광고5, 세 화면폭) PASS. Safari 사진 속 제목 공백의 정확한 원인은 미확정. 운영 반영은 NH122 보고서 영수증으로 별도 대조한다. First Principles 게이트: PASS.
+- 로컬 Chrome28/28·관련90/90·최종 Today9/9 PASS. Fable/Grok GO 회수·워커 release 완료. 운영 `f95164b` 13:28:08 KST 배포·13:28:30 preflight OK. 공개 런치56/광고5·상세1·Live광고1, 세 화면폭 제목/구조·넘침0·새 공지1회/이력9건·공개 함수 바이트 일치 확인. Grok가 격리 macOS WebKit에서 제목 숨김 규칙에 의한 공백 메커니즘을 재현했지만 실제 iPhone 원인은 미확정. First Principles 게이트: PASS.
 
 ## 직전 NH121 기존 브리핑 종료·오늘판 광고 서식 통일
 
