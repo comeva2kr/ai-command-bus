@@ -6,7 +6,18 @@
 - 인수 근거와 재개 경로: [책임자 인수 기록](reports/NOWHOT_OWNER_TAKEOVER_2026-09-05.md). 로컬 코드 HEAD `e59c8fd`; 이번 변경은 인수 문서 연결뿐이며 제품·판본·운영 변경 없음.
 - 아래 NH112 배포 완료는 9월 4일의 완료 기록이다. 이후 같은 날 19시대 Orca 광고 재심사 감사에서 Google AdSense·Kakao AdFit 모두 HOLD·미제출로 판정됐다. 배포 완료와 광고 신청 준비/승인을 구분하며, 현재 운영 재검증이나 보류 원인 수리 완료로 표현하지 않는다.
 
-## 현재 판정 — NH113 운영 장애 복구
+## 현재 판정 — NH114 실시간 정렬 선택줄 고정
+
+- `NOWHOT-LIVE-STICKY-SORT-001` / `DEVCHG-NOWHOT-20260905-201`: 실시간 핫·최신·핫딜 선택줄에 CSS sticky를 적용했다. 기존 헤더 높이 측정값을 재사용해 상단 헤더 바로 아래에 유지한다.
+- 운영 코드 `05b902bf0492a1e404a78d74a38c10b37ccbd125`, 2026-09-05 09:19:08 KST 배포, 09:19:36 preflight PASS. 공개 `https://nowhot.kr/live`에서 Chrome 모바일 크기 393×852와 PC 2310×1358을 직접 확인했다.
+- 대조 결과: 스크롤 중 선택줄 top과 헤더 bottom이 모바일 59px·PC 65px로 일치, 가로 넘침 없음. 로컬 위아래 스크롤·세 정렬 선택·메뉴 열기/닫기 정상, 선택줄 z-index19는 헤더20·메뉴49 아래다. 독립 Codex 검토도 같은 CSS 변경을 권고했다.
+- 작업 시작 전 확인한 MD — 자동 주입: 사용자 AGENTS.md·메모리 요약. 직접 읽음: 공유 시작 게이트 6개(START_HERE, 운영 정본, 위키 규칙, 집행 프로토콜, PMO_LIVE_BOARD, REPORT_READ_INDEX)는 이 세션 선행 확인; 이번 입력에서 wrc-start/SKILL.md·이 개발현황·시스템 Blueprint 관련 기록 재확인. 미읽음/불가: 없음(관련 범위). 이번 작업 전용 파일: `src/feed/public/index.html`.
+- 적용한 규칙: 의견/아이디어로 접수 후 명확한 UI 개선 범위 실행, 13 First Principles 전체 게이트·Corridor 사전 계획 검사·Ponytail 최소 CSS 수정·공개 운영 검증. First Principles 게이트: PASS.
+- 개발현황 반영: 위 안정 ID와 변경 레코드로 코드 1행 및 운영 동작 대조 완료. 오늘판 발행/조회 복구 상태는 아래 NH113 기록을 유지한다.
+- 금지선 준수: 선택줄 스타일만 변경, 기존 정렬·기사·오늘판 데이터 보존. David 행동 필요 여부: 없음. Telegram 알림 필요 여부: 없음.
+- 이익 우선·과잉방어 점검: 기존 브라우저 CSS 기능으로 즉시 개선, 추가 JS·의존성·유료 호출 없음. 하지 않은 일: 실제 iPhone Safari 기기 테스트·불필요한 전체 회귀 재실행·Orca Fable/Grok 신규 호출(이번 1행 변경은 독립 Codex 검토).
+
+## 직전 NH113 운영 장애 복구
 
 - `DEVCHG-NOWHOT-20260905-200` / `NOWHOT-TODAY-PUBLISHING-RECOVERY-001`: 누락된 Docker 발행기·자식 예약기 재귀·누락판 409·브라우저 런치 고정을 수정했다.
 - 운영 코드 `b5517ebd183be970dd81fdc7744aa2e901a05968`, 2026-09-05 07:34 KST 배포/preflight PASS. 모닝 `SCE-310f1fb916c40db6`, 기본56·선택3분야42·14분야 각14·전체 고유195, filter_only·LLM0.
