@@ -6,7 +6,12 @@
 - 인수 근거와 재개 경로: [책임자 인수 기록](reports/NOWHOT_OWNER_TAKEOVER_2026-09-05.md). 로컬 코드 HEAD `e59c8fd`; 이번 변경은 인수 문서 연결뿐이며 제품·판본·운영 변경 없음.
 - 아래 NH112 배포 완료는 9월 4일의 완료 기록이다. 이후 같은 날 19시대 Orca 광고 재심사 감사에서 Google AdSense·Kakao AdFit 모두 HOLD·미제출로 판정됐다. 배포 완료와 광고 신청 준비/승인을 구분하며, 현재 운영 재검증이나 보류 원인 수리 완료로 표현하지 않는다.
 
-## 현재 판정 — NH118 오늘판 쿠팡·실시간 광고 재검증
+## 현재 판정 — NH119 오늘판 관심 분야 상단 고정
+
+- 안정 ID `NOWHOT-TODAY-STICKY-CATEGORIES-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-206`. [NH119 검증·운영 영수증](reports/NOWHOT_NH119_TODAY_STICKY_CATEGORIES_2026-09-05.md).
+- Today CSS3규칙으로 관심 분야를 헤더 아래에 고정하고 데스크톱 요약 레일 겹침을 해소했다. 격리 Chrome393/320/1100px에서 고정 위치·버튼 접근·가로 탐색·다크/상세·가로 넘침0 검증 PASS. 운영 결과는 연결 기록 참조. First Principles 게이트: PASS.
+
+## 직전 NH118 오늘판 쿠팡·실시간 광고 재검증
 
 - 안정 ID `NOWHOT-TODAY-LIVE-ADS-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-205`. [NH118 원인·검증·운영 영수증](reports/NOWHOT_NH118_TODAY_LIVE_ADS_2026-09-05.md).
 - 오늘판에 기존 쿠팡 재고를 연결해 글03 뒤부터10글 간격과 상세 요약 아래 표시한다. 현재 개인 오늘판의 빈 심사 광고 주입을 제거하며 기사 데이터·순서·번호는 보존한다.
