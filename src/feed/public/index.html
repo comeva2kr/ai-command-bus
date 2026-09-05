@@ -3402,6 +3402,14 @@ function renderBatch(res){
   saveLiveNavigation();
 }
 
+function nearFeedEnd(){
+  const feed = document.getElementById("feed");
+  // 몰입 모드는 피드 안에서 스크롤하므로 바깥 sentinel 위치는 끝을 뜻하지 않는다.
+  return state.immersion
+    ? feed.scrollHeight - feed.scrollTop - feed.clientHeight < 1400
+    : document.getElementById("sentinel").getBoundingClientRect().top < innerHeight + 1400;
+}
+
 async function loadMore(){
   if(state.loading || state.exhausted) return;
   const revision = state.feedRevision;
@@ -3415,7 +3423,7 @@ async function loadMore(){
   finally {
     if(revision === state.feedRevision) {
       state.loading=false;
-      if(rendered && !state.exhausted && document.getElementById("sentinel").getBoundingClientRect().top < innerHeight + 1400) loadMore();
+      if(rendered && !state.exhausted && nearFeedEnd()) loadMore();
     }
   }
 }
@@ -3827,9 +3835,12 @@ function setSentinel(loading, msg){
 }
 function setupInfiniteScroll(){
   const io = new IntersectionObserver((entries)=>{
-    if(entries[0].isIntersecting) loadMore();
+    if(entries[0].isIntersecting && nearFeedEnd()) loadMore();
   }, { rootMargin: "1400px" });
   io.observe(document.getElementById("sentinel"));
+  document.getElementById("feed").addEventListener("scroll",()=>{
+    if(state.immersion && nearFeedEnd()) loadMore();
+  },{passive:true});
 }
 
 // Skip detection: a card that was on screen and then scrolled up out of view

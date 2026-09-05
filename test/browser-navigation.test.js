@@ -247,6 +247,29 @@ test("browser: Live only requests the next page when approaching the list bottom
   assert.equal(requests.filter(path => path === "/api/feed").length, before + 2);
 });
 
+test("browser: immersion loads more only near the nested feed bottom", options, async (t) => {
+  const { page, controls, requests } = await fixture(t);
+  await page.waitForSelector('#feed [data-id="post-17"]');
+  controls.feedHandler = url => {
+    const cursor = Number(url.searchParams.get("cursor"));
+    return { items: items.map(item => ({ ...item, id: `${cursor}-${item.id}` })),
+      nextCursor: cursor + 18, exhausted: cursor >= 36 };
+  };
+  await page.getByRole("button", { name: "메뉴 열기" }).click();
+  await page.locator("#immBtn").click();
+  await page.getByRole("button", { name: "메뉴 닫기" }).click();
+  const before = requests.filter(path => path === "/api/feed").length;
+  await page.click('#sortBar [data-sort="latest"]');
+  await page.waitForSelector('#feed [data-id="0-post-17"]');
+  await page.waitForTimeout(300);
+  assert.equal(requests.filter(path => path === "/api/feed").length, before + 1,
+    "entering immersion must not consume offscreen pages");
+  await page.locator('#feed [data-id="0-post-17"]').scrollIntoViewIfNeeded();
+  await page.waitForSelector('#feed [data-id="18-post-0"]');
+  await page.waitForTimeout(200);
+  assert.equal(requests.filter(path => path === "/api/feed").length, before + 2);
+});
+
 for (const delayed of ["loadMore", "pagination"]) {
   test(`browser: Live mix ignores delayed ${delayed} news after community-only selection`, options, async (t) => {
     const { page, controls } = await fixture(t);
