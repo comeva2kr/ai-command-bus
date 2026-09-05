@@ -56,7 +56,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   context.setDefaultTimeout(4000);
   t.after(() => context.close());
   const requests = [];
-  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [] };
+  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, feedHandler: null };
   await context.addInitScript(({ realWorker, guideState, releaseId }) => {
     if (!localStorage.getItem("__fixture_seeded")) {
       localStorage.clear();
@@ -88,9 +88,13 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
     if (url.pathname.startsWith("/api/")) {
       let body = {};
       if (url.pathname === "/api/config") body = { categories: [category], topics: [], ads: {}, release };
-      if (url.pathname === "/api/session") body = { userId: "reader", surveyed: true, showTopics: [], briefingCategories: ["business"] };
+      if (url.pathname === "/api/session") body = { userId: "reader", surveyed: true, showTopics: [], briefingCategories: ["business"], mixBalance: controls.mixBalance };
       if (url.pathname === "/api/communities") body = { communities: [{ id: "test", label: "Test", enabled: true, adult: false, liveCount: 18 }] };
-      if (url.pathname === "/api/feed") body = { items, nextCursor: 18, exhausted: true };
+      if (url.pathname === "/api/feed") body = controls.feedHandler ? await controls.feedHandler(url) : { items, nextCursor: 18, exhausted: true };
+      if (url.pathname === "/api/mix") {
+        controls.mixBalance = route.request().postDataJSON().balance;
+        body = { ok: true, balance: controls.mixBalance };
+      }
       if (url.pathname === "/api/digest") body = { count: 1, top: [items[0]] };
       if (url.pathname === "/api/today") {
         controls.todayQueries.push(url.search);
@@ -127,6 +131,70 @@ test("browser: cold Live detail owns a list entry; Back/Forward/reload preserve 
   await page.goForward();
   await page.waitForSelector("#detail.open");
   assert.match(await page.locator("#detailTitle").innerText(), /Public article 0/);
+});
+
+for (const delayed of ["loadMore", "prefetch"]) {
+  test(`browser: Live mix ignores delayed ${delayed} news after community-only selection`, options, async (t) => {
+    const { page, controls } = await fixture(t);
+    await page.waitForSelector('#feed [data-id="post-0"]');
+    const community = items.map(item => ({ ...item, id: `community-${item.id}`, kind: "community" }));
+    const staleNews = { ...items[0], id: "stale-news" };
+    let release, started;
+    const held = new Promise(resolve => { release = resolve; });
+    const pending = new Promise(resolve => { started = resolve; });
+    t.after(() => release());
+    controls.feedHandler = async url => {
+      const cursor = Number(url.searchParams.get("cursor"));
+      if (controls.mixBalance === -1) return cursor === 0
+        ? { items: community, nextCursor: 18, exhausted: delayed === "loadMore" }
+        : { items: [{ ...community[0], id: "community-next" }], nextCursor: 19, exhausted: true };
+      if (delayed === "prefetch" && cursor === 0) return { items, nextCursor: 18, exhausted: false };
+      started();
+      await held;
+      return { items: [staleNews], nextCursor: 19, exhausted: true };
+    };
+    await page.click('#sortBar [data-sort="latest"]');
+    await pending;
+    await page.click("#menuBtn");
+    const mixSaved = page.waitForResponse(res => new URL(res.url()).pathname === "/api/mix");
+    await page.locator("#mixSlider").press("Home");
+    await mixSaved;
+    assert.equal(controls.mixBalance, -1);
+    await page.waitForSelector('#feed [data-id="community-post-0"]');
+    assert.equal(await page.locator("#feed .badge.news").count(), 0);
+    await page.waitForSelector("#netbar");
+    const staleResponse = page.waitForResponse(res => new URL(res.url()).pathname === "/api/feed");
+    release();
+    await (await staleResponse).finished();
+    await page.waitForSelector("#netbar", { state: "detached" });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    if (delayed === "prefetch") {
+      await page.click("#drawerClose");
+      await page.locator("#sentinel").scrollIntoViewIfNeeded();
+      await page.waitForFunction(() => document.querySelectorAll("#feed .card").length === 19);
+    }
+    assert.equal(await page.locator('#feed [data-id="stale-news"]').count(), 0, "a superseded feed response must not enter the new list");
+    assert.equal(await page.locator("#feed .badge.news").count(), 0);
+    assert.equal(await page.locator("#feed .badge.community").count(), delayed === "prefetch" ? 19 : 18);
+  });
+}
+
+test("browser: Live mix reload discards a mixed snapshot when the saved setting becomes community-only", options, async (t) => {
+  const { page, controls, requests } = await fixture(t);
+  await page.waitForSelector('#feed [data-id="post-0"]');
+  assert.equal(await page.locator("#feed .badge.news").count(), 18);
+  const feedCalls = requests.filter(path => path === "/api/feed").length;
+  controls.mixBalance = -1;
+  controls.feedHandler = () => ({
+    items: items.map(item => ({ ...item, id: `community-${item.id}`, kind: "community" })),
+    nextCursor: 18, exhausted: true
+  });
+  await page.reload();
+  await page.waitForFunction(() => document.getElementById("mixMid").textContent === "커뮤만");
+  await page.waitForSelector("#feed .card");
+  assert.equal(await page.locator("#feed .badge.news").count(), 0, "the current saved mix must invalidate an old mixed snapshot");
+  assert.equal(await page.locator("#feed .badge.community").count(), 18);
+  assert.equal(requests.filter(path => path === "/api/feed").length, feedCalls + 1);
 });
 
 test("browser: same-tab original returns to detail then exact Live list/filter/sort/scroll", options, async (t) => {

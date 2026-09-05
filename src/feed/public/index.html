@@ -1170,10 +1170,10 @@
 
       <!-- 커뮤니티(오락성) ↔ 뉴스(소식성) 비율 (David 2026-08-02).
            성향 슬라이더와 같은 방식이지만 축이 다르다: 이건 "뭘 볼까",
-           아래 것은 "뉴스 안에서 어느 쪽". 끝까지 밀어도 반대편이 사라지지는
-           않는다(engine.mixMultiplier, 0.2~1.8) — 비율 다이얼이지 필터가 아니다. -->
+           아래 것은 "뉴스 안에서 어느 쪽". 양 끝은 커뮤만/뉴스만,
+           중간값은 선호 강도이며 실제 노출 비율을 약속하지 않는다. -->
       <div class="drawer-sec" id="mixSec">
-        <h4>커뮤 · 뉴스 비율</h4>
+        <h4>커뮤 · 뉴스 조절</h4>
         <input type="range" id="mixSlider" min="-100" max="100" step="25" value="0"
                style="width:100%;accent-color:var(--accent)" aria-label="커뮤니티와 뉴스 비율">
         <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:2px">
@@ -1485,7 +1485,7 @@ async function post(u,b){
 // ---- state ----
 const state = {
   userId: localStorage.getItem("feed_uid") || null,
-  cursor: 0, loading: false, exhausted: false,
+  cursor: 0, loading: false, exhausted: false, feedRevision: 0, mixBalance: 0,
   prefetch: null, prefetching: false, // 다음 페이지 선반입 버퍼
   activeCategory: localStorage.getItem("feed_cat") || null, config: null,
   // 정렬 모드: hot(추천) | latest(최신순, #12). 새로고침 간 유지.
@@ -1508,7 +1508,7 @@ const liveHistory = NowHotHistory.create("live");
 let detailRevision = 0;
 function liveSnapshot(){
   return { userId:state.userId, source:state.activeSource, category:state.activeCategory,
-    sort:state.sortMode, y:state.openItemId?state.feedScrollY:window.scrollY,
+    sort:state.sortMode, mixBalance:state.mixBalance, y:state.openItemId?state.feedScrollY:window.scrollY,
     pages:state.pagesLoaded, cursor:state.cursor, exhausted:state.exhausted,
     items:[...state.cardsById.keys()].map(id=>state.itemsById.get(id)).filter(Boolean) };
 }
@@ -1517,6 +1517,8 @@ function saveLiveNavigation(){
 }
 function restoreLiveList(snapshot){
   if(!snapshot || snapshot.userId!==state.userId || !Array.isArray(snapshot.items))return false;
+  if((snapshot.mixBalance ?? 0)!==state.mixBalance)return false;
+  state.feedRevision++; state.loading=false; state.prefetching=false;
   state.activeSource=snapshot.source; state.activeCategory=snapshot.category; state.sortMode=snapshot.sort;
   state.feedScrollY=snapshot.y||0; state.cursor=snapshot.cursor; state.pagesLoaded=snapshot.pages;
   state.exhausted=snapshot.exhausted; state.prefetch=null;
@@ -1838,11 +1840,13 @@ function maybeShowAdNotice(){
 // 기기 간 동기화된다. 변경 즉시 저장하되 피드 재적재는 700ms 디바운스 —
 // 슬라이더를 드래그하는 동안 요청이 연발되지 않게.
 function setupMixSlider(session){
+  state.mixBalance = Number.isFinite(session?.mixBalance) ? session.mixBalance : 0;
   const el = document.getElementById("mixSlider");
   const mid = document.getElementById("mixMid");
   if(!el) return;
-  const label = (v)=> v===0 ? "고르게" : (v<0 ? "커뮤 "+Math.abs(v)+"%" : "뉴스 "+v+"%");
-  const init = Math.round(((session && session.mixBalance) || 0) * 100);
+  const label = (v)=> v===-100 ? "커뮤만" : v===100 ? "뉴스만" : v===0 ? "고르게" :
+    (v<0 ? "커뮤 선호 "+Math.abs(v) : "뉴스 선호 "+v);
+  const init = Math.round(state.mixBalance * 100);
   el.value = String(init); mid.textContent = label(init);
   let t = null;
   el.addEventListener("input", ()=>{ mid.textContent = label(Number(el.value)); });
@@ -1852,7 +1856,9 @@ function setupMixSlider(session){
     t = setTimeout(async ()=>{
       try {
         await API.setMix(state.userId, v);
-        toast(v===0 ? "커뮤와 뉴스를 고르게 섞어요" : (v<0 ? "커뮤니티 글을 더 보여드려요" : "뉴스를 더 보여드려요"));
+        state.mixBalance = v;
+        toast(v===-1 ? "커뮤니티 글만 보여드려요" : v===1 ? "뉴스만 보여드려요" :
+          v===0 ? "커뮤와 뉴스를 고르게 섞어요" : (v<0 ? "커뮤니티 글을 더 보여드려요" : "뉴스를 더 보여드려요"));
         reloadFeedSilently();
       } catch(e){ toast("저장 실패: "+e.message); }
     }, 700);
@@ -2650,6 +2656,7 @@ function refreshSpaceFilters(spaceBody){
 }
 // 토픽 필터가 바뀌면 후보군이 달라지므로 피드를 새로 로드
 function reloadFeed(msg){
+  state.feedRevision++; state.prefetching = false;
   state.cursor = 0; state.exhausted = false; state.loading = false;
   state.prefetch = null; // 조건이 바뀌었으니 선반입분은 버린다
   state.cardsById.clear();
@@ -2924,6 +2931,7 @@ function wireKakaoAppLogin(container){
 }
 // refresh the underlying feed without scrolling the space away
 function reloadFeedSilently(){
+  state.feedRevision++; state.prefetching = false;
   // 취향·성향 조정으로 목록이 통째로 달라진다. 옛 페이지 수·좌표를 그대로
   // 적용하면 엉뚱한 자리로 간다(적대적 검수 지적).
   state.pagesLoaded = 0; clearReading();
@@ -3034,8 +3042,7 @@ function showSurvey(){
       state.surveyed = true;
       document.getElementById("survey").classList.add("hidden");
       const pb=document.getElementById("pbanner"); if(pb) pb.remove();
-      state.cursor=0; state.exhausted=false; state.cardsById.clear(); document.getElementById("feed").innerHTML="";
-      loadMore(); toast("취향 반영됨");
+      reloadFeedSilently(); toast("취향 반영됨");
     } catch(e){ toast("설문 오류: "+e.message); }
   };
   document.getElementById("survey").classList.remove("hidden");
@@ -3387,11 +3394,12 @@ function setSource(id, container, btn){
 function prefetchNext(){
   if(state.prefetch || state.prefetching || state.exhausted) return;
   state.prefetching = true;
+  const revision = state.feedRevision;
   const cursor = state.cursor, src = state.activeSource, sort = state.sortMode;
   API.feed(state.userId, cursor, 10, src, sort, state.activeCategory).then((res)=>{
     // 그 사이 필터·정렬이 바뀌었으면 이 결과는 버린다(엉뚱한 페이지 방지)
-    if(src === state.activeSource && sort === state.sortMode && cursor === state.cursor) state.prefetch = res;
-  }).catch(()=>{}).finally(()=>{ state.prefetching = false; });
+    if(revision === state.feedRevision && src === state.activeSource && sort === state.sortMode && cursor === state.cursor) state.prefetch = res;
+  }).catch(()=>{}).finally(()=>{ if(revision === state.feedRevision) state.prefetching = false; });
 }
 
 function renderBatch(res){
@@ -3409,6 +3417,7 @@ function renderBatch(res){
 
 async function loadMore(){
   if(state.loading || state.exhausted) return;
+  const revision = state.feedRevision;
   // 선반입해 둔 페이지가 있으면 즉시 렌더 — 네트워크 대기 없음
   if(state.prefetch){
     const res = state.prefetch; state.prefetch = null;
@@ -3419,10 +3428,11 @@ async function loadMore(){
   state.loading = true; setSentinel(true);
   try {
     const res = await API.feed(state.userId, state.cursor, 10, state.activeSource, state.sortMode, state.activeCategory);
+    if(revision !== state.feedRevision) return;
     renderBatch(res);
     prefetchNext();
-  } catch(e){ setSentinel(false, "불러오지 못했어요 — 당겨서 다시 시도"); }
-  finally { state.loading=false; }
+  } catch(e){ if(revision === state.feedRevision) setSentinel(false, "불러오지 못했어요 — 당겨서 다시 시도"); }
+  finally { if(revision === state.feedRevision) state.loading=false; }
 }
 
 // 상태 배지 묶음 — 헤더가 아니라 **하단 이유칩 줄**에 붙는다 (David 2026-08-01:

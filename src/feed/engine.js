@@ -747,12 +747,8 @@ export function leanMultiplier(sourceId, balance) {
 // "커뮤니티(오락성) 뉴스(소식성)의 비율을 조절하는 좌우 슬라이더, 정치성향
 // 슬라이더처럼"). balance: -1 커뮤니티 쪽 ~ 0 균형 ~ +1 뉴스 쪽.
 //
-// 성향 슬라이더와 같은 방식으로 hot에 곱한다 — 후보를 **빼지 않고 순위만**
-// 바꾸므로 다양성 제약(소스 상한·연속 금지·카테고리 쿼터)과 충돌하지 않는다.
-// 필터로 구현하면 한쪽 공급이 얇은 시간대에 피드가 비어 버린다.
-//
-// 끝까지 밀어도 반대편이 사라지지 않는다(0.2~1.8, 최대 9배 차이) — 이건
-// 비율 다이얼이지 on/off 필터가 아니다. 광고·제휴·내가 쓴 글은 건드리지 않는다.
+// 중간값은 가중치로 조절하고, 양 끝(-1/+1)은 getFeed 공통 관문에서
+// 반대 종류를 제외한다. 광고·제휴·내가 쓴 글은 건드리지 않는다.
 export function mixMultiplier(item, balance) {
   if (!Number.isFinite(balance) || balance === 0) return 1;
   const kind = item && item.kind;
@@ -1941,6 +1937,7 @@ export class FeedEngine {
       const offMain = this._offMainSet();
     const showTopics = new Set(user.showTopics || []);
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+    const mixBalance = Number.isFinite(user.mixBalance) ? user.mixBalance : 0;
 
     let unseen;
     let collabBoosts = new Map();
@@ -2004,6 +2001,10 @@ export class FeedEngine {
       // 관문을 술어 하나로 뽑는다 — 아래 "본 글 재활용" 폴백이 같은 관문을
       // 그대로 써야 한다(관문 두 벌 금지).
       const passesGates = (i) =>
+        // 커뮤만/뉴스만은 핫·최신·재사용·앵커·추가 후보에 같은 관문을 적용한다.
+        // 핫딜 탭과 위의 명시 소스 보기는 해당 목록을 직접 선택한 의사를 따른다.
+        (sort === "deals" || !((mixBalance === -1 && i.kind === "news") ||
+          (mixBalance === 1 && i.kind === "community"))) &&
         !(hideDeals && i.isDeal === true) &&
         !muted.has(i.source) &&
         !disabled.has(i.source) &&
@@ -2174,7 +2175,6 @@ export class FeedEngine {
       const minGap = Number(process.env.HOT_MIN_GAP ?? 1);
       const exposure = this.store.sourceExposureFor ? this.store.sourceExposureFor(userId) : {};
       const balance = Number.isFinite(user.leanBalance) ? user.leanBalance : 0;
-      const mixBalance = Number.isFinite(user.mixBalance) ? user.mixBalance : 0;
 
       // "개인화 유저"의 판별: user.preferences는 createUser가 빈 벡터를 만들어
       // **항상 truthy**다 — 진짜 기준은 취향 신호가 실제로 존재하는가이다

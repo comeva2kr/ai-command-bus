@@ -23,8 +23,7 @@ test("mixMultiplier: 슬라이더 방향대로 가중치가 갈린다", () => {
   assert.equal(mixMultiplier({ kind: "news" }, 1), mixMultiplier({ kind: "community" }, -1));
 });
 
-test("mixMultiplier: 끝까지 밀어도 반대편이 사라지지 않는다 (필터가 아니라 다이얼)", () => {
-  // 필터로 만들면 한쪽 공급이 얇은 시간대에 피드가 비어 버린다.
+test("mixMultiplier: 순위 가중치는 유계이고 양 끝의 제외는 피드 공통 관문이 담당한다", () => {
   assert.ok(mixMultiplier({ kind: "community" }, 1) >= 0.2, "완전히 0이 되면 안 된다");
   assert.ok(mixMultiplier({ kind: "news" }, -1) >= 0.2);
   assert.ok(mixMultiplier({ kind: "news" }, 1) <= 1.8, "상한도 있어야 한다");
@@ -86,7 +85,65 @@ test("엔진 통합: 슬라이더를 뉴스 쪽으로 밀면 첫 페이지 뉴�
   const [toComm, mid, toNews] = [await share(-1), await share(0), await share(1)];
   assert.ok(toNews > mid, `뉴스 쪽(${toNews.toFixed(2)})이 균형(${mid.toFixed(2)})보다 높아야 한다`);
   assert.ok(toComm < mid, `커뮤 쪽(${toComm.toFixed(2)})이 균형(${mid.toFixed(2)})보다 낮아야 한다`);
-  // 끝까지 밀어도 반대편이 남는다 — 다이얼이지 필터가 아니다
-  assert.ok(toNews < 1, "뉴스 100%가 되면 안 된다");
-  assert.ok(toComm > 0, "커뮤 100%가 되면 안 된다");
+  assert.equal(toNews, 1, "뉴스만 선택하면 커뮤니티 글이 없어야 한다");
+  assert.equal(toComm, 0, "커뮤만 선택하면 뉴스 글이 없어야 한다");
+});
+
+test("비율 양 끝: 핫·최신의 첫 페이지·추가 페이지·본 글 재사용에 반대 종류가 섞이지 않는다", async () => {
+  for (const surveyed of [false, true]) for (const sort of ["hot", "latest"]) {
+    const store = new FeedStore();
+    const sources = ["news", "community"].flatMap(kind => [0, 1].map(n =>
+      new JsonSource(`mix-${kind}-${n}`, async () => Array.from({ length: 16 }, (_, i) => ({
+        id: `${kind}-${n}-${i}`, title: `${kind} 독립 소스 ${n}의 충분한 길이 제목 ${i}`,
+        url: `https://${kind}-${n}.test/${i}`, category: "tech", score: 100 - i,
+        commentCount: 20, publishedAt: new Date(Date.now() - (i + 1) * 60000).toISOString()
+      })), kind)));
+    const engine = new FeedEngine(store, sources);
+    const user = store.createUser(`mix-${surveyed}-${sort}`);
+    if (surveyed) store.saveSurvey(user.id, { categories: ["tech"], communities: [], avoid: [] });
+    await engine.refresh();
+    const initial = await engine.getFeed(user.id, { sort, limit: 10 });
+    assert.ok(initial.items.some(i => i.kind === "news"));
+    assert.ok(initial.items.some(i => i.kind === "community"));
+    for (const [balance, kind] of [[-1, "community"], [1, "news"]]) {
+      store.setMixBalance(user.id, balance);
+      let cursor = 0;
+      for (let page = 0; page < 2; page++) {
+        const feed = await engine.getFeed(user.id, { sort, cursor, limit: 10 });
+        const organic = feed.items.filter(i => ["news", "community"].includes(i.kind));
+        assert.ok(organic.length > 0, `${surveyed}/${sort}/${balance}/${page}: empty`);
+        assert.ok(organic.every(i => i.kind === kind), `${surveyed}/${sort}/${balance}/${page}: opposite kind leaked`);
+        cursor = feed.nextCursor;
+      }
+      store.markSeen(user.id, (await engine._items()).filter(i => i.kind === kind).map(i => i.id));
+      const recycled = await engine.getFeed(user.id, { sort, limit: 10 });
+      assert.ok(recycled.items.length > 0);
+      assert.ok(recycled.items.every(i => i.kind === kind), `${surveyed}/${sort}/${balance}: recycled opposite kind`);
+    }
+  }
+});
+
+test("커뮤만: 공급이 없으면 뉴스로 채우지 않고, 명시 소스·핫딜 선택은 유지한다", async () => {
+  const store = new FeedStore();
+  const engine = new FeedEngine(store, [new JsonSource("mix-news", async () => [{
+    id: "news-deal", title: "검증용 할인 상품 뉴스 충분한 제목", url: "https://mix-news.test/deal",
+    category: "tech", publishedAt: new Date().toISOString(), score: 10
+  }], "news")]);
+  const user = store.createUser("mix-empty");
+  store.setMixBalance(user.id, -1);
+  await engine.refresh();
+  for (const sort of ["hot", "latest"]) {
+    const feed = await engine.getFeed(user.id, { sort, markSeen: false });
+    assert.deepEqual(feed.items, [], sort);
+    assert.equal(feed.exhausted, true);
+  }
+  assert.equal((await engine.getFeed(user.id, { source: "mix-news", markSeen: false })).items[0]?.kind, "news");
+  const deals = new FeedEngine(store, [new JsonSource("ppomppu-deal", async () => [{
+    id: "community-deal", title: "[네이버] 한돈 등뼈 (13,960원/무료)", url: "https://ppomppu.co.kr/test-deal",
+    category: "life", publishedAt: new Date().toISOString(), score: 10
+  }], "community")]);
+  store.setMixBalance(user.id, 1);
+  const dealFeed = await deals.getFeed(user.id, { sort: "deals", markSeen: false });
+  assert.equal(dealFeed.items[0]?.kind, "community");
+  assert.equal(dealFeed.items[0]?.isDeal, true);
 });
