@@ -9,7 +9,7 @@
 ## 현재 판정 — NH119 오늘판 관심 분야 상단 고정
 
 - 안정 ID `NOWHOT-TODAY-STICKY-CATEGORIES-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-206`. [NH119 검증·운영 영수증](reports/NOWHOT_NH119_TODAY_STICKY_CATEGORIES_2026-09-05.md).
-- Today CSS3규칙으로 관심 분야를 헤더 아래에 고정하고 데스크톱 요약 레일 겹침을 해소했다. 격리 Chrome393/320/1100px에서 고정 위치·버튼 접근·가로 탐색·다크/상세·가로 넘침0 검증 PASS. 운영 결과는 연결 기록 참조. First Principles 게이트: PASS.
+- Today CSS3규칙으로 관심 분야를 헤더 아래에 고정하고 데스크톱 요약 레일 겹침을 해소했다. 격리 Chrome393/320/1100px에서 고정 위치·버튼 접근·가로 탐색·다크/상세·가로 넘침0 검증 PASS. Fable 검토 GO·worker release 완료. 운영 `7c8f968` 11:51:07 KST 배포·11:51:34 자동 preflight OK, 공개 모바일59px/데스크톱65px 고정과56이슈/6광고 보존 확인. First Principles 게이트: PASS.
 
 ## 직전 NH118 오늘판 쿠팡·실시간 광고 재검증
 
