@@ -567,6 +567,21 @@ test("browser: a new visitor gets one shared Today/Live tutorial and Back keeps 
   assert.equal(await page.locator("#nhGuide").count(), 0);
 });
 
+test("browser: cached old guide cannot replace the current release guide", options, async (t) => {
+  const { page, base } = await fixture(t, "/live", true);
+  await page.waitForSelector("#feed .card");
+  await page.evaluate(async()=>{
+    await navigator.serviceWorker.ready;
+    const cache=await caches.open("nh-test-old-guide");
+    await cache.put("/notice-guide.js",new Response("window.__staleGuideLoaded=true",{headers:{"content-type":"text/javascript"}}));
+  });
+  for (const path of ["/", "/live"]) {
+    await page.goto(base+path);
+    await page.waitForFunction(()=>Boolean(window.NowHotNoticeGuide));
+    assert.equal(await page.evaluate(()=>Boolean(window.__staleGuideLoaded)),false);
+  }
+});
+
 test("browser: the full release opens at its title on mobile", options, async (t) => {
   const { page } = await fixture(t, "/");
   await page.waitForSelector(".issue");
