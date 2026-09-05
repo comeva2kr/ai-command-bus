@@ -3,7 +3,7 @@
 - 안정 ID: `NOWHOT-LEGACY-BRIEFING-RETIREMENT-001`
 - 변경 레코드: `DEVCHG-NOWHOT-20260905-208`
 - David 입력: 확정 지시·기존 배포 승인 유지. 기존 오늘의 브리핑과 연결 송출 RSS 종료, Today 광고를 Today 기사 행과 같은 서식으로 구현, Orca 3자 진행.
-- 상태: 로컬 구현·통합 검증 PASS. 운영 배포 영수증은 아래에 별도로 기록한다.
+- 상태: **운영 배포·공개 화면 검증 완료**. 로컬 통합456/456·Chrome28/28 PASS. 운영 코드 `8533eaacc230bf9f875bddefc5f380b359f0e0f0`, 공개 build `uoDUNxtY`.
 
 ## 결과와 범위
 
@@ -31,7 +31,13 @@
 
 ## 운영 배포 영수증
 
-배포 전 확인: 운영 `7768f7c11a39644cc265869e31acbe2b9895abe0`, 12:21:06 KST 기동, 12:21:35 preflight OK. 이 기록은 NH120이며 NH121 운영 완료 증거가 아니다. NH121 배포 및 공개 응답 확인 대기.
+- 기존 승인으로 `8533eaa`를 main에 push. VM HEAD `8533eaacc230bf9f875bddefc5f380b359f0e0f0`, 컨테이너 기동 **2026-09-05 13:04:07 KST**, 자동 preflight **13:04:28 OK**. `/root/autodeploy.log`와 docker StartedAt 직접 확인.
+- 공개 config build **uoDUNxtY**, 공지 **2026-09-05-today-format**. `/briefing`, 과거 날짜/카테고리, `/api/briefing`, `/rss.xml` 모두410/no-store/noindex. 공개 Live·sitemap·robots 옛 연결0.
+- 공개 `/api/today?categories=news,business,tech,humor`: 200, **2026-09-05 런치**, **56이슈**, `slot_canonical_verified`.
+- 실제 격리 Chrome에서 공개 Today **56이슈/광고5**, 상세 광고1. 320/393/1100px에서 AD 행과 직전 기사 grid·제목 크기 일치, 가로 넘침0, AD/제휴 전문/공식 링크/sponsored noopener 보존. 첫 광고는13번 글 뒤(앞3번 뒤는 기존 정치 이웃 제외 규칙 적용).
+- 공개 Live **기사10+광고1**, 옛 브리핑 링크0. 페이지 JS 오류0. 기존 방문자 상태로 새 팝업 자동 표시→닫기→상세/Live 이동 시 재표시0. 소개 이력8건(기존7+신규1) 확인.
+- 공개 증거: `/tmp/nh121-public-proof.json`; `/tmp/nh121-public-today-320.png`, `-393.png`, `-1100.png`; `/tmp/nh121-public-detail-393.png`; `/tmp/nh121-public-popup-393.png`. Root가393px 광고/상세/팝업 이미지를 직접 확인했다. 실제 iPhone 증명으로 올리지 않는다.
+- 최초 검증 스크립트는 이미 본 공지를 다시 강제로 열려고 해 타임아웃했다. 제품은 한 번 표시 규칙대로 동작했다. 새 격리 방문자 상태에서 자동 첫 표시·후속 비표시를 검증하도록 수정한 후 전체 공개 검증 PASS.
 
 ## WRC 보고
 

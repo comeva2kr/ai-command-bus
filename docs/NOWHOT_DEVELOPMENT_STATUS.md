@@ -10,7 +10,7 @@
 
 - 안정 ID `NOWHOT-LEGACY-BRIEFING-RETIREMENT-001`, 변경 레코드 `DEVCHG-NOWHOT-20260905-208`. [NH121 구현·검증·운영 영수증](reports/NOWHOT_NH121_BRIEFING_RETIREMENT_TODAY_ADS_2026-09-05.md).
 - 옛 `/briefing*`·API·송출 RSS는410 종료. Live 연결·SEO 발송·자동 발행 제거, Today 공용 편집 함수/수집 RSS·랭킹·과거 저장값 보존. 광고는 Today 행과 같은 서식에 AD·쿠팡·제휴 고지를 유지한다. 새 이력/팝업2항목 추가.
-- 로컬 통합456/456·Chrome28/28·320/393/1100 줄맞춤/넘침/기사 수 보존 PASS. Fable 광고/Root 통합, Grok 종료 경로 GO. 운영 배포·공개 검증 대기. First Principles 게이트: PASS.
+- 로컬 통합456/456·Chrome28/28·320/393/1100 줄맞춤/넘침/기사 수 보존 PASS. Fable 광고/Root 통합, Grok 종료 경로 GO. 운영 `8533eaa` 13:04:07 KST 배포·13:04:28 preflight OK. 공개410 종료, 런치56이슈/광고5·상세1·Live광고1, 3화면폭 서식 일치/넘침0, 공지1회·소개8건 확인. First Principles 게이트: PASS.
 
 ## 직전 NH120 업데이트 기록·개선 요청·오늘 공지
 
