@@ -615,7 +615,7 @@ export function keywordCategory(title, opts = {}) {
 // 뽐뿌 자동차게시판(zboard id=car) 글이 business로 배달되고 있었다.
 export const BOARD_CATEGORY_RULES = [
   { source: "ppomppu", pattern: /[?&]id=car\b/i, category: "auto" },
-  { source: "chosunbiz", pattern: /\/sports\/baseball\//i, category: "sports" }
+  { source: "chosunbiz", pattern: /^https?:\/\/biz\.chosun\.com\/sports\//i, category: "sports" }
 ];
 
 const CONTENT_CATEGORY_URL_RULES = [

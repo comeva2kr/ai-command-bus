@@ -242,6 +242,19 @@ test("독립 검수 회귀: 야구·과학·생활 제목이 등록 섹션이나
   );
 });
 
+test("NH126: 조선비즈 스포츠 섹션은 종목과 무관하게 경제 기본값을 이긴다", () => {
+  for (const section of ["baseball", "sports_general", "football"]) {
+    assert.equal(definiteCategory({ sourceId: "chosunbiz", title: "평가전 최종 명단 발표",
+      url: `https://biz.chosun.com/sports/${section}/2026/09/05/article/` }), "sports");
+  }
+  for (const url of [
+    "https://biz.chosun.com/stock/2026/09/05/article/",
+    "https://biz.chosun.com/sportswear/article/",
+    "https://other.example/sports/sports_general/article/",
+    "https://biz.chosun.com/stock/article/?next=/sports/sports_general/"
+  ]) assert.notEqual(definiteCategory({ sourceId: "chosunbiz", title: "시장 전망", url }), "sports");
+});
+
 // ---------------------------------------------------------------------------
 // 엔진 통합 — 혼합 게시판 글이 실제로 재분류되고, 원값이 보존되는가.
 // ---------------------------------------------------------------------------

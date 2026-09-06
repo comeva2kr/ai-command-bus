@@ -9,7 +9,7 @@ const deepFreeze = (value) => {
 
 export const EDITORIAL_READER_COPY_CONTRACT = deepFreeze({
   stableId: "NOWHOT-EDITORIAL-READER-COPY-CONTRACT-001",
-  version: 13,
+  version: 14,
   fingerprintVersion: 3,
   mode: "response_only_press_style_projection",
   visibleFields: ["headline", "summary", "whyImportant", "whyNow", "change", "watchNext", "confidenceLabel"],
@@ -274,19 +274,31 @@ function policyLineageSupport(issue) {
   );
 }
 
+function stripPublisherTitleTail(value, issue) {
+  let title = clean(value);
+  const sources = [...(issue?.eventSources || []), ...primaryEvidenceRows(issue), ...primaryRefs(issue)];
+  for (const source of sources) {
+    const suffix = ` - ${clean(source.sourceLabel)}`;
+    if (source.sourceLabel && title.endsWith(suffix) && title.length - suffix.length >= 6) title = title.slice(0, -suffix.length);
+  }
+  const breadcrumb = " > 뉴스/신제품";
+  if (title.endsWith(breadcrumb) && sources.some(row => /^gnews-/.test(row.sourceId || "") && clean(row.title).endsWith(breadcrumb))) title = title.slice(0, -breadcrumb.length);
+  return title;
+}
+
 function leadTitle(issue) {
-  return stripOuterQuotes(stripLeadTags(
+  return stripPublisherTitleTail(stripOuterQuotes(stripLeadTags(
     issue && issue.preparedHeadline ||
     primaryRefs(issue)[0] && primaryRefs(issue)[0].title ||
     primaryEvidenceRows(issue)[0] && primaryEvidenceRows(issue)[0].title ||
     issue && issue.subject || issue && issue.headline
-  ));
+  )), issue);
 }
 
 function readerEventLabel(issue) {
-  const label = stripOuterQuotes(stripLeadTags(
+  const label = stripPublisherTitleTail(stripOuterQuotes(stripLeadTags(
     issue && issue.preparedHeadline || issue && issue.subject || leadTitle(issue)
-  ));
+  )), issue);
   if (label.length <= 56) return label;
   return `${label.slice(0, 55).trim()}…`;
 }
@@ -302,7 +314,7 @@ function readerHeadline(issue) {
   const prepared = clean(issue && issue.preparedHeadline);
   if (prepared) return prepared;
   if (verifiedEditSupport(issue, "headline")) return clean(issue.headline);
-  const subject = stripLeadTags(issue && issue.subject);
+  const subject = stripPublisherTitleTail(stripLeadTags(issue && issue.subject), issue);
   const title = leadTitle(issue);
   if (subject.length >= 6 && (/[가-힣]/.test(subject) || !title)) return subject;
   if (title) return title;
@@ -339,7 +351,7 @@ function readerWhyImportant(issue) {
       .replace(/해야 한다\.?$/, "해야 합니다.");
     const subject = clean(issue && issue.preparedHeadline)
       ? readerEventLabel(issue)
-      : stripOuterQuotes(stripLeadTags(issue && issue.subject));
+      : stripPublisherTitleTail(stripOuterQuotes(stripLeadTags(issue && issue.subject)), issue);
     if (!/볼 가치가 있다\.?$/.test(original) || !/[가-힣]/.test(subject) || subject.length > 56 || formal.includes(subject)) {
       return formal;
     }

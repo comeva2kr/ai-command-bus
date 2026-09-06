@@ -26,6 +26,20 @@ const item = (id, source, title, category) => ({
   kind: "news", lang: source === "source-b" ? "en" : "ko", publishedAt: "2026-08-22T03:00:00.000Z"
 });
 
+test("NH126: 종합 경제 피드의 농구·배드민턴은 오늘판 패킷에서 스포츠만 허용한다", () => {
+  const rows = [
+    ["basketball", "‘AG 최종명단 탈락’ 이원석은 왜 필리핀과 친선전 뛰었나…마줄스 무슨 생각?"],
+    ["badminton", "'여제' 안세영 앞에 日 숙적 야마구치, 반대편엔 왕즈이…역대급 4강 대진 완성"]
+  ].map(([id, title]) => ({ item: { ...item(id, "chosunbiz", title, "business"),
+    url: `https://biz.chosun.com/sports/sports_general/2026/09/05/${id}/` } }));
+  const packet = buildSelectionShadowPacket({ savedAt: Date.parse("2026-09-05T03:00:00Z"), rows }, {
+    candidate: CANDIDATE, sourceSnapshotSha256: SNAPSHOT_SHA,
+    registry: [{ id: "chosunbiz", sourceTier: "aggregate", country: "KR", lang: "ko", kind: "news", category: "business" }]
+  });
+  assert.equal(packet.targets.length, 2);
+  assert.deepEqual(packet.targets.map(row => row.deterministicRouting.categories), [["sports"], ["sports"]]);
+});
+
 test("D2-D: 실제 풀은 증거 해시당 한 번만 분류하는 무URL shadow packet으로 동결된다", () => {
   const duplicateTitle = "게임용 PC 견적에 새 그래픽카드를 반영했다";
   const pool = { savedAt: Date.parse("2026-08-22T08:14:49.104Z"), rows: [

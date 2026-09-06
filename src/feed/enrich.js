@@ -243,6 +243,7 @@ function normalizeArticleText(value) {
 
 export function cleanArticleTextChrome(value) {
   let text = normalizeArticleText(value);
+  const infomaxPhotoLead = text.startsWith("[출처: 연합뉴스 자료 사진]");
   const hasHighsnobietyAppPrompt = /(?:계속(?:해서)?\s*)?(?:최신\s*)?소식을 받고 싶(?:지 않습니까|으십니까|으신가요)\?\s*지금 Highsnobiety 앱을 다운로드하세요\./i.test(text);
   text = text
     .replace(/전체\s*페이지를\s*읽으시려면\s*회원가입\s*(?:및|또는)\s*로그인을\s*해\s*주세요[.!?]*/gi, " ")
@@ -271,12 +272,22 @@ export function cleanArticleTextChrome(value) {
   // 마지막 "날짜 [이메일]" 다음에 발신지 표기가 이어질 때만 그 앞을 사진 설명으로 본다 —
   // 본문 속 날짜나 이메일 문장은 이 조건을 만족하지 않는다(NH123 #3·#16·#20·#23·#29·#31·#35).
   text = text
-    .replace(/\[[^\[\]]{0,60}?(?:자료사진|촬영\s+[^\[\]]{1,20}|제공\.?\s*재판매\s*및\s*DB\s*금지)\]\s*/g, " ")
+    .replace(/\[[^\[\]]{0,60}?(?:자료\s*사진|촬영\s+[^\[\]]{1,20}|제공\.?\s*재판매\s*및\s*DB\s*금지)\]\s*/g, " ")
     .replace(/\[[^\[\]]{0,60}?제작\]\s*사진합성·일러스트\s*/g, " ");
   const yonhapDateline = /\b\d{4}\.\d{1,2}\.\d{1,2}\.?\s+(?:[\w.+-]+@yna\.co\.kr\s+)?(?=\((?:[^()]|\([^()]*\))*=연합뉴스\)\s)/g;
   let captionEnd = -1;
   for (const caption of text.slice(0, 1400).matchAll(yonhapDateline)) captionEnd = caption.index + caption[0].length;
   if (captionEnd > 0) text = text.slice(captionEnd).trim();
+  if (infomaxPhotoLead) {
+    const dateline = text.slice(0, 300).match(/\([^()]{1,30}=연합인포맥스\)/);
+    if (dateline && /^[^.!?]{0,80}$/.test(text.slice(0, dateline.index))) text = text.slice(dateline.index);
+  }
+
+  const boardHead = text.slice(0, 700);
+  const boardBody = boardHead.match(/작성자 정보.{0,300}?쪽지보내기.{0,250}?목록\s+본문\s+/);
+  if (boardBody) text = text.slice(boardBody.index + boardBody[0].length);
+  text = text.replace(/^link\s.{0,300}?[가-힣]{2,8}\s+기자\s+[\w.+-]+@wikitree\.co\.kr\s+작성일\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}\s+/, "");
+  text = text.replace(/이 글자크기로 변경됩니다\.\s*\(예시\) 가장 빠른 뉴스가 있고 다양한 정보, 쌍방향 소통이 숨쉬는 다음뉴스를 만나보세요\.\s*다음뉴스는 국내외 주요이슈와 실시간 속보, 문화생활 및 다양한 분야의 뉴스를 입체적으로 전달하고 있습니다\./g, " ");
 
   const galleryMeta = text.slice(0, 1400).match(
     /(?:패션|Fashion)(?:\s*제공)?\s*\d+\s*시간\s*전\s*[\d,.]+\s*조회수\s*[\d,.]+\s*댓글(?:\s*댓글)*\s*저장(?:\s*요약)?\s*/u
@@ -341,19 +352,38 @@ export function cleanArticleTextChrome(value) {
   // 지나지 않는다.
   text = text.replace(/(?:^|\s)[✱※*]?\s*(?:이|본)\s*(?:포스팅|게시물|글)은\s+[^.!?]{0,40}?활동의 일환으로,?\s*이에 따른 일정액의 수수료를 (?:제공|지급)받(?:을 수 있)?습니다[.!]?/g, " ");
 
-  const chromeTail = text.match(/\s(?:닫기 음성으로 듣기|제보는 카카오톡|연합뉴스TV 기사문의 및 제보|<저작권자|이야기를 실시간으로 팔로우하세요\.?\s*하위 섹션)/i);
+  const chromeTail = text.match(/\s(?:닫기 음성으로 듣기|제보는 카카오톡|연합뉴스TV 기사문의 및 제보|<저작권자|이야기를 실시간으로 팔로우하세요\.?\s*하위 섹션|트렌드뉴스\s+많이 본\s+댓글 순\s+1(?=\s)|독자들의\s+PICK!(?=\s)|X\(트위터\)\s+@yonhap_graphics)/i);
   if (chromeTail) text = text.slice(0, chromeTail.index).trim();
   // 기사 끝의 연합뉴스 기자 이메일 한 토큰("…말했다. jaya@yna.co.kr")만 지운다. 다른 주소나
   // 문장 안의 이메일("문의는 press@example.com")은 기사 내용일 수 있어 건드리지 않는다.
   text = text.replace(/\s+[\w.+-]+@yna\.co\.kr\s*$/, "");
+  text = text.replace(/\s+[가-힣]{2,8}\s+기자\s+[\w.+-]+@hani\.co\.kr\s*$/, "");
   return normalizeArticleText(text);
 }
 
+function stripArticleChromeHtml(html) {
+  let source = html;
+  const openings = /<(div|section|p|span|address|header|figure)(?=[\s/>])[^>]*>/gi;
+  let opening;
+  while ((opening = openings.exec(source))) {
+    const tag = opening[0];
+    const classes = tag.match(/\sclass\s*=\s*["']([^"']*)["']/i)?.[1] || "";
+    if (opening[1].toLowerCase() !== "figure" && !/\sdata-block\s*=\s*["'](?:byline|headline|metadata|links|topicList|promoList)["']/i.test(tag)
+      && !/(?:^|\s)(?:infoline|caption|wp-block-techcrunch-promo-countdown-banner|entry-header|content_top|enlarge|mobile_hot)(?:\s|$)/.test(classes)) continue;
+    if (/\/\s*>$/.test(tag)) continue;
+    const inner = elementInnerHtml(source, opening);
+    const end = opening.index + tag.length + inner.length;
+    const closing = source.slice(end).match(/^<\/([a-z][\w:-]*)\s*>/i);
+    if (closing?.[1].toLowerCase() !== opening[1].toLowerCase()) continue;
+    source = source.slice(0, opening.index) + " " + source.slice(end + closing[0].length);
+    openings.lastIndex = opening.index;
+  }
+  return source;
+}
+
 function publicText(html) {
-  return cleanArticleTextChrome(String(html || "")
-    .replace(/<(?:script|style|nav|footer|aside|form|svg|noscript)\b[^>]*>[\s\S]*?<\/(?:script|style|nav|footer|aside|form|svg|noscript)>/gi, " ")
-    .replace(/<figure\b[^>]*>[\s\S]*?<\/figure>/gi, " ")
-    .replace(/<([a-z][\w:-]*)\b(?=[^>]*\bdata-block\s*=\s*["'](?:metadata|links|topicList|promoList)["'])[^>]*>[\s\S]*?<\/\1>/gi, " ")
+  return cleanArticleTextChrome(stripArticleChromeHtml(String(html || "")
+    .replace(/<(?:script|style|nav|footer|aside|form|svg|noscript)\b[^>]*>[\s\S]*?<\/(?:script|style|nav|footer|aside|form|svg|noscript)>/gi, " "))
     .replace(/<\/?(?:p|div|li|h[1-6]|section|br)\b[^>]*>/gi, " ")
     .replace(/<[^>]*>/g, " "));
 }
@@ -390,7 +420,7 @@ function sectionText(html, tag) {
 
 function articleBodyText(html) {
   const source = String(html || "");
-  const opening = /<([a-z][\w:-]*)\b(?=[^>]*(?:\bid|\bitemprop)\s*=\s*["']articleBody["'])[^>]*>/i.exec(source);
+  const opening = /<([a-z][\w:-]*)\b(?=[^>]*(?:(?:\bid|\bitemprop)\s*=\s*["']articleBody["']|\bid\s*=\s*["']bo_v_con["']))[^>]*>/i.exec(source);
   const inner = elementInnerHtml(source, opening);
   return inner ? publicText(inner) : "";
 }
@@ -398,7 +428,7 @@ function articleBodyText(html) {
 function elementInnerHtml(source, opening) {
   if (!opening) return "";
   const tag = opening[1];
-  const tags = new RegExp(`<\\/?${tag}\\b[^>]*>`, "gi");
+  const tags = new RegExp(`<\\/?${tag}(?=[\\s/>])[^>]*>`, "gi");
   const start = opening.index + opening[0].length;
   tags.lastIndex = start;
   let depth = 1;
@@ -424,11 +454,11 @@ function elleArticleText(html) {
 // 핸들바 <script> 템플릿 속 가입 유도 <p>, 테크크런치 헤더 메가메뉴 <p>가 발췌 첫머리를 채운
 // 원인이다(NH123 #3·#23·#35·#9). form은 일부러 남긴다 — 옛 게시판은 본문 전체를 <form>으로
 // 감싸고, 이 폴백이 그 글의 마지막 통로다.
-const PARAGRAPH_SKIP_BLOCKS = /<(figure|header|nav|footer|aside|script|style|noscript|template|svg)\b[^>]*>[\s\S]*?<\/\1>/gi;
+const PARAGRAPH_SKIP_BLOCKS = /<(header|nav|footer|aside|script|style|noscript|template|svg)\b[^>]*>[\s\S]*?<\/\1>/gi;
 
 function paragraphText(html) {
   const paragraphs = [];
-  const source = String(html || "").replace(PARAGRAPH_SKIP_BLOCKS, " ");
+  const source = stripArticleChromeHtml(String(html || "").replace(PARAGRAPH_SKIP_BLOCKS, " "));
   const re = /<p\b[^>]*>([\s\S]*?)<\/p>/gi;
   let match;
   while ((match = re.exec(source))) paragraphs.push(publicText(match[1]));

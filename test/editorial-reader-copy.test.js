@@ -218,6 +218,17 @@ test("NH124: Techmeme의 저자 꼬리와 Sources 번역만 교정하고 기사 
   "John Ternus의 프로필입니다. 소식통: Cook는 완벽한 승계를 준비했습니다");
 });
 
+test("NH126: 출처 라벨 접미와 확인된 중계 게시판 꼬리를 제목에서만 제외한다", () => {
+  for (const [title, label, expected] of [["올해 수출 기록을 돌파했다 - 머니투데이", "머니투데이", "올해 수출 기록을 돌파했다"], ["GPU 가격이 크게 올랐다 > 뉴스/신제품", "쿨엔조이", "GPU 가격이 크게 올랐다"]]) {
+    const issue = { subject: title, shape: "coverage", categoryIds: ["tech"], refs: [{ title, sourceLabel: label }], eventSources: [{ sourceId: "gnews-tech", sourceLabel: label, title }] };
+    const copy = readerIssueCopy(issue);
+    assert.equal(copy.headline, expected);
+    assert.doesNotMatch(copy.summary + copy.whyNow + copy.whyImportant, / - 머니투데이| > 뉴스\/신제품/);
+  }
+  for (const title of ["뉴스와 경제 전망 - 연구 보고서", "삼성전자 가격 비교 [확정]", "GPU 가격의 변화 > 공급량 변화"])
+    assert.equal(readerIssueCopy({ subject: title, eventSources: [{ sourceId: "other", sourceLabel: "머니투데이", title }] }).headline, title);
+});
+
 test("독자 문장: 긴 원문 제목은 사건명을 보존한 채 화면 제한 안으로 줄인다", () => {
   const title = "WX242 무선 전동드라이버 ($17) ETENWOLF 에어펌프 S3 ($28) 샤오미 미지아 차량용 무선 청소기 ($34) WORX WU139.1 무선 전동드릴 ($41) 생활용품 할인 모음";
   const copy = readerIssueCopy({

@@ -510,6 +510,48 @@ test("fetchPublicArticle: 짧은 article 뒤 사이트 푸터를 붙여 장문 �
   assert.equal(result.reasonCode, "PUBLIC_BODY_TOO_SHORT");
 });
 
+test("NH126: 중첩된 기자·행사·사진 UI를 문단 수집 전에 빼고 정상 본문은 보존한다", async () => {
+  const body = "기자가 행사와 자료사진을 비교해 공개된 수치를 확인했다. 정상 본문은 그대로 남아야 한다. ".repeat(8);
+  const chrome = `<div data-block="byline"><div>By <span>Zoe Kleinman</span></div><div>Technology &amp; AI editor</div></div>
+    <div class="wp-block-techcrunch-promo-countdown-banner"><div><p>Disrupt tickets now</p></div><div><p>Save up to $300</p></div></div>
+    <div class="infoline"><address>Jiří Filip</address><div>17 hours ago 0</div></div>
+    <p class="caption">자료사진</p><span class="enlarge"><span>이미지 크게 보기</span></span>
+    <figure><article><figure>사진</figure>다른 기사 추천</article></figure>
+    <header class="entry-header"><h1>제목</h1><div>By Sarang Sheth</div></header>
+    <div data-block="byline"></div><div data-block="byline" />`;
+  for (const wrapper of [inner => `<main>${inner}</main>`, inner => inner]) {
+    const result = await fetchPublicArticle("https://news.example.com/article", {
+      fetchImpl: async () => streamRes({ body: wrapper(`${chrome}<div-widget></div-widget><div data-data-block="byline"><p data-class="caption" class="not-caption">${body}</p></div>`), url: "https://news.example.com/article" })
+    });
+    assert.equal(result.state, "available");
+    assert.equal(result.text, body.trim());
+  }
+});
+
+test("NH126: 그누보드의 실제 본문만 추출하고 안쪽 사용자 정의 태그를 다른 div로 세지 않는다", async () => {
+  const body = "공개된 GPU 가격 자료의 비교 결과를 설명한 본문이다. 작성자 정보라는 표현도 기사 안에서는 남긴다. ".repeat(8);
+  const result = await fetchPublicArticle("https://community.example.com/post", {
+    fetchImpl: async () => streamRes({ body: `<article><section>작성자 정보 조회 댓글</section><div id="bo_v_con"><div-widget>${body}</div-widget></div><p>관련 게시물 추천 메뉴</p></article>`, url: "https://community.example.com/post" })
+  });
+  assert.equal(result.state, "available");
+  assert.equal(result.text, body.trim());
+});
+
+test("NH126: 저장 발췌의 확인된 UI 경계만 정리하고 본문·출처 표기를 보존한다", () => {
+  const body = "공개 자료를 비교한 실제 기사 본문입니다.";
+  for (const text of [
+    `제목 작성자 정보 닉네임 쪽지보내기 자기소개 컨텐츠 정보 10 조회 목록 본문 ${body}`,
+    `link 기사 제목 홍길동 기자 editor@wikitree.co.kr 작성일 2026-09-06 05:01 ${body}`,
+    `[출처: 연합뉴스 자료 사진] 매물이 사라진 부동산 [출처: 연합뉴스 자료 사진] (서울=연합인포맥스) 홍길동 기자 = ${body}`
+  ]) assert.equal(cleanArticleTextChrome(text), text.includes("연합인포맥스") ? `(서울=연합인포맥스) 홍길동 기자 = ${body}` : body);
+  for (const tail of ["트렌드뉴스 많이 본 댓글 순 1 다른 기사", "독자들의 PICK! 다른 기사", "X(트위터) @yonhap_graphics 인스타그램 @yonhapgraphics", "홍길동 기자 editor@hani.co.kr"])
+    assert.equal(cleanArticleTextChrome(`${body} ${tail}`), body);
+  const demo = "이 글자크기로 변경됩니다. (예시) 가장 빠른 뉴스가 있고 다양한 정보, 쌍방향 소통이 숨쉬는 다음뉴스를 만나보세요. 다음뉴스는 국내외 주요이슈와 실시간 속보, 문화생활 및 다양한 분야의 뉴스를 입체적으로 전달하고 있습니다.";
+  assert.equal(cleanArticleTextChrome(`${body} ${demo} 다음 본문입니다.`), `${body} 다음 본문입니다.`);
+  for (const plain of ["문의는 press@example.com", "[출처: 기획재정부 자료] 정부는 계획을 발표했다.", "자료사진 제공 여부를 확인했다.", "삼성전자 행사는 2026년 9월 4일 열린다.", "BBC 기자 John Smith는 2026년 9월 4일 보도에서 설명했다.", "유출 문서에는 작성자 John Smith 2026년 9월 5일 등록 기록이 남았다.", "작성자 정보 처리 방식과 쪽지보내기 기능을 본문에서 분석했다."])
+    assert.equal(cleanArticleTextChrome(plain), plain);
+});
+
 test("fetchPublicArticle: main 안의 게시판 메뉴·로그인·사업자 정보를 본문으로 오인하지 않는다", async () => {
   const chrome = `게시판 > 베스트글 목록 이전페이지 맨위로
     댓글 작성을 위해 로그인하세요. 회원가입 고객센터
