@@ -4,6 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { sendEditionPushes } from "../src/feed/push.js";
+import { FeedStore } from "../src/feed/store.js";
 
 import { CATEGORIES } from "../src/feed/taxonomy.js";
 import { createServer } from "../src/feed/server.js";
@@ -337,6 +339,24 @@ function build(options) {
     routingSnapshot: { source: { packetSha256: packetSha } }
   });
 }
+
+test("NH127 edition push reads the real published canonical projection and rejects fallback", async (t) => {
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"nowhot-edition-push-real-"));
+  t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+  const pointerFile=path.join(directory,"active.json");
+  activateSlotCanonicalEdition({artifact:build(),directory,pointerFile});
+  const reader=makeSlotCanonicalEditionReader({pointerFile}),store=new FeedStore();
+  const user=store.createUser("push-real");
+  store.savePushSubscription(user.id,{endpoint:"https://push.example.test/real"});
+  let now="2026-08-27T03:00:00Z",calls=0;
+  const run=()=>sendEditionPushes(store,reader,{publicKey:"public",privateKey:"private"},
+    {clock:()=>now,sendImpl:async()=>{calls++;return {status:201};}});
+  assert.deepEqual(await run(),{sent:1,failed:0});
+  assert.deepEqual(await run(),{sent:0,failed:0});
+  now="2026-08-27T10:00:00Z";
+  assert.deepEqual(await run(),{sent:0,failed:0});
+  assert.equal(calls,1);
+});
 
 test("사건 원문 표기시각은 카테고리와 무관하게 가장 이른 피드 시각으로 고정한다", () => {
   const { byCategory, unionEdition } = editions();

@@ -6,9 +6,9 @@
 //   - navigations are network-first, falling back only to the same page offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v146"; // v146: versioned release guide bypasses older static caches
+const CACHE = "feed-shell-v147"; // v147: shared push connection and separate edition/live notifications
 const SHELL = ["/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
-  "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js", "/notice-guide.js?v=20260905"];
+  "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js?v=20260907", "/notice-guide.js?v=20260905", "/push-client.js?v=20260907"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -77,30 +77,13 @@ self.addEventListener("push", (event) => {
   let data = { title: "지금핫", body: "관심글이 올라왔어요", url: "/live" };
   try { if (event.data) data = { ...data, ...event.data.json() }; } catch {}
   const url = appUrl(data.url) || appUrl("/live");
-  event.waitUntil(
-    self.clients.matchAll({ type: "window" }).then((clients) => {
-      // Chrome permits an in-page notification only for an open, focused app.
-      // web.dev/articles/push-notifications-common-notification-patterns
-      // Safari requires showNotification for every push: webkit.org/blog/12945/meet-web-push/
-      const brands = self.navigator?.userAgentData?.brands;
-      const ua = self.navigator?.userAgent || "";
-      const chrome = brands ? brands.some((row) => row.brand === "Google Chrome")
-        : /\bChrome\/\d/.test(ua) && !/\b(?:Edg|OPR|SamsungBrowser)\//.test(ua);
-      const foreground = chrome && clients.find((client) => appUrl(client.url)
-        && client.focused && client.visibilityState === "visible" && client.postMessage);
-      if (foreground) {
-        foreground.postMessage({ type: "NOWHOT_DIGEST", title: data.title, body: data.body, url });
-        return;
-      }
-      return self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: "/icon.svg",
-      badge: "/icon.svg",
-      tag: "feed-digest",
-      data: { url }
-      });
-    })
-  );
+  event.waitUntil(self.registration.showNotification(String(data.title || "지금핫").slice(0,120), {
+    body: String(data.body || "").slice(0,500),
+    icon: "/icon-192.png",
+    badge: "/icon-192.png",
+    tag: typeof data.tag === "string" && data.tag ? data.tag.slice(0,180) : "feed-digest",
+    data: { url }
+  }));
 });
 
 self.addEventListener("fetch", (event) => {

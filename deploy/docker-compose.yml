@@ -24,7 +24,7 @@ services:
       - NOWHOT_SLOT_CANONICAL_POINTER=${NOWHOT_SLOT_CANONICAL_POINTER:-/data/slot-editions/active.json}
       # 오늘판의 카테고리 입력만 v2 분류 스냅샷으로 교체. v1이면 기존 분류 그대로.
       - NOWHOT_CATEGORY_ROUTING=${NOWHOT_CATEGORY_ROUTING:-v2}
-      - PUSH_DIGEST_MS=3600000         # 시간당 관심글 digest push
+      - PUSH_DIGEST_MS=60000           # 발행판·실시간 알림 확인, 발송 중복/간격은 수신자별 기록
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:comeva2kr@gmail.com}

@@ -2676,7 +2676,7 @@ export class FeedEngine {
   // A non-consuming preview of the best unseen items — the payload behind a
   // "관심글 N개가 올라왔어요" re-engagement notification. Does NOT mark items seen,
   // so opening the app afterwards still shows them in the feed.
-  async digest(userId, { limit = 5, minScore = 1.0, excludeIds = [] } = {}) {
+  async digest(userId, { limit = 5, minScore = 1.0, excludeIds = [], alertsOnly = false } = {}) {
     const user = this.store.requireUser(userId);
     const items = await this._items();
     const seen = new Set([...(user.seen || []), ...(user.opened || []), ...excludeIds]);
@@ -2697,7 +2697,26 @@ export class FeedEngine {
     // same hot-gated pool, not a superset of it.
     const gated = pool.length ? hotGate(pool, now) : [];
     const hotPool = gated.length ? gated.filter((r) => r.hot).map((r) => r.item) : pool;
-    const rankPool = hotPool.length ? hotPool : pool;
+    let rankPool = hotPool.length ? hotPool : pool;
+    if (alertsOnly) {
+      const standout = new Set(gated.filter(row => row.hot && row.percentile >= 0.9).map(row => row.item.id));
+      rankPool = rankPool.filter(item => {
+        const age = itemAgeHours(item, now);
+        if (age == null || age < 0 || age > 3 || !promotable(item) || item.adult || (item.topics || []).includes("adult")
+            || (user.mixBalance === -1 && item.kind === "news")
+            || (user.mixBalance === 1 && item.kind === "community")
+            || (showTopics.has(NO_DEAL_TOPIC) && item.isDeal)) return false;
+        if (item.kind === "news") return Number(item.coverage) >= 3
+          || (item.editorialImportance === "pass" && Number.isFinite(item.sourceRank) && item.sourceRank <= 2);
+        const history = item.heatHist;
+        if (item.kind !== "community" || !standout.has(item.id) || item.score < 10 || !Array.isArray(history) || history.length < 2) return false;
+        const previous = history.at(-2), latest = history.at(-1);
+        // heatHist is measured recommendations + comments*2; call this reaction
+        // growth, never claim it is a measured recommendations-per-hour rate.
+        return Number.isFinite(previous) && Number.isFinite(latest) && previous >= 0
+          && latest - previous >= 30 && latest >= previous * 1.5;
+      });
+    }
     const ranked = rankItems(rankPool, user.preferences, { seed: 1, now, explore: 0 })
       .filter((r) => r.score >= minScore);
     return {
@@ -3687,7 +3706,7 @@ export class FeedEngine {
     return out;
   }
 
-  async getItem(userId, itemId, { explain = false } = {}) {
+  async getItem(userId, itemId, { explain = false, explicitOpen = false } = {}) {
     // 상한 목록에 없으면 **누적 풀(48h)에서 찾는다.** 피드가 내놓은 글이
     // 다음 수집 사이클의 소스별 상한 재편성에서 빠질 수 있다 — 그러면 방금
     // 누른 글인데 "이 글은 지금 목록에 없어요"가 떴다(David 2026-08-07,
@@ -3697,12 +3716,11 @@ export class FeedEngine {
     const user = this.store.getUser(userId);
     const showTopics = new Set((user && user.showTopics) || []);
     const disabled = this.store.disabledSources ? this.store.disabledSources() : null;
-    // **본 아이템에도 같은 관문을 건다.** 예전엔 관련글(_relatedItems)에만 걸어서,
-    // 정치를 끈 사용자나 관리자가 차단한 소스의 글이 상세 직접 접근(공유 링크,
-    // 검색 색인, 예전 기록)으로는 그대로 열렸다. 관문을 두 벌로 두면 한쪽이
-    // 반드시 샌다 — 오늘만 이 유형을 세 번 만났다.
+    // A direct article click selects this item once. Feed, digest and related
+    // topics still use saved preferences; administrative source blocks always apply.
+    const itemTopics = explicitOpen ? new Set([...showTopics, ...FILTERABLE_TOPICS]) : showTopics;
     const reason = disabled?.has(item.source) ? "SOURCE_DISABLED"
-      : topicsBlocked(item, showTopics) ? "TOPIC_FILTERED" : null;
+      : topicsBlocked(item, itemTopics) ? "TOPIC_FILTERED" : null;
     if (reason) {
       if (explain) throw Object.assign(new Error(reason), { status: 403, code: reason });
       return null;

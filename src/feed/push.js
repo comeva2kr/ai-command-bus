@@ -12,6 +12,8 @@
 // (sendPush) needs network access to the push endpoint.
 
 import crypto from "node:crypto";
+import { kstDate, resolveEditorialTarget } from "./editorial-inventory.js";
+import { DEFAULT_EDITORIAL_PREVIEW } from "./engine.js";
 
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
 const fromB64url = (s) => Buffer.from(s, "base64url");
@@ -142,6 +144,7 @@ export async function sendPush(subscription, payload, keys, opts = {}) {
 // --- digest push fan-out (server-side re-engagement job) ---
 
 const digestPushRuns = new WeakSet();
+const editionPushRuns = new WeakSet();
 const kstDay = (time) => Math.floor((time + 9 * 3600_000) / 86400_000);
 const pushItemIds = (item) => [item.id, ...(item.canonicalAliases || []).map((alias) => alias.id)].filter(Boolean);
 
@@ -165,18 +168,19 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
   try {
     for (const user of store.users.values()) {
       const sub = user.pushSubscription;
-      if (!sub || !sub.endpoint) continue; // no real subscription (or the VAPID-less local-only fallback)
+      if (!sub || !sub.endpoint || user.notifyEnabled === false) continue;
 
       const now = new Date(clock()).getTime();
       const deliveryTimes = (user.pushDeliveryTimes || []).map((at) => Date.parse(at)).filter(Number.isFinite);
       // Successful deliveries alone consume the KST daily budget and four-hour gap.
-      if (deliveryTimes.filter((at) => kstDay(at) === kstDay(now)).length >= 3
-          || deliveryTimes.some((at) => now - at < 4 * 3600_000)) continue;
+      if (deliveryTimes.filter((at) => kstDay(at) === kstDay(now)).length >= (opts.alertsOnly ? 6 : 3)
+          || deliveryTimes.some((at) => now - at < (opts.alertsOnly ? 30 * 60_000 : 4 * 3600_000))) continue;
       const excluded = new Set((user.pushNotified || []).map((row) => row.id));
 
       let digest;
       try {
-        digest = await engine.digest(user.id, { limit, minScore: opts.minScore, excludeIds: [...excluded] });
+        digest = await engine.digest(user.id, { limit, minScore: opts.minScore, excludeIds: [...excluded],
+          ...(opts.alertsOnly ? { alertsOnly: true } : {}) });
       } catch {
         continue; // e.g. user disappeared mid-loop; skip rather than fail the whole batch
       }
@@ -189,8 +193,11 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
       const top = items[0];
       const payload = JSON.stringify({
         title: "지금핫",
-        body: `관심글 ${digest.count}개가 올라왔어요 · ${String(top.title || "").slice(0, 30)}`,
-        url: `/live#post-${encodeURIComponent(top.id)}`
+        body: opts.alertsOnly ? `${top.kind === "news" ? "주요 소식" : "반응 급상승"} · ${String(top.title || "").slice(0, 100)}`
+          : `관심글 ${digest.count}개가 올라왔어요 · ${String(top.title || "").slice(0, 30)}`,
+        url: `/live#post-${encodeURIComponent(top.id)}`,
+        tag: `live:${top.id}`,
+        kind: "live"
       });
 
       let response;
@@ -215,4 +222,44 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
     digestPushRuns.delete(store);
   }
   return { sent, failed };
+}
+
+// A published slot has its own receipt: Live quota and edition corrections
+// must neither suppress the three daily editions nor resend the same slot.
+export async function sendEditionPushes(store, reader, vapidKeys, opts = {}) {
+  let sent = 0, failed = 0;
+  if (!reader || !vapidKeys?.publicKey || !vapidKeys?.privateKey || editionPushRuns.has(store)) return {sent,failed};
+  const clock = opts.clock || Date.now, now = new Date(clock()).getTime();
+  const target = resolveEditorialTarget(now);
+  if (target.date !== kstDate(now)) return {sent,failed};
+  editionPushRuns.add(store);
+  try {
+    let edition;
+    try { edition = await reader.read({date:target.date,slotId:target.slot.id,categories:DEFAULT_EDITORIAL_PREVIEW}); }
+    catch { return {sent,failed}; } // Retry when prepublication finishes.
+    if (edition?.editionDate !== target.date || edition?.slot?.id !== target.slot.id
+        || edition?.serving?.state !== "slot_canonical_verified" || edition.serving.fallback
+        || !edition.issues?.length) return {sent,failed};
+    const key = `${target.date}:${target.slot.id}`;
+    const payload = JSON.stringify({title:`지금핫 ${target.slot.label} 오늘판`,
+      body:"새 오늘판이 발행됐어요. 관심 분야의 주요 소식을 확인하세요.",
+      url:`/?date=${target.date}&slot=${target.slot.id}`,tag:`today:${key}`,kind:"edition"});
+    for (const user of store.users.values()) {
+      const sub = user.pushSubscription;
+      if (!sub?.endpoint || user.notifyEnabled === false || (user.editionPushDeliveries || []).some(row=>row.key===key)) continue;
+      let response;
+      try { response = await (opts.sendImpl || sendPush)(sub,payload,vapidKeys,{subject:vapidKeys.subject}); }
+      catch { failed++; continue; }
+      if (response?.status >= 200 && response.status < 300) {
+        store.recordEditionPushDelivery(user.id,key,new Date(clock()).toISOString());
+        sent++;
+      } else {
+        failed++;
+        if ([404,410].includes(response?.status) && store.getUser(user.id)?.pushSubscription?.endpoint===sub.endpoint) {
+          store.savePushSubscription(user.id,null);
+        }
+      }
+    }
+  } finally { editionPushRuns.delete(store); }
+  return {sent,failed};
 }

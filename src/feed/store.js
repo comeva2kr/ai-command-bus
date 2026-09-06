@@ -327,6 +327,12 @@ export class FeedStore {
     this._persist();
   }
 
+  recordEditionPushDelivery(userId, key, at = nowIso(this.clock)) {
+    const user = this.requireUser(userId);
+    user.editionPushDeliveries = [...(user.editionPushDeliveries || []).filter(row => row.key !== key), {key,at}].slice(-12);
+    this._persist();
+  }
+
   // Mark a user as age-verified (real deployments wire this to an actual
   // 성인인증/PASS flow; here it records the verified result).
 

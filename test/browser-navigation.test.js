@@ -43,7 +43,7 @@ const edition = {
   }))
 };
 
-async function fixture(t, path = "/live", realWorker = false, guideState = "seen") {
+async function fixture(t, path = "/live", realWorker = false, guideState = "seen", cold = false) {
   let base = origin;
   if (realWorker) {
     const server = createServer((req, res) => {
@@ -74,6 +74,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
       localStorage.setItem("__fixture_seeded", "1");
     }
     window.__localNotifications = 0;
+    window.__permissionRequests = 0;
     window.__workerMessage = null;
     if (realWorker === "legacy") {
       const listen = navigator.serviceWorker.addEventListener.bind(navigator.serviceWorker);
@@ -82,10 +83,10 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
     if (!realWorker) Object.defineProperty(navigator, "serviceWorker", { value: {
       register: async () => ({}),
       ready: Promise.resolve({ showNotification: () => { window.__localNotifications++; },
-        pushManager: { getSubscription: async () => ({ toJSON: () => ({ endpoint: "test" }) }) } }),
+        pushManager: { getSubscription: async () => ({ endpoint: "test", toJSON: () => ({ endpoint: "test" }) }) } }),
       addEventListener: (name, fn) => { if (name === "message") window.__workerMessage = fn; }
     } });
-    Object.defineProperty(window, "Notification", { value: { permission: "granted", requestPermission: async () => "granted" } });
+    Object.defineProperty(window, "Notification", { value: { permission: "granted", requestPermission: async () => {window.__permissionRequests++;return "granted"} } });
   }, { realWorker, guideState, releaseId: release.id });
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
@@ -125,7 +126,8 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
     } catch { return route.fulfill({ status: 404, body: "missing" }); }
   });
   const page = await context.newPage();
-  await page.goto(base + path);
+  if(cold)await (await context.newCDPSession(page)).send("Page.navigate",{url:base+path});
+  else await page.goto(base + path);
   return { page, requests, controls, context, base };
 }
 
@@ -595,18 +597,21 @@ test("browser: a new visitor gets one shared Today/Live tutorial and Back keeps 
   assert.equal(await page.locator("#nhGuide").count(), 0);
 });
 
-test("browser: cached old guide cannot replace the current release guide", options, async (t) => {
+test("browser: cached old guide and history cannot replace current versioned scripts", options, async (t) => {
   const { page, base } = await fixture(t, "/live", true);
   await page.waitForSelector("#feed .card");
   await page.evaluate(async()=>{
     await navigator.serviceWorker.ready;
     const cache=await caches.open("nh-test-old-guide");
     await cache.put("/notice-guide.js",new Response("window.__staleGuideLoaded=true",{headers:{"content-type":"text/javascript"}}));
+    await cache.put("/navigation-history.js",new Response("window.__staleHistoryLoaded=true;window.NowHotHistory={}",{headers:{"content-type":"text/javascript"}}));
   });
   for (const path of ["/", "/live"]) {
     await page.goto(base+path);
     await page.waitForFunction(()=>Boolean(window.NowHotNoticeGuide));
     assert.equal(await page.evaluate(()=>Boolean(window.__staleGuideLoaded)),false);
+    assert.equal(await page.evaluate(()=>Boolean(window.__staleHistoryLoaded)),false);
+    assert.equal(await page.evaluate(()=>typeof window.NowHotHistory.create),"function");
   }
 });
 
@@ -657,4 +662,61 @@ test("browser: a first deep link skips the guide but the next list visit still g
   await page.goto(base + "/live");
   await page.waitForSelector('#nhGuide[data-kind="tutorial"]');
   assert.equal(await page.locator('#nhGuide[data-kind="release"]').count(), 0);
+});
+
+test("NH127 browser: Today and Live restore granted subscriptions and expose the connection button", options, async t => {
+  for (const path of ["/", "/live"]) {
+    const {page,requests}=await fixture(t,path);
+    await page.waitForFunction(()=>document.getElementById("menuNotifications")?.textContent==="알림 연결됨");
+    assert.equal(requests.filter(path=>path==="/api/push/subscribe").length,1);
+    assert.equal(await page.evaluate(()=>window.__permissionRequests),0);
+    if(path==="/")await page.locator(".service-menu summary").click();
+    else await page.locator("#menuBtn").click();
+    await page.locator("#menuNotifications").click();
+    await page.waitForTimeout(100);
+    assert.equal(requests.filter(path=>path==="/api/push/subscribe").length,2);
+    assert.equal(await page.evaluate(()=>window.__permissionRequests),0);
+  }
+});
+
+test("NH127 browser: each delivered push shows a PNG OS notification with its own tag", options, async t => {
+  const {page,context,base}=await fixture(t,"/live",true);
+  await page.waitForFunction(()=>navigator.serviceWorker.controller);
+  const notifications=await context.serviceWorkers()[0].evaluate(async base=>{
+    const shown=[];
+    self.registration.showNotification=async(title,options)=>{shown.push({title,...options})};
+    for(const payload of [
+      {title:"모닝",url:"/?date=2026-09-03&slot=morning",tag:"today:2026-09-03:morning"},
+      {title:"런치",url:"/?date=2026-09-03&slot=lunch",tag:"today:2026-09-03:lunch"},
+      {title:"급상승",url:"https://outside.test/untrusted",tag:"live:post-0"}
+    ])await new Promise((resolve,reject)=>{
+      const event=new Event("push");
+      Object.assign(event,{data:{json:()=>payload},waitUntil:promise=>promise.then(resolve,reject)});
+      self.dispatchEvent(event);
+    });
+    return shown;
+  },base);
+  assert.equal(notifications.length,3);
+  assert.equal(new Set(notifications.map(row=>row.tag)).size,3);
+  for(const row of notifications){assert.equal(row.icon,"/icon-192.png");assert.equal(row.badge,"/icon-192.png")}
+  assert.equal(notifications[0].data.url,base+"/?date=2026-09-03&slot=morning");
+  assert.equal(notifications[2].data.url,base+"/live");
+});
+
+test("NH127 browser back input: actual cold Live helper keeps the list without scripted activation", options, async t => {
+  const {page,context,base}=await fixture(t,"/live#post-post-0",false,"seen",true);
+  const cdp=await context.newCDPSession(page);
+  for(let i=0;i<100;i++){
+    const ready=await cdp.send("Runtime.evaluate",{expression:"Boolean(document.querySelector('#detail.open #detailTitle')?.textContent)",returnByValue:true});
+    if(ready.result.value)break;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  const probe=await cdp.send("Runtime.evaluate",{expression:"JSON.stringify({active:navigator.userActivation.hasBeenActive,view:history.state.view})",returnByValue:true});
+  assert.deepEqual(JSON.parse(probe.result.value),{active:false,view:"detail"});
+  const history=await cdp.send("Page.getNavigationHistory");
+  assert.equal(history.entries[history.currentIndex-1].url,base+"/live");
+  await cdp.send("Input.dispatchMouseEvent",{type:"mousePressed",button:"back",x:20,y:20,clickCount:1});
+  await cdp.send("Input.dispatchMouseEvent",{type:"mouseReleased",button:"back",x:20,y:20,clickCount:1});
+  await page.waitForFunction(()=>!location.hash&&!document.querySelector("#detail.open"));
+  assert.equal(page.url(),base+"/live");
 });

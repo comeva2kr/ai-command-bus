@@ -1127,6 +1127,7 @@
         화면 빌드 <span id="buildTag">-</span>
       </div>
       <nav class="drawer-sec drawer-meta" aria-label="서비스 정보">
+        <button class="drawer-link sub" id="menuNotifications" type="button">알림 받기</button>
         <a class="drawer-link sub" href="/about">서비스 소개</a>
         <a class="drawer-link sub" href="/about#updates">업데이트 기록</a>
         <a class="drawer-link sub" href="/feedback">개선 요청</a>
@@ -1236,7 +1237,8 @@
 
   <div class="toast" id="toast"></div>
 
-<script src="/navigation-history.js"></script>
+<script src="/navigation-history.js?v=20260907"></script>
+<script src="/push-client.js?v=20260907"></script>
 <script src="/notice-guide.js?v=20260905"></script>
 <script type="module">
 const API = {
@@ -1252,8 +1254,6 @@ const API = {
   async save(userId, itemId, on) { return post("/api/save", { userId, itemId, on }); },
   async signal(userId, itemId, type, dwellMs) { return post("/api/signal", { userId, itemId, type, dwellMs }).catch(()=>{}); },
   async digest(userId) { return get(`/api/digest?userId=${userId}&limit=5`); },
-  async subscribePush(userId, subscription) { return post("/api/push/subscribe", { userId, subscription }); },
-  async vapidKey() { return get("/api/push/vapid-key"); },
   async mute(userId, source, on) { return post("/api/mute", { userId, source, on }); },
   async setLean(userId, balance) { return post("/api/lean", { userId, balance }); },
   async setMix(userId, balance) { return post("/api/mix", { userId, balance }); },
@@ -1686,6 +1686,10 @@ setupViewSwitch();
   }
   state.config = config; state.rules = rulesRes.rules;
   state.userId = s.userId; localStorage.setItem("feed_uid", s.userId);
+  document.getElementById("menuNotifications").onclick = enableNotifications;
+  NowHotPush.restore(state.userId).then(connected=>{
+    if(connected)document.getElementById("menuNotifications").textContent="알림 연결됨";
+  });
   state.nickname = s.nickname;
   state.showTopics = Array.isArray(s.showTopics) ? s.showTopics : [];
   localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
@@ -2296,7 +2300,7 @@ async function showDigest(){
 function renderDigest(d){
   const bar = document.getElementById("digestBar");
   const top = d.top && d.top[0] ? d.top[0].title : "";
-  const notifyBtn = ("Notification" in window && Notification.permission !== "granted")
+  const notifyBtn = ("Notification" in window && document.getElementById("menuNotifications")?.textContent !== "알림 연결됨")
     ? '<button id="dNotify">🔔 알림 받기</button>' : "";
   bar.innerHTML = d.type==="NOWHOT_DIGEST"
     ? `<div class="dtext"><b>${escapeHtml(d.title||"지금핫")}</b> ${escapeHtml(d.body||"")}</div><button id="dOpen">보기</button><button class="dclose" id="dClose">✕</button>`
@@ -2307,37 +2311,13 @@ function renderDigest(d){
   if(nb) nb.onclick = enableNotifications;
   const open=bar.querySelector("#dOpen");if(open)open.onclick=()=>workerNavigate(d.url);
 }
-// VAPID public key comes base64url-encoded from the server; pushManager.subscribe
-// wants it as a raw Uint8Array (applicationServerKey).
-function urlBase64ToUint8Array(base64url){
-  const pad = "=".repeat((4 - base64url.length % 4) % 4);
-  const base64 = (base64url + pad).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
-}
 async function enableNotifications(){
-  if(!("Notification" in window)){ toast("이 브라우저는 알림을 지원하지 않아요"); return; }
-  const perm = await Notification.requestPermission();
-  if(perm !== "granted"){ toast("알림이 거부되었어요"); return; }
-  // OS notifications come only from a real server push subscription.
-  let sub = null;
   try {
-    const reg = await navigator.serviceWorker.ready;
-    sub = await reg.pushManager.getSubscription();
-    if(!sub){
-      const { key } = await API.vapidKey().catch(()=>({ key: null }));
-      if(key){
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(key)
-        });
-      }
-    }
-  } catch {}
-  if(!sub){toast("푸시 알림 연결을 준비하지 못했어요");return}
-  try { await API.subscribePush(state.userId, sub.toJSON()); } catch {toast("알림 연결에 실패했어요");return}
-  toast("알림을 켰어요");
-  showDigest();
+    await NowHotPush.enable(state.userId);
+    document.getElementById("menuNotifications").textContent="알림 연결됨";
+    toast("오늘판과 주요 소식 알림을 켰어요");
+    showDigest();
+  } catch(error) {toast(error.message||"알림 연결에 실패했어요")}
 }
 
 // ---- ☰ 드로어 (소스별 보기·필터·링크제출·내공간 ) ----

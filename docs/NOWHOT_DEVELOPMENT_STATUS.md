@@ -6,7 +6,13 @@
 - 인수 근거와 재개 경로: [책임자 인수 기록](reports/NOWHOT_OWNER_TAKEOVER_2026-09-05.md). 로컬 코드 HEAD `e59c8fd`; 이번 변경은 인수 문서 연결뿐이며 제품·판본·운영 변경 없음.
 - 아래 NH112 배포 완료는 9월 4일의 완료 기록이다. 이후 같은 날 19시대 Orca 광고 재심사 감사에서 Google AdSense·Kakao AdFit 모두 HOLD·미제출로 판정됐다. 배포 완료와 광고 신청 준비/승인을 구분하며, 현재 운영 재검증이나 보류 원인 수리 완료로 표현하지 않는다.
 
-## 최신 NH126 콘텐츠 품질 운영 반영·Safari 확인
+## 최신 NH127 알림·공유·브라우저 경로 수리
+
+- 안정 ID `NOWHOT-PUSH-NAVIGATION-SHARE-001`, 변경 레코드 `DEVCHG-NOWHOT-20260907-214`. [NH127 구현·검증·운영 영수증](reports/NOWHOT_NH127_PUSH_NAVIGATION_SHARE_2026-09-07.md).
+- Root가 오늘판 슬롯별 알림과 Live 주요 소식 알림을 분리하고, 기본 정치/종교 설정의 직접 공유 글 차단·미리보기 robots 설정·구독 재연결·OS 알림 tag를 수리했다. 기존 구독 동의·목록 설정·관리자 차단·원본 판본을 보존한다. 양쪽 메뉴에 알림 연결, 새 팝업/이력을 연결했다.
+- 로컬 핵심45/45·브라우저6/6·실제 reader1/1·무활성 CDP Back 입력1/1 PASS, 독립 GO. 실제 Orca Fable/Grok 조사 회수·워커 release·ACK 완료. Fable 단순 fixture의 경로 오류로 만들어진 원인 주장은 Root가 실제 소스로 대조 후 미채택했다. 오래된 뒤로가기 스크립트 캐시 우회는 적용하되 실제 Galaxy 기본 Back/알림 수신은 미확인이다. 현재 배포 전, 최종 운영 영수증은 연결 보고서에 추가한다. First Principles 게이트: PASS.
+
+## 직전 NH126 콘텐츠 품질 운영 반영·Safari 확인
 
 - 안정 ID `NOWHOT-CONTENT-QUALITY-FINISH-001`, 변경 레코드 `DEVCHG-NOWHOT-20260906-213`. [NH126 수리·검증과 자체 기사 방향](reports/NOWHOT_NH126_CONTENT_SAFARI_AND_EDITORIAL_DIRECTION_2026-09-06.md).
 - 승인 범위는 잔여 콘텐츠 품질 수리와 모바일 확인이다. Root 분류·발췌·제목 구현, Fable 원문 조사 인수인계/Grok 분류 독립 GO 및 최종 워커 release·ACK 완료. 분류122/읽기114/발행148/공지3 PASS. 교정판 `SCE-3d774e304b232d54`은193건·선정/순서/출처·기본56을 보존하고 발췌10/제목3건(영향12건)을 정리했다. 분류3건은 선택되지 않은 풀 후보만 교정한다. 운영 `afee38a` 11:32:10 배포·11:32:33 preflight OK·11:32:40 모닝 교정판 활성화. 원본/다른판 보존 및 공개56건 독자 문장·발췌·출처 일치 확인.

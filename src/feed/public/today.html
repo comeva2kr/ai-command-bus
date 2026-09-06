@@ -59,7 +59,8 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .icon-button[aria-busy="true"] svg{animation:turn .8s linear infinite}
 .service-menu{position:relative;flex-shrink:0}.service-menu summary{list-style:none;margin:0;font-size:20px}.service-menu summary::-webkit-details-marker{display:none}
 .service-menu nav{position:absolute;right:0;top:calc(100% + 10px);width:190px;padding:8px;background:var(--paper);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow)}
-.service-menu nav a{display:block;padding:10px;border-radius:4px}.service-menu nav a:hover{background:var(--soft)}
+.service-menu nav a,.service-menu nav button{display:block;padding:10px;border-radius:4px}.service-menu nav a:hover,.service-menu nav button:hover{background:var(--soft)}
+.service-menu nav button{width:100%;text-align:left;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
 @keyframes turn{to{transform:rotate(360deg)}}
 .page{max-width:1160px;margin:0 auto;padding:34px 22px 80px}
 .edition-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;border-bottom:1px solid var(--line);padding-bottom:24px}
@@ -182,6 +183,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
     <details class="service-menu">
       <summary class="icon-button" aria-label="메뉴">☰</summary>
       <nav aria-label="서비스 정보">
+        <button id="menuNotifications" type="button">알림 받기</button>
         <a href="/about">서비스 소개</a>
         <a href="/about#updates">업데이트 기록</a>
         <a href="/feedback">개선 요청</a>
@@ -238,7 +240,8 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 </div>
 <div class="toast hidden" id="toast" role="status"></div>
 
-<script src="/navigation-history.js"></script>
+<script src="/navigation-history.js?v=20260907"></script>
+<script src="/push-client.js?v=20260907"></script>
 <script src="/notice-guide.js?v=20260905"></script>
 <script>
 const state={userId:null,coupang:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
@@ -880,6 +883,14 @@ function setupViewSwitch(){
 }
 setupViewSwitch();
 
+$("menuNotifications").onclick=async()=>{
+  const button=$("menuNotifications");
+  button.disabled=true;
+  try{await NowHotPush.enable(state.userId);button.textContent="알림 연결됨"}
+  catch(error){button.textContent=error.message||"알림 연결에 실패했어요"}
+  finally{button.disabled=false}
+};
+
 if("serviceWorker" in navigator){
   navigator.serviceWorker.addEventListener("message",event=>{
     const data=event.data||{};
@@ -916,6 +927,7 @@ if("serviceWorker" in navigator){
     ]);
     state.coupang=config.coupang||null;
     state.userId=session.userId;localStorage.setItem("feed_uid",session.userId);
+    NowHotPush.restore(state.userId).then(connected=>{if(connected)$("menuNotifications").textContent="알림 연결됨"});
     if(Array.isArray(session.briefingCategories)&&session.briefingCategories.length){state.categories=session.briefingCategories;state.confirmedCategories=[...session.briefingCategories]}
     const snapshot=todayHistory.snapshot();
     const returning=performance.getEntriesByType("navigation")[0]?.type==="back_forward";

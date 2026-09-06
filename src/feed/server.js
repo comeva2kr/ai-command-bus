@@ -50,7 +50,7 @@ import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
 import { topPreferences } from "./recommender.js";
 import { categoryLabel, sourceLabel, tagLabel, isKnownCategory } from "./taxonomy.js";
-import { sendDigestPushes } from "./push.js";
+import { sendDigestPushes, sendEditionPushes } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
 import { makeEnricher } from "./enrich.js";
 import { makeInterestsCache } from "./interest.js";
@@ -238,9 +238,10 @@ function sharePage(data, origin, id) {
   // 폴백은 SVG가 아니라 PNG를 쓴다 — 다수 SNS 크롤러가 SVG를 미리보기 이미지로
   // 처리하지 않는다(설령 처리하더라도, 글마다 사진이 있는데 전부 같은 로고를
   // 주는 것 자체가 결함이므로 이 수정의 근거는 SVG 지원 여부와 무관하다).
+  const fallbackImage = `${origin}/og.png?v=20260904-brand`;
   const shareImage = data.image && /^https?:\/\//i.test(data.image)
     ? data.image
-    : `${origin}/og.png?v=20260904-brand`;
+    : fallbackImage;
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
@@ -250,9 +251,11 @@ function sharePage(data, origin, id) {
 <meta property="og:description" content="${desc}">
 <meta property="og:url" content="${escapeHtml(url)}">
 <meta property="og:image" content="${escapeHtml(shareImage)}">
+${shareImage === fallbackImage ? "" : `<meta property="og:image" content="${escapeHtml(fallbackImage)}">`}
+<meta property="og:image:type" content="image/png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
-<meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1">
-<meta name="twitter:card" content="${data.image ? "summary_large_image" : "summary"}">
+<meta name="robots" content="noindex,follow,max-image-preview:large">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="${escapeHtml(shareImage)}">
 <meta name="twitter:title" content="${title}">
 <meta name="twitter:description" content="${desc}">
@@ -1858,13 +1861,15 @@ export function createServer(opts = {}) {
     );
   }
 
-  // 관심글 다이제스트 푸시: PUSH_DIGEST_MS(ms)가 설정되어 있으면 주기적으로 모든
-  // 구독자를 훑어 안 본 관심글이 있는 사람에게만 보낸다. VAPID가 없으면 보낼 수
-  // 없으니 그냥 꺼둔다.
+  // Published Today slots and important Live changes have independent receipts.
   const pushDigestMs = Number(opts.pushDigestMs || process.env.PUSH_DIGEST_MS || 0);
   if (pushDigestMs > 0 && vapid) {
-    const pushTimer = setInterval(() => {
-      sendDigestPushes(store, engine, vapid, { sendImpl: opts.pushSendImpl }).catch(() => {});
+    const pushTimer = setInterval(async () => {
+      try {
+        const edition = await sendEditionPushes(store, slotCanonicalEditionReader, vapid, {clock:serverNowMs,sendImpl:opts.pushSendImpl});
+        const live = await sendDigestPushes(store, engine, vapid, {clock:serverNowMs,sendImpl:opts.pushSendImpl,alertsOnly:true,limit:1,minScore:0});
+        if (edition.sent || edition.failed || live.sent || live.failed) console.log("[push] delivery",JSON.stringify({edition,live}));
+      } catch (error) { console.warn("[push] job failed",error?.name || "Error"); }
     }, pushDigestMs);
     if (pushTimer.unref) pushTimer.unref();
   }
@@ -2664,7 +2669,7 @@ ${noindex ? "" : displayAdHtml()}
       // /api/*는 개인화 응답이라 색인 대상이 아니다.
       if (p === "/robots.txt" && req.method === "GET") {
         const origin = originOf(req);
-        res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+        res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-cache" });
         res.end([
           "User-agent: *",
           "Allow: /",
@@ -2672,7 +2677,7 @@ ${noindex ? "" : displayAdHtml()}
           // 데이터 API를 크롤러에 열 이유가 없어졌고, /live는 자체 noindex를 낸다.
           "Disallow: /api/",
           "Disallow: /admin",
-          "Disallow: /p?",           // 공유 링크는 앱으로 튕기는 중계 페이지
+          // /p must be crawlable for link previews; its HTML carries noindex.
           `Sitemap: ${origin}/sitemap.xml`,
           ""
         ].join("\n"));
@@ -3573,7 +3578,7 @@ ${rankingRows(list, (above) => {
         const itemId = url.searchParams.get("itemId");
         if (!store.getUser(userId)) return send(res, 400, { error: "unknown user" });
         try {
-          const item = await engine.getItem(userId, itemId, { explain: true });
+          const item = await engine.getItem(userId, itemId, { explain: true, explicitOpen: true });
           if (!item) return send(res, 404, { error: "not found", code: "ITEM_UNAVAILABLE" });
           return send(res, 200, item);
         } catch (err) {
@@ -4154,7 +4159,7 @@ ${rankingRows(list, (above) => {
         // Manual trigger for the digest push job (normally run on PUSH_DIGEST_MS).
         // Sends right away and reports how many subscribers got a push.
         if (p === "/api/admin/push-digest" && req.method === "POST") {
-          const result = await sendDigestPushes(store, engine, vapid, { sendImpl: opts.pushSendImpl });
+          const result = await sendDigestPushes(store, engine, vapid, {clock:serverNowMs,sendImpl:opts.pushSendImpl,alertsOnly:true,limit:1,minScore:0});
           return send(res, 200, result);
         }
         return send(res, 404, { error: "not found" });
@@ -4174,7 +4179,7 @@ ${rankingRows(list, (above) => {
         const id = url.searchParams.get("id");
         const data = id ? await engine.shareData(id) : null;
         const origin = originOf(req);
-        res.writeHead(data ? 200 : 404, { "content-type": "text/html; charset=utf-8" });
+        res.writeHead(data ? 200 : 404, { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" });
         res.end(sharePage(data, origin, id));
         return;
       }

@@ -855,6 +855,31 @@ test("digest previews top unseen matches without consuming them", async () => {
   assert.ok(found, "digest's pick is still reachable by paging through the (unconsumed) feed");
 });
 
+test("NH127 live alerts require fresh major reporting or measured reaction growth and keep user filters", async () => {
+  const store = new FeedStore({clock:fixedClock}), user=store.createUser("alerts");
+  const engine = new FeedEngine(store,[]);
+  engine._clock=fixedClock;
+  const base={category:"tech",tags:[],topics:[],publishedAt:"2026-07-05T23:00:00Z",score:30,commentCount:0};
+  const rows=[
+    {...base,id:"news-major",source:"news-a",kind:"news",title:"공식 발표 주요 소식",coverage:4},
+    {...base,id:"news-routine",source:"news-b",kind:"news",title:"일반 소식",coverage:1},
+    {...base,id:"community-rise",source:"community-a",kind:"community",title:"커뮤니티 실측 급상승",heatHist:[20,50,100]},
+    {...base,id:"community-flat",source:"community-b",kind:"community",title:"오래 인기 있는 글",score:900,heatHist:[900,900,900]},
+    {...base,id:"community-no-history",source:"community-c",kind:"community",title:"관측 없는 글",score:1000},
+    {...base,id:"news-stale",source:"news-c",kind:"news",title:"어제 소식",coverage:5,publishedAt:"2026-07-04T23:00:00Z"},
+    {...base,id:"news-muted",source:"muted",kind:"news",title:"숨긴 소식",coverage:5},
+    {...base,id:"news-no-preview",source:"news-e",kind:"news",title:"알림 미리보기 제외",coverage:5,score:1000,adult:true},
+    {...base,id:"news-topic",source:"news-d",kind:"news",title:"숨긴 주제",coverage:5,topics:["politics"]}
+  ];
+  engine._items=async()=>rows;
+  user.mutedSources=["muted"];
+  const ids=async()=> (await engine.digest(user.id,{alertsOnly:true,minScore:0,limit:20})).top.map(i=>i.id).sort();
+  assert.deepEqual(await ids(),["community-rise","news-major"]);
+  user.mixBalance=-1;assert.deepEqual(await ids(),["community-rise"]);
+  user.mixBalance=1;assert.deepEqual(await ids(),["news-major"]);
+  user.opened=["news-major"];assert.deepEqual(await ids(),[]);
+});
+
 test("push subscription persists and flips notify flag", async () => {
   const store = new FeedStore({ clock: fixedClock });
   const user = store.createUser("pn1");

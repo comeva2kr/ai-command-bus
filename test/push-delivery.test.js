@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { FeedStore } from "../src/feed/store.js";
-import { sendDigestPushes } from "../src/feed/push.js";
+import { sendDigestPushes, sendEditionPushes } from "../src/feed/push.js";
 
 const vapid = { publicKey: "public", privateKey: "private", subject: "mailto:test@example.test" };
 const article = (id, extra = {}) => ({ id, title: `Safe ${id}`, ...extra });
@@ -271,4 +271,63 @@ test("push delivery preserves empty, missing-key, and digest-error no-ops and re
     sendImpl: async () => { assert.fail("must not send without keys"); }
   }), { sent: 0, failed: 0 });
   assert.deepEqual(await h.run(), { sent: 1, failed: 0 });
+});
+
+test("edition notifications follow ready 07/12/19 slots independently of Live quota and survive restart", async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-edition-push-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, "feed.json");
+  let at = "2026-09-06T21:59:59Z", ready = true;
+  let store = new FeedStore({ file, clock: () => at });
+  const id = store.createUser("edition").id;
+  store.savePushSubscription(id, { endpoint: "https://push.example.test/edition" });
+  store.getUser(id).pushDeliveryTimes = Array(6).fill("2026-09-06T21:00:00Z");
+  const payloads = [];
+  const reader = { read({date,slotId}) {
+    if (!ready) throw new Error("edition unavailable");
+    return { editionDate: date, slot: {id:slotId}, issues: [{}], serving: {state:"slot_canonical_verified",fallback:false} };
+  } };
+  const run = options => sendEditionPushes(store,reader,vapid,{clock:()=>at,sendImpl:async(sub,body)=>{payloads.push(JSON.parse(body));return {status:201};},...options});
+  assert.deepEqual(await run(),{sent:0,failed:0});
+  for (const [time,slot] of [["22:00:00","morning"],["03:00:00","lunch"],["10:00:00","evening"]]) {
+    at = `2026-09-${slot==="morning"?"06":"07"}T${time}Z`;
+    ready=false;assert.deepEqual(await run(),{sent:0,failed:0});
+    ready=true;assert.deepEqual(await run(),{sent:1,failed:0});
+    assert.equal(payloads.at(-1).url,`/?date=2026-09-07&slot=${slot}`);
+    assert.equal(payloads.at(-1).tag,`today:2026-09-07:${slot}`);
+    store = new FeedStore({file,clock:()=>at});
+    assert.deepEqual(await run(),{sent:0,failed:0});
+  }
+  assert.equal(payloads.length,3);
+  assert.equal(store.getUser(id).pushDeliveryTimes.length,6);
+});
+
+test("edition push retries failures, locks overlap, expires only the attempted subscription", async () => {
+  const h=setup([],"2026-09-06T22:00:00Z");
+  const reader={read:()=>({editionDate:"2026-09-07",slot:{id:"morning"},issues:[{}],serving:{state:"slot_canonical_verified",fallback:false}})};
+  const options={clock:()=>"2026-09-06T22:00:00Z"};
+  let release, entered;
+  const wait=new Promise(r=>{release=r;}), start=new Promise(r=>{entered=r;});
+  const first=sendEditionPushes(h.store,reader,vapid,{...options,sendImpl:async()=>{entered();await wait;return {status:500};}});
+  await start;
+  assert.deepEqual(await sendEditionPushes(h.store,reader,vapid,options),{sent:0,failed:0});
+  release();assert.deepEqual(await first,{sent:0,failed:1});
+  assert.deepEqual(h.user.editionPushDeliveries||[],[]);
+  assert.deepEqual(await sendEditionPushes(h.store,reader,vapid,{...options,sendImpl:async()=>({status:201})}),{sent:1,failed:0});
+  h.user.editionPushDeliveries=[];
+  assert.deepEqual(await sendEditionPushes(h.store,reader,vapid,{...options,sendImpl:async()=>({status:410})}),{sent:0,failed:1});
+  assert.equal(h.user.pushSubscription,null);
+});
+
+test("live alerts have separate bounded cadence, one matching preview and honor disabled notifications",async()=>{
+  const h=setup();
+  const options={alertsOnly:true,minScore:0,limit:1};
+  assert.deepEqual(await h.run(options),{sent:1,failed:0});
+  assert.equal(h.digestCalls[0].alertsOnly,true);
+  assert.equal(h.deliveries[0].payload.kind,"live");
+  h.setItems([article("B")]);h.setTime("2026-09-03T00:29:59Z");
+  assert.deepEqual(await h.run(options),{sent:0,failed:0});
+  h.setTime("2026-09-03T00:30:00Z");assert.deepEqual(await h.run(options),{sent:1,failed:0});
+  h.user.notifyEnabled=false;h.setTime("2026-09-03T02:00:00Z");h.setItems([article("C")]);
+  assert.deepEqual(await h.run(options),{sent:0,failed:0});
 });
