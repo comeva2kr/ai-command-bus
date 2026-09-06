@@ -3,7 +3,7 @@
 - 안정 ID: `NOWHOT-PUSH-NAVIGATION-SHARE-001`
 - 변경 레코드: `DEVCHG-NOWHOT-20260907-214`
 - 입력 분류: 확정 수리 지시. 갤럭시 기본 브라우저인 삼성 인터넷 기준으로 오늘판 3회, 실시간 주요 소식/반응 상승 알림, 기본 뒤로가기, 공유 차단/미리보기를 확인한다.
-- 현재 상태: Root 통합 구현·독립 검토 PASS, Fable/Grok 조사 회수·완료 워커 release·ACK. 1차 알림·공유 수리는 운영 반영했다. 후속 검증에서 발견한 오늘판 전분야 최소수량 교착을 수리했고 2차 배포를 준비한다.
+- 현재 상태: Root 통합 구현·독립 검토 PASS, Fable/Grok 조사 회수·완료 워커 release·ACK. 1·2차 운영 반영과 모닝 자동 발행·푸시 서비스 수락을 확인했다. 공개 UI/공유 경로 PASS. 실제 Galaxy 기본 Back/화면 알림과 제보 원본 링크의 메신저 미리보기는 미확인이다.
 
 ## 확인한 원인과 변경
 
@@ -43,15 +43,24 @@
 - 서버 로그 `semantic lane coverage short (auto 7/13)`와 같은 SHA로 묶인 실제 풀/packet/routing으로 재현했다. 다른13분야는 각각14건, 자동차는 검증된7건이었다. 한 분야 최소13건 미달 때문에 판 전체가 멈췄다. 기존 carry/reserve가 있는데 새 재수집 루프나 빈 기사 채우기를 추가하지 않았다.
 - 기존 발행/검증/투영의 공통 경로를 수정했다. 새 `coveragePolicy:available_verified` 정본은 14개 분야에 실제0~14건을 기록하고 목표14·미달/빈 분야를 사실대로 표시한다. 전분야0건·잘못된 source/summary·중복·hash/identity 변조는 계속 거부한다. marker 없는 과거 정본의 최소13건 계약은 그대로다. 선택한 빈 분야를 다른 분야로 몰래 바꾸지 않는다.
 - 실제 모닝 후보 `SCE-86304874178116ce`, SHA `86304874178116ce987edca35dbaf167c087b8f841e3183826bd5abf614f7458`:185개 고유 이슈, 13분야14/자동차7, excerpt_only132/source_unavailable53, 기존 본문9개 재사용, LLM0. `/tmp/nh127-morning-candidate/candidate-2026-09-07-morning-863048741781.json`은 정상 builder로 만들었으며 수동 활성화하지 않았다. 기본4분야56건 충족·자동차7/14 부분충족 투영 PASS.
-- 정본34/34, 독립 사전발행/fulfillment20/20, 브라우저7/14 표시와 상세 열기1/1 PASS. 독립 검토에서 기본4분야가0/자동차만 있는 판의 알림 누락 반례를 추가 발견해, generic 발행 존재 확인만 전체 CATEGORIES로 조회한다. 실제 auto-only 정본 reader의 RED를 먼저 확인한 후 수정했다. 사용자별 글 제목을 알림에 노출하지 않는다.
-- 이미 배포한 공지 ID를 수정하지 않고 별도 `2026-09-07-edition-recovery` 이력/팝업을 추가했다. 2차 배포 후 정상 스케줄러의 모닝 활성화·발송 영수증을 확인한다.
+- 정본34/34, 독립 사전발행/fulfillment20/20, 브라우저7/14 표시와 상세 열기1/1 PASS. 최종 정본+푸시50/50 및 변경2줄 독립 GO PASS. 독립 검토에서 기본4분야가0/자동차만 있는 판의 알림 누락 반례를 추가 발견해, generic 발행 존재 확인만 전체 CATEGORIES로 조회한다. 실제 auto-only 정본 reader의 RED를 먼저 확인한 후 수정했다. 사용자별 글 제목을 알림에 노출하지 않는다.
+- 이미 배포한 공지 ID를 수정하지 않고 별도 `2026-09-07-edition-recovery` 이력/팝업을 추가했다. 2차 운영에서 정상 스케줄러의 모닝 활성화·발송 영수증을 아래와 같이 확인했다.
+
+## 최종 운영 영수증 — 08:38 KST
+
+- 최종 제품 `a3bf5a36e2c38e9c422ae3faf154e73bcceb1e56`: 08:34:07 자동 배포·08:34:28 preflight OK. 시작 후 기존 스케줄러가 실제 모닝을 만들고 08:35:49 active 포인터를 갱신했다. 수동 활성화·강제 발송0.
+- 운영 모닝 `SCE-7445e300fb51b201`, SHA `7445e300fb51b2014f12f05dbb9fee545102307e94c477fb3d9881d29e2282a2`:187개 고유 이슈, 13분야14/자동차9. 로컬 검증 이후 수집 입력이 갱신돼 후보185/자동차7과 차이가 있다. 운영 receipt LLM 목록[]·free_only, 발췌132/원문 접근 불가55를 명시한다. 후보 receipt의 activatedFile:null은 builder 산출 영수증이며 실제 활성화는 별도 active 포인터·공개 응답으로 증명했다.
+- 정상 분당 작업 `[push] delivery {"edition":{"sent":2,"failed":2},"live":{"sent":0,"failed":2}}`. 유효 키 구독2개의 `2026-09-07:morning` 수락 영수증은08:36:09.455/.713 KST에 저장됐다. 다음 작업은 edition.sent0으로 같은 슬롯 중복0. 실패2개는 앞서 확인한 빈 키 기록이며 삭제하지 않았다. 최초 Live2건 수락과 Today2건 수락을 분리해서 확인했다. 이것은 삼성 기기 알림 표시 완료 증거가 아니다.
+- 공개 Sep7 morning 기본4분야56·모닝 제목/날짜·fallback false·정본 검증, 자동차9/14·partial true 확인. 393px 격리 Chrome+Samsung UA에서 공유 정치 글 상세·페이지 내 Back→목록·Today/Live 알림 메뉴·가로 넘침0·JS 오류0. 상세 페이드가 끝난 후 화면을 다시 캡처해 원문 제목과 발췌/링크가 보임을 확인했다. UA 모사는 실제 삼성 인터넷 실행이 아니다.
+- 새 복구 공지1회·재접속/Live 중복0·소개13개 PASS. `/tmp/nh127-public-proof.json`, `/tmp/nh127-public-notice-proof.json`, `/tmp/nh127-recovery-auto.json`, `/tmp/nh127-recovery-final-runtime.txt`; 시각 확인 `/tmp/nh127-public-shared-detail.png`, `/tmp/nh127-public-today.png`, `/tmp/nh127-public-popup.png`.
+- 이전 Sep6 이브닝 파일은 사전 복사본/현재 운영 SHA가 모두 `608db750afaf5e63e8bfc5a68d43b723b05e7a4e5e597b8465791a10ef47db94`로 동일하다. 정상 추가 발행 경로를 사용했으며 이전 정본을 덮어쓰지 않았다.
 
 ## WRC 보고
 
 - 작업 시작 전 확인한 MD — 자동 주입: 사용자 AGENTS·메모리 요약·Ponytail Full. 직접 읽음: 공유 START_HERE·CANONICAL 13원칙 전체/§11.1·WIKI_RULES·ENFORCEMENT·PMO_LIVE_BOARD/REPORT_READ_INDEX 관련 머리, README·개발현황·직전 NH126 보고, wrc-start/orca-cli/orchestration SKILL과 현재 가이드, legal 이미지 조항. 미읽음/불가: 무관한 보드 과거 하단·실제 Galaxy·원본 제보 URL. 이번 작업 전용 파일: engine/push/store/server/docker-compose와 해당 집중 검사, navigation/index/today/SW 브라우저 경로, NH127 조사.
 - 적용한 규칙: 수리 지시 범위·13원칙 전체·§11.1·Ponytail 공통 경로 재사용·코드 전 Corridor·실제 Orca 협업·독립 검토·개인 브라우저 격리·검사와 운영/기기 증거 구분.
 - First Principles 게이트: PASS.
-- 개발현황 반영: 위 안정 ID/변경 레코드로 1차 운영과 2차 후보 검증을 기록했다. 2차 운영 영수증을 추가한다.
+- 개발현황 반영: 대상 안정 ID NOWHOT-PUSH-NAVIGATION-SHARE-001, 변경 레코드 DEVCHG-NOWHOT-20260907-214. 개발현황·최종 커밋·운영 정본·푸시 수락·공개 응답 대조 일치. 실제 Galaxy 확인은 미완료로 남겼다.
 - 금지선 준수: 원본 판본·개인 브라우저·구독 동의 보존. 실제 고객 시험 푸시·제3자 메시지·광고 신청·신규 유료 호출·메모리 쓰기0.
 - David 행동 필요 여부: 수리는 기존 지시로 진행한다. 실제 Galaxy 수신/기본 버튼 결과와 원본 문제 URL 확인은 별도 남는다.
 - Telegram 알림 필요 여부: 없음. 이 대화에서 보고.
