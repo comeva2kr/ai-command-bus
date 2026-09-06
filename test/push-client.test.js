@@ -11,6 +11,7 @@ test("shared push client restores only existing permission and subscriptions, an
   let current = subscription, permissionResult = "granted", apiStatus = 200, apiError = false, key = "AAEC-v8";
   const calls = [], prompts = [], subscriptions = [];
   const context = {
+    PushManager: function () {},
     Notification: { permission: "granted", requestPermission: async () => {
       prompts.push(true); return context.Notification.permission = permissionResult;
     } },
@@ -80,4 +81,27 @@ test("shared push client restores only existing permission and subscriptions, an
   delete context.navigator.serviceWorker;
   assert.equal(await client.restore("user-1"), false);
   await assert.rejects(client.enable("user-1"), /지원하지 않아요/);
+});
+
+test("iPhone and desktop-mode iPad get Home Screen instructions without a permission prompt", async () => {
+  const context = { navigator: { userAgent: "iPhone", standalone: false, serviceWorker: {} } };
+  context.window = context;
+  vm.runInNewContext(source, context);
+  assert.match(context.NowHotPush.help(), /공유 → 홈 화면에 추가/);
+  assert.equal(await context.NowHotPush.restore("reader"), false);
+  await assert.rejects(context.NowHotPush.enable("reader"), /홈 화면의 지금핫 아이콘/);
+  context.navigator.userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15)";
+  context.navigator.maxTouchPoints = 5;
+  assert.match(context.NowHotPush.help(), /홈 화면/);
+  context.navigator.standalone = true;
+  assert.equal(context.NowHotPush.help(), "");
+  await assert.rejects(context.NowHotPush.enable("reader"), /16.4 이상/);
+  context.PushManager = function () {};
+  context.Notification = { permission: "denied", requestPermission: () => assert.fail("do not reprompt a denial") };
+  await assert.rejects(context.NowHotPush.enable("reader"), /아이폰 설정 → 알림 → 지금핫/);
+  context.navigator.standalone = false;
+  context.matchMedia = () => ({ matches: true });
+  assert.equal(context.NowHotPush.help(), "", "standard standalone display mode is supported");
+  context.navigator.userAgent = "Android SamsungBrowser";
+  assert.equal(context.NowHotPush.help(), "");
 });

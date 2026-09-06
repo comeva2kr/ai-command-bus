@@ -124,10 +124,27 @@ export function decryptPayload(body, recipientKeys) {
   return plain.subarray(0, end); // drops the 0x02 delimiter byte
 }
 
+// Apple requires VAPID JWTs to be refreshed no more than once per hour.
+// This cache is process-local: restarting the process starts a new reuse period.
+const vapidTokenCache = new Map();
+function cachedVapidJwt(endpoint, keys, subject = "mailto:admin@example.com", now = Date.now()) {
+  for (const [key, entry] of vapidTokenCache) {
+    if (entry.reuseUntil <= now) vapidTokenCache.delete(key);
+  }
+  const cacheKey = crypto.createHash("sha256")
+    .update(JSON.stringify([new URL(endpoint).origin, keys.publicKey, keys.privateKey, subject]))
+    .digest("base64url");
+  const cached = vapidTokenCache.get(cacheKey);
+  if (cached) return cached.jwt;
+  const jwt = vapidJwt(endpoint, keys, subject, 12 * 3600, Math.floor(now / 1000));
+  vapidTokenCache.set(cacheKey, { jwt, reuseUntil: now + 3600_000 });
+  return jwt;
+}
+
 // Send a push. Needs network access to the endpoint. Returns { status }.
 export async function sendPush(subscription, payload, keys, opts = {}) {
   const body = encryptPayload(subscription, payload);
-  const jwt = vapidJwt(subscription.endpoint, keys, opts.subject);
+  const jwt = cachedVapidJwt(subscription.endpoint, keys, opts.subject, (opts.clock || Date.now)());
   const res = await (opts.fetchImpl || fetch)(subscription.endpoint, {
     method: "POST",
     headers: {

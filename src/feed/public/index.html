@@ -443,6 +443,8 @@
     display: flex; align-items: flex-end; justify-content: center;
     visibility: hidden; opacity: 0; transition: opacity .18s ease; }
   #detail.open { visibility: visible; opacity: 1; }
+  #notificationHelp { margin: 8px 0; color: var(--muted); font-size: 12px; line-height: 1.6; white-space: pre-line; }
+  #notificationHelp:empty { display: none; }
   .detail-panel { background: var(--bg); width: 100%; max-width: 720px; max-height: 88dvh;
     overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line);
     border-radius: 20px 20px 0 0; transform: translateY(28px); transition: transform .2s ease; }
@@ -1128,6 +1130,7 @@
       </div>
       <nav class="drawer-sec drawer-meta" aria-label="서비스 정보">
         <button class="drawer-link sub" id="menuNotifications" type="button">알림 받기</button>
+        <p id="notificationHelp" role="status"></p>
         <a class="drawer-link sub" href="/about">서비스 소개</a>
         <a class="drawer-link sub" href="/about#updates">업데이트 기록</a>
         <a class="drawer-link sub" href="/feedback">개선 요청</a>
@@ -1238,7 +1241,7 @@
   <div class="toast" id="toast"></div>
 
 <script src="/navigation-history.js?v=20260907"></script>
-<script src="/push-client.js?v=20260907"></script>
+<script src="/push-client.js?v=20260907-ios"></script>
 <script src="/notice-guide.js?v=20260905"></script>
 <script type="module">
 const API = {
@@ -1687,6 +1690,7 @@ setupViewSwitch();
   state.config = config; state.rules = rulesRes.rules;
   state.userId = s.userId; localStorage.setItem("feed_uid", s.userId);
   document.getElementById("menuNotifications").onclick = enableNotifications;
+  document.getElementById("notificationHelp").textContent = NowHotPush.help();
   NowHotPush.restore(state.userId).then(connected=>{
     if(connected)document.getElementById("menuNotifications").textContent="알림 연결됨";
   });
@@ -2315,9 +2319,14 @@ async function enableNotifications(){
   try {
     await NowHotPush.enable(state.userId);
     document.getElementById("menuNotifications").textContent="알림 연결됨";
+    document.getElementById("notificationHelp").textContent="";
     toast("오늘판과 주요 소식 알림을 켰어요");
     showDigest();
-  } catch(error) {toast(error.message||"알림 연결에 실패했어요")}
+  } catch(error) {
+    const message=error.message||"알림 연결에 실패했어요";
+    document.getElementById("notificationHelp").textContent=message;
+    toast(message);
+  }
 }
 
 // ---- ☰ 드로어 (소스별 보기·필터·링크제출·내공간 ) ----

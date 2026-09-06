@@ -3,11 +3,66 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { FeedStore } from "../src/feed/store.js";
-import { sendDigestPushes, sendEditionPushes } from "../src/feed/push.js";
+import { sendDigestPushes, sendEditionPushes, sendPush, generateVapidKeys, verifyVapidJwt, decryptPayload } from "../src/feed/push.js";
 
 const vapid = { publicKey: "public", privateKey: "private", subject: "mailto:test@example.test" };
 const article = (id, extra = {}) => ({ id, title: `Safe ${id}`, ...extra });
+
+test("sendPush reuses VAPID for one hour per origin, keypair and subject while encrypting each payload", async () => {
+  const keys = generateVapidKeys(), rotatedKeys = generateVapidKeys();
+  const recipient = crypto.createECDH("prime256v1");
+  recipient.generateKeys();
+  const recipientKeys = { p256dh: recipient.getPublicKey().toString("base64url"),
+    auth: crypto.randomBytes(16).toString("base64url"), private: recipient.getPrivateKey().toString("base64url") };
+  const started = Date.parse("2026-09-07T01:23:45.123Z");
+  let now = started, sequence = 0;
+  async function deliver(endpoint = "https://web.push.apple.com/first", sendKeys = keys,
+    subject = "mailto:first@example.test") {
+    const payload = `새 오늘판 ${sequence++}`;
+    let token;
+    const result = await sendPush({ endpoint, keys: recipientKeys }, payload, sendKeys, {
+      subject, clock: () => now,
+      fetchImpl: async (url, request) => {
+        assert.equal(url, endpoint);
+        assert.equal(request.method, "POST");
+        assert.equal(request.headers["Content-Encoding"], "aes128gcm");
+        assert.equal(request.headers.TTL, "86400");
+        const match = /^vapid t=(.+), k=(.+)$/.exec(request.headers.Authorization);
+        assert.ok(match);
+        [, token] = match;
+        assert.equal(match[2], sendKeys.publicKey);
+        assert.equal(verifyVapidJwt(token, sendKeys.publicKey), true);
+        const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url"));
+        assert.equal(claims.aud, new URL(endpoint).origin);
+        assert.equal(claims.sub, subject);
+        assert.ok(claims.exp > Math.floor(now / 1000));
+        assert.equal(decryptPayload(request.body, recipientKeys).toString(), payload);
+        return { status: 201 };
+      }
+    });
+    assert.deepEqual(result, { status: 201 });
+    return token;
+  }
+  const first = await deliver();
+  assert.equal(await deliver("https://web.push.apple.com/second", { ...keys }), first,
+    "different subscribers at one push origin share the token");
+  const otherOrigin = await deliver("https://other.push.apple.com/first");
+  const otherKey = await deliver(undefined, rotatedKeys);
+  const otherSubject = await deliver(undefined, keys, "mailto:second@example.test");
+  assert.equal(new Set([first, otherOrigin, otherKey, otherSubject]).size, 4);
+  assert.equal(await deliver(), first, "other identities do not replace the first cache entry");
+  now = started + 3600_000 - 1;
+  assert.equal(await deliver(), first, "reuse until the exact one-hour boundary");
+  now++;
+  const refreshed = await deliver();
+  assert.notEqual(refreshed, first, "refresh at one hour");
+  for (const [token, issuedAt] of [[first, started], [refreshed, now]]) {
+    const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url"));
+    assert.equal(claims.exp, Math.floor(issuedAt / 1000) + 12 * 3600);
+  }
+});
 
 function setup(initialItems = [article("A")], initialTime = "2026-09-03T00:00:00.000Z") {
   let items = initialItems;

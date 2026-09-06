@@ -43,7 +43,7 @@ const edition = {
   }))
 };
 
-async function fixture(t, path = "/live", realWorker = false, guideState = "seen", cold = false) {
+async function fixture(t, path = "/live", realWorker = false, guideState = "seen", cold = false, iosTab = false) {
   let base = origin;
   if (realWorker) {
     const server = createServer((req, res) => {
@@ -64,7 +64,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   t.after(() => context.close());
   const requests = [];
   const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, sourceKind: "news", feedHandler: null, coupang: null };
-  await context.addInitScript(({ realWorker, guideState, releaseId }) => {
+  await context.addInitScript(({ realWorker, guideState, releaseId, iosTab }) => {
     if (!localStorage.getItem("__fixture_seeded")) {
       localStorage.clear();
       if (guideState !== "new") localStorage.setItem("feed_uid", "reader");
@@ -86,8 +86,12 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
         pushManager: { getSubscription: async () => ({ endpoint: "test", toJSON: () => ({ endpoint: "test" }) }) } }),
       addEventListener: (name, fn) => { if (name === "message") window.__workerMessage = fn; }
     } });
-    Object.defineProperty(window, "Notification", { value: { permission: "granted", requestPermission: async () => {window.__permissionRequests++;return "granted"} } });
-  }, { realWorker, guideState, releaseId: release.id });
+    if (iosTab) {
+      delete window.Notification;
+      Object.defineProperty(navigator, "userAgent", { value: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)" });
+      Object.defineProperty(navigator, "standalone", { value: false });
+    } else Object.defineProperty(window, "Notification", { value: { permission: "granted", requestPermission: async () => {window.__permissionRequests++;return "granted"} } });
+  }, { realWorker, guideState, releaseId: release.id, iosTab });
   await context.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     requests.push(url.pathname);
@@ -676,6 +680,32 @@ test("NH127 browser: Today and Live restore granted subscriptions and expose the
     await page.waitForTimeout(100);
     assert.equal(requests.filter(path=>path==="/api/push/subscribe").length,2);
     assert.equal(await page.evaluate(()=>window.__permissionRequests),0);
+  }
+});
+
+test("NH128 browser: Today and Live include app installation metadata and readable iPhone push guidance", options, async t => {
+  for (const path of ["/", "/live"]) {
+    const {page,requests}=await fixture(t,path,false,"seen",false,true);
+    await page.setViewportSize({width:393,height:568});
+    await page.waitForFunction(()=>document.getElementById("notificationHelp")?.textContent.includes("홈 화면"));
+    assert.equal(await page.locator('link[rel="manifest"]').getAttribute("href"),"/manifest.webmanifest");
+    assert.equal(await page.locator('meta[name="apple-mobile-web-app-capable"]').getAttribute("content"),"yes");
+    assert.equal(await page.locator('link[rel="apple-touch-icon"]').getAttribute("href"),"/apple-touch-icon.png");
+    if(path==="/")await page.locator(".service-menu summary").click();
+    else await page.locator("#menuBtn").click();
+    await page.locator("#menuNotifications").click();
+    assert.equal(await page.locator("#notificationHelp").isVisible(),true);
+    assert.match(await page.locator("#notificationHelp").innerText(),/Safari에서 공유 → 홈 화면에 추가/);
+    assert.equal(await page.locator("#menuNotifications").innerText(),"알림 받기");
+    assert.equal(requests.filter(path=>path==="/api/push/subscribe").length,0);
+    assert.equal(await page.evaluate(()=>window.__permissionRequests),0);
+    if(path==="/")for(const viewport of [{width:393,height:568},{width:844,height:390}]){
+      await page.setViewportSize(viewport);
+      const last=page.locator('.service-menu a[href="/privacy"]');
+      await last.scrollIntoViewIfNeeded();
+      const rect=await last.boundingBox();
+      assert.ok(rect.y>=0&&rect.y+rect.height<=viewport.height,"last menu link stays reachable");
+    }
   }
 });
 
