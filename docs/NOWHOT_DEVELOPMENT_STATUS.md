@@ -9,7 +9,7 @@
 ## 최신 NH128 아이폰 알림 연결 보완
 
 - 안정 ID `NOWHOT-IPHONE-PUSH-001`, 변경 레코드 `DEVCHG-NOWHOT-20260907-215`. [NH128 원인 범위·검증·운영 기록](reports/NOWHOT_NH128_IPHONE_PUSH_2026-09-07.md).
-- Apple 구독0 확인. Today 누락 홈 화면 설치 메타·아이폰/iPad 안내·작은 메뉴 접근을 보완하고 공통 sendPush JWT를 Apple 공식 조항에 맞춰1시간 재사용한다. 기존 앱 identity·암호화·동의 보존. 공용/인라인17·브라우저3·작은화면1·전송19 PASS, 독립 검토. 운영 반영 전이며 실제 아이폰 수신은 미확인이다. First Principles 게이트: PASS.
+- Apple 구독0 확인. Today 누락 홈 화면 설치 메타·아이폰/iPad 안내·작은 메뉴 접근을 보완하고 공통 sendPush JWT를 Apple 공식 조항에 맞춰1시간 재사용한다. 기존 앱 identity·암호화·동의 보존. 공용/인라인17·브라우저3·작은화면1·전송19 PASS, 독립 검토. 최종 공용/전송/인라인34/34 PASS. 운영1541250·08:51:09 배포·08:51:29 preflight OK, 공개양쪽설치/안내·공지1회/이력14·JS오류0 확인. 실제 아이폰 수신은 미확인이다. First Principles 게이트: PASS.
 
 ## 직전 NH127 알림·공유·브라우저 경로 수리
 

@@ -3,7 +3,7 @@
 - 안정 ID: `NOWHOT-IPHONE-PUSH-001`
 - 변경 레코드: `DEVCHG-NOWHOT-20260907-215`
 - 입력 분류: NH127 수리의 추가 장애 제보/확정 수리 지시. Root 책임, 기존 승인 안에서 아이폰 연결 조건과 실제 코드를 검증한다.
-- 현재 상태: 구현·집중 검사 완료, 운영 반영 전. 아이폰 설치 상태 답변과 실제 기기 수신은 미확인이다.
+- 현재 상태: 구현·집중 검사·운영 반영·공개 안내 확인 완료. 아이폰 설치 상태 답변과 실제 기기 수신은 미확인이다.
 
 ## 확인한 사실과 원인 범위
 
@@ -20,12 +20,18 @@
 - 보조 Codex `nh127_push_review`가 Apple 공식 VAPID 조항을 Native APNs와 혼동하지 않았음을 재검토한 뒤 전송2파일만 구현했다. 기존 코드 RED→동일origin1시간 재사용/경계갱신/다른키·발신자·origin 분리/암호화복호화·서명·만료 검증 GREEN. 관련19/19 PASS. Root가 구현을 직접 대조했다. `live_sticky_review`는 UI 독립 검토와 짧은 메뉴 접근 반례를 맡았다. NH127의 실제 Orca Fable/Grok 조사와 이번 보조 검토를 혼동하지 않는다.
 - SW148와 push-client 버전주소를 함께 변경해 기존 캐시를 갱신한다. 별도 불변 공지 `2026-09-07-iphone-notifications`를 추가했다. 실제 고객 시험 푸시/Apple 구독 생성은 실행하지 않았다.
 
+## 운영 영수증
+
+- 제품 `15412505614ba35a8c419ad14eaa16332533f938`: 08:51:09 KST 자동 배포·08:51:29 preflight OK. 최종 공용 클라이언트/전송/인라인34/34 PASS·독립 UI GO 회수. 기존 정본 및 오늘판/Live 알림 스케줄은 그대로다.
+- 08:52 공개 Today/Live 양쪽 설치 metadata·393px 아이폰 모사 안내/클릭 후 설명 유지·버튼텍스트 보존·가로넘침0·JS오류0·시험구독0 PASS. 기존 manifest standalone/start_url /live 유지, SW148/helper 새 URL 일치 확인. 실제 iPhone의 설치/알림권한 UI를 조작한 검사가 아니다.
+- 새 공지1회·재접속/Live 중복0·소개14개 PASS. `/tmp/nh128-public-proof.json`, `/tmp/nh128-public-notice-proof.json`, `/tmp/nh128-deploy.txt` 및 `/tmp/nh128-today.png`, `/tmp/nh128-live.png` 시각 확인. 실제 기기 수신 성공은 아직 주장하지 않는다.
+
 ## WRC 보고
 
 - 작업 시작 전 확인한 MD — 자동 주입: 사용자 AGENTS·메모리 요약·Ponytail Full. 직접 읽음: 이번 세션 공유 START_HERE·CANONICAL13원칙/§11.1·WIKI_RULES·ENFORCEMENT·PMO_LIVE_BOARD·REPORT_READ_INDEX 및 이번 턴 관련 머리 재확인, README·NH127 보고, 기존 wrc-start/orca-cli/orchestration 지침. 미읽음/불가: 실제 iPhone 기기·사용자의 설치 상태 답변. 이번 작업 전용 파일: push-client/Today/Live/manifest/SW/push 전송·해당 집중검사·Apple 공식문서.
 - 적용한 규칙: 기존 수리·배포 승인,13원칙 전체,코드 전 Corridor,공통함수 재사용,개인브라우저 격리,독립검토,실기기와 모사 증거 구분.
 - First Principles 게이트: PASS.
-- 개발현황 반영: 대상 안정 ID NOWHOT-IPHONE-PUSH-001, 변경 레코드 DEVCHG-NOWHOT-20260907-215. 현재 소스/검사 일치, 운영 영수증은 반영 후 대조한다.
+- 개발현황 반영: 대상 안정 ID NOWHOT-IPHONE-PUSH-001, 변경 레코드 DEVCHG-NOWHOT-20260907-215. 최종 제품1541250·운영preflight·공개바이트/안내를 대조해 일치 확인. 실제 iPhone 수신은 미확인으로 유지한다.
 - 금지선 준수: 구독 동의·기존 앱 identity·과거 판본 보존. 자동 권한 요청/실고객 시험 푸시/신규 서비스·의존성/메모리 쓰기0.
 - David 행동 필요 여부: 아이폰 홈 화면의 지금핫 실행 후 알림 허용이 기기에서 필요하다. 이미 그렇게 쓰고 있다면 설치/권한/수신 결과 확인이 남는다.
 - Telegram 알림 필요 여부: 없음, 이 대화에서 보고.
