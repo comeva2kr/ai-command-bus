@@ -3,7 +3,7 @@
 - 안정 ID: `NOWHOT-CONTENT-QUALITY-FINISH-001`
 - 변경 레코드: `DEVCHG-NOWHOT-20260906-213`
 - 입력 분류: 1·2번 진행 승인, 3번 전 그록 수집→클로드 기사 작성 방식은 의견·질문.
-- 상태: Root 분류·발췌·제목 수정, Fable 원문 조사 인수인계, Grok 분류/기사 운영안 검토와 보조 독립 코드 검토 완료. 아래 후보까지 로컬 검증 완료이며 운영 반영은 최종 영수증으로 구분한다.
+- 상태: Root 분류·발췌·제목 수정, Fable 원문 조사 인수인계, Grok 분류/기사 운영안 검토와 보조 독립 코드 검토 완료. 11:32 KST 운영 배포·모닝 교정판 활성화, 11:33 공개 API/모바일 Chrome/공지 검증 완료. 실제 iPhone은 미확인이다.
 
 ## 확인과 수리
 
@@ -23,6 +23,15 @@
 - 최종 교정 후보 `SCE-3d774e304b232d54` / SHA `3d774e304b232d549baa7fdf9bd8680500f86addc405bc5b83e8c33c707d1689`. 원래193건·표시순서·분야별 목록·eventSources 전부 보존, 기본 선택56, 자동차13/나머지13개 분야14로 원판과 동일. 발췌150·원문 이용불가43도 보존했다. 기사10건의 발췌와3건의 제목 변경(중복 포함 영향12건), LLM0.
 - 재선정 CLI 시험은 기존 판의 순서/선정이 달라져 채택하지 않았다. 기존 `buildSlotCanonicalEdition`에 원래 union/lane을 넣어 독자 문장과 발췌만 다시 동결했다. 분류 변경3건은 선정193건의 출처에 없음을 검사한 뒤 새 routing/packet SHA를 연결했다. `/tmp/nh126-refreeze.mjs`, `/tmp/nh126-refreeze-receipt.json`, `/tmp/nh126-candidate-proof.json`, `/tmp/nh126-preserved-candidate/`.
 - QA 임시 검사도 실제 계약에 맞췄다. 원문 이용불가 상태에 본문을 강제하거나, 원시 event 대표 ID가 최종 출처 ID와 같다고 가정한 검사는 올바른 서비스 계약이 아니어서 제거했다. 정본 검증 함수와 원판의 실제 선정·출처 불변을 검증한다. 미채택 임시 후보는 운영에 반영하지 않았다.
+
+## 운영 반영 최종 영수증 — 11:33 KST
+
+- 코드 `afee38acb876515e3b59ae50694ca872876eb6f1` main push → VM 동일 HEAD. 컨테이너 11:32:09 시작, 자동 배포 11:32:10, preflight 11:32:33 OK. `/tmp/nh126-runtime-final.txt`.
+- 11:32:40 기존 `activateSlotCanonicalEdition`으로 모닝 `SCE-d2a4d3ced4c0488a` → `SCE-3d774e304b232d54` 활성화. 원본 파일 SHA 불변, 다른 모든 날짜/슬롯 포인터 불변, `/data/slot-editions/active-before-nh126.json` 백업 확인. `/tmp/nh126-activation-receipt.json`.
+- 공개 `/api/today?date=2026-09-06&slot=morning&categories=news,business,tech,humor` HTTP200, 새 ID/SHA, 정본 검증 상태, fallback false. 선택56건의 순서·독자 문장 전체·발췌·eventSources가 검증 후보와 일치했다. `/tmp/nh126-public-api-proof.json`, `/tmp/nh126-public-today.json`.
+- 격리 Chrome 393×852: Today56/쿠팡6/빈 광고 제목0, Today·Live 상단 고정, 가로 넘침0, JS 오류0. 커뮤100 핫/최신·뉴스100 최신/핫 각10/10 종류 일치, 커뮤100 최신 새로고침 복원도10/10. Root가 Today/Live 스크린샷을 열어 확인했다. `/tmp/nh126-final-mobile-proof.json`, `/tmp/nh126-final-today-mobile.png`, `/tmp/nh126-final-live-hot-mobile.png`.
+- 공개 팝업 `2026-09-06-content-quality` 표시·닫기 저장·새로고침/Live 중복 표시0, 소개 업데이트 이력11개와 새 공지 문구 일치. Root가 팝업 화면을 직접 확인했다. `/tmp/nh126-public-notice-proof.json`, `/tmp/nh126-public-popup.png`.
+- 위 Chrome 검증은 이번 운영 코드에 대한 결과다. 앞선 10:32 시스템 WKWebView 검증은 직전 운영 코드에 대한 보완 결과이며, 어느 쪽도 실제 iPhone Safari 검증으로 세지 않는다. 이번 배포로 모든 번역·저장된 원문 잡문구가 해소됐다는 주장은 하지 않는다.
 
 ## 자체 기사 방향에 대한 책임자 판단
 
@@ -47,7 +56,7 @@ Google의 [생성형 AI 콘텐츠 안내](https://developers.google.com/search/d
 - 작업 시작 전 확인한 MD: 자동 주입 사용자 AGENTS·메모리 요약·Ponytail Full; 직접 읽음 START_HERE, CANONICAL 13원칙·§11.1, WIKI_RULES, ENFORCEMENT, PMO_LIVE_BOARD, REPORT_READ_INDEX 관련 범위, README, 개발현황, NH123/NH124 Root·Fable 보고, wrc-start/orca-cli/orchestration SKILL 및 현재1.4.197 가이드; 미읽음/불가 실제 iPhone·무관한 보드 과거 하단; 이번 전용 파일은 위 소스·검사·모닝 원본·NH126 보조 보고.
 - 적용한 규칙: 승인한 수리/검증과 의견 검토 구분, 13원칙 전체·§11.1·Ponytail 최소 공통 수정, 코드 전 Corridor, 원본 보존, 실제 Orca Fable/Grok 검토, 개인 브라우저 격리.
 - First Principles 게이트: PASS.
-- 개발현황 반영: 위 안정 ID/변경 레코드로 최종 코드·운영 영수증과 대조해 연결한다.
+- 개발현황 반영: 위 안정 ID/변경 레코드로 개발현황 NH126 항목에 운영 코드·교정판·공개 QA를 연결하고 대조했다. 운영 제품 코드는 `afee38a`, 사후 영수증 보강은 로컬 문서 커밋으로 구분한다.
 - 금지선 준수: 개인 브라우저·광고 클릭·계정 제출·새 유료 호출·시계 변경·원본 덮어쓰기0.
 - David 행동 필요 여부: 실기기 확인에는 iPhone 연결 또는 실기기 결과가 필요하다. 반복 질문하지 않았다.
 - Telegram 알림 필요 여부: 없음, 이 대화에서 보고.
