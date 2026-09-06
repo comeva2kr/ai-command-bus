@@ -7,6 +7,7 @@ import { cleanArticleTextChrome, isJunkImage, looksLikePageChrome } from "./enri
 import { CATEGORIES } from "./taxonomy.js";
 import { slotAsOfMs } from "./editorial-inventory.js";
 import { EDITORIAL_SERVING_CONTRACT } from "./editorial-serving.js";
+import { buildEditorialFulfillment } from "./editorial-fulfillment.js";
 
 export const SLOT_CANONICAL_EDITION_CONTRACT = Object.freeze({
   stableId: "NOWHOT-SLOT-CANONICAL-EDITION-001",
@@ -83,6 +84,12 @@ export function validateSlotCanonicalEdition(artifact) {
   if (artifact.summaryBuildMode != null && !["free_only", "paid_allowed"].includes(artifact.summaryBuildMode)) {
     errors.push("summaryBuildMode invalid");
   }
+  const availableVerified = artifact.coveragePolicy === "available_verified";
+  if ("coveragePolicy" in artifact && !availableVerified) errors.push("coveragePolicy invalid");
+  if (availableVerified && (!/^[a-f0-9]{64}$/.test(artifact.contentSha256 || "")
+      || artifact.artifactId !== `SCE-${artifact.contentSha256.slice(0, 16)}`)) {
+    errors.push("artifact identity invalid");
+  }
   if (artifact.builderPacketSha256 !== artifact.routingSnapshot?.source?.packetSha256) {
     errors.push("routingSnapshot source packetSha256 mismatch");
   }
@@ -95,7 +102,7 @@ export function validateSlotCanonicalEdition(artifact) {
   for (const category of expectedIds) {
     const ids = lanes[category];
     if (!Array.isArray(ids)) { errors.push(`${category} lane missing`); continue; }
-    if (ids.length < SLOT_CANONICAL_EDITION_CONTRACT.activationMinimumPerCategory) {
+    if (!availableVerified && ids.length < SLOT_CANONICAL_EDITION_CONTRACT.activationMinimumPerCategory) {
       errors.push(`${category} lane requires at least 13 issues`);
     }
     if (ids.length > SLOT_CANONICAL_EDITION_CONTRACT.targetPerCategory) {
@@ -104,6 +111,7 @@ export function validateSlotCanonicalEdition(artifact) {
     if (new Set(ids).size !== ids.length) errors.push(`${category} lane contains duplicate issue ids`);
     ids.forEach((id) => union.add(id));
   }
+  if (!union.size) errors.push("at least one verified issue required");
 
   const issueTable = artifact.issueTable || {};
   const displayOrder = artifact.displayOrder || [];
@@ -159,9 +167,6 @@ export function buildSlotCanonicalEdition({
     const edition = editionsByCategory?.[category.id];
     const issues = edition?.issues;
     if (!Array.isArray(issues)) fail(`${category.id} lane missing`);
-    if (issues.length < SLOT_CANONICAL_EDITION_CONTRACT.activationMinimumPerCategory) {
-      fail(`${category.id} lane requires at least 13 issues`);
-    }
     if (issues.length > SLOT_CANONICAL_EDITION_CONTRACT.targetPerCategory) {
       fail(`${category.id} lane exceeds 14 issues`);
     }
@@ -225,6 +230,7 @@ export function buildSlotCanonicalEdition({
   const payload = {
     contractId: SLOT_CANONICAL_EDITION_CONTRACT.stableId,
     contractVersion: SLOT_CANONICAL_EDITION_CONTRACT.version,
+    coveragePolicy: "available_verified",
     editionDate: unionEdition.editionDate,
     slot: clone(unionEdition.slot),
     createdAt,
@@ -280,7 +286,13 @@ export function projectSlotCanonicalEdition(artifact, {
   const sourceKeys = new Set(issues.flatMap((issue) => issue.eventSources || issue.sourceEvidence || [])
     .map((row) => row?.sourceGroup || row?.canonicalUrl || row?.url).filter(Boolean));
   const overseas = issues.filter((issue) => issue.overseasOnly).length;
-  const fulfillment = {
+  const availableVerified = artifact.coveragePolicy === "available_verified";
+  const fulfillment = availableVerified ? buildEditorialFulfillment({
+    selectedCategories: selected,
+    issues,
+    candidateCounts: Object.fromEntries(selected.map(category => [category, artifact.lanes[category].length])),
+    minimumIssuesPerCategory: SLOT_CANONICAL_EDITION_CONTRACT.targetPerCategory
+  }) : {
     contractId: "NOWHOT-SLOT-CANONICAL-FULFILLMENT-001",
     state: "fulfillment_complete",
     selectedCount: selected.length,
@@ -306,12 +318,16 @@ export function projectSlotCanonicalEdition(artifact, {
     itemCount: issues.length,
     sourceCount: sourceKeys.size,
     overseasShare: issues.length ? Math.round(overseas / issues.length * 100) : 0,
-    publishable: true,
-    partial: false,
+    publishable: availableVerified ? issues.length > 0 : true,
+    partial: availableVerified ? !fulfillment.goalSatisfied : false,
     selectedCategories: selected,
     requestedCategories: selected,
-    servedCategories: selected,
-    withheldCategories: [],
+    servedCategories: availableVerified ? selected.filter(category => artifact.lanes[category].length > 0) : selected,
+    withheldCategories: availableVerified ? fulfillment.rows.filter(row => row.issueCount === 0).map(row => ({
+      categoryId: row.categoryId,
+      label: row.label,
+      reason: `${row.label} 분야에는 현재 검증된 기사가 없습니다.`
+    })) : [],
     availableCategories: clone(artifact.availableCategories),
     selection: {
       mode: selectionMode,
@@ -321,8 +337,8 @@ export function projectSlotCanonicalEdition(artifact, {
       maxIssues: selected.length * artifact.targetPerCategory,
       categoryIssueLimit: artifact.targetPerCategory,
       additiveCategoryUnion: true,
-      minIssuesPerCategory: artifact.activationMinimumPerCategory,
-      generationMinIssuesPerCategory: artifact.activationMinimumPerCategory
+      minIssuesPerCategory: availableVerified ? artifact.targetPerCategory : artifact.activationMinimumPerCategory,
+      generationMinIssuesPerCategory: availableVerified ? 0 : artifact.activationMinimumPerCategory
     },
     categoryFulfillment: fulfillment,
     serving: {

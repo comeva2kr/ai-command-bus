@@ -12,6 +12,7 @@ import { createServer } from "../src/feed/server.js";
 import {
   activateSlotCanonicalEdition,
   activateSlotCanonicalEditions,
+  assertSlotCanonicalEdition,
   buildSlotCanonicalEdition,
   makeSlotCanonicalEditionReader,
   projectSlotCanonicalEdition
@@ -340,11 +341,97 @@ function build(options) {
   });
 }
 
-test("NH127 edition push reads the real published canonical projection and rejects fallback", async (t) => {
+test("NH127 available verified lanes publish seven auto stories without blocking news or hiding empty selections", () => {
+  const { byCategory, unionEdition } = editions();
+  const extra = issue("news-13", ["news"]);
+  byCategory.news.issues.push(extra);
+  byCategory.auto.issues = byCategory.auto.issues.slice(0, 7);
+  byCategory.science.issues = [];
+  const kept = new Set(Object.values(byCategory).flatMap(edition => edition.issues.map(row => row.evidenceHash)));
+  unionEdition.issues = [...unionEdition.issues, extra].filter(row => kept.has(row.evidenceHash));
+  const artifact = buildSlotCanonicalEdition({
+    editionsByCategory: byCategory, unionEdition, builderPacketSha256: packetSha,
+    routingSnapshot: { source: { packetSha256: packetSha } }
+  });
+  assert.equal(artifact.coveragePolicy, "available_verified");
+  assert.equal(artifact.targetPerCategory, 14);
+  assert.equal(artifact.activationMinimumPerCategory, 13, "legacy metadata is preserved");
+  const both = projectSlotCanonicalEdition(artifact, { categories: ["news", "auto"] });
+  assert.equal(both.issues.length, 21);
+  assert.equal(both.partial, true);
+  assert.equal(both.publishable, true);
+  assert.deepEqual(both.servedCategories, ["news", "auto"]);
+  assert.deepEqual(both.categoryFulfillment.rows.map(row => [row.categoryId, row.issueCount, row.target, row.state]),
+    [["news", 14, 14, "met"], ["auto", 7, 14, "underfilled"]]);
+  assert.equal(both.categoryFulfillment.goalSatisfied, false);
+  assert.equal(both.categoryFulfillment.metCount, 1);
+  assert.equal(both.categoryFulfillment.state, "fulfillment_partial");
+  assert.equal(projectSlotCanonicalEdition(artifact, { categories: ["news"] }).partial, false);
+  const empty = projectSlotCanonicalEdition(artifact, { categories: ["science"] });
+  assert.deepEqual(empty.requestedCategories, ["science"]);
+  assert.deepEqual(empty.selection.categories.map(row => row.id), ["science"]);
+  assert.deepEqual(empty.servedCategories, []);
+  assert.equal(empty.withheldCategories[0].categoryId, "science");
+  assert.match(empty.withheldCategories[0].reason, /검증된 기사가 없습니다/);
+  assert.equal(empty.issues.length, 0);
+  assert.equal(empty.partial, true);
+  assert.equal(empty.publishable, false);
+  assert.equal(empty.categoryFulfillment.rows[0].state, "no_supply");
+  assert.equal(empty.categoryFulfillment.state, "fulfillment_insufficient");
+
+  for (const lane of Object.values(byCategory)) lane.issues = [];
+  unionEdition.issues = [];
+  assert.throws(() => buildSlotCanonicalEdition({
+    editionsByCategory: byCategory, unionEdition, builderPacketSha256: packetSha,
+    routingSnapshot: { source: { packetSha256: packetSha } }
+  }), /at least one verified issue required/);
+});
+
+test("NH127 coverage policy retains legacy constraints and rejects malformed policy or artifact tampering", () => {
+  const sign = artifact => {
+    const { artifactId, contentSha256, ...payload } = artifact;
+    const sha = crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+    return { ...payload, artifactId: `SCE-${sha.slice(0, 16)}`, contentSha256: sha };
+  };
+  const current = build();
+  const legacyPayload = structuredClone(current);
+  delete legacyPayload.coveragePolicy;
+  const legacy = sign(legacyPayload);
+  assert.doesNotThrow(() => assertSlotCanonicalEdition(legacy));
+  const legacyProjection = projectSlotCanonicalEdition(legacy, { categories: ["auto"] });
+  assert.equal(legacyProjection.partial, false);
+  assert.equal(legacyProjection.categoryFulfillment.goalSatisfied, true);
+  assert.equal(legacyProjection.categoryFulfillment.rows[0].target, 13);
+  const id = legacy.lanes.auto.pop();
+  delete legacy.issueTable[id];
+  legacy.displayOrder = legacy.displayOrder.filter(value => value !== id);
+  assert.throws(() => assertSlotCanonicalEdition(sign(legacy)), /auto lane requires at least 13/);
+  for (const coveragePolicy of [null, "unknown", false]) {
+    assert.throws(() => assertSlotCanonicalEdition(sign({ ...current, coveragePolicy })), /coveragePolicy invalid/);
+  }
+  assert.throws(() => assertSlotCanonicalEdition({ ...current, contentSha256: undefined }), /artifact identity invalid/);
+  assert.throws(() => assertSlotCanonicalEdition({ ...current, artifactId: "SCE-wrong" }), /artifact identity invalid/);
+  const tampered = structuredClone(current);
+  tampered.issueTable[tampered.displayOrder[0]].reader.headline = "바뀐 문장";
+  assert.throws(() => assertSlotCanonicalEdition(tampered), /contentSha256 mismatch/);
+  const missing = structuredClone(current);
+  delete missing.lanes.auto;
+  assert.throws(() => assertSlotCanonicalEdition(sign(missing)), /14 category lanes required|auto lane missing/);
+  const duplicate = structuredClone(current);
+  duplicate.lanes.auto.push(duplicate.lanes.auto[0]);
+  assert.throws(() => assertSlotCanonicalEdition(sign(duplicate)), /duplicate issue ids/);
+});
+
+test("NH127 edition push reads a real auto-only publication and rejects fallback", async (t) => {
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),"nowhot-edition-push-real-"));
   t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
   const pointerFile=path.join(directory,"active.json");
-  activateSlotCanonicalEdition({artifact:build(),directory,pointerFile});
+  const { byCategory, unionEdition } = editions();
+  for (const [category, lane] of Object.entries(byCategory)) if (category !== "auto") lane.issues = [];
+  unionEdition.issues = byCategory.auto.issues;
+  const artifact = buildSlotCanonicalEdition({editionsByCategory:byCategory,unionEdition,builderPacketSha256:packetSha,
+    routingSnapshot:{source:{packetSha256:packetSha}}});
+  activateSlotCanonicalEdition({artifact,directory,pointerFile});
   const reader=makeSlotCanonicalEditionReader({pointerFile}),store=new FeedStore();
   const user=store.createUser("push-real");
   store.savePushSubscription(user.id,{endpoint:"https://push.example.test/real"});
@@ -629,7 +716,7 @@ test("분야 내부 순위 표식은 최종 사용자 판에 남기지 않는다
   assert.equal("_categoryLaneRanks" in artifact.issueTable[unionEdition.issues[0].evidenceHash], false);
 });
 
-test("13건 미달·미준비 상세·다른 풀의 라우팅 스냅샷은 판 전체를 거부한다", () => {
+test("레인과 전체판 불일치·미준비 상세·다른 풀의 라우팅 스냅샷은 판 전체를 거부한다", () => {
   const underfilled = editions();
   underfilled.byCategory.politics.issues.pop();
   assert.throws(() => buildSlotCanonicalEdition({
@@ -637,7 +724,7 @@ test("13건 미달·미준비 상세·다른 풀의 라우팅 스냅샷은 판 �
     unionEdition: underfilled.unionEdition,
     builderPacketSha256: packetSha,
     routingSnapshot: { source: { packetSha256: packetSha } }
-  }), /politics.*13/);
+  }), /union issue is not in a lane/);
 
   const pending = editions();
   pending.unionEdition.issues[0].articleSummary = { status: "pending" };
@@ -696,13 +783,14 @@ test("발행판은 모델·동일 근거 모델·현재 패킷 deterministic만 
     "빈 분류도 구형 근거라면 URL·출처 규칙으로 되살아나기 전에 거부해야 한다");
 });
 
-test("분야별 의미 승인 13건 미달은 기사 요약 전에 확인한다", () => {
+test("분야별 의미 승인 부족은 정상 분야를 막지 않고 빈 전체판은 거부한다", () => {
   const { unionEdition } = editions();
   assert.doesNotThrow(() => assertSemanticLaneCoverage(unionEdition));
 
   const index = unionEdition.issues.findIndex((row) => row.selectedByCategories.includes("politics"));
   unionEdition.issues.splice(index, 1);
-  assert.throws(() => assertSemanticLaneCoverage(unionEdition), /politics 12\/13/);
+  assert.equal(assertSemanticLaneCoverage(unionEdition).politics.issues.length, 12);
+  assert.throws(() => assertSemanticLaneCoverage({ ...unionEdition, issues: [] }), /verified issue|empty|no.*issue/i);
 });
 
 test("해외 주요 매체 건수는 발행 차단 조건이 아니라 관측 영수증이다", () => {
@@ -768,7 +856,7 @@ test("활성화 실패는 이전 포인터를 보존하고 성공판은 날짜·
 
   const invalid = structuredClone(artifact);
   invalid.lanes.politics.pop();
-  assert.throws(() => activateSlotCanonicalEdition({ artifact: invalid, directory: root, pointerFile }), /politics.*13/);
+  assert.throws(() => activateSlotCanonicalEdition({ artifact: invalid, directory: root, pointerFile }), /displayOrder|selectedByCategories|contentSha256/);
   assert.deepEqual(fs.readFileSync(pointerFile), before);
 
   const reader = makeSlotCanonicalEditionReader({ pointerFile });
@@ -857,7 +945,7 @@ test("세 슬롯 활성화는 전부 검증된 뒤 포인터를 한 번만 교�
     artifacts: [build({ slotId: "morning", slotLabel: "모닝" }), invalid],
     directory: root,
     pointerFile
-  }), /politics.*13/);
+  }), /displayOrder|selectedByCategories|contentSha256/);
   assert.deepEqual(fs.readFileSync(pointerFile), before);
 
   const activated = activateSlotCanonicalEditions({

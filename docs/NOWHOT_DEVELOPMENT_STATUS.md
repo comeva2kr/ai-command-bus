@@ -10,7 +10,7 @@
 
 - 안정 ID `NOWHOT-PUSH-NAVIGATION-SHARE-001`, 변경 레코드 `DEVCHG-NOWHOT-20260907-214`. [NH127 구현·검증·운영 영수증](reports/NOWHOT_NH127_PUSH_NAVIGATION_SHARE_2026-09-07.md).
 - Root가 오늘판 슬롯별 알림과 Live 주요 소식 알림을 분리하고, 기본 정치/종교 설정의 직접 공유 글 차단·미리보기 robots 설정·구독 재연결·OS 알림 tag를 수리했다. 기존 구독 동의·목록 설정·관리자 차단·원본 판본을 보존한다. 양쪽 메뉴에 알림 연결, 새 팝업/이력을 연결했다.
-- 로컬 핵심45/45·브라우저6/6·실제 reader1/1·무활성 CDP Back 입력1/1 PASS, 독립 GO. 실제 Orca Fable/Grok 조사 회수·워커 release·ACK 완료. Fable 단순 fixture의 경로 오류로 만들어진 원인 주장은 Root가 실제 소스로 대조 후 미채택했다. 오래된 뒤로가기 스크립트 캐시 우회는 적용하되 실제 Galaxy 기본 Back/알림 수신은 미확인이다. 현재 배포 전, 최종 운영 영수증은 연결 보고서에 추가한다. First Principles 게이트: PASS.
+- 로컬 핵심45/45·브라우저6/6·실제 reader1/1·무활성 CDP Back 입력1/1 PASS, 독립 GO. 실제 Orca Fable/Grok 조사 회수·워커 release·ACK 완료. Fable 단순 fixture의 경로 오류로 만들어진 원인 주장은 Root가 실제 소스로 대조 후 미채택했다. 오래된 뒤로가기 스크립트 캐시 우회는 적용하되 실제 Galaxy 기본 Back/알림 수신은 미확인이다. 1차 운영910604b·08:16:27 preflight OK·유효 FCM2개 Live 수락·새 공지1회/이력12 확인. 후속 Today 검증에서 자동차7/13 때문에 전분야 발행이 막힌 원인을 발견해 수리했다. 실제 모닝185건/기본56/자동차7 검증 후보와 부분충족 표시 PASS. 2차 운영 영수증은 연결 보고서에 추가한다. First Principles 게이트: PASS.
 
 ## 직전 NH126 콘텐츠 품질 운영 반영·Safari 확인
 

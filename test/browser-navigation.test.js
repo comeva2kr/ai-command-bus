@@ -720,3 +720,15 @@ test("NH127 browser back input: actual cold Live helper keeps the list without s
   await page.waitForFunction(()=>!location.hash&&!document.querySelector("#detail.open"));
   assert.equal(page.url(),base+"/live");
 });
+
+test("NH127 browser: a sparse Today category shows actual coverage while its stories remain readable", options, async t=>{
+  const {page,controls}=await fixture(t,"/");
+  await page.waitForSelector(".issue");
+  controls.todayEdition={...edition,partial:true,issues:edition.issues.slice(0,7),categoryFulfillment:{selectedCount:1,metCount:0,goalSatisfied:false,rows:[{categoryId:"business",label:"경제",issueCount:7,target:14,state:"underfilled"}]}};
+  await page.locator("#refresh").click();
+  await page.waitForFunction(()=>document.querySelectorAll(".issue").length===7);
+  assert.match(await page.locator("#categoryStatus").innerText(),/0\/1.*보강 중/);
+  assert.match(await page.locator("#selection").innerText(),/7\/14 보강 중/);
+  await page.locator('[data-open-issue="0"]').click();
+  await page.waitForSelector("#issueDetail.open");
+});

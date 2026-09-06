@@ -125,13 +125,11 @@ export function categoryEditionsFromUnion(unionEdition) {
 
 export function assertSemanticLaneCoverage(unionEdition) {
   const editions = categoryEditionsFromUnion(unionEdition);
-  const minimum = SLOT_CANONICAL_EDITION_CONTRACT.activationMinimumPerCategory;
-  const underfilled = Object.entries(editions)
-    .filter(([, edition]) => edition.issues.length < minimum)
-    .map(([category, edition]) => `${category} ${edition.issues.length}/${minimum}`);
-  if (underfilled.length) {
-    throw new Error(`slot edition: semantic lane coverage short (${underfilled.join(", ")})`);
+  if (!Object.values(editions).some(edition => edition.issues.length)) {
+    throw new Error("slot edition: no qualified issues in any category");
   }
+  // A quiet category must not stop the entire scheduled edition. The artifact
+  // records actual verified coverage; its reader exposes underfilled lanes.
   return editions;
 }
 

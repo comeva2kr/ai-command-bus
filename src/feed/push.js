@@ -13,7 +13,7 @@
 
 import crypto from "node:crypto";
 import { kstDate, resolveEditorialTarget } from "./editorial-inventory.js";
-import { DEFAULT_EDITORIAL_PREVIEW } from "./engine.js";
+import { CATEGORIES } from "./taxonomy.js";
 
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
 const fromB64url = (s) => Buffer.from(s, "base64url");
@@ -235,7 +235,7 @@ export async function sendEditionPushes(store, reader, vapidKeys, opts = {}) {
   editionPushRuns.add(store);
   try {
     let edition;
-    try { edition = await reader.read({date:target.date,slotId:target.slot.id,categories:DEFAULT_EDITORIAL_PREVIEW}); }
+    try { edition = await reader.read({date:target.date,slotId:target.slot.id,categories:CATEGORIES.map(category=>category.id)}); }
     catch { return {sent,failed}; } // Retry when prepublication finishes.
     if (edition?.editionDate !== target.date || edition?.slot?.id !== target.slot.id
         || edition?.serving?.state !== "slot_canonical_verified" || edition.serving.fallback
