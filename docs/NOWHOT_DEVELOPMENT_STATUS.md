@@ -6,7 +6,12 @@
 - 인수 근거와 재개 경로: [책임자 인수 기록](reports/NOWHOT_OWNER_TAKEOVER_2026-09-05.md). 로컬 코드 HEAD `e59c8fd`; 이번 변경은 인수 문서 연결뿐이며 제품·판본·운영 변경 없음.
 - 아래 NH112 배포 완료는 9월 4일의 완료 기록이다. 이후 같은 날 19시대 Orca 광고 재심사 감사에서 Google AdSense·Kakao AdFit 모두 HOLD·미제출로 판정됐다. 배포 완료와 광고 신청 준비/승인을 구분하며, 현재 운영 재검증이나 보류 원인 수리 완료로 표현하지 않는다.
 
-## 최신 NH128 아이폰 알림 연결 보완
+## 최신 NH129 밝은 테마 안내 문구 수리
+
+- 안정 ID `NOWHOT-STATUS-CONTRAST-001`, 변경 레코드 `DEVCHG-NOWHOT-20260907-216`. [NH129 원인·검증·운영 기록](reports/NOWHOT_NH129_STATUS_CONTRAST_2026-09-07.md).
+- 사진의 검은 안내 문구는 Live 공통 토스트의 고정 어두운 배경과 테마 글자색 충돌이다. 두 색을 기존 테마의 대비색으로 맞춰 공유/푸시/버튼 안내를 함께 수리했다. 밝음/어두움·실제 버튼 경로1/1,인라인15/15,독립GO. SW149와 새 공지 포함, 운영 반영 전이다. First Principles 게이트: PASS.
+
+## 직전 NH128 아이폰 알림 연결 보완
 
 - 안정 ID `NOWHOT-IPHONE-PUSH-001`, 변경 레코드 `DEVCHG-NOWHOT-20260907-215`. [NH128 원인 범위·검증·운영 기록](reports/NOWHOT_NH128_IPHONE_PUSH_2026-09-07.md).
 - Apple 구독0 확인. Today 누락 홈 화면 설치 메타·아이폰/iPad 안내·작은 메뉴 접근을 보완하고 공통 sendPush JWT를 Apple 공식 조항에 맞춰1시간 재사용한다. 기존 앱 identity·암호화·동의 보존. 공용/인라인17·브라우저3·작은화면1·전송19 PASS, 독립 검토. 최종 공용/전송/인라인34/34 PASS. 운영1541250·08:51:09 배포·08:51:29 preflight OK, 공개양쪽설치/안내·공지1회/이력14·JS오류0 확인. 실제 아이폰 수신은 미확인이다. First Principles 게이트: PASS.

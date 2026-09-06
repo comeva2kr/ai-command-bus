@@ -762,3 +762,47 @@ test("NH127 browser: a sparse Today category shows actual coverage while its sto
   await page.locator('[data-open-issue="0"]').click();
   await page.waitForSelector("#issueDetail.open");
 });
+
+test("NH129 browser: copy and push status messages remain readable in both themes", options, async t => {
+  for (const theme of ["light", "dark"]) for (const path of ["/live#post-post-1", "/"]) {
+    const {page}=await fixture(t,path);
+    await page.setViewportSize({width:393,height:852});
+    await page.evaluate(theme=>{
+      document.documentElement.dataset.theme=theme;
+      Object.defineProperty(navigator,"clipboard",{value:{writeText:async()=>{}},configurable:true});
+    },theme);
+    const check=async text=>{
+      await page.locator("#toast").filter({hasText:text}).waitFor({state:"visible"});
+      await page.waitForFunction(()=>{
+        const node=document.getElementById("toast");
+        return !node.classList.contains("hidden")&&Number(getComputedStyle(node).opacity)>=0.99;
+      });
+      assert.match(await page.locator("#toast").innerText(),text);
+      const colors=await page.locator("#toast").evaluate(node=>{
+        const style=getComputedStyle(node);
+        const luminance=color=>{
+          const channels=color.match(/[\d.]+/g).slice(0,3).map(value=>{
+            const v=Number(value)/255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;
+          });
+          return channels[0]*0.2126+channels[1]*0.7152+channels[2]*0.0722;
+        };
+        const foreground=luminance(style.color),background=luminance(style.backgroundColor);
+        return {foreground:style.color,background:style.backgroundColor,contrast:(Math.max(foreground,background)+0.05)/(Math.min(foreground,background)+0.05)};
+      });
+      assert.ok(colors.contrast>=4.5,`${path} ${theme}: ${JSON.stringify(colors)}`);
+      assert.equal(await page.locator("#toast").getAttribute("role"),"status");
+    };
+    if(path.startsWith("/live")){
+      await page.waitForSelector("#detail.open #detailTitle");
+      await page.locator("#shareBtn").click();
+      await check(/링크가 클립보드에 복사/);
+      await page.locator("#backBtn").click();
+      await page.locator("#menuBtn").click();
+      await page.locator("#menuNotifications").click();
+      await check(/오늘판과 주요 소식 알림을 켰어요/);
+    }else{
+      await page.locator('[data-category="business"][aria-pressed="true"]').click();
+      await check(/관심 분야를 하나 이상/);
+    }
+  }
+});

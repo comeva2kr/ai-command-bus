@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back only to the same page offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v148"; // v148: iOS Home Screen installation and push guidance
+const CACHE = "feed-shell-v149"; // v149: readable status messages in light and dark themes
 const SHELL = ["/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js?v=20260907", "/notice-guide.js?v=20260905", "/push-client.js?v=20260907-ios"];
 
