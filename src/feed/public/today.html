@@ -135,7 +135,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .sk{height:12px;background:var(--soft);margin-bottom:10px;border-radius:3px;animation:pulse 1.3s ease-in-out infinite alternate}
 .sk.title{height:28px;width:80%}.sk.body{width:94%}.sk.short{width:55%}
 @keyframes pulse{from{opacity:.55}to{opacity:1}}
-.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:50;background:var(--ink);color:var(--paper);padding:10px 14px;border-radius:6px;font-size:13px;box-shadow:var(--shadow)}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:100;width:max-content;max-width:calc(100vw - 32px);background:var(--ink);color:var(--paper);padding:10px 14px;border-radius:6px;font-size:13px;line-height:1.5;box-shadow:var(--shadow)}
 .detail-overlay{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(8,11,17,.62);backdrop-filter:blur(5px)}
 .detail-overlay.open{display:flex}
 .detail-panel{width:min(760px,100%);max-height:calc(100dvh - 48px);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:0 24px 70px rgba(0,0,0,.28);overscroll-behavior:contain}

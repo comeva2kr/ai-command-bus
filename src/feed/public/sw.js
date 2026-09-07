@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back only to the same page offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v151"; // v151: Today edition and article sharing
+const CACHE = "feed-shell-v152"; // v152: Today share confirmation above article detail
 const SHELL = ["/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js?v=20260907", "/notice-guide.js?v=20260905", "/push-client.js?v=20260907-ios"];
 

@@ -16,6 +16,12 @@
 - 최종 독립 검사: `live_sticky_review`가 분야 저장 POST 보류→Forward→늦은 응답 해제→복원 분야/상세/공유 동일을 실제 실행했고, 전체 Today 관련4/4 PASS와 최종 GO를 회수했다. 인라인15/15·diff PASS. `/tmp/nh130-forward-race.log`, `/tmp/nh130-today-sharing-review.log`, `/tmp/nh130-server-reader-suite.log`.
 - 운영 배포와 공개 화면 확인: 진행 중. 최종 제품 SHA·시각·증거는 아래에 기록한다.
 
+### 1차 운영 확인과 마지막 표시 보완
+
+- 제품 `ceb1729bc3f5a193f463c2d4d835e1cf7c41d9bf` 09:22:08 KST 배포·09:22:28 preflight OK.
+- 09:22:43 공개 격리 Chrome에서 실제 공유 두 버튼→실제 `/p` OG→새 수신자 상세/같은14개 목록을 밝음393px·어두움320px로 확인했다. 정확 `SCE-7445e300fb51b201`, tech 분야 유지·수신자 분야 저장0·JS 오류0. 새 공지1회/소개16개 이력 보존 PASS. `/tmp/nh130-public-proof.json`, `/tmp/nh130-public-notice-proof.json`.
+- 스크린샷 직접 검토에서 Today 토스트 z-index50이 상세 overlay80 뒤에 가려지는 문제를 발견했다. 공통 토스트를100으로 올리고 내용 너비/화면 최대너비를 지정해 복사 완료가 상세 위에서도 표시되게 보완한다. 기존 단일 회귀에 `elementFromPoint`로 실제 가림 여부 확인을 추가하고 SW152로 갱신한다. 이미 배포한 업데이트 공지 ID는 보존한다.
+
 ## WRC 보고
 
 - 작업 시작 전 확인한 MD — 자동 주입: 사용자 AGENTS·메모리 요약·Ponytail Full. 직접 읽음: 이 세션의 START_HERE·CANONICAL13원칙/§11.1·WIKI_RULES·ENFORCEMENT·PMO_LIVE_BOARD·REPORT_READ_INDEX, 이번 턴 공유 gate 머리·NH129 보고·개발현황, 기존 wrc-start/orca-cli/orchestration 지침. 미읽음/불가: 실제 iPhone/삼성 인터넷 수신기기. 이번 작업 전용 파일: Today·navigation-history·server `/p`/`/api/today`·정본 reader/activation·해당 검사.
