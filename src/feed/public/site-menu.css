@@ -46,6 +46,7 @@
 
 #drawer [hidden]{display:none!important}
 #drawerSetupBtn{margin-bottom:6px}
+#menuInstall{margin-bottom:14px}
 #drawer #authDrawerSec:not(:empty){padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--line)}
 #drawer .auth-actions{display:flex;gap:6px;flex:none}
 #drawer .auth-actions .drawer-link{width:auto;padding:8px;font-size:12px;white-space:nowrap;margin:0}

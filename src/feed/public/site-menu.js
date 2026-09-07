@@ -8,6 +8,7 @@ window.NowHotMenu = (() => {
     <div class="drawer-body">
       <div id="authDrawerSec"></div>
       <a class="drawer-link" id="drawerSetupBtn" href="/live#setup">✨ 나한테 맞게 설정하기</a>
+      <button class="drawer-link" id="menuInstall" type="button">바탕화면에 app 추가</button>
       <div class="meter">
         <div class="meter-label"><span>취향 정확도</span><span id="levelPct">0%</span></div>
         <div class="meter-bar"><div class="meter-fill" id="levelFill"></div></div>
@@ -135,6 +136,70 @@ window.NowHotMenu = (() => {
     if(!link||event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
     event.preventDefault();navigate(link.href);
   });
+  let installPrompt=null, installRequested=false;
+  addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;});
+  addEventListener('appinstalled',()=>{installPrompt=null;installRequested=true;});
+  const appRunning=()=>navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
+  function installHelp(){
+    const ua=navigator.userAgent||'';
+    const ios=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+    const android=/Android/i.test(ua);
+    const inApp=/KAKAOTALK|NAVER|Instagram|FBAN|FBAV|Line\/|; wv\)/i.test(ua);
+    let label,steps;
+    if(appRunning())return {title:'지금핫 앱으로 이용 중이에요',lead:'이미 홈 화면 앱으로 열려 있어요. 추가할 필요 없이 그대로 이용하세요.',steps:[],tip:'알림을 받으려면 메뉴의 ‘알림 받기’를 눌러 허용해 주세요.'};
+    if(installRequested)return {title:'홈 화면에서 지금핫을 확인해 주세요',lead:'브라우저에서 앱 추가 요청을 받았어요. 아이콘이 나타나기까지 잠시 걸릴 수 있어요.',steps:['홈 화면이나 앱 목록에서 지금핫 아이콘을 찾아 열어 주세요.'],tip:'아이콘이 이미 있다면 다시 추가하지 않고 그 아이콘을 이용하면 돼요.'};
+    if(inApp){
+      label='앱 안에서 열린 브라우저';steps=[
+        '앱의 메뉴에서 ‘다른 브라우저로 열기’가 있으면 눌러 주세요.',
+        ios?'Safari 또는 Chrome에서 지금핫을 열어 주세요.':android?'Chrome 또는 삼성 인터넷에서 지금핫을 열어 주세요.':'Chrome 또는 Edge에서 지금핫을 열어 주세요.',
+        '브라우저로 열기 메뉴가 없다면 아래 주소를 복사해 브라우저 주소창에 붙여넣으세요. 그곳에서 메뉴의 ‘바탕화면에 app 추가’를 다시 눌러 주세요.'
+      ];
+    }else if(ios){
+      label='아이폰 · 아이패드';steps=[
+        '브라우저의 공유 버튼(위로 향한 화살표)을 누르세요. Safari에서는 ‘더 보기(…) → 공유’에 있을 수도 있어요.',
+        '‘홈 화면에 추가’를 선택하세요. Safari에서 안 보이면 공유 목록 아래 ‘동작 편집’에서 추가하세요.',
+        '‘웹 앱으로 열기’가 보이면 켠 뒤 ‘추가’를 누르세요. 홈 화면의 지금핫 아이콘으로 열면 됩니다.'
+      ];
+    }else if(/SamsungBrowser/i.test(ua)){
+      label='삼성 인터넷';steps=[
+        '브라우저 메뉴(☰)를 누르세요.',
+        '‘현재 페이지 추가’ 또는 ‘페이지 추가’에서 ‘홈 화면’을 선택하세요. 주소창에 앱 설치(＋) 아이콘이 보이면 눌러도 돼요.',
+        '이름을 확인하고 ‘추가’ 또는 ‘설치’를 누른 뒤, 홈 화면이나 앱 목록의 지금핫 아이콘을 확인하세요.'
+      ];
+    }else if(android&&/Firefox/i.test(ua)){
+      label='안드로이드 Firefox';steps=['브라우저 메뉴(⋮)를 누르세요.','‘설치’ 또는 ‘홈 화면에 추가’를 선택하세요.','추가 확인을 누른 뒤 홈 화면의 지금핫 아이콘을 확인하세요.'];
+    }else if(android){
+      label='안드로이드 브라우저';steps=[
+        '브라우저 메뉴(⋮)에서 ‘설치’ 또는 ‘홈 화면에 추가’를 찾으세요.',
+        'Chrome에서는 ‘설치 및 바로가기 만들기 → 설치’에 있어요. 버전에 따라 ‘홈 화면에 추가’로 표시돼요.',
+        '확인창에서 추가한 뒤 홈 화면이나 앱 목록의 지금핫 아이콘을 확인하세요.'
+      ];
+    }else if(/Edg\//.test(ua)){
+      label='컴퓨터 Edge';steps=['브라우저 메뉴(…)에서 ‘도구 더 보기 → 앱’을 선택하세요. 버전에 따라 ‘앱’이 메뉴에 바로 보일 수 있어요.','‘이 사이트를 앱으로 설치’를 선택하고 설치를 확인하세요.','앱이 열리면 표시되는 바탕 화면 바로가기 또는 작업 표시줄 고정 옵션을 선택할 수 있어요.'];
+    }else if(/Chrome|Chromium/.test(ua)){
+      label='컴퓨터 Chrome';steps=['주소창 오른쪽에 설치 아이콘이 보이면 누르세요.','또는 메뉴(⋮) → ‘전송, 저장 및 공유’ → ‘페이지를 앱으로 설치’를 선택하세요.','설치를 확인한 뒤 앱 목록에서 지금핫을 열거나 바탕 화면에 바로가기를 두세요.'];
+    }else if(/Macintosh/.test(ua)&&/Safari/.test(ua)){
+      label='Mac Safari';steps=['macOS Sonoma 14 이상에서 Safari로 지금핫을 여세요.','상단 ‘파일’ 메뉴 또는 공유 버튼에서 ‘Dock에 추가’를 누르세요.','이름을 확인하고 추가하면 Dock에서 지금핫을 앱처럼 열 수 있어요.'];
+    }else{
+      label='현재 브라우저';steps=['브라우저 메뉴에서 ‘앱 설치’ 또는 ‘홈 화면에 추가’를 찾아보세요.','해당 메뉴가 없다면 Chrome·Edge 또는 Safari에서 아래 주소를 여세요.','그 브라우저에서 지금핫 메뉴의 ‘바탕화면에 app 추가’를 다시 누르면 방법을 안내해 드려요.'];
+    }
+    return {title:'바탕화면에 app 추가',lead:label+'에서 아래 순서로 추가해 주세요.',steps,
+      tip:'메뉴 이름은 버전에 따라 다를 수 있어요. 항목이 안 보이면 '+(ios?'Safari 또는 Chrome':android?'Chrome 또는 삼성 인터넷':'Chrome·Edge 또는 Mac의 Safari')+'에서 열어 주세요. 아이콘 추가 후 알림은 ‘알림 받기’에서 별도로 허용해 주세요.',copyUrl:true};
+  }
+  $('menuInstall').onclick=async()=>{
+    const prompt=installPrompt;
+    if(prompt&&!appRunning()){
+      installPrompt=null;$('menuInstall').disabled=true;
+      try{
+        // Keep prompt() in this click task: a history.back callback loses activation.
+        const result=await prompt.prompt();
+        if(result?.outcome==='accepted')close(true);
+        return;
+      }catch{ /* A consumed or unavailable browser prompt falls back to instructions. */ }
+      finally{$('menuInstall').disabled=false;}
+    }
+    close(true,()=>window.NowHotNoticeGuide.show({install:installHelp()}));
+  };
   function categories(values,active,onPick){
     const el=$('chips');el.replaceChildren();
     for(const c of [{id:null,label:'전체'},...values]){

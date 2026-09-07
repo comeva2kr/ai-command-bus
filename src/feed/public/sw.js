@@ -6,9 +6,9 @@
 //   - navigations are network-first, falling back only to the same page offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v155"; // v155: reliable setup entry and inline account menu
-const SHELL = ["/site-menu.js?v=20260907-account", "/site-menu.css?v=20260907-account", "/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
-  "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js?v=20260907", "/notice-guide.js?v=20260907-account", "/push-client.js?v=20260907-ios"];
+const CACHE = "feed-shell-v156"; // v156: shared app installation prompt and platform guide
+const SHELL = ["/site-menu.js?v=20260907-install", "/site-menu.css?v=20260907-install", "/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
+  "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js?v=20260907", "/notice-guide.js?v=20260907-install", "/push-client.js?v=20260907-ios"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

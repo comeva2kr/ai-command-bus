@@ -17,6 +17,8 @@
     .nh-guide-usage section{padding:14px 14px 14px 0}.nh-guide-usage section+section{padding-left:14px;border-left:1px solid var(--line,#d9dde4)}
     .nh-guide-usage h3{margin:0 0 5px;font-size:15px;letter-spacing:0}.nh-guide-usage p{margin:0;color:var(--sub,var(--muted,#626873));font-size:13px;line-height:1.55}
     .nh-guide-tip{margin:0 0 18px;font-size:13px;line-height:1.55}
+    .nh-guide-address{width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--line,#d9dde4);border-radius:0;background:transparent;color:inherit;font:inherit}
+    .nh-guide-copy{margin:8px 0;padding:10px 14px;min-height:44px;border:1px solid var(--line,#d9dde4);background:transparent;color:inherit;font:inherit;cursor:pointer}
     .nh-guide-ok{width:100%;min-height:44px;border:0;border-radius:6px;background:var(--blue,var(--accent,#2457d6));color:#fff;font-weight:800;cursor:pointer}
     @media(max-width:560px){.nh-guide-back{align-items:flex-end;padding:0}.nh-guide{max-height:88dvh;border-radius:8px 8px 0 0;padding:22px 18px calc(18px + env(safe-area-inset-bottom))}.nh-guide-usage{grid-template-columns:1fr}.nh-guide-usage section{padding:12px 0}.nh-guide-usage section+section{padding-left:0;border-left:0;border-top:1px solid var(--line,#d9dde4)}}
   `;
@@ -58,7 +60,7 @@
     if (!active) return;
     if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); close(); }
     if (event.key === "Tab") {
-      const controls = [...active.root.querySelectorAll("button,a[href]")].filter(node=>node.getClientRects().length);
+      const controls = [...active.root.querySelectorAll("button,a[href],input")].filter(node=>node.getClientRects().length);
       if (!controls.length) return;
       const first = controls[0], last = controls.at(-1);
       if (event.shiftKey && (document.activeElement === first || document.activeElement.id === "nhGuideTitle")) { event.preventDefault(); last.focus(); }
@@ -79,18 +81,18 @@
     card.append(usage);
   }
 
-  function show({ release, isNewVisitor = false, skip = false, onSetup } = {}) {
-    if (skip || active || (location.hash || document.querySelector("#detail.open,#issueDetail.open,#drawer.open,#survey:not(.hidden)"))) return false;
-    const onboarded = read(ONBOARD_KEY);
-    const seenRelease = read(RELEASE_KEY);
+  function show({ release, isNewVisitor = false, skip = false, onSetup, install } = {}) {
+    if (skip || active || (!install && (location.hash || document.querySelector("#detail.open,#issueDetail.open,#drawer.open,#survey:not(.hidden)")))) return false;
+    const onboarded = install ? null : read(ONBOARD_KEY);
+    const seenRelease = install ? null : read(RELEASE_KEY);
     if (onboarded === undefined || seenRelease === undefined) return false;
-    const tutorial = onboarded !== "1" && (isNewVisitor || seenRelease === null);
+    const tutorial = !install && onboarded !== "1" && (isNewVisitor || seenRelease === null);
     const unseenRelease = release?.id && seenRelease !== release.id;
-    if (!tutorial && !unseenRelease) return false;
+    if (!install && !tutorial && !unseenRelease) return false;
 
-    const kind = tutorial ? "tutorial" : "release";
+    const kind = install ? "install" : tutorial ? "tutorial" : "release";
     if (tutorial) write(ONBOARD_KEY, "1");
-    if (release?.id) write(RELEASE_KEY, release.id);
+    if (!install && release?.id) write(RELEASE_KEY, release.id);
 
     const root = make("div", "nh-guide-back");
     root.id = "nhGuide";
@@ -103,15 +105,27 @@
     iconClose.type = "button";
     iconClose.setAttribute("aria-label", "안내 닫기");
     iconClose.dataset.nhGuideClose = "";
-    const tag = make("p", "nh-guide-tag", tutorial ? "처음 사용하기" : "업데이트 소식");
-    const title = make("h2", "", tutorial ? "지금핫에 오신 걸 환영해요" : release.title || "지금핫이 새로워졌어요");
+    const tag = make("p", "nh-guide-tag", install ? "홈 화면 앱" : tutorial ? "처음 사용하기" : "업데이트 소식");
+    const title = make("h2", "", install ? install.title : tutorial ? "지금핫에 오신 걸 환영해요" : release.title || "지금핫이 새로워졌어요");
     title.id = "nhGuideTitle";
-    const lead = make("p", "nh-guide-lead", tutorial
+    const lead = make("p", "nh-guide-lead", install ? install.lead : tutorial
       ? "오늘 꼭 볼 흐름은 정리해서, 지금 뜨는 흐름은 빠르게 보여드립니다."
       : `${release?.date || ""} 업데이트한 내용을 알려드립니다.`.trim());
     card.append(iconClose, tag, title, lead);
 
-    if (!tutorial && release?.items?.length) {
+    if (install) {
+      const list=make("ol","nh-guide-list");
+      for(const step of install.steps)list.append(make("li","",step));
+      card.append(list,make("p","nh-guide-tip",install.tip));
+      if(install.copyUrl){
+        const address=make("input","nh-guide-address");address.readOnly=true;address.value=location.origin+'/';address.setAttribute("aria-label","지금핫 주소");
+        const copy=make("button","nh-guide-copy","주소 복사");copy.type="button";
+        const status=make("p","nh-guide-tip");status.setAttribute("role","status");
+        copy.onclick=async()=>{try{await navigator.clipboard.writeText(address.value);status.textContent="주소를 복사했어요.";}catch{address.focus();address.select();status.textContent="주소를 길게 누르거나 선택해 복사해 주세요.";}};
+        card.append(address,copy,status);
+      }
+    }
+    if (!install && !tutorial && release?.items?.length) {
       const list = make("ul", "nh-guide-list");
       for (const item of release.items.slice(0, 5)) list.append(make("li", "", item));
       card.append(list);

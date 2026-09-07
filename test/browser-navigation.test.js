@@ -1239,3 +1239,123 @@ test("browser: NH137 setup anchor works before Live finishes booting", options, 
   await page.goBack();await page.waitForSelector('#survey.hidden',{state:'attached'});
   assert.equal(new URL(page.url()).hash,'');
 });
+
+
+test("browser: NH138 install button calls native prompt in the click task and consumes it once", options, async t => {
+  for(const path of ['/', '/live']){
+    const {page,controls}=await fixture(t,path);
+    await page.waitForSelector('#authDrawerSec #drawerSpaceBtn',{state:'attached'});
+    await page.evaluate(()=>{
+      window.__installCalls=[];
+      const event=new Event('beforeinstallprompt',{cancelable:true});
+      event.prompt=()=>{window.__installCalls.push({active:navigator.userActivation.isActive,menu:document.getElementById('drawer').classList.contains('open')});return Promise.resolve({outcome:'dismissed'})};
+      window.dispatchEvent(event);window.__installPrevented=event.defaultPrevented;
+    });
+    await page.click('#menuBtn');await page.click('#menuInstall');
+    assert.deepEqual(await page.evaluate(()=>window.__installCalls),[{active:true,menu:true}]);
+    assert.equal(await page.evaluate(()=>window.__installPrevented),true);
+    assert.equal(await page.locator('#nhGuide').count(),0);
+    await page.click('#menuInstall');await page.waitForSelector('#nhGuide[data-kind="install"]');
+    assert.match(await page.locator('#nhGuideTitle').innerText(),/app 추가/);
+    assert.equal(await page.evaluate(()=>window.__installCalls.length),1);
+    assert.equal(await page.evaluate(()=>window.__permissionRequests),0);
+    assert.deepEqual(controls.surveyWrites,[]);
+    await page.keyboard.press('Escape');await page.waitForSelector('#nhGuide',{state:'detached'});
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'menuBtn');
+    await page.close();
+  }
+});
+
+test("browser: NH138 failed, accepted and app-running install states do not invent completion", options, async t => {
+  const {page}=await fixture(t,'/live');
+  await page.waitForSelector('#feed .card');
+  await page.evaluate(()=>{const event=new Event('beforeinstallprompt',{cancelable:true});event.prompt=()=>{throw Error('unavailable')};dispatchEvent(event)});
+  await page.click('#menuBtn');await page.click('#menuInstall');
+  await page.waitForSelector('#nhGuide[data-kind="install"]');
+  assert.match(await page.locator('#nhGuideTitle').innerText(),/app 추가/);
+  await page.goBack();await page.waitForSelector('#nhGuide',{state:'detached'});
+  await page.evaluate(()=>{const event=new Event('beforeinstallprompt',{cancelable:true});event.prompt=()=>Promise.resolve({outcome:'accepted'});dispatchEvent(event)});
+  await page.click('#menuBtn');await page.click('#menuInstall');
+  await page.waitForSelector('#drawer.open',{state:'detached'});
+  assert.equal(await page.locator('#nhGuide').count(),0);
+  await page.click('#menuBtn');await page.click('#menuInstall');
+  await page.waitForSelector('#nhGuide');
+  assert.match(await page.locator('#nhGuideTitle').innerText(),/app 추가/,'accepted alone does not prove installation');
+  await page.goBack();await page.waitForSelector('#nhGuide',{state:'detached'});
+  await page.evaluate(()=>dispatchEvent(new Event('appinstalled')));
+  await page.click('#menuBtn');await page.click('#menuInstall');
+  await page.waitForSelector('#nhGuide');
+  assert.match(await page.locator('#nhGuideTitle').innerText(),/확인해 주세요/);
+  await page.goBack();await page.waitForSelector('#nhGuide',{state:'detached'});
+  await page.evaluate(()=>Object.defineProperty(navigator,'standalone',{configurable:true,value:true}));
+  await page.click('#menuBtn');await page.click('#menuInstall');await page.waitForSelector('#nhGuide');
+  assert.match(await page.locator('#nhGuideTitle').innerText(),/앱으로 이용 중/);
+  assert.equal(await page.evaluate(()=>window.__permissionRequests),0);
+});
+
+test("browser: NH138 platform guides cover mobile, desktop and in-app browsers with copy fallback", options, async t => {
+  const {page,base}=await fixture(t,'/');
+  await page.waitForSelector('#authDrawerSec #drawerSpaceBtn',{state:'attached'});
+  await page.setViewportSize({width:393,height:852});
+  const cases=[
+    ['iPhone Safari',0,/공유 버튼/,/웹 앱으로 열기/],
+    ['iPhone CriOS/148 Safari',0,/공유 버튼/,/홈 화면에 추가/],
+    ['Macintosh Safari',5,/아이폰 · 아이패드/,/공유 버튼/],
+    ['Android SamsungBrowser/30 Chrome/140',0,/삼성 인터넷/,/현재 페이지 추가/],
+    ['Android Chrome/140',0,/안드로이드/,/설치 및 바로가기 만들기/],
+    ['Android Firefox/140',0,/Firefox/,/홈 화면에 추가/],
+    ['Windows Chrome/140 Edg/140',0,/컴퓨터 Edge/,/도구 더 보기/],
+    ['Macintosh Chrome/140 Safari',0,/컴퓨터 Chrome/,/페이지를 앱으로 설치/],
+    ['Macintosh Safari',0,/Mac Safari/,/Dock에 추가/],
+    ['iPhone Safari KAKAOTALK',0,/앱 안에서/,/Safari 또는 Chrome/],
+    ['Android Chrome/140; wv)',0,/앱 안에서/,/브라우저로 열기/],
+    ['UnknownBrowser',0,/현재 브라우저/,/해당 메뉴가 없다면/]
+  ];
+  for(const [ua,touch,first,second] of cases){
+    await page.evaluate(({ua,touch})=>{Object.defineProperty(navigator,'userAgent',{configurable:true,value:ua});Object.defineProperty(navigator,'maxTouchPoints',{configurable:true,value:touch})},{ua,touch});
+    await page.click('#menuBtn');await page.click('#menuInstall');await page.waitForSelector('#nhGuide');
+    const text=await page.locator('#nhGuide').innerText();assert.match(text,first);assert.match(text,second);
+    assert.equal(await page.locator('.nh-guide-address').inputValue(),base+'/');
+    for(const theme of ['light','dark']){
+      await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+      const style=await page.locator('.nh-guide').evaluate(el=>({fg:getComputedStyle(el).color,bg:getComputedStyle(el).backgroundColor,overflow:el.scrollWidth>el.clientWidth}));
+      assert.notEqual(style.fg,style.bg);assert.equal(style.overflow,false);
+    }
+    await page.goBack();await page.waitForSelector('#nhGuide',{state:'detached'});
+  }
+  await page.click('#menuBtn');await page.click('#menuInstall');await page.waitForSelector('#nhGuide');
+  await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.__copied=value}}}));
+  await page.locator('.nh-guide-copy').click();assert.equal(await page.evaluate(()=>window.__copied),base+'/');
+  await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw Error('denied')}}}));
+  await page.locator('.nh-guide-copy').click();
+  assert.match(await page.locator('#nhGuide [role="status"]').innerText(),/선택해 복사/);
+  assert.equal(await page.evaluate(()=>document.activeElement.className),'nh-guide-address');
+});
+
+test("browser: NH138 install help preserves detail history, storage keys and release notices", options, async t => {
+  for(const path of ['/', '/live']){
+    const {page}=await fixture(t,path);
+    await page.waitForSelector('#authDrawerSec #drawerSpaceBtn',{state:'attached'});
+    const keys=await page.evaluate(()=>[localStorage.getItem('feed_onboarded_v1'),localStorage.getItem('feed_seen_release')]);
+    if(path==='/')await page.locator('[data-open-issue]').first().click();
+    else await page.locator('#feed .card h3').first().click();
+    const detail=path==='/'?'#issueDetail.open':'#detail.open';
+    await page.waitForSelector(detail);const hash=new URL(page.url()).hash;
+    await page.evaluate(()=>NowHotMenu.open());await page.click('#menuInstall');await page.waitForSelector('#nhGuide');
+    assert.equal(new URL(page.url()).hash,hash);
+    await page.keyboard.press('Escape');await page.waitForSelector('#nhGuide',{state:'detached'});
+    assert.equal(await page.locator(detail).isVisible(),true);
+    assert.deepEqual(await page.evaluate(()=>[localStorage.getItem('feed_onboarded_v1'),localStorage.getItem('feed_seen_release')]),keys);
+    await page.evaluate(()=>{window.NowHotNoticeGuide.show({install:{title:'설치 안내',lead:'안내',steps:[],tip:''}})});
+    await page.waitForSelector('#nhGuide');await page.goBack();await page.waitForSelector('#nhGuide',{state:'detached'});
+    assert.equal(await page.locator(detail).isVisible(),true);
+    await page.goBack();await page.waitForSelector(detail,{state:'detached'});
+    await page.evaluate(()=>{localStorage.removeItem('feed_onboarded_v1');localStorage.removeItem('feed_seen_release')});
+    await page.click('#menuBtn');await page.click('#menuInstall');await page.waitForSelector('#nhGuide');
+    assert.deepEqual(await page.evaluate(()=>[localStorage.getItem('feed_onboarded_v1'),localStorage.getItem('feed_seen_release')]),[null,null]);
+    await page.goBack();await page.waitForSelector('#nhGuide',{state:'detached'});
+    await page.evaluate(release=>NowHotNoticeGuide.show({release,isNewVisitor:true}),release);
+    await page.waitForSelector('#nhGuide[data-kind="tutorial"]');
+    await page.close();
+  }
+});
