@@ -257,6 +257,49 @@ async function startServer(opts) {
   return { server, base: `http://localhost:${server.address().port}` };
 }
 
+test("survey-only account read preserves ownership and does not wait for My Space article resolution", async (t) => {
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const { server, base } = await startServer({
+    authEnv: { GOOGLE_CLIENT_ID: "gid", GOOGLE_CLIENT_SECRET: "gs" }, authFetch: fakeFetchFor("google")
+  });
+  try {
+    const session = await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    const { userId } = await session.json();
+    const deviceCookie = session.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const answers = { categories: ["business"], communities: ["clien"] };
+    assert.equal((await fetch(`${base}/api/survey`, {
+      method: "POST", headers: { "content-type": "application/json", cookie: deviceCookie },
+      body: JSON.stringify({ userId, answers })
+    })).status, 200);
+    const read = (id, cookie, view = "survey") => fetch(`${base}/api/me?userId=${id}&view=${view}`, { headers: { cookie } });
+    assert.deepEqual(await (await read(userId, deviceCookie)).json(), { surveyAnswers: answers });
+    const ordinary = await (await read(userId, deviceCookie, "")).json();
+    assert.deepEqual(ordinary.surveyAnswers, answers);
+    assert.ok(Array.isArray(ordinary.saved) && Array.isArray(ordinary.recent) && ordinary.counts && ordinary.taste);
+
+    const login = await fetch(`${base}/api/auth/google/login?userId=${userId}`, { redirect: "manual" });
+    const state = new URL(login.headers.get("location")).searchParams.get("state");
+    const callback = await fetch(`${base}/api/auth/google/callback?state=${state}&code=fixture`, { redirect: "manual" });
+    const socialCookie = callback.headers.get("set-cookie").split(";")[0];
+    const other = await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    const otherId = (await other.json()).userId;
+    const otherCookie = other.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    assert.equal((await read(userId, otherCookie)).status, 403);
+    assert.equal((await read(otherId, socialCookie)).status, 403);
+
+    const resolve = t.mock.method(FeedEngine.prototype, "resolveItems", async () => { throw new Error("article resolution unavailable"); });
+    for (const cookie of [deviceCookie, socialCookie]) {
+      const result = await read(userId, cookie);
+      assert.equal(result.status, 200);
+      assert.deepEqual(await result.json(), { surveyAnswers: answers });
+    }
+    assert.equal(resolve.mock.callCount(), 0);
+    assert.equal((await read(userId, socialCookie, "")).status, 500, "ordinary My Space still resolves its articles");
+    resolve.mock.restore();
+    assert.deepEqual(await (await read(userId, socialCookie, "")).json(), ordinary);
+  } finally { server.close(); }
+});
+
 test("full regression: with zero provider env vars, /api/config lists no auth providers, /api/auth/*/login 404s, and plain anonymous flow (session/survey/feed) is completely unaffected", async () => {
   const { server, base } = await startServer({ authEnv: {} });
   try {

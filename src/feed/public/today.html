@@ -171,7 +171,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 }
 @media(prefers-reduced-motion:reduce){.icon-button[aria-busy="true"] svg,.sk{animation:none}.view-indicator{transition:none}}
 </style>
-<link rel="stylesheet" href="/site-menu.css?v=20260907-setup">
+<link rel="stylesheet" href="/site-menu.css?v=20260907-account">
 </head>
 <body>
 <header class="topbar">
@@ -242,8 +242,8 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
-<script src="/notice-guide.js?v=20260907-setup"></script>
-<script src="/site-menu.js?v=20260907-setup"></script>
+<script src="/notice-guide.js?v=20260907-account"></script>
+<script src="/site-menu.js?v=20260907-account"></script>
 <script>
 const state={userId:null,coupang:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,sharedEdition:null,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
 const $=(id)=>document.getElementById(id);
@@ -949,8 +949,6 @@ function setupTodayMenu(session,config){
   const goLive=(key,value)=>{if(value)localStorage.setItem(key,value);else localStorage.removeItem(key);NowHotMenu.navigate("/live");};
   NowHotMenu.level(session);
   NowHotMenu.categories(config.categories||[],localStorage.getItem("feed_cat"),(id)=>goLive("feed_cat",id));
-  $("drawerSpaceBtn").onclick=()=>NowHotMenu.navigate("/live#space");
-  $("drawerSetupBtn").onclick=()=>NowHotMenu.navigate("/live#setup");
   $("immBtn").classList.toggle("on",localStorage.getItem("feed_immersion")==="1");
   $("immBtn").onclick=()=>goLive("feed_immersion",localStorage.getItem("feed_immersion")==="1"?"0":"1");
   const renderSources=communities=>{
@@ -978,6 +976,7 @@ function setupTodayMenu(session,config){
   NowHotMenu.slider("lean",session.leanBalance||0,NowHotMenu.leanLabel,value=>save("/api/lean",{balance:value}).then(()=>toast("실시간 뉴스 균형을 저장했어요")),error=>toast("저장 실패: "+error.message));
   let profile={loggedIn:false};
   function renderAuth(){NowHotMenu.auth($("authDrawerSec"),{profile,providers:config.auth?.providers,userId:state.userId,
+    onSettings:()=>NowHotMenu.navigate("/live#space"),
     onLogout:async()=>{try{await json("/api/auth/logout",{method:"POST"});profile={loggedIn:false};renderAuth();toast("로그아웃했어요");}catch(error){toast("실패: "+error.message)}}});}
   renderAuth();json("/api/auth/session").then(value=>{profile=value;renderAuth()}).catch(()=>{});
   $("buildTag").textContent=config.build||"-";

@@ -79,18 +79,18 @@
     card.append(usage);
   }
 
-  function show({ release, isNewVisitor = false, skip = false, onSetup, login } = {}) {
-    if (skip || active || (!login && (location.hash || document.querySelector("#detail.open,#issueDetail.open,#drawer.open,#survey:not(.hidden)")))) return false;
+  function show({ release, isNewVisitor = false, skip = false, onSetup } = {}) {
+    if (skip || active || (location.hash || document.querySelector("#detail.open,#issueDetail.open,#drawer.open,#survey:not(.hidden)"))) return false;
     const onboarded = read(ONBOARD_KEY);
     const seenRelease = read(RELEASE_KEY);
-    if (!login && (onboarded === undefined || seenRelease === undefined)) return false;
-    const tutorial = !login && onboarded !== "1" && (isNewVisitor || seenRelease === null);
+    if (onboarded === undefined || seenRelease === undefined) return false;
+    const tutorial = onboarded !== "1" && (isNewVisitor || seenRelease === null);
     const unseenRelease = release?.id && seenRelease !== release.id;
-    if (!login && !tutorial && !unseenRelease) return false;
+    if (!tutorial && !unseenRelease) return false;
 
-    const kind = login ? "login" : tutorial ? "tutorial" : "release";
+    const kind = tutorial ? "tutorial" : "release";
     if (tutorial) write(ONBOARD_KEY, "1");
-    if (!login && release?.id) write(RELEASE_KEY, release.id);
+    if (release?.id) write(RELEASE_KEY, release.id);
 
     const root = make("div", "nh-guide-back");
     root.id = "nhGuide";
@@ -104,19 +104,12 @@
     iconClose.setAttribute("aria-label", "안내 닫기");
     iconClose.dataset.nhGuideClose = "";
     const tag = make("p", "nh-guide-tag", tutorial ? "처음 사용하기" : "업데이트 소식");
-    const title = make("h2", "", login ? "로그인 · 취향 이어가기" : tutorial ? "지금핫에 오신 걸 환영해요" : release.title || "지금핫이 새로워졌어요");
+    const title = make("h2", "", tutorial ? "지금핫에 오신 걸 환영해요" : release.title || "지금핫이 새로워졌어요");
     title.id = "nhGuideTitle";
     const lead = make("p", "nh-guide-lead", tutorial
       ? "오늘 꼭 볼 흐름은 정리해서, 지금 뜨는 흐름은 빠르게 보여드립니다."
       : `${release?.date || ""} 업데이트한 내용을 알려드립니다.`.trim());
     card.append(iconClose, tag, title, lead);
-    if (login) {
-      tag.textContent = "내 계정";
-      lead.textContent = "다른 기기에서도 내 취향을 이어가려면 로그인해 주세요.";
-      const auth = make("div");
-      login(auth);
-      card.append(auth);
-    }
 
     if (!tutorial && release?.items?.length) {
       const list = make("ul", "nh-guide-list");
@@ -132,7 +125,7 @@
       addUsage(card);
       card.append(make("p", "nh-guide-tip", "제목을 누르면 준비된 한국어 요약, 사진과 출처를 보고 원문으로 이동할 수 있습니다."));
     }
-    const ok = make("button", "nh-guide-ok", login ? "닫기" : tutorial ? "지금핫 시작하기" : "확인했어요");
+    const ok = make("button", "nh-guide-ok", tutorial ? "지금핫 시작하기" : "확인했어요");
     ok.type = "button";
     ok.dataset.nhGuideClose = "";
     card.append(ok);

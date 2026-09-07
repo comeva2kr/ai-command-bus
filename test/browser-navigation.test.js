@@ -64,7 +64,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   context.setDefaultTimeout(4000);
   t.after(() => context.close());
   const requests = [];
-  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, leanBalance: 0, showTopics: [], auth: {}, authProfile: {}, failSave: false, sourceKind: "news", feedHandler: null, coupang: null, surveyAnswers: null, surveyWrites: [], ...todaySeed.controls };
+  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, leanBalance: 0, showTopics: [], auth: {}, authProfile: {}, failSave: false, sourceKind: "news", feedHandler: null, coupang: null, surveyAnswers: null, surveyWrites: [], meQueries: [], meStatus: 200, delayMe: 0, delayConfig: 0, ...todaySeed.controls };
   await context.addInitScript(({ realWorker, guideState, releaseId, iosTab }) => {
     if (!localStorage.getItem("__fixture_seeded")) {
       localStorage.clear();
@@ -100,6 +100,13 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
     if (url.origin !== base) return route.abort();
     if (url.pathname.startsWith("/api/")) {
       let body = {};
+      if(url.pathname === "/api/config" && controls.delayConfig)await new Promise(resolve=>setTimeout(resolve,controls.delayConfig));
+      if(url.pathname === "/api/auth/logout")controls.authProfile={loggedIn:false};
+      if(url.pathname === "/api/me"){
+        controls.meQueries.push(url.search);
+        if(controls.delayMe)await new Promise(resolve=>setTimeout(resolve,controls.delayMe));
+        if(controls.meStatus!==200)return route.fulfill({status:controls.meStatus,json:{error:"설정 조회 불가"}});
+      }
       if (url.pathname === "/api/config") body = { categories: [category], survey: SURVEY, topics: [], ads: {}, release,
         coupang: controls.coupang, auth: controls.auth, monetization: { enabled: Boolean(controls.coupang) } };
       if (url.pathname === "/api/session") body = { userId: "reader", identitySource: guideState === "new" ? "new" : "storage",
@@ -1107,6 +1114,7 @@ test("browser: NH136 menu setup preserves existing answers, cancel and failed sa
   await page.waitForSelector('#feed .card');
   await page.click('#menuBtn');await page.click('#drawerSetupBtn');
   await page.waitForSelector('#survey:not(.hidden)');
+  await page.waitForSelector('[data-survey-question="categories"] .sel');
   assert.equal(await page.locator('[data-survey-question="categories"] .sel').count(),1);
   await page.goBack();await page.waitForSelector('#survey.hidden',{state:'attached'});
   assert.equal(controls.surveyWrites.length,0);
@@ -1133,15 +1141,16 @@ test("browser: NH136 menu setup preserves existing answers, cancel and failed sa
   assert.equal(await page.locator('#space').evaluate(el=>el.inert),false);
 });
 
-test("browser: NH136 shared menu opens login and returns to setup without locking anonymous settings", options, async t => {
+test("browser: NH137 inline login preserves return links and setup draft without locking anonymous settings", options, async t => {
   for(const path of ['/?date=2026-09-03&slot=lunch','/live']){
     const {page,base,controls}=await fixture(t,path,false,'seen',false,false,{controls:{auth:{providers:['google','kakao','naver']}}});
-    await page.waitForSelector('#drawerLoginBtn:not([hidden])',{state:'attached'});
-    await page.click('#menuBtn');await page.click('#drawerLoginBtn');
-    await page.waitForSelector('#nhGuide[data-kind="login"]');
-    const links=await page.locator('#nhGuide .auth-btn').evaluateAll(nodes=>nodes.map(n=>new URL(n.href).searchParams.get('returnTo')));
+    await page.waitForSelector('#authDrawerSec .auth-btn',{state:'attached'});
+    await page.click('#menuBtn');
+    assert.equal(await page.locator('#drawerLoginBtn').count(),0);
+    assert.equal(await page.locator('.drawer-body').evaluate(el=>el.firstElementChild.id),'authDrawerSec');
+    const links=await page.locator('#authDrawerSec .auth-btn').evaluateAll(nodes=>nodes.map(n=>new URL(n.href).searchParams.get('returnTo')));
     assert.deepEqual(links,[path,path,path]);
-    await page.goBack();await page.waitForSelector('#nhGuide',{state:'detached'});
+    await page.goBack();await page.waitForSelector('#drawer.open',{state:'detached'});
     assert.equal(new URL(page.url()).pathname,new URL(base+path).pathname);
     await page.goto(base+'/live?auth=success&userId=reader#setup');
     await page.waitForSelector('#survey:not(.hidden)');
@@ -1154,10 +1163,79 @@ test("browser: NH136 shared menu opens login and returns to setup without lockin
     assert.deepEqual(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('nh_setup_login_draft')).answers.categories),['business']);
     await page.goto(base+'/live?auth=success&userId=reader#setup');
     await page.waitForSelector('#survey:not(.hidden)');
-    assert.equal(await page.locator('[data-survey-question="categories"] .sel').count(),1);
+    await page.waitForSelector('[data-survey-question="categories"] .sel');
+  assert.equal(await page.locator('[data-survey-question="categories"] .sel').count(),1);
     assert.equal(controls.surveyWrites.length,0);
     assert.equal(await page.evaluate(()=>sessionStorage.getItem('nh_setup_login_draft')),null);
     await page.goBack();await page.waitForSelector('#survey.hidden',{state:'attached'});
     await page.close();
   }
+});
+
+
+test("browser: NH137 account row shows settings left of logout on both views", options, async t => {
+  for(const path of ['/', '/live']){
+    const {page,controls}=await fixture(t,path,false,'seen',false,false,{controls:{
+      auth:{providers:['google','kakao']},authProfile:{loggedIn:true,nickname:'내 계정 이름',social:{provider:'google'}},surveyAnswers:{categories:['business']}
+    }});
+    await page.setViewportSize({width:320,height:740});
+    await page.waitForSelector('#authDrawerSec [data-auth-logout]',{state:'attached'});
+    await page.click('#menuBtn');
+    assert.equal(await page.locator('#authDrawerSec .auth-nick').innerText(),'내 계정 이름');
+    assert.deepEqual(await page.locator('#authDrawerSec .auth-actions button').allTextContents(),['설정','로그아웃']);
+    assert.equal(await page.locator('#drawer').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
+    await page.click('#drawerSetupBtn');
+    await page.waitForSelector('[data-survey-question="categories"] .sel');
+    assert.equal(new URL(page.url()).hash,'#setup');
+    await page.goBack();await page.waitForSelector('#survey.hidden',{state:'attached'});
+    await page.click('#menuBtn');await page.click('#drawerSpaceBtn');
+    await page.waitForSelector('#retakeSurvey');
+    assert.equal(new URL(page.url()).hash,'#space');
+    await page.locator('#authSpaceSec [data-auth-logout]').click();
+    await page.waitForSelector('#authSpaceSec .auth-btn');
+    await page.click('#spaceBack');await page.waitForSelector('#space.hidden',{state:'attached'});
+    await page.click('#menuBtn');
+    assert.equal(await page.locator('#authDrawerSec [data-auth-logout]').count(),0);
+    assert.equal(await page.locator('#authDrawerSec .auth-btn').count(),2);
+    assert.equal(controls.surveyWrites.length,0);
+    await page.close();
+  }
+});
+
+test("browser: NH137 setup opens during slow reads, retries safely and restores Forward", options, async t => {
+  const {page,controls,base}=await fixture(t,'/live',false,'seen',false,false,{controls:{delayMe:800,surveyAnswers:{categories:['business']}}});
+  await page.waitForSelector('#feed .card');
+  await page.evaluate(()=>{const a=document.createElement('a');a.id='setupLink';a.href='/live#setup';a.textContent='설정';document.body.append(a)});
+  const length=await page.evaluate(()=>history.length);
+  await page.click('#setupLink');
+  await page.waitForSelector('#survey:not(.hidden)');
+  assert.match(await page.locator('#surveyProgress').innerText(),/불러오는 중/);
+  assert.equal(await page.locator('#startBtn').isDisabled(),true);
+  assert.equal(controls.meQueries.every(q=>new URLSearchParams(q).get('view')==='survey'),true);
+  await page.goBack();await page.waitForSelector('#survey.hidden',{state:'attached'});
+  await page.waitForTimeout(900);
+  assert.equal(await page.locator('#survey').isVisible(),false);
+  controls.delayMe=0;controls.meStatus=503;
+  await page.goForward();await page.waitForSelector('#surveyError:not([hidden])');
+  assert.equal(await page.evaluate(()=>history.length),length+1);
+  assert.equal(await page.locator('#startBtn').innerText(),'다시 불러오기');
+  assert.equal(controls.surveyWrites.length,0);
+  controls.meStatus=200;
+  await page.click('#startBtn');await page.waitForSelector('[data-survey-question="categories"] .sel');
+  await page.keyboard.press('Escape');await page.waitForSelector('#survey.hidden',{state:'attached'});
+  assert.equal(new URL(page.url()).hash,'');
+  await page.goto(base+'/live#setup');
+  await page.waitForSelector('[data-survey-question="categories"] .sel');
+  await page.goBack();await page.waitForSelector('#survey.hidden',{state:'attached'});
+  assert.equal(new URL(page.url()).pathname,'/live');
+  assert.equal(controls.surveyWrites.length,0);
+});
+
+test("browser: NH137 setup anchor works before Live finishes booting", options, async t => {
+  const {page}=await fixture(t,'/live',false,'seen',false,false,{controls:{delayConfig:1200}});
+  await page.click('#menuBtn');await page.click('#drawerSetupBtn');
+  await page.waitForSelector('[data-survey-question="categories"] .opt');
+  assert.equal(new URL(page.url()).hash,'#setup');
+  await page.goBack();await page.waitForSelector('#survey.hidden',{state:'attached'});
+  assert.equal(new URL(page.url()).hash,'');
 });

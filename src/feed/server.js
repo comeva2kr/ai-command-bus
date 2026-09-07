@@ -3240,6 +3240,9 @@ ${rankingRows(list, (above) => {
         if (denied(url.searchParams.get("userId"))) return;
         const userId = url.searchParams.get("userId");
         if (!store.getUser(userId)) return send(res, 400, { error: "unknown user" });
+        if (url.searchParams.get("view") === "survey") {
+          return send(res, 200, { surveyAnswers: store.getUser(userId).surveyAnswers || null });
+        }
         const space = store.mySpace(userId);
         // resolve scrapped item ids into displayable items
         space.saved = await engine.resolveItems(userId, space.savedIds);

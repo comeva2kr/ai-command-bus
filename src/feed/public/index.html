@@ -1017,7 +1017,7 @@
   .survey-nudge,.nudge{border-radius:0!important}
 
 </style>
-<link rel="stylesheet" href="/site-menu.css?v=20260907-setup">
+<link rel="stylesheet" href="/site-menu.css?v=20260907-account">
 </head>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -1153,8 +1153,8 @@
 
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
-<script src="/notice-guide.js?v=20260907-setup"></script>
-<script src="/site-menu.js?v=20260907-setup"></script>
+<script src="/notice-guide.js?v=20260907-account"></script>
+<script src="/site-menu.js?v=20260907-account"></script>
 <script type="module">
 const API = {
   async session(userId) { return post("/api/session", { userId }); },
@@ -1165,7 +1165,7 @@ const API = {
   async history(userId, entries) { return post("/api/history", { userId, entries }); },
   async createPost(userId, p) { return post("/api/post", { userId, ...p }); },
   async submitLink(userId, url, opts={}) { return post("/api/submit", { userId, url, ...opts }); },
-  async mySpace(userId) { return get(`/api/me?userId=${userId}`); },
+  async mySpace(userId, surveyOnly=false) { return get(`/api/me?userId=${userId}${surveyOnly?"&view=survey":""}`); },
   async save(userId, itemId, on) { return post("/api/save", { userId, itemId, on }); },
   async signal(userId, itemId, type, dwellMs) { return post("/api/signal", { userId, itemId, type, dwellMs }).catch(()=>{}); },
   async digest(userId) { return get(`/api/digest?userId=${userId}&limit=5`); },
@@ -2159,6 +2159,7 @@ function showPersonalizeBanner(){
 
 // deep-link: a shared /p?id link bounces to /live#post-<id>; open that post
 function openFromHash(){
+  if(location.hash==="#setup")return showSurvey();
   const id=postIdFromHash(location.hash);
   if(id)return openDetail(id,{fromHash:true});
   liveHistory.ensure(liveSnapshot());
@@ -2215,8 +2216,7 @@ async function enableNotifications(){
 function openDrawer(){ NowHotMenu.open(); }
 function closeDrawer(){ NowHotMenu.close(); }
 function setupDrawer(){
-  document.getElementById("drawerSpaceBtn").onclick=()=>NowHotMenu.close(false,openSpace);
-  document.getElementById("drawerSetupBtn").onclick=()=>NowHotMenu.close(true,showSurvey);
+  document.getElementById("drawerSetupBtn").onclick=event=>{event.preventDefault();NowHotMenu.close(true,showSurvey);};
 }
 
 // ---- 몰입 모드 (community × TikTok, but for text) ----
@@ -2454,8 +2454,7 @@ function prependCard(item){
 
 // ---- 내 공간 (my space) ----
 function setupSpace(){
-  // entry point moved from a home FAB into the ☰ drawer (setupDrawer wires
-  // #drawerSpaceBtn)
+  // The shared menu account row opens these settings.
   document.getElementById("spaceBack").onclick = ()=>{
     if(location.hash.startsWith("#space")) history.back(); else closeSpace();
   };
@@ -2562,7 +2561,8 @@ const AUTH_PROVIDER_META = {
 function renderAuthBlock(container){
   NowHotMenu.auth(container,{profile:state.authProfile,providers:state.config?.auth?.providers,userId:state.userId,
     returnTo:container?.id==="surveyAuthSec"?"/live#setup":location.pathname+location.search+location.hash,
-    onLogout:async()=>{try{await API.logout();state.authProfile={loggedIn:false};renderAuthBlock(container);toast("로그아웃했어요");}catch(error){toast("실패: "+error.message);}},
+    onLogout:async()=>{try{await API.logout();state.authProfile={loggedIn:false};for(const id of ["authDrawerSec","authSpaceSec","surveyAuthSec"])renderAuthBlock(document.getElementById(id));toast("로그아웃했어요");}catch(error){toast("실패: "+error.message);}},
+    onSettings:container?.id==="authDrawerSec"?()=>NowHotMenu.close(true,openSpace):null,
     wireLogin:wireKakaoAppLogin});
 }
 
@@ -2671,7 +2671,7 @@ function renderSurveyAuthNudge(){
   if(skip) skip.onclick = ()=> box.classList.add("hidden");
 }
 
-let surveySession = null, surveyLoading = false;
+let surveySession = null;
 function hideSurvey(){
   if(!surveySession)return;
   const { locked, overflow, focus, after } = surveySession;
@@ -2701,17 +2701,43 @@ document.addEventListener("keydown", event=>{
     else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
   }
 },true);
-async function showSurvey(){
-  if(surveyLoading||surveySession)return;
+function showSurvey(){
+  if(surveySession)return;
   if(document.getElementById("nhGuide")){NowHotNoticeGuide.close(showSurvey);return;}
-  surveyLoading=true;
-  try{
-    const saved=await API.mySpace(state.userId);
-    state.surveyAnswers=saved.surveyAnswers||null;
-  }catch(error){toast("현재 취향을 불러오지 못했어요. 다시 눌러주세요.");return;}
-  finally{surveyLoading=false;}
-  renderSurveyAuthNudge();
-  const wrap = document.getElementById("questions");
+  const survey=document.getElementById("survey"), wrap=document.getElementById("questions");
+  const next=document.getElementById("startBtn"), back=document.getElementById("surveyBack");
+  const title=document.getElementById("surveyTitle"), error=document.getElementById("surveyError");
+  const locked=[];
+  for(const node of document.body.children){
+    if(node===survey||node.id==="toast"||["SCRIPT","STYLE"].includes(node.tagName))continue;
+    locked.push([node,node.inert]);node.inert=true;
+  }
+  const token=crypto.randomUUID();
+  surveySession={token,locked,overflow:document.body.style.overflow,focus:document.activeElement};
+  document.body.style.overflow="hidden";survey.classList.remove("hidden");
+  history[location.hash==="#setup"?"replaceState":"pushState"]({...history.state,nhSurvey:token},"","#setup");
+  back.hidden=false;back.setAttribute("aria-label","설정 닫기");
+  back.onclick=()=>closeSurvey();document.getElementById("surveySkip").onclick=()=>closeSurvey();
+  loadSurvey();
+  async function loadSurvey(){
+    title.textContent="관심 주제 설정";
+    document.getElementById("surveyProgress").textContent="현재 취향을 불러오는 중이에요…";
+    wrap.replaceChildren();wrap.inert=false;
+    survey.querySelector(".warmstart").hidden=true;survey.querySelector(".warmstart").inert=false;
+    document.getElementById("surveyAuthNudge").classList.add("hidden");
+    error.hidden=true;next.disabled=true;next.textContent="불러오는 중…";
+    survey.scrollTop=0;title.focus();
+    try{
+      const saved=await API.mySpace(state.userId,true);
+      if(surveySession?.token!==token)return;
+      state.surveyAnswers=saved.surveyAnswers||null;
+    }catch(e){
+      if(surveySession?.token!==token)return;
+      document.getElementById("surveyProgress").textContent="기존 취향은 그대로 유지돼요.";
+      error.textContent="현재 취향을 불러오지 못했어요. 다시 시도해 주세요.";error.hidden=false;
+      next.textContent="다시 불러오기";next.disabled=false;next.onclick=loadSurvey;return;
+    }
+    renderSurveyAuthNudge();
   // 지금 설정된 값에서 시작한다. 예전엔 매번 빈 화면이라 무엇을 골랐었는지
   // 알 수 없었고, 하나만 바꾸려 해도 전부 다시 골라야 했다(David 2026-08-05).
   let saved = state.surveyAnswers || null;
@@ -2788,8 +2814,6 @@ async function showSurvey(){
     } catch(e){ toast("유추 실패: "+e.message); }
   };
 
-  const survey=document.getElementById("survey"), next=document.getElementById("startBtn"), back=document.getElementById("surveyBack");
-  const title=document.getElementById("surveyTitle"), error=document.getElementById("surveyError");
   let step=0,saving=false;
   const steps=[
     ["관심 주제", "1 / 3 · 관심 주제 — 한 개 이상 고르세요. 실시간 추천과 개별 글 알림에 반영돼요. 오늘판의 분야는 오늘 화면 상단에서 따로 고를 수 있어요."],
@@ -2829,18 +2853,8 @@ async function showSurvey(){
     }catch(e){if(surveySession?.token===token){error.textContent="저장하지 못했어요. 선택은 그대로 두었으니 다시 시도해 주세요.";error.hidden=false;error.scrollIntoView({block:"nearest"});}else toast("취향을 저장하지 못했어요. 다시 시도해 주세요.");}
     finally{saving=false;if(surveySession?.token===token){next.disabled=false;wrap.inert=false;survey.querySelector(".warmstart").inert=false;}}
   };
-  const locked=[];
-  for(const node of document.body.children){
-    if(node===survey||node.id==="toast"||["SCRIPT","STYLE"].includes(node.tagName))continue;
-    locked.push([node,node.inert]);node.inert=true;
-  }
-  const token=crypto.randomUUID();
-  wrap.inert=false;survey.querySelector(".warmstart").inert=false;
-  surveySession={token,locked,overflow:document.body.style.overflow,focus:document.activeElement};
-  document.body.style.overflow="hidden";
-  survey.classList.remove("hidden");
-  history.pushState({...history.state,nhSurvey:surveySession.token},"","#setup");
   paint();
+  }
 }
 
 // ---- chips (category filter, client-side) ----
@@ -3575,6 +3589,8 @@ document.getElementById("detail").addEventListener("click", (e)=>{
     if(t.clientX-sx>70 && Math.abs(t.clientY-sy)<60) history.back(); }, {passive:true});
 })();
 window.addEventListener("popstate", ()=>{
+  if(!state.config)return;
+  if(location.hash==="#setup")return showSurvey();
   closeDetail();
   if(!document.getElementById("space").classList.contains("hidden")) closeSpace();
   if(document.getElementById("drawer").classList.contains("open")) closeDrawer();
