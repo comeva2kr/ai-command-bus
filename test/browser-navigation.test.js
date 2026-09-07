@@ -800,6 +800,15 @@ test("NH129 browser: copy and push status messages remain readable in both theme
       await page.locator("#menuBtn").click();
       await page.locator("#menuNotifications").click();
       await check(/오늘판과 주요 소식 알림을 켰어요/);
+      await page.evaluate(()=>{
+        Object.defineProperty(navigator,"userAgent",{value:"iPhone",configurable:true});
+        Object.defineProperty(navigator,"standalone",{value:false,configurable:true});
+        delete window.PushManager;
+      });
+      await page.locator("#menuNotifications").click();
+      await check(/홈 화면의 지금핫 아이콘/);
+      const bounds=await page.locator("#toast").boundingBox();
+      assert.ok(bounds.x>=16&&bounds.x+bounds.width<=377,"long guidance stays within the phone viewport");
     }else{
       await page.locator('[data-category="business"][aria-pressed="true"]').click();
       await check(/관심 분야를 하나 이상/);
