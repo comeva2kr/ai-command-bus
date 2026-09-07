@@ -18,6 +18,12 @@ for (const file of [
   });
 }
 
+for (const name of ["site-menu.js", "notice-guide.js"]) {
+  test(`공통 메뉴 자바스크립트 문법: ${name}`, () => {
+    execFileSync(process.execPath, ["--check", `src/feed/public/${name}`]);
+  });
+}
+
 // ── 광고 폴백 배선 (2026-08-04) ─────────────────────────────────────────────
 //
 // 애드핏이 심사 보류라 안 채워지는데 169px 빈 칸이 자리를 먹고 있었다

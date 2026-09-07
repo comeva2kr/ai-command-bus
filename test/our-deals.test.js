@@ -331,8 +331,7 @@ test("화면 테마는 내 공간 안에 있다", async () => {
   // David 2026-08-06: "메뉴에서 화면 테마는 내공간 안으로 넣자."
   const { readFileSync } = await import("node:fs");
   const html = fs.readFileSync("src/feed/public/index.html", "utf8");
-  const drawer = html.slice(html.indexOf('<aside id="drawer"') >= 0 ? html.indexOf('<aside id="drawer"') : 0,
-                            html.indexOf('id="drawerSpaceBtn"'));
+  const drawer = fs.readFileSync("src/feed/public/site-menu.js", "utf8");
   assert.ok(!drawer.includes('id="themeChips"'), "드로어에 화면 테마가 남아 있다");
   // 내 공간 렌더 안에 있어야 하고, 그린 뒤 배선도 되어야 한다.
   const space = html.slice(html.indexOf("async function openSpace()"),

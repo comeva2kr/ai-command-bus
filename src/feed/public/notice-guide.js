@@ -33,14 +33,17 @@
 
   function remove() {
     if (!active) return;
-    const { root, previousFocus } = active;
+    const { root, previousFocus, afterClose } = active;
     active = null;
     root.remove();
     if (previousFocus?.isConnected) previousFocus.focus();
+    afterClose?.();
   }
 
-  function close() {
-    if (!active) return;
+  function close(afterClose) {
+    const next = typeof afterClose === "function" ? afterClose : null;
+    if (!active) { next?.(); return; }
+    active.afterClose = next;
     if (history.state?.nhNotice === active.token) history.back();
     else remove();
   }
@@ -77,7 +80,7 @@
   }
 
   function show({ release, isNewVisitor = false, skip = false } = {}) {
-    if (skip || active || location.hash || document.querySelector("#detail.open,#issueDetail.open")) return false;
+    if (skip || active || location.hash || document.querySelector("#detail.open,#issueDetail.open,#drawer.open")) return false;
     const onboarded = read(ONBOARD_KEY);
     const seenRelease = read(RELEASE_KEY);
     if (onboarded === undefined || seenRelease === undefined) return false;

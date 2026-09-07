@@ -1016,6 +1016,7 @@
   .survey-nudge,.nudge{border-radius:0!important}
 
 </style>
+<link rel="stylesheet" href="/site-menu.css?v=20260907">
 </head>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -1040,107 +1041,13 @@
         <a href="/live" data-view="live" aria-current="page">실시간</a>
         <span class="view-indicator" aria-hidden="true"></span>
       </nav>
-      <button id="menuBtn" class="menu-btn" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-menu"></use></svg></button>
+      <button id="menuBtn" class="menu-btn" type="button" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
     </div>
   </header>
 
   <!-- 홈은 통합 핫 피드 하나만 — 소스별 선택 칩·필터 토글·내 공간·제출은 전부
        여기 드로어 안으로 이동(삭제 아님). ☰로 열고 닫는다 . -->
-  <div class="drawer-back" id="drawerBack"></div>
-  <aside class="drawer" id="drawer" aria-hidden="true">
-    <div class="drawer-head">
-      <div class="drawer-title">메뉴</div>
-      <button class="drawer-close" id="drawerClose" aria-label="메뉴 닫기">✕</button>
-    </div>
-    <div class="drawer-body">
-      <div class="meter">
-        <div class="meter-label"><span>취향 정확도</span><span id="levelPct">0%</span></div>
-        <div class="meter-bar"><div class="meter-fill" id="levelFill"></div></div>
-      </div>
-
-      <div class="drawer-row">
-        <span>🎬 몰입 모드 (한 글씩 넘겨보기)</span>
-        <button id="immBtn" class="icon-btn" title="몰입 모드">🎬</button>
-      </div>
-
-      <div class="drawer-sec">
-        <p class="drawer-hint">제품 판매 딜만 모아서, 관심도와 최신순으로 보여드려요.</p>
-      </div>
-
-      <div class="drawer-sec">
-        <h4>카테고리</h4>
-        <div class="chips" id="chips"></div>
-      </div>
-
-      <div class="drawer-sec">
-        <h4>소스별 보기 · 링크 제출</h4>
-        <div class="src-chips" id="srcChips"></div>
-      </div>
-
-      <div class="drawer-sec">
-        <h4>콘텐츠 필터</h4>
-        <div id="drawerFilters"></div>
-      </div>
-
-      <!-- 커뮤니티(오락성) ↔ 뉴스(소식성) 비율 (David 2026-08-02).
-           성향 슬라이더와 같은 방식이지만 축이 다르다: 이건 "뭘 볼까",
-           아래 것은 "뉴스 안에서 어느 쪽". 양 끝은 커뮤만/뉴스만,
-           중간값은 선호 강도이며 실제 노출 비율을 약속하지 않는다. -->
-      <div class="drawer-sec" id="mixSec">
-        <h4>커뮤 · 뉴스 조절</h4>
-        <input type="range" id="mixSlider" min="-100" max="100" step="25" value="0"
-               style="width:100%;accent-color:var(--accent)" aria-label="커뮤니티와 뉴스 비율">
-        <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:2px">
-          <span>커뮤 더</span><span id="mixMid">고르게</span><span>뉴스 더</span>
-        </div>
-      </div>
-
-      <!-- 뉴스 성향 슬라이더 . 매체별 라벨은 노출하지 않고
-           혼합 비율만 조절한다. 기본값 0 = 고르게. 끝까지 밀어도 반대편이
-           완전히 사라지지 않는다(하한 20% — 필터버블 방지, engine.leanMultiplier). -->
-      <div class="drawer-sec" id="leanSec">
-        <h4>뉴스 균형</h4>
-        <input type="range" id="leanSlider" min="-100" max="100" step="25" value="0"
-               style="width:100%;accent-color:var(--accent)" aria-label="뉴스 성향 균형">
-        <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:2px">
-          <span>진보 성향 더</span><span id="leanMid">고르게</span><span>보수 성향 더</span>
-        </div>
-      </div>
-
-      <div class="drawer-sec">
-        <button class="drawer-link" id="drawerSpaceBtn">👤 내 공간</button>
-      </div>
-
-      <!-- 소셜 로그인: 설정된 provider가 있을 때만 채워짐 (renderAuthBlock) -->
-      <div class="drawer-sec" id="authDrawerSec"></div>
-
-      <!-- 우리가 직접 만드는 페이지들. 예전엔 브리핑·랭킹 둘만 있어서
-           커뮤니티 순위·키워드는 만들어 놓고도 들어갈 길이 없었다
-           (2026-08-04 실측: 홈에서 /communities·/keywords 링크 0개).
-           인라인 style은 전부 클래스로 뺐다 — 값이 코드에 박히면 테마가
-           바뀔 때 여기만 안 따라온다. -->
-      <nav class="drawer-sec drawer-nav" aria-label="지금핫이 만드는 페이지">
-        <a class="drawer-link" href="/ranking/daily">화제 랭킹 TOP 20</a>
-        <a class="drawer-link" href="/communities">커뮤니티 순위</a>
-        <a class="drawer-link" href="/keywords">화제 키워드</a>
-        <a class="drawer-link" href="/trends">실시간 트렌드</a>
-        <a class="drawer-link" href="/report">데이터 리포트</a>
-      </nav>
-      <div class="drawer-sec" style="opacity:.55;font-size:11px">
-        화면 빌드 <span id="buildTag">-</span>
-      </div>
-      <nav class="drawer-sec drawer-meta" aria-label="서비스 정보">
-        <button class="drawer-link sub" id="menuNotifications" type="button">알림 받기</button>
-        <p id="notificationHelp" role="status"></p>
-        <a class="drawer-link sub" href="/about">서비스 소개</a>
-        <a class="drawer-link sub" href="/about#updates">업데이트 기록</a>
-        <a class="drawer-link sub" href="/feedback">개선 요청</a>
-        <a class="drawer-link sub" href="/terms">이용약관</a>
-        <a class="drawer-link sub" href="/privacy">개인정보처리방침</a>
-        <p class="drawer-copy">ⓒ 페퍼클럽 · 지금핫 NowHot</p>
-      </nav>
-    </div>
-  </aside>
+  <div data-site-menu></div>
 
   <div id="digestBar" class="digest hidden"></div>
 
@@ -1243,7 +1150,8 @@
 
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
-<script src="/notice-guide.js?v=20260905"></script>
+<script src="/notice-guide.js?v=20260907-menu"></script>
+<script src="/site-menu.js?v=20260907"></script>
 <script type="module">
 const API = {
   async session(userId) { return post("/api/session", { userId }); },
@@ -1671,6 +1579,8 @@ setupViewSwitch();
 // ---- boot ----
 (async function boot(){
   const isNewVisitor = !state.userId;
+  const menuAction=["#space","#submit"].includes(location.hash)?location.hash:null;
+  if(menuAction)history.replaceState(history.state,"",location.pathname+location.search);
   // parallel fetch so the first paint isn't three serial round-trips
   const [config, rulesRes, s, communitiesRes] = await Promise.all([
     API.config(),
@@ -1727,7 +1637,7 @@ setupViewSwitch();
   const guideSkip = Boolean(state.pendingWorkerUrl) || Boolean(postIdFromHash(location.hash));
   if(state.pendingWorkerUrl){const url=state.pendingWorkerUrl;state.pendingWorkerUrl=null;workerNavigate(url)}
   else openFromHash();
-  restored.then(()=>NowHotNoticeGuide.show({release:config?.release,isNewVisitor,skip:guideSkip||Boolean(postIdFromHash(location.hash))}));
+  restored.then(()=>NowHotNoticeGuide.show({release:config?.release,isNewVisitor,skip:Boolean(menuAction)||guideSkip||Boolean(postIdFromHash(location.hash))}));
   if(!s.surveyed) showPersonalizeBanner(); else showDigest();
   maybeShowAdNotice();
   setupImmersion();
@@ -1737,6 +1647,8 @@ setupViewSwitch();
   // renderAuthBlock이 빈 상태로 아무것도 그리지 않는다 — 완전 익명 회귀 없음.
   state.authProfile = await API.authSession().catch(()=>({loggedIn:false}));
   renderAuthBlock(document.getElementById("authDrawerSec"));
+  if(menuAction==="#space")openSpace();
+  if(menuAction==="#submit")openSubmitModal();
   if(window.__authRedirectResult === "success") toast("로그인했어요");
   else if(window.__authRedirectResult === "error") toast("로그인에 실패했어요. 다시 시도해주세요.");
 })();
@@ -1757,51 +1669,15 @@ function maybeShowAdNotice(){
 // 기기 간 동기화된다. 변경 즉시 저장하되 피드 재적재는 700ms 디바운스 —
 // 슬라이더를 드래그하는 동안 요청이 연발되지 않게.
 function setupMixSlider(session){
-  state.mixBalance = Number.isFinite(session?.mixBalance) ? session.mixBalance : 0;
-  const el = document.getElementById("mixSlider");
-  const mid = document.getElementById("mixMid");
-  if(!el) return;
-  const label = (v)=> v===-100 ? "커뮤만" : v===100 ? "뉴스만" : v===0 ? "고르게" :
-    (v<0 ? "커뮤 선호 "+Math.abs(v) : "뉴스 선호 "+v);
-  const init = Math.round(state.mixBalance * 100);
-  el.value = String(init); mid.textContent = label(init);
-  let t = null;
-  el.addEventListener("input", ()=>{ mid.textContent = label(Number(el.value)); });
-  el.addEventListener("change", ()=>{
-    const v = Number(el.value) / 100;
-    clearTimeout(t);
-    t = setTimeout(async ()=>{
-      try {
-        await API.setMix(state.userId, v);
-        state.mixBalance = v;
-        toast(v===-1 ? "커뮤니티 글만 보여드려요" : v===1 ? "뉴스만 보여드려요" :
-          v===0 ? "커뮤와 뉴스를 고르게 섞어요" : (v<0 ? "커뮤니티 글을 더 보여드려요" : "뉴스를 더 보여드려요"));
-        reloadFeedSilently();
-      } catch(e){ toast("저장 실패: "+e.message); }
-    }, 700);
-  });
+  state.mixBalance=Number.isFinite(session?.mixBalance)?session.mixBalance:0;
+  NowHotMenu.slider("mix",state.mixBalance,NowHotMenu.mixLabel,async value=>{
+    await API.setMix(state.userId,value);state.mixBalance=value;reloadFeedSilently();toast("커뮤·뉴스 설정을 저장했어요");
+  },error=>toast("저장 실패: "+error.message));
 }
-
 function setupLeanSlider(session){
-  const el = document.getElementById("leanSlider");
-  const mid = document.getElementById("leanMid");
-  if(!el) return;
-  const label = (v)=> v===0 ? "고르게" : (v<0 ? "진보쪽 "+Math.abs(v)+"%" : "보수쪽 "+v+"%");
-  const init = Math.round(((session && session.leanBalance) || 0) * 100);
-  el.value = String(init); mid.textContent = label(init);
-  let t = null;
-  el.addEventListener("input", ()=>{ mid.textContent = label(Number(el.value)); });
-  el.addEventListener("change", ()=>{
-    const v = Number(el.value) / 100;
-    clearTimeout(t);
-    t = setTimeout(async ()=>{
-      try {
-        await API.setLean(state.userId, v);
-        toast(v===0 ? "뉴스를 고르게 섞어요" : "뉴스 균형을 조정했어요");
-        reloadFeedSilently();
-      } catch(e){ toast("저장 실패: "+e.message); }
-    }, 700);
-  });
+  NowHotMenu.slider("lean",session?.leanBalance||0,NowHotMenu.leanLabel,async value=>{
+    await API.setLean(state.userId,value);reloadFeedSilently();toast("뉴스 균형을 저장했어요");
+  },error=>toast("저장 실패: "+error.message));
 }
 
 // 피드 안 제휴 카드 + 애드핏.
@@ -2332,42 +2208,10 @@ async function enableNotifications(){
 
 // ---- ☰ 드로어 (소스별 보기·필터·링크제출·내공간 ) ----
 // 홈은 통합 핫 피드 하나만 보이고, 나머지 메뉴는 전부 여기 안에서 열고 닫는다.
-function openDrawer(){
-  // 온보딩 안내가 떠 있으면 먼저 치운다.
-  //
-  // 온보딩 오버레이(#onbBack)는 z-index 60, 드로어는 49다. 그래서 안내가
-  // 떠 있는 채로 메뉴를 열면 **메뉴 전체가 안 눌린다** — 링크는 제자리에
-  // 보이는데 클릭은 오버레이가 먹는다(David 제보 2026-08-06 "메뉴의 실시간
-  // 트렌드 눌러도 아무것도 안 되는데?", 브라우저로 재현: 링크 좌표에서
-  // elementFromPoint가 "지금핫에 오신 걸 환영해요" DIV를 돌려줬다).
-  //
-  // z-index를 올려 겹쳐 보이게 하는 대신 안내를 닫는다 — 사용자가 메뉴를
-  // 열었다는 건 이미 둘러보기 시작했다는 뜻이고, 두 겹으로 떠 있는 화면이
-  // 더 어수선하다.
-  const onb = document.getElementById("onbBack");
-  if (onb) onb.remove();
-  document.getElementById("drawer").classList.add("open");
-  document.getElementById("drawerBack").classList.add("open");
-  document.getElementById("drawer").setAttribute("aria-hidden","false");
-  document.getElementById("menuBtn").setAttribute("aria-expanded","true");
-}
-function closeDrawer(){
-  document.getElementById("drawer").classList.remove("open");
-  document.getElementById("drawerBack").classList.remove("open");
-  document.getElementById("drawer").setAttribute("aria-hidden","true");
-  document.getElementById("menuBtn").setAttribute("aria-expanded","false");
-}
+function openDrawer(){ NowHotMenu.open(); }
+function closeDrawer(){ NowHotMenu.close(); }
 function setupDrawer(){
-  document.getElementById("menuBtn").onclick = openDrawer;
-  document.getElementById("drawerClose").onclick = closeDrawer;
-  document.getElementById("drawerBack").onclick = closeDrawer;
-  document.getElementById("drawerSpaceBtn").onclick = ()=>{ closeDrawer(); openSpace(); };
-  // 메뉴의 "핫딜 모아보기"는 뺐다(David 2026-08-06: "밖에 화면에 핫딜 있는
-  // 걸로 충분해"). 정렬바에 핫딜 탭이 이미 있으니 같은 일을 두 곳에서 하던 것이다.
-  // 대신 콘텐츠 필터에 핫딜 숨기기·보기를 넣었다 — 아래 contentFilterHtml.
-  document.addEventListener("keydown", (e)=>{
-    if(e.key==="Escape" && document.getElementById("drawer").classList.contains("open")) closeDrawer();
-  });
+  document.getElementById("drawerSpaceBtn").onclick=()=>NowHotMenu.close(false,openSpace);
 }
 
 // ---- 몰입 모드 (community × TikTok, but for text) ----
@@ -2493,24 +2337,8 @@ async function toggleTopic(topic, on){
 // the ☰ drawer, driven by the same state/toggle functions above. Uses
 // data-attributes instead of ids so both places can render it at once without
 // id collisions.
-function contentFilterHtml(){
-  return `
-    ${[["politics","🗳️","정치"],["religion","⛪","종교"]].map(([id,icon,label])=>{
-      // 지금 켜져 있는지가 **색으로** 보여야 한다 — 버튼 글자만 바뀌면
-      // "보기"가 현재 상태인지 누르면 될 일인지 헷갈린다(David 2026-08-05).
-      const on = state.showTopics.includes(id);
-      return `<div class="muted-row">${icon} ${label} 글 <b>${on?"보는 중":"숨김"}</b>
-        <button class="chip${on?" active":""}" data-topic-toggle="${id}" aria-pressed="${on}">${on?"숨기기":"보기"}</button></div>`;
-    }).join("")}
-    ${(()=>{
-      // 핫딜은 **기본 보임**이라 정치·종교와 방향이 반대다. showTopics에
-      // "nodeal"이 있으면 숨긴 상태다 — 화면 문구는 사람이 읽는 대로 쓴다.
-      const hidden = state.showTopics.includes("nodeal");
-      return `<div class="muted-row">🔥 핫딜 <b>${hidden?"숨김":"보는 중"}</b>
-        <button class="chip${hidden?"":" active"}" data-deal-toggle aria-pressed="${!hidden}">${hidden?"보기":"숨기기"}</button></div>`;
-    })()}
-    <p style="color:var(--muted);font-size:11.5px;line-height:1.5;margin:6px 0 0">정치·종교 글은 기본적으로 피드에서 숨겨져요. 핫딜은 기본으로 보이고, 위 버튼으로 끌 수 있어요. 특정 매체를 안 보고 싶으면 글을 열어 “그만보기”를 누르세요.</p>`;
-}
+function contentFilterHtml(){ return NowHotMenu.filters(state.showTopics); }
+
 function wireContentFilterButtons(container, onAfter){
   container.querySelectorAll("[data-topic-toggle]").forEach(btn=>{
     btn.onclick = async ()=>{ await toggleTopic(btn.dataset.topicToggle, !state.showTopics.includes(btn.dataset.topicToggle)); if(onAfter) onAfter(); };
@@ -2738,35 +2566,9 @@ const AUTH_PROVIDER_META = {
   naver:  { label: "네이버로 계속하기", bg: "#03C75A", fg: "#ffffff", border: "#03C75A" }
 };
 function renderAuthBlock(container){
-  if(!container) return;
-  const providers = (state.config && state.config.auth && state.config.auth.providers) || [];
-  const profile = state.authProfile;
-  if(profile && profile.loggedIn){
-    const social = profile.social || {};
-    container.innerHTML = `
-      <div class="auth-profile">
-        ${social.avatar ? `<img class="auth-avatar" src="${escapeHtml(social.avatar)}" referrerpolicy="no-referrer" alt="">` : '<div class="auth-avatar auth-avatar-ph">👤</div>'}
-        <div class="auth-info">
-          <div class="auth-nick">${escapeHtml(profile.nickname||"게스트")}</div>
-          <div class="auth-provider-label">${social.provider ? escapeHtml(AUTH_PROVIDER_META[social.provider]?.label.replace("로 계속하기","")||social.provider)+"로 로그인됨" : "로그인됨"}</div>
-        </div>
-        <button class="drawer-link" id="authLogoutBtn" style="width:auto;padding:8px 12px">로그아웃</button>
-      </div>`;
-    const btn = container.querySelector("#authLogoutBtn");
-    if(btn) btn.onclick = async ()=>{
-      try { await API.logout(); state.authProfile = { loggedIn:false }; toast("로그아웃했어요"); renderAuthBlock(container); }
-      catch(e){ toast("실패: "+e.message); }
-    };
-    return;
-  }
-  if(!providers.length){ container.innerHTML = ""; return; } // 키 없는 배포 — 버튼 자체를 렌더하지 않음
-  container.innerHTML = `
-    <div class="auth-hint">로그인하면 기기가 바뀌어도 내 취향 그대로 이어져요 <span class="auth-hint-sub">(로그인 없이도 계속 이용할 수 있어요)</span></div>
-    <div class="auth-btns">${providers.map(id=>{
-      const m = AUTH_PROVIDER_META[id]; if(!m) return "";
-      return `<a class="auth-btn" data-provider="${id}" href="/api/auth/${id}/login?userId=${encodeURIComponent(state.userId||"")}" style="background:${m.bg};color:${m.fg};border-color:${m.border}">${m.label}</a>`;
-    }).join("")}</div>`;
-  wireKakaoAppLogin(container);
+  NowHotMenu.auth(container,{profile:state.authProfile,providers:state.config?.auth?.providers,userId:state.userId,
+    onLogout:async()=>{try{await API.logout();state.authProfile={loggedIn:false};renderAuthBlock(container);toast("로그아웃했어요");}catch(error){toast("실패: "+error.message);}},
+    wireLogin:wireKakaoAppLogin});
 }
 
 // ---- 카카오톡 앱으로 원탭 로그인 -------------------------------------------
@@ -3043,19 +2845,12 @@ function setupSortBar(){
   };
 }
 
-function renderChips(){
-  const el = document.getElementById("chips"); el.innerHTML="";
-  const all = document.createElement("button"); all.className="chip active"; all.textContent="전체";
-  all.onclick=()=>setCategory(null, el, all); el.appendChild(all);
-  for(const c of state.config.categories){
-    const b=document.createElement("button"); b.className="chip"; b.textContent=c.label;
-    b.onclick=()=>setCategory(c.id, el, b); el.appendChild(b);
-  }
-}
+function renderChips(){ NowHotMenu.categories(state.config.categories,state.activeCategory,setCategory); }
+
 function setCategory(cat, container, btn){
   state.activeCategory = cat;
   if(cat) localStorage.setItem("feed_cat", cat); else localStorage.removeItem("feed_cat");
-  [...container.children].forEach(c=>c.classList.remove("active")); btn.classList.add("active");
+  [...container.children].forEach(c=>{c.classList.toggle("active",c===btn);c.setAttribute("aria-pressed",String(c===btn));});
   reloadFeed();
   closeDrawer(); // selection made — back to the clean home feed
 }
@@ -3065,41 +2860,10 @@ function setCategory(cat, container, btn){
 // switches to GET /api/feed?source=<id> — that source's own posts in
 // latest+화제성 order, not personalized ranking. Selection persists across visits.
 function renderSourceChips(){
-  const el = document.getElementById("srcChips"); el.innerHTML = "";
-  // a source saved from a previous visit may have since been disabled/removed.
-  // "submit" is a pseudo-source (not in the registry) so it's exempt from
-  // this staleness check.
-  if(state.activeSource && state.activeSource!=="submit" && !state.communities.some(c=>c.id===state.activeSource)) {
-    state.activeSource = null; localStorage.removeItem("feed_src");
+  if(state.activeSource && state.activeSource!=="submit" && !state.communities.some(c=>c.id===state.activeSource)){
+    state.activeSource=null;localStorage.removeItem("feed_src");
   }
-  // link-submission entry point: always first, never a filter toggle itself
-  const addBtn = document.createElement("button");
-  addBtn.className = "src-chip"; addBtn.id = "submitLinkBtn"; addBtn.title = "링크 제출";
-  addBtn.textContent = "＋ 링크제출";
-  addBtn.onclick = ()=>{ closeDrawer(); openSubmitModal(); };
-  el.appendChild(addBtn);
-
-  const all = document.createElement("button");
-  all.className = "src-chip" + (state.activeSource ? "" : " active");
-  all.textContent = "전체";
-  all.onclick = () => setSource(null, el, all);
-  el.appendChild(all);
-
-  // "제출" filter chip: everyone's user-submitted out-links, grouped by
-  // provenance (server-side via source="submit", not a registry id).
-  const sub = document.createElement("button");
-  sub.className = "src-chip" + (state.activeSource==="submit" ? " active" : "");
-  sub.textContent = "📮 제출";
-  sub.onclick = () => setSource("submit", el, sub);
-  el.appendChild(sub);
-
-  for(const c of state.communities){
-    const b = document.createElement("button");
-    b.className = "src-chip" + (state.activeSource===c.id ? " active" : "");
-    b.textContent = c.labelKo || c.label;
-    b.onclick = () => setSource(c.id, el, b);
-    el.appendChild(b);
-  }
+  NowHotMenu.sources(state.communities,state.activeSource,setSource,()=>NowHotMenu.close(false,openSubmitModal));
 }
 
 // ---- 링크 제출 (user link submission) ----
@@ -3150,7 +2914,7 @@ function setSource(id, container, btn){
   if(state.activeSource === id) return;
   state.activeSource = id;
   if(id) localStorage.setItem("feed_src", id); else localStorage.removeItem("feed_src");
-  [...container.children].forEach(c=>c.classList.remove("active")); btn.classList.add("active");
+  [...container.children].forEach(c=>{c.classList.toggle("active",c===btn);c.setAttribute("aria-pressed",String(c===btn));});
   reloadFeed();
 }
 // (applyFilter는 없어졌다 — 카테고리는 서버가 거른다. 이 함수를 남겨 두고

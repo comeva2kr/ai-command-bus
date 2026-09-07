@@ -43,7 +43,7 @@ const edition = {
   }))
 };
 
-async function fixture(t, path = "/live", realWorker = false, guideState = "seen", cold = false, iosTab = false) {
+async function fixture(t, path = "/live", realWorker = false, guideState = "seen", cold = false, iosTab = false, todaySeed = {}) {
   let base = origin;
   if (realWorker) {
     const server = createServer((req, res) => {
@@ -51,7 +51,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
       const name = pathname === "/live" ? "index.html" : pathname === "/" ? "today.html" : pathname.slice(1);
       try {
         if (!/^[\w.-]+$/.test(name)) throw new Error("invalid path");
-        res.setHeader("Content-Type", name.endsWith(".js") ? "text/javascript" : name.endsWith(".html") ? "text/html" : "image/png");
+        res.setHeader("Content-Type", name.endsWith(".js") ? "text/javascript" : name.endsWith(".html") ? "text/html" : name.endsWith(".css") ? "text/css" : "image/png");
         res.end(readFileSync(new URL(`../src/feed/public/${name}`, import.meta.url)));
       } catch { res.writeHead(404); res.end(); }
     });
@@ -63,7 +63,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   context.setDefaultTimeout(4000);
   t.after(() => context.close());
   const requests = [];
-  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, sourceKind: "news", feedHandler: null, coupang: null };
+  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, leanBalance: 0, showTopics: [], auth: {}, authProfile: {}, failSave: false, sourceKind: "news", feedHandler: null, coupang: null, ...todaySeed.controls };
   await context.addInitScript(({ realWorker, guideState, releaseId, iosTab }) => {
     if (!localStorage.getItem("__fixture_seeded")) {
       localStorage.clear();
@@ -100,13 +100,24 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
     if (url.pathname.startsWith("/api/")) {
       let body = {};
       if (url.pathname === "/api/config") body = { categories: [category], topics: [], ads: {}, release,
-        coupang: controls.coupang, monetization: { enabled: Boolean(controls.coupang) } };
-      if (url.pathname === "/api/session") body = { userId: "reader", surveyed: true, showTopics: [], briefingCategories: ["business"], mixBalance: controls.mixBalance };
+        coupang: controls.coupang, auth: controls.auth, monetization: { enabled: Boolean(controls.coupang) } };
+      if (url.pathname === "/api/session") body = { userId: "reader", identitySource: guideState === "new" ? "new" : "storage",
+        surveyed: guideState !== "new", showTopics: controls.showTopics, briefingCategories: guideState === "new" ? [] : ["business"],
+        mixBalance: controls.mixBalance, leanBalance: controls.leanBalance, level:0.62 };
+      if (url.pathname === "/api/auth/session") body = controls.authProfile;
       if (url.pathname === "/api/communities") body = { communities: [{ id: "test", label: "Test", kind: controls.sourceKind, enabled: true, adult: false, liveCount: 18 }] };
-      if (url.pathname === "/api/feed") body = controls.feedHandler ? await controls.feedHandler(url) : { items, nextCursor: 18, exhausted: true };
-      if (url.pathname === "/api/mix") {
-        controls.mixBalance = route.request().postDataJSON().balance;
-        body = { ok: true, balance: controls.mixBalance };
+      if (url.pathname === "/api/feed") body = controls.feedHandler ? await controls.feedHandler(url) : { items, nextCursor: 18, exhausted: true, level:0.62 };
+      if (["/api/mix", "/api/lean", "/api/topics"].includes(url.pathname)) {
+        if (controls.failSave) return route.fulfill({status:503,json:{error:"저장 불가"}});
+        const value = route.request().postDataJSON();
+        if (url.pathname === "/api/topics") {
+          controls.showTopics = controls.showTopics.filter(topic => topic !== value.topic);
+          if (value.on) controls.showTopics.push(value.topic);
+          body = {showTopics:controls.showTopics};
+        } else {
+          controls[url.pathname === "/api/mix" ? "mixBalance" : "leanBalance"] = value.balance;
+          body = {ok:true,balance:value.balance};
+        }
       }
       if (url.pathname === "/api/digest") body = { count: 1, top: [items[0]] };
       if (url.pathname === "/api/today") {
@@ -126,7 +137,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
     if (!/^[\w.-]+$/.test(name)) return route.abort();
     try {
       const body = readFileSync(new URL(`../src/feed/public/${name}`, import.meta.url));
-      return route.fulfill({ body, contentType: name.endsWith(".html") ? "text/html" : name.endsWith(".js") ? "text/javascript" : "image/svg+xml" });
+      return route.fulfill({ body, contentType: name.endsWith(".html") ? "text/html" : name.endsWith(".js") ? "text/javascript" : name.endsWith(".css") ? "text/css" : "image/svg+xml" });
     } catch { return route.fulfill({ status: 404, body: "missing" }); }
   });
   const page = await context.newPage();
@@ -140,16 +151,123 @@ test("browser: Today service menu remains reachable on narrow screens", options,
   await page.waitForSelector(".issue");
   for (const width of [320,393,1100]) {
     await page.setViewportSize({width,height:852});
-    await page.locator(".service-menu summary").click();
-    const link=page.locator('.service-menu a[href="/feedback"]');
+    await page.locator("#menuBtn").click();
+    const link=page.locator('#drawer a[href="/feedback"]');
+    await link.waitFor({state:"visible"});
     assert.equal(await link.isVisible(),true);
-    const bounds=await page.locator(".topbar-inner").evaluate(el=>({width:document.documentElement.clientWidth,right:el.querySelector(".service-menu").getBoundingClientRect().right,overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth}));
+    const bounds=await page.locator(".topbar-inner").evaluate(el=>({width:document.documentElement.clientWidth,right:el.querySelector("#menuBtn").getBoundingClientRect().right,overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth}));
     assert.ok(bounds.right<=bounds.width);assert.equal(bounds.overflow,0);
-    await page.locator(".service-menu summary").click();
+    await page.locator("#drawerClose").click();
+    await page.waitForFunction(()=>!history.state?.nhMenu);
   }
-  await page.locator(".service-menu summary").click();
-  await page.locator('.service-menu a[href="/feedback"]').click();
+  await page.locator("#menuBtn").click();
+  await page.locator('#drawer a[href="/feedback"]').click();
   assert.equal(page.url(),base+"/feedback");
+});
+
+test("NH135 browser: both pages share menu contents, appearance, focus and native Back", options, async t => {
+  const menus = [];
+  for (const path of ["/", "/live"]) {
+    const {page} = await fixture(t,path,false,"seen",false,false,{controls:{auth:{providers:["google","kakao","naver"]}}});
+    await page.waitForSelector(path === "/" ? ".issue" : "#feed .card");
+    assert.equal(await page.locator("#levelPct").textContent(),"62%");
+    const sizes = [];
+    for (const width of [320,1100]) {
+      await page.setViewportSize({width,height:700});
+      await page.click("#menuBtn");
+      await page.waitForSelector("#drawer.open");
+      assert.equal(await page.evaluate(()=>NowHotNoticeGuide.show({release:{id:"late-release",title:"늦은 안내",items:[]}})),false);
+      assert.equal(await page.evaluate(()=>document.activeElement.id),"drawerClose");
+      await page.keyboard.press("Shift+Tab");
+      assert.equal(await page.evaluate(()=>document.activeElement.getAttribute("href")),"/privacy");
+      await page.keyboard.press("Tab");
+      assert.equal(await page.evaluate(()=>document.activeElement.id),"drawerClose");
+      if(path==="/")assert.ok(await page.evaluate(()=>Math.abs(document.getElementById("menuBtn").getBoundingClientRect().left-document.getElementById("refresh").getBoundingClientRect().right-parseFloat(getComputedStyle(document.querySelector(".topbar-inner")).gap))<1));
+      sizes.push(await page.locator("#drawer").evaluate(el=>({width:el.getBoundingClientRect().width,bg:getComputedStyle(el).backgroundColor,
+        items:[...el.querySelectorAll("h4,button,a")].map(node=>node.textContent.trim()),buttonWidth:document.getElementById("menuBtn").getBoundingClientRect().width,
+        appearance:[...el.querySelectorAll(".meter-label,.muted-row,.muted-row button,.drawer-close,.auth-btn")].map(node=>{const css=getComputedStyle(node);return [css.color,css.backgroundColor,css.border,css.borderRadius,css.margin,css.padding,css.fontSize,css.fontWeight];})})));
+      const privacy=page.locator('#drawer a[href="/privacy"]');
+      await privacy.scrollIntoViewIfNeeded();
+      assert.ok(await privacy.evaluate(el=>el.getBoundingClientRect().bottom<=innerHeight));
+      await page.keyboard.press("Escape");
+      await page.waitForFunction(()=>!history.state?.nhMenu);
+      assert.equal(await page.evaluate(()=>document.activeElement.id),"menuBtn");
+      assert.equal(await page.evaluate(()=>document.body.style.overflow),"");
+    }
+    menus.push(sizes);
+    await page.click("#menuBtn");
+    await page.goBack();
+    await page.waitForFunction(()=>!document.getElementById("drawer").classList.contains("open"));
+    assert.equal(new URL(page.url()).pathname,path);
+    await page.click("#menuBtn");
+    await page.locator("#drawerBack").click({position:{x:900,y:300}});
+    await page.waitForFunction(()=>!history.state?.nhMenu);
+    assert.equal(await page.locator("#drawer").getAttribute("aria-hidden"),"true");
+  }
+  assert.deepEqual(menus[0],menus[1]);
+});
+
+test("NH135 browser: menu Back preserves article detail and waits for notice dismissal", options, async t => {
+  for (const path of ["/","/live"]) {
+    const {page} = await fixture(t,path,false,"returning");
+    await page.waitForSelector("#nhGuide");
+    await page.evaluate(()=>NowHotMenu.open());
+    await page.waitForSelector("#drawer.open");
+    assert.equal(await page.locator("#nhGuide").count(),0);
+    await page.goBack();
+    await page.waitForFunction(()=>!history.state?.nhMenu);
+    const detail = path === "/" ? "#issueDetail" : "#detail";
+    await page.locator(path === "/" ? "[data-open-issue]" : "#feed .card h3").first().click();
+    await page.waitForSelector(detail+".open");
+    await page.evaluate(()=>NowHotMenu.open());
+    await page.waitForSelector("#drawer.open");
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(()=>!history.state?.nhMenu);
+    assert.equal(await page.locator(detail+".open").count(),1);
+    await page.evaluate(()=>NowHotMenu.open());
+    await page.goBack();
+    await page.waitForFunction(()=>!history.state?.nhMenu);
+    assert.equal(await page.locator(detail+".open").count(),1);
+    await page.goBack();
+    await page.waitForFunction(selector=>!document.querySelector(selector+".open"),detail);
+    assert.equal(new URL(page.url()).pathname,path);
+  }
+});
+
+test("NH135 browser: Today menu settings persist into Live and failed saves roll back", options, async t => {
+  const {page,controls,base} = await fixture(t,"/");
+  await page.waitForSelector(".issue");
+  await page.click("#menuBtn");
+  await page.locator('#drawer [data-topic-toggle="politics"]').click();
+  await page.waitForFunction(()=>document.querySelector('#drawer [data-topic-toggle="politics"]').getAttribute("aria-pressed")==="true");
+  await Promise.all([page.waitForResponse(res=>new URL(res.url()).pathname==="/api/mix"),page.locator("#mixSlider").press("Home")]);
+  await Promise.all([page.waitForResponse(res=>new URL(res.url()).pathname==="/api/lean"),page.locator("#leanSlider").press("End")]);
+  assert.equal(controls.mixBalance,-1);assert.equal(controls.leanBalance,1);
+  await page.locator("#drawerSpaceBtn").click();
+  await page.waitForURL(base+"/live#space");
+  await page.waitForSelector("#space:not(.hidden)");
+  await page.goBack();
+  await page.waitForSelector("#space",{state:"hidden"});
+  await page.click("#menuBtn");
+  assert.equal(await page.locator("#mixSlider").inputValue(),"-100");
+  assert.equal(await page.locator("#leanSlider").inputValue(),"100");
+  assert.equal(await page.locator('#drawer [data-topic-toggle="politics"]').getAttribute("aria-pressed"),"true");
+  controls.failSave=true;
+  const failed=page.waitForResponse(res=>new URL(res.url()).pathname==="/api/mix"&&res.status()===503);
+  await page.locator("#mixSlider").press("End");await failed;
+  await page.waitForFunction(()=>document.getElementById("mixSlider").value==="-100"&&!document.getElementById("mixSlider").disabled);
+  assert.equal(await page.locator("#toast").evaluate(el=>!el.closest("[inert]")&&Number(getComputedStyle(el).zIndex)>Number(getComputedStyle(document.getElementById("drawer")).zIndex)),true);
+  assert.equal(controls.mixBalance,-1);
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(()=>!history.state?.nhMenu);
+  await page.goto(base+"/");
+  await page.waitForSelector(".issue");
+  await page.click("#menuBtn");
+  assert.equal(await page.locator("#mixSlider").inputValue(),"-100");
+  await page.locator("#chips button").filter({hasText:"경제"}).click();
+  await page.waitForURL(base+"/live");
+  await page.waitForSelector("#feed .card");
+  assert.equal(await page.evaluate(()=>localStorage.getItem("feed_cat")),"business");
 });
 
 test("browser: Today sharing copies the served edition and opens the same issue for another reader", options, async (t) => {
@@ -535,7 +653,7 @@ test("browser: same-tab original returns to detail then exact Live list/filter/s
   await page.waitForFunction(() => !document.querySelector("#detail.open"));
   assert.ok(Math.abs(await page.evaluate(() => scrollY) - scroll) < 4);
   assert.equal(await page.locator("#sortBar .active").getAttribute("data-sort"), "latest");
-  assert.equal(await page.locator("#chips .active").innerText(), "경제");
+  assert.equal(await page.locator("#chips .active").textContent(), "경제");
   await page.goForward();
   await page.waitForSelector("#detail.open");
   await page.click("#detailTitle");
@@ -559,7 +677,7 @@ test("browser: Live list source shortcut returns to the same filter/sort/scroll"
   await page.waitForFunction((expected) => Math.abs(scrollY - expected) < 4, scroll);
   assert.ok(Math.abs(await page.evaluate(() => scrollY) - scroll) < 4);
   assert.equal(await page.locator("#sortBar .active").getAttribute("data-sort"), "latest");
-  assert.equal(await page.locator("#chips .active").innerText(), "경제");
+  assert.equal(await page.locator("#chips .active").textContent(), "경제");
   assert.equal(await page.locator("#detail.open").count(), 0);
 });
 
@@ -800,7 +918,7 @@ test("NH127 browser: Today and Live restore granted subscriptions and expose the
     await page.waitForFunction(()=>document.getElementById("menuNotifications")?.textContent==="알림 연결됨");
     assert.equal(requests.filter(path=>path==="/api/push/subscribe").length,1);
     assert.equal(await page.evaluate(()=>window.__permissionRequests),0);
-    if(path==="/")await page.locator(".service-menu summary").click();
+    if(path==="/")await page.locator("#menuBtn").click();
     else await page.locator("#menuBtn").click();
     await page.locator("#menuNotifications").click();
     await page.waitForTimeout(100);
@@ -817,7 +935,7 @@ test("NH128 browser: Today and Live include app installation metadata and readab
     assert.equal(await page.locator('link[rel="manifest"]').getAttribute("href"),"/manifest.webmanifest");
     assert.equal(await page.locator('meta[name="apple-mobile-web-app-capable"]').getAttribute("content"),"yes");
     assert.equal(await page.locator('link[rel="apple-touch-icon"]').getAttribute("href"),"/apple-touch-icon.png");
-    if(path==="/")await page.locator(".service-menu summary").click();
+    if(path==="/")await page.locator("#menuBtn").click();
     else await page.locator("#menuBtn").click();
     await page.locator("#menuNotifications").click();
     assert.equal(await page.locator("#notificationHelp").isVisible(),true);
@@ -827,7 +945,7 @@ test("NH128 browser: Today and Live include app installation metadata and readab
     assert.equal(await page.evaluate(()=>window.__permissionRequests),0);
     if(path==="/")for(const viewport of [{width:393,height:568},{width:844,height:390}]){
       await page.setViewportSize(viewport);
-      const last=page.locator('.service-menu a[href="/privacy"]');
+      const last=page.locator('#drawer a[href="/privacy"]');
       await last.scrollIntoViewIfNeeded();
       const rect=await last.boundingBox();
       assert.ok(rect.y>=0&&rect.y+rect.height<=viewport.height,"last menu link stays reachable");

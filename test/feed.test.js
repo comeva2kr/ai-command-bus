@@ -3929,10 +3929,9 @@ test("온보딩 안내가 떠 있어도 메뉴가 눌린다", async () => {
   // elementFromPoint가 "지금핫에 오신 걸 환영해요" DIV를 돌려줬다.
   // 온보딩 오버레이 z-index 60 > 드로어 49라 **메뉴 전체가 안 눌리고 있었다.**
   const fsm = await import("node:fs");
-  const html = fsm.readFileSync("src/feed/public/index.html", "utf8");
-  const fn = html.slice(html.indexOf("function openDrawer(){"), html.indexOf("function closeDrawer(){"));
-  assert.match(fn, /getElementById\("onbBack"\)/, "메뉴를 열 때 온보딩을 안 치운다");
-  assert.match(fn, /onb\.remove\(\)/, "온보딩을 안 닫는다");
+  const menu = fsm.readFileSync("src/feed/public/site-menu.js", "utf8");
+  const fn = menu.slice(menu.indexOf("function open()"), menu.indexOf("function close("));
+  assert.match(fn, /\$\('onbBack'\)\?\.remove\(\)/, "공통 메뉴를 열 때 온보딩을 안 닫는다");
 });
 
 test("반응 없는 글에는 신선도 연장을 주지 않는다", async () => {

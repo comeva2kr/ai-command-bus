@@ -265,6 +265,9 @@ test("full regression: with zero provider env vars, /api/config lists no auth pr
     assert.equal(surveyRes.status, 200);
     const feedRes = await fetch(`${base}/api/feed?userId=${session.userId}&cursor=0&limit=5`);
     assert.equal(feedRes.status, 200);
+    const restored = await (await fetch(`${base}/api/session`, {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({userId:session.userId})})).json();
+    assert.ok(Number.isFinite(restored.level));
+    assert.ok(restored.level>session.level&&restored.level<=1,"the shared menu receives learned taste accuracy after the survey");
 
     const authSession = await (await fetch(`${base}/api/auth/session`)).json();
     assert.deepEqual(authSession, { loggedIn: false });

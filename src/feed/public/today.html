@@ -63,10 +63,6 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .icon-button{margin-left:auto;width:38px;height:38px;display:grid;place-items:center;border:1px solid var(--line);background:var(--paper);border-radius:6px;cursor:pointer}
 .icon-button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2}
 .icon-button[aria-busy="true"] svg{animation:turn .8s linear infinite}
-.service-menu{position:relative;flex-shrink:0}.service-menu summary{list-style:none;margin:0;font-size:20px}.service-menu summary::-webkit-details-marker{display:none}
-.service-menu nav{position:absolute;right:0;top:calc(100% + 10px);width:190px;max-height:calc(100dvh - 88px);overflow-y:auto;padding:8px;background:var(--paper);border:1px solid var(--line);border-radius:6px;box-shadow:var(--shadow)}
-.service-menu nav a,.service-menu nav button{display:block;padding:10px;border-radius:4px}.service-menu nav a:hover,.service-menu nav button:hover{background:var(--soft)}
-.service-menu nav button{width:100%;text-align:left;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
 #notificationHelp{margin:8px 10px;color:var(--sub);font-size:12px;line-height:1.6;white-space:pre-line}#notificationHelp:empty{display:none}
 @keyframes turn{to{transform:rotate(360deg)}}
 .page{max-width:1160px;margin:0 auto;padding:34px 22px 80px}
@@ -175,6 +171,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 }
 @media(prefers-reduced-motion:reduce){.icon-button[aria-busy="true"] svg,.sk{animation:none}.view-indicator{transition:none}}
 </style>
+<link rel="stylesheet" href="/site-menu.css?v=20260907">
 </head>
 <body>
 <header class="topbar">
@@ -191,20 +188,10 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
     <button class="icon-button" id="refresh" type="button" title="오늘판 새로고침" aria-label="오늘판 새로고침">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5"/><path d="M19 11a7 7 0 1 0 1 5"/></svg>
     </button>
-    <details class="service-menu">
-      <summary class="icon-button" aria-label="메뉴">☰</summary>
-      <nav aria-label="서비스 정보">
-        <button id="menuNotifications" type="button">알림 받기</button>
-        <p id="notificationHelp" role="status"></p>
-        <a href="/about">서비스 소개</a>
-        <a href="/about#updates">업데이트 기록</a>
-        <a href="/feedback">개선 요청</a>
-        <a href="/terms">이용약관</a>
-        <a href="/privacy">개인정보처리방침</a>
-      </nav>
-    </details>
+    <button id="menuBtn" class="menu-btn" type="button" title="메뉴" aria-label="메뉴 열기" aria-expanded="false" aria-controls="drawer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
   </div>
 </header>
+<div data-site-menu></div>
 
 <div class="page">
   <section class="edition-head" aria-labelledby="editionTitle">
@@ -255,7 +242,8 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
-<script src="/notice-guide.js?v=20260905"></script>
+<script src="/notice-guide.js?v=20260907-menu"></script>
+<script src="/site-menu.js?v=20260907"></script>
 <script>
 const state={userId:null,coupang:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,sharedEdition:null,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
 const $=(id)=>document.getElementById(id);
@@ -956,6 +944,44 @@ if("serviceWorker" in navigator){
   window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
 }
 
+function setupTodayMenu(session,config){
+  const save=(path,body)=>json(path,{method:"POST",body:JSON.stringify({userId:state.userId,...body})});
+  const goLive=(key,value)=>{if(value)localStorage.setItem(key,value);else localStorage.removeItem(key);NowHotMenu.navigate("/live");};
+  NowHotMenu.level(session);
+  NowHotMenu.categories(config.categories||[],localStorage.getItem("feed_cat"),(id)=>goLive("feed_cat",id));
+  $("drawerSpaceBtn").onclick=()=>NowHotMenu.navigate("/live#space");
+  $("immBtn").classList.toggle("on",localStorage.getItem("feed_immersion")==="1");
+  $("immBtn").onclick=()=>goLive("feed_immersion",localStorage.getItem("feed_immersion")==="1"?"0":"1");
+  const renderSources=communities=>{
+    const anyLive=communities.some(c=>(c.liveCount||0)>0);
+    const visible=communities.filter(c=>c.enabled&&!c.adult&&(!anyLive||(c.liveCount||0)>0));
+    NowHotMenu.sources(visible,localStorage.getItem("feed_src"),(id)=>goLive("feed_src",id),()=>NowHotMenu.navigate("/live#submit"));
+  };
+  renderSources([]);
+  json("/api/communities").then(result=>renderSources(result.communities||[])).catch(()=>{});
+  let topics=Array.isArray(session.showTopics)?session.showTopics:[];
+  function renderFilters(){
+    const el=$("drawerFilters");el.innerHTML=NowHotMenu.filters(topics);
+    el.querySelectorAll("[data-topic-toggle],[data-deal-toggle]").forEach(button=>{
+      button.onclick=async()=>{
+        const topic=button.dataset.topicToggle||"nodeal";button.disabled=true;
+        try{const result=await save("/api/topics",{topic,on:!topics.includes(topic)});
+          if(Array.isArray(result.showTopics))topics=result.showTopics;
+          localStorage.setItem("feed_topics",JSON.stringify(topics));toast("실시간·알림 필터를 저장했어요");
+        }catch(error){toast("저장 실패: "+error.message)}finally{renderFilters()}
+      };
+    });
+  }
+  renderFilters();
+  NowHotMenu.slider("mix",session.mixBalance||0,NowHotMenu.mixLabel,value=>save("/api/mix",{balance:value}).then(()=>toast("커뮤·뉴스 설정을 저장했어요")),error=>toast("저장 실패: "+error.message));
+  NowHotMenu.slider("lean",session.leanBalance||0,NowHotMenu.leanLabel,value=>save("/api/lean",{balance:value}).then(()=>toast("실시간 뉴스 균형을 저장했어요")),error=>toast("저장 실패: "+error.message));
+  let profile={loggedIn:false};
+  function renderAuth(){NowHotMenu.auth($("authDrawerSec"),{profile,providers:config.auth?.providers,userId:state.userId,
+    onLogout:async()=>{try{await json("/api/auth/logout",{method:"POST"});profile={loggedIn:false};renderAuth();toast("로그아웃했어요");}catch(error){toast("실패: "+error.message)}}});}
+  renderAuth();json("/api/auth/session").then(value=>{profile=value;renderAuth()}).catch(()=>{});
+  $("buildTag").textContent=config.build||"-";
+}
+
 (async function init(){
   try{
     const initialQuery=new URLSearchParams(location.search);
@@ -974,6 +1000,7 @@ if("serviceWorker" in navigator){
     ]);
     state.coupang=config.coupang||null;
     state.userId=session.userId;localStorage.setItem("feed_uid",session.userId);
+    setupTodayMenu(session,config);
     NowHotPush.restore(state.userId).then(connected=>{if(connected)$("menuNotifications").textContent="알림 연결됨"});
     if(Array.isArray(session.briefingCategories)&&session.briefingCategories.length){state.categories=session.briefingCategories;state.confirmedCategories=[...session.briefingCategories]}
     if(sharedCategories?.length)state.categories=[...sharedCategories];

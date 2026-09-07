@@ -48,7 +48,7 @@ import { TOPIC_CATALOG, FILTERABLE_TOPICS, FILTER_KEYS } from "./topics.js";
 import { latestRelease, releaseHistoryHtml } from "./release-notes.js";
 import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
-import { topPreferences } from "./recommender.js";
+import { topPreferences, specializationLevel } from "./recommender.js";
 import { categoryLabel, sourceLabel, tagLabel, isKnownCategory } from "./taxonomy.js";
 import { sendDigestPushes, sendEditionPushes } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
@@ -3379,6 +3379,7 @@ ${rankingRows(list, (above) => {
           nickname: user.nickname,
           surveyed: user.surveyed,
           feedbackCount: user.feedbackCount,
+          level: specializationLevel(user.preferences, user.feedbackCount),
           briefingCategories: user.briefingCategories || [],
           showTopics: user.showTopics || [],
           leanBalance: Number.isFinite(user.leanBalance) ? user.leanBalance : 0,

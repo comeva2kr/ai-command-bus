@@ -58,7 +58,9 @@ test("메뉴·드로어 배선이 부팅 경로에 남아 있다", () => {
   // 위 테스트는 "죽은 호출"을 잡지만, 배선 자체가 통째로 사라진 경우는 못 잡는다.
   // ☰ 메뉴는 나머지 기능 전부로 가는 유일한 입구라 따로 못 박는다.
   assert.match(HTML, /setupDrawer\(\)\s*;/, "setupDrawer 호출이 사라졌다");
-  assert.match(HTML, /getElementById\("menuBtn"\)\.onclick\s*=/, "메뉴 버튼 핸들러가 사라졌다");
+  assert.match(HTML, /src="\/site-menu\.js/);
+  const menu = fs.readFileSync("src/feed/public/site-menu.js", "utf8");
+  assert.match(menu, /button\.onclick=open/, "공통 메뉴 버튼 핸들러가 사라졌다");
 });
 
 // ── 스크립트 전체: 정의 없는 함수 호출 ─────────────────────────────────────
