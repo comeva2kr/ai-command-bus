@@ -14,6 +14,7 @@ const options = { skip: !chromium, timeout: 30000 };
 const origin = "https://nowhot.test";
 const category = { id: "business", label: "경제" };
 const { latestRelease } = await import("../src/feed/release-notes.js");
+const { SURVEY } = await import("../src/feed/survey.js");
 const release = {
   id: "2026-09-04-major",
   title: "오늘판과 실시간을 새롭게 정리했어요",
@@ -63,7 +64,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   context.setDefaultTimeout(4000);
   t.after(() => context.close());
   const requests = [];
-  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, leanBalance: 0, showTopics: [], auth: {}, authProfile: {}, failSave: false, sourceKind: "news", feedHandler: null, coupang: null, ...todaySeed.controls };
+  const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, leanBalance: 0, showTopics: [], auth: {}, authProfile: {}, failSave: false, sourceKind: "news", feedHandler: null, coupang: null, surveyAnswers: null, surveyWrites: [], ...todaySeed.controls };
   await context.addInitScript(({ realWorker, guideState, releaseId, iosTab }) => {
     if (!localStorage.getItem("__fixture_seeded")) {
       localStorage.clear();
@@ -99,12 +100,18 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
     if (url.origin !== base) return route.abort();
     if (url.pathname.startsWith("/api/")) {
       let body = {};
-      if (url.pathname === "/api/config") body = { categories: [category], topics: [], ads: {}, release,
+      if (url.pathname === "/api/config") body = { categories: [category], survey: SURVEY, topics: [], ads: {}, release,
         coupang: controls.coupang, auth: controls.auth, monetization: { enabled: Boolean(controls.coupang) } };
       if (url.pathname === "/api/session") body = { userId: "reader", identitySource: guideState === "new" ? "new" : "storage",
         surveyed: guideState !== "new", showTopics: controls.showTopics, briefingCategories: guideState === "new" ? [] : ["business"],
         mixBalance: controls.mixBalance, leanBalance: controls.leanBalance, level:0.62 };
       if (url.pathname === "/api/auth/session") body = controls.authProfile;
+      if (url.pathname === "/api/me") body = {surveyAnswers:controls.surveyAnswers,posts:[],comments:[],saved:[],mutedSources:[],counts:{posts:0,saved:0,likes:0,comments:0},taste:{categories:[],sources:[],tags:[]},topPreferences:{categories:[],sources:[],tags:[]},level:0.62};
+      if (url.pathname === "/api/survey") {
+        if(controls.failSave)return route.fulfill({status:503,json:{error:"저장 불가"}});
+        controls.surveyAnswers=route.request().postDataJSON().answers;
+        controls.surveyWrites.push(controls.surveyAnswers);body={ok:true};
+      }
       if (url.pathname === "/api/communities") body = { communities: [{ id: "test", label: "Test", kind: controls.sourceKind, enabled: true, adult: false, liveCount: 18 }] };
       if (url.pathname === "/api/feed") body = controls.feedHandler ? await controls.feedHandler(url) : { items, nextCursor: 18, exhausted: true, level:0.62 };
       if (["/api/mix", "/api/lean", "/api/topics"].includes(url.pathname)) {
@@ -1057,5 +1064,100 @@ test("NH129 browser: copy and push status messages remain readable in both theme
       await page.locator('[data-category="business"][aria-pressed="true"]').click();
       await check(/관심 분야를 하나 이상/);
     }
+  }
+});
+
+test("browser: NH136 first visit explains controls and continues to the setup course from either view", options, async t => {
+  for(const path of ["/", "/live"]){
+    const {page,controls}=await fixture(t,path,false,"new");
+    await page.setViewportSize({width:393,height:852});
+    await page.waitForSelector('#nhGuide[data-kind="tutorial"]');
+    await page.locator('.nh-guide-ok').click();
+    assert.match(await page.locator('#nhGuide').innerText(),/커뮤 · 뉴스 슬라이더/);
+    assert.match(await page.locator('#nhGuide').innerText(),/뉴스 균형 슬라이더/);
+    await page.getByRole('button',{name:'이전 안내',exact:true}).click();
+    assert.match(await page.locator('#nhGuideTitle').innerText(),/환영/);
+    await page.locator('.nh-guide-ok').click();
+    await page.locator('.nh-guide-ok').click();
+    assert.match(await page.locator('#nhGuide').innerText(),/콘텐츠 필터/);
+    assert.match(await page.locator('#nhGuide').innerText(),/소스 선택/);
+    await page.locator('.nh-guide-ok').click();
+    await page.waitForSelector('#survey:not(.hidden)');
+    assert.equal(new URL(page.url()).pathname,'/live');
+    assert.equal(await page.locator('#startBtn').isDisabled(),true);
+    await page.locator('[data-survey-question="categories"] .opt').filter({hasText:'경제/비즈니스'}).click();
+    await page.locator('#startBtn').click();
+    assert.match(await page.locator('#surveyProgress').innerText(),/2 \/ 3/);
+    await page.locator('[data-survey-question="communities"] .opt').first().click();
+    await page.locator('#startBtn').click();
+    await page.locator('#startBtn').click();
+    await page.waitForSelector('#survey.hidden',{state:'attached'});
+    assert.equal(controls.surveyWrites.length,1);
+    assert.deepEqual(controls.surveyAnswers.categories,['business']);
+    assert.equal(controls.surveyAnswers.communities.length,1);
+    assert.equal(new URL(page.url()).hash,'');
+    assert.equal(await page.locator('#feed').evaluate(el=>el.inert),false);
+    await page.close();
+  }
+});
+
+test("browser: NH136 menu setup preserves existing answers, cancel and failed save", options, async t => {
+  const answers={categories:['business'],communities:[],depth:'deep',tone:'balanced',tags:['tech'],avoid:['game']};
+  const {page,controls}=await fixture(t,'/live',false,'seen',false,false,{controls:{surveyAnswers:answers}});
+  await page.waitForSelector('#feed .card');
+  await page.click('#menuBtn');await page.click('#drawerSetupBtn');
+  await page.waitForSelector('#survey:not(.hidden)');
+  assert.equal(await page.locator('[data-survey-question="categories"] .sel').count(),1);
+  await page.goBack();await page.waitForSelector('#survey.hidden',{state:'attached'});
+  assert.equal(controls.surveyWrites.length,0);
+  assert.equal(new URL(page.url()).hash,'');
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'menuBtn');
+  await page.click('#menuBtn');await page.click('#drawerSetupBtn');
+  await page.waitForSelector('#survey:not(.hidden)');
+  await page.locator('#startBtn').click();await page.locator('#startBtn').click();
+  controls.failSave=true;await page.locator('#startBtn').click();
+  await page.waitForSelector('#surveyError:not([hidden])');
+  assert.match(await page.locator('#surveyError').innerText(),/保存|저장하지 못/);
+  assert.equal(controls.surveyWrites.length,0);
+  controls.failSave=false;await page.locator('#startBtn').click();
+  await page.waitForSelector('#survey.hidden',{state:'attached'});
+  assert.deepEqual(controls.surveyAnswers,answers);
+  assert.equal(controls.surveyWrites.length,1);
+  await page.click('#menuBtn');await page.click('#drawerSpaceBtn');
+  await page.waitForSelector('#retakeSurvey');await page.click('#retakeSurvey');
+  await page.waitForSelector('#survey:not(.hidden)');
+  assert.equal(await page.locator('#surveyTitle').evaluate(el=>document.elementFromPoint(el.getBoundingClientRect().x+5,el.getBoundingClientRect().y+5)===el),true);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#survey.hidden',{state:'attached'});
+  assert.equal(new URL(page.url()).hash,'#space');
+  assert.equal(await page.locator('#space').evaluate(el=>el.inert),false);
+});
+
+test("browser: NH136 shared menu opens login and returns to setup without locking anonymous settings", options, async t => {
+  for(const path of ['/?date=2026-09-03&slot=lunch','/live']){
+    const {page,base,controls}=await fixture(t,path,false,'seen',false,false,{controls:{auth:{providers:['google','kakao','naver']}}});
+    await page.waitForSelector('#drawerLoginBtn:not([hidden])',{state:'attached'});
+    await page.click('#menuBtn');await page.click('#drawerLoginBtn');
+    await page.waitForSelector('#nhGuide[data-kind="login"]');
+    const links=await page.locator('#nhGuide .auth-btn').evaluateAll(nodes=>nodes.map(n=>new URL(n.href).searchParams.get('returnTo')));
+    assert.deepEqual(links,[path,path,path]);
+    await page.goBack();await page.waitForSelector('#nhGuide',{state:'detached'});
+    assert.equal(new URL(page.url()).pathname,new URL(base+path).pathname);
+    await page.goto(base+'/live?auth=success&userId=reader#setup');
+    await page.waitForSelector('#survey:not(.hidden)');
+    assert.equal(new URL(page.url()).search,'');
+    assert.equal(new URL(page.url()).hash,'#setup');
+    await page.locator('[data-survey-question="categories"] .opt').filter({hasText:'경제/비즈니스'}).click();
+    await page.locator('#surveyAuthNudge summary').click();
+    await page.locator('#surveyAuthSec [data-provider="google"]').evaluate(link=>link.addEventListener('click',event=>event.preventDefault(),{once:true}));
+    await page.locator('#surveyAuthSec [data-provider="google"]').click();
+    assert.deepEqual(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('nh_setup_login_draft')).answers.categories),['business']);
+    await page.goto(base+'/live?auth=success&userId=reader#setup');
+    await page.waitForSelector('#survey:not(.hidden)');
+    assert.equal(await page.locator('[data-survey-question="categories"] .sel').count(),1);
+    assert.equal(controls.surveyWrites.length,0);
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('nh_setup_login_draft')),null);
+    await page.goBack();await page.waitForSelector('#survey.hidden',{state:'attached'});
+    await page.close();
   }
 });

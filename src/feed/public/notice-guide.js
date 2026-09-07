@@ -56,12 +56,12 @@
 
   document.addEventListener("keydown", (event) => {
     if (!active) return;
-    if (event.key === "Escape") close();
+    if (event.key === "Escape") { event.preventDefault(); event.stopImmediatePropagation(); close(); }
     if (event.key === "Tab") {
-      const controls = [...active.root.querySelectorAll("button,a[href]")];
+      const controls = [...active.root.querySelectorAll("button,a[href]")].filter(node=>node.getClientRects().length);
       if (!controls.length) return;
       const first = controls[0], last = controls.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement.id === "nhGuideTitle")) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
   });
@@ -79,18 +79,18 @@
     card.append(usage);
   }
 
-  function show({ release, isNewVisitor = false, skip = false } = {}) {
-    if (skip || active || location.hash || document.querySelector("#detail.open,#issueDetail.open,#drawer.open")) return false;
+  function show({ release, isNewVisitor = false, skip = false, onSetup, login } = {}) {
+    if (skip || active || (!login && (location.hash || document.querySelector("#detail.open,#issueDetail.open,#drawer.open,#survey:not(.hidden)")))) return false;
     const onboarded = read(ONBOARD_KEY);
     const seenRelease = read(RELEASE_KEY);
-    if (onboarded === undefined || seenRelease === undefined) return false;
-    const tutorial = onboarded !== "1" && (isNewVisitor || seenRelease === null);
+    if (!login && (onboarded === undefined || seenRelease === undefined)) return false;
+    const tutorial = !login && onboarded !== "1" && (isNewVisitor || seenRelease === null);
     const unseenRelease = release?.id && seenRelease !== release.id;
-    if (!tutorial && !unseenRelease) return false;
+    if (!login && !tutorial && !unseenRelease) return false;
 
-    const kind = tutorial ? "tutorial" : "release";
+    const kind = login ? "login" : tutorial ? "tutorial" : "release";
     if (tutorial) write(ONBOARD_KEY, "1");
-    if (release?.id) write(RELEASE_KEY, release.id);
+    if (!login && release?.id) write(RELEASE_KEY, release.id);
 
     const root = make("div", "nh-guide-back");
     root.id = "nhGuide";
@@ -104,12 +104,19 @@
     iconClose.setAttribute("aria-label", "안내 닫기");
     iconClose.dataset.nhGuideClose = "";
     const tag = make("p", "nh-guide-tag", tutorial ? "처음 사용하기" : "업데이트 소식");
-    const title = make("h2", "", tutorial ? "지금핫에 오신 걸 환영해요" : release.title || "지금핫이 새로워졌어요");
+    const title = make("h2", "", login ? "로그인 · 취향 이어가기" : tutorial ? "지금핫에 오신 걸 환영해요" : release.title || "지금핫이 새로워졌어요");
     title.id = "nhGuideTitle";
     const lead = make("p", "nh-guide-lead", tutorial
       ? "오늘 꼭 볼 흐름은 정리해서, 지금 뜨는 흐름은 빠르게 보여드립니다."
-      : `${release.date || ""} 업데이트한 내용을 알려드립니다.`.trim());
+      : `${release?.date || ""} 업데이트한 내용을 알려드립니다.`.trim());
     card.append(iconClose, tag, title, lead);
+    if (login) {
+      tag.textContent = "내 계정";
+      lead.textContent = "다른 기기에서도 내 취향을 이어가려면 로그인해 주세요.";
+      const auth = make("div");
+      login(auth);
+      card.append(auth);
+    }
 
     if (!tutorial && release?.items?.length) {
       const list = make("ul", "nh-guide-list");
@@ -125,10 +132,63 @@
       addUsage(card);
       card.append(make("p", "nh-guide-tip", "제목을 누르면 준비된 한국어 요약, 사진과 출처를 보고 원문으로 이동할 수 있습니다."));
     }
-    const ok = make("button", "nh-guide-ok", tutorial ? "지금핫 시작하기" : "확인했어요");
+    const ok = make("button", "nh-guide-ok", login ? "닫기" : tutorial ? "지금핫 시작하기" : "확인했어요");
     ok.type = "button";
     ok.dataset.nhGuideClose = "";
     card.append(ok);
+    if (tutorial) {
+      delete ok.dataset.nhGuideClose;
+      const content = make("div");
+      const usage = card.querySelector(".nh-guide-usage");
+      const tip = card.querySelector(".nh-guide-tip");
+      content.append(usage, tip);
+      card.insertBefore(content, ok);
+      const back = make("button", "nh-guide-close", "‹");
+      back.style.cssText = "position:static;margin:0 0 12px";
+      back.setAttribute("aria-label", "이전 안내");
+      card.insertBefore(back, content);
+      let step = 0;
+      const pages = [
+        ["지금핫에 오신 걸 환영해요", null],
+        ["보고 싶은 글의 균형을 맞춰요", [
+          ["커뮤 · 뉴스 슬라이더", "메뉴에서 커뮤 쪽이나 뉴스 쪽으로 움직여 선호도를 조절해요. 끝까지 옮기면 커뮤만 또는 뉴스만 봐요. 중간 숫자는 정확한 노출 비율이 아니에요."],
+          ["뉴스 균형 슬라이더", "뉴스 안에서 진보·보수 성향의 선호를 조절해요. 가운데는 고르게, 한쪽으로 옮겨도 반대쪽 소식이 완전히 사라지지는 않아요."]
+        ]],
+        ["필터와 소스로 골라 봐요", [
+          ["콘텐츠 필터", "정치·종교 글과 핫딜을 볼지 메뉴에서 정해요. 실시간과 개별 글 알림에 적용돼요. 관심 주제가 있어도 숨긴 콘텐츠는 알림에서 제외해요."],
+          ["소스 선택", "메뉴의 소스를 누르면 실시간에서 그 출처의 글만 모아 봐요. 글 상세의 ‘그만보기’로 출처를 숨길 수도 있어요. 다음 화면에서는 평소 좋아하는 주제와 소스를 고릅니다."]
+        ]]
+      ];
+      function paint() {
+        tag.textContent = `처음 사용하기 · ${step + 1} / ${pages.length}`;
+        title.textContent = pages[step][0];
+        title.tabIndex = -1;
+        lead.textContent = step === 0 ? "기능을 둘러보고 나에게 맞는 주제를 골라보세요. 언제든 건너뛸 수 있어요." : "두 화면의 같은 메뉴에서 언제든 바꿀 수 있어요. 이 슬라이더와 소스 선택은 실시간 보기 설정입니다.";
+        content.replaceChildren();
+        if (step === 0) content.append(usage, tip);
+        else {
+          const list = make("div", "nh-guide-usage");
+          for (const [heading, text] of pages[step][1]) {
+            const section = make("section");
+            section.append(make("h3", "", heading), make("p", "", text)); list.append(section);
+          }
+          content.append(list);
+        }
+        back.hidden = step === 0;
+        ok.textContent = step === pages.length - 1 ? "관심 주제 고르기" : "다음";
+        card.scrollTop = 0;
+      }
+      back.onclick = () => { step--; paint(); title.focus(); };
+      ok.onclick = () => {
+        if (step < pages.length - 1) { step++; paint(); title.focus(); }
+        else close(() => onSetup ? onSetup() : location.assign("/live#setup"));
+      };
+      const skipButton = make("button", "", "건너뛰고 둘러보기");
+      skipButton.style.cssText = "display:block;margin:14px auto 0;border:0;background:none;color:inherit;min-height:36px";
+      skipButton.dataset.nhGuideClose = "";
+      card.append(skipButton);
+      paint();
+    }
     root.append(card);
 
     const token = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;

@@ -483,8 +483,9 @@
   .comment-form button { background: var(--accent); color: #fff; border: none; border-radius: 12px; padding: 0 16px; font-weight: 600; }
 
   /* survey */
-  #survey { position: fixed; inset: 0; z-index: 60; background: var(--bg); overflow-y: auto; max-width: 720px; margin: 0 auto; }
+  #survey { position: fixed; inset: 0; z-index: 90; background: var(--bg); overflow-y: auto; max-width: 720px; margin: 0 auto; }
   .survey-inner { padding: calc(28px + env(safe-area-inset-top)) 20px 40px; }
+  #surveyTitle:focus { outline: none; }
   .survey-inner h1 { font-size: 24px; margin: 0 0 6px; }
   .survey-inner .lead { color: var(--muted); font-size: 14px; margin: 0 0 26px; line-height: 1.6; }
   .q { margin-bottom: 26px; }
@@ -515,7 +516,7 @@
   /* 취향 선택 전 로그인 유도  */
   .survey-auth { background: var(--card); border: 1px solid rgba(79,140,255,.35); border-radius: 14px;
     padding: 14px; margin: 0 0 22px; }
-  .survey-auth-msg { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .survey-auth-msg { display: flex; flex-direction: column; gap: 5px; margin: 12px 0; }
   .survey-auth-msg b { font-size: 14.5px; }
   .survey-auth-msg span { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
   .survey-auth .auth-hint { display: none; } /* 위 문구와 중복 */
@@ -1016,7 +1017,7 @@
   .survey-nudge,.nudge{border-radius:0!important}
 
 </style>
-<link rel="stylesheet" href="/site-menu.css?v=20260907">
+<link rel="stylesheet" href="/site-menu.css?v=20260907-setup">
 </head>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -1106,27 +1107,29 @@
   </section>
 
   <!-- onboarding survey -->
-  <section id="survey" class="hidden">
+  <section id="survey" class="hidden" role="dialog" aria-modal="true" aria-labelledby="surveyTitle">
     <div class="survey-inner">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
         <button class="back" id="surveyBack" aria-label="뒤로" hidden>‹</button>
-        <h1 style="margin:0;flex:1">취향을 알려주세요</h1>
+        <h1 id="surveyTitle" tabindex="-1" style="margin:0;flex:1">나한테 맞게 설정하기</h1>
         <button id="surveySkip" style="background:none;border:none;color:var(--muted);font-size:14px">나중에 고를게요</button>
       </div>
-      <p class="lead">관심 주제만 톡톡 고르면 그에 맞는 글을 모아드려요. 좋아요/싫어요로 계속 정확해집니다.</p>
+      <p id="surveyProgress" class="lead" aria-live="polite"></p>
+      <p id="surveyError" role="alert" hidden></p>
 
       <!-- 취향 선택 **전** 로그인 유도 .
            지금 고르는 취향은 이 브라우저에만 저장된다 — 폰에서 고르고 PC로 오면
            처음부터 다시 골라야 한다는 사실을 고르기 전에 알려준다. 로그인은
            여전히 선택이고(익명으로도 전부 동작), 안 하면 뭘 잃는지만 밝힌다. -->
-      <div id="surveyAuthNudge" class="survey-auth hidden">
+      <details id="surveyAuthNudge" class="survey-auth hidden">
+        <summary style="cursor:pointer;font-weight:700">로그인하고 취향 이어가기 (선택)</summary>
         <div class="survey-auth-msg">
           <b>로그인하면 이 취향이 계속 따라와요</b>
           <span>지금 고른 취향은 이 브라우저에만 저장돼요. 로그인하면 폰·PC 어디서 열어도 그대로예요.</span>
         </div>
         <div id="surveyAuthSec"></div>
         <button type="button" id="surveyAuthSkip">로그인 없이 계속</button>
-      </div>
+      </details>
 
       <div id="questions"></div>
 
@@ -1150,8 +1153,8 @@
 
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
-<script src="/notice-guide.js?v=20260907-menu"></script>
-<script src="/site-menu.js?v=20260907"></script>
+<script src="/notice-guide.js?v=20260907-setup"></script>
+<script src="/site-menu.js?v=20260907-setup"></script>
 <script type="module">
 const API = {
   async session(userId) { return post("/api/session", { userId }); },
@@ -1579,7 +1582,7 @@ setupViewSwitch();
 // ---- boot ----
 (async function boot(){
   const isNewVisitor = !state.userId;
-  const menuAction=["#space","#submit"].includes(location.hash)?location.hash:null;
+  const menuAction=["#space","#submit","#setup"].includes(location.hash)?location.hash:null;
   if(menuAction)history.replaceState(history.state,"",location.pathname+location.search);
   // parallel fetch so the first paint isn't three serial round-trips
   const [config, rulesRes, s, communitiesRes] = await Promise.all([
@@ -1637,7 +1640,7 @@ setupViewSwitch();
   const guideSkip = Boolean(state.pendingWorkerUrl) || Boolean(postIdFromHash(location.hash));
   if(state.pendingWorkerUrl){const url=state.pendingWorkerUrl;state.pendingWorkerUrl=null;workerNavigate(url)}
   else openFromHash();
-  restored.then(()=>NowHotNoticeGuide.show({release:config?.release,isNewVisitor,skip:Boolean(menuAction)||guideSkip||Boolean(postIdFromHash(location.hash))}));
+  restored.then(()=>NowHotNoticeGuide.show({release:config?.release,isNewVisitor,onSetup:showSurvey,skip:Boolean(menuAction)||guideSkip||Boolean(postIdFromHash(location.hash))}));
   if(!s.surveyed) showPersonalizeBanner(); else showDigest();
   maybeShowAdNotice();
   setupImmersion();
@@ -1649,6 +1652,7 @@ setupViewSwitch();
   renderAuthBlock(document.getElementById("authDrawerSec"));
   if(menuAction==="#space")openSpace();
   if(menuAction==="#submit")openSubmitModal();
+  if(menuAction==="#setup")showSurvey();
   if(window.__authRedirectResult === "success") toast("로그인했어요");
   else if(window.__authRedirectResult === "error") toast("로그인에 실패했어요. 다시 시도해주세요.");
 })();
@@ -2212,6 +2216,7 @@ function openDrawer(){ NowHotMenu.open(); }
 function closeDrawer(){ NowHotMenu.close(); }
 function setupDrawer(){
   document.getElementById("drawerSpaceBtn").onclick=()=>NowHotMenu.close(false,openSpace);
+  document.getElementById("drawerSetupBtn").onclick=()=>NowHotMenu.close(true,showSurvey);
 }
 
 // ---- 몰입 모드 (community × TikTok, but for text) ----
@@ -2455,12 +2460,12 @@ function setupSpace(){
     if(location.hash.startsWith("#space")) history.back(); else closeSpace();
   };
 }
-async function openSpace(){
+async function openSpace(refresh=false){
   const el = document.getElementById("space");
   const body = document.getElementById("spaceBody");
   body.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><div class="loading-msg">글을 불러오는 중…</div></div>';
   el.classList.remove("hidden");
-  history.pushState({ view:"space" }, "", "#space");
+  if(!refresh)history.pushState({ ...history.state, view:"space" }, "", "#space");
   try {
     const s = await API.mySpace(state.userId);
     // 저장된 취향 답을 기억해 둔다 — 재설정 화면이 "처음부터 다시"가 아니라
@@ -2525,18 +2530,7 @@ async function openSpace(){
     // 바뀌었으니 배선도 여기서 다시 한다 — 안 하면 칩이 눌리지 않는다.
     setupThemeChips();
     const retake = document.getElementById("retakeSurvey");
-    if(retake) retake.onclick = ()=>{
-      closeSpace();
-      const sv = document.getElementById("survey");
-      sv.classList.remove("hidden");
-      sv.scrollTop = 0;
-      // 최초 온보딩에는 돌아갈 곳이 없지만 재설정으로 들어왔으면 취소할 수
-      // 있어야 한다. 나가면 기존 취향은 그대로 남는다(저장은 제출할 때만).
-      const back = document.getElementById("surveyBack");
-      back.hidden = false;
-      back.onclick = ()=>{ sv.classList.add("hidden"); back.hidden = true; openSpace(); };
-      showSurvey();
-    };
+    if(retake) retake.onclick = ()=>showSurvey();
     // 발자취 카드 → 상세 (앱 안에서 열고 새 탭으로 나가지 않는다)
     body.querySelectorAll(".trail-card").forEach(a=>{
       a.onclick = (e)=>{ e.preventDefault(); closeSpace(); openDetail(a.dataset.detail); };
@@ -2567,6 +2561,7 @@ const AUTH_PROVIDER_META = {
 };
 function renderAuthBlock(container){
   NowHotMenu.auth(container,{profile:state.authProfile,providers:state.config?.auth?.providers,userId:state.userId,
+    returnTo:container?.id==="surveyAuthSec"?"/live#setup":location.pathname+location.search+location.hash,
     onLogout:async()=>{try{await API.logout();state.authProfile={loggedIn:false};renderAuthBlock(container);toast("로그아웃했어요");}catch(error){toast("실패: "+error.message);}},
     wireLogin:wireKakaoAppLogin});
 }
@@ -2619,7 +2614,7 @@ function wireKakaoAppLogin(container){
     try {
       const [Kakao, s] = await Promise.all([
         loadKakaoSdk(jsKey),
-        fetch(`/api/auth/kakao/state?userId=${encodeURIComponent(state.userId||"")}`).then(r=>{
+        fetch(`/api/auth/kakao/state?userId=${encodeURIComponent(state.userId||"")}&returnTo=${encodeURIComponent(new URL(link.href).searchParams.get("returnTo")||"/live")}`).then(r=>{
           if(!r.ok) throw new Error("state 발급 실패"); return r.json();
         })
       ]);
@@ -2676,12 +2671,64 @@ function renderSurveyAuthNudge(){
   if(skip) skip.onclick = ()=> box.classList.add("hidden");
 }
 
-function showSurvey(){
+let surveySession = null, surveyLoading = false;
+function hideSurvey(){
+  if(!surveySession)return;
+  const { locked, overflow, focus, after } = surveySession;
+  surveySession = null;
+  document.getElementById("survey").classList.add("hidden");
+  for(const [node, value] of locked)node.inert=value;
+  document.body.style.overflow=overflow;
+  if(focus?.isConnected)focus.focus({preventScroll:true});
+  after?.();
+}
+function closeSurvey(after){
+  if(!surveySession)return;
+  surveySession.after=typeof after==="function"?after:null;
+  if(history.state?.nhSurvey===surveySession.token)history.back();else hideSurvey();
+}
+addEventListener("popstate", event=>{
+  if(!surveySession || event.state?.nhSurvey===surveySession.token)return;
+  hideSurvey();event.stopImmediatePropagation();
+},true);
+document.addEventListener("keydown", event=>{
+  if(!surveySession)return;
+  if(event.key==="Escape"){event.preventDefault();closeSurvey();}
+  if(event.key==="Tab"){
+    const nodes=[...document.querySelectorAll('#survey button:not([disabled]),#survey a[href],#survey textarea,#survey summary')].filter(el=>el.getClientRects().length);
+    const first=nodes[0],last=nodes.at(-1);
+    if(event.shiftKey&&(document.activeElement===first||document.activeElement===document.getElementById("surveyTitle"))){event.preventDefault();last?.focus();}
+    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
+  }
+},true);
+async function showSurvey(){
+  if(surveyLoading||surveySession)return;
+  if(document.getElementById("nhGuide")){NowHotNoticeGuide.close(showSurvey);return;}
+  surveyLoading=true;
+  try{
+    const saved=await API.mySpace(state.userId);
+    state.surveyAnswers=saved.surveyAnswers||null;
+  }catch(error){toast("현재 취향을 불러오지 못했어요. 다시 눌러주세요.");return;}
+  finally{surveyLoading=false;}
   renderSurveyAuthNudge();
   const wrap = document.getElementById("questions");
   // 지금 설정된 값에서 시작한다. 예전엔 매번 빈 화면이라 무엇을 골랐었는지
   // 알 수 없었고, 하나만 바꾸려 해도 전부 다시 골라야 했다(David 2026-08-05).
-  const saved = state.surveyAnswers || null;
+  let saved = state.surveyAnswers || null;
+  try{
+    const raw=sessionStorage.getItem("nh_setup_login_draft");
+    if(window.__authRedirectResult&&raw){
+      sessionStorage.removeItem("nh_setup_login_draft");
+      const draft=JSON.parse(raw),age=Date.now()-draft.at;
+      const entries=Object.entries(draft.answers||{});
+      const valid=entries.every(([id,value])=>{
+        const q=state.config.survey.find(q=>q.id===id);
+        return q&&(q.type==="multi"?Array.isArray(value):typeof value==="string")&&
+          (Array.isArray(value)?value:[value]).every(option=>q.options.some(o=>o.id===option));
+      });
+      if(age>=0&&age<600000&&valid)saved=draft.answers;
+    }
+  }catch{}
   const answers = {};
   if (saved) {
     for (const [k, v] of Object.entries(saved)) answers[k] = Array.isArray(v) ? v.slice() : v;
@@ -2689,7 +2736,8 @@ function showSurvey(){
   wrap.innerHTML = "";
   for(const q of state.config.survey){
     const qEl = document.createElement("div"); qEl.className="q";
-    qEl.innerHTML = `<div class="prompt">${q.prompt}</div>`;
+    qEl.dataset.surveyQuestion=q.id;
+    const prompt=document.createElement("div");prompt.className="prompt";prompt.textContent=q.prompt;qEl.append(prompt);
     const opts = document.createElement("div"); opts.className="opts";
     for(const o of q.options){
       const b = document.createElement("button"); b.className="opt"; b.textContent=o.label;
@@ -2697,6 +2745,7 @@ function showSurvey(){
       // 거기서 이어서 고칠 수 있다.
       const cur = answers[q.id];
       if (Array.isArray(cur) ? cur.includes(o.id) : cur === o.id) b.classList.add("sel");
+      b.setAttribute("aria-pressed",String(b.classList.contains("sel")));
       b.onclick = ()=>{
         if(q.type==="multi"){
           answers[q.id] = answers[q.id]||[];
@@ -2707,6 +2756,7 @@ function showSurvey(){
           answers[q.id]=o.id;
           [...opts.children].forEach(c=>c.classList.remove("sel")); b.classList.add("sel");
         }
+        for(const option of opts.children)option.setAttribute("aria-pressed",String(option.classList.contains("sel")));
         document.getElementById("startBtn").disabled = !(answers.categories && answers.categories.length);
       };
       opts.appendChild(b);
@@ -2716,6 +2766,10 @@ function showSurvey(){
   // 이미 고른 값이 있으면 제출을 처음부터 열어 둔다 — 하나만 바꾸러 들어온
   // 사람에게 "아무것도 안 눌렀으니 제출 불가"는 말이 안 된다.
   document.getElementById("startBtn").disabled = !(answers.categories && answers.categories.length);
+  document.getElementById("surveyAuthSec").onclick=event=>{
+    if(!event.target.closest("a[data-provider]"))return;
+    try{sessionStorage.setItem("nh_setup_login_draft",JSON.stringify({at:Date.now(),answers}));}catch{}
+  };
   // warm-start from browsing history
   document.getElementById("histSample").onclick = ()=>{
     document.getElementById("histInput").value =
@@ -2734,19 +2788,59 @@ function showSurvey(){
     } catch(e){ toast("유추 실패: "+e.message); }
   };
 
-  document.getElementById("surveySkip").onclick = ()=>{
-    document.getElementById("survey").classList.add("hidden"); // keep browsing the preview feed
+  const survey=document.getElementById("survey"), next=document.getElementById("startBtn"), back=document.getElementById("surveyBack");
+  const title=document.getElementById("surveyTitle"), error=document.getElementById("surveyError");
+  let step=0,saving=false;
+  const steps=[
+    ["관심 주제", "1 / 3 · 관심 주제 — 한 개 이상 고르세요. 실시간 추천과 개별 글 알림에 반영돼요. 오늘판의 분야는 오늘 화면 상단에서 따로 고를 수 있어요."],
+    ["선호 소스", "2 / 3 · 선호 소스 — 선택 사항이에요. 고른 출처를 더 선호해요. 그 소스의 글만 보려면 메뉴의 소스 선택을 이용하세요."],
+    ["세부 취향", "3 / 3 · 세부 취향 — 선택 사항이에요. 읽는 방식과 관심사, 피하고 싶은 주제를 골라주세요. 마지막 버튼을 누르면 저장돼요."]
+  ];
+  function paint(){
+    title.textContent=steps[step][0];
+    document.getElementById("surveyProgress").textContent=steps[step][1];
+    for(const q of wrap.children)q.hidden=(q.dataset.surveyQuestion==="categories"?0:q.dataset.surveyQuestion==="communities"?1:2)!==step;
+    survey.querySelector(".warmstart").hidden=step!==2;
+    document.getElementById("surveyAuthNudge").classList.toggle("hidden",step!==0||Boolean(state.authProfile?.loggedIn)||!state.config.auth?.providers?.length);
+    back.hidden=false;back.setAttribute("aria-label",step?"이전 단계":"설정 닫기");
+    next.textContent=step===2?"이 취향으로 시작하기":"다음";
+    next.disabled=!(answers.categories&&answers.categories.length);
+    survey.scrollTop=0;title.focus();
+  }
+  back.onclick=()=>{if(saving)return;if(step){step--;paint();}else closeSurvey();};
+  document.getElementById("surveySkip").onclick=()=>{if(!saving)closeSurvey();};
+  error.hidden=true;
+  next.onclick=async()=>{
+    if(saving)return;
+    if(step<2){step++;paint();return;}
+    saving=true;next.disabled=true;error.hidden=true;wrap.inert=true;
+    survey.querySelector(".warmstart").inert=true;
+    const submitted=JSON.parse(JSON.stringify(answers));
+    try{
+      await API.saveSurvey(state.userId, submitted);
+      state.surveyAnswers=submitted;state.surveyed=true;
+      document.getElementById("pbanner")?.remove();
+      const completed=()=>{
+        reloadFeedSilently();
+        if(!document.getElementById("space").classList.contains("hidden"))openSpace(true);
+        toast("취향을 저장했어요");
+      };
+      if(surveySession?.token===token)closeSurvey(completed);else completed();
+    }catch(e){if(surveySession?.token===token){error.textContent="저장하지 못했어요. 선택은 그대로 두었으니 다시 시도해 주세요.";error.hidden=false;error.scrollIntoView({block:"nearest"});}else toast("취향을 저장하지 못했어요. 다시 시도해 주세요.");}
+    finally{saving=false;if(surveySession?.token===token){next.disabled=false;wrap.inert=false;survey.querySelector(".warmstart").inert=false;}}
   };
-  document.getElementById("startBtn").onclick = async ()=>{
-    try {
-      await API.saveSurvey(state.userId, answers);
-      state.surveyed = true;
-      document.getElementById("survey").classList.add("hidden");
-      const pb=document.getElementById("pbanner"); if(pb) pb.remove();
-      reloadFeedSilently(); toast("취향 반영됨");
-    } catch(e){ toast("설문 오류: "+e.message); }
-  };
-  document.getElementById("survey").classList.remove("hidden");
+  const locked=[];
+  for(const node of document.body.children){
+    if(node===survey||node.id==="toast"||["SCRIPT","STYLE"].includes(node.tagName))continue;
+    locked.push([node,node.inert]);node.inert=true;
+  }
+  const token=crypto.randomUUID();
+  wrap.inert=false;survey.querySelector(".warmstart").inert=false;
+  surveySession={token,locked,overflow:document.body.style.overflow,focus:document.activeElement};
+  document.body.style.overflow="hidden";
+  survey.classList.remove("hidden");
+  history.pushState({...history.state,nhSurvey:surveySession.token},"","#setup");
+  paint();
 }
 
 // ---- chips (category filter, client-side) ----

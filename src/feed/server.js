@@ -3405,7 +3405,7 @@ ${rankingRows(list, (above) => {
           // that user's preferences/ratings/saved posts onto the linked
           // account instead of starting a fresh empty one (취향 승계).
           const anonymousUserId = url.searchParams.get("userId") || null;
-          const state = authStates.issue(provider, anonymousUserId);
+          const state = authStates.issue(provider, anonymousUserId, Date.now(), url.searchParams.get("returnTo"));
           const target = buildAuthorizeUrl(cfg, { state, redirectUri });
           res.writeHead(302, { location: target });
           return res.end();
@@ -3422,7 +3422,7 @@ ${rankingRows(list, (above) => {
         if (action === "state" && req.method === "GET") {
           const anonymousUserId = url.searchParams.get("userId") || null;
           return send(res, 200, {
-            state: authStates.issue(provider, anonymousUserId),
+            state: authStates.issue(provider, anonymousUserId, Date.now(), url.searchParams.get("returnTo")),
             redirectUri
           });
         }
@@ -3430,12 +3430,17 @@ ${rankingRows(list, (above) => {
         if (action === "callback" && req.method === "GET") {
           const entry = authStates.consume(url.searchParams.get("state"));
           const code = url.searchParams.get("code");
-          // Invalid/expired/replayed/forged state, or the provider didn't
-          // hand back a code (e.g. the user cancelled consent) -> bounce home
-          // with an error flag rather than a raw 400, since a human just got
-          // redirected here from the provider's own consent screen.
+          const resultLocation = (auth, userId) => {
+            const target = new URL(entry?.provider === provider ? entry.returnTo : "/", "https://nowhot.invalid");
+            target.searchParams.set("auth", auth);
+            target.searchParams.delete("userId");
+            if (userId) target.searchParams.set("userId", userId);
+            return target.pathname + target.search + target.hash;
+          };
+          // Invalid state returns home; cancellation with a valid state returns
+          // to its approved screen. Both show an error flag rather than a raw 400.
           if (!entry || entry.provider !== provider || !code) {
-            res.writeHead(302, { location: "/?auth=error" });
+            res.writeHead(302, { location: resultLocation("error") });
             return res.end();
           }
           try {
@@ -3456,13 +3461,13 @@ ${rankingRows(list, (above) => {
             const token = store.createSession(user.id);
             const secure = (req.headers["x-forwarded-proto"] || "http") === "https";
             res.writeHead(302, {
-              location: `/?auth=success&userId=${encodeURIComponent(user.id)}`,
+              location: resultLocation("success", user.id),
               "set-cookie": serializeSessionCookie(token, { secure })
             });
             return res.end();
           } catch (err) {
             console.warn(`[auth] ${provider} callback failed:`, err && err.message ? err.message : err);
-            res.writeHead(302, { location: "/?auth=error" });
+            res.writeHead(302, { location: resultLocation("error") });
             return res.end();
           }
         }

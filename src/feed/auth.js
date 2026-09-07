@@ -152,7 +152,7 @@ export async function completeOAuth(provider, cfg, { code, redirectUri }, opts =
 // ---- CSRF state tokens ----
 //
 // A short-lived, single-use, server-side-only mapping from a random state
-// value to { provider, anonymousUserId }. The provider only ever echoes the
+// value to { provider, anonymousUserId, returnTo }. The provider only ever echoes the
 // state back — it never sees or needs to know the anonymous userId, so this
 // is also how the anonymous-user-to-inherit-into rides along the redirect
 // round trip without exposing it to the provider or a query param an
@@ -160,15 +160,23 @@ export async function completeOAuth(provider, cfg, { code, redirectUri }, opts =
 // able — see the "state 위조 거부" test in test/auth.test.js).
 const STATE_TTL_MS = 10 * 60 * 1000;
 
+function safeReturnTo(value) {
+  // Only the two consumer screens can receive an OAuth result.
+  if (typeof value !== "string" || !/^\/(?:live)?(?:[?#]|$)/.test(value) ||
+      /[\\\u0000-\u001f\u007f]|%(?:0[\da-f]|1[\da-f]|7f|5c)/i.test(value)) return "/";
+  const url = new URL(value, "https://nowhot.invalid");
+  return url.pathname + url.search + url.hash;
+}
+
 export class AuthStateStore {
   constructor() {
-    this._states = new Map(); // state -> { provider, anonymousUserId, expiresAt }
+    this._states = new Map(); // state -> { provider, anonymousUserId, returnTo, expiresAt }
   }
 
-  issue(provider, anonymousUserId, nowMs = Date.now()) {
+  issue(provider, anonymousUserId, nowMs = Date.now(), returnTo = "/") {
     this._prune(nowMs);
     const state = crypto.randomBytes(24).toString("hex");
-    this._states.set(state, { provider, anonymousUserId: anonymousUserId || null, expiresAt: nowMs + STATE_TTL_MS });
+    this._states.set(state, { provider, anonymousUserId: anonymousUserId || null, returnTo: safeReturnTo(returnTo), expiresAt: nowMs + STATE_TTL_MS });
     return state;
   }
 

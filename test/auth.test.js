@@ -99,6 +99,22 @@ test("AuthStateStore.issue carries a null anonymousUserId through when none was 
   assert.equal(entry.anonymousUserId, null);
 });
 
+test("OAuth returnTo keeps consumer query/hash and rejects external, privileged or control-character targets", () => {
+  const states = new AuthStateStore();
+  for (const target of ["/", "/live#setup", "/live?sort=latest#space", "/?date=2026-09-07&slot=lunch#issue=x"]) {
+    const state = states.issue("google", null, Date.now(), target);
+    assert.equal(states.consume(state).returnTo, target);
+    assert.equal(states.consume(state), null, "a destination does not make a state reusable");
+  }
+  for (const target of [undefined, null, "https://evil.test/live", "//evil.test", "/\\evil.test",
+    "/live\\evil", "/live\n", "/live?x=%0d%0aLocation:evil", "/live#%5c", "/api/auth/google/login",
+    "/admin.html", "/today", "/live/../admin.html", "/%2f%2fevil.test"]) {
+    assert.equal(states.consume(states.issue("google", null, Date.now(), target)).returnTo, "/", String(target));
+  }
+  const expired = states.issue("google", null, 1000, "/live#setup");
+  assert.equal(states.consume(expired, 1000 + 11 * 60 * 1000), null);
+});
+
 // ---- cookies ----
 
 test("parseCookies splits a Cookie header into a key->value map", () => {
@@ -302,6 +318,57 @@ test("GET /api/auth/:provider/login 302s to the provider's own authorize URL wit
   } finally {
     server.close();
   }
+});
+
+test("OAuth browser login and Kakao SDK state return to the original screen; callback targets cannot override state", async () => {
+  const { server, base } = await startServer({
+    authEnv: { GOOGLE_CLIENT_ID: "gid", GOOGLE_CLIENT_SECRET: "gs", KAKAO_CLIENT_ID: "kid", KAKAO_CLIENT_SECRET: "ks" },
+    authFetch: url => fakeFetchFor(String(url).includes("kakao") ? "kakao" : "google")(url)
+  });
+  try {
+    for (const [provider, action, target] of [["google", "login", "/live#setup"],
+      ["google", "login", "/?date=2026-09-07&slot=lunch#issue=x"],
+      ["kakao", "state", "/live?sort=latest&auth=stale&userId=stale#space"]]) {
+      const start = await fetch(`${base}/api/auth/${provider}/${action}?returnTo=${encodeURIComponent(target)}`, { redirect: "manual" });
+      const state = action === "state" ? (await start.json()).state : new URL(start.headers.get("location")).searchParams.get("state");
+      const callback = `${base}/api/auth/${provider}/callback?state=${state}&code=ok&returnTo=https://evil.test/`;
+      const result = await fetch(callback, { redirect: "manual" });
+      const actual = new URL(result.headers.get("location"), base), expected = new URL(target, base);
+      assert.equal(actual.origin, expected.origin);
+      assert.equal(actual.pathname, expected.pathname);
+      assert.equal(actual.hash, expected.hash);
+      assert.equal(actual.searchParams.get("auth"), "success");
+      assert.ok(actual.searchParams.get("userId") && actual.searchParams.get("userId") !== "stale");
+      for (const [key, value] of expected.searchParams) {
+        if (!["auth", "userId"].includes(key)) assert.equal(actual.searchParams.get(key), value);
+      }
+      assert.match(result.headers.get("set-cookie"), /feed_session=/);
+      const replay = await fetch(callback, { redirect: "manual" });
+      assert.equal(replay.headers.get("location"), "/?auth=error");
+      assert.equal(replay.headers.get("set-cookie"), null);
+    }
+    const unsafe = await fetch(`${base}/api/auth/google/login?returnTo=${encodeURIComponent("//evil.test/")}`, { redirect: "manual" });
+    const state = new URL(unsafe.headers.get("location")).searchParams.get("state");
+    const result = await fetch(`${base}/api/auth/google/callback?state=${state}&code=ok`, { redirect: "manual" });
+    assert.equal(new URL(result.headers.get("location"), base).pathname, "/");
+  } finally { server.close(); }
+});
+
+test("OAuth cancellation and exchange failure return to the validated screen without a session; provider mismatch falls home", async () => {
+  const { server, base } = await startServer({
+    authEnv: { GOOGLE_CLIENT_ID: "gid", GOOGLE_CLIENT_SECRET: "gs", KAKAO_CLIENT_ID: "kid", KAKAO_CLIENT_SECRET: "ks" },
+    authFetch: async () => ({ ok: false, status: 400 })
+  });
+  try {
+    for (const [provider, code, expected] of [["google", "", "/live?sort=hot&auth=error#setup"],
+      ["google", "&code=failed", "/live?sort=hot&auth=error#setup"], ["kakao", "&code=wrong-provider", "/?auth=error"]]) {
+      const login = await fetch(`${base}/api/auth/google/login?returnTo=${encodeURIComponent("/live?sort=hot&userId=stale#setup")}`, { redirect: "manual" });
+      const state = new URL(login.headers.get("location")).searchParams.get("state");
+      const result = await fetch(`${base}/api/auth/${provider}/callback?state=${state}${code}`, { redirect: "manual" });
+      assert.equal(result.headers.get("location"), expected);
+      assert.equal(result.headers.get("set-cookie"), null);
+    }
+  } finally { server.close(); }
 });
 
 // The centerpiece: logging in must never reset an existing anonymous user's

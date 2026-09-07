@@ -21,7 +21,7 @@
 #drawer .drawer-link + .drawer-link{margin-top:6px}
 #drawer .drawer-link.sub{color:var(--muted);font-size:13px}
 #drawer .drawer-meta{border-top:1px solid var(--line);padding-top:12px}
-#drawer .drawer-hint,#drawer .auth-hint,#drawer #notificationHelp{margin:6px 0;color:var(--muted);font-size:12px;line-height:1.6;white-space:normal}
+#drawer .drawer-hint,:is(#drawer,.nh-guide) .auth-hint,#drawer #notificationHelp{margin:6px 0;color:var(--muted);font-size:12px;line-height:1.6;white-space:normal}
 #drawer #notificationHelp{white-space:pre-line}
 #drawer #notificationHelp:empty{display:none}
 #drawer .drawer-copy{font-size:12px;color:var(--muted)}
@@ -33,13 +33,18 @@
 #drawer .meter-label{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px}
 #drawer .meter-bar{height:6px;background:var(--card-2);overflow:hidden;border-radius:0}
 #drawer .meter-fill{height:100%;background:var(--accent);width:0}
-#drawer .auth-btns{display:flex;flex-direction:column;gap:8px}
-#drawer .auth-btn{display:block;text-align:center;padding:11px 14px;border-radius:0;font-size:13px;font-weight:700;border:1px solid transparent;text-decoration:none}
-#drawer .auth-profile{display:flex;align-items:center;gap:8px}
-#drawer .auth-avatar{width:36px;height:36px;object-fit:cover;border-radius:50%;flex:none}
-#drawer .auth-info{min-width:0;flex:1}#drawer .auth-nick{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#drawer .auth-provider-label{font-size:12px;color:var(--muted)}
-#drawer [data-auth-logout]{width:auto;padding:8px;font-size:12px}
+:is(#drawer,.nh-guide) .auth-btns{display:flex;flex-direction:column;gap:8px}
+:is(#drawer,.nh-guide) .auth-btn{display:block;text-align:center;padding:11px 14px;border-radius:0;font-size:13px;font-weight:700;border:1px solid transparent;text-decoration:none}
+:is(#drawer,.nh-guide) .auth-profile{display:flex;align-items:center;gap:8px}
+:is(#drawer,.nh-guide) .auth-avatar{width:36px;height:36px;object-fit:cover;border-radius:50%;flex:none}
+:is(#drawer,.nh-guide) .auth-info{min-width:0;flex:1}:is(#drawer,.nh-guide) .auth-nick{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}:is(#drawer,.nh-guide) .auth-provider-label{font-size:12px;color:var(--muted)}
+:is(#drawer,.nh-guide) [data-auth-logout]{width:auto;padding:8px;font-size:12px}
 :root[data-theme="dark"] #menuBtn{background:#15181e;border-color:#303641;color:#f2f4f7}
 :root[data-theme="dark"] #drawer{--card:#15181e;--card-2:#20252e;--text:#f2f4f7;--muted:#9ca3af;--line:#303641;--accent:#db2b0b}
 @media(max-width:720px){#menuBtn{width:34px;height:34px}}
 @media(prefers-reduced-motion:reduce){#drawer,#drawerBack{transition:none}}
+
+#drawer [hidden]{display:none!important}
+#drawerSetupBtn{margin-bottom:6px}
+#nhGuide[data-kind="login"] .nh-guide{--text:var(--ink,var(--color-text));--muted:var(--sub,var(--color-muted))}
+.nh-guide .auth-btns{margin-bottom:18px}

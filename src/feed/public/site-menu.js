@@ -6,6 +6,8 @@ window.NowHotMenu = (() => {
       <button class="drawer-close" id="drawerClose" aria-label="메뉴 닫기">✕</button>
     </div>
     <div class="drawer-body">
+      <button class="drawer-link" id="drawerSetupBtn" type="button">✨ 나한테 맞게 설정하기</button>
+      <button class="drawer-link" id="drawerLoginBtn" type="button" hidden>로그인 · 취향 이어가기</button>
       <div class="meter">
         <div class="meter-label"><span>취향 정확도</span><span id="levelPct">0%</span></div>
         <div class="meter-bar"><div class="meter-fill" id="levelFill"></div></div>
@@ -58,7 +60,7 @@ window.NowHotMenu = (() => {
       </div>
 
       <div class="drawer-sec">
-        <button class="drawer-link" id="drawerSpaceBtn">👤 내 공간 · 취향 설정</button>
+        <button class="drawer-link" id="drawerSpaceBtn">👤 내 공간</button>
       </div>
 
       <!-- 소셜 로그인: 설정된 provider가 있을 때만 채워짐 (renderAuthBlock) -->
@@ -171,8 +173,13 @@ window.NowHotMenu = (() => {
   const leanLabel=v=>v===0?'고르게':v<0?'진보쪽 '+Math.abs(v)+'%':'보수쪽 '+v+'%';
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const authProviders={google:{label:'Google로 계속하기',bg:'#ffffff',fg:'#1f1f1f',border:'#dadce0'},kakao:{label:'카카오로 계속하기',bg:'#fee500',fg:'#191919',border:'#fee500'},naver:{label:'네이버로 계속하기',bg:'#03C75A',fg:'#ffffff',border:'#03C75A'}};
-  function auth(container,{profile,providers,userId,onLogout,wireLogin}){
+  function auth(container,{profile,providers,userId,onLogout,wireLogin,returnTo=location.pathname+location.search+location.hash}){
     if(!container)return;
+    if(container.id==='authDrawerSec'){
+      $('drawerLoginBtn').hidden=!profile?.loggedIn&&!providers?.some(id=>authProviders[id]);
+      $('drawerLoginBtn').textContent=profile?.loggedIn?'내 로그인 계정':'로그인 · 취향 이어가기';
+      $('drawerLoginBtn').onclick=()=>close(true,()=>window.NowHotNoticeGuide.show({login:el=>auth(el,{profile,providers,userId,onLogout:async()=>{await onLogout();window.NowHotNoticeGuide.close();},wireLogin,returnTo:location.pathname+location.search+location.hash})}));
+    }
     if(profile?.loggedIn){
       const social=profile.social||{},avatar=typeof social.avatar==='string'&&social.avatar.trim()?window.NowHotHistory?.webUrl(social.avatar,false):null;
       const provider=authProviders[social.provider]?.label.replace('로 계속하기','');
@@ -180,7 +187,7 @@ window.NowHotMenu = (() => {
       container.querySelector('[data-auth-logout]').onclick=onLogout;return;
     }
     if(!providers?.length){container.replaceChildren();return;}
-    container.innerHTML='<div class="auth-hint">로그인하면 다른 기기에서도 내 취향을 이어가요. 로그인 없이도 이용할 수 있어요.</div><div class="auth-btns">'+providers.map(id=>{const m=authProviders[id];return m?`<a class="auth-btn" data-provider="${id}" href="/api/auth/${id}/login?userId=${encodeURIComponent(userId||'')}" style="background:${m.bg};color:${m.fg};border-color:${m.border}">${m.label}</a>`:'';}).join('')+'</div>';
+    container.innerHTML='<div class="auth-hint">로그인하면 다른 기기에서도 내 취향을 이어가요. 로그인 없이도 이용할 수 있어요.</div><div class="auth-btns">'+providers.map(id=>{const m=authProviders[id];return m?`<a class="auth-btn" data-provider="${id}" href="/api/auth/${id}/login?userId=${encodeURIComponent(userId||'')}&amp;returnTo=${encodeURIComponent(returnTo)}" style="background:${m.bg};color:${m.fg};border-color:${m.border}">${m.label}</a>`:'';}).join('')+'</div>';
     if(wireLogin)wireLogin(container);
   }
   function level(info){const percent=Math.round((info.level||0)*100);$('levelPct').textContent=percent+'%';$('levelFill').style.width=percent+'%';}
