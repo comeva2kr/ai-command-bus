@@ -857,6 +857,7 @@ test("digest previews top unseen matches without consuming them", async () => {
 
 test("NH127 live alerts require fresh major reporting or measured reaction growth and keep user filters", async () => {
   const store = new FeedStore({clock:fixedClock}), user=store.createUser("alerts");
+  store.saveSurvey(user.id,{categories:["tech"]});
   const engine = new FeedEngine(store,[]);
   engine._clock=fixedClock;
   const base={category:"tech",tags:[],topics:[],publishedAt:"2026-07-05T23:00:00Z",score:30,commentCount:0};

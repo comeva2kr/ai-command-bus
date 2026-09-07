@@ -6,7 +6,12 @@
 - 인수 근거와 재개 경로: [책임자 인수 기록](reports/NOWHOT_OWNER_TAKEOVER_2026-09-05.md). 로컬 코드 HEAD `e59c8fd`; 이번 변경은 인수 문서 연결뿐이며 제품·판본·운영 변경 없음.
 - 아래 NH112 배포 완료는 9월 4일의 완료 기록이다. 이후 같은 날 19시대 Orca 광고 재심사 감사에서 Google AdSense·Kakao AdFit 모두 HOLD·미제출로 판정됐다. 배포 완료와 광고 신청 준비/승인을 구분하며, 현재 운영 재검증이나 보류 원인 수리 완료로 표현하지 않는다.
 
-## 최신 NH131 오늘 업데이트 통합 팝업
+## 최신 NH132 관심 주제 기반 개별 글 푸시
+
+- 안정 ID `NOWHOT-PERSONALIZED-PUSH-001`, 변경 레코드 `DEVCHG-NOWHOT-20260907-219`. [NH132 선정 조건·검증·운영 기록](reports/NOWHOT_NH132_PERSONALIZED_PUSH_2026-09-07.md).
+- Live 명시 관심 분야/세부태그 일치를 개별 알림의 필수 조건으로 바꿨다. Live설문 우선·없으면Today저장분야, 회피 우선, 관련 후보/명시 설정 없으면 개별글 전송0. 기존 중요도/반응급증·한도/차단과 하루3회 Today 발행 알림 보존. 12설정 통합회귀6명만맞는글/6명보류, 푸시18/18·기존digest6/6·독립GO. 운영 반영 중. First Principles 게이트: PASS.
+
+## 직전 NH131 오늘 업데이트 통합 팝업
 
 - 안정 ID `NOWHOT-UPDATE-POPUP-SUMMARY-001`, 변경 레코드 `DEVCHG-NOWHOT-20260907-218`. [NH131 문구·표시 조건·운영 기록](reports/NOWHOT_NH131_UPDATE_POPUP_SUMMARY_2026-09-07.md).
 - 기존 최신 공지는 공유만 안내해 앞선 오늘 수리 내용이 빠졌다. 오늘판 발행·알림·아이폰 연결·공유·안내 문구5영역을 하나의 새 팝업으로 묶었다. 기존검사2/2·문구 독립GO, 제품5288c8b·09:31:29 preflight OK. 공개5항목 원문일치·모바일전체표시·Today/Live1회·소개이력17 확인. 별도 누적 엔진 없음. First Principles 게이트: PASS.

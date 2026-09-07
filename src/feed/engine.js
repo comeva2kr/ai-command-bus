@@ -52,7 +52,7 @@ import {
   tasteScore
 } from "./recommender.js";
 import { collaborativeBoosts } from "./collab.js";
-import { CATEGORIES, categoryLabel, sourceLabel } from "./taxonomy.js";
+import { CATEGORIES, categoryLabel, sourceLabel, isKnownTag } from "./taxonomy.js";
 import {
   EDITION_CANDIDATE_CONTRACT,
   buildEditionCandidateFixture,
@@ -2684,11 +2684,20 @@ export class FeedEngine {
     const muted = new Set(user.mutedSources || []);
     const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
     const showTopics = new Set(user.showTopics || []);
+    // Push needs declared topical interest, not a popularity/recency score.
+    // Live survey leads; Today-only users can use their saved category choices.
+    const surveyedCategories = normalizedCategories([...chosenCategories(user)]);
+    const alertCategories = new Set(surveyedCategories.length ? surveyedCategories : normalizedCategories(user.briefingCategories));
+    const alertTags = new Set((Array.isArray(user.surveyAnswers?.tags) ? user.surveyAnswers.tags : []).filter(isKnownTag));
+    const avoidedCategories = new Set([...normalizedCategories(user.surveyAnswers?.avoid),
+      ...categorySets(user.preferences, rankParams()).hated]);
     const pool = items.filter(
       (i) =>
         !muted.has(i.source) &&
         !disabled.has(i.source) &&
         !topicsBlocked(i, showTopics) &&
+        (!alertsOnly || (!avoidedCategories.has(i.category)
+          && (alertCategories.has(i.category) || (i.tags || []).some(tag => alertTags.has(tag))))) &&
         !seen.has(i.id) && !(i.canonicalAliases || []).some((a) => seen.has(a.id))
     );
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();

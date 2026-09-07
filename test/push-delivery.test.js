@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { FeedStore } from "../src/feed/store.js";
+import { FeedEngine } from "../src/feed/engine.js";
 import { sendDigestPushes, sendEditionPushes, sendPush, generateVapidKeys, verifyVapidJwt, decryptPayload } from "../src/feed/push.js";
 
 const vapid = { publicKey: "public", privateKey: "private", subject: "mailto:test@example.test" };
@@ -385,4 +386,64 @@ test("live alerts have separate bounded cadence, one matching preview and honor 
   h.setTime("2026-09-03T00:30:00Z");assert.deepEqual(await h.run(options),{sent:1,failed:0});
   h.user.notifyEnabled=false;h.setTime("2026-09-03T02:00:00Z");h.setItems([article("C")]);
   assert.deepEqual(await h.run(options),{sent:0,failed:0});
+});
+
+test("NH132 real digest push sends only declared interests per recipient, never unrelated popularity", async () => {
+  const clock = () => "2026-09-07T03:00:00.000Z";
+  const store = new FeedStore({ clock }), engine = new FeedEngine(store, []);
+  engine._clock = clock;
+  const base = { kind: "news", topics: [], publishedAt: "2026-09-07T02:00:00.000Z",
+    score: 30, commentCount: 0, coverage: 4, length: 500 };
+  const rows = [
+    { ...base, id: "tech-match", source: "technology", category: "tech", tags: ["ai"], title: "인공지능 연구 결과 공식 발표" },
+    { ...base, id: "auto-match", source: "automotive", category: "auto", tags: ["cars"], title: "전기차 충전 표준 공식 발표" },
+    { ...base, id: "viral-news", source: "viral-news", category: "sports", tags: [], title: "프로야구 주요 발표", score: 1e9 },
+    { ...base, id: "viral-community", source: "viral-community", kind: "community", category: "sports", tags: [],
+      title: "프로야구 경기 반응 급증", score: 1e9, heatHist: [100, 1000] }
+  ];
+  engine._items = async () => rows;
+  const profiles = [
+    { id: "tech-person", survey: { categories: ["tech"] }, expected: "tech-match" },
+    { id: "auto-person", survey: { categories: ["auto"] }, expected: "auto-match" },
+    { id: "mixed-taste", survey: { categories: ["auto"] },
+      learned: { categories: { sports: 6 }, sources: { "viral-news": 6, "viral-community": 6 }, prefs: { longform: 1 } }, expected: "auto-match" },
+    { id: "today-only", today: ["tech"], expected: "tech-match" },
+    { id: "explicit-tag", survey: { categories: ["science"], tags: ["ai"] }, expected: "tech-match" },
+    { id: "avoid-over-tag", survey: { categories: ["tech"], tags: ["ai"], avoid: ["tech"] } },
+    { id: "hated-over-tag", survey: { categories: ["tech"], tags: ["ai"] }, learned: { categories: { tech: -2 } } },
+    { id: "survey-first", survey: { categories: ["auto"] }, today: ["tech"], expected: "auto-match" },
+    { id: "no-interests" },
+    { id: "source-style-only", survey: { communities: ["viral-news"], depth: "deep" } },
+    { id: "learned-only", learned: { categories: { tech: 6 }, tags: { ai: 6 } } },
+    { id: "no-match", survey: { categories: ["culture"] } }
+  ];
+  for (const profile of profiles) {
+    const user = store.createUser(profile.id);
+    if (profile.survey) store.saveSurvey(user.id, profile.survey);
+    if (profile.today) store.setBriefingCategories(user.id, profile.today);
+    for (const [dimension, weights] of Object.entries(profile.learned || {})) Object.assign(user.preferences[dimension], weights);
+    user.mixBalance = 0;
+    store.savePushSubscription(user.id, { endpoint: `https://push.example.test/${user.id}` });
+  }
+  const preview = await engine.digest("mixed-taste", { limit: 1, minScore: 0 });
+  assert.ok(preview.top[0].id.startsWith("viral-"), "ordinary digest still ranks this deliberately strong popularity/learned lure");
+  const deliveries = [];
+  const result = await sendDigestPushes(store, engine, vapid, { clock, alertsOnly: true, minScore: 0, limit: 1,
+    sendImpl: async (subscription, raw) => {
+      const payload = JSON.parse(raw);
+      assert.equal(payload.kind, "live");
+      deliveries.push([new URL(subscription.endpoint).pathname.slice(1), payload.url]);
+      return { status: 201 };
+    }
+  });
+  const expected = profiles.filter(profile => profile.expected);
+  assert.deepEqual(result, { sent: expected.length, failed: 0 });
+  assert.deepEqual(deliveries, expected.map(profile => [profile.id, `/live#post-${profile.expected}`]));
+  for (const profile of profiles) {
+    const user = store.getUser(profile.id);
+    assert.deepEqual((user.pushNotified || []).map(row => row.id), profile.expected ? [profile.expected] : [], profile.id);
+    assert.equal((user.pushDeliveryTimes || []).length, profile.expected ? 1 : 0, profile.id);
+    assert.deepEqual(user.seen, []);
+    assert.deepEqual(user.opened || [], []);
+  }
 });
