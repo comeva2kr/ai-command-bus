@@ -3528,7 +3528,7 @@ test("운영 주체 표기: about·privacy·드로어에 페퍼클럽이 명시�
   const pub = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public");
   assert.match(fs.readFileSync(path.join(pub, "about.html"), "utf8"), /페퍼클럽/);
   assert.match(fs.readFileSync(path.join(pub, "privacy.html"), "utf8"), /페퍼클럽/);
-  const idx = fs.readFileSync(path.join(pub, "index.html"), "utf8");
+  const idx = fs.readFileSync(path.join(pub, "index.html"), "utf8") + fs.readFileSync(path.join(pub, "site-menu.js"), "utf8");
   assert.match(idx, /페퍼클럽/, "드로어 운영자 표기");
   assert.doesNotMatch(idx, /href="\/briefing"/, "옛 브리핑 진입점 제거");
   // 2026-08-04: 정책 페이지를 확장자 없는 정식 주소로 통일했다(/about, /terms,

@@ -171,7 +171,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 }
 @media(prefers-reduced-motion:reduce){.icon-button[aria-busy="true"] svg,.sk{animation:none}.view-indicator{transition:none}}
 </style>
-<link rel="stylesheet" href="/site-menu.css?v=20260907-highlights">
+<link rel="stylesheet" href="/site-menu.css?v=20260907-deals">
 </head>
 <body>
 <header class="topbar">
@@ -243,8 +243,8 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
-<script src="/notice-guide.js?v=20260907-highlights"></script>
-<script src="/site-menu.js?v=20260907-highlights"></script>
+<script src="/notice-guide.js?v=20260907-deals"></script>
+<script src="/site-menu.js?v=20260907-deals"></script>
 <script>
 const state={userId:null,coupang:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,sharedEdition:null,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
 const $=(id)=>document.getElementById(id);
@@ -947,14 +947,14 @@ if("serviceWorker" in navigator){
 
 function setupTodayMenu(session,config){
   const save=(path,body)=>json(path,{method:"POST",body:JSON.stringify({userId:state.userId,...body})});
-  const goLive=(key,value)=>{if(value)localStorage.setItem(key,value);else localStorage.removeItem(key);NowHotMenu.navigate("/live");};
+  const goLive=(key,value)=>{if(["feed_cat","feed_src"].includes(key))localStorage.setItem("feed_sort","hot");if(value)localStorage.setItem(key,value);else localStorage.removeItem(key);NowHotMenu.navigate("/live");};
   NowHotMenu.level(session);
   NowHotMenu.categories(config.categories||[],localStorage.getItem("feed_cat"),(id)=>goLive("feed_cat",id));
   $("immBtn").classList.toggle("on",localStorage.getItem("feed_immersion")==="1");
   $("immBtn").onclick=()=>goLive("feed_immersion",localStorage.getItem("feed_immersion")==="1"?"0":"1");
   const renderSources=communities=>{
     const anyLive=communities.some(c=>(c.liveCount||0)>0);
-    const visible=communities.filter(c=>c.enabled&&!c.adult&&(!anyLive||(c.liveCount||0)>0));
+    const visible=communities.filter(c=>c.enabled&&!c.adult&&!c.isDeal&&(!anyLive||(c.liveCount||0)>0));
     NowHotMenu.sources(visible,localStorage.getItem("feed_src"),(id)=>goLive("feed_src",id),()=>NowHotMenu.navigate("/live#submit"));
   };
   renderSources([]);

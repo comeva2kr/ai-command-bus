@@ -214,10 +214,10 @@ window.NowHotMenu = (() => {
       const b=document.createElement('button');b.className='src-chip'+(active===c.id?' active':'');b.textContent=c.labelKo||c.label;b.setAttribute('aria-pressed',String(active===c.id));b.onclick=()=>onPick(c.id,el,b);el.append(b);
     }
   }
-  function filters(topics,includeDeals=false){
-    return [['politics','🗳️','정치'],['religion','⛪','종교'],['nodeal','🔥','핫딜']].filter(([id])=>includeDeals||id!=='nodeal').map(([id,icon,label])=>{
-      const on=id==='nodeal'?!topics.includes(id):topics.includes(id);
-      return `<div class="muted-row"><span>${icon} ${label} 글</span><b>${on?'보는 중':'숨김'}</b><button class="chip${on?' active':''}" ${id==='nodeal'?'data-deal-toggle':`data-topic-toggle="${id}"`} aria-pressed="${on}">${on?'숨기기':'보기'}</button></div>`;
+  function filters(topics){
+    return [['politics','🗳️','정치'],['religion','⛪','종교']].map(([id,icon,label])=>{
+      const on=topics.includes(id);
+      return `<div class="muted-row"><span>${icon} ${label} 글</span><b>${on?'보는 중':'숨김'}</b><button class="chip${on?' active':''}" data-topic-toggle="${id}" aria-pressed="${on}">${on?'숨기기':'보기'}</button></div>`;
     }).join('')+'<p class="drawer-hint">정치·종교 글은 기본으로 숨겨요. 특정 매체는 글 상세의 “그만보기”로 숨길 수 있어요.</p>';
   }
   function slider(id,value,label,onSave,onError){

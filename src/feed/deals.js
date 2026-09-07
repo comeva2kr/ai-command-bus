@@ -29,12 +29,27 @@ export function parseDealTitle(title) {
   return { mall, name: name || t, price: priceRaw ? priceRaw.trim() : null };
 }
 
+// 혼합 커뮤니티에서도 판매 게시판 주소가 명확한 글만 분리한다.
+// 가격 뉴스·제품 리뷰는 제목의 가격만으로 판매글이 되지 않는다.
+export function isDealBoard(item) {
+  try {
+    const u = new URL(item?.url || item?.canonicalUrl || "");
+    if (!/^https?:$/.test(u.protocol)) return false;
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "etoland.co.kr") return /^\/(?:hit|b)\/hotdeal\/view\//.test(u.pathname);
+    if (host === "ppomppu.co.kr") return /^\/zboard\/(?:view|zboard)\.php$/.test(u.pathname) && ["ppomppu", "ppomppu4"].includes(u.searchParams.get("id"));
+    if (host === "bbs.ruliweb.com") return /^\/market\/board\/1020\/read\//.test(u.pathname);
+    if (host === "clien.net") return /^\/service\/board\/jirum\//.test(u.pathname);
+    return host === "dealbada.com" && u.pathname === "/bbs/board.php" && u.searchParams.get("bo_table") === "deal_domestic";
+  } catch { return false; }
+}
+
 // 딜 글인가. 쇼핑몰 말머리나 가격 표기가 있으면 딜이다 —
 // 둘 다 그 게시판이 스스로 붙인 형식이라 우리가 추측하는 게 아니다.
 export function isDeal(item) {
   if (!item) return false;
   if (item.isDeal === true) return true;
-  if (/(?:^|\/)hotdeal(?:\/|$|[?#])/i.test(String(item.url || item.canonicalUrl || ""))) return true;
+  if (isDealBoard(item)) return true;
   const t = String(item.title || "");
   // 값이 적혀 있으면 딜이다. 원화만 보면 해외 딜이 통째로 빠지므로(실측
   // 2026-08-05: 해외 게시판 21건 중 5건만 잡혔다) 달러·유로·엔도 같이 본다.

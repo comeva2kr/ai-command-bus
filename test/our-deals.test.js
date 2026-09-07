@@ -81,7 +81,7 @@ test("등록한 딜이 피드에 자체 콘텐츠로 나오고, 대가성 문구
     const s = await (await fetch(`${B}/api/session`, {
       method: "POST", headers: { "content-type": "application/json" }, body: "{}"
     })).json();
-    const f = await (await fetch(`${B}/api/feed?userId=${s.userId}&limit=30`)).json();
+    const f = await (await fetch(`${B}/api/feed?userId=${s.userId}&limit=30&sort=deals`)).json();
     const mine = (f.items || []).find((x) => x.via === "ourdeal");
     assert.ok(mine, "등록한 딜이 피드에 안 나온다");
     assert.equal(mine.title, good.title);
@@ -90,6 +90,14 @@ test("등록한 딜이 피드에 자체 콘텐츠로 나오고, 대가성 문구
     assert.ok(mine.disclosure && mine.disclosure.includes("쿠팡 파트너스"),
       "대가성 문구가 없다 — 파트너스 의무 위반이다");
     assert.equal(mine.affiliate, true);
+    const stale = await fetch(`${B}/api/feed?userId=${s.userId}&sort=deals&source=deleted-source&category=tech`);
+    assert.equal(stale.status,200);
+    assert.ok((await stale.json()).items.some(i=>i.id===mine.id));
+    for(const sort of ["hot","latest"]){
+      const normal=await (await fetch(`${B}/api/feed?userId=${s.userId}&sort=${sort}&source=nowhot-deal`)).json();
+      assert.ok(normal.items.every(i=>i.via==="ad"||!i.isDeal));
+    }
+
   });
 });
 
@@ -176,7 +184,7 @@ test("실측 가격과 관리자가 고른 상품군이 피드까지 살아온�
     const s = await (await fetch(`${B}/api/session`, {
       method: "POST", headers: { "content-type": "application/json" }, body: "{}"
     })).json();
-    const f = await (await fetch(`${B}/api/feed?userId=${s.userId}&limit=30`)).json();
+    const f = await (await fetch(`${B}/api/feed?userId=${s.userId}&limit=30&sort=deals`)).json();
     const mine = (f.items || []).find((x) => x.via === "ourdeal");
     assert.equal(mine.price, good.price, "실측 가격이 유실됐다");
     assert.equal(mine.dest, "fresh", "관리자가 고른 상품군이 유실됐다");
@@ -297,35 +305,12 @@ test("핫딜 모아보기가 서버 라우트에서 막히지 않는다", async 
   assert.match(html, /data-sort="deals"/, "핫딜 탭 버튼이 없다");
 });
 
-test("설정 메뉴에서 핫딜 모아보기를 뺐고, 대신 콘텐츠 필터에 넣었다", () => {
-  // David 2026-08-06: "메뉴에 핫딜 모아보기 없애 (밖에 화면에 핫딜 있는 걸로
-  // 충분해) 그리고 콘텐츠 필터에 핫딜을 넣어 숨기기 보기".
-  // 정렬바에 핫딜 탭이 이미 있어 같은 일을 두 곳에서 하고 있었다.
+test("딜 탭만 유지하고 중복 보기·숨기기 UI는 제거한다", () => {
   const html = fs.readFileSync("src/feed/public/index.html", "utf8");
-  assert.ok(!/drawerDealsBtn/.test(html), "메뉴에 핫딜 버튼이 아직 있다");
-  assert.match(html, /data-deal-toggle/, "콘텐츠 필터에 핫딜 토글이 없다");
-  assert.match(html, /async function toggleDeals\(hide\)/, "토글 핸들러가 없다");
-  // 정렬바 탭은 그대로 — 밖 화면의 핫딜이 없어지면 안 된다.
-  assert.match(html, /data-sort="deals"/, "정렬바의 핫딜 탭이 사라졌다");
+  const menu = fs.readFileSync("src/feed/public/site-menu.js", "utf8");
+  assert.doesNotMatch(html + menu, /data-deal-toggle|async function toggleDeals/);
+  assert.match(html, /data-sort="deals"/);
 });
-
-test("핫딜은 기본으로 보인다 — 숨김을 켜야 사라진다", async () => {
-  // 정치·종교는 기본 숨김이라 showTopics에 있으면 보이는데, 핫딜은 반대다.
-  // 그래서 "deal"이 아니라 "nodeal"로 담는다 — 방향을 헷갈리면 기본값이 뒤집힌다.
-  const { NO_DEAL_TOPIC, FILTER_KEYS, FILTERABLE_TOPICS } = await import("../src/feed/topics.js");
-  assert.equal(NO_DEAL_TOPIC, "nodeal");
-  assert.ok(FILTER_KEYS.includes("nodeal"));
-  assert.ok(!FILTERABLE_TOPICS.includes("nodeal"), "기본 숨김 목록에 들어갔다 — 정치·종교와 뜻이 다르다");
-  const src = fs.readFileSync("src/feed/engine.js", "utf8");
-  assert.match(src, /const hideDeals = showTopics\.has\(NO_DEAL_TOPIC\)/, "엔진이 숨김을 안 본다");
-  assert.match(src, /!\(hideDeals && i\.isDeal === true\)/, "후보에서 딜을 안 뺀다");
-  // 숨겼는데 지분 보장이 다시 끌어오면 숨기기가 안 통한다.
-  // 2026-08-07: 카테고리 보기(!category)가 조건에 추가됐다. 지키는 계약은 그대로 —
-  // **hideDealsNow가 여전히 조건에 있어야** 숨기기가 통한다.
-  assert.match(src, /!source && !category && unseen\.length && !hideDealsNow/,
-    "딜 지분 보장이 숨김을 무시한다");
-});
-
 
 test("화면 테마는 내 공간 안에 있다", async () => {
   // David 2026-08-06: "메뉴에서 화면 테마는 내공간 안으로 넣자."
@@ -334,8 +319,8 @@ test("화면 테마는 내 공간 안에 있다", async () => {
   const drawer = fs.readFileSync("src/feed/public/site-menu.js", "utf8");
   assert.ok(!drawer.includes('id="themeChips"'), "드로어에 화면 테마가 남아 있다");
   // 내 공간 렌더 안에 있어야 하고, 그린 뒤 배선도 되어야 한다.
-  const space = html.slice(html.indexOf("async function openSpace()"),
-                           html.indexOf("async function openSpace()") + 6000);
+  const space = html.slice(html.indexOf("async function openSpace("),
+                           html.indexOf("async function openSpace(") + 6000);
   assert.match(space, /id="themeChips"/, "내 공간에 화면 테마가 없다");
   assert.match(space, /setupThemeChips\(\)/, "옮겨 놓고 배선을 안 했다 — 칩이 안 눌린다");
 });
@@ -358,13 +343,13 @@ test("핫딜을 숨겨도 핫딜 탭은 보인다", async () => {
     async fetch() { return Array.from({ length: 12 }, (_, i) => deal(i)); }
   }]);
   const user = store.createUser();
-  // markSeen: false — 첫 호출이 전부 seen에 들어가면 두 번째가 빈다(테스트 자체의 함정).
-  const before = await engine.getFeed(user.id, { limit: 20, sort: "deals", markSeen: false });
+  // 본 글도 명시적으로 핫딜 탭을 다시 열면 조회할 수 있다.
+  const before = await engine.getFeed(user.id, { limit: 20, sort: "deals" });
   const n0 = (before.items || []).filter((i) => i.via !== "ad").length;
   assert.ok(n0 > 0, "숨기기 전에도 핫딜 탭이 비었다 — 이 테스트의 전제가 깨졌다");
 
   store.setTopicFilter(user.id, "nodeal", true);
-  const after = await engine.getFeed(user.id, { limit: 20, sort: "deals", markSeen: false });
+  const after = await engine.getFeed(user.id, { limit: 20, sort: "deals" });
   const n1 = (after.items || []).filter((i) => i.via !== "ad").length;
   assert.ok(n1 > 0, `숨기기를 켰더니 핫딜 탭이 비었다 (${n0} → ${n1})`);
 

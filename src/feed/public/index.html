@@ -1017,7 +1017,7 @@
   .survey-nudge,.nudge{border-radius:0!important}
 
 </style>
-<link rel="stylesheet" href="/site-menu.css?v=20260907-highlights">
+<link rel="stylesheet" href="/site-menu.css?v=20260907-deals">
 </head>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -1061,6 +1061,7 @@
     <button class="chip" data-sort="latest" role="tab"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-latest"></use></svg>최신</button>
     <button class="chip" data-sort="deals" role="tab">핫딜</button>
   </div>
+  <p id="dealScope" class="drawer-hint" hidden>모든 분야의 핫딜을 모았어요. 소식 분야·소스 선택은 핫·최신에 적용돼요.</p>
   <main id="feed">
     <!-- 첫 페인트~첫 데이터 사이의 빈 화면 방지 (loadMore가 첫 카드를 붙일 때
          제거된다). "고장난 빈 화면"으로 오해되지 않게 하는 최소 장치. -->
@@ -1155,8 +1156,8 @@
 
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
-<script src="/notice-guide.js?v=20260907-highlights"></script>
-<script src="/site-menu.js?v=20260907-highlights"></script>
+<script src="/notice-guide.js?v=20260907-deals"></script>
+<script src="/site-menu.js?v=20260907-deals"></script>
 <script type="module">
 const API = {
   async session(userId) { return post("/api/session", { userId }); },
@@ -1178,9 +1179,9 @@ const API = {
   async setTopic(userId, topic, on) { return post("/api/topics", { userId, topic, on }); },
   async feed(userId, cursor, limit=10, source=null, sort="hot", category=null) {
     const q = new URLSearchParams({ userId, cursor, limit });
-    if(source) q.set("source", source);
+    if(source && sort!=="deals") q.set("source", source);
     if(sort && sort!=="hot") q.set("sort", sort);
-    if(category) q.set("category", category);
+    if(category && sort!=="deals") q.set("category", category);
     return get(`/api/feed?${q}`);
   },
   async item(userId, itemId) { return get(`/api/item?userId=${userId}&itemId=${encodeURIComponent(itemId)}`); },
@@ -1307,8 +1308,8 @@ const state = {
   userId: localStorage.getItem("feed_uid") || null,
   cursor: 0, loading: false, exhausted: false, feedRevision: 0, mixBalance: 0,
   activeCategory: localStorage.getItem("feed_cat") || null, config: null,
-  // 정렬 모드: hot(추천) | latest(최신순, #12). 새로고침 간 유지.
-  sortMode: localStorage.getItem("feed_sort") === "latest" ? "latest" : "hot",
+  // 정렬 모드: hot | latest | deals. 새로고침 간 유지.
+  sortMode: ["latest","deals"].includes(localStorage.getItem("feed_sort")) ? localStorage.getItem("feed_sort") : "hot",
   registry: [], // full /api/communities list (all sources, unfiltered) — labels + frameable lookups
   communities: [], activeSource: localStorage.getItem("feed_src") || null, // 새로고침해도 보기 설정 유지(David 2026-08-07). 등록에 없는 값은 아래 검증이 지운다
   feedScrollY: 0, // remembered scroll position for exact back-restore
@@ -1327,7 +1328,7 @@ const liveHistory = NowHotHistory.create("live");
 let detailRevision = 0;
 function liveSnapshot(){
   return { userId:state.userId, source:state.activeSource, category:state.activeCategory,
-    sort:state.sortMode, rankingVersion:1, mixBalance:state.mixBalance, y:state.openItemId?state.feedScrollY:window.scrollY,
+    sort:state.sortMode, rankingVersion:2, mixBalance:state.mixBalance, y:state.openItemId?state.feedScrollY:window.scrollY,
     pages:state.pagesLoaded, cursor:state.cursor, exhausted:state.exhausted,
     items:[...state.cardsById.keys()].map(id=>state.itemsById.get(id)).filter(Boolean) };
 }
@@ -1337,7 +1338,8 @@ function saveLiveNavigation(){
 function restoreLiveList(snapshot){
   if(!snapshot || snapshot.userId!==state.userId || !Array.isArray(snapshot.items))return false;
   if((snapshot.mixBalance ?? 0)!==state.mixBalance)return false;
-  if(snapshot.sort === "hot" && snapshot.rankingVersion !== 1)return false;
+  if(snapshot.rankingVersion !== 2)return false;
+  if(snapshot.sort === "deals" && !snapshot.items.some(i=>i.isDeal && i.via!=="ad"))return false;
   if(snapshot.items.some(item=>{
     const kind=state.registry.find(row=>row.id===item.source)?.kind;
     return ["news","community"].includes(item.kind) && ["news","community"].includes(kind) && item.kind!==kind;
@@ -2344,36 +2346,14 @@ async function toggleTopic(topic, on){
 // the ☰ drawer, driven by the same state/toggle functions above. Uses
 // data-attributes instead of ids so both places can render it at once without
 // id collisions.
-function contentFilterHtml(){ return NowHotMenu.filters(state.showTopics,true); }
+function contentFilterHtml(){ return NowHotMenu.filters(state.showTopics); }
 
 function wireContentFilterButtons(container, onAfter){
   container.querySelectorAll("[data-topic-toggle]").forEach(btn=>{
     btn.onclick = async ()=>{ await toggleTopic(btn.dataset.topicToggle, !state.showTopics.includes(btn.dataset.topicToggle)); if(onAfter) onAfter(); };
   });
-  // 핫딜은 뜻이 반대다 — 버튼을 누르면 "숨김"을 켜고 끈다.
-  container.querySelectorAll("[data-deal-toggle]").forEach(btn=>{
-    btn.onclick = async ()=>{ await toggleDeals(!state.showTopics.includes("nodeal")); if(onAfter) onAfter(); };
-  });
 }
 
-// 핫딜 숨기기·보기. toggleTopic과 같은 배관을 쓰되 문구만 뒤집는다.
-async function toggleDeals(hide){
-  const prev = state.showTopics.slice();
-  state.showTopics = hide
-    ? [...new Set([...prev, "nodeal"])]
-    : prev.filter(t => t !== "nodeal");
-  try {
-    const res = await API.setTopic(state.userId, "nodeal", hide);
-    if (Array.isArray(res.showTopics)) state.showTopics = res.showTopics;
-    localStorage.setItem("feed_topics", JSON.stringify(state.showTopics));
-    reloadFeedSilently();
-    toast(hide ? "핫딜을 숨겼어요" : "핫딜도 함께 보여드릴게요");
-  } catch (e) {
-    state.showTopics = prev;
-    refreshDrawerFilters();
-    toast("바꾸지 못했어요 — 잠시 후 다시 시도해 주세요");
-  }
-}
 // re-render the drawer's own filter section in place (state may have changed
 // via 내 공간's copy of the same controls, or vice versa)
 function refreshDrawerFilters(){
@@ -2436,24 +2416,16 @@ function setupCompose(){
       const title = back.querySelector("#pTitle").value.trim();
       if(!title){ toast("제목을 입력하세요"); return; }
       try {
-        const p = await API.createPost(state.userId, {
+        await API.createPost(state.userId, {
           title, summary: back.querySelector("#pBody").value.trim(), category: back.querySelector("#pCat").value
         });
         back.remove();
-        // show it immediately at the top of the feed
-        prependCard({ ...p, categoryLabel: state.config.categories.find(c=>c.id===p.category)?.label||p.category,
-          myRating:0, comments:0 });
+        reloadFeedSilently();
         toast("글이 올라갔어요");
       } catch(e){ toast("등록 실패: "+e.message); }
     };
   };
 }
-function prependCard(item){
-  appendCard(item);
-  const feed = document.getElementById("feed");
-  feed.insertBefore(feed.lastChild, feed.firstChild);
-}
-
 // ---- 내 공간 (my space) ----
 function setupSpace(){
   // The shared menu account row opens these settings.
@@ -2944,7 +2916,10 @@ function setupThemeChips(){
 // ---- 정렬 바 (핫/최신, #12) ----
 function setupSortBar(){
   const bar = document.getElementById("sortBar");
-  const paint = ()=> [...bar.children].forEach(b=>b.classList.toggle("active", b.dataset.sort===state.sortMode));
+  const paint = ()=> {
+    [...bar.children].forEach(b=>{b.classList.toggle("active", b.dataset.sort===state.sortMode);b.setAttribute("aria-selected",String(b.dataset.sort===state.sortMode));});
+    document.getElementById("dealScope").hidden=state.sortMode!=="deals";
+  };
   paint();
   bar.onclick = (e)=>{
     const b = e.target.closest("[data-sort]");
@@ -2958,6 +2933,7 @@ function setupSortBar(){
 function renderChips(){ NowHotMenu.categories(state.config.categories,state.activeCategory,setCategory); }
 
 function setCategory(cat, container, btn){
+  if(state.sortMode==="deals"){state.sortMode="hot";localStorage.setItem("feed_sort","hot");setupSortBar();}
   state.activeCategory = cat;
   if(cat) localStorage.setItem("feed_cat", cat); else localStorage.removeItem("feed_cat");
   [...container.children].forEach(c=>{c.classList.toggle("active",c===btn);c.setAttribute("aria-pressed",String(c===btn));});
@@ -2970,10 +2946,10 @@ function setCategory(cat, container, btn){
 // switches to GET /api/feed?source=<id> — that source's own posts in
 // latest+화제성 order, not personalized ranking. Selection persists across visits.
 function renderSourceChips(){
-  if(state.activeSource && state.activeSource!=="submit" && !state.communities.some(c=>c.id===state.activeSource)){
+  if(state.activeSource && state.activeSource!=="submit" && !state.communities.some(c=>c.id===state.activeSource && !c.isDeal)){
     state.activeSource=null;localStorage.removeItem("feed_src");
   }
-  NowHotMenu.sources(state.communities,state.activeSource,setSource,()=>NowHotMenu.close(false,openSubmitModal));
+  NowHotMenu.sources(state.communities.filter(c=>!c.isDeal),state.activeSource,setSource,()=>NowHotMenu.close(false,openSubmitModal));
 }
 
 // ---- 링크 제출 (user link submission) ----
@@ -3001,16 +2977,10 @@ function openSubmitModal(){
     if(!raw){ errEl.textContent = "주소를 입력해주세요."; errEl.style.display=""; return; }
     okBtn.disabled = true; okBtn.textContent = "제출 중…";
     try {
-      const rec = await API.submitLink(state.userId, raw, titleEl.value.trim() ? { title: titleEl.value.trim() } : {});
+      await API.submitLink(state.userId, raw, titleEl.value.trim() ? { title: titleEl.value.trim() } : {});
       back.remove();
       toast("제출했어요. 피드에 반영됐어요");
-      // show it immediately at the top of the feed, whatever chip is active
-      // (own submission is always relevant to the person who just posted it)
-      prependCard({
-        ...rec,
-        categoryLabel: state.config.categories.find(c=>c.id===rec.category)?.label || rec.category,
-        myRating: 0, comments: 0, topics: rec.topics || []
-      });
+      reloadFeedSilently();
     } catch(e){
       errEl.textContent = e.message || "제출에 실패했어요.";
       errEl.style.display = "";
@@ -3021,7 +2991,8 @@ function openSubmitModal(){
 }
 function setSource(id, container, btn){
   closeDrawer(); // selection made — back to the clean home feed
-  if(state.activeSource === id) return;
+  if(state.activeSource === id && state.sortMode!=="deals") return;
+  if(state.sortMode==="deals"){state.sortMode="hot";localStorage.setItem("feed_sort","hot");setupSortBar();}
   state.activeSource = id;
   if(id) localStorage.setItem("feed_src", id); else localStorage.removeItem("feed_src");
   [...container.children].forEach(c=>{c.classList.toggle("active",c===btn);c.setAttribute("aria-pressed",String(c===btn));});
@@ -3041,7 +3012,7 @@ function renderBatch(res){
   for(const item of res.items) appendCard(item);
   maybeInsertAdfit(); // 쿠팡 제휴 카드를 본문 사이에 (config에 광고단위 있을 때만)
   ensureAdfitPlacement(); // 애드핏 지면 1장 — 목록 끝, 수익 슬롯과 자리를 나눈다
-  if(res.exhausted){ state.exhausted=true; setSentinel(false, "현재 설정으로 볼 수 있는 글을 다 봤어요. 다른 정렬이나 오늘판도 확인해 보세요."); }
+  if(res.exhausted){ state.exhausted=true; setSentinel(false, state.sortMode==="deals" ? (state.cursor ? "핫딜을 모두 확인했어요. 새 딜은 새로고침해서 확인해 주세요." : "지금 표시할 핫딜이 없어요. 잠시 후 새로고침해 주세요.") : "현재 설정으로 볼 수 있는 글을 다 봤어요. 다른 정렬이나 오늘판도 확인해 보세요."); }
   else setSentinel(false);
   saveLiveNavigation();
 }

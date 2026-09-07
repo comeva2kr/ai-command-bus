@@ -3585,25 +3585,25 @@ ${rankingRows(list, (above) => {
         const cursor = Number.isFinite(rawCursor) && rawCursor > 0 ? Math.floor(rawCursor) : 0;
         const rawLimit = Number(url.searchParams.get("limit") || 10);
         const limit = Math.min(30, Math.max(1, Number.isFinite(rawLimit) ? Math.floor(rawLimit) : 10));
+        // 정렬: hot(기본) | latest — 그 외 값은 hot으로 접는다 (열린 enum 방지)
+        // "deals" — 핫딜 모아보기(David 2026-08-06). 엔진에는 이미 구현돼
+        // 있었는데 **이 라우트가 값을 막고 있어서** 화면에서 쓸 수 없었다.
+        const rawSort = url.searchParams.get("sort");
+        const sort = rawSort === "latest" ? "latest" : rawSort === "deals" ? "deals" : "hot";
         // 소스별 보기 ("전체" 칩이 아닌 특정 소스 칩 선택 시): 존재하는 소스인지
         // 레지스트리로 확인 — 없으면 400 (오타/삭제된 소스로 조용히 빈 피드가
         // 나오는 것을 방지).
         // "submit" is a pseudo-source (every via:"submit" item, whatever its
         // own out-link domain is) — not a registry entry, so it's exempt from
         // the registry-membership check below.
-        const source = url.searchParams.get("source") || null;
+        const source = sort === "deals" ? null : url.searchParams.get("source") || null;
         if (source && source !== "submit" && !registry.some((c) => c.id === source)) {
           return send(res, 400, { error: "unknown source" });
         }
-        // 정렬: hot(기본) | latest — 그 외 값은 hot으로 접는다 (열린 enum 방지)
-        // "deals" — 핫딜 모아보기(David 2026-08-06). 엔진에는 이미 구현돼
-        // 있었는데 **이 라우트가 값을 막고 있어서** 화면에서 쓸 수 없었다.
-        const rawSort = url.searchParams.get("sort");
-        const sort = rawSort === "latest" ? "latest" : rawSort === "deals" ? "deals" : "hot";
         // 카테고리 보기 — 예전엔 화면에서 이미 그려진 카드를 숨기기만 했다.
         // 그래서 홈 20개 중 그 카테고리가 2개면 2개만 보였다(David 2026-08-07).
         const rawCat = url.searchParams.get("category");
-        const category = rawCat && isKnownCategory(rawCat) ? rawCat : null;
+        const category = sort !== "deals" && rawCat && isKnownCategory(rawCat) ? rawCat : null;
         const feed = await engine.getFeed(userId, { cursor, limit, source, sort, category });
         return send(res, 200, feed);
       }

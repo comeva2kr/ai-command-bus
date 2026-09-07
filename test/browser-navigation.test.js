@@ -1365,7 +1365,7 @@ test("browser: NH138 install help preserves detail history, storage keys and rel
 });
 
 
-test("browser: NH139 menu omits deal toggle while Live tabs and existing settings remain", options, async t => {
+test("browser: NH142 menu and settings omit obsolete deal toggle while tabs and other settings remain", options, async t => {
   for(const path of ['/', '/live']){
     const {page,controls,base}=await fixture(t,path,false,'seen',false,false,{controls:{showTopics:['nodeal']}});
     await page.waitForSelector('#authDrawerSec #drawerSpaceBtn',{state:'attached'});
@@ -1376,11 +1376,9 @@ test("browser: NH139 menu omits deal toggle while Live tabs and existing setting
     await page.locator('#drawerFilters [data-topic-toggle="politics"]').click();
     await page.waitForFunction(()=>document.querySelector('#drawerFilters [data-topic-toggle="politics"]').getAttribute('aria-pressed')==='true');
     assert.deepEqual(controls.showTopics,['nodeal','politics']);
-    await page.click('#drawerSpaceBtn');await page.waitForSelector('#spaceBody [data-deal-toggle]');
-    const deal=page.locator('#spaceBody [data-deal-toggle]');
-    assert.equal(await deal.innerText(),'보기');
-    await deal.click();await page.waitForFunction(()=>document.querySelector('#spaceBody [data-deal-toggle]').textContent==='숨기기');
-    assert.deepEqual(controls.showTopics,['politics']);
+    await page.click('#drawerSpaceBtn');await page.waitForSelector('#spaceBody [data-topic-toggle]');
+    assert.equal(await page.locator('#spaceBody [data-deal-toggle]').count(),0);
+    assert.deepEqual(controls.showTopics,['nodeal','politics']);
     await page.click('#spaceBack');await page.waitForSelector('#space.hidden',{state:'attached'});
     assert.deepEqual(await page.locator('#sortBar [data-sort]').allTextContents(),['핫','최신','핫딜']);
     for(const sort of ['latest','deals','hot']){
@@ -1425,4 +1423,50 @@ test('browser: NH140 top boxes show summaries on both pages and survive unavaila
     assert.doesNotMatch(await page.locator('[data-highlight="trends"] ol').innerText(),/#한국화제/);
     await page.close();
   }
+});
+
+
+test('browser: NH142 independent deal tab persists and discards old or empty snapshots', options, async t => {
+  const deals=items.slice(0,6).map(i=>({...i,id:'deal-'+i.id,title:'판매 딜 '+i.id,kind:'community',isDeal:true}));
+  const calls=[];
+  const {page,context,base}=await fixture(t,'/live',false,'seen',false,false,{controls:{feedHandler: url=>{
+    calls.push(url.search);
+    const list=url.searchParams.get('sort')==='deals'?deals:items;
+    return {items:list,nextCursor:list.length,exhausted:true};
+  }}});
+  await page.waitForSelector('#feed .card');
+  await page.click('#menuBtn');await page.locator('#chips button').filter({hasText:'경제'}).click();
+  await page.click('#menuBtn');await page.locator('#srcChips button').filter({hasText:'Test'}).click();
+  await page.click('[data-sort="deals"]');await page.waitForSelector('#feed [data-id="deal-post-0"]');
+  const q=new URLSearchParams(calls.at(-1));assert.equal(q.get('source'),null);assert.equal(q.get('category'),null);
+  assert.equal(await page.locator('#dealScope').isVisible(),true);
+  await page.reload();await page.waitForSelector('#feed [data-id="deal-post-0"]');
+  assert.equal(await page.locator('[data-sort="deals"]').getAttribute('aria-selected'),'true');
+  await page.click('[data-sort="latest"]');await page.waitForSelector('#feed [data-id="post-0"]');
+  const normal=new URLSearchParams(calls.at(-1));assert.equal(normal.get('source'),'test');assert.equal(normal.get('category'),'business');
+  await page.click('[data-sort="deals"]');await page.waitForSelector('#feed [data-id="deal-post-0"]');
+  await context.addInitScript(()=>{
+    const version=Number(localStorage.getItem('nh142SnapshotVersion'));
+    if(!version)return;
+    for(const key of Object.keys(sessionStorage).filter(k=>k.startsWith('nh-navigation:live:'))){
+      const snapshot=JSON.parse(sessionStorage.getItem(key));
+      snapshot.rankingVersion=version;snapshot.items=[];snapshot.exhausted=true;
+      sessionStorage.setItem(key,JSON.stringify(snapshot));
+    }
+  });
+  for(const version of [1,2]){
+    await page.evaluate(v=>localStorage.setItem('nh142SnapshotVersion',String(v)),version);
+    const before=calls.length;
+    await page.reload();await page.waitForSelector('#feed [data-id="deal-post-0"]');
+    assert.ok(calls.length>before,'empty or old snapshot must reload the deal list');
+  }
+  await page.click('#menuBtn');await page.locator('#chips button').first().click();
+  await page.waitForSelector('#feed [data-id="post-0"]');
+  assert.equal(await page.locator('[data-sort="hot"]').getAttribute('aria-selected'),'true');
+  assert.equal(await page.locator('#dealScope').isVisible(),false);
+  await page.click('[data-sort="deals"]');await page.waitForSelector('#feed [data-id="deal-post-0"]');
+  await page.goto(base+'/');await page.waitForSelector('[data-open-issue]');
+  await page.click('#menuBtn');await page.locator('#chips button').filter({hasText:'경제'}).click();
+  await page.waitForURL('**/live');await page.waitForSelector('#feed [data-id="post-0"]');
+  assert.equal(await page.locator('[data-sort="hot"]').getAttribute('aria-selected'),'true');
 });

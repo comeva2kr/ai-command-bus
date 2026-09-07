@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { parseDealTitle, isDeal, destForDeal, ensureDealShare, DEAL_SHARE_DEFAULT } from "../src/feed/deals.js";
+import { parseDealTitle, isDealBoard, isDeal, destForDeal, ensureDealShare, DEAL_SHARE_DEFAULT } from "../src/feed/deals.js";
 
 test("실제 게시판 제목에서 쇼핑몰·상품·가격을 뽑는다", () => {
   const p = parseDealTitle("[지마켓] 반스 남녀공용 로퍼 어센틱 (26,180원/무배)");
@@ -226,9 +226,65 @@ test("딜을 덜어내도 한 페이지는 꽉 찬다 — 짧으면 무한스크
   const organic = res.items.filter((x) => x.via !== "ad");
   assert.equal(organic.length, 12, `한 페이지가 ${organic.length}칸 — 조정하면서 길이가 줄었다`);
   assert.equal(res.exhausted, false, "볼 글이 남았는데 소진으로 표시됐다");
-  // 사용자가 먼저 보는 앞쪽에는 딜이 뭉치지 않아야 한다.
-  const flags = organic.map((x) => !!x.isDeal);
-  for (let i = 1; i < flags.length; i++) {
-    assert.ok(!(flags[i] && flags[i - 1]), `${i}번째에서 딜이 연달아 나왔다`);
+  assert.ok(organic.every(i => !i.isDeal), "핫에 판매 딜이 섞였다");
+});
+
+
+test("NH142: 판매 게시판만 분류하고 본 글·필터·페이지 이동과 독립적으로 모은다", async () => {
+  const { FeedEngine } = await import("../src/feed/engine.js");
+  const { FeedStore } = await import("../src/feed/store.js");
+  const positive = [
+    "https://etoland.co.kr/hit/hotdeal/view/shoes-1",
+    "https://www.ppomppu.co.kr/zboard/view.php?id=ppomppu&no=1",
+    "https://www.ppomppu.co.kr/zboard/zboard.php?id=ppomppu4&no=2",
+    "https://bbs.ruliweb.com/market/board/1020/read/1",
+    "https://www.clien.net/service/board/jirum/1",
+    "https://www.dealbada.com/bbs/board.php?bo_table=deal_domestic&wr_id=1"
+  ];
+  for (const url of positive) assert.equal(isDealBoard({url}), true, url);
+  for (const url of ["https://news.test/a?ref=/hotdeal/", "https://etoland.co.kr.evil.test/hit/hotdeal/view/1", "https://etoland.co.kr/hit/humor/view/1", "bad"]) {
+    assert.equal(isDealBoard({url,title:"노트북($999) 사용 후기"}), false, url);
   }
+  const now = new Date().toISOString();
+  const rows = Array.from({length:9},(_,i)=>({id:`deal-${i}`,source:"ppomppu-deal",title:`상품 소개 ${i}`,url:`https://www.ppomppu.co.kr/zboard/view.php?id=ppomppu&no=${i}`,publishedAt:now,score:20-i,category:"life",tags:[],topics:[],lang:"ko"}));
+  rows.push({id:"mixed",source:"etoland",title:"하루특가) 금강제화 리차드 남성 소가죽 U팁 더비",url:positive[0],publishedAt:now,score:4,category:"humor",tags:[],topics:[],lang:"ko"});
+  rows.push(...["1,000원 인상된 요금", "노트북($999) 사용 후기", "반값 특가 행사 논란"].map((title,i)=>({id:`regular-${i}`,source:"clien",title,url:`https://www.clien.net/service/board/park/${i}`,publishedAt:now,score:3,category:"life",tags:[],topics:[],lang:"ko"})));
+  const store = new FeedStore();
+  const engine = new FeedEngine(store,[{id:"mixed-test",kind:"community",async fetch(){return rows;}}]);
+  const user = store.createUser();
+  const organic = r => r.items.filter(i=>i.via!=="ad");
+  const pool = await engine._items();
+  assert.equal(pool.find(i=>i.id==="mixed").isDeal,true);
+  assert.ok(pool.filter(i=>i.id.startsWith("regular-")).every(i=>!i.isDeal));
+  // Include stale deal anchors and fully seen recycle paths, including explicit sources.
+  user.homeAnchors={at:now,ids:["mixed","deal-0"]};
+  for(const sort of ["hot","latest"]) for(const source of [null,"etoland","ppomppu-deal","clien"]){
+    for(let repeat=0;repeat<2;repeat++){
+      const r = await engine.getFeed(user.id,{sort,source,limit:20});
+      assert.ok(organic(r).every(i=>!i.isDeal),`${sort}/${source}/${repeat}`);
+    }
+  }
+  user.mixBalance=1;user.surveyAnswers={categories:["tech"],avoid:["life"]};
+  store.setTopicFilter(user.id,"nodeal",true);
+  const ids=[];let cursor=0;let exhausted=false;
+  while(!exhausted){
+    const page = await engine.getFeed(user.id,{sort:"deals",source:"clien",category:"tech",limit:3,cursor});
+    assert.ok(organic(page).length>0);
+    assert.ok(organic(page).every(i=>i.isDeal));
+    ids.push(...organic(page).map(i=>i.id));cursor=page.nextCursor;exhausted=page.exhausted;
+    assert.ok(ids.length<=10,"pagination did not finish");
+  }
+  assert.equal(ids.length,10);assert.equal(new Set(ids).size,10);
+  const revisit = await engine.getFeed(user.id,{sort:"deals",limit:3});
+  assert.deepEqual(organic(revisit).map(i=>i.id),ids.slice(0,3));
+  // General news remains unseen; it must not prevent reopening a seen deal list.
+  user.seen=ids.slice();
+  assert.equal(organic(await engine.getFeed(user.id,{sort:"deals",limit:20})).length,10);
+  user.mutedSources=["etoland"];
+  engine.store.disabledSources=()=>new Set(["ppomppu-deal"]);
+  assert.equal(organic(await engine.getFeed(user.id,{sort:"deals"})).length,0);
+  engine.store.disabledSources=()=>new Set();user.mutedSources=[];
+  pool.find(i=>i.id==="mixed").topics=["politics"];
+  assert.equal(organic(await engine.getFeed(user.id,{sort:"deals",limit:20})).length,9);
+  assert.ok(user.showTopics.includes("nodeal"),"legacy push refusal must remain saved");
 });

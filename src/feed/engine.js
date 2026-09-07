@@ -15,7 +15,7 @@ import { hasProfanity } from "./profanity.js";
 import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
 import { AD_DISCLOSURE as COUPANG_DISCLOSURE } from "./ad-copy.js";
-import { destForDeal, destForText, destForTags, ensureDealShare, capDeals, dealRank } from "./deals.js";
+import { destForDeal, destForText, destForTags, isDealBoard, dealRank } from "./deals.js";
 import { chosenCategories, ensureForeignShare, isForeignItem, FOREIGN_WINDOW } from "./taste-share.js";
 
 // 상품군 사전을 걸지 않는 분류. 사건·시사 기사에 "연관 광고"가 붙으면
@@ -1213,7 +1213,7 @@ export class FeedEngine {
         item.affiliate = true;
         item.disclosure = COUPANG_DISCLOSURE;
       }
-      if (this._dealSources.has(item.source)) {
+      if (registeredDeal || isDealBoard(item)) {
         item.isDeal = true;
         // 관리자가 직접 고른 상품군이 있으면 그것을 쓴다. 제목 낱말로 추정하는
         // destForDeal보다 사람이 고른 값이 정확하다 — 예전엔 이 값을 무시하고
@@ -1933,7 +1933,7 @@ export class FeedEngine {
   // the chip is the opposite of muting it) in favor of latest+공개화제성 order.
   async getFeed(userId, { limit = 10, cursor = 0, markSeen = true, source = null, sort = "hot", category = null } = {}) {
     const user = this.store.requireUser(userId);
-    const items = await this._items();
+    const items = (await this._items()).filter(i => sort === "deals" || i.isDeal !== true);
     const seen = new Set(user.seen);
     // editorial.js context: per-source score stats over the whole collected
     // pool (see sourceScoreStats above), so the "outlier vs this source's
@@ -1953,6 +1953,41 @@ export class FeedEngine {
     const selectedHotCategories = sort === "hot" && !category ? chosenCategories(user) : new Set();
     const hatedCategories = new Set([...normalizedCategories(user.surveyAnswers?.avoid),
       ...categorySets(user.preferences, rankParams()).hated]);
+
+    // 핫딜은 전체 판매 게시판 목록이다. 일반 소스·분야·본 글 기록은 적용하지 않는다.
+    if (sort === "deals") {
+      const dealPool = items.filter(i => i.isDeal === true && !muted.has(i.source)
+        && !disabled.has(i.source) && !offMain.has(i.source)
+        && !topicsBlocked(i, showTopics) && !tooOld(i, now));
+      const ourList = dealPool.filter((i) => i.via === "ourdeal")
+        .sort((a, b) => Date.parse(b.publishedAt || 0) - Date.parse(a.publishedAt || 0))
+        .map((item) => ({ item, score: 1e9 }));
+      const rivalList = dealPool.filter((i) => i.via !== "ourdeal")
+        .map((item) => ({ item, score: dealRank(item, now) }))
+        .sort((a, b) => b.score - a.score);
+      const orderedDeals = [...ourList, ...rivalList];
+      this._lastSelectMeta = null;
+      const dealFresh = orderedDeals.slice(cursor, cursor + limit);
+      const dealBatch = dealFresh.map((r) =>
+        this._decorate(r.item, r.score, user, { now, sourceStats: editorialSourceStats.get(r.item.source) })
+      );
+      if (markSeen && dealBatch.length) this.store.markSeen(userId, dealBatch.map((b) => b.id));
+      // 광고를 조금 촘촘하게 낸다. 딜을 보러 온 사람은 이미 살 마음으로
+      // 읽고 있고, 각 딜의 상품군(dealDest)에 맞춘 배너가 붙는다 —
+      // 문맥이 맞는 자리라 같은 밀도라도 성가심이 덜하고 값은 더 나간다.
+      // 그래도 첫 두 칸은 콘텐츠로 둔다(광고부터 보이면 광고판이 된다).
+      const dealDisplay = this._monetize(userId, user, dealBatch, cursor, false,
+                                         { every: 5, skipFirst: 2 }).items;
+      return {
+        items: dealDisplay,
+        nextCursor: cursor + dealBatch.length,
+        exhausted: cursor + dealBatch.length >= orderedDeals.length,
+        pageMeta: null,
+        phase: feedPhase(specializationLevel(user.preferences, user.feedbackCount)),
+        level: specializationLevel(user.preferences, user.feedbackCount),
+        feedbackCount: user.feedbackCount
+      };
+    }
 
     let unseen;
     let collabBoosts = new Map();
@@ -2007,25 +2042,15 @@ export class FeedEngine {
       // hotGate/rankItems path did) so the round-robin/min-gap diversity
       // guarantees below hold on *every* page of the infinite scroll, not
       // just a fresh user's first load.
-      // 핫딜 숨기기 (David 2026-08-06). 기본은 보임이라 showTopics에
-      // "nodeal"이 **있을 때** 숨긴다 — 정치·종교와 방향이 반대다.
-      //
-      // **핫딜 탭에는 적용하지 않는다.** 검수(2026-08-06 P1)가 실행으로
-      // 재현했다: 숨기기를 켠 사람이 정렬바의 핫딜 탭을 눌러도 0건이었다.
-      // 숨기기의 뜻은 "홈 피드에서 안 보고 싶다"이지 "탭을 눌러도 안 보겠다"가
-      // 아니다 — 탭을 누른 것 자체가 지금 보겠다는 명시적 의사다.
-      // 기능을 줄이지 않는다(확정 규칙 c).
-      const hideDeals = showTopics.has(NO_DEAL_TOPIC) && sort !== "deals";
       // 관문을 술어 하나로 뽑는다 — 아래 "본 글 재활용" 폴백이 같은 관문을
       // 그대로 써야 한다(관문 두 벌 금지).
       const passesGates = (i) =>
         // 커뮤만/뉴스만은 핫·최신·재사용·앵커·추가 후보에 같은 관문을 적용한다.
         // 핫딜 탭과 위의 명시 소스 보기는 해당 목록을 직접 선택한 의사를 따른다.
-        (sort === "deals" || !((mixBalance === -1 && i.kind === "news") ||
-          (mixBalance === 1 && i.kind === "community"))) &&
-        !(hideDeals && i.isDeal === true) &&
-        (!selectedHotCategories.size || selectedHotCategories.has(i.category) || i.via === "ourdeal") &&
-        (sort === "deals" || !hatedCategories.has(i.category)) &&
+        !((mixBalance === -1 && i.kind === "news") ||
+          (mixBalance === 1 && i.kind === "community")) &&
+        (!selectedHotCategories.size || selectedHotCategories.has(i.category)) &&
+        !hatedCategories.has(i.category) &&
         !muted.has(i.source) &&
         !disabled.has(i.source) &&
         // mainFeed:false — 수집은 하되 통합 피드에서만 뺀다. 소스 칩으로
@@ -2041,7 +2066,7 @@ export class FeedEngine {
         const anchoredMs = saved?.at ? Date.parse(saved.at) : NaN;
         if (Array.isArray(saved?.ids) && Number.isFinite(anchoredMs) && now - anchoredMs <= HOME_ANCHOR_TTL_MS) {
           for (const id of saved.ids.slice(0, Math.min(HOME_ANCHOR_COUNT, Math.max(0, limit - 1)))) {
-            const found = this._findItem(items, id);
+            const found = items.find(item => item.id === id);
             if (found && passesGates(found)) {
               anchorEntries.push({ item: found, score: 0 });
               if (!base.some(item => item.id === id)) base.push(found);
@@ -2104,53 +2129,6 @@ export class FeedEngine {
 
       collabBoosts = collaborativeBoosts(this.store, userId);
       const seed = cursor + 1;
-
-      if (sort === "deals") {
-        // ── 핫딜 모아보기 (David 2026-08-06) ──
-        // "설정에 핫딜 모아보기 버튼 하나 만들자. 누르면 제품 판매 딜만
-        //  관심도 최신도 적절한 순으로 배열되게. 그리고 여기에 광고 진짜
-        //  적절하게 잘 배치하고."
-        //
-        // 통합 피드의 딜 상한(capDeals)·보장(ensureDealShare)은 여기서 쓰지
-        // 않는다 — 딜만 보러 온 화면이다. 다양성 인터리브도 걸지 않는다:
-        // 어느 게시판에 올라왔는지보다 무엇을 얼마에 파는지가 중요하다.
-        const dealPool = pool.filter((i) => i.isDeal === true);
-        // **우리가 직접 올린 딜을 맨 앞에 둔다.**
-        //
-        // dealRank는 반응(추천·댓글)을 재는데 우리 딜은 우리가 고른 것이라
-        // 0에서 시작한다 — 뽐뿌 핫딜과 같은 잣대로 재면 여기서도 뒤로 밀린다
-        // (실측 2026-08-06: 12칸 안에 한 건도 못 들었다).
-        // 핫딜 모아보기는 **우리 물건을 파는 자리**다. 우리 딜끼리는 최신순으로,
-        // 그 뒤에 커뮤니티 딜을 반응·신선도 순으로 잇는다.
-        const ourList = dealPool.filter((i) => i.via === "ourdeal")
-          .sort((a, b) => Date.parse(b.publishedAt || 0) - Date.parse(a.publishedAt || 0))
-          .map((item) => ({ item, score: 1e9 }));
-        const rivalList = dealPool.filter((i) => i.via !== "ourdeal")
-          .map((item) => ({ item, score: dealRank(item, now) }))
-          .sort((a, b) => b.score - a.score);
-        const orderedDeals = [...ourList, ...rivalList];
-        this._lastSelectMeta = null;
-        const dealFresh = orderedDeals.slice(cursor, cursor + limit);
-        const dealBatch = dealFresh.map((r) =>
-          this._decorate(r.item, r.score, user, { now, sourceStats: editorialSourceStats.get(r.item.source) })
-        );
-        if (markSeen && dealBatch.length) this.store.markSeen(userId, dealBatch.map((b) => b.id));
-        // 광고를 조금 촘촘하게 낸다. 딜을 보러 온 사람은 이미 살 마음으로
-        // 읽고 있고, 각 딜의 상품군(dealDest)에 맞춘 배너가 붙는다 —
-        // 문맥이 맞는 자리라 같은 밀도라도 성가심이 덜하고 값은 더 나간다.
-        // 그래도 첫 두 칸은 콘텐츠로 둔다(광고부터 보이면 광고판이 된다).
-        const dealDisplay = this._monetize(userId, user, dealBatch, cursor, false,
-                                           { every: 5, skipFirst: 2 }).items;
-        return {
-          items: dealDisplay,
-          nextCursor: cursor + dealBatch.length,
-          exhausted: dealBatch.length < limit,
-          pageMeta: null,
-          phase: feedPhase(specializationLevel(user.preferences, user.feedbackCount)),
-          level: specializationLevel(user.preferences, user.feedbackCount),
-          feedbackCount: user.feedbackCount
-        };
-      }
 
       if (sort === "latest") {
         // ── 최신순: 시간버킷 × 소스 인터리브 (#12, ingest.js latestInterleave) ──
@@ -2241,38 +2219,6 @@ export class FeedEngine {
     // pass here would only undo that structure for no benefit.
     // 소스 보기: seen 필터가 없으므로 cursor를 진짜 오프셋으로 쓴다.
     // 홈: seen 기반 페이지네이션 그대로(항상 앞에서 limit개).
-    // 직접 등록한 고지된 상품만 별도 배치한다. 외부 딜은 핫 점수로 경쟁한다.
-    // ── 딜 조정은 **페이지를 자르기 전에** 한다.
-    //
-    // 처음엔 잘라 낸 페이지에서 딜을 덜어냈다. 그러면 한 페이지가 limit보다
-    // 짧아지고, 호출부는 그것을 "풀 소진"으로 읽어 무한스크롤을 멈춘다.
-    // 실기기(David 2026-08-06): "밑으로 내리니까 '새 화제글을 모으는 중'이라고
-    // 뜨고 더 글이 안 떠 한참 동안." 뒤에서 채우려 해도 후보 목록 자체가
-    // limit 길이라 채울 것이 없었다(실측: unseen 12칸).
-    //
-    // 후보 목록에서 먼저 조정하고 그다음에 자르면, 페이지는 늘 꽉 찬다.
-    // 통합 피드에만 적용한다 — 소스 칩으로 한 게시판을 고른 사람에게는
-    // 그 게시판을 그대로 보여 준다.
-    // 딜을 숨긴 사람에게는 딜 지분 보장도 하지 않는다 — 후보에서 뺐는데
-    // 보장이 다시 끌어오면 숨기기가 안 통한다(취향 지분에서 겪은 것과 같은 종류).
-    const hideDealsNow = new Set(user.showTopics || []).has(NO_DEAL_TOPIC) && sort !== "deals";
-    if (!source && !category && unseen.length && !hideDealsNow) {
-      const scoreOf = new Map(unseen.map((r) => [r.item.id, r.score]));
-      const list = unseen.map((r) => r.item);
-      const inList = new Set(list.map((i) => i.id));
-      // **관문을 지난 목록에서만 끌어온다.** 예전엔 this._items()(원본 전체)를
-      // 써서 뮤트·관리자 차단·오프메인·토픽차단·신선도를 전부 우회했다 —
-      // 뮤트한 소스의 딜이 그대로 보였고, 관리자가 막은 소스도 딜 경로로 샜다.
-      // tasteBase는 base(모든 관문 통과)와 같은 목록이다.
-      const dealPool = (tasteBase || [])
-        .filter((i) => i.via === "ourdeal" && i.isDeal === true && !inList.has(i.id) && !seen.has(i.id));
-      const withShare = ensureDealShare(list, dealPool, { is: (i) => i.isDeal === true });
-      const balanced = capDeals(withShare, { is: (i) => i.isDeal === true });
-
-      // 취향과 출처 상한은 selectDiverse에서 한 번만 결정한다.
-      unseen = balanced.map((item) => ({ item, score: scoreOf.get(item.id) || 0 }));
-    }
-
     let fresh = source ? diversify(unseen).slice(cursor, cursor + limit) : unseen.slice(0, limit);
 
     // ── 해외 글 페이지 하한 (5.7 B단계 채택안, 2026-08-08)
