@@ -388,7 +388,7 @@ test("live alerts have separate bounded cadence, one matching preview and honor 
   assert.deepEqual(await h.run(options),{sent:0,failed:0});
 });
 
-test("NH132 real digest push sends only declared interests per recipient, never unrelated popularity", async () => {
+test("NH134 real digest separates declared, learned and unknown interests without game leakage", async () => {
   const clock = () => "2026-09-07T03:00:00.000Z";
   const store = new FeedStore({ clock }), engine = new FeedEngine(store, []);
   engine._clock = clock;
@@ -399,7 +399,13 @@ test("NH132 real digest push sends only declared interests per recipient, never 
     { ...base, id: "auto-match", source: "automotive", category: "auto", tags: ["cars"], title: "전기차 충전 표준 공식 발표" },
     { ...base, id: "viral-news", source: "viral-news", category: "sports", tags: [], title: "프로야구 주요 발표", score: 1e9 },
     { ...base, id: "viral-community", source: "viral-community", kind: "community", category: "sports", tags: [],
-      title: "프로야구 경기 반응 급증", score: 1e9, heatHist: [100, 1000] }
+      title: "프로야구 경기 반응 급증", score: 1e9, heatHist: [100, 1000] },
+    ...["[게임] 몬헌 어센던스 [해머], [보우건]편", "2K, 농구 게임 ‘NBA 2K27’ 출시"].map((title, i) =>
+      ({ ...base, id: `bad-game-${i}`, title, source: "gnews-tech", category: "tech", tags: ["ai"], score: 1e10 })),
+    { ...base, id: "bad-fashion-game", title: "‘NBA 2K27’, 플레이 방식을 바꿀 업데이트 발표", source: "hypebeast-fashion", category: "fashion", tags: [], score: 1e10 },
+    { ...base, id: "off-main-viral", source: "inven_hot", kind: "community", category: "gaming", tags: [], title: "새 게임 공략 반응 급증", score: 1e10, heatHist: [100, 1000] },
+    { ...base, id: "niche-cold-news", title: "새 게임 출시", source: "game-news", category: "gaming", tags: [], score: 0,
+      coverage: 5, editorialImportance: "pass", sourceRank: 5 }
   ];
   engine._items = async () => rows;
   const profiles = [
@@ -408,19 +414,24 @@ test("NH132 real digest push sends only declared interests per recipient, never 
     { id: "mixed-taste", survey: { categories: ["auto"] },
       learned: { categories: { sports: 6 }, sources: { "viral-news": 6, "viral-community": 6 }, prefs: { longform: 1 } }, expected: "auto-match" },
     { id: "today-only", today: ["tech"], expected: "tech-match" },
-    { id: "explicit-tag", survey: { categories: ["science"], tags: ["ai"] }, expected: "tech-match" },
+    { id: "explicit-tag", survey: { tags: ["ai"] }, expected: "tech-match" },
+    { id: "tag-cannot-expand-selected", survey: { categories: ["science"], tags: ["ai"] } },
     { id: "avoid-over-tag", survey: { categories: ["tech"], tags: ["ai"], avoid: ["tech"] } },
     { id: "hated-over-tag", survey: { categories: ["tech"], tags: ["ai"] }, learned: { categories: { tech: -2 } } },
     { id: "survey-first", survey: { categories: ["auto"] }, today: ["tech"], expected: "auto-match" },
-    { id: "no-interests" },
-    { id: "source-style-only", survey: { communities: ["viral-news"], depth: "deep" } },
-    { id: "learned-only", learned: { categories: { tech: 6 }, tags: { ai: 6 } } },
+    { id: "no-interests", expected: "viral-community" },
+    { id: "source-style-only", survey: { communities: ["viral-news"], depth: "deep" }, expected: "viral-community" },
+    { id: "weights-without-evidence", learned: { categories: { tech: 6 }, tags: { ai: 6 } }, expected: "viral-community" },
+    { id: "history-person", history: [{ title: "인공지능 AI 연구 결과", count: 10 }], expected: "tech-match" },
+    { id: "game-avoider", survey: { categories: ["tech"], tags: ["ai"], avoid: ["gaming"] }, expected: "tech-match" },
+    { id: "fashion-game-avoider", survey: { categories: ["fashion"], avoid: ["gaming"] } },
     { id: "no-match", survey: { categories: ["culture"] } }
   ];
   for (const profile of profiles) {
     const user = store.createUser(profile.id);
     if (profile.survey) store.saveSurvey(user.id, profile.survey);
     if (profile.today) store.setBriefingCategories(user.id, profile.today);
+    if (profile.history) store.applyHistory(user.id, profile.history);
     for (const [dimension, weights] of Object.entries(profile.learned || {})) Object.assign(user.preferences[dimension], weights);
     user.mixBalance = 0;
     store.savePushSubscription(user.id, { endpoint: `https://push.example.test/${user.id}` });
@@ -446,4 +457,17 @@ test("NH132 real digest push sends only declared interests per recipient, never 
     assert.deepEqual(user.seen, []);
     assert.deepEqual(user.opened || [], []);
   }
+  // Popular recommendations are limited to one per day; Today receipts and
+  // the personalized quota are separate. Delivery must not turn cold-start into learning.
+  const unknown = store.getUser("no-interests");
+  assert.equal(unknown.implicitCount || 0, 0);
+  rows.push({...rows.find(row=>row.id==="viral-community"),id:"next-popular"});
+  assert.equal((await engine.digest(unknown.id,{alertsOnly:true,minScore:0,limit:1,excludeIds:["viral-community"]})).top[0].id,"next-popular");
+  const repeat = await sendDigestPushes(store, engine, vapid, { clock: () => "2026-09-07T04:00:00.000Z", alertsOnly: true, minScore: 0, limit: 1,
+    sendImpl: async sub => { assert.notEqual(sub.endpoint, unknown.pushSubscription.endpoint); return { status: 201 }; } });
+  assert.deepEqual(repeat,{sent:0,failed:0});
+  engine._items=async()=>[{...base,id:"broad-news",title:"우주 탐사선의 새로운 관측 결과 발표",source:"front-page",category:"science",tags:[],coverage:5,poolCoverage:3,sourceRank:1}];
+  const coldNews=await engine.digest(unknown.id,{alertsOnly:true,minScore:0,limit:1});
+  assert.equal(coldNews.alertMode,"popular");
+  assert.equal(coldNews.top[0].id,"broad-news");
 });

@@ -435,6 +435,7 @@ const CULTURE_EVENT_SUBJECT = /(?:아티스트|아이돌|가수|보이그룹|걸
 const GAMING_SUBJECT = /(게임|게이머|오버워치|overwatch|옵치|팰월드|palworld|포켓몬|pok[eé]mon|pokopia|포트나이트|fortnite|스팀\s*머신|플레이스테이션|xbox|엑스박스|\bcbt\b)/i;
 const TECH_GAME_FRANCHISE = /(?:\bgta\b|grand\s+theft\s+auto|크레이지\s*택시)/i;
 const TECH_IN_GAME_CONTEXT = /(?:dlss|\bdll\b|그래픽카드|드라이버|악성\s*코드|malware|랜섬웨어)/i;
+const GAME_CONTENT_SUBJECT = /(?:^\s*[\[【]\s*게임\s*[\]】]|(?:비디오|온라인|모바일|콘솔|pc|농구|축구|야구|레이싱)\s*게임(?!\s*차|체인저)|\bnba\s*2k\d+\b|몬스터\s*헌터|몬헌)/i;
 const CULTURE_SUBJECT = /(영화|드라마|예능|배우|감독|아이돌|가수|음악|음원|앨범|신곡|공연|콘서트|팬미팅|전시|작품|소설|웹툰|넷플릭스|박스오피스)/i;
 const CULTURE_PRODUCTION_CONTEXT = /(영화|예능|배우|감독|아이돌|가수|음악|음원|앨범|신곡|공연|콘서트|팬미팅|전시|작품|소설|웹툰|넷플릭스|박스오피스|드라마.{0,12}(?:방영|공개|제작|출연|시청률)|(?:방영|공개|제작|출연|시청률).{0,12}드라마)/i;
 const FILM_TV_PRODUCTION = /(스릴러|시트콤|다큐멘터리|드라마|영화|시즌\s*\d|캐스팅|출연|개봉|감독|제작자)/i;
@@ -466,12 +467,20 @@ const GENERAL_NEWS_GUARD_REASONS = new Set([
 
 export const isGeneralNewsGuardReason = (reason) => GENERAL_NEWS_GUARD_REASONS.has(reason);
 
+function isGameContentSubject(title) {
+  return GAME_CONTENT_SUBJECT.test(title) && !looksLikeIncident(title)
+    && !CATEGORY_GUARDS.get("gaming").some(word => title.includes(word))
+    && !TECH_IN_GAME_CONTEXT.test(title) && !FILM_TV_PRODUCTION.test(title)
+    && !FASHION_SUBJECT.test(title.replace(/(?:플레이|전투|게임)\s*스타일/g, ""));
+}
+
 // 제목의 낱말 하나가 분야를 훔치지 못하게 하는 공통 가드. 분류 단계뿐 아니라
 // 자체 편집 기계 게이트에서도 같은 함수를 써서, 디스크에 이미 잘못 저장된
 // 과거 분류가 다음 판 대표 이슈로 되살아나는 경로까지 막는다.
 export function categoryGuardReason(category, title, item = null) {
   const raw = String(title || "");
   const text = String(title || "").toLowerCase();
+  if (category !== "gaming" && isGameContentSubject(raw)) return "game-content-subject";
   if (category === "tech" && GOVERNMENT_LEADERSHIP.test(raw)
       && GENERAL_REGULATORY_SLOGAN.test(raw)
       && !TECH_SUBJECT.test(raw) && !AUTO_PRODUCT_CONTEXT.test(raw)) {
@@ -586,6 +595,9 @@ export function keywordCategory(title, opts = {}) {
   // 사건 보도면 주제 확정을 포기한다 — 자동차가 등장할 뿐 주제가 아니다.
   // 모든 주제 카테고리에 공통으로 걸리므로 여기 한 번만 검사한다.
   if (looksLikeIncident(t)) return null;
+  // A game's own section/genre/title is stronger than the sport or hardware
+  // named inside it. Finance, security and film coverage retain their subjects.
+  if (!opts.autoOnly && isGameContentSubject(t)) return "gaming";
   if (AUTO_KEYWORDS.some((k) => includesCategoryKeyword(autoTitle, k))) {
     if (AUTO_FINANCE_GUARD.some((k) => t.includes(k))) return null;
     if (/제네시스/i.test(t) && /(골프|챔피언십)/i.test(t)

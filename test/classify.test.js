@@ -1,6 +1,9 @@
 // 카테고리 분류 엔진 (David 2026-07-29 "칼같은 인덱싱") — classify.js + topics.js 보강.
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   TitleClassifier,
@@ -15,6 +18,30 @@ import { classifyTopics } from "../src/feed/topics.js";
 import { FeedStore } from "../src/feed/store.js";
 import { FeedEngine } from "../src/feed/engine.js";
 import { JsonSource } from "../src/feed/content.js";
+
+test("NH134 game subjects override technology and sports labels without stealing finance or real sports", async (t) => {
+  const titles = ["[게임] 몬헌 어센던스 [해머], [보우건]편", "2K, 농구 게임 ‘NBA 2K27’ 출시", "2K, NBA 시리즈 신작 ‘NBA 2K27’ 출시"];
+  const engine = new FeedEngine(new FeedStore(), []);
+  const rows = titles.map((title, i) => ({ id: `game-${i}`, title, source: "gnews-tech", category: "tech", kind: "news", tags: [], topics: [] }));
+  engine._classifyItems(rows);
+  assert.deepEqual(rows.map(row => row.category), ["gaming", "gaming", "gaming"]);
+  for (const title of ["‘NBA 2K27’, 플레이 방식을 바꿀 새로운 업데이트 발표", "‘NBA 2K27’, 플레이 스타일을 바꿀 새로운 업데이트 발표"]) {
+    const fashionGame = { ...rows[0], title, source: "hypebeast-fashion", category: "fashion", translated: true };
+    delete fashionGame.registryCategory;
+    engine._classifyItems([fashionGame]);
+    assert.equal(fashionGame.category, "gaming");
+  }
+  for (const title of ["넥슨 주가 급등, 실적 호조", "게임체인저 될 AI 반도체 출시", "프로야구 게임차 1.5경기로 좁혀져", "NBA 결승골 주요 경기 결과", "넷플릭스 오징어 게임 시즌 공개", "모바일 게임 악성 코드 보안 패치", "몬헌 협업 패션 컬렉션 공개"]) {
+    assert.notEqual(definiteCategory({ title }), "gaming", title);
+  }
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"nh134-warm-"));
+  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const file=path.join(dir,"pool.json"), warm=new FeedEngine(new FeedStore(),[]);
+  fs.writeFileSync(file,JSON.stringify({savedAt:Date.now(),rows:rows.map(item=>({item:{...item,category:"tech"}}))}));
+  warm._poolFile=file;
+  assert.equal(warm._loadPool(),true);
+  assert.ok((await warm._items()).every(item=>item.category==="gaming"));
+});
 
 // ---------------------------------------------------------------------------
 // 정치 사전 — 실측에서 실패했던 제목을 그대로 고정한다.

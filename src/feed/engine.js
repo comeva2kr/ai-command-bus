@@ -1400,6 +1400,12 @@ export class FeedEngine {
         sourceId: item.source
       });
       const urlDefinite = definiteCategory({ title: "", url: item.url, sourceId: item.source });
+      if (categoryGuardReason(item.category, item.title, item) === "game-content-subject") {
+        if (item.registryCategory === undefined) item.registryCategory = item.category;
+        item.categoryCorrection = { from: item.category, to: "gaming", rule: "game-content-subject" };
+        item.category = "gaming";
+        continue;
+      }
       const politicsTopic = (item.topics || []).includes("politics");
       const declarationGuard = sectioned && tierBySource.get(item.source) === "aggregate"
         ? categoryGuardReason(item.category, item.title, item) : null;
@@ -1600,6 +1606,7 @@ export class FeedEngine {
     if (!this._pool.size) return false;
     // 지난 사이클의 노출 후보를 그대로 되살린다 — 순위 재계산 없이 바로 뜬다.
     this._cache = parsed.rows.map((r) => r.item);
+    this._classifyItems(this._cache.filter(item => categoryGuardReason(item.category, item.title, item) === "game-content-subject"));
     this._briefingContextCache = null;
     this.lastRefreshedAt = parsed.savedAt;
     return true;
@@ -1944,7 +1951,8 @@ export class FeedEngine {
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     const mixBalance = Number.isFinite(user.mixBalance) ? user.mixBalance : 0;
     const selectedHotCategories = sort === "hot" && !category ? chosenCategories(user) : new Set();
-    const hatedCategories = categorySets(user.preferences, rankParams()).hated;
+    const hatedCategories = new Set([...normalizedCategories(user.surveyAnswers?.avoid),
+      ...categorySets(user.preferences, rankParams()).hated]);
 
     let unseen;
     let collabBoosts = new Map();
@@ -2684,11 +2692,23 @@ export class FeedEngine {
     const muted = new Set(user.mutedSources || []);
     const disabled = this.store.disabledSources ? this.store.disabledSources() : new Set();
     const showTopics = new Set(user.showTopics || []);
-    // Push needs declared topical interest, not a popularity/recency score.
-    // Live survey leads; Today-only users can use their saved category choices.
+    // Declared interests lead; existing positive learning is the fallback.
+    // Only people without either receive a limited popular recommendation.
     const surveyedCategories = normalizedCategories([...chosenCategories(user)]);
     const alertCategories = new Set(surveyedCategories.length ? surveyedCategories : normalizedCategories(user.briefingCategories));
     const alertTags = new Set((Array.isArray(user.surveyAnswers?.tags) ? user.surveyAnswers.tags : []).filter(isKnownTag));
+    const declaredInterests = alertCategories.size > 0 || alertTags.size > 0;
+    const learned = categorySets(user.preferences, rankParams());
+    const hasHistory = user.warmStarted || user.implicitCount > 0
+      || Object.values(user.ratings || {}).some(rating => rating.signal > 0);
+    if (!declaredInterests && hasHistory) {
+      for (const category of normalizedCategories([...learned.picked])) alertCategories.add(category);
+      for (const [tag, weight] of Object.entries(user.preferences?.tags || {})) {
+        if (isKnownTag(tag) && weight >= rankParams().pickMin) alertTags.add(tag);
+      }
+    }
+    const popularAlerts = alertsOnly && !alertCategories.size && !alertTags.size;
+    const offMain = alertsOnly ? this._offMainSet() : new Set();
     const avoidedCategories = new Set([...normalizedCategories(user.surveyAnswers?.avoid),
       ...categorySets(user.preferences, rankParams()).hated]);
     const pool = items.filter(
@@ -2696,8 +2716,10 @@ export class FeedEngine {
         !muted.has(i.source) &&
         !disabled.has(i.source) &&
         !topicsBlocked(i, showTopics) &&
-        (!alertsOnly || (!avoidedCategories.has(i.category)
-          && (alertCategories.has(i.category) || (i.tags || []).some(tag => alertTags.has(tag))))) &&
+        (!alertsOnly || (!offMain.has(i.source) && !avoidedCategories.has(i.category)
+          && !categoryGuardReason(i.category, i.title, i)
+          && (popularAlerts || (alertCategories.size ? alertCategories.has(i.category)
+            : (i.tags || []).some(tag => alertTags.has(tag)))))) &&
         !seen.has(i.id) && !(i.canonicalAliases || []).some((a) => seen.has(a.id))
     );
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
@@ -2715,10 +2737,13 @@ export class FeedEngine {
             || (user.mixBalance === -1 && item.kind === "news")
             || (user.mixBalance === 1 && item.kind === "community")
             || (showTopics.has(NO_DEAL_TOPIC) && item.isDeal)) return false;
-        if (item.kind === "news") return Number(item.coverage) >= 3
-          || (item.editorialImportance === "pass" && Number.isFinite(item.sourceRank) && item.sourceRank <= 2);
+        if (item.kind === "news") {
+          const prominent = item.editorialImportance === "pass" && Number.isFinite(item.sourceRank) && item.sourceRank <= 2;
+          return popularAlerts ? Number(item.coverage) >= 3 && (prominent || Number(item.poolCoverage) >= 3)
+            : Number(item.coverage) >= 3 || prominent;
+        }
         const history = item.heatHist;
-        if (item.kind !== "community" || !standout.has(item.id) || item.score < 10 || !Array.isArray(history) || history.length < 2) return false;
+        if (item.kind !== "community" || !standout.has(item.id) || item.score < (popularAlerts ? 100 : 10) || !Array.isArray(history) || history.length < 2) return false;
         const previous = history.at(-2), latest = history.at(-1);
         // heatHist is measured recommendations + comments*2; call this reaction
         // growth, never claim it is a measured recommendations-per-hour rate.
@@ -2726,9 +2751,11 @@ export class FeedEngine {
           && latest - previous >= 30 && latest >= previous * 1.5;
       });
     }
-    const ranked = rankItems(rankPool, user.preferences, { seed: 1, now, explore: 0 })
+    const ranked = (popularAlerts ? sourceHotScores(rankPool, now).map(row => ({item:row.item,score:row.hotScore})).sort((a,b)=>b.score-a.score)
+      : rankItems(rankPool, user.preferences, { seed: 1, now, explore: 0 }))
       .filter((r) => r.score >= minScore);
     return {
+      ...(alertsOnly ? { alertMode: popularAlerts ? "popular" : "personalized" } : {}),
       count: ranked.length,
       top: ranked.slice(0, limit).map((r) => this._decorate(r.item, r.score, user))
     };

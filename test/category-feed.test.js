@@ -42,6 +42,16 @@ test("카테고리를 안 주면 예전처럼 전체가 나온다", async () => 
   assert.ok(items.length > 0);
 });
 
+test("NH134 explicit avoidance survives imported history in the home feed", async () => {
+  const { store, user, engine } = await setup();
+  store.saveSurvey(user.id, { categories: ["tech"], avoid: ["realestate"] });
+  store.applyHistory(user.id, [{ title: "부동산 아파트 청약 분양", count: 100 }]);
+  assert.ok(user.preferences.categories.realestate > -1, "history must actually erode the old weight veto");
+  const result = await engine.getFeed(user.id, { limit: 20 });
+  assert.ok(result.items.length > 0);
+  assert.ok(result.items.every(item => item.category !== "realestate"));
+});
+
 test("모르는 카테고리는 빈 결과가 아니라 서버가 거른다 — 엔진은 값 그대로 쓴다", async () => {
   // 라우트가 isKnownCategory로 검증해 null로 접는다. 엔진까지 온 값은 신뢰한다.
   const { user, engine } = await setup();

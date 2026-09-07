@@ -202,6 +202,9 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
         continue; // e.g. user disappeared mid-loop; skip rather than fail the whole batch
       }
       if (!digest || !digest.count) continue;
+      // ponytail: one broad alert per day until interests emerge; reuse the
+      // existing receipt history rather than creating a second subscriber policy.
+      if (digest.alertMode === "popular" && deliveryTimes.some(at => kstDay(at) === kstDay(now))) continue;
       const items = (digest.top || []).filter((item) => item?.id && !item.adult
         && !(item.topics || []).includes("adult")
         && !pushItemIds(item).some((id) => excluded.has(id)));
