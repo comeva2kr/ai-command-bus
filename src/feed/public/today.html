@@ -171,7 +171,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 }
 @media(prefers-reduced-motion:reduce){.icon-button[aria-busy="true"] svg,.sk{animation:none}.view-indicator{transition:none}}
 </style>
-<link rel="stylesheet" href="/site-menu.css?v=20260907-install">
+<link rel="stylesheet" href="/site-menu.css?v=20260907-filter">
 </head>
 <body>
 <header class="topbar">
@@ -242,8 +242,8 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
-<script src="/notice-guide.js?v=20260907-install"></script>
-<script src="/site-menu.js?v=20260907-install"></script>
+<script src="/notice-guide.js?v=20260907-filter"></script>
+<script src="/site-menu.js?v=20260907-filter"></script>
 <script>
 const state={userId:null,coupang:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,sharedEdition:null,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
 const $=(id)=>document.getElementById(id);
@@ -961,9 +961,9 @@ function setupTodayMenu(session,config){
   let topics=Array.isArray(session.showTopics)?session.showTopics:[];
   function renderFilters(){
     const el=$("drawerFilters");el.innerHTML=NowHotMenu.filters(topics);
-    el.querySelectorAll("[data-topic-toggle],[data-deal-toggle]").forEach(button=>{
+    el.querySelectorAll("[data-topic-toggle]").forEach(button=>{
       button.onclick=async()=>{
-        const topic=button.dataset.topicToggle||"nodeal";button.disabled=true;
+        const topic=button.dataset.topicToggle;button.disabled=true;
         try{const result=await save("/api/topics",{topic,on:!topics.includes(topic)});
           if(Array.isArray(result.showTopics))topics=result.showTopics;
           localStorage.setItem("feed_topics",JSON.stringify(topics));toast("실시간·알림 필터를 저장했어요");

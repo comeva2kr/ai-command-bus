@@ -1359,3 +1359,31 @@ test("browser: NH138 install help preserves detail history, storage keys and rel
     await page.close();
   }
 });
+
+
+test("browser: NH139 menu omits deal toggle while Live tabs and existing settings remain", options, async t => {
+  for(const path of ['/', '/live']){
+    const {page,controls,base}=await fixture(t,path,false,'seen',false,false,{controls:{showTopics:['nodeal']}});
+    await page.waitForSelector('#authDrawerSec #drawerSpaceBtn',{state:'attached'});
+    await page.click('#menuBtn');
+    assert.equal(await page.locator('#drawerFilters [data-deal-toggle]').count(),0);
+    assert.doesNotMatch(await page.locator('#drawerFilters').innerText(),/핫딜/);
+    assert.equal(await page.locator('#drawerFilters [data-topic-toggle]').count(),2);
+    await page.locator('#drawerFilters [data-topic-toggle="politics"]').click();
+    await page.waitForFunction(()=>document.querySelector('#drawerFilters [data-topic-toggle="politics"]').getAttribute('aria-pressed')==='true');
+    assert.deepEqual(controls.showTopics,['nodeal','politics']);
+    await page.click('#drawerSpaceBtn');await page.waitForSelector('#spaceBody [data-deal-toggle]');
+    const deal=page.locator('#spaceBody [data-deal-toggle]');
+    assert.equal(await deal.innerText(),'보기');
+    await deal.click();await page.waitForFunction(()=>document.querySelector('#spaceBody [data-deal-toggle]').textContent==='숨기기');
+    assert.deepEqual(controls.showTopics,['politics']);
+    await page.click('#spaceBack');await page.waitForSelector('#space.hidden',{state:'attached'});
+    assert.deepEqual(await page.locator('#sortBar [data-sort]').allTextContents(),['핫','최신','핫딜']);
+    for(const sort of ['latest','deals','hot']){
+      await Promise.all([page.waitForRequest(r=>{const u=new URL(r.url());return u.pathname==='/api/feed'&&(u.searchParams.get('sort')||'hot')===sort}),page.locator('#sortBar [data-sort="'+sort+'"]').click()]);
+      assert.equal(await page.locator('#sortBar [data-sort="'+sort+'"]').evaluate(el=>el.classList.contains('active')),true);
+    }
+    await page.click('#menuBtn');assert.equal(await page.locator('#drawerFilters [data-deal-toggle]').count(),0);
+    await page.close();
+  }
+});

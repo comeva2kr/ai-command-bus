@@ -1017,7 +1017,7 @@
   .survey-nudge,.nudge{border-radius:0!important}
 
 </style>
-<link rel="stylesheet" href="/site-menu.css?v=20260907-install">
+<link rel="stylesheet" href="/site-menu.css?v=20260907-filter">
 </head>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -1153,8 +1153,8 @@
 
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
-<script src="/notice-guide.js?v=20260907-install"></script>
-<script src="/site-menu.js?v=20260907-install"></script>
+<script src="/notice-guide.js?v=20260907-filter"></script>
+<script src="/site-menu.js?v=20260907-filter"></script>
 <script type="module">
 const API = {
   async session(userId) { return post("/api/session", { userId }); },
@@ -2342,7 +2342,7 @@ async function toggleTopic(topic, on){
 // the ☰ drawer, driven by the same state/toggle functions above. Uses
 // data-attributes instead of ids so both places can render it at once without
 // id collisions.
-function contentFilterHtml(){ return NowHotMenu.filters(state.showTopics); }
+function contentFilterHtml(){ return NowHotMenu.filters(state.showTopics,true); }
 
 function wireContentFilterButtons(container, onAfter){
   container.querySelectorAll("[data-topic-toggle]").forEach(btn=>{
@@ -2377,7 +2377,7 @@ async function toggleDeals(hide){
 function refreshDrawerFilters(){
   const el = document.getElementById("drawerFilters");
   if(!el) return;
-  el.innerHTML = contentFilterHtml();
+  el.innerHTML = NowHotMenu.filters(state.showTopics);
   wireContentFilterButtons(el, refreshDrawerFilters);
 }
 // same idea for 내 공간's copy — `spaceBody` is the #spaceBody element (passed
