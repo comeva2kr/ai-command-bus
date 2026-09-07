@@ -86,3 +86,15 @@ test("수집 금지 소스는 발행 페이지에 안 실린다", async () => {
     assert.ok(!disabled.includes(it.source), `금지 소스가 풀에 있다: ${it.source}`);
   }
 });
+
+test('NH140 discovery summary reuses published rankings, bounds output and caches reads', async t => {
+  const {createServer}=await import('../src/feed/server.js');let reads=0;
+  const server=createServer({sources:[],onEngineReady:engine=>{engine.pool=async()=>{reads++;return ITEMS}}});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve))});
+  const url=`http://127.0.0.1:${server.address().port}/api/discovery`;
+  const response=await fetch(url);assert.equal(response.status,200);
+  const body=await response.json();
+  assert.deepEqual(body,{communities:communityRanking(ITEMS).slice(0,3).map(x=>({name:x.label})),keywords:keywordIndex(ITEMS,{limit:3}).map(x=>({name:x.tag}))});
+  const before=reads;assert.deepEqual(await(await fetch(url)).json(),body);assert.equal(reads,before);
+});

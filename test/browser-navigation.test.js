@@ -109,6 +109,10 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
       }
       if (url.pathname === "/api/config") body = { categories: [category], survey: SURVEY, topics: [], ads: {}, release,
         coupang: controls.coupang, auth: controls.auth, monetization: { enabled: Boolean(controls.coupang) } };
+      if (["/api/discovery", "/api/trends"].includes(url.pathname)) {
+        if(controls.failHighlights)return route.fulfill({status:503,json:{error:'unavailable'}});
+        body=url.pathname==='/api/discovery'?(controls.discovery||{}):(controls.trends||{});
+      }
       if (url.pathname === "/api/session") body = { userId: "reader", identitySource: guideState === "new" ? "new" : "storage",
         surveyed: guideState !== "new", showTopics: controls.showTopics, briefingCategories: guideState === "new" ? [] : ["business"],
         mixBalance: controls.mixBalance, leanBalance: controls.leanBalance, level:0.62 };
@@ -1384,6 +1388,41 @@ test("browser: NH139 menu omits deal toggle while Live tabs and existing setting
       assert.equal(await page.locator('#sortBar [data-sort="'+sort+'"]').evaluate(el=>el.classList.contains('active')),true);
     }
     await page.click('#menuBtn');assert.equal(await page.locator('#drawerFilters [data-deal-toggle]').count(),0);
+    await page.close();
+  }
+});
+
+test('browser: NH140 top boxes show summaries on both pages and survive unavailable or stale data', options, async t => {
+  for(const path of ['/','/live']){
+    const hostile='<img src=x onerror=alert(1)>';
+    const {page,controls}=await fixture(t,path,false,'seen',false,false,{controls:{
+      discovery:{communities:[{name:'클리앙'},{name:'더쿠'},{name:'보배드림'},{name:'fourth'}],keywords:[{name:hostile},{name:'갤럭시'}]},
+      trends:{trends:[{name:'#한국화제'}],fetchedAt:new Date().toISOString()}
+    }});
+    await page.setViewportSize({width:320,height:800});
+    await page.waitForFunction(()=>document.querySelector('[data-highlight="trends"] ol').textContent.includes('#한국화제'));
+    assert.deepEqual(await page.locator('#homeHighlights a').evaluateAll(els=>els.map(el=>el.getAttribute('href'))),['/communities','/trends','/keywords']);
+    assert.deepEqual(await page.locator('#homeHighlights h2').allTextContents(),['커뮤니티 순위','실시간 트렌드','화제 키워드']);
+    assert.equal(await page.locator('[data-highlight="communities"] li').count(),3);
+    assert.equal(await page.locator('#homeHighlights img').count(),0);assert.match(await page.locator('[data-highlight="keywords"] ol').innerText(),/<img/);
+    assert.match(await page.locator('[data-highlight="trends"] .highlight-more').innerText(),/수집/);
+    for(const theme of ['light','dark']){
+      await page.evaluate(theme=>document.documentElement.dataset.theme=theme,theme);
+      assert.equal(await page.locator('#homeHighlights').evaluate(el=>el.scrollWidth>el.clientWidth),false);
+      const rect=await page.locator('#homeHighlights').boundingBox();assert.ok(rect.y>=0&&rect.y+rect.height<=350);
+    }
+    await page.evaluate(()=>scrollTo(0,1800));
+    const sticky=page.locator(path==='/'?'.category-band':'#sortBar');
+    assert.equal(await sticky.evaluate(el=>getComputedStyle(el).position),'sticky');
+    assert.ok((await sticky.boundingBox()).y<80);
+    await page.evaluate(()=>scrollTo(0,0));await page.click('#menuBtn');
+    for(const href of ['/communities','trends','keywords'].map(x=>x.startsWith('/')?x:'/'+x))assert.equal(await page.locator(`#drawer a[href="${href}"]`).count(),1);
+    await page.keyboard.press('Escape');
+    controls.failHighlights=true;await page.reload();await page.waitForFunction(()=>document.querySelector('[data-highlight="trends"] ol').textContent.includes('못했어요'));
+    assert.equal(await page.locator('#homeHighlights a').count(),3);assert.ok(await page.locator(path==='/'?'[data-open-issue]':'#feed .card').count());
+    controls.failHighlights=false;controls.discovery={};controls.trends.fetchedAt=new Date(Date.now()-2*3600_000).toISOString();await page.reload();
+    await page.waitForFunction(()=>document.querySelector('[data-highlight="communities"] ol').textContent==='집계 준비 중');
+    assert.doesNotMatch(await page.locator('[data-highlight="trends"] ol').innerText(),/#한국화제/);
     await page.close();
   }
 });

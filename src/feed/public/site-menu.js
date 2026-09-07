@@ -248,3 +248,31 @@ window.NowHotMenu = (() => {
   function level(info){const percent=Math.round((info.level||0)*100);$('levelPct').textContent=percent+'%';$('levelFill').style.width=percent+'%';}
   return {open,close,navigate,categories,sources,filters,slider,mixLabel,leanLabel,auth,authProviders,level};
 })();
+
+// Both entry pages expose the existing discovery pages before the feed loads.
+(() => {
+  const host=document.querySelector('[data-home-highlights]');if(!host)return;
+  host.outerHTML=`<nav id="homeHighlights" aria-label="지금 화제 한눈에">
+    <a class="highlight-box" href="/communities" data-highlight="communities"><h2>커뮤니티 순위</h2><span class="highlight-source">커뮤·뉴스 수집 글 반응량</span><ol class="highlight-list"><li>반응이 큰 커뮤니티 보기</li></ol><span class="highlight-more">전체 보기 →</span></a>
+    <a class="highlight-box" href="/trends" data-highlight="trends"><h2>실시간 트렌드</h2><span class="highlight-source">X · 한국 / Trends24</span><ol class="highlight-list"><li>X에서 화제인 말 보기</li></ol><span class="highlight-more">전체 보기 →</span></a>
+    <a class="highlight-box" href="/keywords" data-highlight="keywords"><h2>화제 키워드</h2><span class="highlight-source">여러 출처에서 함께 언급</span><ol class="highlight-list"><li>함께 뜨는 키워드 보기</li></ol><span class="highlight-more">전체 보기 →</span></a>
+  </nav>`;
+  const box=key=>document.querySelector(`[data-highlight="${key}"]`);
+  function paint(key,items){
+    const list=box(key).querySelector('ol');list.replaceChildren();
+    const names=Array.isArray(items)?items.slice(0,3).map(item=>item?.name).filter(name=>typeof name==='string'&&name.trim()):[];
+    for(const [index,name] of (names.length?names:['집계 준비 중']).entries()){
+      const li=document.createElement('li');li.textContent=names.length?`${index+1}. ${name}`:name;li.title=name;list.append(li);
+    }
+  }
+  async function read(path){const response=await fetch(path,{signal:AbortSignal.timeout(10000)});if(!response.ok)throw new Error('unavailable');return response.json();}
+  read('/api/discovery').then(data=>{paint('communities',data.communities);paint('keywords',data.keywords);}).catch(()=>{
+    for(const key of ['communities','keywords'])box(key).querySelector('ol').textContent='요약을 불러오지 못했어요';
+  });
+  read('/api/trends').then(data=>{
+    const at=Date.parse(data.fetchedAt),age=Date.now()-at;
+    if(!Number.isFinite(at)||age<0||age>60*60*1000){box('trends').querySelector('ol').textContent='최근 트렌드를 확인 중이에요';return;}
+    paint('trends',data.trends);
+    box('trends').querySelector('.highlight-more').textContent=new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hour12:false}).format(at)+' 수집 · 더보기 →';
+  }).catch(()=>{box('trends').querySelector('ol').textContent='트렌드를 불러오지 못했어요';});
+})();

@@ -1833,6 +1833,8 @@ export function createServer(opts = {}) {
   // 프로세스에서는 네트워크를 치지 않도록 기본 비활성.
   const trendsCache = process.env.FEED_X_TRENDS !== "0" && !process.env.NODE_TEST_CONTEXT
     ? makeTrendsCache() : null;
+  let discoverySummary = null;
+  let discoverySummaryAt = 0;
 
   // 정기 DB 갱신: refresh the collected pool on an interval when configured.
   const refreshMs = Number(opts.refreshMs || process.env.FEED_REFRESH_MS || 0);
@@ -2846,6 +2848,19 @@ ${noindex ? "" : displayAdHtml()}
         });
       }
 
+      // The entry-page boxes use the same measured rankings as their full pages.
+      if (p === "/api/discovery" && req.method === "GET") {
+        if (!discoverySummary || Date.now() - discoverySummaryAt > 60_000) {
+          const pool = await engine.pool();
+          discoverySummary = {
+            communities: communityRanking(pool).slice(0, 3).map(x => ({ name: x.label })),
+            keywords: keywordIndex(pool, { limit: 3 }).map(x => ({ name: x.tag }))
+          };
+          discoverySummaryAt = Date.now();
+        }
+        return send(res, 200, discoverySummary);
+      }
+
       // X 실시간 트렌드 — 키워드+X 검색 링크만 (트윗 본문 없음, trends.js 헤더 참고)
       if (p === "/api/trends" && req.method === "GET") {
         const t = trendsCache ? await trendsCache.get() : null;
@@ -2898,7 +2913,8 @@ ${noindex ? "" : displayAdHtml()}
           return `<li><div>${head}${meta.length ? `<span class="m">${escapeHtml(meta.join(" · "))}</span>` : ""}${tail}</div></li>`;
         };
         const inner = `<h1>지금 X(트위터) 실시간 트렌드</h1>
-<p class="muted">${kstLabel(t.fetchedAt)} 기준 한국 실시간 트렌드 TOP ${t.trends.length} · 약 20분마다 갱신.</p>
+<p class="muted">${kstLabel(t.fetchedAt)} 수집 · 한국 X 트렌드 TOP ${t.trends.length} · 약 20분마다 확인.</p>
+${Date.now() - Date.parse(t.fetchedAt) > 60 * 60 * 1000 ? '<p class="muted">최근 수집이 지연되어 이전에 확인한 트렌드를 보여드려요.</p>' : ''}
 <p class="muted">이 중 <b>${covered}개</b>는 지금 우리가 수집 중인 커뮤니티·뉴스 글 제목에서도 발견됐습니다.
 그 키워드를 누르면 <b>지금핫이 모은 글</b>로 가고, 나머지는 X 검색으로 갑니다.</p>
 ${rankingNav("")}
