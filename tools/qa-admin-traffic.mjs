@@ -49,9 +49,23 @@ try{
  await context.clearCookies();await page.evaluate(()=>{NowHotTrack.action('share');return NowHotTrack.flush();});
  await wait(150);assert.ok((await context.cookies()).some(c=>c.name==='nh_vid'));
  j=(await summary()).summary.journey;assert.equal(j.browsers,2);assert.equal(j.actions.find(a=>a.key==='share')?.count,1);
+ const yesterday=new Date(Date.now()+9*3600000-86400000).toISOString().slice(0,10);
+ await page.route('**/api/admin/analytics?*',async route=>{
+  const response=await route.fetch(),data=await response.json();
+  data.rows.unshift({...data.rows[0],key:yesterday,label:yesterday,journey:null,visitors:14,pv:147,contentClicks:19});
+  await route.fulfill({response,json:data});
+ });
  await page.evaluate(()=>localStorage.setItem('admin_token','local-qa-token'));
  await page.goto(base+'/admin');await page.waitForFunction(()=>document.getElementById('panel')?.textContent.includes('실제 이용 현황'));
+ assert.equal(await page.getByText('기간 PV',{exact:true}).isVisible(),true,'Existing visit history must be visible without opening a disclosure');
  const button=name=>page.getByRole('button',{name,exact:true});
+ await button('행동 분석').click();await page.waitForFunction(()=>document.getElementById('panel')?.textContent.includes('공통 브라우저 계측'));
+ const historyRow=page.locator('tr').filter({hasText:yesterday}).filter({hasText:'147'});
+ assert.equal(await historyRow.count(),1,'Legacy row must coexist with v2 instead of disappearing');
+ assert.equal(await historyRow.isVisible(),true);
+ assert.equal(await page.locator('#rgFrom').count(),1,'Both measurement periods use one date selector');
+ await page.screenshot({path:path.join(output,'history-mobile.png'),fullPage:true});
+ await page.unroute('**/api/admin/analytics?*');
  for(const name of ['행동 분석','수익·지출','커뮤니티','게시글','개선 요청','광고','우리 딜','댓글','금지어','사용자','개발관리']){
   await button(name).click();await page.waitForFunction(()=>document.getElementById('panel')?.textContent!=='불러오는 중…');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),name+' mobile overflow');
@@ -99,6 +113,6 @@ try{
  failSave=false;await page.locator('#retrySave').click();await page.waitForFunction(()=>!state.dirty&&!state.saving);
  assert.equal(saved.get('reviewer-b').annotations[0].notes,'검수자 B 보존');
  assert.deepEqual(errors,[]);
- fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,scenarios:11,at:new Date().toISOString(),errors},null,2));
- console.log(JSON.stringify({passed:true,scenarios:11,output}));
+ fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,scenarios:13,at:new Date().toISOString(),errors},null,2));
+ console.log(JSON.stringify({passed:true,scenarios:13,output}));
 }finally{await browser.close();await new Promise(r=>server.close(r));}

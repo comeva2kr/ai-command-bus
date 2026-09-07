@@ -376,7 +376,7 @@ function journeyHtml(j,rows,retention=[]){
   const names={content:"기사 선택",detail:"상세 표시",outbound:"원문 이동",preferences:"관심 설정 저장",push:"알림 연결",share:"공유 링크 복사",ad:"광고 클릭",login:"로그인",onboarding:"맞춤 설정 시작",filter:"필터 변경"};
   const channels=(items)=>items.length?`<table><thead><tr><th>유입</th><th>세션</th><th>활동 확인</th><th>재방문 세션</th><th>기사 선택</th><th>상세 표시</th><th>원문</th><th>관심 저장</th><th>알림 연결</th><th>공유 복사</th><th>광고 클릭</th></tr></thead><tbody>${items.map(r=>`<tr><td>${esc(r.key)}</td><td>${num(r.sessions)}</td><td>${num(r.engaged)} (${pct(r.sessions?r.engaged/r.sessions:null)})</td><td>${num(r.returning)}</td>${['content','detail','outbound','preferences','push','share','ad'].map(k=>`<td>${num(r[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`:'<p class="empty">해당 유입 기록 없음</p>';
   const times=rows.filter(row=>row.journey).map(row=>({key:row.label||row.key,...row.journey}));
-  return `${j.limitedEvents?`<p role="alert">계측 용량 한도로 ${num(j.limitedEvents)}건이 누락됐습니다. 이 기간 집계를 정확한 전수로 해석하지 마세요.</p>`:""}<div class="panel-h">방문 · 유입 · 이용 · 이탈 <span class="pipe">공통 브라우저 계측 v2</span></div>${rangeBarHtml()}
+  return `${j.limitedEvents?`<p role="alert">계측 용량 한도로 ${num(j.limitedEvents)}건이 누락됐습니다. 이 기간 집계를 정확한 전수로 해석하지 마세요.</p>`:""}<div class="panel-h">방문 · 유입 · 이용 · 이탈 <span class="pipe">공통 브라우저 계측 v2</span></div>
     <p>선택 기간 전체 · 첫 계측 ${esc(when(j.since))}. 봇·내부 점검 제외, 30분 비활동 기준 세션입니다. 과거 구계측 수치와 합치지 않습니다.</p>
     <div class="cards">${[['고유 방문 브라우저',j.browsers],['활동 확인 브라우저',j.engagedBrowsers],['로그인 계정',j.accounts],['첫 관측·기록 만료',j.firstObserved],['기존 관측 브라우저',j.returning],['방문 세션',j.sessions],['화면 조회',j.pv],['종료 세션',j.finished]].map(([k,v])=>`<div class="card"><div class="k">${esc(k)}</div><div class="v">${num(v)}</div></div>`).join('')}</div>
     <p class="muted">활동 확인: 기사 선택·상세 표시 등 유효 동작 또는 보이는 화면 10초 이상. 브라우저 쿠키가 달라지면 별도로 집계하며 계정 수는 로그인으로 확인된 값입니다. 첫 관측은 보관된 계측 기록 기준이며 180일 미방문 등으로 표식이 만료된 뒤의 방문도 포함합니다. 신규 가입자 수가 아닙니다. ${j.approximate?'60일 이전 익명 목록이 접힌 구간을 포함해 기간 고유 수는 중복이 포함된 근사치입니다.':'기간 고유 수는 같은 쿠키의 중복을 제거합니다.'}</p>
@@ -408,30 +408,31 @@ async function renderAnalytics(panel){
   const rows = res.rows || [];
   const L = res.summary || res.latest;
   analyticsExport=res;
-  if(L?.journey){panel.innerHTML=journeyHtml(L.journey,rows,res.retention);return;}
   if(!rows.length){
     panel.innerHTML = '<div class="panel-h">📊 행동 분석</div>'+rangeBarHtml()+'<p class="empty">이 기간에 수집된 이벤트가 없어요. 기간을 바꾸거나, 방문이 발생하면 여기에 쌓입니다.</p>';
     return;
   }
   panel.innerHTML = `
-    <div class="panel-h">📊 행동 분석 <span class="pipe">클라이언트 측정 (analytics)</span></div>
+    <div class="panel-h">📊 행동 분석</div>
     ${rangeBarHtml()}
-    <p class="empty">구계측 자료입니다. 실제 사람 수나 30분 세션으로 해석하지 마세요. 새 계측은 배포 이후 방문부터 표시됩니다.</p>
+    <div class="panel-h">기존 행동 기록 <span class="pipe">클라이언트 측정 (analytics)</span></div>
+    <p>업데이트 이전 기록도 같은 기간으로 계속 볼 수 있습니다. 아래 기존 기록과 새 공통 계측은 기준이 달라 합산하지 않습니다.</p>
     <p class="empty" style="text-align:left;margin-top:0">이 탭의 모든 수치는 <b>브라우저가 보낸 이벤트(클라이언트 측정)</b> 기준입니다.
     대시보드의 서버 측정 트래픽과 숫자가 달라도 오류가 아닙니다 — JS를 안 돌리는 봇은 여기 안 잡히고, 화면 내 이동은 여기만 잡힙니다.</p>
     <table>
-      <thead><tr><th>기간</th><th>방문자</th><th>신규</th><th>재방문</th><th>PV</th><th>1인당 PV</th><th>평균 체류</th><th>평균 깊이</th><th>글 클릭</th><th>광고 노출</th><th>광고 클릭</th><th>CTR</th></tr></thead>
+      <thead><tr><th>기간</th><th>식별 프로필</th><th>신규</th><th>재방문</th><th>PV</th><th>프로필당 PV</th><th>평균 체류</th><th>평균 깊이</th><th>글 클릭</th><th>광고 노출</th><th>광고 클릭</th><th>CTR</th></tr></thead>
       <tbody>${rows.slice().reverse().map(r=>`<tr>
-        <td>${esc(r.label||r.key)}</td><td>${num(r.visitors)}</td><td>${num(r.newVisitors)}</td><td>${num(r.returning)}</td>
+        <td>${esc(r.label||r.key)}</td><td>${r.pv>0&&!r.visitors?'미식별':num(r.visitors)}</td><td>${num(r.newVisitors)}</td><td>${num(r.returning)}</td>
         <td>${num(r.pv)}</td><td>${r.pvPerVisitor==null?"—":r.pvPerVisitor}</td>
         <td>${sec(r.avgDwellSec)}${r.dwellSamples?'<span class="pill" style="margin-left:4px">'+r.dwellSamples+'건</span>':''}</td>
         <td>${r.avgDepth==null?"—":r.avgDepth}</td>
         <td>${num(r.contentClicks)}</td><td>${num(r.adImpressions)}</td><td>${num(r.adClicks)}</td><td>${pct(r.adCtr)}</td>
       </tr>`).join("")}</tbody>
     </table>
-    <p class="empty" style="text-align:left">평균 체류·깊이 옆의 건수는 그 평균이 몇 건의 표본에서 나왔는지입니다. 표본이 없으면 0이 아니라 —로 표시합니다.</p>
+    <p class="empty" style="text-align:left">미식별은 방문은 기록됐지만 프로필을 구분할 정보가 없다는 뜻입니다. 방문 0명이 아닙니다. 평균 체류·깊이 옆의 건수는 표본 수이고, 표본이 없으면 —로 표시합니다.</p>
+    ${L.journey?journeyHtml(L.journey,rows,res.retention):'<p>새 공통 계측은 배포 이후 방문부터 아래에 추가됩니다. 기존 기록은 유지됩니다.</p>'}
 
-    <div class="panel-h">🪪 방문자를 무엇으로 알아봤나 (최근 ${esc(L.label||L.key)}) <span class="pipe">클라 측정</span></div>
+    <div class="panel-h">🪪 기존 기록의 식별 경로 (${esc(L.label||L.key)}) <span class="pipe">이전 계측 기준</span></div>
     <div class="cards">
       <div class="card"><div class="k">복구된 세션</div><div class="v">${num(L.identityRecovered)}</div><div class="n">로그인·기기 쿠키로 같은 사람으로 이어짐</div></div>
       <div class="card"><div class="k">새로 발급</div><div class="v">${num(L.identityNew)}</div><div class="n">단서가 없어 새 사람으로 잡힘</div></div>
@@ -1720,11 +1721,12 @@ async function renderDashboard(panel){
   if(!panel.isConnected) return;
   const { stats, communities, ads } = statsRes;
   panel.innerHTML = `
-    ${operationsHtml(operations)}
-    <div class="panel-h">실제 이용 현황</div>${rangeBarHtml()}
+    <div class="panel-h">기존 방문 추이 <span class="pipe">서버 측정 (traffic) · 업데이트 전후 계속 집계</span></div>${rangeBarHtml()}
+    ${trafficHtml(rangeRes && rangeRes.rows, kpiRes && kpiRes.rows)}
+    <div class="panel-h">실제 이용 현황 <span class="pipe">새 공통 계측</span></div>
     ${measured?.summary?.journey?`<div class="cards">${[['고유 방문 브라우저',measured.summary.journey.browsers],['활동 확인 브라우저',measured.summary.journey.engagedBrowsers],['로그인 계정',measured.summary.journey.accounts],['방문 세션',measured.summary.journey.sessions]].map(([k,v])=>`<div class="card"><div class="k">${k}</div><div class="v">${num(v)}</div></div>`).join('')}</div>`:'<p>공통 계측은 새 배포 이후 방문부터 표시됩니다.</p>'}
     <p>봇·내부 점검을 제외한 쿠키 기준입니다. 활동 확인은 조작·읽기 신호이며 한 사람의 여러 브라우저를 합치지는 않습니다.</p><button onclick="active='analytics';boot()">유입·행동·이탈 상세 분석</button>
-    <details><summary>구방식 서버 접속 참고값 (사람 수와 별도)</summary><div class="panel-h">📈 트래픽 <span class="pipe">서버 측정 (traffic)</span></div>${trafficHtml(rangeRes && rangeRes.rows, kpiRes && kpiRes.rows)}</details>
+    ${operationsHtml(operations)}
     <div class="panel-h">👥 유저 요약</div>
     <div class="stats">
       <div class="stat"><b>${stats.users}</b><span>저장 프로필 (익명 포함)</span></div>
