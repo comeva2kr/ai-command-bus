@@ -152,6 +152,127 @@ test("browser: Today service menu remains reachable on narrow screens", options,
   assert.equal(page.url(),base+"/feedback");
 });
 
+test("browser: Today sharing copies the served edition and opens the same issue for another reader", options, async (t) => {
+  const { page, context, controls, requests, base } = await fixture(t, "/");
+  await page.waitForSelector(".issue");
+  await page.setViewportSize({ width: 393, height: 852 });
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true,
+    value: { writeText: async text => { window.__copied = text; } } }));
+  await page.click("#editionShare");
+  const editionText = await page.evaluate(() => window.__copied);
+  const editionLink = new URL(editionText.split("\n")[1]);
+  assert.match(editionText, /2026-09-03 런치 오늘판/);
+  assert.equal(editionLink.pathname, "/p");
+  assert.equal(editionLink.searchParams.get("edition"), edition.editionId);
+  assert.equal(editionLink.searchParams.get("categories"), "business");
+  assert.equal(editionLink.searchParams.has("issue"), false);
+  await page.click('[data-open-issue="1"]');
+  await page.click("#detailShare");
+  const issueText = await page.evaluate(() => window.__copied);
+  assert.match(issueText, /^Public article 1\n/);
+  assert.equal(new URL(issueText.split("\n")[1]).searchParams.get("issue"), "issue-1");
+  assert.ok(await page.locator("#detailShare").evaluate(el => el.getBoundingClientRect().right <= innerWidth));
+  await page.evaluate(() => { navigator.clipboard.writeText = async () => { throw Error("denied"); }; });
+  let promptValue;
+  page.once("dialog", async dialog => { promptValue = dialog.defaultValue(); await dialog.dismiss(); });
+  await page.click("#detailShare");
+  assert.equal(promptValue, issueText);
+  await page.click("#detailClose");
+  controls.todayEdition = { ...edition, serving: { fallback: true, requestedDate: "2026-09-04",
+    requestedSlotId: "morning", servedDate: edition.editionDate, servedSlotId: "lunch" } };
+  await page.click("#refresh");
+  await page.waitForFunction(() => document.querySelector("#editionTitle").textContent.includes("검증된"));
+  await page.evaluate(() => { navigator.clipboard.writeText = async text => { window.__copied = text; }; });
+  await page.click("#editionShare");
+  const fallbackLink = new URL((await page.evaluate(() => window.__copied)).split("\n")[1]);
+  assert.equal(fallbackLink.searchParams.get("date"), edition.editionDate);
+  assert.equal(fallbackLink.searchParams.get("slot"), "lunch");
+
+  const tech = { id: "tech", label: "기술/IT" };
+  controls.todayEdition = { ...edition, editionId: "SCE-0123456789abcdef", requestedCategories: ["tech"],
+    availableCategories: [category, tech], selection: { ...edition.selection, categories: [tech] } };
+  const target = new URL("/", base);
+  target.search = new URLSearchParams({ edition: controls.todayEdition.editionId, date: edition.editionDate,
+    slot: edition.slot.id, categories: "tech" });
+  target.hash = `issue-${controls.todayEdition.editionId}/issue-1`;
+  // Separate page has no navigation snapshot; its saved preferences are still business.
+  const recipient = await context.newPage();
+  await recipient.goto(target.href);
+  await recipient.waitForSelector("#issueDetail.open");
+  assert.equal(await recipient.textContent("#detailTitle"), "Public article 1");
+  const query = new URLSearchParams(controls.todayQueries.at(-1));
+  assert.equal(query.get("edition"), controls.todayEdition.editionId);
+  assert.equal(query.get("categories"), "tech");
+  assert.equal(requests.includes("/api/today/categories"), false);
+  await recipient.click('.detail-originals a');
+  await recipient.waitForURL("https://publisher.test/article-1");
+  await recipient.goBack();
+  await recipient.waitForSelector("#issueDetail.open");
+  await recipient.click("#detailClose");
+  await recipient.waitForFunction(() => !document.querySelector("#issueDetail").classList.contains("open"));
+  assert.equal(new URL(recipient.url()).hash, "");
+  controls.todayEdition = { ...controls.todayEdition, slot: { id: "morning", label: "모닝" } };
+  await recipient.click('[data-slot="morning"]');
+  await recipient.waitForFunction(() => !document.querySelector("#editionShare").disabled);
+  assert.equal(new URL(recipient.url()).searchParams.has("edition"), false);
+  assert.equal(new URLSearchParams(controls.todayQueries.at(-1)).has("edition"), false);
+  assert.equal(new URLSearchParams(controls.todayQueries.at(-1)).get("slot"), "morning");
+  controls.todayEdition = { ...controls.todayEdition, slot: { id: "evening", label: "이브닝" } };
+  await recipient.click('[data-slot="evening"]');
+  await recipient.waitForFunction(() => document.querySelector("#editionTitle").textContent === "이브닝 오늘판");
+  await recipient.reload();
+  await recipient.waitForSelector(".issue");
+  assert.equal(new URL(recipient.url()).searchParams.get("slot"), "evening");
+  assert.equal(await recipient.textContent("#editionTitle"), "이브닝 오늘판");
+
+  controls.todayStatus = 409;
+  await recipient.click("#refresh");
+  await recipient.waitForSelector(".error");
+  assert.equal(await recipient.locator("#editionShare").isDisabled(), true);
+});
+
+test("browser: Today Forward preserves the shared issue while a category save finishes late", options, async (t) => {
+  const { page, context, controls, base } = await fixture(t, "/");
+  const tech = { id: "tech", label: "기술/IT" };
+  controls.todayEdition = { ...edition, requestedCategories: ["business", "tech"],
+    availableCategories: [category, tech], selection: { ...edition.selection, categories: [category, tech] },
+    issues: [{ ...edition.issues[1], categoryIds: ["tech"], selectedByCategories: ["tech"] }] };
+  await page.goto(`${base}/?edition=SCE-test-lunch&date=2026-09-03&slot=lunch&categories=business,tech`);
+  await page.click('[data-open-issue="0"]');
+  await page.goBack();
+  await page.waitForFunction(() => !document.querySelector("#issueDetail").classList.contains("open"));
+
+  let releaseSave, receivedSave;
+  const pendingSave = new Promise(resolve => { releaseSave = resolve; });
+  const saveStarted = new Promise(resolve => { receivedSave = resolve; });
+  t.after(() => releaseSave());
+  await context.route("**/api/today/categories", async route => {
+    receivedSave(route.request().postDataJSON());
+    await pendingSave;
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.click('[data-category="tech"]');
+  assert.deepEqual((await saveStarted).categories, ["business"]);
+  controls.todayEdition = { ...edition, availableCategories: [category, tech] };
+  const queryCount = controls.todayQueries.length;
+  await page.goForward();
+  await page.waitForSelector("#issueDetail.open");
+  releaseSave();
+  await page.evaluate(() => state.categoryQueue);
+
+  assert.equal(controls.todayQueries.length, queryCount, "late category save must not replace the restored projection");
+  assert.equal(await page.locator('[data-category="tech"]').getAttribute("aria-pressed"), "true");
+  assert.equal(await page.textContent("#detailTitle"), "Public article 1");
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", {
+    value: { writeText: async text => { window.__copied = text; } }, configurable: true
+  }));
+  await page.click("#detailShare");
+  const link = new URL((await page.evaluate(() => window.__copied)).split("\n")[1]);
+  assert.equal(link.searchParams.get("edition"), "SCE-test-lunch");
+  assert.equal(link.searchParams.get("categories"), "business,tech");
+  assert.equal(link.searchParams.get("issue"), "issue-1");
+});
+
 test("browser: restored Live list uses the current Coupang inventory", options, async (t) => {
   const { page, controls } = await fixture(t);
   await page.waitForSelector("#feed .card");

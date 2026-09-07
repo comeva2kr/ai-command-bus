@@ -983,6 +983,115 @@ async function dispatch(server, url) {
   return { status, body: JSON.parse(body) };
 }
 
+function revisedArtifact(original, change) {
+  const { artifactId, contentSha256, ...payload } = structuredClone(original);
+  change(payload);
+  const hash = crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+  return assertSlotCanonicalEdition({ ...payload, artifactId: `SCE-${hash.slice(0, 16)}`, contentSha256: hash });
+}
+
+test("NH130 exact shared editions retain activated revisions and reject orphan files without fallback", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-share-reader-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const pointerFile = path.join(root, "active.json"), original = build();
+  const previous = build({ editionDate: "2026-08-26" });
+  activateSlotCanonicalEditions({ artifacts: [original, previous], directory: root, pointerFile });
+  const legacyPointer = JSON.parse(fs.readFileSync(pointerFile));
+  delete legacyPointer.publishedEditions;
+  fs.writeFileSync(pointerFile, JSON.stringify(legacyPointer));
+  const request = { date: original.editionDate, slotId: original.slot.id, categories: ["news"], editionId: original.artifactId };
+  const reader = makeSlotCanonicalEditionReader({ pointerFile });
+  const before = reader.read(request);
+  const corrected = revisedArtifact(original, payload => { payload.createdAt = "2026-08-27T03:30:00.000Z"; });
+  activateSlotCanonicalEdition({ artifact: corrected, directory: root, pointerFile });
+  const restart = makeSlotCanonicalEditionReader({ pointerFile });
+  assert.deepEqual(restart.read(request), before, "a correction retains the previously activated shared edition");
+  assert.equal(restart.read({ ...request, date: previous.editionDate, editionId: previous.artifactId }).editionId, previous.artifactId);
+  assert.equal(restart.read({ ...request, editionId: undefined }).editionId, corrected.artifactId);
+  const orphan = revisedArtifact(original, payload => { payload.createdAt = "2026-08-27T03:40:00.000Z"; });
+  fs.writeFileSync(path.join(root, `edition-${orphan.editionDate}-${orphan.slot.id}-${orphan.contentSha256.slice(0, 12)}.json`), JSON.stringify(orphan));
+  const unchanged = new Map(fs.readdirSync(root).map(file => [file, fs.readFileSync(path.join(root, file), "utf8")]));
+  for (const invalid of [
+    { editionId: orphan.artifactId }, { editionId: "SCE-0000000000000000" },
+    { editionId: "../../draft" }, { date: "2026-08-28" }, { slotId: "morning" }
+  ]) assert.throws(() => restart.read({ ...request, ...invalid }), error => error.code === "SLOT_CANONICAL_EDITION_NOT_FOUND");
+  for (const [file, content] of unchanged) assert.equal(fs.readFileSync(path.join(root, file), "utf8"), content);
+});
+
+test("NH130 actual HTTP Today shares serve frozen OG and exact API versions without collection", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-share-http-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const pointerFile = path.join(root, "active.json");
+  const unsafeId = 'evidence-</script><script>alert("id")</script>';
+  const original = revisedArtifact(build(), payload => {
+    const oldId = payload.lanes.news[0], row = payload.issueTable[oldId];
+    delete payload.issueTable[oldId];
+    row.evidenceHash = unsafeId;
+    row.reader.headline = '공유 기사 "관측" </script><script>alert("title")</script>';
+    row.reader.summary = '공유 요약 <확인> & "근거"';
+    row.articleSummary.image = null;
+    row.articleSummary.sourceLinks[0].image = "https://publisher.example/edition-og.png";
+    row.articleSummary.sourceLinks.unshift({ url: "https://news.google.com/rss/articles/relay", relay: true,
+      image: "https://publisher.example/relay-image.png" });
+    payload.issueTable[unsafeId] = row;
+    payload.displayOrder = payload.displayOrder.map(id => id === oldId ? unsafeId : id);
+    for (const category of Object.keys(payload.lanes)) payload.lanes[category] = payload.lanes[category].map(id => id === oldId ? unsafeId : id);
+  });
+  activateSlotCanonicalEdition({ artifact: original, directory: root, pointerFile });
+  let sourceCalls = 0, summaryCalls = 0;
+  const server = createServer({ localEditorial: true, localEditorialInventorySchedule: false,
+    slotCanonicalEditionEnabled: true, slotCanonicalPointerFile: pointerFile,
+    clock: () => Date.parse("2026-08-28T12:10:00+09:00"), file: null, vapid: null,
+    sources: [{ id: "must-not-run", kind: "news", fetch: async () => { sourceCalls++; return []; } }],
+    articleSummaryPipeline: async edition => { summaryCalls++; return edition; }
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => { server.closeAllConnections?.(); await new Promise(resolve => server.close(resolve)); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const query = new URLSearchParams({ edition: original.artifactId, date: original.editionDate, slot: original.slot.id, categories: "news" });
+  let response = await fetch(`${origin}/api/today?${query}`);
+  assert.equal(response.status, 200);
+  const before = await response.json();
+  assert.equal(before.editionId, original.artifactId);
+  const corrected = revisedArtifact(original, payload => { payload.createdAt = "2026-08-27T03:30:00.000Z"; });
+  activateSlotCanonicalEdition({ artifact: corrected, directory: root, pointerFile });
+  response = await fetch(`${origin}/api/today?${query}`);
+  assert.deepEqual(await response.json(), before, "shared API continues to return the old activated bytes");
+  const beforeFiles = new Map(fs.readdirSync(root).map(file => [file, fs.readFileSync(path.join(root, file), "utf8")]));
+  const whole = await fetch(`${origin}/p?${query}`);
+  assert.equal(whole.status, 200);
+  assert.match(await whole.text(), /2026-08-27 런치 오늘판/);
+  query.set("issue", unsafeId);
+  response = await fetch(`${origin}/p?${query}`);
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /공유 기사 &quot;관측&quot; &lt;\/script&gt;/);
+  assert.match(html, /공유 요약 &lt;확인&gt; &amp; &quot;근거&quot;/);
+  assert.match(html, /https:\/\/publisher.example\/edition-og.png/);
+  assert.doesNotMatch(html, /relay-image.png/);
+  assert.doesNotMatch(html, /<script>alert/);
+  const redirect = JSON.parse(html.match(/location\.replace\(("[^\n]+")\);/)[1]);
+  const app = new URL(redirect, origin);
+  assert.equal(app.pathname, "/");
+  assert.equal(app.searchParams.get("edition"), original.artifactId);
+  assert.equal(app.searchParams.get("categories"), "news");
+  assert.equal(decodeURIComponent(app.hash), `#issue-${original.artifactId}/${unsafeId}`);
+  for (const [field, value, status] of [["edition", "bad</script>", 400], ["edition", "", 400], ["edition", "SCE-0000000000000000", 404],
+    ["date", "2026-08-28", 404], ["date", "", 400], ["slot", "morning", 404], ["slot", "night", 400],
+    ["categories", "unknown", 400], ["issue", "missing", 404]]) {
+    const invalid = new URLSearchParams(query); invalid.set(field, value);
+    const failed = await fetch(`${origin}/p?${invalid}`);
+    assert.equal(failed.status, status, `${field}=${value}`);
+    assert.doesNotMatch(await failed.text(), /location\.replace|http-equiv="refresh"/);
+    if (field !== "issue") assert.equal((await fetch(`${origin}/api/today?${invalid}`)).status, status);
+  }
+  const excludedCategory = new URLSearchParams(query); excludedCategory.set("categories", "tech");
+  assert.equal((await fetch(`${origin}/p?${excludedCategory}`)).status, 404, "an issue outside the shared selection is not silently substituted");
+  assert.equal(sourceCalls, 0);
+  assert.equal(summaryCalls, 0);
+  for (const [file, content] of beforeFiles) assert.equal(fs.readFileSync(path.join(root, file), "utf8"), content);
+});
+
 test("고정판 GET은 수집·요약·저장 없이 포인터 판을 필터링만 한다", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-server-"));
   const pointerFile = path.join(root, "active.json");

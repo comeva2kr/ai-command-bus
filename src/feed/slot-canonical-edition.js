@@ -389,16 +389,24 @@ export function activateSlotCanonicalEditions({ artifacts, directory, pointerFil
   artifactFiles.forEach((artifactFile, index) => {
     if (!fs.existsSync(artifactFile)) atomicJson(artifactFile, artifacts[index]);
   });
+  const entries = Object.fromEntries(artifacts.map((artifact, index) => [keys[index], {
+    artifactId: artifact.artifactId,
+    contentSha256: artifact.contentSha256,
+    file: path.relative(path.dirname(pointerFile), artifactFiles[index])
+  }]));
+  // Only this atomic activation receipt authorizes exact shared-version reads.
+  // Archive the old current entries before replacing their date-slot pointers.
+  const publishedEditions = { ...(pointer.publishedEditions || {}) };
+  for (const [key, entry] of [...Object.entries(pointer.editions || {}), ...Object.entries(entries)]) {
+    if (entry?.artifactId && entry.file) publishedEditions[entry.artifactId] = { ...entry, key };
+  }
   pointer = {
     ...pointer,
     updatedAt: new Date().toISOString(),
+    publishedEditions,
     editions: {
       ...(pointer.editions || {}),
-      ...Object.fromEntries(artifacts.map((artifact, index) => [keys[index], {
-        artifactId: artifact.artifactId,
-        contentSha256: artifact.contentSha256,
-        file: path.relative(path.dirname(pointerFile), artifactFiles[index])
-      }]))
+      ...entries
     }
   };
   fs.mkdirSync(path.dirname(pointerFile), { recursive: true });
@@ -427,14 +435,30 @@ export function makeSlotCanonicalEditionReader({ pointerFile }) {
     return artifact;
   }
   return {
-    read({ date, slotId, categories, selectionMode, explicit }) {
+    read({ date, slotId, categories, selectionMode, explicit, editionId }) {
       let pointer;
       try { pointer = JSON.parse(fs.readFileSync(pointerFile, "utf8")); }
       catch { fail(`active pointer unavailable: ${pointerFile}`); }
       const exactKey = pointerKey(date, slotId);
-      const entry = pointer?.editions?.[exactKey];
-      let artifact = entry?.file ? load(entry, exactKey) : null;
-      if (!artifact) {
+      let artifact;
+      if (editionId != null) {
+        const unavailable = () => {
+          const error = new Error("공유한 오늘판을 찾을 수 없습니다. 링크의 판 정보를 확인해 주세요.");
+          error.code = "SLOT_CANONICAL_EDITION_NOT_FOUND";
+          return error;
+        };
+        if (!/^SCE-[a-f0-9]{16}$/.test(editionId)) throw unavailable();
+        const current = pointer?.editions?.[exactKey];
+        const entry = current?.artifactId === editionId ? { ...current, key: exactKey }
+          : pointer?.publishedEditions?.[editionId];
+        if (!entry?.file || entry.artifactId !== editionId || entry.key !== exactKey) throw unavailable();
+        try { artifact = load(entry, exactKey); }
+        catch (error) { if (error.code === "ENOENT") throw unavailable(); throw error; }
+      } else {
+        const entry = pointer?.editions?.[exactKey];
+        artifact = entry?.file ? load(entry, exactKey) : null;
+      }
+      if (!artifact && editionId == null) {
         const requestedAt = slotAsOfMs(date, slotId);
         const candidates = Object.entries(pointer?.editions || {}).map(([key, row]) => {
           const [candidateDate, candidateSlot] = key.split(":");

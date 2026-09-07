@@ -52,7 +52,7 @@ import { topPreferences } from "./recommender.js";
 import { categoryLabel, sourceLabel, tagLabel, isKnownCategory } from "./taxonomy.js";
 import { sendDigestPushes, sendEditionPushes } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
-import { makeEnricher } from "./enrich.js";
+import { makeEnricher, isJunkImage } from "./enrich.js";
 import { makeInterestsCache } from "./interest.js";
 import { readWiredStatus, CANDIDATE_NETWORKS, REFERENCE_ADSTXT, splitMeasured, ctr, MEASURE_CAVEATS } from "./ad-networks.js";
 import { makeTrendsCache } from "./trends.js";
@@ -226,14 +226,30 @@ function escapeHtml(s) {
 
 // A tiny HTML page carrying Open Graph tags so a shared link renders a rich
 // preview in KakaoTalk / social, then bounces a human to the in-app view.
-function sharePage(data, origin, id) {
+function editionShareImage(issue) {
+  const summary = issue?.articleSummary || {};
+  const sources = [...(summary.sourceLinks || []), ...(issue?.eventSources || [])].filter(row => {
+    try {
+      const url = new URL(row.url || row.canonicalUrl);
+      return !row.relay && /^https?:$/.test(url.protocol) && !/(^|\.)news\.google\.com$/i.test(url.hostname);
+    } catch { return false; }
+  });
+  const images = [summary.unavailableReasonCode === "PUBLISHER_URL_UNAVAILABLE" ? null : summary.image,
+    ...sources.map(row => row.image)];
+  return images.find(value => {
+    try { const url = new URL(value); return /^https?:$/.test(url.protocol) && !isJunkImage(url); }
+    catch { return false; }
+  }) || null;
+}
+
+function sharePage(data, origin, id, options = {}) {
   if (!data) {
     return `<!doctype html><meta charset="utf-8"><title>지금핫 NowHot</title><meta http-equiv="refresh" content="0; url=/"><p>이동 중…</p>`;
   }
-  const url = `${origin}/p?id=${encodeURIComponent(id)}`;
+  const url = options.shareUrl || `${origin}/p?id=${encodeURIComponent(id)}`;
   const title = escapeHtml(data.title);
   const desc = escapeHtml((data.summary || "").slice(0, 160) || `${data.source} · ${data.category}`);
-  const appUrl = `/live#post-${encodeURIComponent(id)}`;
+  const appUrl = options.appUrl || `/live#post-${encodeURIComponent(id)}`;
   // 글에 사진이 있으면 그 사진이 공유 카드 그림이 된다. 없을 때만 앱 아이콘.
   // 폴백은 SVG가 아니라 PNG를 쓴다 — 다수 SNS 크롤러가 SVG를 미리보기 이미지로
   // 처리하지 않는다(설령 처리하더라도, 글마다 사진이 있는데 전부 같은 로고를
@@ -259,14 +275,14 @@ ${shareImage === fallbackImage ? "" : `<meta property="og:image" content="${esca
 <meta name="twitter:image" content="${escapeHtml(shareImage)}">
 <meta name="twitter:title" content="${title}">
 <meta name="twitter:description" content="${desc}">
-<noscript><meta http-equiv="refresh" content="0; url=${appUrl}"></noscript>
+<noscript><meta http-equiv="refresh" content="0; url=${escapeHtml(appUrl)}"></noscript>
 </head><body style="background:#faf9f8;color:#14100e;font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif;padding:40px;text-align:center">
-<p>${title}</p><p><a style="color:#e02b0f;font-weight:700" href="${appUrl}">앱에서 열기 →</a></p>
+<p>${title}</p><p><a style="color:#e02b0f;font-weight:700" href="${escapeHtml(appUrl)}">앱에서 열기 →</a></p>
 <script>
 /* meta refresh 대신 replace: 일부 브라우저가 meta refresh를 "reload"로 보고해
    앱의 "새로고침은 홈으로" 규칙에 걸리고, 공유링크가 기사가 아니라 홈으로
    튕겼다(실사용 제보 2026-08-02). replace는 정상 내비게이션으로 보고된다. */
-location.replace(${JSON.stringify(appUrl)});
+location.replace(${JSON.stringify(appUrl).replace(/</g, "\\u003c")});
 </script>
 </body></html>`;
 }
@@ -659,6 +675,15 @@ export function createServer(opts = {}) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
     const parsed = Date.parse(`${value}T00:00:00+09:00`);
     return Number.isFinite(parsed) && new Date(parsed + 9 * 3600 * 1000).toISOString().slice(0, 10) === value;
+  }
+
+  function requireEditionReference(editionId, date, slotId) {
+    if (!/^SCE-[a-f0-9]{16}$/.test(editionId || "") || !validEditorialDate(date) || !LOCAL_SLOT_ORDER.includes(slotId)) {
+      throw Object.assign(new Error("공유 링크의 판 정보가 올바르지 않습니다."), { code: "INVALID_EDITION_REFERENCE", status: 400 });
+    }
+    if (!slotCanonicalEditionReader) {
+      throw Object.assign(new Error("공유한 오늘판을 찾을 수 없습니다."), { code: "SLOT_CANONICAL_EDITION_NOT_FOUND", status: 404 });
+    }
   }
 
   function localEditionTarget({ slotId = null, targetDate = null, asOfMs = null } = {}) {
@@ -2745,10 +2770,12 @@ ${noindex ? "" : displayAdHtml()}
         }
         const slotId = url.searchParams.get("slot") || null;
         const targetDate = url.searchParams.get("date") || null;
+        const editionId = url.searchParams.has("edition") ? url.searchParams.get("edition") : null;
         if (targetDate && !validEditorialDate(targetDate)) {
           return send(res, 400, { error: "invalid editorial date", code: "INVALID_EDITORIAL_DATE" });
         }
         try {
+          if (editionId != null) requireEditionReference(editionId, targetDate, slotId);
           if (slotCanonicalEditionReader) {
             const target = localEditionTarget({ slotId, targetDate });
             if (!target.available) {
@@ -2761,6 +2788,7 @@ ${noindex ? "" : displayAdHtml()}
             return send(res, 200, slotCanonicalEditionReader.read({
               date: target.date,
               slotId: target.slot.id,
+              ...(editionId != null ? { editionId } : {}),
               categories: resolvedSelection.selectedCategories,
               selectionMode: resolvedSelection.mode,
               explicit: resolvedSelection.explicit
@@ -2768,6 +2796,12 @@ ${noindex ? "" : displayAdHtml()}
           }
           return send(res, 200, await buildServeableTodayEdition({ userId, categories, slotId, targetDate }));
         } catch (error) {
+          if (editionId != null && ["INVALID_EDITION_REFERENCE", "SLOT_CANONICAL_EDITION_NOT_FOUND", "SLOT_CANONICAL_EDITION_INVALID"].includes(error?.code)) {
+            return send(res, error.status || (error.code === "SLOT_CANONICAL_EDITION_NOT_FOUND" ? 404 : 409), {
+              error: error.code === "SLOT_CANONICAL_EDITION_INVALID" ? "공유한 오늘판을 검증할 수 없습니다." : error.message,
+              code: error.code
+            });
+          }
           if (error && [
             "EDITORIAL_SLOT_NOT_DUE",
             "EDITORIAL_EDITION_NOT_SERVEABLE",
@@ -4176,6 +4210,48 @@ ${rankingRows(list, (above) => {
 
       // --- shareable link with OG tags (crawlers read this; humans bounce to app) ---
       if (p === "/p" && req.method === "GET") {
+        if (url.searchParams.has("edition")) {
+          try {
+            const editionId = url.searchParams.get("edition"), date = url.searchParams.get("date"), slotId = url.searchParams.get("slot");
+            requireEditionReference(editionId, date, slotId);
+            const categories = url.searchParams.has("categories")
+              ? url.searchParams.get("categories").split(",").map(value => value.trim()).filter(Boolean) : null;
+            if (categories?.some(id => !CATEGORIES.some(category => category.id === id))) {
+              throw Object.assign(new Error("공유 링크의 관심 분야가 올바르지 않습니다."), { status: 400 });
+            }
+            if (!localEditionTarget({ slotId, targetDate: date }).available) {
+              throw Object.assign(new Error("이 오늘판은 아직 발행 시각 전입니다."), { status: 409 });
+            }
+            const selection = resolveEditorialSelection(categories, null);
+            const edition = slotCanonicalEditionReader.read({ date, slotId, editionId,
+              categories: selection.selectedCategories, selectionMode: selection.mode, explicit: selection.explicit });
+            const issueId = url.searchParams.has("issue") ? url.searchParams.get("issue") : null;
+            const issue = issueId != null ? edition.issues.find(row => String(row.evidenceHash || row.id || row.clusterId) === issueId) : null;
+            if (issueId != null && !issue) {
+              throw Object.assign(new Error("공유한 기사를 이 오늘판에서 찾을 수 없습니다."), { status: 404 });
+            }
+            const query = new URLSearchParams({ edition: edition.editionId, date: edition.editionDate,
+              slot: edition.slot.id, categories: edition.selectedCategories.join(",") });
+            const appUrl = `/?${query}${issue ? `#issue-${encodeURIComponent(edition.editionId)}/${encodeURIComponent(issueId)}` : ""}`;
+            if (issue) query.set("issue", issueId);
+            const data = {
+              title: issue ? issue.reader?.headline || issue.headline : `${edition.editionDate} ${edition.slot.label} 오늘판 · 지금핫`,
+              summary: issue ? issue.reader?.summary || issue.articleSummary?.textKo || issue.paragraph
+                : `${edition.selection.categories.map(category => category.label).join(" · ")}에서 주요 소식 ${edition.issues.length}개를 정리했습니다.`,
+              image: issue ? editionShareImage(issue) : edition.issues.map(editionShareImage).find(Boolean),
+              source: "지금핫", category: "오늘판"
+            };
+            const origin = originOf(req);
+            res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" });
+            res.end(sharePage(data, origin, null, { shareUrl: `${origin}/p?${query}`, appUrl }));
+          } catch (error) {
+            const status = error.status || (error.code === "SLOT_CANONICAL_EDITION_NOT_FOUND" ? 404 : 409);
+            const message = error.code === "SLOT_CANONICAL_EDITION_INVALID" ? "공유한 오늘판을 검증할 수 없습니다." : error.message;
+            res.writeHead(status, { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" });
+            res.end(`<!doctype html><html lang="ko"><meta charset="utf-8"><title>지금핫 공유 확인</title><p>${escapeHtml(message)}</p><a href="/">오늘판으로 가기</a></html>`);
+          }
+          return;
+        }
         const id = url.searchParams.get("id");
         const data = id ? await engine.shareData(id) : null;
         const origin = originOf(req);

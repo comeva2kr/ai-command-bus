@@ -73,6 +73,10 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 .edition-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;border-bottom:1px solid var(--line);padding-bottom:24px}
 .date-line{font-size:12px;font-weight:800;color:var(--red);margin-bottom:7px}
 .edition-head h1{font-size:34px;line-height:1.18;margin:0;font-weight:900}
+.edition-title-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.share-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:6px;background:var(--paper);font-size:13px;font-weight:750;cursor:pointer;white-space:nowrap}
+.share-button:disabled{opacity:.5;cursor:default}.share-button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8}
+.detail-toolbar .share-button{margin-left:auto}.detail-toolbar .detail-close{margin-left:0;flex-shrink:0}
 .edition-lead{margin:9px 0 0;color:var(--sub);max-width:700px;font-size:15px}
 .edition-controls{display:flex;align-items:stretch;gap:8px}
 .edition-date{width:138px;height:56px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);font:inherit;font-size:13px;font-weight:750;color-scheme:light dark;cursor:pointer}
@@ -206,7 +210,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
   <section class="edition-head" aria-labelledby="editionTitle">
     <div>
       <div class="date-line" id="dateLine">오늘판 준비 중</div>
-      <h1 id="editionTitle">오늘판</h1>
+      <div class="edition-title-row"><h1 id="editionTitle">오늘판</h1><button class="share-button" id="editionShare" type="button" aria-label="오늘판 전체 공유" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m-4 4 4-4 4 4M5 12v8h14v-8"/></svg>공유</button></div>
       <p class="edition-lead" id="editionLead">선택한 분야에서 지금 확인할 흐름을 정리하고 있습니다.</p>
     </div>
     <div class="edition-controls">
@@ -240,6 +244,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
   <section class="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-describedby="detailDescription">
     <div class="detail-toolbar">
       <div class="detail-meta" id="detailMeta">기사 요약</div>
+      <button class="share-button" id="detailShare" type="button" aria-label="이 글 공유"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m-4 4 4-4 4 4M5 12v8h14v-8"/></svg>공유</button>
       <button class="detail-close" id="detailClose" type="button" title="닫기" aria-label="기사 요약 닫기">×</button>
     </div>
     <p class="sr-only" id="detailDescription">선택한 이슈의 요약과 원문을 보여주는 상세 창입니다.</p>
@@ -252,13 +257,31 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 <script src="/push-client.js?v=20260907-ios"></script>
 <script src="/notice-guide.js?v=20260905"></script>
 <script>
-const state={userId:null,coupang:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
+const state={userId:null,coupang:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,sharedEdition:null,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
 const $=(id)=>document.getElementById(id);
 const esc=(value)=>String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const todayHistory=NowHotHistory.create("today");
 const todayAdOffset=Math.floor(Math.random()*997);
 function todaySnapshot(){
-  return {userId:state.userId,edition:state.edition,pinnedEdition:state.pinnedEdition,y:$("issueDetail").classList.contains("open")?state.listScrollY:window.scrollY};
+  return {userId:state.userId,edition:state.edition,pinnedEdition:state.pinnedEdition,sharedEdition:state.sharedEdition,y:$("issueDetail").classList.contains("open")?state.listScrollY:window.scrollY};
+}
+async function shareToday(issue=null,edition=state.edition){
+  if(!edition?.editionId)return;
+  const link=new URL("/p",location.origin);
+  link.search=new URLSearchParams({edition:edition.editionId,date:edition.editionDate,slot:edition.slot.id,categories:edition.requestedCategories.join(",")});
+  if(issue)link.searchParams.set("issue",issue.evidenceHash||issue.id||issue.clusterId);
+  const title=issue?(issue.reader?.headline||issue.headline):`${edition.editionDate} ${edition.slot.label} 오늘판 · 지금핫`;
+  const text=`${title}\n${link.href}`;
+  try{await navigator.clipboard.writeText(text);toast("링크가 클립보드에 복사되었습니다")}
+  catch{prompt("복사해 주세요",text)}
+}
+$("editionShare").onclick=()=>shareToday();
+function releaseSharedEdition(){
+  state.sharedEdition=null;
+  const url=new URL(location.href);
+  url.searchParams.delete("edition");url.searchParams.delete("categories");
+  url.searchParams.set("date",state.editionDate);url.searchParams.set("slot",state.slot);url.hash="";
+  history.replaceState(history.state,"",url);
 }
 function saveTodayNavigation(){
   if(state.edition)todayHistory.save(todaySnapshot(),$("issueDetail").querySelector(".detail-panel").scrollTop);
@@ -575,7 +598,8 @@ function closeIssueDetail(){
 }
 
 function openIssueDetail(index,returnFocus=null){
-  const issue=state.edition?.issues?.[index];
+  const edition=state.edition;
+  const issue=edition?.issues?.[index];
   if(!issue)return;
   const detail={editionId:state.edition.editionId,issueId:issue.evidenceHash||issue.id||issue.clusterId};
   if(!detail.editionId||!detail.issueId)return;
@@ -586,6 +610,7 @@ function openIssueDetail(index,returnFocus=null){
   state.detailRevision+=1;
   const copy=issue.reader||{};
   const title=copy.headline||issue.headline;
+  $("detailShare").onclick=()=>shareToday(issue,edition);
   let articleSummary=issue.articleSummary||{};
   const categories=(issue.categoryIds||[]).map((id)=>state.edition.availableCategories.find((category)=>category.id===id)?.label||id).join(" · ");
   const directSources=issueSourceLinks(issue);
@@ -672,10 +697,13 @@ $("detailContent").addEventListener("click",event=>{
 $("issueDetail").querySelector(".detail-panel").addEventListener("scroll",()=>
   todayHistory.save(null,$("issueDetail").querySelector(".detail-panel").scrollTop),{passive:true});
 addEventListener("popstate",()=>{
+  state.loadController?.abort();state.loadRevision+=1;state.categoryRevision+=1;
+  $("refresh").setAttribute("aria-busy","false");
   hideIssueDetail();
   const snapshot=todayHistory.snapshot();
   if(snapshot?.userId===state.userId && snapshot.edition){
-    if(snapshot.edition.editionId!==state.edition?.editionId)render(snapshot.edition);
+    state.sharedEdition=snapshot.sharedEdition||null;
+    render(snapshot.edition);
     state.listScrollY=snapshot.y||0;window.scrollTo(0,state.listScrollY);
   }
   restoreTodayDetail();
@@ -730,6 +758,11 @@ function render(edition){
     ? [...edition.requestedCategories]
     : edition.selection.categories.map((category)=>category.id);
   state.edition=edition;state.categories=requestedCategories;state.confirmedCategories=[...requestedCategories];state.slot=requestedSlot;state.editionDate=requestedDate;
+  $("editionShare").disabled=false;
+  if(state.sharedEdition){
+    const url=new URL(location.href);url.searchParams.set("categories",requestedCategories.join(","));
+    history.replaceState(history.state,"",url);
+  }
   // 폴백 고지는 generatedAt이 아니라 **serving 영수증(servedDate·servedSlotId)**
   // 기준으로 말한다 (David 확정 지시 2026-08-13): 제공된 실제 날짜·슬롯·
   // "최신판 아님"이 화면에서 명확해야 한다. 예: "8월 12일 이브닝판을
@@ -774,6 +807,7 @@ function render(edition){
 }
 
 function renderError(error){
+  $("editionShare").disabled=true;
   state.edition=null;
   if(error.code==="EDITORIAL_EDITION_NOT_SERVEABLE"){
     const serving=error.body?.serving||{};
@@ -825,12 +859,14 @@ async function loadEdition(announce=false,targetDate=null,categories=state.categ
   state.loadController=loadController;
   const loadRevision=++state.loadRevision;
   $("refresh").setAttribute("aria-busy","true");
+  $("editionShare").disabled=true;
   try{
     const query=new URLSearchParams();
     if(state.userId)query.set("userId",state.userId);
     if(categories&&categories.length)query.set("categories",categories.join(","));
     if(state.slot)query.set("slot",state.slot);
     if(targetDate)query.set("date",targetDate);
+    if(state.sharedEdition)query.set("edition",state.sharedEdition);
     const edition=await json(`/api/today?${query}`,{signal:loadController.signal});
     if(loadRevision!==state.loadRevision)return;
     render(edition);
@@ -871,8 +907,8 @@ function toggleCategory(category){
   });
 }
 
-for(const button of $("slots").querySelectorAll("button"))button.onclick=()=>{state.pinnedEdition=true;state.slot=button.dataset.slot;loadEdition(false,state.editionDate)};
-$("editionDate").onchange=(event)=>{state.pinnedEdition=true;state.editionDate=event.currentTarget.value;loadEdition(false,event.currentTarget.value)};
+for(const button of $("slots").querySelectorAll("button"))button.onclick=()=>{state.pinnedEdition=true;state.slot=button.dataset.slot;releaseSharedEdition();loadEdition(false,state.editionDate)};
+$("editionDate").onchange=(event)=>{state.pinnedEdition=true;state.editionDate=event.currentTarget.value;releaseSharedEdition();loadEdition(false,event.currentTarget.value)};
 $("refresh").onclick=()=>{if(!state.pinnedEdition){state.slot=null;state.editionDate=null}loadEdition(true,state.editionDate)};
 
 function setupViewSwitch(){
@@ -925,6 +961,8 @@ if("serviceWorker" in navigator){
     const initialQuery=new URLSearchParams(location.search);
     const initialSlot=initialQuery.get("slot");
     const initialDate=initialQuery.get("date");
+    state.sharedEdition=initialQuery.get("edition");
+    const sharedCategories=state.sharedEdition?initialQuery.get("categories")?.split(",").filter(Boolean):null;
     if(["morning","lunch","evening"].includes(initialSlot))state.slot=initialSlot;
     if(/^\d{4}-\d{2}-\d{2}$/.test(initialDate||""))state.editionDate=initialDate;
     state.pinnedEdition=Boolean(state.slot||state.editionDate);
@@ -938,13 +976,17 @@ if("serviceWorker" in navigator){
     state.userId=session.userId;localStorage.setItem("feed_uid",session.userId);
     NowHotPush.restore(state.userId).then(connected=>{if(connected)$("menuNotifications").textContent="알림 연결됨"});
     if(Array.isArray(session.briefingCategories)&&session.briefingCategories.length){state.categories=session.briefingCategories;state.confirmedCategories=[...session.briefingCategories]}
+    if(sharedCategories?.length)state.categories=[...sharedCategories];
     const snapshot=todayHistory.snapshot();
     const returning=performance.getEntriesByType("navigation")[0]?.type==="back_forward";
     if(snapshot?.userId===state.userId && snapshot.edition
       && (!initialDate||initialDate===(snapshot.edition.serving?.requestedDate||snapshot.edition.editionDate))
       && (!initialSlot||initialSlot===(snapshot.edition.serving?.requestedSlotId||snapshot.edition.slot.id))
+      && (!state.sharedEdition||state.sharedEdition===snapshot.edition.editionId)
+      && (!sharedCategories?.length||[...sharedCategories].sort().join(",")===[...(snapshot.edition.requestedCategories||[])].sort().join(","))
       && (state.pinnedEdition||snapshot.pinnedEdition||issueDetailFromHash()||returning)){
       state.pinnedEdition=state.pinnedEdition||Boolean(snapshot.pinnedEdition);
+      state.sharedEdition=state.sharedEdition||snapshot.sharedEdition||null;
       render(snapshot.edition);state.listScrollY=snapshot.y||0;window.scrollTo(0,state.listScrollY);
       restoreTodayDetail();
     }else await loadEdition(false,state.editionDate);
