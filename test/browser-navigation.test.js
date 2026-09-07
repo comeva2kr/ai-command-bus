@@ -115,7 +115,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
       }
       if (url.pathname === "/api/session") body = { userId: "reader", identitySource: guideState === "new" ? "new" : "storage",
         surveyed: guideState !== "new", showTopics: controls.showTopics, briefingCategories: guideState === "new" ? [] : ["business"],
-        mixBalance: controls.mixBalance, leanBalance: controls.leanBalance, level:0.62 };
+        mixBalance: controls.mixBalance, leanBalance: controls.leanBalance, level:0.62, ...todaySeed.session };
       if (url.pathname === "/api/auth/session") body = controls.authProfile;
       if (url.pathname === "/api/me") body = {surveyAnswers:controls.surveyAnswers,posts:[],comments:[],saved:[],mutedSources:[],counts:{posts:0,saved:0,likes:0,comments:0},taste:{categories:[],sources:[],tags:[]},topPreferences:{categories:[],sources:[],tags:[]},level:0.62};
       if (url.pathname === "/api/survey") {
@@ -140,6 +140,8 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
       if (url.pathname === "/api/digest") body = { count: 1, top: [items[0]] };
       if (url.pathname === "/api/today") {
         controls.todayQueries.push(url.search);
+        if (todaySeed.failPin && url.searchParams.has("edition")) return route.fulfill({ status: 404,
+          json: {error: "공유한 오늘판을 찾을 수 없습니다", code: "SLOT_CANONICAL_EDITION_NOT_FOUND"} });
         return route.fulfill({ status: controls.todayStatus, json: controls.todayStatus === 200
           ? controls.todayEdition : { error: "요청한 판이 없습니다", code: "SLOT_CANONICAL_EDITION_UNAVAILABLE" } });
       }
@@ -154,7 +156,9 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
     const name = url.pathname === "/live" ? "index.html" : url.pathname === "/" ? "today.html" : url.pathname.slice(1);
     if (!/^[\w.-]+$/.test(name)) return route.abort();
     try {
-      const body = readFileSync(new URL(`../src/feed/public/${name}`, import.meta.url));
+      let body = readFileSync(new URL(`../src/feed/public/${name}`, import.meta.url));
+      if (name === "today.html" && todaySeed.html) body = body.toString().replace(
+        /<!-- NOWHOT_TODAY_SEED_START -->[\s\S]*?<!-- NOWHOT_TODAY_SEED_END -->/, () => todaySeed.html);
       return route.fulfill({ body, contentType: name.endsWith(".html") ? "text/html" : name.endsWith(".js") ? "text/javascript" : name.endsWith(".css") ? "text/css" : "image/svg+xml" });
     } catch { return route.fulfill({ status: 404, body: "missing" }); }
   });
@@ -163,6 +167,43 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   else await page.goto(base + path);
   return { page, requests, controls, context, base };
 }
+
+test("browser: NH133 anonymous home binds its initial edition only and preserves fallback, personal and deep-link reads", options, async (t) => {
+  const seed = `<div id="todaySeed" data-edition="${edition.editionId}" data-date="${edition.editionDate}" data-slot="lunch" data-requested-date="${edition.editionDate}" data-requested-slot="evening" data-fallback="true">공개 이전 검증판</div>`;
+  const { page, controls } = await fixture(t, "/", false, "new", false, false, {html:seed});
+  await page.waitForSelector("[data-open-issue]");
+  const first = new URLSearchParams(controls.todayQueries[0]);
+  assert.equal(first.get("edition"), edition.editionId);
+  assert.equal(first.get("date"), edition.editionDate);
+  assert.equal(first.get("slot"), "lunch");
+  assert.match(await page.locator("#dateLine").innerText(), /최신 이브닝판은 검수 중/);
+  assert.equal(await page.locator('#slots [data-slot="evening"]').getAttribute("aria-selected"), "true");
+  await page.locator("[data-nh-guide-close]").first().click();
+  await page.waitForFunction(() => !document.getElementById("nhGuide"));
+  await page.locator("#refresh").click();
+  await page.waitForFunction(() => document.getElementById("refresh").getAttribute("aria-busy") === "false");
+  assert.equal(new URLSearchParams(controls.todayQueries.at(-1)).has("edition"), false);
+  assert.equal(new URLSearchParams(controls.todayQueries.at(-1)).has("slot"), false);
+  await page.reload();
+  await page.waitForSelector("[data-open-issue]");
+  assert.equal(new URLSearchParams(controls.todayQueries.at(-1)).has("edition"), false, "saved user uses their own selection");
+  for (const path of ["/?date=2026-09-03&slot=lunch", `/#issue-${edition.editionId}/issue-0`]) {
+    const flow = await fixture(t, path, false, "new", false, false, {html:seed});
+    await flow.page.waitForSelector("[data-open-issue]");
+    assert.equal(new URLSearchParams(flow.controls.todayQueries[0]).has("edition"), false, "explicit navigation ignores the generic seed");
+  }
+  const recovered = await fixture(t, "/", false, "new", false, false, {html:seed,failPin:true});
+  await recovered.page.waitForSelector("[data-open-issue]");
+  assert.equal(recovered.controls.todayQueries.length,2);
+  assert.equal(new URLSearchParams(recovered.controls.todayQueries[1]).has("edition"),false);
+  assert.equal(await recovered.page.locator('#issues .error').count(),0);
+  const restored = await fixture(t, "/", false, "new", false, false, {html:seed,
+    session:{identitySource:"cookie",surveyed:true,briefingCategories:["business"]}});
+  await restored.page.waitForSelector("[data-open-issue]");
+  const personal=new URLSearchParams(restored.controls.todayQueries[0]);
+  assert.equal(personal.has("edition"),false,"cookie-restored identity must not inherit an anonymous edition pin");
+  assert.equal(personal.get("categories"),"business");
+});
 
 test("browser: Today service menu remains reachable on narrow screens", options, async (t) => {
   const { page, base } = await fixture(t, "/");
@@ -722,6 +763,7 @@ test("browser: Today errors clear stale edition chrome and explicit selection su
   assert.equal(await page.locator("#editionTitle").innerText(), "오늘판을 불러오지 못했습니다");
   assert.equal(await page.locator('#slots [data-slot="morning"]').getAttribute("aria-selected"), "true");
   assert.ok(!(await page.locator("#metrics").innerText()).includes("현재판 검증"));
+  controls.todayEdition = { ...edition, slot: { id: "morning", label: "모닝" } };
   controls.todayStatus = 200;
   await page.click("#issues .retry");
   await page.waitForSelector("#issues article");

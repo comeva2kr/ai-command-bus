@@ -1092,6 +1092,66 @@ test("NH130 actual HTTP Today shares serve frozen OG and exact API versions with
   for (const [file, content] of beforeFiles) assert.equal(fs.readFileSync(path.join(root, file), "utf8"), content);
 });
 
+test("NH133 home HTML reads public canonical content with escaping, stable ETag and frozen edition references", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-home-seed-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const pointerFile = path.join(root, "active.json");
+  const original = revisedArtifact(build(), payload => {
+    const row = payload.issueTable[payload.lanes.news[0]];
+    row.reader.headline = '기사 $& </script><script>alert("x")</script>';
+    row.reader.summary = "짧은 기존 요약 <확인> & $& " + "긴 문장 ".repeat(100);
+    row.articleSummary.sourceLinks.push({ url: "javascript:alert(1)", label: "unsafe" },
+      { url: "https://secret:password@publisher.example/private", label: "credential" },
+      { url: "https://news.google.com/rss/articles/relay", label: "Google relay" },
+      { url: "https://publisher.example/related", label: "Related", evidenceRole: "related_observation" },
+      { url: "https://publisher.example/duplicate", label: "매체 news-0" });
+  });
+  activateSlotCanonicalEdition({ artifact: original, directory: root, pointerFile });
+  let now = Date.parse("2026-08-27T12:10:00+09:00"), sourceCalls = 0, summaryCalls = 0;
+  const server = createServer({ localEditorial: true, localEditorialInventorySchedule: false,
+    slotCanonicalEditionEnabled: true, slotCanonicalPointerFile: pointerFile, clock: () => now, file: null,
+    sources: [{ id: "must-not-run", kind: "news", fetch: async () => { sourceCalls++; return []; } }],
+    articleSummaryPipeline: async edition => { summaryCalls++; return edition; }
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => { server.closeAllConnections?.(); await new Promise(resolve => server.close(resolve)); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const get = (url = "/", headers = {}) => fetch(origin + url, { headers: { "x-nowhot-check": "1", ...headers } });
+  const first = await get(), html = await first.text(), etag = first.headers.get("etag");
+  const seed = html.match(/<div id="todaySeed"[\s\S]*?<\/section>/)?.[0];
+  assert.ok(seed);
+  assert.match(seed, new RegExp(`data-edition="${original.artifactId}"`));
+  assert.equal((seed.match(/<article /g) || []).length, 52);
+  assert.match(seed, /2026-08-27 런치판/);
+  assert.match(seed, /기사 \$&amp; &lt;\/script&gt;&lt;script&gt;/);
+  assert.match(seed, /짧은 기존 요약 &lt;확인&gt; &amp; \$&amp;/);
+  assert.match(seed, /href="https:\/\/publisher.example\/news-0"/);
+  assert.doesNotMatch(seed, /<script|javascript:|secret:password|news.google.com|publisher.example\/(related|duplicate)|NOWHOT_TODAY_SEED_START|긴 문장 (?:긴 문장 ){50}/);
+  assert.equal(etag, '"' + crypto.createHash("sha1").update(html).digest("base64").slice(0, 22) + '"');
+  assert.equal((await get("/", { "if-none-match": etag })).status, 304);
+  assert.equal(await (await get("/", { cookie: "feed_uid=private-user" })).text(), html);
+  for (const query of ["?userId=private-user", "?date=2026-08-26&slot=lunch", "?edition=untrusted"])
+    assert.doesNotMatch(await (await get("/" + query)).text(), /id="todaySeed"|private-user|untrusted/);
+  const revised = revisedArtifact(original, payload => { payload.issueTable[payload.lanes.news[1]].reader.headline = "새로 정정한 제목"; });
+  activateSlotCanonicalEdition({ artifact: revised, directory: root, pointerFile });
+  const updated = await get("/", { "if-none-match": etag });
+  assert.equal(updated.status, 200);
+  assert.notEqual(updated.headers.get("etag"), etag);
+  const query = new URLSearchParams({ edition: original.artifactId, date: original.editionDate, slot: original.slot.id });
+  assert.equal((await (await get(`/api/today?${query}`)).json()).editionId, original.artifactId);
+  now = Date.parse("2026-08-27T19:10:00+09:00");
+  const fallback = await (await get()).text();
+  assert.match(fallback, /data-fallback="true"/);
+  assert.match(fallback, /2026-08-27 런치판을 보여드립니다 · 최신판은 검수 중입니다/);
+  assert.match(fallback, /data-requested-slot="evening"/);
+  fs.writeFileSync(pointerFile, "broken");
+  const missing = await (await get()).text();
+  assert.doesNotMatch(missing, /id="todaySeed"|nowhot-home-seed/);
+  assert.match(missing, /class="skeleton"/);
+  assert.equal(sourceCalls, 0);
+  assert.equal(summaryCalls, 0);
+});
+
 test("고정판 GET은 수집·요약·저장 없이 포인터 판을 필터링만 한다", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-server-"));
   const pointerFile = path.join(root, "active.json");

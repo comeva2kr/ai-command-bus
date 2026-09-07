@@ -334,6 +334,38 @@ function cacheHeadersFor(ext) {
     : "public, max-age=604800";
 }
 
+function todaySeedHtml(edition) {
+  const query = new URLSearchParams({ edition: edition.editionId, date: edition.editionDate,
+    slot: edition.slot.id, categories: edition.selectedCategories.join(",") });
+  const serving = edition.serving;
+  const notice = `${edition.editionDate} ${edition.slot.label}판` +
+    (serving.fallback ? "을 보여드립니다 · 최신판은 검수 중입니다." : " · 공개 기본 관심 분야");
+  return `<div id="todaySeed" data-edition="${escapeHtml(edition.editionId)}" data-date="${escapeHtml(edition.editionDate)}" data-slot="${escapeHtml(edition.slot.id)}" data-requested-date="${escapeHtml(serving.requestedDate)}" data-requested-slot="${escapeHtml(serving.requestedSlotId)}" data-fallback="${Boolean(serving.fallback)}">
+    <p class="detail-basis">${escapeHtml(notice)}</p>` + edition.issues.map((issue, index) => {
+      const title = issue.reader?.headline || issue.headline;
+      const summary = String(issue.reader?.summary || issue.paragraph || "").slice(0, 200);
+      const href = `/?${query}#issue-${encodeURIComponent(edition.editionId)}/${encodeURIComponent(issue.evidenceHash || issue.id || issue.clusterId)}`;
+      const seenSources = new Set();
+      const relatedUrls = new Set([...(issue.eventSources || []), ...(issue.sourceEvidence || [])]
+        .filter(row => row.evidenceRole === "related_observation").map(row => row.url || row.canonicalUrl));
+      const sources = (issue.articleSummary?.sourceLinks || []).flatMap(source => {
+        try {
+          if (source.relay || source.evidenceRole === "related_observation" || relatedUrls.has(source.url || source.canonicalUrl)) return [];
+          const url = new URL(source.url || source.canonicalUrl);
+          if (!/^https?:$/.test(url.protocol) || url.username || url.password || /(^|\.)news\.google\.com$/i.test(url.hostname)) return [];
+          const group = source.sourceGroup || source.ownershipGroup || source.sourceLabel || source.label || url.hostname;
+          if (seenSources.has(group)) return [];
+          seenSources.add(group);
+          return [`<a href="${escapeHtml(url.href)}" rel="noopener noreferrer">${escapeHtml(source.sourceLabel || source.label || "원문")}</a>`];
+        } catch { return []; }
+      });
+      return `<article class="issue"><div class="issue-number">${String(index + 1).padStart(2, "0")}</div><div>
+        <h2><a class="issue-title-button" href="${escapeHtml(href)}">${escapeHtml(title)}</a></h2>
+        ${summary ? `<div class="editorial-grid"><div class="editorial-point"><p>${escapeHtml(summary)}</p></div></div>` : ""}
+        <div class="source-links">${sources.join(" · ")}</div></div></article>`;
+    }).join("") + "</div>";
+}
+
 function serveStatic(res, urlPath, seedHtml = "", pageExtras = null) {
   const rel = urlPath === "/" ? "index.html" : urlPath.replace(/^\/+/, "");
   const filePath = path.join(PUBLIC_DIR, rel);
@@ -390,6 +422,14 @@ function serveStatic(res, urlPath, seedHtml = "", pageExtras = null) {
     }
     if (pageExtras && ext === ".html") {
       let html = buf.toString("utf8");
+      if (rel === "today.html" && pageExtras.todayEdition) {
+        const edition = pageExtras.todayEdition;
+        html = html.replace(/<!-- NOWHOT_TODAY_SEED_START -->[\s\S]*?<!-- NOWHOT_TODAY_SEED_END -->/, () => todaySeedHtml(edition))
+          .replace('id="dateLine">오늘판 준비 중', () => `id="dateLine">${escapeHtml(`${edition.editionDate} · ${edition.slot.label}판${edition.serving.fallback ? " · 최신판은 검수 중" : ""}`)}`)
+          .replace('id="editionTitle">오늘판', () => `id="editionTitle">${escapeHtml(`${edition.slot.label} 오늘판`)}`)
+          .replace('id="editionLead">선택한 분야에서 지금 확인할 흐름을 정리하고 있습니다.',
+            () => `id="editionLead">${escapeHtml(`${edition.selection.categories.map(row => row.label).join(" · ")}에서 ${edition.issues.length}개 흐름을 정리했습니다.`)}`);
+      }
       if (pageExtras.headHtml) html = html.replace("</head>", `${pageExtras.headHtml}</head>`);
       if (pageExtras.bodyHtml) html = html.replace("<!-- NOWHOT_DISPLAY_AD -->", pageExtras.bodyHtml);
       buf = Buffer.from(html);
@@ -4295,7 +4335,17 @@ ${rankingRows(list, (above) => {
       if (p === "/" && req.method === "GET") {
         if (localEditorial) {
           // 오늘판은 기존 쿠팡 재고를 본문·상세에서 사용한다 (David, NH118).
-          return serveStatic(res, "/today.html");
+          let todayEdition;
+          if (slotCanonicalEditionReader && !url.search) {
+            try {
+              const target = localEditionTarget();
+              const selection = resolveEditorialSelection(null, null);
+              if (target.available) todayEdition = slotCanonicalEditionReader.read({ date: target.date,
+                slotId: target.slot.id, categories: selection.selectedCategories,
+                selectionMode: selection.mode, explicit: selection.explicit });
+            } catch { /* Keep the existing client recovery when no verified pointer can be read. */ }
+          }
+          return serveStatic(res, "/today.html", "", { todayEdition });
         }
         res.writeHead(307, { location: "/live", "cache-control": "no-cache" });
         return res.end();

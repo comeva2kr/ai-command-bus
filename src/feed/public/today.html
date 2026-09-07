@@ -218,9 +218,11 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 
   <div class="layout">
     <section class="issue-list" id="issues" aria-live="polite">
+      <!-- NOWHOT_TODAY_SEED_START -->
       <div class="skeleton"><div class="sk title"></div><div class="sk body"></div><div class="sk short"></div></div>
       <div class="skeleton"><div class="sk title"></div><div class="sk body"></div><div class="sk short"></div></div>
       <div class="skeleton"><div class="sk title"></div><div class="sk body"></div><div class="sk short"></div></div>
+      <!-- NOWHOT_TODAY_SEED_END -->
     </section>
     <aside class="rail" aria-label="이번 판 요약">
       <section class="rail-section"><h2>이번 판</h2><dl class="metric-list" id="metrics"><dt>상태</dt><dd>준비 중</dd></dl></section>
@@ -842,7 +844,7 @@ function renderError(error){
   $("issues").querySelector("button").onclick=()=>loadEdition(true,state.editionDate);
 }
 
-async function loadEdition(announce=false,targetDate=null,categories=state.categories){
+async function loadEdition(announce=false,targetDate=null,categories=state.categories,initialSeed=null){
   state.loadController?.abort();
   const loadController=new AbortController();
   state.loadController=loadController;
@@ -856,13 +858,23 @@ async function loadEdition(announce=false,targetDate=null,categories=state.categ
     if(state.slot)query.set("slot",state.slot);
     if(targetDate)query.set("date",targetDate);
     if(state.sharedEdition)query.set("edition",state.sharedEdition);
+    if(initialSeed){
+      query.set("edition",initialSeed.edition);query.set("date",initialSeed.date);query.set("slot",initialSeed.slot);
+    }
     const edition=await json(`/api/today?${query}`,{signal:loadController.signal});
     if(loadRevision!==state.loadRevision)return;
+    if(initialSeed?.fallback==="true")edition.serving={...edition.serving,fallback:true,
+      requestedDate:initialSeed.requestedDate,requestedSlotId:initialSeed.requestedSlot};
     render(edition);
     if(!restoreTodayDetail())todayHistory.ensure(todaySnapshot());
     saveTodayNavigation();
     if(announce)toast("오늘판을 새로 정리했습니다");
-  }catch(error){if(error.name!=="AbortError"&&loadRevision===state.loadRevision)renderError(error)}finally{
+  }catch(error){
+    if(error.name!=="AbortError"&&loadRevision===state.loadRevision){
+      if(initialSeed&&[404,409].includes(error.status))return loadEdition(announce,targetDate,categories);
+      renderError(error);
+    }
+  }finally{
     if(loadRevision===state.loadRevision)$("refresh").setAttribute("aria-busy","false");
   }
 }
@@ -1003,6 +1015,8 @@ function setupTodayMenu(session,config){
     state.pinnedEdition=Boolean(state.slot||state.editionDate);
     const saved=localStorage.getItem("feed_uid");
     const isNewVisitor=!saved;
+    const initialSeed=isNewVisitor&&!location.search&&!location.hash?$("todaySeed")?.dataset:null;
+    if(!initialSeed&&$("todaySeed"))$("todaySeed").outerHTML='<div class="skeleton"><div class="sk title"></div><div class="sk body"></div><div class="sk short"></div></div>';
     const [session,config]=await Promise.all([
       json("/api/session",{method:"POST",body:JSON.stringify({userId:saved})}),
       json("/api/config").catch(()=>({}))
@@ -1013,6 +1027,7 @@ function setupTodayMenu(session,config){
     NowHotPush.restore(state.userId).then(connected=>{if(connected)$("menuNotifications").textContent="알림 연결됨"});
     if(Array.isArray(session.briefingCategories)&&session.briefingCategories.length){state.categories=session.briefingCategories;state.confirmedCategories=[...session.briefingCategories]}
     if(sharedCategories?.length)state.categories=[...sharedCategories];
+    const freshAnonymous=session.identitySource==="new"&&!session.surveyed&&!state.categories?.length;
     const snapshot=todayHistory.snapshot();
     const returning=performance.getEntriesByType("navigation")[0]?.type==="back_forward";
     if(snapshot?.userId===state.userId && snapshot.edition
@@ -1025,7 +1040,7 @@ function setupTodayMenu(session,config){
       state.sharedEdition=state.sharedEdition||snapshot.sharedEdition||null;
       render(snapshot.edition);state.listScrollY=snapshot.y||0;window.scrollTo(0,state.listScrollY);
       restoreTodayDetail();
-    }else await loadEdition(false,state.editionDate);
+    }else await loadEdition(false,state.editionDate,state.categories,freshAnonymous&&!state.pinnedEdition?initialSeed:null);
     NowHotNoticeGuide.show({release:config.release,isNewVisitor,skip:Boolean(issueDetailFromHash())});
   }catch(error){renderError(error)}
 })();
