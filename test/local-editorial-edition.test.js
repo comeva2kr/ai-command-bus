@@ -16,6 +16,8 @@ import { FeedEngine } from "../src/feed/engine.js";
 import { FeedStore } from "../src/feed/store.js";
 import { JsonSource } from "../src/feed/content.js";
 import { buildBlindReviewPacket } from "../src/feed/editorial-quality.js";
+import { attachEditorialFulfillment } from "../src/feed/editorial-fulfillment.js";
+import { editorialInventorySegmentKey } from "../src/feed/editorial-inventory.js";
 import { EDITORIAL_SERVING_CONTRACT } from "../src/feed/editorial-serving.js";
 import { CATEGORIES as TAXONOMY_CATEGORIES } from "../src/feed/taxonomy.js";
 
@@ -1096,7 +1098,7 @@ test("오늘판: 영문 최신글이 앞서도 한국어 24시간 재고로 게�
   assert.ok(edition.issues.every((issue) => /[가-힣]/.test(issue.headline)));
 });
 
-test("검수 패킷 승계: 사람 입력이 없는 같은 저장 판만 새 계약 패킷으로 교체한다", async () => {
+test("검수 패킷 조회: 사람 입력이 없는 구계약 패킷도 자동 교체하지 않는다", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-review-upgrade-"));
   const file = path.join(dir, "feed.json");
@@ -1146,6 +1148,7 @@ test("검수 패킷 승계: 사람 입력이 없는 같은 저장 판만 새 계
   await new Promise((resolve) => server.listen(0, resolve));
   try {
     const base = `http://127.0.0.1:${server.address().port}`;
+    const persistedBeforeGet = JSON.parse(fs.readFileSync(file, "utf8"));
     const response = await fetch(`${base}/api/admin/product-blueprint`, {
       headers: { "x-admin-token": adminToken }
     });
@@ -1153,11 +1156,14 @@ test("검수 패킷 승계: 사람 입력이 없는 같은 저장 판만 새 계
     const body = await response.json();
     const active = body.blueprint.localEditorialEvidence.reviewPacket;
     assert.equal(active.editionId, edition.editionId);
-    assert.equal(active.packetVersion, 5);
-    assert.notEqual(active.packetId, legacyPacket.packetId);
-    assert.equal(active.readerContractVersion, currentPacket.readerContractVersion);
+    assert.equal(active.packetVersion, legacyPacket.packetVersion);
+    assert.equal(active.packetId, legacyPacket.packetId);
+    assert.equal(active.readerContractVersion, legacyPacket.readerContractVersion);
+    assert.equal(active.queue.items.length, 1);
     assert.equal(active.queue.items.some((row) => row.packetId === legacyPacket.packetId), true,
       "이전 패킷은 대기열에서 삭제하지 않아야 한다");
+    assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), persistedBeforeGet,
+      "조회가 저장판·패킷 계약이나 대기열을 바꾸면 안 된다");
   } finally {
     await new Promise((resolve) => server.close(resolve));
     fs.rmSync(dir, { recursive: true, force: true });
@@ -1230,8 +1236,8 @@ test("검수 패킷 고정: 42행을 파일에 보존하고 재시작 뒤 같은
 test("서버: 오늘판 홈·선택·지난 판은 유지하고 플래그가 꺼지면 실시간으로 이동한다", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const adminToken = "editorial-review-test";
-  const canaryDir = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-canary-test-"));
-  const canaryReceiptFile = path.join(canaryDir, "editorial-llm-canary.json");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-canary-test-"));
+  const canaryReceiptFile = path.join(dir, "editorial-llm-canary.json");
   fs.writeFileSync(canaryReceiptFile, JSON.stringify({
     stableId: "NOWHOT-EDITORIAL-LLM-CANARY-001",
     state: "verified_edit",
@@ -1241,18 +1247,72 @@ test("서버: 오늘판 홈·선택·지난 판은 유지하고 플래그가 꺼
     totals: { calls: 2, inputTokens: 500, outputTokens: 180 }
   }));
   let testNow = Date.parse("2026-08-10T06:30:00+09:00");
+  const clock = () => new Date(testNow).toISOString();
+  const runtimeSources = () => editorialSources(
+    Date.parse("2026-08-10T12:20:00+09:00"),
+    6 * 60 * 60_000,
+    SERVEABLE_SUBJECTS,
+    30,
+    ["business"],
+    2
+  );
+
+  // 관리자 조회는 저장판과 저장 패킷만 읽는다. 정시 작업이 남겼을 모닝·런치
+  // 저장판과 활성(모닝)·대기(런치) 검수 패킷을 기존 저장소·엔진 경로로 미리 준비한다.
+  const file = path.join(dir, "feed.json");
+  const segmentKey = editorialInventorySegmentKey(["business"]);
+  const seeded = new FeedStore({ file, clock });
+  const seedEngine = new FeedEngine(seeded, runtimeSources());
+  await seedEngine.refresh();
+  const finalizeEdition = (candidate, previous) => attachEditorialFulfillment(applyEditionChanges(candidate, previous, {
+    targetLimit: candidate.selection.maxIssues,
+    minIssuesPerCategory: candidate.selection.minIssuesPerCategory,
+    additiveCategoryUnion: candidate.selection.additiveCategoryUnion,
+    categoryIssueLimit: candidate.selection.categoryIssueLimit
+  }));
+  testNow = Date.parse("2026-08-10T07:05:00+09:00");
+  const morning = finalizeEdition(await seedEngine.todayEdition({
+    categories: ["business"],
+    slotId: "morning",
+    asOfMs: Date.parse("2026-08-10T07:00:00+09:00"),
+    sharedCanonical: true,
+    allowCarryover: true
+  }), null);
+  seeded.saveEditorialEdition("2026-08-10", "morning", segmentKey, morning);
+  const morningPacket = seeded.saveEditorialReviewPacket(buildBlindReviewPacket(morning), {
+    date: "2026-08-10",
+    slotId: "morning",
+    segmentKey
+  });
+  // 런치 패킷은 조회 시각(13:00)보다 늦게 동결된 대기 패킷이라 활성 모닝 패킷은
+  // 처음부터 고정(pinned) 상태다. 조회가 활성 대상을 바꾸지 않는지도 함께 본다.
+  testNow = Date.parse("2026-08-10T13:05:00+09:00");
+  const lunch = finalizeEdition(await seedEngine.todayEdition({
+    categories: ["business"],
+    slotId: "lunch",
+    asOfMs: testNow,
+    reserveIssues: 8,
+    sharedCanonical: true,
+    allowCarryover: true
+  }), morning);
+  seeded.saveEditorialEdition("2026-08-10", "lunch", segmentKey, lunch);
+  const lunchPacket = seeded.saveEditorialReviewPacket(buildBlindReviewPacket(lunch), {
+    date: "2026-08-10",
+    slotId: "lunch",
+    segmentKey,
+    activateIfEmpty: false
+  });
+  assert.equal(morningPacket.packet.state, "human_annotation_ready", "준비한 모닝 패킷이 기계 준비 상태여야 한다");
+  assert.equal(lunchPacket.packet.state, "human_annotation_ready", "준비한 런치 패킷이 기계 준비 상태여야 한다");
+  assert.equal(seeded.activeEditorialReviewPacket().packetId, morningPacket.packetId);
+  testNow = Date.parse("2026-08-10T06:30:00+09:00");
+
   const local = createServer({
-    sources: editorialSources(
-      Date.parse("2026-08-10T12:20:00+09:00"),
-      6 * 60 * 60_000,
-      SERVEABLE_SUBJECTS,
-      30,
-      ["business"],
-      2
-    ),
+    file,
+    sources: runtimeSources(),
     localEditorial: true,
     adminToken,
-    clock: () => new Date(testNow).toISOString(),
+    clock,
     editorialLlmCanaryReceiptFile: canaryReceiptFile,
     localEditorialInventorySchedule: false
   });
@@ -1301,7 +1361,7 @@ test("서버: 오늘판 홈·선택·지난 판은 유지하고 플래그가 꺼
     assert.deepEqual(edition.selection.categories.map((row) => row.id), ["business"]);
     assert.equal(edition.slot.id, "lunch", "midday 별칭이 모닝판으로 떨어지면 안 된다");
     assert.equal(edition.editionChange.state, "compared");
-    assert.ok(edition.editionChange.previousEditionId);
+    assert.equal(edition.editionChange.previousEditionId, morning.editionId);
     assert.ok(edition.issues.every((issue) => issue.changedSincePrevious));
     assert.equal(edition.personalization.state, "personalization_integrity_pass");
     assert.equal(edition.personalization.mode, "canonical_shared_order");
@@ -1331,80 +1391,45 @@ test("서버: 오늘판 홈·선택·지난 판은 유지하고 플래그가 꺼
     );
     assert.equal(futureMorning.status, 409, "표시 날짜 파라미터로 미래 슬롯을 우회하면 안 된다");
 
-    const packet = blueprint.blueprint.localEditorialEvidence.reviewPacket;
-    const replay = blueprint.blueprint.localEditorialEvidence.editionReplay;
-    const inventory = blueprint.blueprint.localEditorialEvidence.inventory;
-    const elapsedEvidence = blueprint.blueprint.localEditorialEvidence.elapsedEvidence;
-    const qualityHistory = blueprint.blueprint.localEditorialEvidence.qualityHistory;
-    const qualityReviewSampling = blueprint.blueprint.localEditorialEvidence.qualityReviewSampling;
-    const scheduler = blueprint.blueprint.localEditorialEvidence.scheduler;
-    const personalization = blueprint.blueprint.localEditorialEvidence.personalization;
-    const servingGate = blueprint.blueprint.localEditorialEvidence.servingGate;
-    assert.equal(replay.mode, "same_current_pool_no_elapsed_time");
-    assert.equal(replay.projectedOnly, true);
-    assert.equal(replay.fixedItemCount, false);
-    assert.deepEqual(replay.slots.map((row) => row.id), ["morning", "lunch", "evening"]);
-    assert.ok(replay.slots.every((row) => row.categoryFulfillment));
-    assert.ok(replay.slots.every((row) =>
-      row.categoryFulfillment.metCount <= row.categoryFulfillment.selectedCount));
-    assert.ok(replay.slots.every((row) => row.preflightReview));
-    assert.ok(replay.slots.every((row) => row.preflightReview.projectedOnly === true));
-    assert.ok(replay.slots.every((row) => row.preflightReview.persisted === false));
-    assert.ok(replay.slots.every((row) => row.preflightReview.actualElapsedProof === false));
-    assert.ok(replay.slots.every((row) => row.preflightReview.humanInputAllowed === false));
-    assert.ok(replay.slots.every((row) =>
-      row.preflightReview.rows.length === row.selectedIssueCount));
-    assert.ok(replay.slots.every((row) =>
-      row.preflightReview.metrics.machinePass + row.preflightReview.metrics.machineHold === row.selectedIssueCount));
-    assert.equal(inventory.stableId, "NOWHOT-EDITORIAL-INVENTORY-001");
-    assert.equal(inventory.snapshotVersion, "v30");
-    assert.equal(inventory.compatibility.pass, true);
-    assert.equal(inventory.state, "inventory_backlog");
-    assert.equal(inventory.missingCount, inventory.slots.reduce((sum, row) => sum + row.missing, 0), JSON.stringify({
-      state: inventory.state,
-      slots: inventory.slots,
-      segments: inventory.segments
-    }));
-    const lunchInventory = inventory.slots.find((row) => row.id === "lunch");
-    assert.ok(lunchInventory.missing >= 13, "아직 준비되지 않은 분야별 런치판은 재수집 대상으로 남겨야 한다");
-    assert.equal(lunchInventory.held, 0, "저장된 런치판은 모두 발행 가능해야 한다");
-    assert.match(inventory.privacy, /사용자 ID를 판본 키에 넣지 않는다/);
-    assert.equal(elapsedEvidence.actualElapsedTimeProof, false, "주입 시계 테스트를 실제 시간차 증거로 올리면 안 된다");
-    assert.ok(elapsedEvidence.slots
-      .filter((row) => row.captureMode !== "not_observed")
-      .every((row) => row.captureMode === "injected_clock"));
-    assert.ok(elapsedEvidence.slots.some((row) => row.captureMode === "not_observed"),
-      "13시에는 이브닝 슬롯을 관측한 것처럼 만들면 안 된다");
+    // 관리자 조회는 저장판·저장 패킷만 읽는다. 재생 판·재고·패킷을 만들지 않으므로
+    // 재고 영수증이 아니라 미리 저장한 판과 패킷으로만 판정한다.
+    const evidence = blueprint.blueprint.localEditorialEvidence;
+    const packet = evidence.reviewPacket;
+    const qualityHistory = evidence.qualityHistory;
+    const scheduler = evidence.scheduler;
+    const servingGate = evidence.servingGate;
+    assert.equal(evidence.state, "stored_evidence");
+    assert.equal(evidence.evidenceBasis, "persisted_only");
+    assert.equal(evidence.requestLlmCalls, 0);
+    assert.equal(evidence.editionReplay ?? null, null, "관리자 조회가 세 슬롯 재생 판을 만들면 안 된다");
     assert.equal(qualityHistory.stableId, "NOWHOT-EDITORIAL-QUALITY-HISTORY-001");
     assert.equal(qualityHistory.fixedItemCount, false);
     assert.ok(qualityHistory.rows.length >= 1);
-    assert.ok(qualityHistory.totals.editions >= inventory.storedCount);
-    assert.equal(qualityReviewSampling.stableId, "NOWHOT-QUALITY-REVIEW-SAMPLING-001");
-    assert.equal(qualityReviewSampling.fixedItemCount, false);
-    assert.ok(qualityReviewSampling.frozenPacketCount >= 1);
-    assert.equal(qualityReviewSampling.activationChanged, false);
+    assert.ok(qualityHistory.totals.editions >= 2, "미리 저장한 모닝·런치 판이 품질 원장에 잡혀야 한다");
     assert.equal(scheduler.stableId, "NOWHOT-EDITORIAL-SCHEDULER-STATUS-001");
     assert.equal(scheduler.enabled, false);
     assert.equal(scheduler.state, "manual_only");
     assert.equal(scheduler.clockSource, "injected");
     assert.equal(scheduler.nextAction.slotId, "evening");
-    assert.equal(personalization.state, "personalization_integrity_pass");
-    assert.equal(personalization.sharedCanonical, true);
-    assert.equal(personalization.addedIssueCount, 0);
-    assert.equal(personalization.removedIssueCount, 0);
     assert.equal(servingGate.contractId, "NOWHOT-EDITORIAL-SERVING-CONTRACT-001");
     assert.equal(servingGate.contractVersion, EDITORIAL_SERVING_CONTRACT.version);
     assert.equal(servingGate.humanReviewRequired, false);
     assert.match(servingGate.state, /^serveable_machine_(verified|hold)$/);
     assert.ok(Number.isInteger(servingGate.verificationCount));
+    assert.equal(packet.packetId, morningPacket.packetId, "관리자 조회는 저장된 활성 패킷만 돌려준다");
+    assert.equal(packet.editionId, morning.editionId);
     assert.ok(packet.rows.length > 0);
     assert.equal(packet.packetVersion, 5);
+    assert.equal(packet.machineState, "human_annotation_ready");
     assert.equal(packet.metrics.readerIssuePass, packet.rows.length);
     assert.equal(typeof packet.metrics.readerPacketPass, "boolean");
     assert.ok(packet.rows.every((row) => row.reader && row.readerGate && row.readerGate.pass));
     assert.equal(packet.queue.stableId, "NOWHOT-HUMAN-REVIEW-QUEUE-001");
     assert.equal(packet.queue.activePacketId, packet.packetId);
-    assert.equal(packet.queue.state, "active_current_packet");
+    assert.equal(packet.queue.state, "active_packet_pinned", "더 늦게 동결된 런치 패킷이 있어도 조회가 활성 패킷을 바꾸면 안 된다");
+    assert.ok(packet.queue.pendingCount >= 1);
+    assert.ok(packet.queue.items.some((row) => row.packetId === lunchPacket.packetId && !row.isActive && !row.hasProgress),
+      "대기 중인 런치 패킷은 삭제하거나 활성화하지 않고 대기열에 남긴다");
     assert.equal(blueprint.blueprint.localEditorialEvidence.editorialLineage.holdCount, 0);
     assert.ok(blueprint.blueprint.localEditorialEvidence.editorialLineage.sourceEvidenceCount > 0);
     assert.equal(blueprint.blueprint.localEditorialEvidence.editorialLlm.state, "disabled");
@@ -1484,8 +1509,8 @@ test("서버: 오늘판 홈·선택·지난 판은 유지하고 플래그가 꺼
       method: "POST",
       headers: adminHeaders,
       body: JSON.stringify({
-        packetId: queued.currentCandidatePacketId,
-        editionId: queued.currentCandidateEditionId
+        packetId: lunchPacket.packetId,
+        editionId: lunchPacket.editionId
       })
     });
     assert.equal(blockedRotation.status, 409, "진행 중 검수 패킷을 다음 슬롯으로 바꾸면 안 된다");
@@ -1530,19 +1555,20 @@ test("서버: 오늘판 홈·선택·지난 판은 유지하고 플래그가 꺼
       method: "POST",
       headers: adminHeaders,
       body: JSON.stringify({
-        packetId: queued.currentCandidatePacketId,
-        editionId: queued.currentCandidateEditionId
+        packetId: lunchPacket.packetId,
+        editionId: lunchPacket.editionId
       })
     });
     assert.equal(activated.status, 200, "조정이 끝난 뒤에는 다음 고정 패킷으로 전환할 수 있어야 한다");
     const afterActivation = await fetch(`${base}/api/admin/product-blueprint`, { headers: adminHeaders }).then((res) => res.json());
-    assert.equal(afterActivation.blueprint.localEditorialEvidence.reviewPacket.packetId, queued.currentCandidatePacketId);
+    assert.equal(afterActivation.blueprint.localEditorialEvidence.reviewPacket.packetId, lunchPacket.packetId);
+    assert.equal(afterActivation.blueprint.localEditorialEvidence.reviewPacket.queue.activePacketId, lunchPacket.packetId);
     const live = await fetch(`${base}/live`).then((res) => res.text());
     assert.match(live, /data-view-switch data-active="live"/);
     assert.match(live, /data-view="today">오늘<\/a>[\s\S]*data-view="live" aria-current="page">실시간<\/a>/);
   } finally {
     await new Promise((resolve) => local.close(resolve));
-    fs.rmSync(canaryDir, { recursive: true, force: true });
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 
   const unchanged = createServer({ sources: editorialSources(), localEditorial: false });

@@ -64,6 +64,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   context.setDefaultTimeout(4000);
   t.after(() => context.close());
   const requests = [];
+  const trackEvents = [];
   const controls = { itemStatus: 200, itemCode: "", delayItem: 0, todayStatus: 200, todayEdition: edition, todayQueries: [], mixBalance: 0, leanBalance: 0, showTopics: [], auth: {}, authProfile: {}, failSave: false, sourceKind: "news", feedHandler: null, coupang: null, surveyAnswers: null, surveyWrites: [], meQueries: [], meStatus: 200, delayMe: 0, delayConfig: 0, ...todaySeed.controls };
   await context.addInitScript(({ realWorker, guideState, releaseId, iosTab }) => {
     if (!localStorage.getItem("__fixture_seeded")) {
@@ -100,6 +101,7 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
     if (url.origin !== base) return route.abort();
     if (url.pathname.startsWith("/api/")) {
       let body = {};
+      if(url.pathname==='/api/track')trackEvents.push(...(route.request().postDataJSON()?.events||[]));
       if(url.pathname === "/api/config" && controls.delayConfig)await new Promise(resolve=>setTimeout(resolve,controls.delayConfig));
       if(url.pathname === "/api/auth/logout")controls.authProfile={loggedIn:false};
       if(url.pathname === "/api/me"){
@@ -165,8 +167,25 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   const page = await context.newPage();
   if(cold)await (await context.newCDPSession(page)).send("Page.navigate",{url:base+path});
   else await page.goto(base + path);
-  return { page, requests, controls, context, base };
+  return { page, requests, controls, context, base, trackEvents };
 }
+
+test('NH143 browser: Today history restoration adds no card click or phantom list view',options,async t=>{
+ const {page,trackEvents}=await fixture(t,'/');
+ await page.waitForSelector('#issues .issue');
+ await page.locator('[data-open-issue="0"]').click();
+ await page.waitForSelector('#issueDetail.open');
+ await page.evaluate(()=>NowHotTrack.flush());
+ const clicks=trackEvents.filter(e=>e.type==='click').length;
+ const views=trackEvents.filter(e=>e.type==='view').map(e=>e.path);
+ assert.equal(clicks,1);
+ await page.goBack();await page.waitForFunction(()=>!location.hash);
+ await page.goForward();await page.waitForFunction(()=>location.hash.endsWith('/issue-0'));
+ await page.waitForFunction(()=>document.getElementById('detailTitle')?.textContent.includes('article 0'));
+ await page.evaluate(()=>NowHotTrack.flush());
+ assert.equal(trackEvents.filter(e=>e.type==='click').length,clicks);
+ assert.deepEqual(trackEvents.filter(e=>e.type==='view').map(e=>e.path),[...views,'/','/today/detail']);
+});
 
 test("browser: NH133 anonymous home binds its initial edition only and preserves fallback, personal and deep-link reads", options, async (t) => {
   const seed = `<div id="todaySeed" data-edition="${edition.editionId}" data-date="${edition.editionDate}" data-slot="lunch" data-requested-date="${edition.editionDate}" data-requested-slot="evening" data-fallback="true">공개 이전 검증판</div>`;

@@ -9,6 +9,7 @@ import { JsonSource } from "../src/feed/content.js";
 import { attachEditorialFulfillment } from "../src/feed/editorial-fulfillment.js";
 import { attachEditorialLineage } from "../src/feed/editorial-lineage.js";
 import { buildBlindReviewPacket } from "../src/feed/editorial-quality.js";
+import { buildEditorialInventory, editorialInventorySegmentKey } from "../src/feed/editorial-inventory.js";
 import {
   EDITORIAL_SERVING_CONTRACT,
   assessEditorialServeability,
@@ -612,22 +613,59 @@ test("오늘판 API: 재고 작업이 최종 이슈 요약을 미리 준비하�
       assert.equal(calls, 0, "사용자 조회가 요약 준비를 시작하면 안 된다");
       assert.ok(first.issues.every((issue) => !issue.articleSummary));
 
+      const persistedBeforeGet = JSON.parse(fs.readFileSync(file, "utf8"));
       const inventory = await fetch(`${base}/api/admin/product-blueprint`, {
         headers: { "x-admin-token": adminToken }
       });
       assert.equal(inventory.status, 200);
-      assert.ok(calls > 0, "재고 작업이 저장판의 요약을 준비하지 않았다");
+      assert.equal(calls, 0, "관리자 조회가 요약 준비를 시작하면 안 된다");
+      assert.deepEqual(JSON.parse(fs.readFileSync(file, "utf8")), persistedBeforeGet);
+    } finally {
+      await close(server);
+    }
 
+    // 명시적인 재고 작업을 서버 조회와 분리해 실행하고, 재시작 뒤 저장본을 검증한다.
+    const inventoryStore = new FeedStore({ file, clock: () => "2026-08-11T12:05:00+09:00" });
+    const receipt = await buildEditorialInventory({
+      store: inventoryStore,
+      defaultCategories: ["business"],
+      knownCategoryIds: ["business"],
+      nowMs: Date.parse("2026-08-11T12:05:00+09:00"),
+      needsRefresh: () => true,
+      buildEdition: async ({ categories, slotId, targetDate }) => {
+        const key = editorialInventorySegmentKey(categories);
+        const stored = inventoryStore.getEditorialEdition(targetDate, slotId, key);
+        if (!stored) return null;
+        const prepared = await articleSummaryPipeline(stored);
+        inventoryStore.enrichEditorialEdition(targetDate, slotId, key, prepared);
+        return prepared;
+      }
+    });
+    assert.ok(receipt.builtCount > 0);
+    assert.ok(calls > 0, "명시적 재고 작업이 저장판의 요약을 준비하지 않았다");
+
+    const restarted = createServer({
+      file,
+      sources: runtimeSources(),
+      localEditorial: true,
+      adminToken,
+      articleSummaryPipeline,
+      clock: () => "2026-08-11T12:05:00+09:00",
+      localEditorialInventorySchedule: false
+    });
+    const restartedBase = await listen(restarted);
+    try {
       const callsAfterInventory = calls;
-      const second = await fetch(`${base}/api/today?categories=business&slot=lunch`).then((response) => response.json());
+      await fetch(`${restartedBase}/api/admin/product-blueprint`, { headers: { "x-admin-token": adminToken } });
+      const second = await fetch(`${restartedBase}/api/today?categories=business&slot=lunch`).then((response) => response.json());
       assert.ok(second.issues.every((issue) => issue.articleSummary.status === "ready"));
-      const summaryResponse = await fetch(`${base}/api/today/summary`, {
+      const summaryResponse = await fetch(`${restartedBase}/api/today/summary`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ evidenceHash: second.issues[0].evidenceHash })
       });
       const summary = await summaryResponse.json();
-      await fetch(`${base}/api/today?categories=business&slot=lunch`);
+      await fetch(`${restartedBase}/api/today?categories=business&slot=lunch`);
       assert.equal(calls, callsAfterInventory, "클릭이나 재조회가 원문·LLM 호출을 다시 만들었다");
       assert.equal(summaryResponse.status, 410);
       assert.equal(summary.code, "ARTICLE_SUMMARY_IN_EDITION");
@@ -635,7 +673,7 @@ test("오늘판 API: 재고 작업이 최종 이슈 요약을 미리 준비하�
       assert.match(rawStore, /articleSummaries/);
       assert.doesNotMatch(rawStore, /공개 기사 원문 전체/);
     } finally {
-      await close(server);
+      await close(restarted);
     }
 
     const callsBeforeHeld = calls;

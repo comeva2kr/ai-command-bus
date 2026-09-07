@@ -53,7 +53,7 @@ window.NowHotPush = (() => {
       ? "아이폰 설정 → 알림 → 지금핫에서 알림을 허용해 주세요."
       : "브라우저 설정에서 지금핫 알림을 허용해 주세요.");
     try {
-      if (await sync(userId, true)) return true;
+      if (await sync(userId, true)) { window.NowHotTrack?.action("push"); return true; }
     } catch { /* Keep browser and network details out of the UI. */ }
     throw connectionError();
   }

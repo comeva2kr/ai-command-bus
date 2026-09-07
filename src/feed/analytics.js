@@ -44,10 +44,10 @@ const REF_GROUPS = [
 // 키로 쓴다. 검증 없이 객체 키로 쓰면 아무 문자열이나 버킷에 쌓여 파일이
 // 부풀고, 화면에도 그대로 그려진다.
 export function refLabel(referrer, selfHost) {
-  if (!referrer) return "직접 유입";
+  if (!referrer) return "직접·출처 미확인";
   let host;
-  try { host = new URL(referrer).hostname.toLowerCase(); } catch { return "직접 유입"; }
-  if (!host) return "직접 유입";
+  try { host = new URL(referrer).hostname.toLowerCase(); } catch { return "직접·출처 미확인"; }
+  if (!host) return "직접·출처 미확인";
   if (selfHost && (host === selfHost || host.endsWith("." + selfHost))) return "내부 이동";
   for (const [re, label] of REF_GROUPS) if (re.test(host)) return label;
   return host.replace(/^www\./, "").slice(0, 60);
@@ -56,10 +56,18 @@ export function refLabel(referrer, selfHost) {
 // 대외 광고 캠페인 키. David 채널별·매체별 성과를 갈라 보기 위한 축이다.
 // utm이 없으면 null — 캠페인이 아닌 유입까지 캠페인 표에 섞지 않는다.
 export function campaignKey(params = {}) {
+  if (!params || typeof params !== 'object') return null;
   const clean = (v) => (typeof v === "string" ? v.trim().slice(0, 40).replace(/[|]/g, "/") : "");
   const s = clean(params.utm_source), m = clean(params.utm_medium), c = clean(params.utm_campaign);
   if (!s && !m && !c) return null;
   return [s || "-", m || "-", c || "-"].join(" | ");
+}
+
+export function acquisitionLabel(referrer, selfHost, params) {
+  const source = typeof params?.utm_source === 'string' ? params.utm_source.trim().toLowerCase().slice(0,40) : '';
+  const known = {web_push:'웹 푸시',shared_link:'공유 링크',naver:'네이버',google:'구글',kakao:'카카오',instagram:'인스타그램',youtube:'유튜브',facebook:'페이스북',threads:'스레드',x:'X',twitter:'X'};
+  if (Object.hasOwn(known, source)) return known[source];
+  return source && /^[a-z0-9_.-]+$/.test(source) ? `캠페인: ${source}` : refLabel(referrer, selfHost);
 }
 
 // 화면 경로 정규화 — /keyword/삼성전자 같은 걸 개별로 세면 표가 수천 줄이 된다.
@@ -67,19 +75,23 @@ export function campaignKey(params = {}) {
 export function viewLabel(path) {
   if (typeof path !== "string" || !path) return "기타";
   const p = path.split("?")[0].slice(0, 120);
-  if (p === "/" || p === "") return "홈";
+  if (p === "/" || p === "/today.html") return "오늘판";
+  if (p === "/live" || p === "/index.html") return "실시간";
+  if (p === "/today/detail") return "오늘판 상세";
+  if (p === "/live/detail") return "실시간 상세";
   if (p.startsWith("/briefing")) return "브리핑";
   if (p.startsWith("/ranking")) return "화제랭킹";
   if (p.startsWith("/community")) return "커뮤니티별";
   if (p.startsWith("/keyword")) return "키워드";
   if (p.startsWith("/deals")) return "딜";
   if (p.startsWith("/admin")) return "관리자";
-  return p.slice(0, 40);
+  if (["/report","/trends","/keywords","/communities"].includes(p)) return p;
+  return "기타";
 }
 
 export function emptyBucket() {
   return {
-    pv: 0, feed: 0, uids: [], newUids: [], sessions: 0,
+    journey: null, pv: 0, feed: 0, uids: [], newUids: [], sessions: 0,
     ref: {}, camp: {}, entry: {}, exit: {},
     dwellMs: 0, dwellN: 0,
     depth: 0, depthN: 0,
@@ -150,6 +162,7 @@ const MAX_KEYS = 120;
 function bump(map, key, n = 1) {
   if (key == null || key === "") return;
   const k = String(key).slice(0, 60);
+  if (!safeMetricKey(k)) return;
   if (!(k in map) && Object.keys(map).length >= MAX_KEYS) { map["기타"] = (map["기타"] || 0) + n; return; }
   map[k] = (map[k] || 0) + n;
 }
@@ -203,6 +216,7 @@ export function applyEvent(bucket, ev = {}, ctx = {}) {
       for (const [map, key] of [[b.ads.bySlot, ev.slot], [b.ads.byVariant, ev.variant]]) {
         if (!key) continue;
         const k = String(key).slice(0, 60);
+        if (!safeMetricKey(k)) continue;
         if (!(k in map)) {
           if (Object.keys(map).length >= MAX_KEYS) continue;
           map[k] = { imp: 0, click: 0 };
@@ -276,6 +290,7 @@ export function mergeBuckets(list) {
     mergeCounts(out.os, b.os);
     mergeCounts(out.browser, b.browser);
   }
+  out.journey = mergeJourneys(list.map(b => b?.journey));
   out.uids = [...uids];
   out.newUids = [...news];
   if (uidCount) out.uidCount = uidCount;
@@ -309,6 +324,7 @@ export function summarize(bucket, { key, label } = {}) {
   const newVisitors = b.newUids.length + (b.newUidCount || 0);
   return {
     key, label,
+    journey: summarizeJourney(b.journey),
     visitors,
     newVisitors,
     returning: Math.max(0, visitors - newVisitors),
@@ -362,4 +378,79 @@ export function series(buckets, granularity = "day", limit = 30) {
     key: k,
     label: granularity === "week" ? `${k} 주` : granularity === "month" ? `${k}` : k
   }));
+}
+
+// v2: browser identity, 30-minute sessions, and acquisition-linked outcomes.
+export const JOURNEY_IDLE_MS = 30 * 60 * 1000;
+export const JOURNEY_ACTIONS = new Set(['content', 'detail', 'outbound', 'preferences', 'push', 'share', 'ad', 'login', 'onboarding', 'filter']);
+export function emptyJourney(at) {
+  return { version: 2, since: at, uids: [], engagedUids: [], accountUids: [], newUids: [], visitUids: [],
+    sessions: 0, finished: 0, bounces: 0, engagedSessions: 0, pv: 0,
+    dwellMs: 0, dwellN: 0, sessionDwellMs: 0, sessionDwellN: 0, depth: 0, depthN: 0,
+    ref: {}, camp: {}, entry: {}, exit: {}, actions: {}, transitions: {}, screens: {}, sources: {}, categories: {}, ranks: {}, adSlots: {}, device: {}, os: {}, browser: {}, limitedEvents: 0 };
+}
+const safeMetricKey = key => key && !['__proto__', 'constructor', 'prototype'].includes(key);
+export function journeyBump(map, key, n = 1) {
+  key = String(key || '').slice(0, 100);
+  if (!safeMetricKey(key)) return;
+  if (!Object.hasOwn(map, key) && Object.keys(map).length >= 120) key = '기타';
+  map[key] = (Object.hasOwn(map, key) ? map[key] : 0) + n;
+}
+export function journeyChannel(map, key) {
+  key = String(key || '').slice(0, 120);
+  if (!safeMetricKey(key)) return null;
+  if (!Object.hasOwn(map, key) && Object.keys(map).length >= 120) key = '기타';
+  if (!Object.hasOwn(map, key)) map[key] = { sessions: 0, engaged: 0, returning: 0, content: 0, detail: 0, outbound: 0, preferences: 0, push: 0, share: 0, ad: 0, login: 0, onboarding: 0, filter: 0 };
+  return map[key];
+}
+export function mergeJourneys(list) {
+  const valid = list.filter(Boolean);
+  if (!valid.length) return null;
+  const out = emptyJourney(Math.min(...valid.map(j => j.since)));
+  for (const field of ['uids', 'engagedUids', 'accountUids', 'newUids', 'visitUids']) {
+    out[field] = [...new Set(valid.flatMap(j => j[field] || []))];
+    out[field + 'Count'] = valid.reduce((n, j) => n + (j[field + 'Count'] || 0), 0);
+  }
+  for (const j of valid) {
+    for (const field of ['sessions', 'finished', 'bounces', 'engagedSessions', 'pv', 'dwellMs', 'dwellN', 'sessionDwellMs', 'sessionDwellN', 'depth', 'depthN', 'limitedEvents']) out[field] += j[field] || 0;
+    for (const field of ['entry', 'exit', 'actions', 'transitions', 'screens', 'sources', 'categories', 'ranks', 'adSlots', 'device', 'os', 'browser']) {
+      for (const [key, count] of Object.entries(j[field] || {})) journeyBump(out[field], key, count);
+    }
+    for (const field of ['ref', 'camp']) for (const [key, counts] of Object.entries(j[field] || {})) {
+      const dest = journeyChannel(out[field], key);
+      if (dest) for (const name of Object.keys(dest)) dest[name] += counts[name] || 0;
+    }
+  }
+  return out;
+}
+export function summarizeJourney(j) {
+  if (!j) return null;
+  const count = field => (j[field]?.length || 0) + (j[field + 'Count'] || 0);
+  const channelRows = map => Object.entries(map).map(([key, values]) => ({key, ...values})).sort((a,b)=>b.sessions-a.sessions);
+  return { since: new Date(j.since).toISOString(), browsers: count('uids'), engagedBrowsers: count('engagedUids'),
+    accounts: count('accountUids'), firstObserved: count('newUids'), returning: Math.max(0,count('uids')-count('newUids')),
+    approximate: ['uids','engagedUids','accountUids','newUids'].some(k=>j[k+'Count']),
+    sessions: j.sessions, finished: j.finished, bounces: j.bounces, engagedSessions: j.engagedSessions,
+    pv: j.pv, avgDwellSec: j.sessionDwellN ? Math.round(j.sessionDwellMs/j.sessionDwellN/1000) : null, dwellSamples: j.sessionDwellN,
+    avgDepth: j.depthN ? Math.round(j.depth/j.depthN) : null, depthSamples: j.depthN,
+    referrers: channelRows(j.ref), campaigns: channelRows(j.camp),
+    entries: topN(j.entry), exits: topN(j.exit), actions: topN(j.actions,20), transitions: topN(j.transitions,20), screens: topN(j.screens,20),
+    sources: topN(j.sources), categories: topN(j.categories), ranks: topN(j.ranks), adSlots: topN(j.adSlots), limitedEvents: j.limitedEvents || 0,
+    devices: topN(j.device), os: topN(j.os), browsersByAgent: topN(j.browser) };
+}
+
+// Exact cohort intersections only while both days still retain browser sets.
+export function retentionRows(buckets, selectedDays, today) {
+  return selectedDays.sort().flatMap(day => {
+    const first = buckets[day]?.journey?.newUids;
+    if (!first?.length) return [];
+    const after = n => {
+      const d = new Date(day+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()+n);
+      const key = d.toISOString().slice(0,10), j = buckets[key]?.journey;
+      if (key >= today || !Array.isArray(j?.visitUids)) return null;
+      const seen = new Set(j.visitUids);
+      return { count:first.filter(id=>seen.has(id)).length, total:first.length };
+    };
+    return [{day,firstObserved:first.length,day1:after(1),day7:after(7)}];
+  });
 }

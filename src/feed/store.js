@@ -5,7 +5,7 @@
 // survives restarts. No external database required — this keeps the project's
 // zero-dependency posture while still being real enough to demo end to end.
 
-import { emptyBucket, applyEvent, bumpDeviceInfo, weekKey, monthKey } from "./analytics.js";
+import { emptyBucket, applyEvent, bumpDeviceInfo, weekKey, monthKey, emptyJourney, JOURNEY_IDLE_MS, JOURNEY_ACTIONS, journeyBump, journeyChannel, acquisitionLabel, campaignKey, viewLabel, parseUserAgent } from "./analytics.js";
 import { emptyCostBucket, recordCall } from "./costs.js";
 import fs from "node:fs";
 import { articleContentId, isCurrentArticleSummary } from "./article-summary.js";
@@ -674,6 +674,129 @@ export class FeedStore {
     return this.sourceHealth || {};
   }
 
+  _journeyBucket(day, now) {
+    this.analytics ||= {};
+    this.analytics[day] ||= emptyBucket();
+    return this.analytics[day].journey ||= emptyJourney(now);
+  }
+
+  finishJourneySessions(now = this._nowMs()) {
+    let changed = false;
+    for (const [vid, session] of Object.entries(this.journeySessions || {})) {
+      if (now - session.lastAt < JOURNEY_IDLE_MS) continue;
+      const j = this._journeyBucket(session.day, session.startedAt);
+      j.finished++;
+      if (session.dwellMs > 0) { j.sessionDwellMs = (j.sessionDwellMs || 0) + session.dwellMs; j.sessionDwellN = (j.sessionDwellN || 0) + 1; }
+      if (!session.engaged && !session.actions.content) j.bounces++;
+      journeyBump(j.exit, session.path);
+      delete this.journeySessions[vid];
+      changed = true;
+    }
+    for (const [vid, visitor] of Object.entries(this.journeyVisitors || {})) {
+      if(now-visitor.lastAt>180*86400000){delete this.journeyVisitors[vid];changed=true;}
+    }
+    for (const [key, page] of Object.entries(this.journeyPages || {})) {
+      if (now - page.at > 24 * 3600 * 1000) {delete this.journeyPages[key];changed=true;}
+    }
+    if (changed) this._persistSoon();
+  }
+
+  recordJourneyEvents(events, ctx) {
+    const now = this._nowMs(), day = this._trafficDay(new Date(now));
+    if (!ctx.visitorId || !Array.isArray(events)) return 0;
+    this.finishJourneySessions(now);
+    this.journeySessions ||= {};
+    this.journeyPages ||= {};
+    this.journeyVisitors ||= {};
+    const vid = ctx.visitorId;
+    let accepted = 0;
+    for (const ev of events.slice(0, 50)) {
+      if (!ev || !/^[a-f0-9-]{16,40}$/i.test(ev.pageId || '') || !Number.isSafeInteger(ev.seq) || ev.seq < 1 || ev.seq > 1000000) continue;
+      if (!['view','checkpoint','engage','action','ad_impression','ad_click','click'].includes(ev.type)) continue;
+      if (ev.type === 'action' && !JOURNEY_ACTIONS.has(ev.action)) continue;
+      const pageKey = vid + ':' + ev.pageId;
+      let page = this.journeyPages[pageKey];
+      if (!page) {
+        // ponytail: bounded JSON state; move active sessions to a database if concurrency reaches this cap.
+        if (Object.keys(this.journeyPages).length >= 20000) { this._journeyBucket(day,now).limitedEvents++; continue; }
+        page = this.journeyPages[pageKey] = { seen: [], max: 0, at: now };
+      }
+      if (page.seen.includes(ev.seq) || ev.seq <= page.max - 512) continue;
+      page.seen.push(ev.seq); page.max = Math.max(page.max, ev.seq);
+      page.seen = page.seen.filter(n => n > page.max - 512); page.at = now;
+      let session = this.journeySessions[vid];
+      const started = !session;
+      if (!session) {
+        if (ev.type === 'checkpoint') continue;
+        if (Object.keys(this.journeySessions).length >= 10000) { this._journeyBucket(day,now).limitedEvents++; continue; }
+        const firstAt = this.journeyVisitors[vid]?.firstAt ?? now;
+        this.journeyVisitors[vid] = { firstAt, lastAt: now };
+        const ref = acquisitionLabel(ev.referrer, ctx.selfHost, ev.params);
+        const camp = campaignKey(ev.params);
+        const path = viewLabel(ev.path);
+        session = this.journeySessions[vid] = { day, startedAt: now, lastAt: now, ref, camp, path, actions: {}, engaged: false, pageId: ev.pageId };
+        const j = this._journeyBucket(day, now);
+        j.sessions++;
+        journeyBump(j.entry, path);
+        for (const row of [journeyChannel(j.ref, ref), journeyChannel(j.camp, camp)]) if (row) {
+          row.sessions++; if (firstAt < now) row.returning++;
+        }
+        const agent = parseUserAgent(ctx.ua);
+        journeyBump(j.device, agent.device); journeyBump(j.os, agent.os); journeyBump(j.browser, agent.browser);
+      }
+      const j = this._journeyBucket(day, now), cohort = this._journeyBucket(session.day, session.startedAt);
+      const addUid = (list, id) => {
+        if(!id || list.includes(id))return;
+        if(list.length < 100000)list.push(id);else j.limitedEvents++;
+      };
+      addUid(j.uids, vid);
+      if(started)addUid(j.visitUids ||= [],vid);
+      if (this._trafficDay(new Date(this.journeyVisitors[vid].firstAt)) === day) addUid(j.newUids, vid);
+      if (ctx.accountId) addUid(j.accountUids, ctx.accountId);
+      this.journeyVisitors[vid].lastAt = now;
+      session.lastAt = now;
+      const channel = (key) => { for (const row of [journeyChannel(cohort.ref, session.ref), journeyChannel(cohort.camp, session.camp)]) if(row)row[key]++; };
+      const engage = () => {
+        addUid(j.engagedUids, vid);
+        if (!session.engaged) { session.engaged = true; cohort.engagedSessions++; channel('engaged'); }
+      };
+      const action = name => {
+        if (!JOURNEY_ACTIONS.has(name)) return;
+        engage(); journeyBump(j.actions, name);
+        if (!session.actions[name]) { session.actions[name] = true; channel(name); }
+      };
+      if (ev.type === 'view') {
+        const path = viewLabel(ev.path);
+        if (!ev.resume || started || session.path !== path) { j.pv++; journeyBump(j.screens, path); }
+        if ((!ev.resume || started || session.path !== path) && ['오늘판 상세','실시간 상세'].includes(path)) action('detail');
+        if (session.path !== path) journeyBump(j.transitions, session.path + ' → ' + path);
+        session.path = path; session.pageId = ev.pageId;
+      } else if (ev.type === 'engage') engage();
+      else if (ev.type === 'checkpoint') {
+        const dwell = Number(ev.dwellMs), depth = Number(ev.depth);
+        if (Number.isFinite(dwell) && dwell > 0 && dwell <= 60000) {
+          j.dwellMs += dwell; j.dwellN++; session.dwellMs = (session.dwellMs || 0) + dwell;
+          if (session.dwellMs >= 10000) engage();
+        }
+        if (Number.isFinite(depth) && depth >= 0 && depth <= 100) { j.depth += depth; j.depthN++; }
+      } else if (ev.type === 'action') action(ev.action);
+      else if (ev.type === 'click') action('content');
+      else if (ev.type === 'ad_click') action('ad');
+      if (ev.type === 'click') {
+        journeyBump(j.sources, ev.source); journeyBump(j.categories, ev.category);
+        if (Number.isSafeInteger(ev.rank) && ev.rank >= 0 && ev.rank < 10000) journeyBump(j.ranks, `${Math.floor(ev.rank/10)*10+1}~${Math.floor(ev.rank/10)*10+10}`);
+      }
+      if (ev.type === 'ad_click' || ev.type === 'ad_impression') journeyBump(j.adSlots, `${ev.type}:${String(ev.slot||'unknown').slice(0,40)}`);
+      accepted++;
+    }
+    const visitors = Object.entries(this.journeyVisitors);
+    if (visitors.length > 200000) for (const [key] of visitors.sort((a,b)=>a[1].lastAt-b[1].lastAt).slice(0,visitors.length-200000)) delete this.journeyVisitors[key];
+    this._pruneBuckets('analytics', 400);
+    this._rollupOldAnalyticsUids();
+    if (accepted) this._persistSoon();
+    return accepted;
+  }
+
   // ---- 행동 분석 (analytics.js) -------------------------------------------
   // 이벤트는 들어오는 즉시 그날 버킷에 더한다. 원본 로그를 쌓지 않는 이유는
   // store가 단일 JSON 파일이라 선형으로 커지면 어느 시점에 못 읽기 때문이다.
@@ -720,11 +843,13 @@ export class FeedStore {
   // 카운트될 수 있음 — 화면에 명시할 항목, 다음 단계).
   _rollupOldAnalyticsUids(keepFullDays = 60) {
     if (!this.analytics) return;
-    const keys = Object.keys(this.analytics).sort();
-    if (keys.length <= keepFullDays) return;
-    for (const k of keys.slice(0, keys.length - keepFullDays)) {
+    const cutoff = this._trafficDay(new Date(this._nowMs() - (keepFullDays - 1) * 86400000));
+    for (const k of Object.keys(this.analytics).filter(day => day < cutoff)) {
       const b = this.analytics[k];
       if (!b) continue;
+      if (b.journey) for (const field of ['uids','engagedUids','accountUids','newUids','visitUids']) {
+        if (Array.isArray(b.journey[field])) { b.journey[field+'Count'] = b.journey[field].length; delete b.journey[field]; }
+      }
       if (Array.isArray(b.uids) && b.uids.length && b.uidCount == null) {
         b.uidCount = b.uids.length;
         b.uids = [];
@@ -767,6 +892,18 @@ export class FeedStore {
 
   // 고정비는 자동으로 알 길이 없어 David가 월 단위로 입력한다.
   // 미입력 달은 0이 아니라 "미입력"으로 보고된다(costs.fixedForRange).
+  setFinance(month, { fixed, revenueKrw } = {}) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("유효한 월을 입력하세요 (YYYY-MM)");
+    const amount = n => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1e12;
+    if (fixed !== undefined && (!Array.isArray(fixed) || fixed.length > 30 || fixed.some(row =>
+      !row || typeof row.label !== 'string' || !row.label.trim() || row.label.length > 40 || !amount(row.krw)))) throw new Error("고정비 항목과 0 이상의 금액을 입력하세요");
+    if (revenueKrw !== undefined && revenueKrw !== null && !amount(revenueKrw)) throw new Error("매출은 0 이상의 금액 또는 미입력이어야 합니다");
+    if (fixed !== undefined) { this.fixedCosts ||= {}; this.fixedCosts[month] = fixed.map(row => ({label:row.label.trim(),krw:row.krw})); }
+    if (revenueKrw !== undefined) { this.revenue ||= {}; if (revenueKrw === null) delete this.revenue[month]; else this.revenue[month] = revenueKrw; }
+    this._persist();
+    return { fixed: this.fixedCosts?.[month] ?? null, revenueKrw: this.revenue?.[month] ?? null };
+  }
+
   setFixedCosts(monthKey, entries) {
     if (!this.fixedCosts) this.fixedCosts = {};
     this.fixedCosts[monthKey] = (entries || [])
@@ -797,6 +934,10 @@ export class FeedStore {
   _pruneBuckets(field, keep) {
     const m = this[field];
     if (!m) return;
+    if (field === 'analytics') {
+      const cutoff = this._trafficDay(new Date(this._nowMs() - (keep - 1) * 86400000));
+      for (const day of Object.keys(m)) if (day < cutoff) delete m[day];
+    }
     const keys = Object.keys(m);
     if (keys.length <= keep) return;
     for (const k of keys.sort().slice(0, keys.length - keep)) delete m[k];
@@ -2077,6 +2218,9 @@ export class FeedStore {
       editorialReviewPackets: this.editorialReviewPackets || { activeKey: null, packets: {} },
       editorialReviews: this.editorialReviews || {},
       analytics: this.analytics || {},
+      journeySessions: this.journeySessions || {},
+      journeyVisitors: this.journeyVisitors || {},
+      journeyPages: this.journeyPages || {},
       costs: this.costs || {},
       fixedCosts: this.fixedCosts || {},
       revenue: this.revenue || {},
@@ -2163,6 +2307,9 @@ export class FeedStore {
       };
       this.editorialReviews = data.editorialReviews || {};
       this.analytics = data.analytics || {};
+      this.journeySessions = data.journeySessions || {};
+      this.journeyVisitors = data.journeyVisitors || {};
+      this.journeyPages = data.journeyPages || {};
       this.costs = data.costs || {};
       this.fixedCosts = data.fixedCosts || {};
       this.revenue = data.revenue || {};

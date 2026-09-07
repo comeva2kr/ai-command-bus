@@ -18,6 +18,7 @@
 <meta name="apple-mobile-web-app-title" content="지금핫">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
 <title>지금핫 오늘판</title>
+<script src="/audience-client.js?v=20260907"></script>
 <script>
 (function(){
   var key="feed_theme", media=matchMedia("(prefers-color-scheme: dark)");
@@ -263,7 +264,7 @@ async function shareToday(issue=null,edition=state.edition){
   if(issue)link.searchParams.set("issue",issue.evidenceHash||issue.id||issue.clusterId);
   const title=issue?(issue.reader?.headline||issue.headline):`${edition.editionDate} ${edition.slot.label} 오늘판 · 지금핫`;
   const text=`${title}\n${link.href}`;
-  try{await navigator.clipboard.writeText(text);toast("링크가 클립보드에 복사되었습니다")}
+  try{await navigator.clipboard.writeText(text);window.NowHotTrack?.action("share");toast("링크가 클립보드에 복사되었습니다")}
   catch{prompt("복사해 주세요",text)}
 }
 $("editionShare").onclick=()=>shareToday();
@@ -288,7 +289,7 @@ function restoreTodayDetail(){
   if(!detail || detail.editionId!==state.edition?.editionId)return false;
   const index=state.edition.issues.findIndex(issue=>(issue.evidenceHash||issue.id||issue.clusterId)===detail.issueId);
   if(index<0)return false;
-  openIssueDetail(index);return true;
+  openIssueDetail(index,null,true);return true;
 }
 addEventListener("pagehide",saveTodayNavigation);
 addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")saveTodayNavigation()});
@@ -516,7 +517,7 @@ function todayAdHtml(issue,index,slot,seen=new Set(),nextIssue=null){
   const variants=cp.matrix?.[item.dest]?.[context];
   const copy=variants?.[rotate%variants.length]||{};
   const href=new URL(item.href);href.searchParams.set("subId",`${slot}-${index}`);
-  return `<aside class="ad-slot ad-coupang" aria-label="쿠팡 제휴 광고">
+  return `<aside class="ad-slot ad-coupang" data-audience-slot="${esc(slot)}" aria-label="쿠팡 제휴 광고">
     <div class="ad-mark">AD</div>
     <div>
       <div class="issue-kicker"><span>광고</span><span class="separator"></span><span>${esc(item.brand)}</span></div>
@@ -535,7 +536,7 @@ function renderIssues(edition){
   }
   const seenAds=new Set();
   $("issues").innerHTML=edition.issues.map((issue,index)=>{
-    const copy=issue.reader||{};
+  const copy=issue.reader||{};
     const watchNext=copy.watchNext||"";
     const change=copy.change||issue.changedSincePrevious||"";
     const [laneClass,laneLabel]=lane(issue);
@@ -564,6 +565,7 @@ function renderIssues(edition){
     openIssueDetail(Number(article.dataset.issueIndex),article.querySelector("[data-open-issue]"));
   };
   for(const button of $("issues").querySelectorAll("[data-open-issue]"))button.onclick=()=>openIssueDetail(Number(button.dataset.openIssue),button);
+  window.NowHotTrack?.observeAds?.($("issues"));
 }
 
 function resetIssueDetail(){
@@ -571,13 +573,14 @@ function resetIssueDetail(){
   $("detailContent").innerHTML="";
 }
 
-function hideIssueDetail(){
+function hideIssueDetail(trackView=true){
   const overlay=$("issueDetail");
   if(!overlay.classList.contains("open"))return;
   state.detailRevision+=1;
   const returnFocus=state.detailReturnFocus;
   state.detailOpener?.setAttribute("aria-expanded","false");
   overlay.classList.remove("open");overlay.setAttribute("aria-hidden","true");
+  if(trackView)window.NowHotTrack?.view("/");
   document.body.style.overflow="";
   state.detailOpener=null;state.detailReturnFocus=null;
   resetIssueDetail();
@@ -588,7 +591,7 @@ function closeIssueDetail(){
   if(todayHistory.current()?.view==="detail")history.back();else hideIssueDetail();
 }
 
-function openIssueDetail(index,returnFocus=null){
+function openIssueDetail(index,returnFocus=null,restoring=false){
   const edition=state.edition;
   const issue=edition?.issues?.[index];
   if(!issue)return;
@@ -599,6 +602,8 @@ function openIssueDetail(index,returnFocus=null){
   const entry=todayHistory.open(detail,todaySnapshot(),`#issue-${encodeURIComponent(detail.editionId)}/${encodeURIComponent(detail.issueId)}`);
   state.listScrollY=todayHistory.snapshot()?.y||0;
   state.detailRevision+=1;
+  if(!restoring)window.NowHotTrack?.click({source:issue.sourceEvidence?.[0]?.sourceId,category:issue.categoryIds?.[0]},index);
+  window.NowHotTrack?.view("/today/detail");
   const copy=issue.reader||{};
   const title=copy.headline||issue.headline;
   $("detailShare").onclick=()=>shareToday(issue,edition);
@@ -667,6 +672,7 @@ function openIssueDetail(index,returnFocus=null){
     ${sourceLinks.length?`<section class="detail-section"><h3>출처</h3>${sourceTranslationHtml(issue,resolvedSources)}<nav class="detail-originals" aria-label="출처 링크">${sourceLinks.join("")}</nav></section>`:""}`;
   $("detailClose").focus();
   $("issueDetail").querySelector(".detail-panel").scrollTop=entry?.detailScroll||0;
+  window.NowHotTrack?.observeAds?.($("detailContent"));
 }
 
 $("detailClose").onclick=closeIssueDetail;
@@ -690,14 +696,14 @@ $("issueDetail").querySelector(".detail-panel").addEventListener("scroll",()=>
 addEventListener("popstate",()=>{
   state.loadController?.abort();state.loadRevision+=1;state.categoryRevision+=1;
   $("refresh").setAttribute("aria-busy","false");
-  hideIssueDetail();
+  hideIssueDetail(false);
   const snapshot=todayHistory.snapshot();
   if(snapshot?.userId===state.userId && snapshot.edition){
     state.sharedEdition=snapshot.sharedEdition||null;
     render(snapshot.edition);
     state.listScrollY=snapshot.y||0;window.scrollTo(0,state.listScrollY);
   }
-  restoreTodayDetail();
+  if(!restoreTodayDetail())window.NowHotTrack?.view("/");
 });
 
 function renderRail(edition){
@@ -896,6 +902,7 @@ function toggleCategory(category){
       body:JSON.stringify({userId:state.userId,categories}),
       signal:AbortSignal.timeout(10000)
     });
+    window.NowHotTrack?.action("preferences");
     state.confirmedCategories=[...categories];
     if(revision!==state.categoryRevision)return;
     state.categories=categories;

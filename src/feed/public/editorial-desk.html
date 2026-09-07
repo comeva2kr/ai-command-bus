@@ -193,7 +193,7 @@
     </header>
     <div class="statusbar">
       <div class="packet-meta" id="packetMeta"></div>
-      <div class="save-state" id="saveState" aria-live="polite"></div>
+      <div class="save-state" id="saveState" aria-live="polite"></div><button id="retrySave" type="button" hidden>저장 다시 시도</button>
     </div>
     <main class="workspace">
       <aside class="queue">
@@ -237,7 +237,7 @@
     function categoryText(ids){ return (ids||[]).join(" · ")||"분야 미지정"; }
 
     async function api(path,options={}){
-      const response=await fetch(path,{...options,headers:{"content-type":"application/json","x-admin-token":token,...(options.headers||{})}});
+      const response=await fetch(path,{signal:AbortSignal.timeout(15000),...options,headers:{"content-type":"application/json","x-admin-token":token,...(options.headers||{})}});
       if(response.status===401) throw Object.assign(new Error("인증 실패"),{auth:true});
       if(!response.ok) throw new Error((await response.json().catch(()=>({}))).error||String(response.status));
       return response.json();
@@ -307,22 +307,38 @@
       const element=document.getElementById("saveState");
       element.textContent=state.saveMessage||(state.data&&state.data.savedAt?`저장 ${when(state.data.savedAt)}`:"저장 내역 없음");
       element.classList.toggle("error",state.saveError);
+      document.getElementById("retrySave").hidden=!state.saveError||!state.dirty;
     }
     function renderAll(){ renderSeats(); renderPacket(); renderProgress(); renderIssueList(); renderStory(); renderRubric(); renderSaveState(); }
 
     async function loadDesk(reviewerId=state.reviewerId){
-      state.reviewerId=reviewerId;
-      state.saveMessage="불러오는 중";
-      state.saveError=false;
-      renderSaveState();
-      const data=await api(`/api/admin/editorial-desk?reviewerId=${encodeURIComponent(reviewerId)}`);
-      state.data=data;
-      state.currentBlindId=null;
-      state.filter=data.progress.remaining?"remaining":"all";
-      state.saveMessage=data.savedAt?`저장 ${when(data.savedAt)}`:"저장 내역 없음";
-      chooseCurrent();
-      const url=new URL(location.href); url.searchParams.set("reviewer",reviewerId); url.searchParams.delete("token"); history.replaceState(null,"",url);
-      renderAll();
+      if(state.switching)return;
+      state.switching=true;
+      document.querySelector(".workspace").inert=true;
+      try{
+        clearTimeout(state.saveTimer);
+        if(state.saving)await state.saving;
+        if(state.dirty)await flushSave();
+        if(state.dirty) return; // Keep the original seat and its unsaved annotations.
+        state.saveMessage="불러오는 중";
+        renderSaveState();
+        const data=await api(`/api/admin/editorial-desk?reviewerId=${encodeURIComponent(reviewerId)}`);
+        state.reviewerId=reviewerId;
+        state.data=data;
+        state.currentBlindId=null;
+        state.filter=data.progress.remaining?"remaining":"all";
+        state.saveMessage=data.savedAt?`저장 ${when(data.savedAt)}`:"저장 내역 없음";
+        state.saveError=false;
+        chooseCurrent();
+        const url=new URL(location.href); url.searchParams.set("reviewer",reviewerId); url.searchParams.delete("token"); history.replaceState(null,"",url);
+        renderAll();
+      }catch(error){
+        if(!state.data)throw error;
+        state.saveMessage=error.message; state.saveError=true; renderSaveState();
+      }finally{
+        state.switching=false;
+        document.querySelector(".workspace").inert=false;
+      }
     }
     function queueSave(){
       state.dirty=true;
@@ -333,32 +349,40 @@
       state.saveTimer=setTimeout(flushSave,450);
     }
     async function flushSave(){
-      if(!state.data||state.saving)return;
-      state.saving=true;
+      clearTimeout(state.saveTimer);
+      if(state.saving)return state.saving;
+      if(!state.data||!state.dirty)return;
+      const data=state.data;
+      const payload={packetId:data.packet.packetId,editionId:data.packet.editionId,
+        reviewerId:state.reviewerId,annotations:data.rows.map(row=>({
+          blindId:row.blindId,
+          ...Object.fromEntries(data.reviewFields.map(field=>[field.id,typeof row.annotation[field.id]==="boolean"?row.annotation[field.id]:null])),
+          notes:String(row.annotation.notes||"").trim()
+        }))};
       state.dirty=false;
       state.saveMessage="저장 중";
       renderSaveState();
-      const snapshot=state.data.rows.map(row=>({
-        blindId:row.blindId,
-        ...Object.fromEntries(state.data.reviewFields.map(field=>[field.id,typeof row.annotation[field.id]==="boolean"?row.annotation[field.id]:null])),
-        notes:String(row.annotation.notes||"").trim()
-      }));
-      try{
-        const result=await api("/api/admin/editorial-review",{method:"POST",body:JSON.stringify({packetId:state.data.packet.packetId,editionId:state.data.packet.editionId,reviewerId:state.reviewerId,annotations:snapshot})});
-        state.data.savedAt=result.savedAt;
-        state.data.humanReview=result.humanReview;
-        state.saveMessage=`저장 ${when(result.savedAt)}`;
-        state.saveError=false;
-      }catch(error){
-        state.saveMessage=error.message;
-        state.saveError=true;
-        state.dirty=true;
-      }finally{
-        state.saving=false;
-        renderSaveState();
-        if(state.dirty&&!state.saveError)queueSave();
-      }
+      state.saving=(async()=>{
+        try{
+          const result=await api("/api/admin/editorial-review",{method:"POST",body:JSON.stringify(payload)});
+          data.savedAt=result.savedAt;
+          data.humanReview=result.humanReview;
+          state.saveMessage=`저장 ${when(result.savedAt)}`;
+          state.saveError=false;
+        }catch(error){
+          state.saveMessage=`저장 실패 · 입력은 유지됩니다. ${error.message}`;
+          state.saveError=true;
+          state.dirty=true;
+        }finally{
+          state.saving=null;
+          renderSaveState();
+          if(state.dirty&&!state.saveError&&!state.switching)queueSave();
+        }
+      })();
+      return state.saving;
     }
+    document.getElementById("retrySave").onclick=()=>flushSave();
+    addEventListener("beforeunload",event=>{ if(state.dirty||state.saving){event.preventDefault();event.returnValue="";} });
     function move(direction){
       const index=state.data.rows.findIndex(row=>row.blindId===state.currentBlindId);
       const next=state.data.rows[index+direction];
@@ -396,7 +420,7 @@
       row.annotation.notes=event.target.value.slice(0,500);
       queueSave();
     });
-    document.getElementById("logoutButton").onclick=()=>{ localStorage.removeItem("admin_token"); token=""; document.getElementById("app").hidden=true; document.getElementById("gate").hidden=false; };
+    document.getElementById("logoutButton").onclick=async()=>{ clearTimeout(state.saveTimer); if(state.saving)await state.saving; if(state.dirty)await flushSave(); if(state.dirty)return; localStorage.removeItem("admin_token"); token=""; document.getElementById("app").hidden=true; document.getElementById("gate").hidden=false; };
     document.getElementById("loginForm").onsubmit=async event=>{
       event.preventDefault();
       token=document.getElementById("tokenInput").value.trim();

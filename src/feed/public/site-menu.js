@@ -223,7 +223,7 @@ window.NowHotMenu = (() => {
   function slider(id,value,label,onSave,onError){
     const el=$(id+'Slider'),mid=$(id+'Mid');let saved=value,timer;
     const paint=v=>{el.value=String(Math.round(v*100));mid.textContent=label(Math.round(v*100));};paint(saved);
-    const save=async()=>{clearTimeout(timer);const v=Number(el.value)/100;if(el.disabled||v===saved)return;el.disabled=true;try{await onSave(v);saved=v;}catch(error){onError(error);}finally{paint(saved);el.disabled=false;}};
+    const save=async()=>{clearTimeout(timer);const v=Number(el.value)/100;if(el.disabled||v===saved)return;el.disabled=true;try{await onSave(v);window.NowHotTrack?.action("filter");saved=v;}catch(error){onError(error);}finally{paint(saved);el.disabled=false;}};
     el.oninput=()=>{mid.textContent=label(Number(el.value));clearTimeout(timer);timer=setTimeout(save,700);};
     el.onchange=save;
   }

@@ -233,7 +233,7 @@ test("트래픽 카운터 재시작(직렬화 왕복) 후에도 trafficArchive�
 // ── analytics uids 60일 초과 롤업 (REVISE #5) ───────────────────────────────
 
 test("_rollupOldAnalyticsUids: 60일 초과 버킷의 uids/newUids를 개수로만 접는다", () => {
-  const store = new FeedStore({ clock: fixedClock });
+  const store = new FeedStore({ clock: () => "2026-03-06T12:00:00+09:00" });
   store.analytics = {};
   const base = new Date("2026-01-01T00:00:00Z");
   for (let i = 0; i < 65; i++) {

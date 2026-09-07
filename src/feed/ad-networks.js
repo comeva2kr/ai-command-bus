@@ -23,7 +23,7 @@ export const WIRED_NETWORKS = [
     label: "구글 애드센스",
     kind: "display",
     envKeys: ["ADSENSE_CLIENT"],
-    placements: ["발행 페이지(브리핑·랭킹·커뮤니티·키워드)", "홈 <head> 로더"],
+    placements: ["발행 페이지(랭킹·커뮤니티·키워드)", "홈 <head> 로더"],
     console: "https://adsense.google.com/",
     revenueApi: "가능 — AdSense Management API(OAuth 필요)",
     note: "소유권 확인은 코드 스니펫과 ads.txt 두 가지로 이미 통과. 남은 것은 콘텐츠 정책 심사다."
@@ -36,7 +36,7 @@ export const WIRED_NETWORKS = [
     // 승인 전에는 지면을 그리지 않는다 — 보류 상태의 애드핏은 onfail도 부르지
     // 않으면서 아무것도 안 보여줘서 빈 칸만 남는다(2026-08-04 실측).
     enabledKey: "ADFIT_ENABLED",
-    placements: ["앱 피드(첫 광고 6번째 카드 뒤)", "발행 페이지"],
+    placements: ["실시간 자동 지면 중단(설정값과 별개)", "발행 페이지"],
     console: "https://adfit.kakao.com/",
     revenueApi: "없음 — 정산액은 콘솔에서 보고 손으로 입력한다",
     note: "매체 심사 2차 보류(2026-08-04). 사유 둘 다 처리 후 재심사 대기."
@@ -47,7 +47,7 @@ export const WIRED_NETWORKS = [
     kind: "affiliate",
     envKeys: ["COUPANG_ACCESS_KEY", "COUPANG_SECRET_KEY"],
     optionalKeys: ["COUPANG_SUB_ID"],
-    placements: ["앱 피드 제휴 카드", "상세 화면", "발행 페이지 배너"],
+    placements: ["오늘판 본문·상세 / 실시간 제휴 카드", "상세 화면", "발행 페이지 배너"],
     console: "https://partners.coupang.com/",
     revenueApi: "가능 — 실적 조회 API(별도 승인 필요)",
     note: "키가 없으면 수동 배너 목록으로 돌아간다. 대가성 문구는 모든 지면에 붙는다."

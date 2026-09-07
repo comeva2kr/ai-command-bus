@@ -5,6 +5,7 @@
 <meta name="nh-build" content="dev">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&display=swap" rel="stylesheet">
+<script src="/audience-client.js?v=20260907"></script>
 <script>/* 테마: 저장된 선택(light|dark) > 시스템 추종(system, 기본).
    드로어에서 바꿀 수 있고, system이면 OS 변경을 즉시 따라간다. */
 (function(){
@@ -1200,45 +1201,7 @@ const API = {
 // 개인 식별 정보는 보내지 않는다. 우리가 서버에 넘기는 건 유입 도메인,
 // 화면 종류, 눌린 글의 소스·카테고리·순위대, 체류 시간뿐이다 — 제목이나
 // URL 자체를 보내지 않으므로 "무엇을 읽었는지"가 아니라 "어떤 종류를 눌렀는지"만 남는다.
-const Track = (()=>{
-  const q = [];
-  let timer = null, entered = false, maxDepth = 0, sent = false;
-  const t0 = Date.now();
-
-  function flush(useBeacon){
-    if(!q.length) return;
-    const payload = JSON.stringify({ userId: (window.state && state.userId) || null, events: q.splice(0, q.length) });
-    if(useBeacon && navigator.sendBeacon){
-      try { navigator.sendBeacon("/api/track", new Blob([payload], { type:"application/json" })); return; } catch {}
-    }
-    fetch("/api/track", { method:"POST", headers:{"content-type":"application/json"}, body:payload, keepalive:true }).catch(()=>{});
-  }
-  function push(ev){
-    q.push(ev);
-    if(q.length >= 20){ clearTimeout(timer); timer=null; flush(false); return; }
-    if(!timer) timer = setTimeout(()=>{ timer=null; flush(false); }, 4000);
-  }
-  return {
-    // 첫 진입에만 유입 출처·캠페인을 싣는다. 앱 내부 이동에서 referrer를 다시
-    // 보내면 "내부 이동"이 유입 표를 덮어써서 진짜 출처가 안 보인다.
-    view(){
-      const sp = new URLSearchParams(location.search);
-      const params = {};
-      for(const k of ["utm_source","utm_medium","utm_campaign"]) if(sp.get(k)) params[k] = sp.get(k);
-      push({ type:"view", path:location.pathname, entry:!entered, referrer: entered ? "" : document.referrer, params });
-      entered = true;
-    },
-    click(item, rank){ push({ type:"click", source:(item&&item.source)||null, category:(item&&item.category)||null, rank }); },
-    ad(kind, slot, variant){ push({ type: kind==="click" ? "ad_click" : "ad_impression", slot, variant }); },
-    depth(n){ if(n > maxDepth) maxDepth = n; },
-    exit(){
-      if(sent) return;           // pagehide와 visibilitychange가 둘 다 뜰 수 있다
-      sent = true;
-      push({ type:"exit", path:location.pathname, dwellMs: Date.now()-t0, depth: maxDepth });
-      flush(true);
-    }
-  };
-})();
+const Track = window.NowHotTrack || { view(){}, click(){}, action(){}, ad(){}, depth(){}, exit(){} };
 // ── 전역 로딩 표시 (David 2026-08-01: "어떤 상황에서도 멈춰있거나 비어있는
 // 상태로 기다릴 땐 로딩 애니메이션 — 에러인지 헷갈리니까") ─────────────────
 // 모든 요청이 여기를 지난다. 진행 중 요청이 하나라도 있으면 상단에 얇은
@@ -1631,8 +1594,8 @@ setupViewSwitch();
   Track.view();
   // 이탈은 pagehide가 가장 확실하고, 모바일에서 탭 전환만 하는 경우를 위해
   // visibilitychange도 함께 본다(Track.exit가 중복을 막는다).
-  addEventListener("pagehide", ()=> Track.exit());
-  addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "hidden") Track.exit(); });
+
+
   setupLeanSlider(s);
   setupMixSlider(s);
   // Always show content first — a preview feed (popularity-ranked when no taste
@@ -2676,6 +2639,7 @@ document.addEventListener("keydown", event=>{
   }
 },true);
 function showSurvey(){
+  Track.action("onboarding");
   if(surveySession)return;
   if(document.getElementById("nhGuide")){NowHotNoticeGuide.close(showSurvey);return;}
   const survey=document.getElementById("survey"), wrap=document.getElementById("questions");
@@ -2816,6 +2780,7 @@ function showSurvey(){
     const submitted=JSON.parse(JSON.stringify(answers));
     try{
       await API.saveSurvey(state.userId, submitted);
+      Track.action("preferences");
       state.surveyAnswers=submitted;state.surveyed=true;
       document.getElementById("pbanner")?.remove();
       const completed=()=>{
@@ -3386,7 +3351,7 @@ function appendCard(item){
     if(e.target.closest(".rate")) return;
     // 순위는 지금 피드에 그려진 카드 수로 센다 — 서버 rank를 따로 싣지 않아도
     // "첫 화면에서 눌렸나, 한참 내려가서 눌렸나"를 알 수 있다.
-    Track.click(item, state.cardsById ? state.cardsById.size : 0);
+    Track.click(item, [...document.querySelectorAll("article.card")].indexOf(card));
     // 원문 앵커(.newtab-hint / .card-out a)는 이제 진짜 <a href>다.
     // 브라우저 기본 동작(같은 창)에 맡긴다 — 여기서 가로채 openOriginal을 부르면
     // **크롤러에게만 링크이고 사람에게는 아닌** 이상한 상태가 된다.
@@ -3395,7 +3360,7 @@ function appendCard(item){
     openDetail(item.id);
   });
   card.addEventListener("keydown", (e)=>{
-    if((e.key==="Enter"||e.key===" ") && e.target.closest(".open-detail")){ e.preventDefault(); openDetail(item.id); }
+    if((e.key==="Enter"||e.key===" ") && e.target.closest(".open-detail")){ e.preventDefault(); Track.click(item,[...document.querySelectorAll("article.card")].indexOf(card)); openDetail(item.id); }
   });
   card.querySelector(".rate.up").onclick = (e)=>{ e.stopPropagation(); rate(item, card, 1); };
   card.querySelector(".rate.down").onclick = (e)=>{ e.stopPropagation(); rate(item, card, -1); };
@@ -3519,6 +3484,7 @@ async function openDetail(itemId, opts){
   const d = document.getElementById("detail");
   // 스크롤은 플로팅 패널이 담당한다 — 뒤 리스트는 잠가서 배경 스크롤 이탈 방지
   d.classList.add("open"); d.setAttribute("aria-hidden","false");
+  Track.view("/live/detail");
   document.body.style.overflow = "hidden";
   document.getElementById("detailPanel").scrollTop=entry.detailScroll||0;
 }
@@ -3534,6 +3500,7 @@ function closeDetail(){
   }
   state.openItemId = null; state.openedAt = 0;
   d.classList.remove("open"); d.setAttribute("aria-hidden","true");
+  Track.view("/live");
   document.body.style.overflow = "";
   // restore feed scroll to the exact pixel the user left from
   window.scrollTo(0, state.feedScrollY);
@@ -3808,7 +3775,7 @@ async function renderDetail(itemId,revision=detailRevision){
   document.getElementById("shareBtn").onclick = async ()=>{
     const link = location.origin + "/p?id=" + encodeURIComponent(item.id);
     const text = item.title + "\n" + link;
-    try { await navigator.clipboard.writeText(text); toast("링크가 클립보드에 복사되었습니다"); }
+    try { await navigator.clipboard.writeText(text); Track.action("share"); toast("링크가 클립보드에 복사되었습니다"); }
     catch { prompt("복사해 주세요", text); }
   };
   wireTransToggle();

@@ -20,10 +20,10 @@ test("refLabel: 같은 서비스의 여러 도메인을 하나로 묶는다", ()
   assert.equal(refLabel("https://twitter.com/a"), "X");
 });
 
-test("refLabel: 없는 referrer는 '직접 유입', 우리 도메인은 '내부 이동'", () => {
-  assert.equal(refLabel(""), "직접 유입");
-  assert.equal(refLabel(null), "직접 유입");
-  assert.equal(refLabel("깨진문자열"), "직접 유입");
+test("refLabel: 없는 referrer는 '직접·출처 미확인', 우리 도메인은 '내부 이동'", () => {
+  assert.equal(refLabel(""), "직접·출처 미확인");
+  assert.equal(refLabel(null), "직접·출처 미확인");
+  assert.equal(refLabel("깨진문자열"), "직접·출처 미확인");
   assert.equal(refLabel("https://nowhot.kr/briefing", "nowhot.kr"), "내부 이동");
   assert.equal(refLabel("https://www.nowhot.kr/x", "nowhot.kr"), "내부 이동");
 });
@@ -40,7 +40,7 @@ test("viewLabel: 개별 키워드 페이지를 한 종류로 접는다", () => {
   // /keyword/삼성전자를 따로 세면 표가 수천 줄이 된다.
   assert.equal(viewLabel("/keyword/삼성전자"), "키워드");
   assert.equal(viewLabel("/keyword/엔비디아"), "키워드");
-  assert.equal(viewLabel("/"), "홈");
+  assert.equal(viewLabel("/"), "오늘판");
   assert.equal(viewLabel("/briefing/2026-08-04"), "브리핑");
 });
 
@@ -52,7 +52,7 @@ test("applyEvent: 진입 이벤트만 유입 출처를 센다", () => {
   assert.equal(b.pv, 2);
   assert.equal(b.sessions, 1, "세션은 진입 1회만");
   assert.deepEqual(b.ref, { "네이버": 1 }, "내부 이동이 유입 표를 덮어쓰면 진짜 출처가 안 보인다");
-  assert.deepEqual(b.entry, { "홈": 1 });
+  assert.deepEqual(b.entry, { "오늘판": 1 });
 });
 
 test("applyEvent: 말이 안 되는 체류·깊이는 버린다", () => {
@@ -625,12 +625,12 @@ test("발행 페이지도 방문을 센다 — 검색 유입의 착지점이다"
     const base = `http://localhost:${server.address().port}`;
     for (const path of ["/report", "/ranking/daily", "/communities"]) {
       const html = await (await fetch(`${base}${path}`)).text();
-      assert.match(html, /\/api\/track/, `${path} 에 측정이 없다`);
-      assert.match(html, /type:"view", entry:true/, `${path} 에 유입 기록이 없다`);
-      assert.match(html, /type:"exit"/, `${path} 에 체류 기록이 없다`);
-      // 개인 식별 정보를 보내지 않는다 — 앱과 같은 원칙
-      const script = html.slice(html.indexOf("/api/track") - 600, html.indexOf("/api/track") + 900);
-      assert.ok(!/document\.title|location\.href/.test(script), `${path} 가 제목·전체 주소를 보낸다`);
+      assert.match(html, /audience-client\.js/, `${path} 에 공통 측정이 없다`);
+      const tracker = await fetch(`${base}/audience-client.js`).then(res=>res.text());
+      assert.match(tracker, /\/api\/track/);
+      assert.match(tracker, /event\('view'/);
+      assert.match(tracker, /checkpoint/);
+      assert.ok(!tracker.includes('document.title'), '본문 제목은 전송하지 않는다');
     }
   } finally { server.close(); }
 });

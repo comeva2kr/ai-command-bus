@@ -24,7 +24,7 @@ import {
 import { verifyEditorialLineage } from "./editorial-lineage.js";
 import { attachEditorialFulfillment } from "./editorial-fulfillment.js";
 import { SLOTS, slotById } from "./digest.js";
-import { series } from "./analytics.js";
+import { series, mergeBuckets, summarize as summarizeAnalytics, weekKey, monthKey, retentionRows } from "./analytics.js";
 import { mergeCostBuckets, profitAndLoss, daysInMonth } from "./costs.js";
 import { communityRanking, sourceBest, keywordIndex, keywordPage } from "./pages.js";
 import { loadMatrix, pickVariant } from "./ad-matrix.js";
@@ -162,12 +162,13 @@ function sendHtml(res, html, status = 200) {
   return res.end(body);
 }
 
-function readBody(req) {
+function readBody(req, limit = 1e6) {
   return new Promise((resolve, reject) => {
     let data = "";
     req.on("data", (chunk) => {
+      if (data.length > limit) return;
       data += chunk;
-      if (data.length > 1e6) reject(new Error("payload too large"));
+      if (data.length > limit) reject(new Error("payload too large"));
     });
     req.on("end", () => {
       if (!data) return resolve({});
@@ -249,7 +250,10 @@ function sharePage(data, origin, id, options = {}) {
   const url = options.shareUrl || `${origin}/p?id=${encodeURIComponent(id)}`;
   const title = escapeHtml(data.title);
   const desc = escapeHtml((data.summary || "").slice(0, 160) || `${data.source} · ${data.category}`);
-  const appUrl = options.appUrl || `/live#post-${encodeURIComponent(id)}`;
+  const destination = new URL(options.appUrl || `/live#post-${encodeURIComponent(id)}`, origin);
+  destination.searchParams.set('utm_source','shared_link');
+  destination.searchParams.set('utm_medium','share');
+  const appUrl = destination.pathname + destination.search + destination.hash;
   // 글에 사진이 있으면 그 사진이 공유 카드 그림이 된다. 없을 때만 앱 아이콘.
   // 폴백은 SVG가 아니라 PNG를 쓴다 — 다수 SNS 크롤러가 SVG를 미리보기 이미지로
   // 처리하지 않는다(설령 처리하더라도, 글마다 사진이 있는데 전부 같은 로고를
@@ -1669,190 +1673,94 @@ export function createServer(opts = {}) {
     }
   }
 
+  // Read-only projection. Only the scheduler and explicit freeze POST create packets.
   async function localEditorialEvidenceSnapshot() {
     if (!localEditorial) return null;
-    if (localEditorialEvidenceCache.value && Date.now() - localEditorialEvidenceCache.at < 60_000) {
-      return localEditorialEvidenceCache.value;
-    }
-    if (localEditorialEvidenceCache.pending) return localEditorialEvidenceCache.pending;
-    localEditorialEvidenceCache.pending = (async () => {
-      const inventory = await runLocalEditorialInventory();
-      const edition = await buildLocalTodayEdition({
-        categories: CATEGORIES.map((category) => category.id),
-        includeCandidates: true
-      });
-      const servingAssessment = assessEditorialServeability(edition);
-      const servingVerifications = store.listEditorialServingVerifications();
-      const latestServingVerification = servingVerifications[0] || null;
-      const editionReplay = await buildLocalEditionReplay();
-      const fixture = edition.candidateFixture;
-      const candidatePacket = buildBlindReviewPacket(edition);
-      const candidateRecord = store.saveEditorialReviewPacket(candidatePacket, {
-        date: edition.editionDate || null,
-        slotId: edition.slot && edition.slot.id || null,
-        segmentKey: edition.editionSegment && edition.editionSegment.key || null
-      });
-      let activeRecord = store.activeEditorialReviewPacket() || candidateRecord;
-      activeRecord = upgradeLegacyActiveReviewPacket(activeRecord);
-      const packet = activeRecord.packet;
-      const humanReview = summarizeHumanReview(
-        packet,
-        store.getEditorialReview(packet.packetId, packet.editionId)
-      );
-      const reviewQueueItems = store.listEditorialReviewPackets().map((record) => {
-        const summary = summarizeHumanReview(
-          record.packet,
-          store.getEditorialReview(record.packetId, record.editionId)
-        );
-        return {
-          packetId: record.packetId,
-          editionId: record.editionId,
-          date: record.date,
-          slotId: record.slotId,
-          segmentKey: record.segmentKey,
-          issueCount: record.packet && record.packet.rows && record.packet.rows.length || 0,
-          frozenAt: record.frozenAt,
-          state: summary.overallState,
-          humanState: summary.state,
-          hasProgress: Object.values(summary.completedByReviewer).some((row) => row.completed > 0),
-          isActive: record.key === activeRecord.key,
-          isCurrentCandidate: record.key === candidateRecord.key
-        };
-      });
-      const reviewQueue = {
-        stableId: HUMAN_REVIEW_QUEUE_CONTRACT.stableId,
-        state: activeRecord.key === candidateRecord.key ? "active_current_packet" : "active_packet_pinned",
-        activation: HUMAN_REVIEW_QUEUE_CONTRACT.activation,
-        packetRule: HUMAN_REVIEW_QUEUE_CONTRACT.packetRule,
-        independenceRule: HUMAN_REVIEW_QUEUE_CONTRACT.independenceRule,
-        adjudicationRule: HUMAN_REVIEW_QUEUE_CONTRACT.adjudicationRule,
-        activePacketId: activeRecord.packetId,
-        activeEditionId: activeRecord.editionId,
-        currentCandidatePacketId: candidateRecord.packetId,
-        currentCandidateEditionId: candidateRecord.editionId,
-        queuedCount: reviewQueueItems.length,
-        pendingCount: reviewQueueItems.filter((row) => !row.isActive).length,
-        items: reviewQueueItems
-      };
-      const reviewPacket = {
-        ...packet,
-        frozenAt: activeRecord.frozenAt,
-        sourceDate: activeRecord.date,
-        sourceSlotId: activeRecord.slotId,
-        sourceSegmentKey: activeRecord.segmentKey,
-        machineState: packet.state,
-        state: humanReview.overallState,
-        humanState: humanReview.state,
-        metrics: { ...packet.metrics, humanCompleted: humanReview.doubleReviewed },
-        humanReview,
-        queue: reviewQueue
-      };
-      const qualityReviewSummaries = store.listEditorialReviewPackets().map((record) => ({
-        editionId: record.editionId,
-        ...summarizeHumanReview(
-          record.packet,
-          store.getEditorialReview(record.packetId, record.editionId)
-        )
-      }));
-      const value = {
-        stableId: "NOWHOT-LOCAL-EDITORIAL-EDITION-001",
-        state: edition.publishable && fixture && fixture.state === "machine_observation_ready"
-          && edition.categoryFulfillment && edition.categoryFulfillment.goalSatisfied
-          ? "local_candidate_ready" : "local_candidate_with_limits",
-        observedAt: edition.generatedAt,
-        route: "/",
-        api: "/api/today",
-        featureFlag: "NOWHOT_LOCAL_EDITORIAL=1",
-        llmCalls: edition.llmCalls,
-        preview: {
-          issueCount: edition.issues.length,
-          sectionCount: edition.sections.length,
-          sourceCount: edition.sourceCount,
-          itemCount: edition.itemCount,
-          publishable: edition.publishable,
-          selectedCategoryCount: edition.selection && edition.selection.categories.length || 0,
-          maxIssues: edition.selection && edition.selection.maxIssues || 0,
-          minIssuesPerCategory: edition.selection && edition.selection.minIssuesPerCategory || 0
-        },
-        editorialQuality: edition.editorialQuality || null,
-        categoryFulfillment: edition.categoryFulfillment || null,
-        servingGate: {
-          contractId: EDITORIAL_SERVING_CONTRACT.stableId,
-          contractVersion: EDITORIAL_SERVING_CONTRACT.version,
-          state: servingAssessment.state,
-          pass: servingAssessment.pass,
-          responsePacketId: servingAssessment.packetId,
-          editionId: servingAssessment.editionId,
-          failures: servingAssessment.failures,
-          metrics: servingAssessment.metrics,
-          readerDiversity: servingAssessment.packet && servingAssessment.packet.readerDiversity || null,
-          fulfillment: servingAssessment.fulfillment,
-          humanReviewRequired: EDITORIAL_SERVING_CONTRACT.humanReviewRequired,
-          verificationCount: servingVerifications.length,
-          latestVerification: latestServingVerification ? {
-            packetId: latestServingVerification.packetId,
-            editionId: latestServingVerification.editionId,
-            date: latestServingVerification.date,
-            slotId: latestServingVerification.slotId,
-            segmentKey: latestServingVerification.segmentKey,
-            categories: latestServingVerification.categories,
-            verifiedAt: latestServingVerification.verifiedAt,
-            savedAt: latestServingVerification.savedAt
-          } : null,
-          fallbackRule: EDITORIAL_SERVING_CONTRACT.fallbackRule,
-          doesNotProve: "사람 편집 품질 PASS·기사 사실성·운영 배포 가능"
-        },
-        personalization: edition.personalization || null,
-        editorialLineage: (() => {
-          const receipts = edition.issues.map((issue) => verifyEditorialLineage(issue));
-          const sourceEvidence = edition.issues.flatMap((issue) => issue.sourceEvidence || []);
-          const sourceRoles = {};
-          const ownershipBases = {};
-          for (const row of sourceEvidence) {
-            const role = row.sourceRole || "unknown";
-            const basis = row.ownershipBasis || "unknown";
-            sourceRoles[role] = (sourceRoles[role] || 0) + 1;
-            ownershipBases[basis] = (ownershipBases[basis] || 0) + 1;
-          }
-          const passCount = receipts.filter((receipt) => receipt.pass).length;
-          return {
-            contractId: "NOWHOT-EDITORIAL-LINEAGE-CONTRACT-001",
-            state: passCount === receipts.length ? "machine_lineage_pass" : "machine_lineage_hold",
-            issueCount: receipts.length,
-            passCount,
-            holdCount: receipts.length - passCount,
-            sourceEvidenceCount: sourceEvidence.length,
-            sourceRoles,
-            ownershipBases,
-            failures: receipts.flatMap((receipt) => receipt.failures || []),
-            proves: "판본 문장별 원문·측정·개인 선택·편집 판단의 기계 계보",
-            doesNotProve: "원문 사실의 진실성·사람 검수 PASS·운영 배포"
-          };
-        })(),
-        editorialLlm: normalizedEditorialLlmReceipt(edition.editorialLlm),
-        llmCanary: readLocalEditorialCanaryReceipt(),
-        editionChange: edition.editionChange || null,
-        inventory: inventory || localInventoryReceipt,
-        elapsedEvidence: localElapsedReceipt,
-        reliabilityHistory: buildEditorialReliabilityHistory(
-          store.allEditorialSlotObservations(),
-          { nowMs: serverNowMs() }
-        ),
-        qualityHistory: buildEditorialQualityHistory(
-          store.allEditorialEditions(),
-          { nowMs: serverNowMs(), reviewSummaries: qualityReviewSummaries }
-        ),
-        qualityReviewSampling: localQualityReviewSamplingReceipt,
-        scheduler: localEditorialSchedulerStatus(),
-        editionReplay,
-        reviewPacket,
-        fixture
-      };
-      localEditorialEvidenceCache.value = value;
-      localEditorialEvidenceCache.at = Date.now();
-      return value;
-    })().finally(() => { localEditorialEvidenceCache.pending = null; });
-    return localEditorialEvidenceCache.pending;
+    const records = store.listEditorialReviewPackets();
+    const active = store.activeEditorialReviewPacket();
+    const latest = records[0] || null;
+    const edition = store.allEditorialEditions().at(-1)?.edition || null;
+    const servingAssessment = edition && assessEditorialServeability(edition);
+    const servingVerifications = store.listEditorialServingVerifications();
+    const summaries = records.map(record => ({
+      editionId: record.editionId,
+      ...summarizeHumanReview(record.packet, store.getEditorialReview(record.packetId, record.editionId))
+    }));
+    const items = records.map((record, index) => ({
+      packetId: record.packetId, editionId: record.editionId,
+      date: record.date, slotId: record.slotId, segmentKey: record.segmentKey,
+      issueCount: record.packet?.rows?.length || 0, frozenAt: record.frozenAt,
+      state: summaries[index].overallState, humanState: summaries[index].state,
+      hasProgress: hasHumanReviewWork(store.getEditorialReview(record.packetId, record.editionId)),
+      isActive: record.key === active?.key, isCurrentCandidate: record.key === latest?.key
+    }));
+    const humanReview = active && summarizeHumanReview(active.packet,
+      store.getEditorialReview(active.packetId, active.editionId));
+    const queue = {
+      ...HUMAN_REVIEW_QUEUE_CONTRACT,
+      state: active ? (active.key === latest?.key ? "active_current_packet" : "active_packet_pinned") : "review_packet_waiting",
+      activePacketId: active?.packetId || null, activeEditionId: active?.editionId || null,
+      currentCandidatePacketId: latest?.packetId || null, currentCandidateEditionId: latest?.editionId || null,
+      queuedCount: items.length, pendingCount: items.filter(row => !row.isActive).length, items
+    };
+    return {
+      stableId: "NOWHOT-LOCAL-EDITORIAL-EDITION-001",
+      state: edition ? "stored_evidence" : "stored_evidence_unavailable",
+      observedAt: edition?.generatedAt || null,
+      evidenceBasis: "persisted_only", requestLlmCalls: 0,
+      route: "/", api: "/api/today", featureFlag: "NOWHOT_LOCAL_EDITORIAL=1",
+      llmCalls: edition?.llmCalls ?? null,
+      preview: edition ? { issueCount: edition.issues?.length || 0,
+        sectionCount: edition.sections?.length || 0, sourceCount: edition.sourceCount,
+        itemCount: edition.itemCount, publishable: edition.publishable,
+        selectedCategoryCount: edition.selection?.categories?.length || 0 } : null,
+      editorialQuality: edition?.editorialQuality || null,
+      categoryFulfillment: edition?.categoryFulfillment || null,
+      servingGate: servingAssessment ? {
+        contractId: EDITORIAL_SERVING_CONTRACT.stableId,
+        contractVersion: EDITORIAL_SERVING_CONTRACT.version,
+        state: servingAssessment.state, pass: servingAssessment.pass,
+        responsePacketId: servingAssessment.packetId, editionId: servingAssessment.editionId,
+        failures: servingAssessment.failures, metrics: servingAssessment.metrics,
+        readerDiversity: servingAssessment.packet?.readerDiversity || null,
+        fulfillment: servingAssessment.fulfillment,
+        humanReviewRequired: EDITORIAL_SERVING_CONTRACT.humanReviewRequired,
+        verificationCount: servingVerifications.length, latestVerification: servingVerifications[0] || null,
+        fallbackRule: EDITORIAL_SERVING_CONTRACT.fallbackRule,
+        doesNotProve: "사람 편집 품질 PASS·기사 사실성·운영 배포 가능"
+      } : null,
+      editorialLineage: edition ? (() => {
+        const receipts = (edition.issues || []).map(verifyEditorialLineage);
+        const sourceEvidence = (edition.issues || []).flatMap(issue => issue.sourceEvidence || []);
+        const sourceRoles = {}, ownershipBases = {};
+        for (const row of sourceEvidence) {
+          const role = row.sourceRole || "unknown", basis = row.ownershipBasis || "unknown";
+          sourceRoles[role] = (sourceRoles[role] || 0) + 1;
+          ownershipBases[basis] = (ownershipBases[basis] || 0) + 1;
+        }
+        const passCount = receipts.filter(receipt => receipt.pass).length;
+        return { contractId: "NOWHOT-EDITORIAL-LINEAGE-CONTRACT-001",
+          state: passCount === receipts.length ? "machine_lineage_pass" : "machine_lineage_hold",
+          issueCount: receipts.length, passCount, holdCount: receipts.length - passCount,
+          sourceEvidenceCount: sourceEvidence.length, sourceRoles, ownershipBases,
+          failures: receipts.flatMap(receipt => receipt.failures || []) };
+      })() : null,
+      editionChange: edition?.editionChange || null,
+      personalization: edition?.personalization || null,
+      editorialLlm: edition ? normalizedEditorialLlmReceipt(edition.editorialLlm) : null,
+      llmCanary: readLocalEditorialCanaryReceipt(),
+      inventory: localInventoryReceipt, elapsedEvidence: localElapsedReceipt,
+      reliabilityHistory: buildEditorialReliabilityHistory(store.allEditorialSlotObservations(), { nowMs: serverNowMs() }),
+      qualityHistory: buildEditorialQualityHistory(store.allEditorialEditions(), { nowMs: serverNowMs(), reviewSummaries: summaries }),
+      qualityReviewSampling: localQualityReviewSamplingReceipt,
+      scheduler: localEditorialSchedulerStatus(),
+      editionReplay: null, fixture: edition?.candidateFixture || null,
+      reviewQueue: queue,
+      reviewPacket: active ? { ...active.packet, frozenAt: active.frozenAt,
+        sourceDate: active.date, sourceSlotId: active.slotId, sourceSegmentKey: active.segmentKey,
+        machineState: active.packet.state, state: humanReview.overallState, humanState: humanReview.state,
+        metrics: { ...active.packet.metrics, humanCompleted: humanReview.doubleReviewed }, humanReview, queue } : null
+    };
   }
 
   // 썸네일 보강 (enrich.js): image 없는 아이템의 원문 og:image URL 핫링크 채움.
@@ -2090,7 +1998,7 @@ export function createServer(opts = {}) {
 
   const ensureVisitor = (req, res) => {
     const existing = parseCookies(req.headers.cookie)[VISITOR_COOKIE];
-    if (existing) return { vid: existing, isNew: false };
+    if (/^[a-f0-9]{32}$/i.test(existing || "")) return { vid: existing, isNew: false };
     const vid = randomUUID().replace(/-/g, "");
     const prev = res.getHeader("set-cookie");
     const list = prev ? (Array.isArray(prev) ? prev.slice() : [prev]) : [];
@@ -2438,25 +2346,7 @@ ${noindex ? "" : displayAdHtml()}
   //
   // 앱과 같은 /api/track 을 쓴다. 보내는 것은 앱과 동일하게 **유입 도메인,
   // 화면 종류, 체류 시간**뿐이다 — 제목이나 URL 자체는 보내지 않는다.
-  const pageTracker = () => `<script>
-(function(){
-  var t0=Date.now(), sent=false;
-  function send(evs, beacon){
-    var body=JSON.stringify({userId:null, events:evs});
-    if(beacon && navigator.sendBeacon){
-      try{ navigator.sendBeacon("/api/track", new Blob([body],{type:"application/json"})); return; }catch(e){}
-    }
-    fetch("/api/track",{method:"POST",headers:{"content-type":"application/json"},body:body,keepalive:true}).catch(function(){});
-  }
-  send([{type:"view", entry:true, path:location.pathname, referrer:document.referrer||"", params:location.search||""}], false);
-  function bye(){
-    if(sent) return; sent=true;
-    send([{type:"exit", path:location.pathname, dwellMs:Date.now()-t0}], true);
-  }
-  addEventListener("pagehide", bye);
-  addEventListener("visibilitychange", function(){ if(document.visibilityState==="hidden") bye(); });
-})();
-</script>`;
+  const pageTracker = () => '<script src="/audience-client.js?v=20260907"></script>';
 
   const fmtNum = (n) => n >= 10000 ? `${Math.round(n / 1000) / 10}만` : String(n);
   // 받침 유무 조사 선택 — "(한겨레)이 있습니다" 같은 오류(2차 검수) 방지용.
@@ -2581,7 +2471,7 @@ ${noindex ? "" : displayAdHtml()}
     <a href="/ranking/monthly" class="${active === "monthly" ? "on" : ""}">월간</a>
     <a href="/">오늘판</a></div>`;
 
-  return http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     const p = url.pathname;
 
@@ -2593,7 +2483,7 @@ ${noindex ? "" : displayAdHtml()}
     // 처음 보는 사람이 된다 — 취향도 재방문도 거기서 끊긴다.
     // 계정을 만들지는 않는다(빈 계정이 늘지 않게). 표식만 준다.
     if (req.method === "GET" && !p.startsWith("/api/") &&
-        (p === "/" || p === "/live" || p === "/index.html" || PUBLISHED_PATH.test(p))) {
+        (p === "/" || p === "/live" || p === "/today.html" || p === "/index.html" || PUBLISHED_PATH.test(p))) {
       try { ensureVisitor(req, res); } catch {}
     }
 
@@ -3743,27 +3633,30 @@ ${rankingRows(list, (above) => {
       // 기다리지 않는다 — 204로 즉시 닫는다. 인증은 걸지 않는다: 익명 방문자의
       // 유입 경로가 우리가 가장 알고 싶은 것이고, userId가 없어도 집계는 된다.
       if (p === "/api/track" && req.method === "POST") {
-        // 무인증 배치 수집 자리라 임의 이벤트를 밀어 넣으면 analytics 버킷이
-        // 부풀 수 있다(ad-signal이 이미 겪은 것과 같은 구조) — 같은 골격의
-        // IP 분당 상한을 건다(적대적 검수 REVISE #4).
+        if (classifyAudience(req) !== "observed") { res.writeHead(204); return res.end(); }
+        if (req.headers["sec-fetch-site"] === "cross-site") return send(res, 403, { error: "same origin required" });
+        if (req.headers.origin) {
+          try { if (new URL(req.headers.origin).host !== req.headers.host) return send(res, 403, { error: "same origin required" }); }
+          catch { return send(res, 403, { error: "invalid origin" }); }
+        }
         if (!trackAllowed(req)) return send(res, 429, { error: "too many" });
-        let body = null;
-        try { body = await readBody(req); } catch { body = null; }
-        const events = body && Array.isArray(body.events) ? body.events : null;
-        if (!events) { res.writeHead(204); return res.end(); }
-        try {
-          store.recordEvents(events, {
-            userId: body.userId && store.getUser(body.userId) ? body.userId : null,
-            selfHost: (req.headers.host || "").split(":")[0].toLowerCase(),
-            // "view"+entry 이벤트(그 화면에 처음 도착)에서 시간대·기기를
-            // 함께 센다. 홈 앱과 발행 페이지(브리핑·랭킹 등)가 같은 Track
-            // 파이프라인을 쓰므로 이 한 곳이 두 표면을 다 덮는다 — 검색
-            // 유입 착지점만 UA 관문이 빠지던 문제(검수 지적)의 해법.
-            ua: req.headers["user-agent"] || null
-          });
-        } catch {}
-        res.writeHead(204);
-        return res.end();
+        const body = await readBody(req, 64 * 1024).catch(() => null);
+        if (!Array.isArray(body?.events)) return send(res, 400, { error: "events required" });
+        const cookies = parseCookies(req.headers.cookie);
+        const visitorId = cookies[VISITOR_COOKIE];
+        const accountId = cookies[SESSION_COOKIE] ? store.sessionUser(cookies[SESSION_COOKIE]) : null;
+        const ctx = { selfHost: (req.headers.host || "").split(":")[0].toLowerCase(), ua: req.headers["user-agent"] || "", accountId };
+        if (body.version === 2) {
+          if (!/^[a-f0-9]{32}$/i.test(visitorId || "")) {
+            ensureVisitor(req, res);
+            return send(res, 409, { error: "visitor cookie initialized; retry events" });
+          }
+          store.recordJourneyEvents(body.events, { ...ctx, visitorId });
+        } else {
+          // Old cached clients remain visible in the explicitly labelled legacy series.
+          store.recordEvents(body.events.filter(ev => ev && typeof ev === "object"), { ...ctx, userId: accountId });
+        }
+        res.writeHead(204); return res.end();
       }
 
       if (p === "/api/rate" && req.method === "POST") {
@@ -3798,6 +3691,27 @@ ${rankingRows(list, (above) => {
       // --- admin API (token-guarded) ---
       if (p.startsWith("/api/admin/")) {
         if (!isAdmin(req, url)) return send(res, 401, { error: "admin auth required" });
+        if (p === "/api/admin/operations" && req.method === "GET") {
+          const now = serverNowMs(), date = editorialKstDate(now), users = [...store.users.values()];
+          const editions = SLOTS.map(slot => {
+            const due = Date.parse(`${date}T${String(slot.publishHour).padStart(2,'0')}:00:00+09:00`) <= now;
+            const base = {date, slotId:slot.id, label:slot.label, scheduledHour:slot.publishHour,
+              pushAccepted:users.reduce((n,u)=>n+(u.editionPushDeliveries||[]).filter(row=>row.key===`${date}:${slot.id}`).length,0)};
+            if (!slotCanonicalEditionReader) return {...base,state:'disabled'};
+            if (!due) return {...base,state:'scheduled'};
+            try {
+              const edition = slotCanonicalEditionReader.read({date,slotId:slot.id,categories:CATEGORIES.map(row=>row.id),selectionMode:'admin',explicit:true});
+              return {...base,state:edition.serving?.fallback?'fallback':'current',editionId:edition.editionId,
+                actualDate:edition.editionDate,actualSlot:edition.slot.id,issues:edition.issues.length};
+            } catch (error) { return {...base,state:error.code==='SLOT_CANONICAL_EDITION_UNAVAILABLE'?'missing':'invalid'}; }
+          });
+          return send(res,200,{checkedAt:new Date(now).toISOString(),editions,
+            push:{configured:Boolean(vapid),enabled:pushDigestMs>0,
+              currentSubscriptions:users.filter(u=>u.pushSubscription?.endpoint&&u.notifyEnabled!==false).length,
+              recentAccepted:users.reduce((n,u)=>n+(u.pushDeliveryTimes||[]).filter(at=>Date.parse(at)>=now-86400000).length,0),
+              failureHistoryAvailable:false,receiptMeaning:'push_service_accepted'},
+            feedbackCount:(store.serviceFeedback||[]).length});
+        }
         if (p === "/api/admin/feedback" && req.method === "GET") {
           return send(res, 200, { requests: (store.serviceFeedback || []).slice(-200).reverse() });
         }
@@ -3936,14 +3850,13 @@ ${rankingRows(list, (above) => {
           const body = await readBody(req);
           const evidence = await localEditorialEvidenceSnapshot();
           const activePacket = evidence && evidence.reviewPacket;
-          if (!activePacket) return send(res, 409, { error: "review packet is not ready" });
           const target = store.getEditorialReviewPacket(String(body.packetId || ""), String(body.editionId || ""));
           if (!target) return send(res, 404, { error: "review packet was not found" });
-          const currentLedger = store.getEditorialReview(activePacket.packetId, activePacket.editionId);
-          const currentSummary = summarizeHumanReview(activePacket, currentLedger);
+          const currentLedger = activePacket && store.getEditorialReview(activePacket.packetId, activePacket.editionId);
+          const currentSummary = activePacket && summarizeHumanReview(activePacket, currentLedger);
           const hasProgress = hasHumanReviewWork(currentLedger);
           const terminal = new Set(["human_quality_pass", "human_adjudicated_pass", "human_quality_hold"]);
-          if (`${activePacket.packetId}|${activePacket.editionId}` !== target.key && hasProgress && !terminal.has(currentSummary.state)) {
+          if (activePacket && `${activePacket.packetId}|${activePacket.editionId}` !== target.key && hasProgress && !terminal.has(currentSummary.state)) {
             return send(res, 409, { error: "active review has unfinished annotations or adjudication" });
           }
           const activated = store.activateEditorialReviewPacket(target.packetId, target.editionId);
@@ -4098,7 +4011,7 @@ ${rankingRows(list, (above) => {
           let effLimit = limit;
           if (aFrom || aTo) {
             const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-            if (!DATE_RE.test(aFrom || "") || !DATE_RE.test(aTo || "") || aFrom > aTo) {
+            if (!validEditorialDate(aFrom) || !validEditorialDate(aTo) || aFrom > aTo) {
               return send(res, 400, { error: "from/to must be YYYY-MM-DD and from <= to" });
             }
             const filtered = {};
@@ -4107,9 +4020,14 @@ ${rankingRows(list, (above) => {
             effLimit = 400; // 구간을 이미 좁혔으니 그 안은 전부 준다(보존 상한과 동일)
           }
           const rows = series(buckets, granularity, effLimit);
+          const selectedKeys = new Set(rows.map(row => row.key));
+          const keyOf = granularity === "week" ? weekKey : granularity === "month" ? monthKey : day => day;
+          const selected = Object.fromEntries(Object.entries(buckets).filter(([day]) => selectedKeys.has(keyOf(day))));
           // 최신 기간의 상세(출처·화면·클릭·광고 표)를 함께 준다 — 화면이
           // 한 번 더 왕복하지 않도록.
-          return send(res, 200, { granularity, rows, latest: rows[rows.length - 1] || null });
+          return send(res, 200, { granularity, rows, latest: rows[rows.length - 1] || null,
+            summary: rows.length ? summarizeAnalytics(mergeBuckets(Object.values(selected)), { key: "선택 기간" }) : null,
+            retention: retentionRows(store.analyticsBuckets(), Object.keys(selected), editorialKstDate(serverNowMs())) });
         }
 
         // 지출·손익. 실비는 실측(토큰×공개단가), 고정비와 매출은 David 입력값.
@@ -4181,12 +4099,8 @@ ${rankingRows(list, (above) => {
 
         if (p === "/api/admin/finance" && req.method === "POST") {
           const body = await readBody(req);
-          const month = typeof body.month === "string" && /^\d{4}-\d{2}$/.test(body.month) ? body.month : null;
-          if (!month) return send(res, 400, { error: "month must be YYYY-MM" });
-          const out = {};
-          if (Array.isArray(body.fixed)) out.fixed = store.setFixedCosts(month, body.fixed);
-          if (body.revenueKrw != null) out.revenueKrw = store.setRevenue(month, body.revenueKrw);
-          return send(res, 200, { ok: true, month, ...out });
+          try { return send(res, 200, { ok: true, month: body.month, ...store.setFinance(body.month, body) }); }
+          catch (error) { return send(res, 400, { error: error.message }); }
         }
 
         if (p === "/api/admin/delete-post" && req.method === "POST") {
@@ -4326,7 +4240,7 @@ ${rankingRows(list, (above) => {
       }
 
       // --- editorial home + live client ---
-      if ((p === "/" || p === "/live") && req.method === "GET") {
+      if (((p === "/" && localEditorial) || p === "/live") && req.method === "GET" && !isHead) {
         // 내부 점검은 PV로도 안 센다 (위 /api/feed와 같은 이유).
         if (!req.headers["x-nowhot-check"]) {
           try { store.recordTraffic("page"); } catch {}
@@ -4367,6 +4281,10 @@ ${rankingRows(list, (above) => {
       return send(res, 500, { error: String(err && err.message ? err.message : err) });
     }
   });
+  const journeyTimer = setInterval(() => store.finishJourneySessions(), 60000);
+  journeyTimer.unref?.();
+  server.on("close", () => clearInterval(journeyTimer));
+  return server;
 }
 
 if (process.argv[1] && process.argv[1].endsWith("server.js")) {
@@ -4396,13 +4314,13 @@ if (process.argv[1] && process.argv[1].endsWith("server.js")) {
     // 아무도 안 부르면 첫 방문자(또는 심사 봇)가 빈 자체 콘텐츠 블록을 본다.
     // 요청 한 번이 곧 "만들어 둬라"라서, 우리가 먼저 한 번 부른다.
     setTimeout(() => {
-      fetch(`http://127.0.0.1:${port}/`).catch(() => {});
-      fetch(`http://127.0.0.1:${port}/report`).catch(() => {});
+      fetch(`http://127.0.0.1:${port}/`, { headers: { "x-nowhot-check": "warmup" } }).catch(() => {});
+      fetch(`http://127.0.0.1:${port}/report`, { headers: { "x-nowhot-check": "warmup" } }).catch(() => {});
       // 첫 호출은 캐시가 비어 있어 배경 작업만 걸어 놓고 끝난다.
       // 다 만들어졌을 때쯤 한 번 더 불러 캐시가 실제로 찼는지 확인한다.
       setTimeout(() => {
-        fetch(`http://127.0.0.1:${port}/`).catch(() => {});
-        fetch(`http://127.0.0.1:${port}/report`).catch(() => {});
+        fetch(`http://127.0.0.1:${port}/`, { headers: { "x-nowhot-check": "warmup" } }).catch(() => {});
+        fetch(`http://127.0.0.1:${port}/report`, { headers: { "x-nowhot-check": "warmup" } }).catch(() => {});
       }, 20000);
     }, 3000).unref?.();
     if (process.env.FEED_DB) console.log(`persisting to ${process.env.FEED_DB}`);
