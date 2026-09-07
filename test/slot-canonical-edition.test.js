@@ -1308,3 +1308,23 @@ test("고정판에서 관심 분야를 저장해도 구형 판 생성을 다시 
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+
+test("NH133 preflight checks cited initial articles and preserves the unseeded fallback guard", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { runInNewContext } = await import("node:vm");
+  const src = readFileSync(new URL("../tools/preflight.mjs", import.meta.url), "utf8");
+  const code = src.slice(src.indexOf("// ── 4. 자체 콘텐츠"), src.indexOf('for (const path of ["/api/briefing", "/rss.xml"])'));
+  const check = content => {
+    const checks=[];
+    runInNewContext(code,{localEditorial:true,html:'<title>지금핫 오늘판</title><body><div id="categories"></div><section id="issues">'+content+'</section>',ok:(name,pass)=>checks.push(pass)});
+    return checks.every(Boolean);
+  };
+  const article='<article class="issue"><h2><a class="issue-title-button" href="/?edition=E#issue-E/1">검증 제목</a></h2><div class="editorial-point"><p>기존 요약</p></div><div class="source-links"><a href="https://publisher.test/a">출처</a></div></article>';
+  assert.equal(check('<div id="todaySeed">'+article+'</div>'),true);
+  assert.equal(check('<div class="skeleton"></div>'),true);
+  assert.equal(check('<div id="todaySeed"></div>'),false);
+  assert.equal(check('<div id="todaySeed">'+article.replace(/<h2>[\s\S]*?<\/h2>/,'')+'</div>'),false);
+  assert.equal(check('<div id="todaySeed">'+article.replace('href="https://publisher.test/a"','href="javascript:alert(1)"')+'</div>'),false);
+  assert.equal(check('<a href="https://publisher.test/a">기사 없는 외부 링크</a>'),false);
+});

@@ -132,7 +132,17 @@ if (localEditorial) {
   ok("루트가 오늘판", /<title>지금핫 오늘판<\/title>/.test(html)
     && /id="issues"/.test(html) && /id="categories"/.test(html));
   const rootBody = html.slice(html.indexOf("<body"));
-  ok("편집 홈 본문에 외부 링크 목록 없음", !/<a[^>]+href="https?:\/\//i.test(rootBody));
+  const issues = rootBody.match(/<section[^>]+id="issues"[^>]*>([\s\S]*?)<\/section>/)?.[1] || "";
+  if (/id="todaySeed"/.test(issues)) {
+    // NH133: 검증판의 제목·기존 요약·출처가 초기 응답에 있어야 한다.
+    const articles = [...issues.matchAll(/<article class="issue">([\s\S]*?)<\/article>/g)].map(m => m[1]);
+    ok("오늘판 초기 기사·요약·출처", articles.length > 0
+      && articles.every(a => /<h2><a class="issue-title-button" href="\/\?edition=/.test(a))
+      && articles.some(a => /class="editorial-point"><p>[^<]+<\/p>/.test(a))
+      && articles.some(a => /class="source-links"><a href="https?:\/\//.test(a)));
+  } else {
+    ok("판 포인터 미준비 시 기존 복구 셸 유지", !/<a[^>]+href="https?:\/\//i.test(rootBody));
+  }
 }
 for (const path of ["/api/briefing", "/rss.xml"]) {
   const retired = await json(path);
