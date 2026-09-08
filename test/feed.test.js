@@ -1038,7 +1038,7 @@ test("sendDigestPushes pushes only subscribers with a non-empty digest, payload 
   const sendImpl = async (sub, payload) => { sentTo.push({ sub, payload }); return { status: 201 }; };
   const vapidKeys = { publicKey: "pub", privateKey: "priv", subject: "mailto:a@b.c" };
 
-  const result = await sendDigestPushes(store, fakeEngine, vapidKeys, { sendImpl });
+  const result = await sendDigestPushes(store, fakeEngine, vapidKeys, { sendImpl, clock: fixedClock });
 
   assert.equal(result.sent, 1, "only the subscriber with a non-empty digest gets pushed");
   assert.equal(result.failed, 0);
@@ -1049,7 +1049,7 @@ test("sendDigestPushes pushes only subscribers with a non-empty digest, payload 
   assert.match(payload.body, /관심글 2개가 올라왔어요/);
   assert.match(payload.body, /전기차 시승기 첫인상/, "previews the first title");
   assert.doesNotMatch(payload.body, /성인 콘텐츠/, "19금 title never appears in a notification");
-  assert.equal(payload.url, "/live#post-item_42", "url deep-links to the previewed item in the live app");
+  assert.equal(payload.url, "/live?nh-open=item_42", "url opens the previewed item through the live list");
 });
 
 test("sendDigestPushes is a no-op without VAPID keys (never even checks digests)", async () => {

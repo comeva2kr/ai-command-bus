@@ -174,7 +174,7 @@ test("push delivery records accepted top IDs and canonical aliases without consu
   assert.deepEqual(h.user.seen, []);
   assert.deepEqual(h.user.opened, opened);
   assert.deepEqual(h.digestCalls[0], { userId: h.user.id, limit: 2, minScore: 2.5, excludeIds: [] });
-  assert.equal(h.deliveries[0].payload.url, "/live#post-A");
+  assert.equal(h.deliveries[0].payload.url, "/live?nh-open=A");
   assert.ok(h.deliveries[0].payload.body.includes("Safe A"));
 });
 
@@ -367,7 +367,7 @@ test("push delivery never previews adult titles and skips when no safe new top r
   ]);
   assert.deepEqual(await h.run(), { sent: 1, failed: 0 });
   assert.doesNotMatch(h.deliveries[0].payload.body, /SECRET/);
-  assert.equal(h.deliveries[0].payload.url, "/live#post-safe");
+  assert.equal(h.deliveries[0].payload.url, "/live?nh-open=safe");
   assert.deepEqual(h.user.pushNotified.map((row) => row.id), ["safe"]);
   h.setTime("2026-09-03T04:00:00.000Z");
   assert.deepEqual(await h.run(), { sent: 0, failed: 0 });
@@ -384,7 +384,7 @@ test("push delivery ignores stale digest repeats defensively and keeps links sam
   const id = "safe/id#part";
   h.engine.digest = async () => ({ count: 1, top: [article(id, { url: "https://external.example.test/story" })] });
   assert.deepEqual(await h.run(), { sent: 1, failed: 0 });
-  assert.equal(h.deliveries[0].payload.url, `/live#post-${encodeURIComponent(id)}`);
+  assert.equal(h.deliveries[0].payload.url, `/live?nh-open=${encodeURIComponent(id)}`);
 });
 
 test("push delivery preserves empty, missing-key, and digest-error no-ops and releases its lock", async () => {
@@ -521,7 +521,7 @@ test("NH134 real digest separates declared, learned and unknown interests withou
   });
   const expected = profiles.filter(profile => profile.expected);
   assert.deepEqual(result, { sent: expected.length, failed: 0 });
-  assert.deepEqual(deliveries, expected.map(profile => [profile.id, `/live#post-${profile.expected}`]));
+  assert.deepEqual(deliveries, expected.map(profile => [profile.id, `/live?nh-open=${profile.expected}`]));
   for (const profile of profiles) {
     const user = store.getUser(profile.id);
     assert.deepEqual((user.pushNotified || []).map(row => row.id), profile.expected ? [profile.expected] : [], profile.id);

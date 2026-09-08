@@ -1631,7 +1631,7 @@ test('browser: NH142 independent deal tab persists and discards old or empty sna
 
 test('NH150 browser: cold notification waits for a real tap and keeps an unskippable list for Back', options, async t => {
   const path='/live?utm_source=push&utm_campaign=nh150&nh-open=post-0';
-  const {page,context,base}=await fixture(t,path,false,'seen',true,false,{controls:{delayConfig:250}});
+  const {page,context,base}=await fixture(t,path,false,'returning',true,false,{controls:{delayConfig:250}});
   const cdp=await context.newCDPSession(page),skippable=[];
   cdp.on('Audits.issueAdded',({issue})=>{
     if(issue.details?.genericIssueDetails?.errorType==='NavigationEntryMarkedSkippable')skippable.push(issue);
@@ -1644,6 +1644,8 @@ test('NH150 browser: cold notification waits for a real tap and keeps an unskipp
   }
   assert.deepEqual(await read("({active:navigator.userActivation.hasBeenActive,view:history.state?.view,hash:location.hash,detail:Boolean(document.querySelector('#detail.open')),button:document.querySelector('#notificationRead')?.tagName})"),
     {active:false,view:'list',hash:'',detail:false,button:'BUTTON'});
+  assert.deepEqual(await read("({guide:Boolean(document.getElementById('nhGuide')),seen:localStorage.getItem('feed_seen_release')})"),
+    {guide:false,seen:'older-release'},'notification landing defers the release guide without marking it seen');
   assert.equal(skippable.length,0,'landing must not create a skippable list before the reader taps');
   const before=await cdp.send('Page.getNavigationHistory');
   assert.equal(before.entries[before.currentIndex].url,base+path);
@@ -1663,6 +1665,8 @@ test('NH150 browser: cold notification waits for a real tap and keeps an unskipp
   assert.equal(page.url(),base+'/live?utm_source=push&utm_campaign=nh150');
   assert.equal(await page.locator('#feed .card').count(),18);
   assert.equal(await page.locator('#notificationLanding').count(),0);
+  await page.goto(base+'/live');
+  await page.waitForSelector('#nhGuide');
 });
 
 test('NH150 browser: warm notification stays in the document and dismissal leaves the list', options, async t => {
@@ -1673,11 +1677,22 @@ test('NH150 browser: warm notification stays in the document and dismissal leave
     if(await read("Boolean(document.querySelector('#feed .card')&&window.__workerMessage)"))break;
     await new Promise(resolve=>setTimeout(resolve,50));
   }
+  await page.locator('#menuBtn').click();
+  await page.locator('#drawerSpaceBtn').click();
+  await page.waitForSelector('#space:not(.hidden)');
+  await page.locator('#menuBtn').click();
+  await page.waitForSelector('#drawer.open');
   const documentRequests=requests.filter(path=>path==='/live').length;
   const timeOrigin=await read('performance.timeOrigin');
   await read("window.__workerMessage({data:{type:'NOWHOT_NAVIGATE',url:location.origin+'/live?utm_source=push&nh-open=post-1'}})");
+  for(let i=0;i<100;i++){
+    if(await read("Boolean(document.querySelector('#notificationRead')&&!document.querySelector('#drawer.open'))"))break;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
   assert.deepEqual(await read("({origin:performance.timeOrigin,active:navigator.userActivation.hasBeenActive,view:history.state?.view,banner:Boolean(document.querySelector('#notificationRead')),detail:Boolean(document.querySelector('#detail.open'))})"),
-    {origin:timeOrigin,active:false,view:'list',banner:true,detail:false});
+    {origin:timeOrigin,active:true,view:'list',banner:true,detail:false});
+  assert.equal(await page.locator('#space').isVisible(),false,'personal space must not mask the notification');
+  assert.equal(await page.locator('#drawer.open').count(),0,'drawer must not mask the notification');
   assert.equal(requests.filter(path=>path==='/live').length,documentRequests);
   await page.locator('#notificationLanding .dclose').click();
   assert.equal(page.url(),base+'/live?utm_source=push');

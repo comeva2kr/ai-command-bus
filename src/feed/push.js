@@ -266,7 +266,7 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
         title: "지금핫",
         body: opts.alertsOnly ? `${top.kind === "news" ? "주요 소식" : "반응 급상승"} · ${String(top.title || "").slice(0, 100)}`
           : `관심글 ${digest.count}개가 올라왔어요 · ${String(top.title || "").slice(0, 30)}`,
-        url: `/live#post-${encodeURIComponent(top.id)}`,
+        url: `/live?nh-open=${encodeURIComponent(top.id)}`,
         tag: `live:${top.id}`,
         kind: "live", expiresAt: new Date(now + ttl * 1000).toISOString()
       });

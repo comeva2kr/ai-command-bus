@@ -156,7 +156,7 @@ test("NH150 successful event history survives restart and suppresses changed IDs
   assert.deepEqual(await h.live(), { sent: 0, failed: 0 }, "same event, unrelated article ID and publisher");
   h.setRows([news("housing-third", "8·13 부동산대책에 시장 술렁…대출 문턱 높아진다", "realestate"), independent()]);
   assert.equal((await h.live()).sent, 1, "unrelated event still makes it through the real digest");
-  assert.equal(h.delivered.at(-1).payload.url, "/live#post-charging");
+  assert.equal(h.delivered.at(-1).payload.url, "/live?nh-open=charging");
   assert.equal(h.user.pushDeliveryTimes.length, 2);
   assert.deepEqual(h.user.seen, []);
   assert.deepEqual(h.user.opened || [], []);
@@ -187,5 +187,5 @@ test("NH150 retained original titles keep a background incident from suppressing
   h.setRows([{ ...news("california-probe", "캘리포니아 AG Rob Bonta는 Hugging Face 해킹에 대해 OpenAI를 조사하고 있습니다."),
     originalTitle: "California AG Rob Bonta is investigating OpenAI over the Hugging Face hack in July, after more than a dozen states joined Alabama in its investigation (Chase DiFeliciantonio/Politico)" }]);
   assert.equal((await h.live()).sent, 1, "German website incident and California investigation are separate news events");
-  assert.equal(h.delivered.at(-1).payload.url, "/live#post-california-probe");
+  assert.equal(h.delivered.at(-1).payload.url, "/live?nh-open=california-probe");
 });

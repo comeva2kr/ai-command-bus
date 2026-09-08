@@ -1606,7 +1606,7 @@ setupViewSwitch();
   // 무한스크롤은 복원이 끝난 뒤에 건다 — 문서가 짧을 때 미리 걸면
   // 1400px 마진 안에 센티널이 바로 들어와 필요 없는 페이지까지 받아온다.
   const restored = resumeOrLoad().then(()=> setupInfiniteScroll());
-  const guideSkip = Boolean(state.pendingWorkerUrl) || Boolean(postIdFromHash(location.hash));
+  const guideSkip = Boolean(state.pendingWorkerUrl) || new URLSearchParams(location.search).has("nh-open") || Boolean(postIdFromHash(location.hash));
   if(state.pendingWorkerUrl){const url=state.pendingWorkerUrl;state.pendingWorkerUrl=null;workerNavigate(url)}
   else openFromHash();
   restored.then(()=>NowHotNoticeGuide.show({release:config?.release,isNewVisitor,onSetup:showSurvey,skip:Boolean(menuAction)||guideSkip||Boolean(postIdFromHash(location.hash))}));
@@ -2138,6 +2138,7 @@ function showNotificationLanding(){
   const url=new URL(location.href),id=url.searchParams.get("nh-open");
   if(!id || id.length>1000)return false;
   closeDetail();
+  closeSpace();
   const entry=liveHistory.ensure(liveSnapshot());
   history.replaceState({...entry,view:"list",detail:null},"",url.pathname+url.search);
   liveHistory.save(liveSnapshot());
@@ -2160,6 +2161,8 @@ function workerNavigate(value){
   if(!state.config){state.pendingWorkerUrl=href;return}
   const url=new URL(href);
   if(url.pathname===location.pathname && url.searchParams.has("nh-open")){
+    if(document.getElementById("nhGuide"))return NowHotNoticeGuide.close(()=>workerNavigate(href));
+    if(document.getElementById("drawer").classList.contains("open"))return NowHotMenu.close(false,()=>workerNavigate(href));
     history.replaceState(history.state,"",url);showNotificationLanding();return;
   }
   if(url.pathname!==location.pathname||url.search!==location.search){saveLiveNavigation();location.assign(href);return}
