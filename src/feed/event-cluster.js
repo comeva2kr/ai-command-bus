@@ -31,7 +31,7 @@
 // news event에 evidenceRole "community_reaction"으로 연결하되 독립 언론
 // 계수에 합산하지 않는다.
 import { createHash } from "node:crypto";
-import { eventKey, normalizeForDedupe, titleConcepts } from "./dedupe.js";
+import { eventKey, normalizeForDedupe, titleConcepts, titleWords } from "./dedupe.js";
 import { canonicalizeUrl, isGoogleNewsRedirect } from "./canonical-url.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 
@@ -306,6 +306,21 @@ function decidePreparedEventMerge(a, b) {
 // 병합 판정 — 단일 진실. 반환: { merge, mode, reason }.
 export function decideEventMerge(a, b) {
   return decidePreparedEventMerge(prepareEventArticle(a), prepareEventArticle(b));
+}
+
+// ponytail: only explicit scheduled-to-result headlines reopen push candidates;
+// require structured fact evidence before supporting other kinds of updates.
+export function isConfirmedEventFollowUp(previous, current) {
+  if (previous?.kind !== "news" || current?.kind !== "news"
+      || !(Date.parse(current.publishedAt) > Date.parse(previous.publishedAt))) return false;
+  const before = String(previous.originalTitle || previous.title || "");
+  const after = String(current.originalTitle || current.title || "");
+  const scheduled = /^(예정|예고|전망|계획|planned|scheduled|expected|preview)$/;
+  const outcome = /^(확정|성공|실패|가결|의결|승인|confirmed|succeeded|failed|passed|approved|launched)$/;
+  const uncertain = /예정|예고|전망|계획|검토|추진|가능|예상|추정|미확정|불확실|기대|기원|희망|요청|요구|촉구|신청|여부|우려|주장|부인|오보|아니|아냐|않|없|[?？]|\b(may|might|could|will|would|plan\w*|expect\w*|schedul\w*|preview|rumou?r\w*|unconfirmed|not|denied|reportedly|allegedly|claim\w*|request\w*|hop\w*|seeking)\b/i;
+  const oldWords = titleWords(before);
+  return oldWords.some(word => scheduled.test(word)) && !oldWords.some(word => outcome.test(word))
+    && !uncertain.test(after) && titleWords(after).some(word => outcome.test(word));
 }
 
 // ---------------------------------------------------------------------------

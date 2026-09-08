@@ -25,7 +25,7 @@ import { promotable, isLowValue } from "./promotion.js";
 import { isJunkImage, cleanArticleTextChrome, looksLikePageChrome } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
 import { canonicalContentUrl } from "./dedupe.js";
-import { buildEventClusters, composeEventFromMembers, decideEventMerge } from "./event-cluster.js";
+import { buildEventClusters, composeEventFromMembers, decideEventMerge, isConfirmedEventFollowUp } from "./event-cluster.js";
 import { isGoogleNewsRedirect } from "./canonical-url.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import { coverageEvidence } from "./editorial-quality.js";
@@ -2571,22 +2571,22 @@ export class FeedEngine {
     const alertCategories = new Set(surveyedCategories.length ? surveyedCategories : normalizedCategories(user.briefingCategories));
     const alertTags = new Set((Array.isArray(user.surveyAnswers?.tags) ? user.surveyAnswers.tags : []).filter(isKnownTag));
     const declaredInterests = alertCategories.size > 0 || alertTags.size > 0;
-    const learned = categorySets(user.preferences, rankParams());
+    const params = rankParams(), learned = categorySets(user.preferences, params);
     const hasHistory = user.warmStarted || user.implicitCount > 0
       || Object.values(user.ratings || {}).some(rating => rating.signal > 0);
     if (!declaredInterests && hasHistory) {
       for (const category of normalizedCategories([...learned.picked])) alertCategories.add(category);
       for (const [tag, weight] of Object.entries(user.preferences?.tags || {})) {
-        if (isKnownTag(tag) && weight >= rankParams().pickMin) alertTags.add(tag);
+        if (isKnownTag(tag) && weight >= params.pickMin) alertTags.add(tag);
       }
     }
     const popularAlerts = alertsOnly && !alertCategories.size && !alertTags.size;
     const offMain = alertsOnly ? this._offMainSet() : new Set();
     const avoidedCategories = new Set([...normalizedCategories(user.surveyAnswers?.avoid),
-      ...categorySets(user.preferences, rankParams()).hated]);
+      ...learned.hated]);
     const pool = items.filter(
       (i) =>
-        !recentEvents.some(previous => decideEventMerge(previous, i).merge) &&
+        !recentEvents.some(previous => decideEventMerge(previous, i).merge && !isConfirmedEventFollowUp(previous, i)) &&
         !muted.has(i.source) &&
         !disabled.has(i.source) &&
         !topicsBlocked(i, showTopics) &&
@@ -2607,6 +2607,7 @@ export class FeedEngine {
       rankPool = rankPool.filter(item => {
         const age = itemAgeHours(item, now);
         if (age == null || age < 0 || age > 3 || !promotable(item) || item.adult || (item.topics || []).includes("adult")
+            || (item.tags || []).some(tag => (user.preferences?.tags?.[tag] || 0) <= params.hateMax)
             || (user.mixBalance === -1 && item.kind === "news")
             || (user.mixBalance === 1 && item.kind === "community")
             || (showTopics.has(NO_DEAL_TOPIC) && item.isDeal)) return false;

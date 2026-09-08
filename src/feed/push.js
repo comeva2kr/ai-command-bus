@@ -201,17 +201,18 @@ const pushGap = (user, now) => [...(user.pushDeliveryTimes || []),
 const pushTtl = (now, hours) => Math.max(0, Math.floor(Math.min(hours * 3600_000,
   kstDay(now) * 86400_000 + 12 * 3600_000 - now) / 1000));
 function digestAllowed(user, now, alertsOnly) {
-  if (!pushWindow(now) || !pushGap(user, now)) return false;
+  if (!pushWindow(now)) return false;
   const times = (user.pushDeliveryTimes || []).map(at => Date.parse(at));
-  if (times.filter(at => kstDay(at) === kstDay(now)).length >= (alertsOnly ? 2 : 3)
-      || (!alertsOnly && times.some(at => now - at < 4 * 3600_000))) return false;
-  if (alertsOnly) {
-    if (nextEditorialSlot(now).asOfMs - now <= 3600_000) return false;
-    const target = resolveEditorialTarget(now);
-    if (now - target.asOfMs < 3600_000
-        && !(user.editionPushDeliveries || []).some(row => row.key === `${target.date}:${target.slot.id}`)) return false;
-  }
-  return true;
+  if (!alertsOnly) return pushGap(user, now)
+    && times.filter(at => kstDay(at) === kstDay(now)).length < 3
+    && !times.some(at => now - at < 4 * 3600_000);
+  const target = resolveEditorialTarget(now);
+  const limit = target.slot.id === "evening" ? 2 : 3;
+  return times.filter(at => at >= target.asOfMs && at <= now).length < limit
+    && !times.some(at => now - at < 3600_000)
+    && !(user.editionPushDeliveries || []).some(row => now - Date.parse(row.at) < 1800_000)
+    && now - target.asOfMs >= 1800_000
+    && nextEditorialSlot(now).asOfMs - now > 1800_000;
 }
 
 // Check every subscribed user's non-consuming digest (engine.digest) and push
@@ -317,7 +318,8 @@ export async function sendEditionPushes(store, reader, vapidKeys, opts = {}) {
       const sub = user.pushSubscription;
       if (!sub?.endpoint || user.notifyEnabled === false || (user.editionPushDeliveries || []).some(row=>row.key===key)) continue;
       const sendAt = new Date(clock()).getTime(), current = resolveEditorialTarget(sendAt);
-      if (!pushWindow(sendAt) || !pushGap(user, sendAt)
+      // A late verified edition keeps its once-per-slot priority over Live.
+      if (!pushWindow(sendAt)
           || `${current.date}:${current.slot.id}` !== key) continue;
       const ttl = pushTtl(sendAt, 2);
       const payload = JSON.stringify({title:`지금핫 ${target.slot.label} 오늘판`,
