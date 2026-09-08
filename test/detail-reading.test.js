@@ -34,6 +34,7 @@ test("같은 사건을 다룬 다른 소스를 상세에 함께 준다", async (
     mk("b", same, "donga", { commentCount: 20 }),
     mk("c", "전혀 다른 사건입니다 오늘 날씨", "khan")
   ]);
+  engine.store.setTopicFilter(userId, "politics", true);
   const one = await engine.getItem(userId, "a");
   assert.ok(Array.isArray(one.related), "related가 없다");
   // 같은 사건은 수집 때 하나로 접히므로 풀에는 "b"가 없다. 접힌 기록으로
@@ -49,6 +50,7 @@ test("같은 소스가 목록을 독식하지 않는다", async () => {
     mk("a", same, "hani"),
     mk("b1", same, "donga"), mk("b2", same, "donga"), mk("c1", same, "khan")
   ]);
+  engine.store.setTopicFilter(userId, "politics", true);
   const one = await engine.getItem(userId, "a");
   const sources = one.related.map((r) => r.source);
   assert.equal(new Set(sources).size, sources.length, "한 소스가 여러 칸을 먹었다");
@@ -99,8 +101,10 @@ test("관련글도 정치·종교 관문을 지난다 — 앞에서 막은 것�
     mk("a", same, "hani"),
     mk("b", same, "donga", { topics: ["politics"] })
   ]);
-  const one = await engine.getItem(userId, "a");
+  assert.equal(await engine.getItem(userId, "a"), null, "정치 제목도 기본 숨김을 적용한다");
+  const one = await engine.getItem(userId, "a", { explicitOpen: true });
   assert.equal(one.related.length, 0, "정치 토픽이 관련글로 샜다");
+  assert.deepEqual([...engine.store.showTopicsSet(userId)], [], "직접 열기는 저장 설정을 바꾸지 않는다");
 });
 
 test("관리자가 끈 소스는 관련글에도 안 나온다", async () => {
@@ -109,6 +113,7 @@ test("관리자가 끈 소스는 관련글에도 안 나온다", async () => {
   const items = [mk("a", same, "hani"), mk("b", same, "donga")];
   const engine = new FeedEngine(store, [{ id: "s", kind: "community", async fetch() { return items; } }]);
   const user = store.createUser();
+  store.setTopicFilter(user.id, "politics", true);
   store.disabledSources = () => new Set(["donga"]);
   const one = await engine.getItem(user.id, "a");
   assert.equal(one.related.length, 0, "차단한 소스가 관련글로 샜다");

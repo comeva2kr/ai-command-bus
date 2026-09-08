@@ -464,6 +464,8 @@ export async function collect(sources, opts = {}) {
           rel.push({
             id: item.id || null,
             url: item.url || null,
+            canonicalUrl: item.canonicalUrl || null,
+            originalTitle: item.originalTitle || null,
             source: item.source,
             sourceLabel: item.sourceLabel || item.source,
             kind: item.kind,

@@ -5,7 +5,7 @@
 // (category weights + tag weights). From there the recommender takes over and
 // refines those weights from like/dislike feedback.
 
-import { CATEGORIES, TAGS } from "./taxonomy.js";
+import { CATEGORIES, TAGS, tagLabel } from "./taxonomy.js";
 import { loadRegistry } from "./registry.js";
 
 // "즐겨 보는 커뮤니티" 설문 옵션 = 실제 enabled && non-seed 소스만 (David 2026-07-24
@@ -22,7 +22,8 @@ function liveSourceOptions() {
     // (적대적 검수 2026-08-06).
     .filter((c) => c.enabled === true
       && (!c.adapter || (c.adapter.type !== "seed" && c.adapter.type !== "store")))
-    .map((c) => ({ id: c.id, label: c.labelKo || c.label }));
+    .map((c) => ({ id: c.id, label: c.labelKo || c.label, group: c.kind === "news" ? "뉴스" : "커뮤니티" }))
+    .sort((a, b) => (a.group === "뉴스") - (b.group === "뉴스"));
 }
 
 // Each question maps user choices to weight deltas. `multi` questions accept an
@@ -77,7 +78,7 @@ export const SURVEY = [
   {
     id: "communities",
     type: "multi",
-    prompt: "즐겨 보는 커뮤니티가 있나요? 인기글을 우선 챙겨드려요. (선택)",
+    prompt: "즐겨 보는 소스가 있나요? 뉴스·커뮤니티의 인기글을 우선 챙겨드려요. (선택)",
     options: liveSourceOptions(),
     apply(selected, vec) {
       for (const id of selected) {
@@ -89,7 +90,7 @@ export const SURVEY = [
     id: "tags",
     type: "multi",
     prompt: "특별히 좋아하는 세부 관심사가 있다면 골라주세요. (선택)",
-    options: TAGS.map((t) => ({ id: t, label: t })),
+    options: TAGS.map((t) => ({ id: t, label: tagLabel(t) })),
     apply(selected, vec) {
       for (const id of selected) {
         vec.tags[id] = (vec.tags[id] || 0) + 1.2;

@@ -7,11 +7,14 @@ import { operationalSourceIdentity } from "./editorial-source-identity.js";
 
 export const ARTICLE_SUMMARY_CONTRACT = Object.freeze({
   stableId: "NOWHOT-ARTICLE-SUMMARY-001",
-  version: 37,
+  version: 38,
   promptVersion: 20,
   maxSourcesPerIssue: 3,
   targetSummaryChars: [600, 900],
   acceptedSummaryChars: [160, 1000],
+  // docs/legal.md: 원문 발췌는 200자 이하. 검증된 자체 요약(ready, 위 범위)과 분리된 excerpt_only 전용 범위다(NH146).
+  // 짧아도 완결된 발췌는 받고, 요약용 최소 160자는 적용하지 않는다(NH145 §3).
+  excerptChars: [40, 200],
   sourceRelativeSummaryChars: { minRatio: 0.3, maxRatio: 0.9 },
   sentenceEvidence: "code_owned_source_passage_ids",
   semanticVerification: "independent_llm",
@@ -25,7 +28,7 @@ const READY_CACHE_MS = 24 * 60 * 60 * 1000;
 export function isPreparedArticleSummary(summary, issue = null) {
   const issueContentId = issue ? articleContentId(issue) : null;
   const ready = summary && summary.status === "ready" && substantialKoreanSummary(summary.textKo);
-  const excerpt = summary && summary.status === "excerpt_only" && substantialKoreanSummary(summary.textKo);
+  const excerpt = summary && summary.status === "excerpt_only" && substantialKoreanExcerpt(summary.textKo);
   const unavailable = summary && summary.status === "source_unavailable" &&
     clean(summary.unavailableReasonCode).length > 0 && Number.isFinite(Date.parse(summary.retryAfter || ""));
   return Boolean((ready || excerpt || unavailable) &&
@@ -150,13 +153,27 @@ const unique = (values) => [...new Set((values || []).filter(Boolean))];
 const FAILURE_CACHE_MS = 30 * 60 * 1000;
 const PROVIDER_LOCK_KEY = "article-summary-provider";
 
-function substantialKoreanSummary(value) {
+function koreanText(value) {
   const text = clean(value);
   const hangul = (text.match(/[가-힣]/g) || []).length;
   const letters = (text.match(/[\p{L}]/gu) || []).length;
-  return text.length >= ARTICLE_SUMMARY_CONTRACT.acceptedSummaryChars[0] &&
-    hangul >= 40 && letters > 0 && hangul / letters >= 0.3;
+  return { text, hangul, korean: letters > 0 && hangul / letters >= 0.3 };
 }
+
+function substantialKoreanSummary(value) {
+  const { text, hangul, korean } = koreanText(value);
+  return text.length >= ARTICLE_SUMMARY_CONTRACT.acceptedSummaryChars[0] && hangul >= 40 && korean;
+}
+
+// 원문 발췌(excerpt_only) 전용 판정. 160자 미만이면 문장 종결(…포함)로 끝나야 완결된 발췌로 본다.
+export function substantialKoreanExcerpt(value) {
+  const { text, hangul, korean } = koreanText(value);
+  if (text.length < ARTICLE_SUMMARY_CONTRACT.excerptChars[0] || hangul < 20 || !korean) return false;
+  return text.length >= ARTICLE_SUMMARY_CONTRACT.acceptedSummaryChars[0] || ENDS_WITH_SENTENCE.test(text);
+}
+
+const SENTENCE_END = /[.!?。！？…]["'”’」』)\]]*(?=\s|$)/g;
+const ENDS_WITH_SENTENCE = /[.!?。！？…]["'”’」』)\]]*$/;
 
 function canonicalSourceRows(rows) {
   const seenUrls = new Set();
@@ -199,8 +216,10 @@ function allSourceRows(issue) {
   );
 }
 
-const hasSubstantialFeedExcerpt = (rows) => (rows || []).some((row) =>
-  substantialKoreanSummary(row.summary || row.excerpt || row.description));
+const hasSubstantialFeedExcerpt = (rows) => (rows || []).some((row) => {
+  const excerpt = row.summary || row.excerpt || row.description;
+  return typeof excerpt === "string" && substantialKoreanExcerpt(cleanArticleTextChrome(stripHtml(excerpt)));
+});
 
 function sourceRowOrder(a, b) {
   const withheld = Number(a?.canLead === false) - Number(b?.canLead === false);
@@ -328,20 +347,27 @@ function unavailable(issue, basis, reasonCode, sources, image = null, nowMs = Da
   };
 }
 
-function publicExcerpt(text) {
+// 원문 발췌 경계. 200자 안의 마지막 문장 종결에서 자르고, 종결이 없으면 낱말 경계에서 자른 뒤 "…"를 붙인다.
+// 판본 고정 단계에서 저장된 발췌를 다시 자를 때도 같은 규칙을 쓴다(Root 통합).
+export function publicExcerpt(text) {
   const source = clean(text);
-  const max = ARTICLE_SUMMARY_CONTRACT.targetSummaryChars[1];
+  const [min, max] = ARTICLE_SUMMARY_CONTRACT.excerptChars;
   if (source.length <= max) return source;
+  let sentenceEnd = -1;
+  for (const match of source.slice(0, max + 1).matchAll(SENTENCE_END)) {
+    const end = match.index + match[0].length;
+    if (end <= max && end >= min) sentenceEnd = end;
+  }
+  if (sentenceEnd > 0) return source.slice(0, sentenceEnd).trim();
   const clipped = source.slice(0, max);
-  const sentenceEnd = Math.max(clipped.lastIndexOf(". "), clipped.lastIndexOf("다. "), clipped.lastIndexOf("요. "));
-  return sentenceEnd >= ARTICLE_SUMMARY_CONTRACT.targetSummaryChars[0]
-    ? clipped.slice(0, sentenceEnd + 1).trim()
-    : clipped.trim();
+  const space = clipped.lastIndexOf(" ");
+  return `${(space >= min ? clipped.slice(0, space) : clipped.slice(0, max - 1)).trim()}…`;
 }
 
 async function excerptSummary(row, { translateText, nowMs }) {
   let anchor = row.sources.find((source) => source.result.state === "available");
   let excerptBasis = "public_anchor_body";
+  let rawText = anchor ? anchor.result.text : "";
   if (!anchor) {
     const source = row.resolvedSources.find((candidate) => clean(
       candidate.summary || candidate.excerpt || candidate.description
@@ -355,13 +381,17 @@ async function excerptSummary(row, { translateText, nowMs }) {
       }
     };
     excerptBasis = "publisher_feed_excerpt";
+    // 피드 발췌는 태그·엔티티가 남은 채 오므로 sourceLinks와 같은 stripHtml을 먼저 거친다.
+    rawText = stripHtml(anchor.result.text);
   }
-  let textKo = publicExcerpt(cleanArticleTextChrome(anchor.result.text));
-  if (!substantialKoreanSummary(textKo) && typeof translateText === "function") {
+  let textKo = publicExcerpt(cleanArticleTextChrome(rawText));
+  // 이미 한국어인 짧은 조각은 번역해도 완결되지 않으므로 무료 번역기를 부르지 않는다.
+  if (textKo && !substantialKoreanExcerpt(textKo) && !koreanText(textKo).korean && typeof translateText === "function") {
     const translated = await translateText(textKo, { from: "auto", to: "ko" });
-    if (substantialKoreanSummary(translated)) textKo = publicExcerpt(cleanArticleTextChrome(translated));
+    if (substantialKoreanExcerpt(translated)) textKo = publicExcerpt(cleanArticleTextChrome(translated));
   }
-  if (!substantialKoreanSummary(textKo)) return null;
+  // 사이트 소개·메뉴만 남은 발췌는 그 글의 발췌가 아니다(sourceLinks·슬롯 고정판과 같은 판정).
+  if (!substantialKoreanExcerpt(textKo) || looksLikePageChrome(textKo)) return null;
   return {
     status: "excerpt_only",
     contractId: ARTICLE_SUMMARY_CONTRACT.stableId,

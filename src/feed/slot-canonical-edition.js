@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { buildReaderLineage, readerIssueCopy } from "./editorial-reader-copy.js";
 import { cleanArticleTextChrome, isJunkImage, looksLikePageChrome } from "./enrich.js";
+import { publicExcerpt } from "./article-summary.js";
 import { CATEGORIES } from "./taxonomy.js";
 import { slotAsOfMs } from "./editorial-inventory.js";
 import { EDITORIAL_SERVING_CONTRACT } from "./editorial-serving.js";
@@ -198,7 +199,11 @@ export function buildSlotCanonicalEdition({
         if (link?.image) link.image = safeImage(link.image);
       }
       frozen.articleSummary.textKo = cleanArticleTextChrome(frozen.articleSummary.textKo);
-      if (looksLikePageChrome(frozen.articleSummary.textKo)) {
+      const chrome = looksLikePageChrome(frozen.articleSummary.textKo);
+      if (frozen.articleSummary.status === "excerpt_only") {
+        frozen.articleSummary.textKo = publicExcerpt(frozen.articleSummary.textKo);
+      }
+      if (chrome || (["ready", "excerpt_only"].includes(frozen.articleSummary.status) && !frozen.articleSummary.textKo)) {
         frozen.articleSummary.status = "source_unavailable";
         frozen.articleSummary.textKo = null;
         frozen.articleSummary.summarySourceCount = 0;

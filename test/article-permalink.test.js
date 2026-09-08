@@ -73,6 +73,37 @@ test("archived content still respects topic and administrative restrictions", as
   assert.equal(await f.engine.shareData("restricted"), null);
 });
 
+test("NH146 untagged archived political links preserve explicit entry but filter automatic discovery", async (t) => {
+  const f = fixture(t, []);
+  const item = article("missed-politics", {
+    title: "새 대표 선출", source: "hani-rank", category: "news",
+    url: "https://www.hani.co.kr/arti/politics/politics_general/1276566.html",
+    related: [{ source: "clien", title: "새 대표 선출", topics: [], url: "https://news.google.com/rss/articles/political",
+      canonicalUrl: "https://www.hani.co.kr/arti/politics/politics_general/1276566.html" }]
+  });
+  f.engine._cache = [item];
+  assert.deepEqual((await f.engine.getItem(f.user.id, item.id, { explicitOpen: true })).related, []);
+  assert.equal((await f.engine.getItem(f.user.id, item.id, { explicitOpen: true })).topics.includes("politics"), true);
+  assert.equal(f.engine._relatedItems(item, [], { showTopics: new Set(["politics"]) }).length, 1);
+  f.engine.rememberPublishedItem(item);
+  f.engine._cache = [];
+  assert.equal(await f.engine.getItem(f.user.id, item.id), null);
+  const direct = await f.engine.getItem(f.user.id, item.id, { explicitOpen: true });
+  assert.equal(direct.id, item.id);
+  assert.deepEqual(direct.related, []);
+  f.engine._cache = [item];
+  for (const sort of ["hot", "latest"]) {
+    const feed = await f.engine.getFeed(f.user.id, { sort, limit: 10 });
+    assert.ok(!feed.items.some(row => row.id === item.id), sort);
+  }
+  assert.equal((await f.engine.digest(f.user.id, { minScore: -100 })).count, 0);
+  f.store.setTopicFilter(f.user.id, "politics", true);
+  assert.ok(await f.engine.getItem(f.user.id, item.id));
+  assert.equal((await f.engine.getFeed(f.user.id, { sort: "latest", limit: 10 })).items[0]?.id, item.id);
+  f.store.setSourceDisabled("hani-rank", true);
+  assert.equal(await f.engine.getItem(f.user.id, item.id, { explicitOpen: true }), null);
+});
+
 test("deleted native posts are not resurrected from an article snapshot", async (t) => {
   const f = fixture(t, []);
   f.engine._cache = [article("native", { source: "me", via: "me", userId: f.user.id })];

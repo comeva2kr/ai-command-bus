@@ -20,11 +20,11 @@ import { FeedEngine } from "../src/feed/engine.js";
 import { JsonSource } from "../src/feed/content.js";
 
 test("NH134 game subjects override technology and sports labels without stealing finance or real sports", async (t) => {
-  const titles = ["[게임] 몬헌 어센던스 [해머], [보우건]편", "2K, 농구 게임 ‘NBA 2K27’ 출시", "2K, NBA 시리즈 신작 ‘NBA 2K27’ 출시"];
+  const titles = ["[게임] 몬헌 어센던스 [해머], [보우건]편", "2K, 농구 게임 ‘NBA 2K27’ 출시", "2K, NBA 시리즈 신작 ‘NBA 2K27’ 출시", "캐쥬얼 게임중 최고 어렵네요.", "캐주얼 게임 신규 스테이지 공개"];
   const engine = new FeedEngine(new FeedStore(), []);
   const rows = titles.map((title, i) => ({ id: `game-${i}`, title, source: "gnews-tech", category: "tech", kind: "news", tags: [], topics: [] }));
   engine._classifyItems(rows);
-  assert.deepEqual(rows.map(row => row.category), ["gaming", "gaming", "gaming"]);
+  assert.deepEqual(rows.map(row => row.category), ["gaming", "gaming", "gaming", "gaming", "gaming"]);
   for (const title of ["‘NBA 2K27’, 플레이 방식을 바꿀 새로운 업데이트 발표", "‘NBA 2K27’, 플레이 스타일을 바꿀 새로운 업데이트 발표"]) {
     const fashionGame = { ...rows[0], title, source: "hypebeast-fashion", category: "fashion", translated: true };
     delete fashionGame.registryCategory;
@@ -41,6 +41,25 @@ test("NH134 game subjects override technology and sports labels without stealing
   warm._poolFile=file;
   assert.equal(warm._loadPool(),true);
   assert.ok((await warm._items()).every(item=>item.category==="gaming"));
+});
+
+test("NH146 political sections and restored source evidence share topic classification", async (t) => {
+  const politicalUrl = "https://www.hani.co.kr/arti/politics/politics_general/1276566.html";
+  assert.deepEqual(classifyTopics({ title: "새 대표 선출", url: politicalUrl }), ["politics"]);
+  assert.deepEqual(classifyTopics({ title: "새 대표 선출", url: politicalUrl.replace("www.", "m.") }), ["politics"]);
+  assert.deepEqual(classifyTopics({ title: "새 대표 선출", canonicalUrl: politicalUrl, topics: ["religion"] }), ["religion", "politics"]);
+  assert.deepEqual(classifyTopics({ title: "새 소식", originalTitle: "기본소득당 새 대표 선출" }), ["politics"]);
+  for (const url of ["https://hani.co.kr.evil.test/arti/politics/1", "https://example.org/?next=" + politicalUrl, "https://www.hani.co.kr/arti/economy/1", "https://www.hani.co.kr/arti/politics-guide/1"]) {
+    assert.deepEqual(classifyTopics({ title: "새 소식", url }), [], url);
+  }
+  for (const title of ["줄여야 하는 음식", "급여당일지급", "심야당직"]) assert.deepEqual(classifyTopics({ title }), []);
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"nh146-topics-"));
+  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  const engine=new FeedEngine(new FeedStore(),[]);
+  engine._poolFile=path.join(dir,"pool.json");
+  fs.writeFileSync(engine._poolFile,JSON.stringify({savedAt:Date.now(),rows:[{item:{id:"old-politics",title:"새 대표 선출",url:politicalUrl,source:"hani-rank",category:"news",topics:[]}}]}));
+  assert.equal(engine._loadPool(),true);
+  assert.deepEqual(engine._cache[0].topics,["politics"],"warm row is tagged before advertising or filter consumers read it");
 });
 
 // ---------------------------------------------------------------------------

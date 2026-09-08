@@ -210,3 +210,86 @@ export function buildEditorialNote(item, context = {}) {
   // Data too thin to say anything honest — no filler sentence.
   return "";
 }
+
+// Shared category boilerplate, retained for canonical history and exact reader exclusion.
+export function editorialValue(issue) {
+  const categoryIds = issue.categoryIds || [];
+  const ids = new Set(categoryIds || []);
+  const text = [issue.headline, ...(issue.refs || []).map((ref) => ref.title)].join(" ");
+  const market = /(금리|채권|환율|달러|원화|코스피|코스닥|증시|주가|주식|지수|S&P|나스닥|실적|영업이익|매출|배당|목표치)/i;
+  const international = /(전쟁|공습|미사일|호르무즈|정유시설|무역|관세|제재|공급망|북한군|북중|미군기지|우크라|이란|외교|안보)/;
+  const policy = /(대통령|정부|국회|법안|법률|시행령|정책|규제|세금|교육감|지지율|행정)/;
+  const weather = /(폭염|태풍|호우|폭설|날씨|기온|열대야|너울|지진|산불|홍수|강진|붕괴|대피|사망)/;
+  const health = /(건강|의료|치료|치매|알츠하이머|퇴행성|백신|항체|신약|임상|질환|병원|영양|임신|모체|바이오|감염)/;
+  const sportsSafety = /(구장|경기장|관중|낙하|추락|붕괴|사고|부상|안전|대피|사망)/;
+  const sportsIntegrity = /(심판|협회|성접대|승부조작|도핑|비리|수사|조사|징계|의혹|논란)/;
+
+  if (ids.size > 1) {
+    return {
+      lens: "복합 이슈",
+      text: "여러 관심 분야에 걸친 사안이라 현재 확인된 사실과 후속 변화를 함께 볼 가치가 있다."
+    };
+  }
+
+  // 분야가 판단 가치의 주어다. 제목 속 우연한 단어 하나가 다른 분야의
+  // 상투문을 가져가면 개인화 설명 자체가 틀어진다.
+  if (ids.has("sports")) {
+    if (sportsSafety.test(text)) {
+      return { lens: "안전·운영", text: "경기장과 관중 안전에 연결되는 사안이라 사고 원인·시설 조치·후속 운영 변화를 확인할 가치가 있다." };
+    }
+    if (sportsIntegrity.test(text)) {
+      return { lens: "운영·신뢰", text: "심판·협회 운영과 경기 신뢰에 연결되는 사안이라 조사 결과와 공식 후속 조치를 확인할 가치가 있다." };
+    }
+    return { lens: "경기·선수", text: "경기 일정·선수 상태·순위 흐름을 따라가는 데 필요한 맥락이라 결과와 후속 변화를 함께 볼 가치가 있다." };
+  }
+  if (ids.has("gaming")) {
+    return { lens: "출시·플레이", text: "출시·업데이트와 실제 이용자 반응을 구분해 게임 선택과 흐름을 판단하는 데 참고할 가치가 있다." };
+  }
+  if (ids.has("realestate")) {
+    return { lens: "주거·자산", text: "주거비·공급·대출과 보유 판단에 연결되는 흐름이라 적용 대상과 시행 범위를 이어서 볼 가치가 있다." };
+  }
+  if (ids.has("business")) {
+    if (international.test(text)) return { lens: "거시·공급망", text: "원자재·물류·기업 비용과 시장 변동성에 연결될 수 있어 후속 지표와 공식 발표를 함께 볼 가치가 있다." };
+    if (market.test(text)) return { lens: "시장·실적", text: "시장 가격과 기업·자산 판단에 연결되는 흐름이라 후속 수치와 원자료를 확인할 가치가 있다." };
+    return { lens: "기업·경제", text: "기업 활동과 경기 흐름을 판단하는 현재 맥락이라 실제 수치와 후속 발표를 함께 볼 가치가 있다." };
+  }
+  if (ids.has("politics")) {
+    if (international.test(text)) return { lens: "외교·안보", text: "외교·안보 결정과 국제 관계의 변화를 판단하는 데 필요한 맥락이라 당사국 발표와 후속 조치를 볼 가치가 있다." };
+    if (/(선거|투표|경선|당권|정당|후보|민주당|국민의힘)/.test(text)) return { lens: "선거·권력구도", text: "정당 선택과 권력구도의 변화를 보여주는 흐름이라 실제 투표 결과와 후속 입장을 확인할 가치가 있다." };
+    return { lens: "정책·의사결정", text: "정책 결정의 방향과 실제 시행 범위를 구분해 시민·시장에 미칠 후속 변화를 볼 가치가 있다." };
+  }
+  if (ids.has("science")) {
+    return { lens: "연구·근거", text: "새 연구가 기존 설명을 얼마나 바꾸는지 판단하려면 원 연구와 검증 범위를 함께 볼 가치가 있다." };
+  }
+  if (ids.has("tech")) {
+    return { lens: "기술·제품", text: "기술 채택과 제품·산업 경쟁의 변화를 따라가는 데 필요한 맥락이라 실제 적용 범위와 후속 발표를 볼 가치가 있다." };
+  }
+  if (ids.has("auto")) {
+    return { lens: "구매·이동", text: "차량 선택·운행 경험과 모빌리티 시장 변화에 연결되는 흐름이라 제원과 실제 이용 반응을 함께 볼 가치가 있다." };
+  }
+  if (ids.has("life")) {
+    if (health.test(text)) return { lens: "건강·근거", text: "건강과 생활 판단에 연결되는 정보라 적용 대상·근거 수준·실제 효용을 구분해 볼 가치가 있다." };
+    if (weather.test(text)) return { lens: "생활·안전", text: "이동·야외활동·안전 계획에 연결되는 변화라 지역과 시간대별 후속 정보를 확인할 가치가 있다." };
+    return { lens: "생활·활용", text: "일상 선택과 실제 활용에 연결되는 흐름이라 조건과 이용 경험을 함께 볼 가치가 있다." };
+  }
+  if (ids.has("fashion")) {
+    return { lens: "제품·스타일", text: "제품과 스타일이 어디서 주목받는지 보여주는 흐름이라 출시 맥락과 실제 반응을 함께 볼 가치가 있다." };
+  }
+  if (ids.has("art")) {
+    return { lens: "작품·디자인", text: "작품·전시·디자인의 현재 흐름을 이해하는 데 필요한 맥락이라 창작 배경과 공개 반응을 함께 볼 가치가 있다." };
+  }
+  if (ids.has("culture")) {
+    return { lens: "대중문화", text: "대중문화에서 무엇이 반응을 얻고 확산되는지 보여주는 흐름이라 공식 정보와 대중 반응을 구분해 볼 가치가 있다." };
+  }
+  if (ids.has("humor")) {
+    return { lens: "공유·유행", text: "지금 어떤 소재가 빠르게 공유되고 있는지 보여주는 흐름이라 반응의 규모와 맥락을 함께 볼 가치가 있다." };
+  }
+
+  // 종합 뉴스만 교차 분야 신호를 제목에서 해석한다.
+  if (weather.test(text)) return { lens: "재난·안전", text: "안전과 이동·생활 계획에 직접 연결되는 사안이라 피해 범위와 공식 후속 정보를 확인할 가치가 있다." };
+  if (international.test(text)) return { lens: "국제정세", text: "외교·안보와 공급망 변화에 연결되는 사안이라 당사국 발표와 후속 영향을 함께 볼 가치가 있다." };
+  if (market.test(text)) return { lens: "경제 흐름", text: "시장과 기업 판단에 연결될 수 있는 사안이라 실제 수치와 후속 보도를 확인할 가치가 있다." };
+  if (policy.test(text)) return { lens: "정책·사회", text: "정책·사회 변화의 방향과 실제 시행 범위를 구분해 후속 보도를 확인할 가치가 있다." };
+  if (health.test(text)) return { lens: "건강·사회", text: "건강과 공공 판단에 연결되는 정보라 대상과 근거 범위를 확인할 가치가 있다." };
+  return { lens: "공공 맥락", text: "사회 흐름에서 무엇이 달라졌는지 파악하는 데 필요한 사건이라 후속 사실과 영향을 함께 볼 가치가 있다." };
+}

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { verifyEditorialLineage } from "./editorial-lineage.js";
+import { editorialValue } from "./editorial.js";
 
 const deepFreeze = (value) => {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
@@ -9,7 +10,7 @@ const deepFreeze = (value) => {
 
 export const EDITORIAL_READER_COPY_CONTRACT = deepFreeze({
   stableId: "NOWHOT-EDITORIAL-READER-COPY-CONTRACT-001",
-  version: 14,
+  version: 15,
   fingerprintVersion: 3,
   mode: "response_only_press_style_projection",
   visibleFields: ["headline", "summary", "whyImportant", "whyNow", "change", "watchNext", "confidenceLabel"],
@@ -21,10 +22,10 @@ export const EDITORIAL_READER_COPY_CONTRACT = deepFreeze({
 
 export const EDITORIAL_EVENT_FRAME_CONTRACT = deepFreeze({
   stableId: "NOWHOT-EDITORIAL-EVENT-FRAME-CONTRACT-001",
-  version: 1,
-  primaryFields: ["subject", "headline", "whatHappened", "paragraph"],
+  version: 2,
+  primaryFields: ["preparedHeadline", "subject", "headline"],
   excludedInputs: ["refs", "related_observation"],
-  rule: "주 사건 정본 문장만 프레임 선택에 사용하고 관련기사 제목은 중요성·관전 문장을 바꾸지 못한다."
+  rule: "교정 제목·주제·제목 순으로 주 사건을 선택한다. 배경 문단과 관련기사는 프레임을 바꾸지 못한다."
 });
 
 export const READER_COPY_FIELDS = Object.freeze([
@@ -37,7 +38,7 @@ export const READER_COPY_FIELDS = Object.freeze([
   "confidenceLabel"
 ]);
 export const READER_COPY_REQUIRED_FIELDS = Object.freeze(
-  READER_COPY_FIELDS.filter((field) => field !== "watchNext")
+  READER_COPY_FIELDS.filter((field) => !["whyImportant", "watchNext"].includes(field))
 );
 
 const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
@@ -189,9 +190,8 @@ function primaryRefs(issue) {
 }
 
 function issueEventText(issue) {
-  return clean(EDITORIAL_EVENT_FRAME_CONTRACT.primaryFields
-    .map((field) => issue && issue[field])
-    .join(" "));
+  return EDITORIAL_EVENT_FRAME_CONTRACT.primaryFields
+    .map((field) => clean(issue && issue[field])).find(Boolean) || "";
 }
 
 function editorialEventFrameMatch(issue) {
@@ -342,7 +342,6 @@ function readerSummary(issue) {
 }
 
 function readerWhyImportant(issue) {
-  const categoryIds = new Set(issue && issue.categoryIds || []);
   const original = clean(issue && issue.whyImportant);
   const contextualPolicyText = () => {
     const formal = original
@@ -366,42 +365,11 @@ function readerWhyImportant(issue) {
   }
   const eventFrame = editorialEventFrame(issue);
   if (eventFrame) return withEventContext(issue, eventFrame.whyImportant);
-  if (policyLineageSupport(issue) && original.length >= 20 && !INTERNAL_READER_JARGON.test(original)) {
+  if (policyLineageSupport(issue) && original !== clean(editorialValue(issue).text)
+    && original.length >= 20 && !INTERNAL_READER_JARGON.test(original)) {
     return withEventContext(issue, contextualPolicyText());
   }
-  const text = issueEventText(issue);
-  const communityOnly = issue && issue.metrics && issue.metrics.communityOnly === true;
-  const weighty = ["news", "politics", "business", "realestate"].some((id) => categoryIds.has(id));
-  if (communityOnly && weighty) {
-    return withEventContext(issue,
-      "확인된 사실이 아니라 온라인 반응입니다. 여론의 방향만 참고해야 합니다.");
-  }
-  if (categoryIds.has("business")) {
-    if (/(호르무즈|전쟁|공습|미사일|정유시설|관세|제재|공급망|이란|우크라)/.test(text)) {
-      return withEventContext(issue,
-        "유가와 물류비, 기업 비용, 증시 변동성에 영향을 줄 수 있습니다. 협상 결과와 후속 지표를 함께 봐야 합니다.");
-    }
-    if (/(금리|채권|환율|코스피|코스닥|증시|주가|실적|매출|배당)/.test(text)) {
-      return withEventContext(issue,
-        "증시와 자산 가격, 기업 실적에 영향을 줄 수 있습니다. 발표 수치와 원자료를 확인해야 합니다.");
-    }
-    return withEventContext(issue,
-      "기업 활동과 경기 흐름에 영향을 줄 수 있습니다. 실제 수치와 후속 발표를 함께 봐야 합니다.");
-  }
-  let categoryContext = "사회 흐름에서 달라진 점이 있는 사안입니다. 후속 사실과 영향을 확인해야 합니다.";
-  if (categoryIds.has("realestate")) categoryContext = "집값과 대출, 공급 계획에 영향을 줄 수 있습니다. 적용 대상과 시행 시점을 확인해야 합니다.";
-  else if (categoryIds.has("politics")) categoryContext = "정책 결정과 외교 관계의 변화를 보여주는 사안입니다. 당사자 발표와 후속 조치를 확인해야 합니다.";
-  else if (categoryIds.has("tech")) categoryContext = "제품과 산업 경쟁, 기술 도입 속도에 영향을 줄 수 있습니다. 실제 적용 범위와 후속 발표를 봐야 합니다.";
-  else if (categoryIds.has("science")) categoryContext = "기존 설명을 바꿀 수 있는 연구인지가 핵심입니다. 원 연구와 검증 범위를 함께 확인해야 합니다.";
-  else if (categoryIds.has("auto")) categoryContext = "차량 선택과 운행, 자동차 시장 변화에 연결되는 내용입니다. 제원과 실제 이용 반응을 함께 봐야 합니다.";
-  else if (categoryIds.has("sports")) categoryContext = "경기 결과와 선수, 리그 운영에 영향을 줄 수 있습니다. 공식 발표와 후속 일정을 확인해야 합니다.";
-  else if (categoryIds.has("life")) categoryContext = "건강과 이동, 일상 선택에 영향을 줄 수 있습니다. 적용 대상과 실제 조건을 확인해야 합니다.";
-  else if (categoryIds.has("fashion")) categoryContext = "제품과 스타일이 어디서 주목받는지 보여주는 흐름입니다. 출시 배경과 실제 반응을 함께 봐야 합니다.";
-  else if (categoryIds.has("art")) categoryContext = "작품과 전시, 디자인 흐름을 이해하는 데 필요한 소식입니다. 공개 배경과 후속 반응을 함께 봐야 합니다.";
-  else if (categoryIds.has("culture")) categoryContext = "대중문화에서 무엇이 주목받고 퍼지는지 보여주는 소식입니다. 공식 정보와 대중 반응을 나눠 봐야 합니다.";
-  else if (categoryIds.has("gaming")) categoryContext = "출시와 업데이트, 이용자 반응에 영향을 줄 수 있습니다. 실제 변경 내용과 평가를 함께 봐야 합니다.";
-  else if (categoryIds.has("humor")) categoryContext = "지금 빠르게 퍼지는 소재와 반응을 보여줍니다. 맥락과 확산 규모를 함께 볼 필요가 있습니다.";
-  return withEventContext(issue, categoryContext);
+  return "";
 }
 
 function readerWhyNow(issue) {
@@ -548,7 +516,8 @@ function readerBasis(issue) {
   const eventFrameMatch = editorialEventFrameMatch(issue);
   const eventFrame = eventFrameMatch && eventFrameMatch.frame;
   const lineageClaim = issue && issue.claimLineage && issue.claimLineage.claims && issue.claimLineage.claims.whyImportant;
-  const whyImportantBasis = verifiedEditSupport(issue, "whyImportant") ? "verified_edit"
+  const whyImportantBasis = !readerWhyImportant(issue) ? "omitted"
+    : verifiedEditSupport(issue, "whyImportant") ? "verified_edit"
     : eventFrame ? `event_frame:${eventFrame.id}`
       : policyLineageSupport(issue) ? `editorial_policy:${clean(lineageClaim.policyRule)}`
         : "category_policy";
@@ -679,10 +648,12 @@ export function assessReaderIssueCopy(issue, copy = readerIssueCopy(issue)) {
   const englishWords = (reader.headline.match(/[A-Za-z][A-Za-z'-]*/g) || []).length;
   const checks = {
     requiredFieldsPresent: READER_COPY_REQUIRED_FIELDS.every((field) => reader[field].length >= MIN_READER_LENGTH[field]),
-    readableLengths: READER_COPY_FIELDS.every((field) => reader[field].length <= MAX_READER_LENGTH[field]),
+    readableLengths: READER_COPY_FIELDS.every((field) => reader[field].length <= MAX_READER_LENGTH[field])
+      && (!reader.whyImportant || reader.whyImportant.length >= MIN_READER_LENGTH.whyImportant),
     changeEvidencePresent: clean(issue && issue.changedSincePrevious).length > 0,
     canonicalLineageValid: canonicalLineage.pass,
-    whyImportantGrounded: canonicalLineage.pass && readerBasis(issue).whyImportant.kind !== "category_policy",
+    whyImportantGrounded: canonicalLineage.pass && (!reader.whyImportant
+      || !["omitted", "category_policy"].includes(readerBasis(issue).whyImportant.kind)),
     changeEvidenceGrounded: changeEvidence.pass,
     deterministicProjectionMatch: Object.values(fieldBindings).every(Boolean),
     koreanAudienceReadable: /[가-힣]/.test(reader.headline) || englishWords <= 3,

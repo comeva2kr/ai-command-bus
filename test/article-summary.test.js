@@ -394,14 +394,15 @@ test("NH108 출처 소개문은 200자로 제한하고 정상 요약과 발췌 �
 });
 
 test("NH108 공개 소개문은 화면 장식과 빈 값을 제외하고 실제 텍스트만 전달한다", async () => {
-  for (const [metadata, expected] of [
+  for (const [metadata, expected, status = "source_unavailable"] of [
     [{ summary: "본문 기자 Your browser does not support the audio element. 구글 선호 매체 등록 광고 실제 기사 첫 문장입니다." }, "실제 기사 첫 문장입니다."],
     [{ excerpt: "<b>공개된 착공 일정입니다.</b>" }, "공개된 착공 일정입니다."],
     [{ description: "The factory will open next year." }, "The factory will open next year."],
     [{ description: "이토랜드는 유머, 연예, 정보, 이슈를 빠르게 공유하는 커뮤니티입니다…" }, undefined],
     [{ description: "모아보기는 지역 소식과 생활 정보를 공유하는 커뮤니티입니다." }, undefined],
     [{ description: "회사는 지역 교통 정보를 공유하는 커뮤니티를 공개했습니다." }, "회사는 지역 교통 정보를 공유하는 커뮤니티를 공개했습니다."],
-    [{ description: "이토랜드는 정보를 공유하는 커뮤니티입니다. 운영사는 3일 장애 복구를 완료했다고 밝혔습니다." }, "이토랜드는 정보를 공유하는 커뮤니티입니다. 운영사는 3일 장애 복구를 완료했다고 밝혔습니다."],
+    // NH146: 완결된 51자 피드 발췌는 요약 최소 길이와 무관하게 발췌 상세가 된다(소개문 크롬만 있는 행은 여전히 제외).
+    [{ description: "이토랜드는 정보를 공유하는 커뮤니티입니다. 운영사는 3일 장애 복구를 완료했다고 밝혔습니다." }, "이토랜드는 정보를 공유하는 커뮤니티입니다. 운영사는 3일 장애 복구를 완료했다고 밝혔습니다.", "excerpt_only"],
     [{ summary: "로그인 회원가입 이용약관 개인정보처리방침 고객센터" }, undefined],
     [{ summary: "오늘의 HIT 30 종합 유머 연예 생활 시사 이슈" }, undefined],
     [{ summary: "<p>&nbsp;</p>" }, undefined],
@@ -417,9 +418,14 @@ test("NH108 공개 소개문은 화면 장식과 빈 값을 제외하고 실제 
     })({ ...edition(), issues: [input] });
     const summary = result.issues[0].articleSummary;
     assert.equal(summary.sourceLinks[0].summary, expected);
-    assert.equal(summary.unavailableReasonCode, "TIMEOUT");
-    assert.equal(summary.status, "source_unavailable");
-    assert.equal(summary.textKo, null);
+    assert.equal(summary.status, status, JSON.stringify(metadata));
+    if (status === "source_unavailable") {
+      assert.equal(summary.unavailableReasonCode, "TIMEOUT");
+      assert.equal(summary.textKo, null);
+    } else {
+      assert.equal(summary.textKo, expected);
+      assert.equal(summary.unavailableReasonCode, null);
+    }
   }
 });
 
@@ -2634,4 +2640,143 @@ test("운영 요약은 1차 검증을 통과한 자연스러운 번역을 문자
 
   assert.equal(calls, 2);
   assert.equal(result.issues[0].articleSummary.status, "ready");
+});
+
+// ---- NH146: 원문 발췌 200자·짧은 완결 발췌·발췌 정리 (NH144 검수 P2, NH145 §3 번역·발췌) ----
+// 근거: docs/legal.md 원문 발췌 ≤200자, 검증된 자체 요약은 별도(600~900). NH144 검수는 상세 발췌 10건이
+// 410~898자였고 뉴스레터 안내·매체 메뉴·HTML 엔티티가 섞였다. 2026-09-08 모닝판(free_only) 162건 발췌 중
+// 154건이 200자를 넘었다.
+
+import * as articleSummaryModule from "../src/feed/article-summary.js";
+
+test("NH146 원문 발췌는 200자 문장 경계로 자르고 검증 요약은 600~900자를 유지한다", async () => {
+  const sentences = [
+    "정부가 추석 연휴 기간 고속도로 통행료를 면제하고 지방 공공기관 주차장을 개방한다고 밝혔다.",
+    "국토교통부는 귀성길 혼잡을 줄이기 위해 연휴 첫날부터 마지막 날까지 전국 고속도로 통행료를 받지 않는다고 설명했다.",
+    "철도와 고속버스 운행도 평소보다 늘려 하루 수송 능력을 확대한다.",
+    "정부는 연휴 기간 응급실과 당직 의료기관 운영 현황을 응급의료포털에서 안내한다."
+  ];
+  const articleText = sentences.join(" ").repeat(6);
+  const excerptRun = await makeArticleSummaryPipeline({
+    completeBeforePublish: true,
+    fetchArticle: async (url) => ({ state: "available", text: articleText, image: null, finalUrl: url }),
+    clock: () => Date.parse("2026-09-08T03:00:00.000Z")
+  })(edition());
+  const excerpt = excerptRun.issues[0].articleSummary;
+  assert.equal(excerpt.status, "excerpt_only");
+  assert.ok(excerpt.textKo.length <= 200, `원문 발췌가 200자를 넘었다: ${excerpt.textKo.length}자`);
+  assert.ok(excerpt.textKo.startsWith(sentences[0]), excerpt.textKo.slice(0, 60));
+  assert.match(excerpt.textKo, /다\.$/, "발췌가 문장 중간에서 잘렸다");
+  assert.equal(isPreparedArticleSummary(excerpt, excerptRun.issues[0]), true);
+
+  const model = modelResponses();
+  const readyRun = await makeArticleSummaryPipeline({
+    enabled: true,
+    apiKey: "test",
+    fetchArticle: async (url) => ({ state: "available", text: "공개 기사 본문 ".repeat(200), image: null, finalUrl: url }),
+    invoke: model.invoke
+  })(edition());
+  const ready = readyRun.issues[0].articleSummary;
+  assert.equal(ready.status, "ready");
+  assert.ok(ready.textKo.length >= 600 && ready.textKo.length <= 900, `검증 요약 길이가 바뀌었다: ${ready.textKo.length}자`);
+});
+
+test("NH146 짧고 완결된 발췌는 160자 미만이어도 버리지 않고 미완결 조각만 접근불가로 남긴다", async () => {
+  const complete = "정부가 추석 연휴 기간 고속도로 통행료를 면제하고 지방 공공기관 주차장을 개방한다고 밝혔다. 귀성길 혼잡 완화를 위한 조치다.";
+  assert.ok(complete.length < 160);
+  let translations = 0;
+  const run = (text) => makeArticleSummaryPipeline({
+    completeBeforePublish: true,
+    fetchArticle: async (url) => ({ state: "available", text, image: "https://img.example.com/short.jpg", finalUrl: url }),
+    translateText: async (value) => { translations += 1; return value; },
+    clock: () => Date.parse("2026-09-08T03:00:00.000Z")
+  })(edition());
+
+  const accepted = await run(complete);
+  const summary = accepted.issues[0].articleSummary;
+  assert.equal(summary.status, "excerpt_only");
+  assert.equal(summary.textKo, complete);
+  assert.equal(summary.excerptBasis, "public_anchor_body");
+  assert.equal(translations, 0, "이미 한국어인 발췌를 번역기에 보냈다");
+  assert.equal(isPreparedArticleSummary(summary, accepted.issues[0]), true);
+  assert.equal(isCurrentArticleSummary(summary, accepted.issues[0], Date.parse("2026-09-08T03:01:00.000Z")), true);
+
+  for (const fragment of [
+    "정부가 추석 연휴 기간 고속도로 통행료를 면제하고 지방 공공기관 주차장을 개방한다고 밝힌 가운데 귀성길",
+    "상품명과 가격만 공개됐습니다."
+  ]) {
+    const rejected = (await run(fragment)).issues[0].articleSummary;
+    assert.equal(rejected.status, "source_unavailable", fragment);
+    assert.equal(rejected.unavailableReasonCode, "NO_SUBSTANTIAL_PUBLIC_BODY");
+    assert.equal(rejected.image, "https://img.example.com/short.jpg");
+  }
+});
+
+test("NH146 피드 발췌는 태그·엔티티를 걷고 사이트 소개 크롬은 발췌로 쓰지 않는다", async () => {
+  const run = async (summary) => {
+    const input = issue();
+    input.eventSources = [{
+      evidenceId: "feed-a", sourceLabel: "기준 매체", sourceGroup: "publisher-a",
+      canonicalUrl: "https://publisher.example/feed-a", summary, canLead: true
+    }];
+    const result = await makeArticleSummaryPipeline({
+      completeBeforePublish: true,
+      fetchArticle: async () => ({ state: "unavailable", reasonCode: "ACCESS_DENIED", image: null }),
+      clock: () => Date.parse("2026-09-08T03:00:00.000Z")
+    })({ editionId: "edition-feed-excerpt", publishable: true, issues: [input], llmCalls: 0 });
+    return result.issues[0].articleSummary;
+  };
+  // 로컬 판본 피드 발췌의 실제 형태: 태그와 화살표 엔티티(&rarr;)가 그대로 들어온다.
+  const decoded = await run("<p>원&middot;달러 환율이 1561원&rarr;1350원으로 하락했다고 밝혔다. 반도체·바이오 업종에는 이익 감소 주의보가 나왔다.</p>");
+  assert.equal(decoded.status, "excerpt_only");
+  assert.equal(decoded.excerptBasis, "publisher_feed_excerpt");
+  assert.equal(decoded.textKo, "원·달러 환율이 1561원→1350원으로 하락했다고 밝혔다. 반도체·바이오 업종에는 이익 감소 주의보가 나왔다.");
+  // 사이트 소개문만 있는 발췌는 짧은 길이 문턱을 통과해도 그 글의 발췌가 아니다(sourceLinks와 같은 판정).
+  const chrome = await run("이토랜드는 유머, 연예, 정보, 이슈를 빠르게 공유하는 커뮤니티입니다. 지금 바로 참여하세요.");
+  assert.equal(chrome.status, "source_unavailable");
+  assert.equal(chrome.unavailableReasonCode, "ACCESS_DENIED");
+  assert.equal(chrome.textKo, null);
+});
+
+test("NH146 준비 완료 판정은 발췌 최소 길이와 요약 최소 길이를 구분한다", () => {
+  const short = "정부가 추석 연휴 기간 고속도로 통행료를 면제하고 지방 공공기관 주차장을 개방한다고 밝혔다. 귀성길 혼잡 완화를 위한 조치다.";
+  const base = {
+    contractId: ARTICLE_SUMMARY_CONTRACT.stableId,
+    contractVersion: ARTICLE_SUMMARY_CONTRACT.version,
+    promptVersion: ARTICLE_SUMMARY_CONTRACT.promptVersion,
+    articleContentId: articleContentId(issue()),
+    generatedAt: "2026-09-08T03:00:00.000Z"
+  };
+  assert.equal(isPreparedArticleSummary({ ...base, status: "excerpt_only", textKo: short }, issue()), true);
+  assert.equal(isPreparedArticleSummary({ ...base, status: "ready", textKo: short }, issue()), false, "검증 요약의 최소 길이는 그대로여야 한다");
+  assert.equal(isPreparedArticleSummary({ ...base, status: "excerpt_only", textKo: "통행료 면제 안내" }, issue()), false);
+  assert.equal(isPreparedArticleSummary({ ...base, status: "excerpt_only", textKo: `${short.slice(0, -1)} 가운데` }, issue()), false);
+});
+
+test("NH146 뉴스레터 가입 머리는 번역 전에 걷고 발췌 경계 함수는 밖에서도 같은 200자 규칙을 쓴다", async () => {
+  // NH144 검수 Cybercab 상세(테크크런치 Mobility 뉴스레터 안내)와 같은 구조의 영문 원문.
+  const lead = "Welcome back to TechCrunch Mobility — your central hub for news and insights on the future of transportation. To get it in your inbox every Friday, sign up here for free — just click TechCrunch Mobility!";
+  const body = "Tesla's Cybercab event was either proof that the company is the robotaxi leader, or an overhyped affair with little substance. Wall Street was not impressed with the Austin event.";
+  const translated = "테슬라 사이버캡 행사는 회사가 로보택시 선두라는 증거이거나 내용이 거의 없는 과장된 행사였다. 월스트리트는 오스틴 행사에 깊은 인상을 받지 못했다.";
+  const requested = [];
+  const result = await makeArticleSummaryPipeline({
+    completeBeforePublish: true,
+    fetchArticle: async (url) => ({ state: "available", text: `${lead} ${body}`, image: null, finalUrl: url }),
+    translateText: async (text) => { requested.push(text); return translated; },
+    clock: () => Date.parse("2026-09-08T03:00:00.000Z")
+  })(edition());
+  const summary = result.issues[0].articleSummary;
+  assert.equal(requested.length, 1);
+  assert.equal(requested[0], body, "번역기에 보낸 원문에 뉴스레터 안내가 남았거나 본문이 잘렸다");
+  assert.equal(summary.status, "excerpt_only");
+  assert.equal(summary.textKo, translated);
+
+  const { publicExcerpt } = articleSummaryModule;
+  assert.equal(typeof publicExcerpt, "function", "publicExcerpt를 내보내지 않았다");
+  const sentence = "정부가 추석 연휴 기간 고속도로 통행료를 면제하고 지방 공공기관 주차장을 개방한다고 밝혔다.";
+  const clipped = publicExcerpt(`${sentence} `.repeat(5));
+  assert.ok(clipped.length <= 200 && clipped.endsWith("밝혔다."), clipped);
+  assert.equal(publicExcerpt(sentence), sentence);
+  const unbroken = publicExcerpt("가나다라마바사아자차카타파하 ".repeat(30));
+  assert.ok(unbroken.length <= 200 && unbroken.endsWith("…"), unbroken);
 });

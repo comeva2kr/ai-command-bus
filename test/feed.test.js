@@ -881,6 +881,37 @@ test("NH127 live alerts require fresh major reporting or measured reaction growt
   user.opened=["news-major"];assert.deepEqual(await ids(),[]);
 });
 
+test("NH146 repaired game and political classifications honor individual push exclusions", async () => {
+  const store=new FeedStore({clock:fixedClock}), user=store.createUser("nh146-alerts");
+  store.saveSurvey(user.id,{categories:["tech","humor"],avoid:["gaming"]});
+  const engine=new FeedEngine(store,[]);engine._clock=fixedClock;
+  const base={category:"tech",kind:"news",source:"gnews-tech",tags:[],topics:[],publishedAt:"2026-07-05T23:00:00Z",score:100,commentCount:0,coverage:5};
+  const rows=[
+    {...base,id:"wanted",title:"새 반도체 제조 기술 발표"},
+    {...base,id:"casual",source:"clien",category:"humor",kind:"community",title:"캐쥬얼 게임중 최고 어렵네요.",heatHist:[20,70,200]},
+    {...base,id:"politics",title:"새 대표 선출",url:"https://www.hani.co.kr/arti/politics/politics_general/1276566.html"}
+  ];
+  engine._classifyItems(rows);engine._cache=rows;
+  const ids=async()=> (await engine.digest(user.id,{alertsOnly:true,minScore:0,limit:10})).top.map(row=>row.id);
+  assert.deepEqual(await ids(),["wanted"]);
+  store.saveSurvey(user.id,{categories:["gaming"]});
+  assert.deepEqual(await ids(),["casual"]);
+});
+
+test("NH146 deduplicated related news retains original title and canonical section evidence", async () => {
+  const title="새 대표 선출과 지도부 운영 방향 공개";
+  const lead=normalizeItem({id:"lead",title,url:"https://lead.test/story",source:"lead-news",kind:"news"});
+  const folded={...normalizeItem({id:"folded",title,url:"https://news.google.com/rss/articles/related",source:"folded-news",kind:"news"}),
+    originalTitle:"새 지도부 선출",canonicalUrl:"https://www.hani.co.kr/arti/politics/politics_general/1276566.html"};
+  const result=await collect([{id:"lead-news",fetch:async()=>[lead]},{id:"folded-news",fetch:async()=>[folded]}]);
+  assert.equal(result.items.length,1);
+  assert.equal(result.items[0].related[0].canonicalUrl,folded.canonicalUrl);
+  assert.equal(result.items[0].related[0].originalTitle,folded.originalTitle);
+  const engine=new FeedEngine(new FeedStore(),[]);
+  assert.deepEqual(engine._relatedItems(result.items[0],[],{showTopics:new Set()}),[]);
+  assert.equal(engine._relatedItems(result.items[0],[],{showTopics:new Set(["politics"])}).length,1);
+});
+
 test("push subscription persists and flips notify flag", async () => {
   const store = new FeedStore({ clock: fixedClock });
   const user = store.createUser("pn1");

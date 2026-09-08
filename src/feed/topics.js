@@ -71,7 +71,7 @@ export const POLITICS_KEYWORDS = [
   "이재명", "윤석열", "한동훈", "정청래", "조국", "오세훈", "이낙연",
   "안철수", "홍준표", "유승민", "이준석", "나경원", "장동혁",
   // 정당 (약칭 포함)
-  "국민의힘", "국힘", "민주당", "개혁신당", "조국혁신당", "정의당", "진보당",
+  "국민의힘", "국힘", "민주당", "개혁신당", "조국혁신당", "정의당", "진보당", "기본소득당",
   // 2026-08-02 적대적 검수 A1: "여당"·"야당"·"정당" 단독은 무경계 매칭에서
   // "급여당일지급"·"심야당직"·"부정당" 같은 일상어를 정치로 은폐시켰다.
   // 정치 토글은 기본 숨김이라 오탐이 곧 조용한 검열이 된다 — 복합어로 한정.
@@ -135,15 +135,24 @@ function boardTopicsFor(sourceId, url) {
 
 // Classify a title/url/source into a deduplicated topics[] array. Called from
 // content.js's normalizeItem so every item — rss/list/api/seed/me — is tagged
-// the same way, exactly once, at the point it enters the system.
-export function classifyTopics({ title, url, sourceId, category } = {}) {
-  const topics = new Set();
+// the same way at intake; filtering and warm restore recheck newly available evidence.
+export function classifyTopics({ title, originalTitle, url, canonicalUrl, source, sourceId = source, category, topics: existing = [] } = {}) {
+  const topics = new Set(existing);
 
-  for (const t of boardTopicsFor(sourceId, url)) topics.add(t);
+  for (const address of new Set([url, canonicalUrl])) {
+    for (const t of boardTopicsFor(sourceId, address)) topics.add(t);
+    try {
+      const parsed = new URL(address);
+      if (/^https?:$/.test(parsed.protocol) && ["hani.co.kr", "www.hani.co.kr", "m.hani.co.kr"].includes(parsed.hostname)
+        && parsed.pathname.startsWith("/arti/politics/")) topics.add("politics");
+    } catch { /* Missing or malformed URLs carry no section evidence. */ }
+  }
   if (category === "politics") topics.add("politics");
-  if (titleHasAny(title, POLITICS_KEYWORDS)
-    || (title && POLITICS_KEYWORD_PATTERNS.some((p) => p.test(title)))) topics.add("politics");
-  if (titleHasAny(title, RELIGION_KEYWORDS)) topics.add("religion");
+  for (const text of [title, originalTitle]) {
+    if (titleHasAny(text, POLITICS_KEYWORDS)
+      || (text && POLITICS_KEYWORD_PATTERNS.some((p) => p.test(text)))) topics.add("politics");
+    if (titleHasAny(text, RELIGION_KEYWORDS)) topics.add("religion");
+  }
 
   return [...topics];
 }

@@ -170,6 +170,26 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   return { page, requests, controls, context, base, trackEvents };
 }
 
+test('NH146 browser: Today keeps facts, omits unsupported explanations, labels excerpts and preserves legacy copy',options,async t=>{
+ const first={...edition.issues[0],whyImportant:'과거의 일반 설명',reader:{headline:'차례상 비용 변화',summary:'채소와 축산물 가격 상승으로 차례상 비용이 올랐습니다.',whyImportant:''},
+  articleSummary:{...edition.issues[0].articleSummary,status:'excerpt_only',textKo:'확인된 공개 원문에서 차례상 비용 변화를 전했습니다.'}};
+ const legacy={...edition.issues[1],whyImportant:'기존 판본에 보존된 설명입니다.',reader:{headline:'기존 판본 기사',summary:'기존 판본의 핵심 소식이 그대로 남아 있습니다.'}};
+ const {page}=await fixture(t,'/',false,'seen',false,false,{controls:{todayEdition:{...edition,issues:[first,legacy]}}});
+ await page.setViewportSize({width:393,height:852});
+ await page.waitForSelector('#issues .issue');
+ const card=page.locator('#issues article.issue').first();
+ assert.match(await card.innerText(),/채소와 축산물 가격 상승/);
+ assert.doesNotMatch(await card.innerText(),/왜 중요한가|과거의 일반 설명/);
+ assert.match(await page.locator('#issues article.issue').nth(1).innerText(),/기존 판본에 보존된 설명/);
+ assert.doesNotMatch(await page.locator('#metrics').innerText(),/LLM|편집 후보|반복 보류/);
+ await card.locator('[data-open-issue]').click();
+ assert.equal(await page.getByRole('heading',{name:'원문 발췌',exact:true}).count(),1);
+ assert.equal(await page.getByRole('heading',{name:'브리핑 포인트',exact:true}).count(),0);
+ assert.doesNotMatch(await page.locator('#detailContent').innerText(),/과거의 일반 설명/);
+ const width=await page.evaluate(()=>({view:innerWidth,page:document.documentElement.scrollWidth}));
+ assert.ok(width.page<=width.view+1);
+});
+
 test('NH143 browser: Today history restoration adds no card click or phantom list view',options,async t=>{
  const {page,trackEvents}=await fixture(t,'/');
  await page.waitForSelector('#issues .issue');
@@ -1160,6 +1180,9 @@ test("browser: NH136 first visit explains controls and continues to the setup co
     await page.locator('[data-survey-question="categories"] .opt').filter({hasText:'경제/비즈니스'}).click();
     await page.locator('#startBtn').click();
     assert.match(await page.locator('#surveyProgress').innerText(),/2 \/ 3/);
+    assert.deepEqual(await page.locator('[data-survey-question="communities"] .source-group').allTextContents(),['커뮤니티','뉴스']);
+    assert.match(await page.locator('[data-survey-question="communities"] .prompt').innerText(),/즐겨 보는 소스/);
+    assert.equal(await page.locator('[data-survey-question="tags"] .opt').filter({hasText:'육아'}).count(),1);
     await page.locator('[data-survey-question="communities"] .opt').first().click();
     await page.locator('#startBtn').click();
     await page.locator('#startBtn').click();

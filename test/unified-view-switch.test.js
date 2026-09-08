@@ -83,7 +83,8 @@ test("오늘판 상세: 카드 클릭으로 사진·한국어 요약·원문 링
   assert.match(today, /openIssueDetail\(Number\(button\.dataset\.openIssue\),button\)/);
   assert.doesNotMatch(today, /\/api\/item\?userId=/,
     "카드를 누른 뒤 기사 정보를 다시 가져오지 않는다");
-  assert.match(today, /<h3>기사 요약<\/h3>/);
+  assert.match(today, /articleSummary\.status==="ready"\?"기사 요약"/);
+  assert.match(today, /"원문 발췌"/);
   assert.match(today, /class="detail-image"/);
   assert.match(today, /row\.relay\?"중계 링크 열기":"원문 보기"/);
   assert.match(today, /event\.key==="Escape"/,

@@ -20,7 +20,13 @@ const NAMED = {
   hellip: "…", mdash: "—", ndash: "–", middot: "·",
   laquo: "«", raquo: "»", bull: "•", deg: "°",
   trade: "™", copy: "©", reg: "®", euro: "€",
-  times: "×", divide: "÷", plusmn: "±"
+  times: "×", divide: "÷", plusmn: "±",
+  // NH146 실측 추가. 화살표는 국내 기사의 등락 표기 — "35%&darr;"(NH144 검수 김어준 상세, 2026-09-08
+  // 모닝판 디멘시아뉴스 발췌), "&rarr;"·"&uarr;"(로컬 피드 발췌 수백 건). 라틴 문자와 파운드는 자동차·해외
+  // 기사 피드 발췌("Jos&eacute; Mu&ntilde;oz", "&pound;")에서 만났다. 대소문자로 구분되는 이름(&Prime;/&prime;)은
+  // 아래 소문자 조회와 충돌하므로 넣지 않는다.
+  uarr: "↑", darr: "↓", rarr: "→",
+  eacute: "é", ntilde: "ñ", ouml: "ö", uuml: "ü", pound: "£"
 };
 
 // &amp;를 **마지막에** 푸는 것이 중요하다. 먼저 풀면 "&amp;lt;"가 "<"가 되어

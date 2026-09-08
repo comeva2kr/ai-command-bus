@@ -241,8 +241,31 @@ function normalizeArticleText(value) {
   return text.length > ARTICLE_TEXT_MAX ? text.slice(0, ARTICLE_TEXT_MAX).trimEnd() : text;
 }
 
+// NH146 — NH144 검수 P2(상세 발췌의 뉴스레터 안내·매체 메뉴·엔티티)와 2026-09-08 모닝판 저장 발췌 162건에서
+// 확인한 잡문만 다룬다. 머리 규칙은 앞머리 창(400~1200자) 안에서만 찾고, 꼬리 규칙은 글 끝에서만 건다.
+// 청유형·URL을 포함한 문장을 문법만으로 지우는 규칙은 두지 않는다(NH145 §8: 안전 안내·구독이 주제인 기사 반례).
+//
+// 뉴스레터 가입 안내는 "여기에서 무료로 가입하세요"/"sign up here" 같은 화면 지시어가 있는 문장까지 걷되, 같은
+// 머리에 뉴스레터·받은편지함 언급이 함께 있을 때만이다(테크크런치 Mobility, Cybercab 상세 원문). 이어지는
+// "TechCrunch Mobility를 클릭하세요!" 같은 짧은 클릭 안내 한 문장도 함께 걷는다.
+const NEWSLETTER_SIGNUP_LEAD = /^[\s\S]{0,300}?(?:sign up here|subscribe here|click here to (?:sign up|subscribe)|여기에서\s*(?:무료로\s*)?(?:가입|구독|신청|등록)하(?:세요|십시오)|여기를\s*클릭)[^.!?]{0,120}[.!?]+(?:\s+[^.!?]{0,50}?(?:click|클릭)[^.!?]{0,20}[.!?]+)?\s*/i;
+// 저작권 표시: "※ 저작권자 © 파이낸셜뉴스", "© dongA.com All rights reserved.", "Copyright © JTBC.", "저작권자© 메디게이트뉴스",
+// "ⓒ마이데일리". 뒤에 무단전재·재배포 문구가 따르거나 남은 글이 짧을 때만 그 지점부터 자른다 — 본문 중간의
+// "사진 ⓒ 연합뉴스" 크레딧은 뒤에 긴 본문이 이어져 남는다.
+const COPYRIGHT_MARKER = /(?:^|\s)(?:※\s*)?(?:Copyright\s*|저작권자\s*)?[©ⓒ]\s*(?=[A-Za-z가-힣(])/gi;
+const COPYRIGHT_WORDING = /all rights reserved|무단\s*전재|무단전재|재배포\s*금지|복제\s*(?:및|,)?\s*(?:배포|재배포)/i;
+const EMAIL_TOKEN = String.raw`(?:[\w.+-]+@[\w-]+(?:\.[\w-]+)+|\[email protected\])`;
+// 기사 끝 기자 바이라인+이메일(순서 무관, Cloudflare가 가린 "[email protected]" 포함). 문장 속 이메일은 "기자"가 앞뒤에
+// 없어 남는다(기존 press@example.com 반례).
+const TRAILING_BYLINE_EMAIL = new RegExp(String.raw`\s+(?:[가-힣]{2,8}\s+(?:[가-힣]{2,8}\s+)?기자\s+${EMAIL_TOKEN}|${EMAIL_TOKEN}\s+[가-힣]{2,8}\s+기자)\s*$`);
+// 기사 끝 해시태그 묶음(2개 이상, 태그는 두 단어까지: "#장애인 시설 #무상 기부"). 문장 속 해시태그 하나는 남는다.
+const TRAILING_HASHTAGS = /(?:\s+#\s?[^\s#]{1,30}(?:\s+(?![#※©ⓒ])[가-힣A-Za-z0-9·]{1,12}){0,2}){2,}\s*$/;
+
 export function cleanArticleTextChrome(value) {
   let text = normalizeArticleText(value);
+  // 커뮤니티 글은 링크를 붙여 넣고 바로 본문을 잇는다("http://m.entertain.naver.com/…634어차피 국민은" — NH144
+  // 인스티즈 상세, 로컬 피드 발췌). 앞머리의 URL 토큰만 걷고 본문 속 URL은 그대로 둔다.
+  text = text.replace(/^(?:https?:\/\/[^\s가-힣]+[\s,]*)+/, "");
   const infomaxPhotoLead = text.startsWith("[출처: 연합뉴스 자료 사진]");
   const hasHighsnobietyAppPrompt = /(?:계속(?:해서)?\s*)?(?:최신\s*)?소식을 받고 싶(?:지 않습니까|으십니까|으신가요)\?\s*지금 Highsnobiety 앱을 다운로드하세요\./i.test(text);
   text = text
@@ -290,7 +313,7 @@ export function cleanArticleTextChrome(value) {
   text = text.replace(/이 글자크기로 변경됩니다\.\s*\(예시\) 가장 빠른 뉴스가 있고 다양한 정보, 쌍방향 소통이 숨쉬는 다음뉴스를 만나보세요\.\s*다음뉴스는 국내외 주요이슈와 실시간 속보, 문화생활 및 다양한 분야의 뉴스를 입체적으로 전달하고 있습니다\./g, " ");
 
   const galleryMeta = text.slice(0, 1400).match(
-    /(?:패션|Fashion)(?:\s*제공)?\s*\d+\s*시간\s*전\s*[\d,.]+\s*조회수\s*[\d,.]+\s*댓글(?:\s*댓글)*\s*저장(?:\s*요약)?\s*/u
+    /(?:패션|Fashion)(?:\s*제공)?\s*\d+\s*(?:분|시간|일)\s*전\s*[\d,.]+\s*조회수\s*[\d,.]+\s*댓글(?:\s*댓글)*\s*저장(?:\s*요약)?\s*/u
   );
   if (galleryMeta) text = text.slice(galleryMeta.index + galleryMeta[0].length).trim();
 
@@ -345,6 +368,41 @@ export function cleanArticleTextChrome(value) {
   const playerPlaceholder = text.slice(0, 700).match(/(?:^|\s)(?:Loading the player|플레이어 로드 중)(?:…|\.{3})\s*/);
   if (playerPlaceholder) text = text.slice(playerPlaceholder.index + playerPlaceholder[0].length).trim();
 
+  // NH146 머리 잡문 (근거는 파일 상단 상수 주석).
+  const newsletterLead = text.slice(0, 500).match(NEWSLETTER_SIGNUP_LEAD);
+  if (newsletterLead && /newsletter|inbox|뉴스레터|받은편지함/i.test(newsletterLead[0])) {
+    text = text.slice(newsletterLead[0].length).trim();
+  }
+  // BBC 코리아 머리 "2일 전 공유 저장 Google에 기본으로 추가"(NH144 UN 지도 상세). "저장된" 같은 본문 활용형은 걸리지 않는다.
+  const bbcShareBar = text.slice(0, 400).match(/(?:^|\s)(?:\d+\s*(?:분|시간|일|주|개월)\s*전|방금\s*전)\s+공유\s+저장(?:\s+Google에\s+기본으로\s+추가)?(?=\s|$)\s*/);
+  if (bbcShareBar) text = text.slice(bbcShareBar.index + bbcShareBar[0].length).trim();
+  // 마이데일리 상단 메뉴 "최신기사 엔터 스포츠 … 랭킹빌더"(NH144 백진희 상세, 2026-09-08 모닝판 2건). 뒤의 "[마이데일리 = 기자]" 발신지는 남긴다.
+  const mydailyNav = text.slice(0, 400).match(/최신기사\s+엔터\s+스포츠\s+(?:\S{1,14}\s+){0,12}?랭킹빌더\s*/);
+  if (mydailyNav) text = text.slice(mydailyNav.index + mydailyNav[0].length).trim();
+  // 구글 선호 매체 위젯의 두 변형 — 지큐 코리아(머리에 두 번 반복, "×"까지)와 한국경제("… AI 기사요약"까지). 기존 4개 변형과 같은 계열이다.
+  let gqWidgetEnd = -1;
+  for (const widget of text.slice(0, 700).matchAll(/구글 선호 매체로 추가\s*\?\s*구글 검색과 AI\s*답변에서\s[^.]{0,40}?우선적으로 보여줍니다\.?\s*(?:×\s*)?/g)) {
+    gqWidgetEnd = widget.index + widget[0].length;
+  }
+  if (gqWidgetEnd > 0) text = text.slice(gqWidgetEnd).trim();
+  const hankyungPreferred = text.slice(0, 700).match(/구글 검색 선호 출처로 추가\s+Google 검색에서\s[^.]{0,40}?더 자주 볼 수 있습니다\.\s*(?:AI 기사요약\s*)?/);
+  if (hankyungPreferred) text = text.slice(hankyungPreferred.index + hankyungPreferred[0].length).trim();
+  // 연합뉴스TV 영상 페이지의 플레이어 안내(기존 "audio element"·"Loading the player" 계열).
+  text = text.replace(/^(?:브라우저가 (?:video|audio|비디오|오디오) 태그를 지원하지 않습니다\.\s*|죄송하지만 다른 브라우저를 사용하여 주십시오\.\s*)+(?:닫기\s+)?/, "");
+  // 메디게이트 공유 막대 "기사입력시간 … 제보 공유 URL 복사하기 … 네이버 밴드".
+  const medigateShareBar = text.slice(0, 400).match(/기사입력시간\s[\s\S]{0,160}?네이버 밴드\s*/);
+  if (medigateShareBar) text = text.slice(medigateShareBar.index + medigateShareBar[0].length).trim();
+  // 다음(v.daum.net) 번역·글자크기 위젯 "번역 설정 번역 beta Translated by kaka i … 닫기 인쇄하기"(모닝판 3건, 경계 실측).
+  const daumTranslate = text.slice(0, 1200).match(/번역 설정\s+번역 beta\s+Translated by kaka\s?i[\s\S]{0,900}?닫기\s+인쇄하기\s*/);
+  if (daumTranslate) text = text.slice(daumTranslate.index + daumTranslate[0].length).trim();
+  // 디자인붐 번역문 머리의 구독 유도 "일일 및 주간 스토리를 매일 확인하세요. 주간 샘플 보기"(모닝판 2건).
+  text = text.replace(/^일일 및 주간 스토리를 매일 확인하세요\.\s*주간 샘플 보기\s*/, "");
+  // 아크데일리 공유 막대와 사양표 "+ 23 큐레이터: … 공유 Facebook Twitter 메일 Pinterest Whatsapp 또는 <url> 복사 … 더 많은 사양
+  // 더 적은 사양 건축가가 제공한 텍스트 설명."(모닝판 3건). 사양표 끝이 창 안에 없으면 공유 막대만 걷는다.
+  const archdailyHead = text.slice(0, 900).match(/\+\s*\d+\s+큐레이터:?\s[\s\S]{0,600}?더 많은 사양\s+더 적은 사양\s*(?:건축가가 제공한 텍스트 설명(?:입니다)?\.\s*)?/)
+    || text.slice(0, 400).match(/\+\s*\d+\s+큐레이터:?\s[^]{0,60}?공유\s+Facebook\s+Twitter\s+메일\s+Pinterest\s+Whatsapp\s+또는\s+https?:\/\/\S+\s+복사\s*/);
+  if (archdailyHead) text = text.slice(archdailyHead.index + archdailyHead[0].length).trim();
+
   // 게시자 자신의 제휴 고지문("이 포스팅은 ○○ 활동의 일환으로, 이에 따른 일정액의 수수료를
   // 제공받습니다")은 그 글의 내용이 아니고, 우리 화면에 실리면 지금핫의 고지처럼 읽힌다
   // (NH123 실시간 1위 이토랜드 핫딜). 고지 문장만 지우고 상품·가격·쿠폰 내용은 그대로 둔다.
@@ -358,6 +416,22 @@ export function cleanArticleTextChrome(value) {
   // 문장 안의 이메일("문의는 press@example.com")은 기사 내용일 수 있어 건드리지 않는다.
   text = text.replace(/\s+[\w.+-]+@yna\.co\.kr\s*$/, "");
   text = text.replace(/\s+[가-힣]{2,8}\s+기자\s+[\w.+-]+@hani\.co\.kr\s*$/, "");
+  // NH146 꼬리 잡문: 저작권 표시 → 구독 버튼 줄 → 해시태그 묶음 → 기자 바이라인+이메일 순으로 걷는다.
+  for (const marker of text.matchAll(COPYRIGHT_MARKER)) {
+    const rest = text.slice(marker.index);
+    if (rest.length <= 120 || COPYRIGHT_WORDING.test(rest.slice(0, 100))) {
+      text = text.slice(0, marker.index).trim();
+      break;
+    }
+  }
+  // 동아일보 기사 끝의 구독 버튼 줄("알립니다 > 구독 구독 … 구독 구독 사설 구독 구독"). 맨 구독 토큰 두 개가 잇달아 오는
+  // 지점부터 끝까지가 UI다. 본문의 "구독 경제", "구독 서비스"는 잇달아 오지 않아 남는다.
+  text = text.replace(/\s(?:알립니다\s*>\s*)?구독\s+구독(?=\s|$)[\s\S]*$/, "");
+  // 해시태그 묶음과 기자 바이라인은 서로 앞뒤로 올 수 있어("#크래프톤 … 김성모 기자 mo@donga.com", "[email protected] 박지영 기자 #통합") 두 번 건다.
+  for (let pass = 0; pass < 2; pass += 1) {
+    text = text.replace(TRAILING_HASHTAGS, "");
+    text = text.replace(TRAILING_BYLINE_EMAIL, "");
+  }
   return normalizeArticleText(text);
 }
 

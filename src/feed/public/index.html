@@ -492,6 +492,7 @@
   .q { margin-bottom: 26px; }
   .q > .prompt { font-weight: 700; font-size: 15px; margin-bottom: 12px; }
   .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opts > .source-group { flex-basis: 100%; margin-top: 8px; font-weight: 700; }
   .opt { padding: 9px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card);
     color: var(--text); font-size: 14px; }
   .opt.sel { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -2588,7 +2589,7 @@ function tasteHtml(t){
   return `<div class="taste-grid">
     ${row("좋아하는 카테고리", t.categories)}
     ${row("관심 태그", t.tags)}
-    ${row("즐겨보는 커뮤니티", t.sources)}
+    ${row("즐겨보는 소스", t.sources)}
     ${t.disliked&&t.disliked.length?row("덜 보고 싶어함", t.disliked, true):""}
   </div>`;
 }
@@ -2703,7 +2704,12 @@ function showSurvey(){
     qEl.dataset.surveyQuestion=q.id;
     const prompt=document.createElement("div");prompt.className="prompt";prompt.textContent=q.prompt;qEl.append(prompt);
     const opts = document.createElement("div"); opts.className="opts";
+    let previousGroup=null;
     for(const o of q.options){
+      if(o.group&&o.group!==previousGroup){
+        const heading=document.createElement("div");heading.className="source-group";heading.textContent=o.group;
+        opts.appendChild(heading);previousGroup=o.group;
+      }
       const b = document.createElement("button"); b.className="opt"; b.textContent=o.label;
       // 지금 골라져 있는 것은 색으로 드러난다 — 누른 것과 안 누른 것이 구분돼야
       // 거기서 이어서 고칠 수 있다.
@@ -2718,9 +2724,9 @@ function showSurvey(){
           else { answers[q.id].push(o.id); b.classList.add("sel"); }
         } else {
           answers[q.id]=o.id;
-          [...opts.children].forEach(c=>c.classList.remove("sel")); b.classList.add("sel");
+          opts.querySelectorAll("button").forEach(c=>c.classList.remove("sel")); b.classList.add("sel");
         }
-        for(const option of opts.children)option.setAttribute("aria-pressed",String(option.classList.contains("sel")));
+        for(const option of opts.querySelectorAll("button"))option.setAttribute("aria-pressed",String(option.classList.contains("sel")));
         document.getElementById("startBtn").disabled = !(answers.categories && answers.categories.length);
       };
       opts.appendChild(b);

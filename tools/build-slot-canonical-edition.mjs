@@ -151,6 +151,7 @@ export function headlineNeedsPolish(issue) {
   if (!source) return false;
   const headline = clean(issue?.subject || issue?.headline || issue?.reader?.headline);
   return /[\u3040-\u30ff\u3400-\u9fff]/u.test(headline)
+    || /(?:습니다|됩니다)[.!。]?$/.test(headline)
     || /(?:[A-Za-z][A-Za-z'’.-]*\s+){3,}[A-Za-z][A-Za-z'’.-]*/.test(headline)
     || /[A-Za-z][A-Za-z0-9'’.-]*(?:은|을)(?=\s|$|[.,!?])/.test(headline)
     || (headline.includes(" 및 ") && latinRatio(headline) > 0.45);

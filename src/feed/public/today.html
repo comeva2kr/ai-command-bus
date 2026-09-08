@@ -537,6 +537,8 @@ function renderIssues(edition){
   const seenAds=new Set();
   $("issues").innerHTML=edition.issues.map((issue,index)=>{
   const copy=issue.reader||{};
+    const summary=copy.summary||issue.paragraph||"";
+    const whyImportant=copy.whyImportant??issue.whyImportant??"";
     const watchNext=copy.watchNext||"";
     const change=copy.change||issue.changedSincePrevious||"";
     const [laneClass,laneLabel]=lane(issue);
@@ -551,9 +553,10 @@ function renderIssues(edition){
       <div class="issue-number">${String(index+1).padStart(2,"0")}</div>
       <div>
         <div class="issue-kicker"><span class="lane ${laneClass}">${laneLabel}</span><span class="separator"></span><span>${esc(cats)}</span>${sources?`<span class="separator"></span><span class="source-links">${sources}</span>`:""}${published?`<span class="separator"></span>${published}`:""}</div>
-        <h2><button class="issue-title-button" type="button" data-open-issue="${index}" aria-label="${esc(copy.headline||issue.headline)} 기사 요약 열기" aria-controls="issueDetail" aria-expanded="false">${esc(copy.headline||issue.headline)}</button></h2>
+        <h2><button class="issue-title-button" type="button" data-open-issue="${index}" aria-label="${esc(copy.headline||issue.headline)} 기사 내용 열기" aria-controls="issueDetail" aria-expanded="false">${esc(copy.headline||issue.headline)}</button></h2>
         <div class="editorial-grid">
-          <div class="editorial-point"><b>왜 중요한가</b><p>${esc(copy.whyImportant||issue.whyImportant)}</p></div>
+          ${summary?`<div class="editorial-point"><b>핵심 내용</b><p>${esc(summary)}</p></div>`:""}
+          ${whyImportant?`<div class="editorial-point"><b>왜 중요한가</b><p>${esc(whyImportant)}</p></div>`:""}
         </div>
         ${change?`<div class="change-row"><b>새로 달라진 점</b><p>${esc(change)}</p></div>`:""}
         ${watchNext?`<div class="change-row"><b>다음 확인</b><p>${esc(watchNext)}</p></div>`:""}
@@ -659,16 +662,16 @@ function openIssueDetail(index,returnFocus=null,restoring=false){
     : `<p class="detail-image-status" role="status">기사에서 사용할 수 있는 사진을 확인하지 못했습니다.</p>`;
   const sourceLinks=resolvedSources.map((row)=>`<a href="${esc(row.url)}" rel="noopener noreferrer">${esc(row.sourceLabel)} ${row.relay?"중계 링크 열기":"원문 보기"} ↗</a>`);
   const points=[
-    ["왜 중요한가",copy.whyImportant||issue.whyImportant],
+    ["왜 중요한가",copy.whyImportant??issue.whyImportant],
     ["새로 달라진 점",copy.change||issue.changedSincePrevious],
     ["다음 확인",copy.watchNext]
   ].filter(([,value])=>String(value||"").trim());
   $("detailContent").innerHTML=`
     <h2 id="detailTitle">${esc(title)}</h2>
     ${imageHtml}
-    <section class="detail-section"><h3>기사 요약</h3><div class="detail-summary">${publishedHtml}<p class="detail-basis">${esc(basis)}</p>${summaryHtml}</div></section>
+    <section class="detail-section"><h3>${articleSummary.status==="ready"?"기사 요약":readyText||excerpt?"원문 발췌":"기사 내용"}</h3><div class="detail-summary">${publishedHtml}<p class="detail-basis">${esc(basis)}</p>${summaryHtml}</div></section>
     ${todayAdHtml(issue,index,"today-detail")}
-    <section class="detail-section"><h3>브리핑 포인트</h3><dl class="detail-points">${points.map(([label,value])=>`<div class="detail-point"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl></section>
+    ${points.length?`<section class="detail-section"><h3>브리핑 포인트</h3><dl class="detail-points">${points.map(([label,value])=>`<div class="detail-point"><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl></section>`:""}
     ${sourceLinks.length?`<section class="detail-section"><h3>출처</h3>${sourceTranslationHtml(issue,resolvedSources)}<nav class="detail-originals" aria-label="출처 링크">${sourceLinks.join("")}</nav></section>`:""}`;
   $("detailClose").focus();
   $("issueDetail").querySelector(".detail-panel").scrollTop=entry?.detailScroll||0;
@@ -707,7 +710,6 @@ addEventListener("popstate",()=>{
 });
 
 function renderRail(edition){
-  const fixture=edition.candidateContract?.metrics||{};
   const change=edition.continuityProjection||edition.editionChange||{};
   const changeCounts=change.counts||{};
   const changeMetrics=(changeCounts.baseline??0)>0
@@ -730,11 +732,8 @@ function renderRail(edition){
     ${fulfillmentMetric}
     ${personalizationMetric}
     ${changeMetrics}
-    <dt>반복 보류</dt><dd>${change.heldRepeatCount??0}건</dd>
-    <dt>편집 후보</dt><dd>${fixture.candidateCount??0}건</dd>
     <dt>관측 출처</dt><dd>${edition.sourceCount}곳</dd>
-    <dt>해외 흐름</dt><dd>${edition.overseasShare}%</dd>
-    <dt>새 LLM 호출</dt><dd>${edition.llmCalls}회</dd>`;
+    <dt>해외 흐름</dt><dd>${edition.overseasShare}%</dd>`;
   const counts=new Map();
   for(const issue of edition.issues) for(const category of issue.selectedByCategories?.length?issue.selectedByCategories:issue.categoryIds||[]) counts.set(category,(counts.get(category)||0)+1);
   const categoryIssueLimit=Number(edition.selection.categoryIssueLimit)||Infinity;

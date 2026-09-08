@@ -120,6 +120,23 @@ test("읽을 수 있는 혼합 한글 제목과 무료 빌드는 유료 제목 �
   assert.strictEqual(untouched.edition.issues[0], readable);
 });
 
+test("NH146 translated sentence endings enter bounded headline review without claiming semantic proof", async () => {
+  const issue = { subject: "Tesla Cybercab가 도로에 부딪히며 걸림돌이 됩니다.",
+    eventSources: [{ title: "Tesla Cybercab가 도로에 부딪히며 걸림돌이 됩니다.",
+      originalTitle: "TechCrunch Mobility: Tesla Cybercab hits the road — and a snag" }] };
+  assert.equal(headlineNeedsPolish(issue), true);
+  let calls = 0;
+  const result = await polishIssueHeadlines({ issues: [issue] }, { translateTitle: async original => {
+    calls++; assert.equal(original, issue.eventSources[0].originalTitle);
+    return "테슬라 사이버캡 도로 운행 시작…규제 문제가 걸림돌";
+  } });
+  assert.equal(calls, 1);
+  assert.equal(result.edition.issues[0].preparedHeadline, "테슬라 사이버캡 도로 운행 시작…규제 문제가 걸림돌");
+  const disabled = await polishIssueHeadlines({ issues: [issue] }, { translateTitle: null });
+  assert.equal(disabled.attempted, 0);
+  assert.equal(disabled.edition.issues[0].preparedHeadline, undefined);
+});
+
 test("별도 제목 번역기가 없으면 기존 무료 본문 번역기를 약한 제목 마감에 재사용한다", async () => {
   const issue = {
     subject: "McCarthy은 Steelers의 4 QBs이 자리를 얻었다고 말합니다.",
@@ -341,6 +358,25 @@ function build(options) {
   });
 }
 
+test("NH146 freezing a correction caps excerpts without shrinking prepared summaries or mutating the old edition", () => {
+  const { byCategory, unionEdition } = editions();
+  const target=unionEdition.issues[0];
+  const long="확인한 기사에서 생산 계획과 실제 발표 일정을 전했습니다. ".repeat(20).trim();
+  target.articleSummary={...target.articleSummary,status:"excerpt_only",textKo:long};
+  for(const lane of Object.values(byCategory))for(const row of lane.issues)if(row.evidenceHash===target.evidenceHash)row.articleSummary=target.articleSummary;
+  const other=unionEdition.issues[1];
+  other.articleSummary={...other.articleSummary,status:"ready",textKo:long};
+  for(const lane of Object.values(byCategory))for(const row of lane.issues)if(row.evidenceHash===other.evidenceHash)row.articleSummary=other.articleSummary;
+  const before=JSON.stringify(unionEdition);
+  const artifact=buildSlotCanonicalEdition({editionsByCategory:byCategory,unionEdition,builderPacketSha256:packetSha,routingSnapshot:{source:{packetSha256:packetSha}}});
+  const excerpt=artifact.issueTable[target.evidenceHash].articleSummary.textKo;
+  assert.ok(excerpt.length<=200);
+  assert.match(excerpt,/생산 계획과 실제 발표 일정/);
+  assert.ok(excerpt.endsWith("."));
+  assert.equal(JSON.stringify(unionEdition),before);
+  assert.equal(artifact.issueTable[other.evidenceHash].articleSummary.textKo,other.articleSummary.textKo);
+});
+
 test("NH127 available verified lanes publish seven auto stories without blocking news or hiding empty selections", () => {
   const { byCategory, unionEdition } = editions();
   const extra = issue("news-13", ["news"]);
@@ -440,6 +476,11 @@ test("NH127 edition push reads a real auto-only publication and rejects fallback
     {clock:()=>now,sendImpl:async()=>{calls++;return {status:201};}});
   assert.deepEqual(await run(),{sent:1,failed:0});
   assert.deepEqual(await run(),{sent:0,failed:0});
+  const corrected = buildSlotCanonicalEdition({editionsByCategory:byCategory,unionEdition,builderPacketSha256:packetSha,
+    routingSnapshot:{source:{packetSha256:packetSha}},createdAt:"2026-08-27T03:05:00Z"});
+  assert.notEqual(corrected.artifactId,artifact.artifactId);
+  activateSlotCanonicalEdition({artifact:corrected,directory,pointerFile});
+  assert.deepEqual(await run(),{sent:0,failed:0},"a correction for the same date and slot does not resend its push");
   now="2026-08-27T10:00:00Z";
   assert.deepEqual(await run(),{sent:0,failed:0});
   assert.equal(calls,1);

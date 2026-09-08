@@ -79,7 +79,7 @@ test("독자 문장: 호르무즈 기계 문구를 기자식 제목·리드·변
   assert.equal(assessReaderIssueCopy(hormuzIssue(), copy).state, "reader_copy_pass");
 });
 
-test("독자 문장: 단일 기사도 실제 중요성을 설명하고 출처 수는 신뢰 라벨로 알린다", () => {
+test("독자 문장: 근거 없는 분야별 중요성은 생략하고 핵심 소식과 출처는 남긴다", () => {
   const issue = {
     ...hormuzIssue(),
     subject: "지역 상권 동향 보도",
@@ -97,8 +97,45 @@ test("독자 문장: 단일 기사도 실제 중요성을 설명하고 출처 �
   assert.equal(copy.whyNow,
     "“지역 상권 동향 보도” 관련해 경제일보의 보도가 새로 확인됐습니다.");
   assert.equal(copy.confidenceLabel, "단일 기사 확인");
-  assert.match(copy.whyImportant, /기업 활동과 경기 흐름에 영향을 줄 수/);
-  assert.doesNotMatch(copy.whyImportant, /추가 보도나 공식 자료가 나와야/);
+  assert.equal(copy.whyImportant, "");
+});
+
+test("NH146 price headlines do not inherit weather explanations from background paragraphs", () => {
+  const title = "사과·배 가격 내렸어도 차례상 비용은 올라…추석물가 복병은 축산물·채소";
+  const base = hormuzIssue();
+  const issue = attachEditorialLineage({
+    ...base, subject: title, headline: title,
+    paragraph: "차례상 비용이 오른 가운데 여름 폭염으로 채소 가격이 상승했습니다.",
+    whatHappened: "차례상 비용이 오른 가운데 여름 폭염으로 채소 가격이 상승했습니다.",
+    whyImportant: "", impactLens: "", editorialEdit: null,
+    refs: [{ title, sourceLabel: "물가뉴스" }],
+    sourceEvidence: [{ ...base.sourceEvidence[0], title, sourceLabel: "물가뉴스" }]
+  }, { selectedCategories: ["business"] });
+  const copy = readerIssueCopy(issue);
+  assert.equal(copy.whyImportant, "");
+  assert.equal(copy.watchNext, "");
+  assert.match(copy.summary, /차례상 비용/);
+  const assessment = assessReaderIssueCopy(issue, copy);
+  assert.equal(assessment.pass, true, assessment.failures.join(","));
+  const injected = assessReaderIssueCopy(issue, { ...copy, whyImportant: "기상청 특보와 날씨 예보를 반드시 확인해야 합니다." });
+  assert.equal(injected.pass, false);
+  assert.ok(injected.failures.includes("readerFieldMismatch:whyImportant"));
+  const weather = readerIssueCopy({ ...issue, subject: "한낮 35도 폭염 이어져", headline: "한낮 35도 폭염 이어져" });
+  assert.match(weather.whyImportant, /건강 피해와 전력 수요/);
+  assert.match(weather.watchNext, /기상청 특보/);
+});
+
+test("NH146 valid lineage does not promote category boilerplate into article-specific importance", () => {
+  const base = hormuzIssue();
+  const title = "BMW 사이드미러 박살낸 바이커";
+  const issue = attachEditorialLineage({ ...base, subject: title, headline: title, categoryIds: ["auto"],
+    refs: [{ title, sourceLabel: "자동차뉴스" }],
+    sourceEvidence: [{ ...base.sourceEvidence[0], title, sourceLabel: "자동차뉴스" }],
+    impactLens: "구매·이동",
+    whyImportant: "차량 선택·운행 경험과 모빌리티 시장 변화에 연결되는 흐름이라 제원과 실제 이용 반응을 함께 볼 가치가 있다."
+  }, { selectedCategories: ["auto"] });
+  assert.equal(readerIssueCopy(issue).whyImportant, "");
+  assert.match(readerIssueCopy(issue).summary, /사이드미러/);
 });
 
 test("독자 문장: 영문 약어 매체명 뒤 조사를 발음에 맞춘다", () => {
@@ -276,10 +313,12 @@ test("독자 문장: 같은 분야·출처의 여러 사건도 사건명을 붙�
   const diversity = assessReaderCopyDiversity(copies);
 
   assert.equal(diversity.pass, true);
-  assert.ok(Object.values(diversity.fields).every((field) => field.maxExactRepeat === 1));
+  assert.equal(diversity.fields.whyImportant.maxExactRepeat, 0, "근거 없는 설명은 생략");
+  assert.equal(diversity.fields.whyNow.maxExactRepeat, 1);
+  assert.equal(diversity.fields.watchNext.maxExactRepeat, 1);
 });
 
-test("독자 문장: 같은 분야 정책 문장도 근거에 있는 한국어 사건명으로 구분한다", () => {
+test("독자 문장: 같은 분야 일반 설명을 빼도 근거에 있는 핵심 연구 소식은 남긴다", () => {
   const makeIssue = (subject, suffix) => attachEditorialLineage({
     subject,
     headline: subject,
@@ -322,9 +361,10 @@ test("독자 문장: 같은 분야 정책 문장도 근거에 있는 한국어 �
   const crystal = makeIssue("위그너 결정 내부 움직임 관측 연구", "crystal");
   const copies = [readerIssueCopy(weather), readerIssueCopy(crystal)];
 
-  assert.notEqual(copies[0].whyImportant, copies[1].whyImportant);
-  assert.match(copies[0].whyImportant, /날씨 예측의 이론적 한계 연구/);
-  assert.match(copies[1].whyImportant, /위그너 결정 내부 움직임 관측 연구/);
+  assert.equal(copies[0].whyImportant, "");
+  assert.equal(copies[1].whyImportant, "");
+  assert.match(copies[0].summary, /날씨 예측의 이론적 한계 연구/);
+  assert.match(copies[1].summary, /위그너 결정 내부 움직임 관측 연구/);
   assert.equal(assessReaderIssueCopy(weather, copies[0]).pass, true);
   assert.equal(assessReaderIssueCopy(crystal, copies[1]).pass, true);
 });
@@ -468,7 +508,7 @@ test("독자 문장: 검증된 LLM 편집문은 결정론적 사건 프레임보
 });
 
 test("독자 문장: 관련기사의 임상시험 키워드가 문화행사 프레임을 바꾸지 않는다", () => {
-  assert.equal(EDITORIAL_EVENT_FRAME_CONTRACT.version, 1);
+  assert.equal(EDITORIAL_EVENT_FRAME_CONTRACT.version, 2);
   assert.deepEqual(EDITORIAL_EVENT_FRAME_CONTRACT.excludedInputs, ["refs", "related_observation"]);
   const sourceEvidence = [
     {

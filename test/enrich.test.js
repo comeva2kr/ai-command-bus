@@ -1231,3 +1231,119 @@ test("fetchPublicArticle: 검증한 공개 DNS 주소를 실제 연결 lookup에
   assert.equal(result.state, "available");
   assert.deepEqual(connectedAddress, { address: "93.184.216.34", family: 4 });
 });
+
+// ---- NH146: 발췌 잡문 정리 (NH144 검수 P2 실측 + 2026-09-08 모닝판 저장 발췌 원문 그대로) --------------
+
+import * as htmlText from "../src/feed/html-text.js";
+
+test("NH146: 뉴스레터 가입 머리만 걷고 구독·안전 안내 문장은 보존한다", () => {
+  // NH144 검수 Cybercab 상세의 저장 발췌 원문 그대로(검수판 issueTable a379fa85… textKo 첫머리).
+  const koBody = "Tesla Cybercab 이벤트는 소셜 미디어의 어느 코너를 자주 방문하느냐에 따라 회사가 미래를 제공하는 로보택시 리더라는 증거이거나 내용이 거의 없는 과장된 행사였습니다.";
+  assert.equal(
+    cleanArticleTextChrome(`미래 교통의 허브인 TechCrunch Mobility에 다시 오신 것을 환영합니다. 이제 그 어느 때보다 AI의 역할이 여기에서 수행되고 있습니다. 받은편지함으로 받으려면 여기에서 무료로 가입하세요. TechCrunch Mobility를 클릭하세요! ${koBody}`),
+    koBody
+  );
+  const enBody = "Tesla's Cybercab event was either proof that the company is the robotaxi leader, or an overhyped affair with little substance.";
+  assert.equal(
+    cleanArticleTextChrome(`Welcome back to TechCrunch Mobility — your central hub for news and insights on the future of transportation. To get it in your inbox every Friday, sign up here for free — just click TechCrunch Mobility! ${enBody}`),
+    enBody
+  );
+  // 구독이 기사 주제이거나 안전·신청 안내인 정상 문장은 청유형이어도 지우지 않는다(NH145 §8 Grok 반례 채택).
+  for (const ordinary of [
+    "네이버가 뉴스레터 구독 서비스를 개편한다고 밝혔다. 구독자는 받은편지함에서 새 뉴스레터를 확인할 수 있다.",
+    "폭염 특보가 내려졌으니 야외 활동을 자제하고 물을 자주 마시세요. 기상청은 이번 주 내내 무더위가 이어진다고 예보했다.",
+    "재난 문자를 받으려면 안전디딤돌 앱에서 알림을 신청하세요. 행정안전부는 신청 절차를 안내했다.",
+    "구독 신청은 홈페이지에서 하세요. 회사는 다음 달부터 유료 구독을 시작한다고 밝혔다.",
+    "Residents should sign up for emergency alerts through the county website, officials said."
+  ]) assert.equal(cleanArticleTextChrome(ordinary), ordinary);
+});
+
+test("NH146: 매체 메뉴·공유·번역·플레이어 머리와 앞머리 URL을 걷고 첫 기사 문장부터 남긴다", () => {
+  // 2026-09-08 모닝판(free_only) 저장 발췌에서 확인한 실제 머리들.
+  const mydaily = "[마이데일리 = 광주 김진성 기자] “폰세보다 나은 것 같다.” KT 위즈 이강철 감독이 지난 5일 광주 KIA 타이거즈전을 앞두고 다시 한번 페드로 아빌라의 위력에 혀를 내둘렀다.";
+  assert.equal(cleanArticleTextChrome(`최신기사 엔터 스포츠 라이프 IT 사회 경제 사진&영상 기자연재 오피니언 더발리볼 랭킹빌더 ${mydaily}`), mydaily);
+  const gq = "연구진이 GLP-1 약물을 사용하는 사람과 남성형 탈모 병력이 있는 사람 사이에서 유전적 연관성을 발견했다. 주변 사람들이 모두 체중 감량 약물을 사용하는 것처럼 느껴진다면 그 느낌이 아주 틀린 것은 아니다.";
+  assert.equal(cleanArticleTextChrome(`마운자로 맞으면 결국 탈모 온다, 최신 연구가 밝힌 부작용 2026.09.07. 조서형 , Tyler Chin 구글 선호 매체로 추가 ? 구글 검색과 AI답변에서 지큐 코리아를 우선적으로 보여줍니다. 복사 --> 공유 구글 선호 매체로 추가 ? 구글 검색과 AI답변에서 지큐 코리아를 우선적으로 보여줍니다. × ${gq}`), gq);
+  const hankyung = "서울의 주택 인허가와 착공 물량이 비아파트를 중심으로 크게 반등하며 공급 부족 완화 기대감이 커지는 가운데, 서울시는 이를 실제 입주로 연결하기 위해 정비사업 공정 관리를 대폭 강화하고 있다.";
+  assert.equal(cleanArticleTextChrome(`알짜 부동산 투자전략 트렌드 서울 주택공급 '청신호'… 착공 44.4%↑, 인허가도 동반 증가 입력 2026.09.07 18:00 수정 2026.09.07 18:06 기사 스크랩 기사 스크랩 댓글 댓글 기사 공유 공유 글자크기 조절 글자크기 프린트 프린트 강영연 기자 구독하기 구글 검색 선호 출처로 추가 Google 검색에서 한국경제 기사를 더 자주 볼 수 있습니다. AI 기사요약 ${hankyung}`), hankyung);
+  const ytn = "'천만' 고지를 넘은 크리스토퍼 놀런 감독의 '오디세이'가 5주 연속 주말 관객 수 1위를 차지했습니다.";
+  assert.equal(cleanArticleTextChrome(`브라우저가 video 태그를 지원하지 않습니다. 죄송하지만 다른 브라우저를 사용하여 주십시오. 브라우저가 오디오 태그를 지원하지 않습니다. 닫기 ${ytn}`), ytn);
+  const medigate = "대한간학회, PBC 2차 치료제 '아이커보' 신속 보험등재 요청…\"치료 공백 해소 시급\" 표준치료제 UDCA 치료 환자 30~40% 효과 불충분…아이커보, 치료 반응 불충분 환자 대상 유일 치료제";
+  assert.equal(cleanArticleTextChrome(`기사입력시간 26.09.07 11:50 최종 업데이트 26.09.07 11:50 제보 공유 URL 복사하기 메디게이트(무찌마) 카카오 스토리 페이스북 트위터 네이버 밴드 ${medigate}`), medigate);
+  const daum = "생성 AI(인공지능) 기술로 모든 장면을 만든 장편 영화 제작 도전이 이어지고 있다. 지난 5월 개봉한 ‘아이엠포포’ ‘한복입은 남자’에 이어 로봇이 등장하는 SF 액션 영화 ‘스틸레이’가 베일을 벗었다.";
+  assert.equal(cleanArticleTextChrome(`AI로 만든 SF 액션영화…90분에 딱 10억 들었다 정은혜 2026. 9. 8. 00:03 번역 설정 번역 beta Translated by kaka i 한국어 - English 영어 日本語 일본어 简体中文 중국어 Nederlands 네델란드어 Deutsch 독일어 Русский 러시아어 Malaysia 말레이시아어 বাঙ্গোল ভাষা 벵골어 tiếng Việt 베트남어 Español 스페인어 اللغة العربية 아랍어 Italiano 이탈리아어 bahasa Indonesia 인도네시아어 ภาษาไทย 태국어 Türkçe 튀르키에어 Português 포르투갈어 Français 프랑스어 हिन्दी 힌디어 닫기 번역중 Now in translation 글씨크기 조절하기 글자크기 설정 파란원을 좌우로 움직이시면 글자크기가 변경 됩니다. 가 매우 작은 폰트 작은 폰트 보통 폰트 큰 폰트 매우 큰 폰트 가 닫기 인쇄하기 ${daum}`), daum);
+  const designboom = "회전식 목재 프레임 스튜디오의 삼각형 구조 정의 일본 고베의 시골 풍경 속 언덕에 위치한 Tsukumo Kiln by Dept. + OAAA는 들판과 산으로 둘러싸인 도자기 스튜디오입니다.";
+  assert.equal(cleanArticleTextChrome(`일일 및 주간 스토리를 매일 확인하세요. 주간 샘플 보기 ${designboom}`), designboom);
+  const hypebeast = "BUNNEY가 Josh Hight가 곰 인형에 대한 흑백 연구 시리즈를 인쇄한 테디베어 T-Shirt를 출시했습니다.";
+  assert.equal(cleanArticleTextChrome(`4개 중 1개 Bunney 2개 중 4개 Bunney 3개 중 4개 Bunney 4개 중 4개 Bunney 패션 53분 전 15 조회수 0 댓글 댓글 저장 요약 ${hypebeast}`), hypebeast);
+  // NH144 검수 UN 지도 상세(BBC 코리아 공유·저장 위젯)와 인스티즈 상세(앞머리 네이버 URL, 로컬 피드 원문은 URL과 본문이 붙어 있다).
+  const bbc = "유엔이 새 세계 지도를 공개하며 회원국 경계 표기를 바꿨다고 밝혔다. 일부 국가는 표기 방식에 이의를 제기했다.";
+  assert.equal(cleanArticleTextChrome(`유엔 새 지도 공개 홍길동 BBC 코리아 2일 전 공유 저장 Google에 기본으로 추가 ${bbc}`), bbc);
+  assert.equal(
+    cleanArticleTextChrome("http://m.entertain.naver.com/home/article/109/0005595634어차피 국민은 세월이 흐르면 잊게 된다. 드라마는 최소 1년 뒤에나 방송될 예정이다."),
+    "어차피 국민은 세월이 흐르면 잊게 된다. 드라마는 최소 1년 뒤에나 방송될 예정이다."
+  );
+  assert.equal(cleanArticleTextChrome("https://archive.is/zUA3D https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6868618"), "");
+  // 아크데일리(모닝판 3건): 공유 막대와 사양표 뒤 "건축가가 제공한 텍스트 설명."부터가 본문이다.
+  const archdaily = "이 집은 고객이 깊이 관여해 설계 단계부터 가족의 생활 방식을 반영한 주택이다. 건축가는 중정을 중심으로 공간을 배치했다.";
+  assert.equal(
+    cleanArticleTextChrome(`+ 23 큐레이터: Valentina Díaz 공유 Facebook Twitter 메일 Pinterest Whatsapp 또는 https://www.archdaily.com/1184496/casa-mdl 복사 주택 • Pilar, 아르헨티나 건축가: Estudio Maria Strada 면적: 420m² 연도: 2024 사진: UchyMay 제조업체: Forti Aberturas 수석 건축가: Maria Strada 카테고리: 주택 디자인 팀: Felicitas 갈라티 도시: Pilar 국가: 아르헨티나 더 많은 사양 더 적은 사양 건축가가 제공한 텍스트 설명. ${archdaily}`),
+    archdaily
+  );
+  // 본문 속 같은 표현은 건드리지 않는다.
+  for (const plain of [
+    "이 자료는 2일 전 공유 저장된 것이다. 기관은 원본 파일을 함께 공개했다.",
+    "금강만두 육개장, 630g, 5개 https://toss.im/_m/PnW9x5l8 특가가 오늘 자정까지 이어진다.",
+    "최신기사 목록에서 엔터 소식이 가장 많이 읽혔다고 회사가 밝혔다.",
+    "브라우저가 video 태그를 지원하지 않는 문제를 개발사가 수정했다고 밝혔다."
+  ]) assert.equal(cleanArticleTextChrome(plain), plain);
+});
+
+test("NH146: 기사 끝 저작권·기자 이메일·해시태그·구독 버튼 꼬리만 지우고 본문 속 표기는 보존한다", () => {
+  const body = "노조는 경영진에 전 직원 대상 타운홀 미팅을 즉각 개최할 것을 요구하고, 대응 방안을 내놓지 않을 경우 경영진 총사퇴를 요구하는 등 대응 수위를 높이겠다고 밝혔다.";
+  for (const tail of [
+    // 파이낸셜뉴스·동아일보·JTBC(다음)·한국경제·마이데일리(NH144)·메디게이트 저장 발췌의 실제 꼬리.
+    "[email protected] 박지영 기자 #한국가스공사 #한국석유공사 #통합 ※ 저작권자 © 파이낸셜뉴스, 무단전재-재배포 금지",
+    "김성모 기자 mo@donga.com © dongA.com All rights reserved. 무단 전재, 재배포 및 AI학습 이용 금지",
+    "Copyright © JTBC. 무단전재 및 재배포 금지. JTBC에서 직접 확인하세요. 해당 언론사로 이동합니다.",
+    "홍민성 한경닷컴 기자 mshong@hankyung.com",
+    "이유정 기자 yjlee@hankyung.com",
+    "홍길동 기자 reporter@mydaily.co.kr ⓒ마이데일리",
+    "#최병철 #장애인 시설 #무상 기부 #지역 복지 #국민훈장 동백장",
+    "저작권자© 메디게이트뉴스, 무단 전재 및 재배포 금지 #대한간학회 # 원발성담즙성담관염 # PBC # 아이커보 오탈자 신고 스크랩 인쇄 제보 공유 URL 복사하기 전체보기 전체보기 Copyright © MEDIC&C Co.,Ltd. All Rights Reserved.",
+    "알립니다 > 구독 구독 제66회 동아음악콩쿠르 참가 신청을 받습니다 이런 구독물도 추천합니다! 광화문에서 구독 구독 사설 구독 구독 정치를 부탁해 구독 구독 #코스피 #변동성 #부동산 세제",
+    "Copyright © MEDIC&C Co.,Ltd. All Rights Reserved.",
+    // 동아일보 크래프톤 기사(모닝판): 해시태그 묶음 뒤에 기자 바이라인과 저작권이 잇달아 온다.
+    "#크래프톤 #인도 #모바일 게임 #투자 #디지털 생태계 김성모 기자 mo@donga.com © dongA.com All rights reserved. 무단 전재, 재배포 및 AI학습 이용 금지"
+  ]) assert.equal(cleanArticleTextChrome(`${body} ${tail}`), body, tail);
+  // 본문 중간의 사진 크레딧, 문장 속 이메일, 해시태그 한 개, 구독이라는 단어는 기사 내용이다.
+  const credit = `${body} 사진 ⓒ 연합뉴스 ${body} ${body}`;
+  assert.equal(cleanArticleTextChrome(credit), credit);
+  for (const plain of [
+    "행사 참가 신청과 문의는 press@example.com",
+    "정부는 구독 경제 실태를 조사한다. 구독 서비스 해지 절차도 점검한다.",
+    "회사는 해시태그 #추석 캠페인을 시작했다.",
+    "저작권자 표시 없이 사진을 쓰면 안 된다고 법원이 판단했다."
+  ]) assert.equal(cleanArticleTextChrome(plain), plain);
+});
+
+test("NH146: 화살표·라틴 문자·파운드 엔티티를 실제 글자로 되돌린다", () => {
+  // 2026-09-08 모닝판 디멘시아뉴스 발췌 "35%&darr;", 로컬 피드 발췌의 "&rarr;"·"&uarr;"·"Jos&eacute; Mu&ntilde;oz"·"&pound;".
+  assert.equal(
+    htmlText.decodeEntities("75세 이하 35%&darr; 본예산 대비 10%&uarr; 수서경찰서&rarr;서울경찰청 금융범죄수사대 이송"),
+    "75세 이하 35%↓ 본예산 대비 10%↑ 수서경찰서→서울경찰청 금융범죄수사대 이송"
+  );
+  assert.equal(
+    htmlText.decodeEntities("호세 무뇨스(Jos&eacute; Mu&ntilde;oz) 에뚜알(&eacute;toile) K&ouml;ln M&uuml;nchen &pound;100"),
+    "호세 무뇨스(José Muñoz) 에뚜알(étoile) Köln München £100"
+  );
+  assert.equal(htmlText.stripHtml("<p>원&middot;달러 환율 1561원&rarr;1350원</p>"), "원·달러 환율 1561원→1350원");
+  assert.equal(
+    extractOgDesc('<meta property="og:description" content="원&middot;달러 환율이 1561원&rarr;1350원으로 하락했다고 밝혔다.">'),
+    "원·달러 환율이 1561원→1350원으로 하락했다고 밝혔다."
+  );
+  assert.equal(cleanArticleTextChrome("하루 커피 2~3잔이면 치매 위험 18% 낮아...75세 이하 35%&darr; 연구팀은 기존 연구 6건을 종합해 분석했다."), "하루 커피 2~3잔이면 치매 위험 18% 낮아...75세 이하 35%↓ 연구팀은 기존 연구 6건을 종합해 분석했다.");
+  // &amp;는 마지막에 풀어 문자 그대로의 표기를 태그로 바꾸지 않고, 사전에 없는 이름은 그대로 둔다(기존 계약).
+  assert.equal(htmlText.decodeEntities("&amp;lt;b&amp;gt; &amp;darr;"), "&lt;b&gt; &darr;");
+  assert.equal(htmlText.decodeEntities("&Prime;"), "&Prime;");
+});
