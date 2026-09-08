@@ -1141,39 +1141,30 @@ test("public/index.html: the [샘플] tag is appended on the productName subtitl
 // 고지문은 이제 상시 렌더 두 줄(disclosureShort/하단 전문) 대신 배지 탭
 // 팝오버(item.disclosure) 하나로 통합됐다 — hook/productName 라인은 회귀 없이
 // 그대로다.
-test("ads.txt: ADSENSE_CLIENT 설정 시 판매자 라인, 미설정 시 404", async () => {
+test("ads.txt: 설정 시 판매자·소유 확인만 제공하고 오늘·실시간에 자동 광고를 삽입하지 않는다", async () => {
   const { createServer } = await import("../src/feed/server.js");
-  const prev = process.env.ADSENSE_CLIENT;
-  try {
-    delete process.env.ADSENSE_CLIENT;
-    let server = createServer({});
-    await new Promise((r) => server.listen(0, r));
-    let base = `http://localhost:${server.address().port}`;
-    assert.equal((await fetch(`${base}/ads.txt`)).status, 404, "미설정이면 404");
-    server.close();
-
-    process.env.ADSENSE_CLIENT = "ca-pub-1234567890123456";
-    server = createServer({});
-    await new Promise((r) => server.listen(0, r));
-    base = `http://localhost:${server.address().port}`;
-    const txt = await (await fetch(`${base}/ads.txt`)).text();
-    assert.equal(txt.trim(), "google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0",
-      "ads.txt 표기는 ca- 접두사를 뗀 pub- ID여야");
-    const html = await (await fetch(`${base}/`)).text();
-    assert.ok(html.includes("pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1234567890123456"),
-      "index.html에 애드센스 로더가 주입되어야");
-    server.close();
-
-    delete process.env.ADSENSE_CLIENT;
-    server = createServer({});
-    await new Promise((r) => server.listen(0, r));
-    base = `http://localhost:${server.address().port}`;
-    const clean = await (await fetch(`${base}/`)).text();
-    assert.ok(!clean.includes("adsbygoogle"), "미설정 배포는 완전 무광고");
-    server.close();
-  } finally {
-    if (prev === undefined) delete process.env.ADSENSE_CLIENT;
-    else process.env.ADSENSE_CLIENT = prev;
+  for (const client of [null, "ca-pub-1234567890123456", null]) {
+    await withEnvAsync({ ADSENSE_CLIENT: client }, async () => {
+      const server = createServer({ sources: [], localEditorial: true });
+      await new Promise((resolve) => server.listen(0, resolve));
+      const base = `http://localhost:${server.address().port}`;
+      try {
+        const response = await fetch(`${base}/ads.txt`);
+        assert.equal(response.status, client ? 200 : 404);
+        const txt = await response.text();
+        if (client) assert.equal(txt.trim(), "google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0");
+        for (const route of ["/", "/live"]) {
+          const page = await fetch(base + route);
+          assert.equal(page.status, 200);
+          const html = await page.text();
+          assert.equal(html.includes('<meta name="google-adsense-account"'), Boolean(client), route);
+          if (client) assert.ok(html.includes(`content="${client}"`), route);
+          assert.doesNotMatch(html, /<script[^>]+src=["'][^"']*adsbygoogle/, route);
+        }
+      } finally {
+        await new Promise((resolve) => server.close(resolve));
+      }
+    });
   }
 });
 

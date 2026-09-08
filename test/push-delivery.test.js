@@ -6,10 +6,74 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { FeedStore } from "../src/feed/store.js";
 import { FeedEngine } from "../src/feed/engine.js";
-import { sendDigestPushes, sendEditionPushes, sendPush, generateVapidKeys, verifyVapidJwt, decryptPayload } from "../src/feed/push.js";
+import { sendDigestPushes, sendEditionPushes, sendPush, generateVapidKeys, verifyVapidJwt, decryptPayload, isValidPushSubscription } from "../src/feed/push.js";
 
 const vapid = { publicKey: "public", privateKey: "private", subject: "mailto:test@example.test" };
 const article = (id, extra = {}) => ({ id, title: `Safe ${id}`, ...extra });
+
+test("push subscription validates provider, URL and actual encryption keys before any send", async () => {
+  const recipient = crypto.createECDH("prime256v1");
+  recipient.generateKeys();
+  const keys = { p256dh: recipient.getPublicKey().toString("base64url"), auth: crypto.randomBytes(16).toString("base64url") };
+  for (const host of ["fcm.googleapis.com", "android.googleapis.com", "web.push.apple.com", "other.push.apple.com", "updates.push.services.mozilla.com", "wns2.notify.windows.com", "a.wns.windows.com"]) {
+    assert.equal(isValidPushSubscription({endpoint: `https://${host}/token`, keys}), true, host);
+  }
+  const valid = {endpoint:"https://fcm.googleapis.com/token", keys};
+  const invalid = [null, {}, {endpoint:valid.endpoint},
+    ...["https://attacker.example.com/token", "http://fcm.googleapis.com/token", "https://fcm.googleapis.com.evil.test/token",
+      "https://user:pass@fcm.googleapis.com/token", "https://127.0.0.1/token", "https://[::1]/token",
+      "https://fcm.googleapis.com:444/token", valid.endpoint + "#fragment", valid.endpoint + "a".repeat(2048)]
+      .map(endpoint => ({endpoint, keys})),
+    { ...valid, keys:{...keys, auth:"a"} }, { ...valid, keys:{...keys, p256dh:"p"} },
+    { ...valid, keys:{...keys, p256dh:Buffer.concat([Buffer.from([4]),Buffer.alloc(64)]).toString("base64url")} },
+    { ...valid, keys:{...keys, auth:keys.auth + "!"} }];
+  for (const subscription of invalid) {
+    assert.equal(isValidPushSubscription(subscription), false);
+    assert.deepEqual(await sendPush(subscription,"payload",vapid,{fetchImpl:()=>assert.fail("invalid subscription reached network")}),{status:410});
+  }
+});
+
+test("persisted malformed subscriptions stop retrying through both existing delivery cleanup paths", async () => {
+  for (const kind of ["edition", "live"]) {
+    const store = new FeedStore(), user = store.createUser("malformed");
+    store.savePushSubscription(user.id,{endpoint:"https://attacker.example.com/token",keys:{p256dh:"p",auth:"a"}});
+    const options = {clock:()=>"2026-09-08T01:00:00Z"};
+    const run = kind === "edition"
+      ? () => sendEditionPushes(store,{read:async()=>({editionDate:"2026-09-08",slot:{id:"morning"},serving:{state:"slot_canonical_verified",fallback:false},issues:[{}]})},vapid,options)
+      : () => sendDigestPushes(store,{digest:async()=>({count:1,top:[article("new")]})},vapid,options);
+    assert.deepEqual(await run(),{sent:0,failed:1});
+    assert.equal(user.pushSubscription,null);
+    assert.deepEqual(await run(),{sent:0,failed:0});
+  }
+});
+
+test("push subscription API rejects malformed updates without replacing the owner's valid connection", async t => {
+  const {createServer} = await import("../src/feed/server.js");
+  let store;
+  const server = createServer({sources:[], onEngineReady:engine => {store=engine.store;}});
+  await new Promise(resolve=>server.listen(0,resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const user=store.createUser("owner"), other=store.createUser("other");
+  store.bindDevice(user.id,"owner-key");
+  store.bindDevice(other.id,"other-key");
+  const recipient=crypto.createECDH("prime256v1");recipient.generateKeys();
+  const valid={endpoint:"https://fcm.googleapis.com/token",keys:{p256dh:recipient.getPublicKey().toString("base64url"),auth:crypto.randomBytes(16).toString("base64url")}};
+  const update=async(subscription,userId=user.id)=>{
+    const response=await fetch(`http://127.0.0.1:${server.address().port}/api/push/subscribe`,{method:"POST",
+      headers:{"content-type":"application/json",cookie:"nh_cid=owner; nh_k=owner-key"},body:JSON.stringify({userId,subscription})});
+    return {status:response.status,body:await response.json()};
+  };
+  assert.equal((await update(valid)).status,200);
+  for(const subscription of [false,{}, {...valid,keys:{p256dh:"p",auth:"a"}}, {...valid,endpoint:"https://attacker.example.com/token"}]){
+    const result=await update(subscription);
+    assert.equal(result.status,400);assert.equal(result.body.code,"INVALID_PUSH_SUBSCRIPTION");
+    assert.deepEqual(store.getUser(user.id).pushSubscription,valid);
+  }
+  assert.equal((await update(valid,other.id)).status,403);
+  assert.equal(other.pushSubscription||null,null);
+  assert.equal((await update(null)).status,200);
+  assert.equal(user.pushSubscription,null);assert.equal(user.notifyEnabled,false);
+});
 
 test("sendPush reuses VAPID for one hour per origin, keypair and subject while encrypting each payload", async () => {
   const keys = generateVapidKeys(), rotatedKeys = generateVapidKeys();
@@ -28,6 +92,8 @@ test("sendPush reuses VAPID for one hour per origin, keypair and subject while e
       fetchImpl: async (url, request) => {
         assert.equal(url, endpoint);
         assert.equal(request.method, "POST");
+        assert.equal(request.redirect, "error");
+        assert.ok(request.signal instanceof AbortSignal);
         assert.equal(request.headers["Content-Encoding"], "aes128gcm");
         assert.equal(request.headers.TTL, "86400");
         const match = /^vapid t=(.+), k=(.+)$/.exec(request.headers.Authorization);

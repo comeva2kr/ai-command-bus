@@ -184,6 +184,18 @@ test("서비스워커: activate가 이전 버전 캐시를 비운다 (오염된 
   assert.deepEqual(deleted.sort(), ["feed-shell-v41", "feed-shell-v42"]);
 });
 
+function assertCampaignUrl(href, { pathname = "/live", hash = "", nhNotification = false } = {}) {
+  const destination = new URL(href);
+  assert.equal(destination.origin, ORIGIN);
+  assert.equal(destination.pathname, pathname);
+  assert.equal(destination.hash, hash);
+  assert.equal(destination.searchParams.get("utm_source"), "web_push");
+  assert.equal(destination.searchParams.get("utm_medium"), "notification");
+  if (nhNotification) assert.ok(destination.searchParams.get("nh-notification"));
+  else assert.equal(destination.searchParams.has("nh-notification"), false);
+  return destination;
+}
+
 test("서비스워커: 알림 클릭은 임의 탭 대신 앱 탭을 정확한 URL로 이동한 뒤 포커스한다", async () => {
   const { listeners, sandbox } = loadWorker();
   const calls = [];
@@ -197,9 +209,7 @@ test("서비스워커: 알림 클릭은 임의 탭 대신 앱 탭을 정확한 U
   listeners.get("notificationclick")({ notification: { close() {}, data: { url: "/live#post-new" } }, waitUntil: (p) => { waited = p; } });
   await waited;
   assert.equal(calls[0][0], "navigate");
-  const destination = new URL(calls[0][1]);
-  assert.equal(destination.origin + destination.pathname + destination.hash, ORIGIN + "/live#post-new");
-  assert.ok(destination.searchParams.get("nh-notification"), "old clients need a fresh document, not another fragment entry");
+  assertCampaignUrl(calls[0][1], { hash: "#post-new", nhNotification: true });
   assert.deepEqual(calls[1], ["focus"]);
 });
 
@@ -219,39 +229,85 @@ test("서비스워커: 처리 확인한 앱에는 이동 이력을 추가하지 
     let waited;
     listeners.get("notificationclick")({ notification: { close() {}, data: { url: "/live#post-new" } }, waitUntil: p => { waited = p; } });
     await waited;
-    assert.deepEqual(calls[0], ["message", ORIGIN + "/live#post-new"]);
+    assert.equal(calls[0][0], "message");
+    assertCampaignUrl(calls[0][1], { hash: "#post-new" });
     assert.equal(calls.some(call => call[0] === "navigate"), !acknowledge);
+    if (!acknowledge) assertCampaignUrl(calls.find(call => call[0] === "navigate")[1], { hash: "#post-new", nhNotification: true });
     assert.deepEqual(calls.at(-1), ["focus"]);
   }
 });
 
 test("서비스워커: 외부·잘못된 프로토콜 알림은 앱 기본 주소로만 이동한다", async () => {
-  for (const url of ["https://evil.test/live", "javascript:alert(1)", "//evil.test/live", "https://user:pass@nowhot.kr/live", "/api/admin/posts"]) {
+  for (const url of ["https://evil.test/live", "javascript:alert(1)", "//evil.test/live", "https://user:pass@nowhot.kr/live", "/api/admin/posts", "/admin.html"]) {
     const { listeners, sandbox } = loadWorker();
     const opened = [];
     sandbox.self.clients.openWindow = async (href) => opened.push(href);
     let waited;
     listeners.get("notificationclick")({ notification: { close() {}, data: { url } }, waitUntil: (p) => { waited = p; } });
     await waited;
-    assert.deepEqual(opened, [ORIGIN + "/live"]);
+    assert.equal(opened.length, 1, url);
+    assert.equal(opened.some((href) => /evil\.test|javascript:|user:pass|\/api\/|\/admin/.test(href)), false, url);
+    assertCampaignUrl(opened[0]);
   }
 });
 
-test("서비스워커: Chrome visible+focused만 배너, 비포커스·백그라운드·Safari는 OS 푸시", async () => {
-  for (const [visible, focused, chrome] of [[true,true,true],[true,false,true],[false,true,true],[true,true,false]]) {
+test("서비스워커: 허용된 같은 출처 경로만 UTM을 붙여 연다", async () => {
+  for (const [url, pathname, hash] of [["/today.html", "/today.html", ""], ["/p?id=post-1", "/p", ""], ["/#post-ok", "/", "#post-ok"]]) {
+    const { listeners, sandbox } = loadWorker();
+    const opened = [];
+    sandbox.self.clients.openWindow = async (href) => opened.push(href);
+    let waited;
+    listeners.get("notificationclick")({ notification: { close() {}, data: { url } }, waitUntil: (p) => { waited = p; } });
+    await waited;
+    assert.equal(opened.length, 1, url);
+    assertCampaignUrl(opened[0], { pathname, hash });
+  }
+});
+
+test("서비스워커: Chrome·삼성·Safari 포그라운드/백그라운드 모두 OS 알림을 띄운다", async () => {
+  const agents = [
+    ["Mozilla/5.0 Chrome/145.0.0.0 Safari/537.36", true, true],
+    ["Mozilla/5.0 Chrome/145.0.0.0 Safari/537.36", true, false],
+    ["Mozilla/5.0 Chrome/145.0.0.0 Safari/537.36", false, true],
+    ["Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-S921N) SamsungBrowser/27.0 Chrome/120.0.0.0 Mobile Safari/537.36", true, true],
+    ["Mozilla/5.0 Version/18.0 Safari/605.1.15", true, true]
+  ];
+  for (const [userAgent, visible, focused] of agents) {
     const { listeners, sandbox } = loadWorker();
     const messages = [], notices = [];
-    sandbox.self.navigator = { userAgent: chrome ? "Mozilla/5.0 Chrome/145.0.0.0 Safari/537.36" : "Mozilla/5.0 Version/18.0 Safari/605.1.15" };
-    sandbox.self.clients.matchAll = async () => [{ url: ORIGIN + "/", focused, visibilityState: visible ? "visible" : "hidden", postMessage: (m) => messages.push(m) }];
+    sandbox.self.navigator = { userAgent };
+    sandbox.self.clients.matchAll = async () => [{
+      url: ORIGIN + "/", focused, visibilityState: visible ? "visible" : "hidden",
+      postMessage: (m) => messages.push(m)
+    }];
     sandbox.self.registration.showNotification = async (...args) => notices.push(args);
     let waited;
     listeners.get("push")({ data: { json: () => ({ title: "New", body: "Public news", url: "/live#post-new" }) }, waitUntil: (p) => { waited = p; } });
     await waited;
-    const banner = visible && focused && chrome;
-    assert.equal(messages.length, banner ? 1 : 0);
-    assert.equal(notices.length, banner ? 0 : 1);
-    if (banner) assert.equal(messages[0].type, "NOWHOT_DIGEST");
-    else assert.equal(notices[0][1].data.url, ORIGIN + "/live#post-new");
+    assert.equal(messages.length, 0, userAgent);
+    assert.equal(notices.length, 1, userAgent);
+    assert.equal(notices[0][0], "New");
+    assert.equal(notices[0][1].icon, "/icon-192.png");
+    assert.equal(notices[0][1].data.url, ORIGIN + "/live#post-new");
+  }
+});
+
+test("서비스워커: 푸시 data.url도 같은 출처 허용 목록만 알림에 싣는다", async () => {
+  for (const [url, expected] of [
+    ["https://evil.test/live", ORIGIN + "/live"],
+    ["javascript:alert(1)", ORIGIN + "/live"],
+    ["/api/admin/posts", ORIGIN + "/live"],
+    ["/today.html", ORIGIN + "/today.html"],
+    ["/?date=2026-09-03&slot=morning", ORIGIN + "/?date=2026-09-03&slot=morning"]
+  ]) {
+    const { listeners, sandbox } = loadWorker();
+    const notices = [];
+    sandbox.self.registration.showNotification = async (...args) => notices.push(args);
+    let waited;
+    listeners.get("push")({ data: { json: () => ({ title: "t", url }) }, waitUntil: (p) => { waited = p; } });
+    await waited;
+    assert.equal(notices[0][1].data.url, expected, url);
+    assert.equal(/evil\.test|javascript:|\/api\//.test(notices[0][1].data.url), false, url);
   }
 });
 
@@ -259,11 +315,13 @@ test("서비스워커: 여러 백그라운드 앱 탭 중 임의 탭을 가로�
   const { listeners, sandbox } = loadWorker();
   const opened=[];
   sandbox.self.clients.matchAll=async()=>["/live#post-a","/live#post-b"].map(path=>({
-    url:ORIGIN+path,focused:false,focus:()=>{throw new Error("arbitrary tab");}
+    url:ORIGIN+path,focused:false,focus:()=>{throw new Error("arbitrary tab");},
+    navigate:()=>{throw new Error("arbitrary tab");}
   }));
   sandbox.self.clients.openWindow=async url=>opened.push(url);
   let waited;
   listeners.get("notificationclick")({notification:{close(){},data:{url:"/live#post-c"}},waitUntil:p=>{waited=p}});
   await waited;
-  assert.deepEqual(opened,[ORIGIN+"/live#post-c"]);
+  assert.equal(opened.length,1);
+  assertCampaignUrl(opened[0], { hash: "#post-c" });
 });

@@ -18,6 +18,29 @@ import { CATEGORIES } from "./taxonomy.js";
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
 const fromB64url = (s) => Buffer.from(s, "base64url");
 
+export function isValidPushSubscription(subscription) {
+  try {
+    const endpoint = subscription?.endpoint;
+    if (typeof endpoint !== "string" || endpoint.length > 2048) return false;
+    const url = new URL(endpoint), host = url.hostname;
+    if (url.protocol !== "https:" || url.username || url.password || url.port || url.hash) return false;
+    if (!["fcm.googleapis.com", "android.googleapis.com", "updates.push.services.mozilla.com"].includes(host)
+        && ![".push.apple.com", ".notify.windows.com", ".wns.windows.com"].some(suffix => host.endsWith(suffix))) return false;
+    const decode = (value, length) => {
+      if (typeof value !== "string" || value.length > Math.ceil(length / 3) * 4
+          || !/^[A-Za-z0-9_-]+={0,2}$/.test(value)) throw new Error("invalid key");
+      const bytes = fromB64url(value);
+      if (bytes.length !== length || b64url(bytes) !== value.replace(/=+$/, "")) throw new Error("invalid key");
+      return bytes;
+    };
+    decode(subscription.keys?.auth, 16);
+    const publicKey = decode(subscription.keys?.p256dh, 65);
+    if (publicKey[0] !== 4) return false;
+    crypto.ECDH.convertKey(publicKey, "prime256v1");
+    return true;
+  } catch { return false; }
+}
+
 // --- VAPID keys ---
 
 export function generateVapidKeys() {
@@ -143,10 +166,15 @@ function cachedVapidJwt(endpoint, keys, subject = "mailto:admin@example.com", no
 
 // Send a push. Needs network access to the endpoint. Returns { status }.
 export async function sendPush(subscription, payload, keys, opts = {}) {
+  // A malformed stored record cannot recover by retrying; existing 410 handling
+  // clears it without sending to its address or touching a replacement subscription.
+  if (!isValidPushSubscription(subscription)) return { status: 410 };
   const body = encryptPayload(subscription, payload);
   const jwt = cachedVapidJwt(subscription.endpoint, keys, opts.subject, (opts.clock || Date.now)());
   const res = await (opts.fetchImpl || fetch)(subscription.endpoint, {
     method: "POST",
+    redirect: "error",
+    signal: AbortSignal.timeout(10000),
     headers: {
       Authorization: `vapid t=${jwt}, k=${keys.publicKey}`,
       "Content-Encoding": "aes128gcm",

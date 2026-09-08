@@ -15,7 +15,8 @@ test("오늘·실시간: 두 화면이 같은 순서와 활성 표시를 유지�
     assert.match(html, /data-view="today"[^>]*>오늘<\/a>[\s\S]*data-view="live"[^>]*>실시간<\/a>/);
     assert.match(html, /class="view-indicator"/);
     assert.match(html, /flex:0 0 248px/);
-    assert.match(html, /flex-basis:112px/);
+    assert.match(html, /\.brand\{flex-basis:(?:auto|112px);font-size:18px\}/,
+      "모바일에서 브랜드 폭을 줄인다 — 오늘판은 내용 폭(auto), 실시간은 112px");
     assert.match(html, /지금핫[\s\S]{0,180}NowHot[\s\S]{0,180}맞춰가는 중/);
     assert.match(html, /\.brand-en\{display:none\}/,
       "모바일에서는 영문만 숨기고 지금핫·대표문구는 유지한다");

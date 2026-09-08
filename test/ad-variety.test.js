@@ -23,8 +23,11 @@ test("광고 가능한 편집 페이지만 adPage 묶음을 쓰고 유틸리티�
   const direct = (body.match(/coupangBannerHtml\(/g) || []).length;
   assert.equal(direct, 0,
     `라우트가 coupangBannerHtml을 직접 부른다(${direct}곳) — adPage()를 거쳐야 한다`);
-  const editorial = (src.match(/const AD = adPage\((?:Boolean\(b\.publishable\))?\)/g) || []).length;
-  assert.ok(editorial >= 3, "브리핑·아카이브·리포트가 adPage 묶음을 거치지 않는다");
+  // 브리핑·아카이브는 2026-09-05 은퇴(8533eaa)했고, 색인되는 편집 페이지 중
+  // 제휴 광고를 켜는 곳은 데이터 리포트 하나다. 그 페이지도 묶음을 거쳐야 한다.
+  const report = src.slice(src.indexOf('if (p === "/report"'), src.indexOf('if (p === "/keywords"'));
+  assert.ok(report, "리포트 라우트를 찾지 못했다");
+  assert.match(report, /const AD = adPage\(\);/, "리포트가 adPage 묶음을 거치지 않는다");
   assert.ok((src.match(/const AD = adPage\(false\)/g) || []).length >= 6,
     "noindex 유틸리티 페이지의 제휴 광고가 명시적으로 꺼지지 않았다");
 });
@@ -38,11 +41,13 @@ test("문구 회전값이 자리 번호에만 매이지 않는다", () => {
   assert.match(src, /adTurn = \(adTurn \+ 1\) % 997/, "방문 순번이 돌지 않는다");
 });
 
-test("브리핑의 첫 광고와 끝 광고도 근처 글에 맞춘다", () => {
-  // 예전엔 category·dest를 둘 다 null로 넘겨, 가장 눈에 띄는 자리만 문맥과 무관했다.
-  assert.match(src, /AD\(cat0, null, 3, "brief_mid", dest0\)/, "첫 광고가 문맥과 무관하다");
-  assert.match(src, /AD\(catL, null, 7, "page_bot", destL\)/, "끝 광고가 문맥과 무관하다");
-  assert.match(src, /const dest0 = cat0 && sec0\.items\[0\] \? destForText\(sec0\.items\[0\]\.title\)/);
+test("남은 문맥 광고 자리(랭킹 중간)는 위 글의 분야와 상품 도착지를 함께 넘긴다", () => {
+  // 브리핑의 첫·끝 광고 자리는 브리핑 은퇴(2026-09-05, 8533eaa)와 함께 사라졌다.
+  // 서버 페이지에서 글 옆에 붙는 자리는 랭킹 중간 하나이며, 예전 브리핑처럼
+  // category·dest를 null로 넘기면 안 된다 — 둘 다 바로 위 글에서 뽑는다.
+  assert.match(src, /rankingRows\(list, \(above\) => \{/, "랭킹 광고가 위 글을 받지 않는다");
+  assert.match(src, /AD\(cat, null, 2, "rank_mid", cat \? destForText\(above\.title\) : null\)/,
+    "랭킹 중간 광고가 위 글의 분야·도착지와 무관하다");
 });
 
 test("랭킹 중간 광고는 바로 위 글을 받아 맞춘다", () => {
@@ -53,9 +58,12 @@ test("랭킹 중간 광고는 바로 위 글을 받아 맞춘다", () => {
 });
 
 test("정치·뉴스에는 상품 매칭을 붙이지 않는다 — 회전을 넣어도 그대로", () => {
-  // AD_MATCH_OFF_CATS 가드가 새 코드에도 살아 있어야 한다.
-  assert.match(src, /AD_MATCH_OFF_CATS\.has\(sec0\.category\)/);
-  assert.match(src, /AD_MATCH_OFF_CATS\.has\(above\.category\)/);
+  // AD_MATCH_OFF_CATS 가드가 새 코드에도 살아 있어야 한다. 브리핑 섹션(sec0)
+  // 가드는 브리핑과 함께 갔고, 남은 랭킹 자리는 분야를 null로 지워 도착지까지 끊는다.
+  assert.match(src, /const AD_MATCH_OFF_CATS = new Set\(\["news", "politics"\]\)/,
+    "뉴스·정치가 상품 매칭 제외 목록에서 빠졌다");
+  assert.match(src, /const cat = above && !AD_MATCH_OFF_CATS\.has\(above\.category\) \? above\.category : null/,
+    "랭킹 광고가 뉴스·정치 글 옆에서도 분야를 넘긴다");
 });
 
 test("같은 문맥이 연달아 와도 같은 광고를 두 번 주지 않는다", async () => {

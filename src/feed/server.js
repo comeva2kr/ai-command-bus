@@ -50,7 +50,7 @@ import { DEFAULT_RULES } from "./rules.js";
 import { normalizeSubmission } from "./ingest.js";
 import { topPreferences, specializationLevel } from "./recommender.js";
 import { categoryLabel, sourceLabel, tagLabel, isKnownCategory } from "./taxonomy.js";
-import { sendDigestPushes, sendEditionPushes } from "./push.js";
+import { sendDigestPushes, sendEditionPushes, isValidPushSubscription } from "./push.js";
 import { makeCoupangProductFeed, refreshCoupangCache, coupangCreds } from "./coupang.js";
 import { makeEnricher, isJunkImage } from "./enrich.js";
 import { makeInterestsCache } from "./interest.js";
@@ -3551,6 +3551,9 @@ ${rankingRows(list, (above) => {
         // 덮어써 알림을 가로챌 수 있다(적대적 검수 2026-08-06).
         if (denied(body.userId)) return;
         if (!store.getUser(body.userId)) return send(res, 400, { error: "unknown user" });
+        if (body.subscription != null && !isValidPushSubscription(body.subscription)) {
+          return send(res, 400, { error: "알림 연결 정보가 올바르지 않습니다. 다시 연결해 주세요.", code: "INVALID_PUSH_SUBSCRIPTION" });
+        }
         const enabled = store.savePushSubscription(body.userId, body.subscription || null);
         return send(res, 200, { ok: true, notifyEnabled: enabled });
       }

@@ -60,7 +60,7 @@ test("상세 화면에도 제휴 지면이 있다", () => {
 test("자체 콘텐츠 링크는 한 자리에만 있다", () => {
   // 브리핑 스트립과 별도 칩줄이 같은 곳을 가리켜 상단이 어정쩡했다(David).
   assert.ok(!HTML.includes("own-nav"), "중복 네비게이션이 남아 있다");
-  assert.match(SERVER, /bs-seed/, "크롤러용 정적 링크가 없다");
+  assert.match(SERVER, /class="seed-nav"/, "크롤러용 정적 링크가 없다");
 });
 
 test("그만보기 버튼은 상세 화면 헤더에만 붙는다", () => {

@@ -99,22 +99,60 @@ function allDefinedNames(src) {
   return d;
 }
 
-test("스크립트 전체: 정의 없는 함수를 부르는 곳이 없다", () => {
-  // 2026-08-05 실사고: toggleTopic 정의를 지웠는데 정치·종교 버튼은 계속 부르고
-  // 있었다. 문법은 맞으니 문법 검사기는 통과하고, 부팅 경로가 아니니 위 검사도
-  // 통과했다. 화면은 멀쩡한데 버튼만 안 눌린다 — 사용자에겐 콘솔이 안 보인다.
-  const src = inlineScript();
+// `name(...){` 는 호출이 아니라 메서드 축약형 정의다. 정의 집합에 이름을 넣지
+// 않는다 — 같은 이름이 나중에 `view();` 로 불리면 그건 진짜 죽은 호출이다.
+function methodShorthand(line, openParen) {
+  let depth = 1;
+  for (let i = openParen + 1; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") {
+      depth--;
+      if (depth === 0) return /^\s*\{/.test(line.slice(i + 1));
+    }
+  }
+  return false;
+}
+
+function missingCalls(src) {
   const defined = allDefinedNames(src);
   const missing = [];
   src.split("\n").forEach((line, i) => {
     // 앞에 . 이나 - 가 붙은 것은 제외한다 (obj.foo(), CSS의 color-mix())
     for (const m of line.matchAll(/(^|[^-.\w$"'`])([a-z_$][\w$]*)\s*\(/g)) {
       const name = m[2];
+      const open = m.index + m[0].length - 1;
+      if (methodShorthand(line, open)) continue;
       if (defined.has(name) || BROWSER_GLOBALS.has(name)) continue;
       if (missing.some((x) => x.name === name)) continue;
       missing.push({ name, line: i + 1 });
     }
   });
+  return missing;
+}
+
+test("스크립트 전체: 정의 없는 함수를 부르는 곳이 없다", () => {
+  // 2026-08-05 실사고: toggleTopic 정의를 지웠는데 정치·종교 버튼은 계속 부르고
+  // 있었다. 문법은 맞으니 문법 검사기는 통과하고, 부팅 경로가 아니니 위 검사도
+  // 통과했다. 화면은 멀쩡한데 버튼만 안 눌린다 — 사용자에겐 콘솔이 안 보인다.
+  const src = inlineScript();
+  const missing = missingCalls(src);
   assert.deepEqual(missing, [],
     `정의 없이 호출되는 함수: ${missing.map((x) => `${x.name}(줄 ${x.line})`).join(", ")}`);
+});
+
+test("객체 리터럴 메서드 축약형은 호출이 아니고, 정의 없는 호출은 그대로 잡는다", () => {
+  // 실측 오탐: 추출 스크립트 52행은 주석이 아니라
+  // `const Track = ... || { view(){}, click(){}, ... }`. // 주석은 이미 걷어낸 뒤다.
+  const src = [
+    "const Track = window.NowHotTrack || { view(){}, click(){}, action(){}, ad(){}, depth(){}, exit(){} };",
+    "function setupDrawer(){}",
+    "setupDrawer(); view(); goneToggle();",
+    "// 한국어 주석 낱말( view(click) action(ad) depth(exit)"
+  ].join("\n").split("\n").map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1")).join("\n");
+  const missing = missingCalls(src);
+  assert.deepEqual(missing.map((x) => x.name).sort(), ["goneToggle", "view"]);
+  assert.equal(missing.find((x) => x.name === "view").line, 3);
+  assert.equal(missing.find((x) => x.name === "goneToggle").line, 3);
+  assert.equal(missing.some((x) => ["click", "action", "ad", "depth", "exit"].includes(x.name)), false);
 });

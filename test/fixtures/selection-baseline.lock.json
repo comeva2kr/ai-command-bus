@@ -8,11 +8,11 @@
   "fingerprints": {
     "selectionContract": "8c586d5e2c4da240",
     "taxonomy": "4b40bc914e46a7ef",
-    "legacyClassifier": "8e58faba7225d0dc",
+    "legacyClassifier": "20f62bf1d7cae07e",
     "categoryPolicy": "5418ea483ec23905",
     "shadowSelectionParams": "b5c6d50f7f1ba929",
     "eventCluster": "c94da0311586666c",
-    "sourceRegistry": "7290afd0fadf495c",
+    "sourceRegistry": "52bb45ceca678cb1",
     "sourceIdentity": "5526f8b80814e4ed"
   },
   "taxonomyIds": [

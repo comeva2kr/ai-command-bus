@@ -221,8 +221,10 @@ test("admin.html: 대시보드에 트래픽·수익·소스 헬스 패널이 있
   const p = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "feed", "public", "admin.html");
   const html = fs.readFileSync(p, "utf8");
   // 신규 패널 — 2026-08-09 날짜 선택기 도입으로 고정 14일 문구는 사라지고
-  // 기간 조회(traffic-range)가 트래픽 패널을 그린다.
-  assert.match(html, /📈 트래픽/);
+  // 기간 조회(traffic-range)가 트래픽 패널을 그린다. 2026-09 새 공통 계측이
+  // 들어온 뒤 서버 측정 패널은 "기존 방문 추이"로 불린다(19da25d).
+  assert.match(html, /기존 방문 추이/, "서버 측정 트래픽 패널 제목이 없다");
+  assert.match(html, /서버 측정 \(traffic\)/);
   assert.match(html, /api\/admin\/traffic-range/);
   assert.match(html, /api\/admin\/source-health/);
   assert.match(html, /소스 헬스/);

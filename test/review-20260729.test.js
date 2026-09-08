@@ -92,11 +92,16 @@ test("검수5: 고른 카테고리가 실제로 더 많이 나온다 (구성 비
   assert.ok(gamingFanGaming > 0.55, `고른 카테고리가 과반을 넘어야: ${(gamingFanGaming * 100).toFixed(0)}%`);
 });
 
-test("검수5+3: 취향이 강해도 안 고른 카테고리가 사라지지는 않는다 (다양성 하한)", async () => {
+test("검수5+3 갱신: 분야를 직접 고르면 실시간 피드는 그 분야만 편성한다 (안 고른 분야 0%)", async () => {
+  // 2026-09-05(b3d8912)부터 명시적으로 고른 분야가 있으면 핫 피드 관문
+  // (engine.js passesGates)이 그 분야만 통과시킨다 — 예전의 20~45% 다양성
+  // 하한은 고른 사람에게는 더 이상 적용되지 않는다. 익명(설문 전)은 아래
+  // 검수5 균등 배분 테스트가 그대로 지킨다.
   const sources = twoCategoryEngine();
   const gamingFanBiz = await feedShare(sources, "gaming", "business");
-  assert.ok(gamingFanBiz >= 0.2, `안 고른 카테고리가 ${(gamingFanBiz * 100).toFixed(0)}%까지 밀림 — 편식 피드`);
-  assert.ok(gamingFanBiz <= 0.45, `취향 반영이 너무 약함: ${(gamingFanBiz * 100).toFixed(0)}%`);
+  const bizFanGaming = await feedShare(sources, "business", "gaming");
+  assert.equal(gamingFanBiz, 0, `게임만 고른 사람에게 경제가 ${(gamingFanBiz * 100).toFixed(0)}% 섞였다`);
+  assert.equal(bizFanGaming, 0, `경제만 고른 사람에게 게임이 ${(bizFanGaming * 100).toFixed(0)}% 섞였다`);
 });
 
 test("검수5: 취향 벡터가 없으면(익명) 예전처럼 균등 배분", () => {
@@ -299,7 +304,8 @@ test("검수7: 최초 진입 온보딩이 있고, 한 번 보면 다시 안 뜨�
   assert.match(guide, /오늘판/);
   assert.match(guide, /실시간/);
   assert.match(guide, /한국어 요약, 사진과 출처/);
-  assert.match(html, /<script src="\/notice-guide\.js"><\/script>/);
+  assert.match(html, /<script src="\/notice-guide\.js(?:\?v=[\w.-]+)?"><\/script>/,
+    "공용 안내 모듈이 캐시 버전과 함께 실려야 한다");
 });
 
 test("검수7: Today와 Live가 같은 신규 방문 판정과 안내 모듈을 쓴다", async () => {

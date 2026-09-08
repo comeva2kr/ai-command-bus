@@ -133,7 +133,7 @@ test("오래 저장된 Google 뉴스 자리표시자 이미지는 상세 응답�
 test("오늘판 상세는 출처 운영그룹으로 직접 URL을 우선하고 중계만 있으면 원문이라고 부르지 않는다", () => {
   const html = readFileSync("src/feed/public/today.html", "utf8");
   const links = html.slice(html.indexOf("function issueSourceLinks(issue){"), html.indexOf("function renderCategories(edition){"));
-  const detail = html.slice(html.indexOf("function openIssueDetail(index,returnFocus=null){"), html.indexOf("$(\"detailClose\").onclick"));
+  const detail = html.slice(html.indexOf("function openIssueDetail(index,returnFocus=null,restoring=false){"), html.indexOf("$(\"detailClose\").onclick"));
   assert.match(links, /row\.sourceGroup\|\|row\.ownershipGroup/, "서버의 출처 정본 그룹을 사용하지 않는다");
   assert.match(links, /directGroups/, "직접 URL이 있어도 같은 언론사 중계를 남긴다");
   assert.match(detail, /Google 뉴스 중계 링크/, "중계 링크만 남은 상태를 사용자에게 구분하지 않는다");
@@ -168,7 +168,7 @@ test("오늘판은 정확한 날짜 판본을 고르고 상세에 원문 피드 
   const html = readFileSync("src/feed/public/today.html", "utf8");
   const links = html.slice(html.indexOf("function issueSourceLinks(issue){"), html.indexOf("function renderCategories(edition){"));
   const list = html.slice(html.indexOf("function renderIssues(edition){"), html.indexOf("function closeIssueDetail"));
-  const detail = html.slice(html.indexOf("function openIssueDetail(index,returnFocus=null){"), html.indexOf("$(\"detailClose\").onclick"));
+  const detail = html.slice(html.indexOf("function openIssueDetail(index,returnFocus=null,restoring=false){"), html.indexOf("$(\"detailClose\").onclick"));
 
   assert.match(html, /<input[^>]+id="editionDate"[^>]+type="date"/, "날짜 선택기가 없다");
   assert.match(html, /\$\("editionDate"\)\.onchange=/, "날짜 변경이 판본 조회에 연결되지 않았다");

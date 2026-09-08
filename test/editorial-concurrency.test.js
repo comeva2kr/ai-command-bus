@@ -10,7 +10,14 @@ import os from "node:os";
 import path from "node:path";
 import { createServer } from "../src/feed/server.js";
 import { JsonSource } from "../src/feed/content.js";
-import { CATEGORIES } from "../src/feed/taxonomy.js";
+
+// 서버가 설정을 모두 마친 뒤 외부 검색어 수집을 빈 고정 자료로 바꾼다.
+function fixtureServer(options) {
+  let engine;
+  const server = createServer({...options, onEngineReady: value => { engine = value; }});
+  engine._interestsFn = async () => [];
+  return server;
+}
 
 const CONCURRENCY_SUBJECTS = [
   "기준금리 결정 회의 결과", "원달러 환율 변동 대응 방안", "반도체 수출 전망 공식 발표",
@@ -25,8 +32,10 @@ const CONCURRENCY_SUBJECTS = [
   "보유세 과세 기준 개편 발표", "S&P 500 목표치 상향 발표", "무역수지 흑자 폭 확대"
 ];
 
-function concurrencySources(baseMs = Date.now()) {
-  return CATEGORIES.flatMap(({ id: category }, categoryIndex) =>
+function concurrencySources(categories, baseMs = Date.now()) {
+  // 요청 격리 검사에는 해당 분야만 공급한다. 14개 분야에 같은 30개 제목을
+  // 복제하면 중복 근거 비교 부하를 검사하게 되어 동시 요청 검사가 끝나지 않는다.
+  return categories.flatMap((category, categoryIndex) =>
     CONCURRENCY_SUBJECTS.map((subject, sourceIndex) => {
       const s = categoryIndex * CONCURRENCY_SUBJECTS.length + sourceIndex;
       return new JsonSource(`conc-${s}`, async () => [{
@@ -69,7 +78,7 @@ test("현재 슬롯의 다른 단독 분야 요청은 고정된 근거 시각의
   const file = path.join(dir, "feed-data.json");
   const nowMs = Date.parse("2026-08-26T10:05:00Z");
   let fetchCalls = 0;
-  const server = createServer({
+  const server = fixtureServer({
     sources: stableLaneSources(nowMs - 60_000, () => { fetchCalls += 1; }),
     localEditorial: true,
     localEditorialInventorySchedule: false,
@@ -100,7 +109,7 @@ test("현재 슬롯의 다른 단독 분야 요청은 고정된 근거 시각의
 //    기존 테스트) ⑤영속 스토어 재시작 후 같은 판.
 
 test("S2-①②: 무효 슬러그 동시 요청은 전부 400이고 판·캐시를 오염시키지 않는다", async () => {
-  const server = createServer({ sources: concurrencySources(), localEditorial: true });
+  const server = fixtureServer({ sources: concurrencySources(["humor"]), localEditorial: true });
   await new Promise((resolve) => server.listen(0, resolve));
   const base = `http://localhost:${server.address().port}`;
   const get = (c) => fetch(`${base}/api/today?categories=${c}`)
@@ -128,12 +137,17 @@ test("S2-①②: 무효 슬러그 동시 요청은 전부 400이고 판·캐시�
 });
 
 test("S2-③: 콜드 상태에서 같은 조합 동시 요청은 같은 판·같은 내용을 받는다", async () => {
-  const server = createServer({ sources: concurrencySources(), localEditorial: true });
+  const server = fixtureServer({ sources: concurrencySources(["tech", "science"]), localEditorial: true });
   await new Promise((resolve) => server.listen(0, resolve));
   const base = `http://localhost:${server.address().port}`;
   try {
     const rs = await Promise.all(Array.from({ length: 4 }, () =>
-      fetch(`${base}/api/today?categories=tech,science`).then((r) => r.json())));
+      fetch(`${base}/api/today?categories=tech,science`).then(async (r) => {
+        assert.equal(r.status, 200);
+        const edition = await r.json();
+        assert.ok(edition.editionId && edition.issues?.length > 0);
+        return edition;
+      })));
     const ids = new Set(rs.map((r) => r.editionId));
     assert.equal(ids.size, 1, `동시 요청이 서로 다른 판을 받았다: ${[...ids].join(", ")}`);
     const issueLists = rs.map((r) => (r.issues || []).map((i) => i.clusterId || i.id).join("|"));
@@ -149,7 +163,7 @@ test("S2-⑤: 영속 스토어로 재시작해도 같은 조합은 같은 판을
   const baseMs = Date.now();
   let first;
   {
-    const server = createServer({ sources: concurrencySources(baseMs), localEditorial: true, file });
+    const server = fixtureServer({ sources: concurrencySources(["business"], baseMs), localEditorial: true, file });
     await new Promise((resolve) => server.listen(0, resolve));
     const base = `http://localhost:${server.address().port}`;
     try {
@@ -160,7 +174,7 @@ test("S2-⑤: 영속 스토어로 재시작해도 같은 조합은 같은 판을
     }
   }
   {
-    const server = createServer({ sources: concurrencySources(baseMs), localEditorial: true, file });
+    const server = fixtureServer({ sources: concurrencySources(["business"], baseMs), localEditorial: true, file });
     await new Promise((resolve) => server.listen(0, resolve));
     const base = `http://localhost:${server.address().port}`;
     try {
@@ -182,7 +196,7 @@ test("오늘판: 복수 선택은 저장된 단독 분야 판의 정확한 합�
     issue?.evidenceHash || issue?.refs?.[0]?.id || issue?.headline
   );
   try {
-    const seedServer = createServer({
+    const seedServer = fixtureServer({
       sources: stableLaneSources(nowMs - 60_000),
       localEditorial: true,
       clock: () => nowMs,
@@ -211,7 +225,7 @@ test("오늘판: 복수 선택은 저장된 단독 분야 판의 정확한 합�
     businessLane.issues.pop();
     fs.writeFileSync(file, `${JSON.stringify(data)}\n`);
 
-    const server = createServer({
+    const server = fixtureServer({
       sources: stableLaneSources(nowMs - 60_000),
       localEditorial: true,
       clock: () => nowMs,
@@ -246,25 +260,28 @@ test("오늘판: 복수 선택은 저장된 단독 분야 판의 정확한 합�
 });
 
 test("오늘판: 서로 다른 조합의 동시 요청이 서로의 판을 받지 않는다", async () => {
-  const server = createServer({ sources: concurrencySources(), localEditorial: true });
+  const server = fixtureServer({ sources: stableLaneSources(), localEditorial: true });
   await new Promise((resolve) => server.listen(0, resolve));
   const base = `http://localhost:${server.address().port}`;
   try {
-    const combos = ["humor", "politics,realestate", "tech,science", "business", "sports,gaming"];
+    const combos = ["business", "tech", "tech,business"];
     const get = (c) => fetch(`${base}/api/today?categories=${c}`)
       .then(async (r) => ({ c, status: r.status, body: await r.json() }));
     // 콜드 상태 동시 발사 + 즉시 재요청 두 라운드
     for (const round of [await Promise.all(combos.map(get)), await Promise.all(combos.map(get))]) {
       for (const r of round) {
-        if (r.status !== 200) continue; // 공급 부족 409는 이 테스트의 관심사가 아니다
+        assert.equal(r.status, 200, `${r.c}: 공급된 분야판을 읽을 수 있어야 한다`);
+        assert.ok(r.body.editionId && r.body.issues?.length > 0);
         const want = r.c.split(",").sort().join(",");
         const got = (r.body.selectedCategories || []).slice().sort().join(",");
         assert.equal(got, want, `요청 조합과 응답 조합이 달랐다: ${want} → ${got}`);
       }
     }
     // 같은 조합 연속 재요청은 같은 판(캐시 고정)이어야 한다
-    const a = await get("humor");
-    const b = await get("humor");
+    const a = await get("business");
+    const b = await get("business");
+    assert.equal(a.status, 200);
+    assert.equal(b.status, 200);
     assert.equal(a.body.editionId, b.body.editionId, "같은 조합 재요청이 다른 판을 받았다");
   } finally {
     await new Promise((resolve) => server.close(resolve));

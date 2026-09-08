@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { unsafeForLead, maskProfanity } from "../src/feed/profanity.js";
+import { createCategoryRouter } from "../src/feed/category-routing.js";
 
 // 2026-08-07 애드센스 정책 감사 실측:
 //   /briefing 패션 섹션 대표 헤드라인이
@@ -38,12 +39,26 @@ test("마스킹과 배제는 다른 일이다 — maskProfanity는 그대로 둔
     "일상어가 마스킹되면 안 된다");
 });
 
-test("대표 선정이 다음 순위로 넘어간다", async () => {
-  const fs = await import("node:fs");
-  const src = fs.readFileSync("src/feed/server.js", "utf8");
-  assert.match(src, /const pickLead = \(arr\) =>/, "pickLead 헬퍼가 없다");
-  assert.match(src, /const lead = pickLead\(sec\.items\)/, "브리핑 섹션이 pickLead를 안 쓴다");
-  assert.match(src, /const lead = pickLead\(catItems\)/, "카테고리 브리핑이 pickLead를 안 쓴다");
-  // 전부 걸리면 예전처럼 1위를 쓴다 — 악화시키지 않는다
-  assert.match(src, /\|\| \(arr \|\| \[\]\)\[0\]/, "전부 걸릴 때 폴백이 없다");
+test("성적 표현이 든 제목은 오늘판 분야 편성에서 빠져 우리 문장의 주어가 되지 않는다", () => {
+  // 브리핑의 pickLead(대표 후보 배제)는 브리핑 은퇴(2026-09-05, 8533eaa)와 함께 갔다.
+  // 지금 우리가 직접 쓰는 문장은 오늘판이고, 그 편성 입구(category-routing)가
+  // 같은 판정으로 글을 후보에서 뺀다 — 글은 지우지 않고 편성만 하지 않는다.
+  const sha = "a".repeat(64);
+  const generatedAt = "2026-09-08T00:00:00.000Z";
+  const router = createCategoryRouter({
+    contract: "NOWHOT-CATEGORY-ROUTING-SNAPSHOT-001",
+    snapshotId: "lead-safety",
+    generatedAt,
+    source: { packetSha256: sha, predictionsSha256: sha },
+    entries: [
+      { itemId: "unsafe", evidenceHash: sha, categories: ["fashion"] },
+      { itemId: "safe", evidenceHash: sha, categories: ["fashion"] }
+    ]
+  }, [], { now: () => Date.parse(generatedAt) + 1000 });
+  const projected = router.project([
+    { id: "unsafe", title: "스페인 누나 피팅룸 룩북 노브라 가슴", source: "s" },
+    { id: "safe", title: "파리 패션위크 런웨이", source: "s" }
+  ]);
+  assert.deepEqual(projected.map((item) => item.id), ["safe"], "성적 표현 제목이 오늘판 편성 후보에 남았다");
+  assert.equal(projected[0].category, "fashion", "평범한 글은 그대로 분야에 편성된다");
 });
