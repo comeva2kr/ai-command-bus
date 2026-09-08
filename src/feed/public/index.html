@@ -1319,6 +1319,7 @@ function restoreLiveList(snapshot){
     appendCard(item);
   }
   maybeInsertAdfit();
+  setSentinel(false);
   setupSortBar(); renderChips(); renderSourceChips(); refreshDrawerFilters();
   [...document.getElementById("chips").children].forEach((button,index)=>
     button.classList.toggle("active",index===0?!state.activeCategory:state.config.categories[index-1]?.id===state.activeCategory));
@@ -2983,8 +2984,8 @@ function renderBatch(res){
   for(const item of res.items) appendCard(item);
   maybeInsertAdfit(); // 쿠팡 제휴 카드를 본문 사이에 (config에 광고단위 있을 때만)
   ensureAdfitPlacement(); // 애드핏 지면 1장 — 목록 끝, 수익 슬롯과 자리를 나눈다
-  if(res.exhausted){ state.exhausted=true; setSentinel(false, state.sortMode==="deals" ? (state.cursor ? "핫딜을 모두 확인했어요. 새 딜은 새로고침해서 확인해 주세요." : "지금 표시할 핫딜이 없어요. 잠시 후 새로고침해 주세요.") : "현재 설정으로 볼 수 있는 글을 다 봤어요. 다른 정렬이나 오늘판도 확인해 보세요."); }
-  else setSentinel(false);
+  state.exhausted=Boolean(res.exhausted);
+  setSentinel(false);
   saveLiveNavigation();
 }
 
@@ -3416,12 +3417,15 @@ function setSentinel(loading, msg){
       ? '<div class="loading-wrap"><div class="spinner"></div><div class="loading-msg">지금 핫한 글을 모으는 중…<br>잠시만요 (첫 접속은 조금 걸려요)</div></div>'
       : '<div class="spinner"></div>';
   } else {
-    s.innerHTML = msg || "";
+    s.innerHTML = msg || (state.exhausted
+      ? (state.sortMode==="deals" ? (state.cursor ? "핫딜을 모두 확인했어요. 새 딜은 새로고침해서 확인해 주세요." : "지금 표시할 핫딜이 없어요. 잠시 후 새로고침해 주세요.") : "현재 설정으로 볼 수 있는 글을 다 봤어요. 다른 정렬이나 오늘판도 확인해 보세요.")
+      : "");
   }
 }
 function setupInfiniteScroll(){
   const io = new IntersectionObserver((entries)=>{
-    if(entries[0].isIntersecting && nearFeedEnd()) loadMore();
+    // 일반 목록은 observer의 경계 판정을 따른다. 별도 < 비교는 경계 진입을 놓친다.
+    if(entries[0].isIntersecting && (!state.immersion || nearFeedEnd())) loadMore();
   }, { rootMargin: "1400px" });
   io.observe(document.getElementById("sentinel"));
   document.getElementById("feed").addEventListener("scroll",()=>{

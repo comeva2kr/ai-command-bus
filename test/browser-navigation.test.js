@@ -641,6 +641,49 @@ test("browser: Live only requests the next page when approaching the list bottom
   assert.equal(requests.filter(path => path === "/api/feed").length, before + 2);
 });
 
+for (const sort of ["hot", "latest"]) {
+  test(`browser: Live ${sort} continues after touching the prefetch boundary`, options, async (t) => {
+    const { page, controls, requests } = await fixture(t);
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.waitForSelector('#feed [data-id="post-17"]');
+    controls.feedHandler = url => Number(url.searchParams.get("cursor")) === 0
+      ? { items, nextCursor: 18, exhausted: false }
+      : { items: [{ ...items[0], id: "after-boundary" }], nextCursor: 19, exhausted: true };
+    if (sort === "hot") await page.click('#sortBar [data-sort="latest"]');
+    await page.click(`#sortBar [data-sort="${sort}"]`);
+    await page.waitForSelector('#feed [data-id="post-17"]');
+    await page.waitForTimeout(150);
+    const before = requests.filter(path => path === "/api/feed").length;
+    const distance = await page.evaluate(() => {
+      const sentinel = document.getElementById("sentinel");
+      const top = sentinel.getBoundingClientRect().top + scrollY;
+      // Align fractional card heights to exercise the observer's inclusive edge.
+      sentinel.style.transform = `translateY(${Math.ceil(top) - top}px)`;
+      scrollTo(0, Math.ceil(top) - innerHeight - 1400);
+      return sentinel.getBoundingClientRect().top - innerHeight;
+    });
+    assert.equal(distance, 1400);
+    await page.waitForTimeout(150);
+    await page.locator("#sentinel").scrollIntoViewIfNeeded();
+    await page.waitForSelector('#feed [data-id="after-boundary"]');
+    assert.equal(requests.filter(path => path === "/api/feed").length, before + 1);
+  });
+}
+
+test("browser: Live preserves the end notice when restoring a finished list", options, async (t) => {
+  const { page, requests } = await fixture(t);
+  await page.waitForSelector('#feed [data-id="post-17"]');
+  const notice = await page.locator("#sentinel").innerText();
+  assert.match(notice, /현재 설정으로 볼 수 있는 글을 다 봤어요/);
+  await page.locator("#sentinel").scrollIntoViewIfNeeded();
+  const before = requests.filter(path => path === "/api/feed").length;
+  await page.reload();
+  await page.waitForSelector('#feed [data-id="post-17"]');
+  assert.equal(await page.locator("#sentinel").innerText(), notice);
+  assert.equal(requests.filter(path => path === "/api/feed").length, before,
+    "restoring the notice must not consume another page or replace the reading position");
+});
+
 test("browser: immersion loads more only near the nested feed bottom", options, async (t) => {
   const { page, controls, requests } = await fixture(t);
   await page.waitForSelector('#feed [data-id="post-17"]');
