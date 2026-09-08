@@ -297,36 +297,42 @@ test("push delivery retains notified IDs and cadence after real-file restart", a
   at = "2026-09-03T12:00:00.000Z";
   items = [article("D")];
   assert.deepEqual(await run(), { sent: 0, failed: 0 }, "daily cap survives restart after four hours elapsed");
-  at = "2026-09-03T15:00:00.000Z";
+  at = "2026-09-03T22:00:00.000Z";
   assert.deepEqual(await run(), { sent: 1, failed: 0 }, "next KST calendar day reopens the budget");
 });
 
-test("push delivery enforces four hours even across KST midnight and allows the exact boundary", async () => {
-  const h = setup([article("A")], "2026-09-03T14:30:00.000Z");
+test("push delivery enforces four hours and keeps the overnight window quiet", async () => {
+  const h = setup([article("A")], "2026-09-03T07:30:00.000Z");
   assert.deepEqual(await h.run(), { sent: 1, failed: 0 });
   h.setItems([article("B")]);
-  for (const at of ["2026-09-03T15:00:00.000Z", "2026-09-03T18:29:59.999Z"]) {
+  for (const at of ["2026-09-03T08:00:00.000Z", "2026-09-03T11:29:59.999Z"]) {
     h.setTime(at);
     assert.deepEqual(await h.run(), { sent: 0, failed: 0 });
     assert.equal(h.digestCalls.length, 1, "cadence is checked before digest");
   }
-  h.setTime("2026-09-03T18:30:00.000Z");
+  h.setTime("2026-09-03T11:30:00.000Z");
+  assert.deepEqual(await h.run(), { sent: 1, failed: 0 });
+  h.setItems([article("C")]);
+  for (const at of ["2026-09-03T15:30:00.000Z", "2026-09-03T21:59:59.999Z"]) {
+    h.setTime(at); assert.deepEqual(await h.run(), { sent: 0, failed: 0 });
+  }
+  h.setTime("2026-09-03T22:00:00.000Z");
   assert.deepEqual(await h.run(), { sent: 1, failed: 0 });
 });
 
 test("push delivery is capped at three successes per KST date, not per UTC date", async () => {
   const h = setup();
-  const times = ["2026-09-02T16:00:00.000Z", "2026-09-02T20:00:00.000Z", "2026-09-03T00:00:00.000Z"];
+  const times = ["2026-09-02T22:00:00.000Z", "2026-09-03T02:00:00.000Z", "2026-09-03T06:00:00.000Z"];
   for (const [index, at] of times.entries()) {
     h.setTime(at);
     h.setItems([article(`day-one-${index}`)]);
     assert.deepEqual(await h.run(), { sent: 1, failed: 0 });
   }
   h.setItems([article("day-two")]);
-  h.setTime("2026-09-03T14:59:59.999Z");
+  h.setTime("2026-09-03T11:59:59.999Z");
   assert.deepEqual(await h.run(), { sent: 0, failed: 0 });
   assert.equal(h.digestCalls.length, 3);
-  h.setTime("2026-09-03T15:00:00.000Z");
+  h.setTime("2026-09-03T22:00:00.000Z");
   assert.deepEqual(await h.run(), { sent: 1, failed: 0 });
   assert.equal(h.user.pushDeliveryTimes.length, 4);
 });
@@ -447,15 +453,15 @@ test("live alerts have separate bounded cadence, one matching preview and honor 
   assert.deepEqual(await h.run(options),{sent:1,failed:0});
   assert.equal(h.digestCalls[0].alertsOnly,true);
   assert.equal(h.deliveries[0].payload.kind,"live");
-  h.setItems([article("B")]);h.setTime("2026-09-03T00:29:59Z");
+  h.setItems([article("B")]);h.setTime("2026-09-03T00:59:59Z");
   assert.deepEqual(await h.run(options),{sent:0,failed:0});
-  h.setTime("2026-09-03T00:30:00Z");assert.deepEqual(await h.run(options),{sent:1,failed:0});
-  h.user.notifyEnabled=false;h.setTime("2026-09-03T02:00:00Z");h.setItems([article("C")]);
+  h.setTime("2026-09-03T01:00:00Z");assert.deepEqual(await h.run(options),{sent:1,failed:0});
+  h.user.pushDeliveryTimes=[];h.user.notifyEnabled=false;h.setTime("2026-09-03T05:00:00Z");h.setItems([article("C")]);
   assert.deepEqual(await h.run(options),{sent:0,failed:0});
 });
 
 test("NH134 real digest separates declared, learned and unknown interests without game leakage", async () => {
-  const clock = () => "2026-09-07T03:00:00.000Z";
+  const clock = () => "2026-09-07T04:00:00.000Z";
   const store = new FeedStore({ clock }), engine = new FeedEngine(store, []);
   engine._clock = clock;
   const base = { kind: "news", topics: [], publishedAt: "2026-09-07T02:00:00.000Z",
@@ -528,8 +534,8 @@ test("NH134 real digest separates declared, learned and unknown interests withou
   const unknown = store.getUser("no-interests");
   assert.equal(unknown.implicitCount || 0, 0);
   rows.push({...rows.find(row=>row.id==="viral-community"),id:"next-popular"});
-  assert.equal((await engine.digest(unknown.id,{alertsOnly:true,minScore:0,limit:1,excludeIds:["viral-community"]})).top[0].id,"next-popular");
-  const repeat = await sendDigestPushes(store, engine, vapid, { clock: () => "2026-09-07T04:00:00.000Z", alertsOnly: true, minScore: 0, limit: 1,
+  assert.equal((await engine.digest(unknown.id,{alertsOnly:true,minScore:0,limit:1,excludeIds:["viral-community"]})).count,0,"same event with new ID stays suppressed");
+  const repeat = await sendDigestPushes(store, engine, vapid, { clock: () => "2026-09-07T05:00:00.000Z", alertsOnly: true, minScore: 0, limit: 1,
     sendImpl: async sub => { assert.notEqual(sub.endpoint, unknown.pushSubscription.endpoint); return { status: 201 }; } });
   assert.deepEqual(repeat,{sent:0,failed:0});
   engine._items=async()=>[{...base,id:"broad-news",title:"우주 탐사선의 새로운 관측 결과 발표",source:"front-page",category:"science",tags:[],coverage:5,poolCoverage:3,sourceRank:1}];

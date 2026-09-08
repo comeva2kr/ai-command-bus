@@ -975,7 +975,7 @@ test("browser: Back during a slow item request never reopens the closed detail",
   assert.equal(new URL(page.url()).hash, "");
 });
 
-test("browser: real service-worker notification replaces a detail; Back returns to the list", options, async (t) => {
+test("browser: real service-worker notification lands on the list; genuine reading tap keeps Back on the list", options, async (t) => {
   for (const mode of [true, "legacy"]) {
   const { page, context, base } = await fixture(t, "/live#post-post-0", mode);
   await page.waitForSelector("#detail.open #detailTitle");
@@ -987,6 +987,9 @@ test("browser: real service-worker notification replaces a detail; Back returns 
       waitUntil: promise => promise.then(resolve, error => error.name === "InvalidAccessError" ? resolve() : reject(error)) });
     self.dispatchEvent(event);
   }), base + "/live#post-post-1");
+  await page.waitForSelector("#notificationRead");
+  assert.equal(await page.locator("#detail.open").count(), 0);
+  await page.locator("#notificationRead").click();
   await page.waitForFunction(() => document.getElementById("detailTitle")?.textContent === "Public article 1");
   if (mode === "legacy") assert.ok(new URL(page.url()).searchParams.get("nh-notification"));
   await page.goBack();
@@ -1624,4 +1627,61 @@ test('browser: NH142 independent deal tab persists and discards old or empty sna
   await page.click('#menuBtn');await page.locator('#chips button').filter({hasText:'경제'}).click();
   await page.waitForURL('**/live');await page.waitForSelector('#feed [data-id="post-0"]');
   assert.equal(await page.locator('[data-sort="hot"]').getAttribute('aria-selected'),'true');
+});
+
+test('NH150 browser: cold notification waits for a real tap and keeps an unskippable list for Back', options, async t => {
+  const path='/live?utm_source=push&utm_campaign=nh150&nh-open=post-0';
+  const {page,context,base}=await fixture(t,path,false,'seen',true,false,{controls:{delayConfig:250}});
+  const cdp=await context.newCDPSession(page),skippable=[];
+  cdp.on('Audits.issueAdded',({issue})=>{
+    if(issue.details?.genericIssueDetails?.errorType==='NavigationEntryMarkedSkippable')skippable.push(issue);
+  });
+  await cdp.send('Audits.enable');
+  const read=async expression=>(await cdp.send('Runtime.evaluate',{expression,returnByValue:true,userGesture:false})).result.value;
+  for(let i=0;i<100;i++){
+    if(await read("Boolean(document.querySelector('#notificationRead')&&document.querySelector('#feed .card'))"))break;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  assert.deepEqual(await read("({active:navigator.userActivation.hasBeenActive,view:history.state?.view,hash:location.hash,detail:Boolean(document.querySelector('#detail.open')),button:document.querySelector('#notificationRead')?.tagName})"),
+    {active:false,view:'list',hash:'',detail:false,button:'BUTTON'});
+  assert.equal(skippable.length,0,'landing must not create a skippable list before the reader taps');
+  const before=await cdp.send('Page.getNavigationHistory');
+  assert.equal(before.entries[before.currentIndex].url,base+path);
+  await page.locator('#notificationRead').click();
+  await page.waitForSelector('#detail.open');
+  await page.waitForFunction(()=>document.getElementById('detailTitle')?.textContent==='Public article 0');
+  assert.equal(await read('navigator.userActivation.hasBeenActive'),true);
+  assert.equal(new URL(page.url()).searchParams.has('nh-open'),false);
+  assert.equal(new URL(page.url()).searchParams.get('utm_campaign'),'nh150');
+  assert.equal(new URL(page.url()).hash,'#post-post-0');
+  assert.equal(skippable.length,0,'a real tap must keep the list entry eligible for browser Back');
+  const after=await cdp.send('Page.getNavigationHistory');
+  assert.equal(after.entries[after.currentIndex-1].url,base+'/live?utm_source=push&utm_campaign=nh150');
+  await cdp.send('Input.dispatchMouseEvent',{type:'mousePressed',button:'back',x:20,y:20,clickCount:1});
+  await cdp.send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'back',x:20,y:20,clickCount:1});
+  await page.waitForFunction(()=>history.state?.view==='list'&&!document.querySelector('#detail.open'));
+  assert.equal(page.url(),base+'/live?utm_source=push&utm_campaign=nh150');
+  assert.equal(await page.locator('#feed .card').count(),18);
+  assert.equal(await page.locator('#notificationLanding').count(),0);
+});
+
+test('NH150 browser: warm notification stays in the document and dismissal leaves the list', options, async t => {
+  const {page,context,requests,base}=await fixture(t,'/live',false,'seen',true);
+  const cdp=await context.newCDPSession(page);
+  const read=async expression=>(await cdp.send('Runtime.evaluate',{expression,returnByValue:true,userGesture:false})).result.value;
+  for(let i=0;i<100;i++){
+    if(await read("Boolean(document.querySelector('#feed .card')&&window.__workerMessage)"))break;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  const documentRequests=requests.filter(path=>path==='/live').length;
+  const timeOrigin=await read('performance.timeOrigin');
+  await read("window.__workerMessage({data:{type:'NOWHOT_NAVIGATE',url:location.origin+'/live?utm_source=push&nh-open=post-1'}})");
+  assert.deepEqual(await read("({origin:performance.timeOrigin,active:navigator.userActivation.hasBeenActive,view:history.state?.view,banner:Boolean(document.querySelector('#notificationRead')),detail:Boolean(document.querySelector('#detail.open'))})"),
+    {origin:timeOrigin,active:false,view:'list',banner:true,detail:false});
+  assert.equal(requests.filter(path=>path==='/live').length,documentRequests);
+  await page.locator('#notificationLanding .dclose').click();
+  assert.equal(page.url(),base+'/live?utm_source=push');
+  assert.equal(await page.locator('#notificationLanding').count(),0);
+  assert.equal(await page.locator('#detail.open').count(),0);
+  assert.equal(await page.locator('#feed .card').count(),18);
 });

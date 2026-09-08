@@ -25,7 +25,7 @@ import { promotable, isLowValue } from "./promotion.js";
 import { isJunkImage, cleanArticleTextChrome, looksLikePageChrome } from "./enrich.js";
 import { eventKey } from "./dedupe.js";
 import { canonicalContentUrl } from "./dedupe.js";
-import { buildEventClusters, composeEventFromMembers } from "./event-cluster.js";
+import { buildEventClusters, composeEventFromMembers, decideEventMerge } from "./event-cluster.js";
 import { isGoogleNewsRedirect } from "./canonical-url.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import { coverageEvidence } from "./editorial-quality.js";
@@ -2555,6 +2555,11 @@ export class FeedEngine {
   async digest(userId, { limit = 5, minScore = 1.0, excludeIds = [], alertsOnly = false } = {}) {
     const user = this.store.requireUser(userId);
     const items = await this._items();
+    const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
+    const byId = alertsOnly ? new Map(items.map(item => [item.id, item])) : null;
+    const recentEvents = alertsOnly ? (user.pushNotified || [])
+      .filter(row => now - Date.parse(row.at) < 86400_000)
+      .map(row => row.article || byId.get(row.id)).filter(Boolean) : [];
     const seen = new Set([...(user.seen || []), ...(user.opened || []), ...excludeIds]);
 
     const muted = new Set(user.mutedSources || []);
@@ -2581,6 +2586,7 @@ export class FeedEngine {
       ...categorySets(user.preferences, rankParams()).hated]);
     const pool = items.filter(
       (i) =>
+        !recentEvents.some(previous => decideEventMerge(previous, i).merge) &&
         !muted.has(i.source) &&
         !disabled.has(i.source) &&
         !topicsBlocked(i, showTopics) &&
@@ -2590,7 +2596,6 @@ export class FeedEngine {
             : (i.tags || []).some(tag => alertTags.has(tag)))))) &&
         !seen.has(i.id) && !(i.canonicalAliases || []).some((a) => seen.has(a.id))
     );
-    const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     // Same hot-only gate as the main feed (see getFeed) — the digest previews
     // "what you'd see if you opened the app now," so it must draw from the
     // same hot-gated pool, not a superset of it.
@@ -2621,7 +2626,9 @@ export class FeedEngine {
     }
     const ranked = (popularAlerts ? sourceHotScores(rankPool, now).map(row => ({item:row.item,score:row.hotScore})).sort((a,b)=>b.score-a.score)
       : rankItems(rankPool, user.preferences, { seed: 1, now, explore: 0 }))
-      .filter((r) => r.score >= minScore);
+      // Alerts already passed interest, safety, freshness and significance gates.
+      // General reading-style preferences rank those matches; they do not veto them.
+      .filter((r) => Number.isFinite(r.score) && (alertsOnly || r.score >= minScore));
     return {
       ...(alertsOnly ? { alertMode: popularAlerts ? "popular" : "personalized" } : {}),
       count: ranked.length,

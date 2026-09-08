@@ -881,6 +881,27 @@ test("NH127 live alerts require fresh major reporting or measured reaction growt
   user.opened=["news-major"];assert.deepEqual(await ids(),[]);
 });
 
+test("NH150 qualified personal alerts rank by taste without a style-score veto", async () => {
+  const store = new FeedStore({ clock: fixedClock }), user = store.createUser("style-alert");
+  store.saveSurvey(user.id, { categories: ["tech"], avoid: ["gaming"] });
+  user.preferences.categories.tech = 0;
+  user.preferences.prefs.longform = 2;
+  const engine = new FeedEngine(store, []); engine._clock = fixedClock;
+  const base = { kind: "news", category: "tech", source: "tech-news", tags: [], topics: [],
+    publishedAt: "2026-07-05T23:00:00Z", score: 0, commentCount: 0, length: 100, coverage: 4 };
+  engine._items = async () => [
+    { ...base, id: "wanted", title: "삼성전자 차세대 반도체 제조 기술 공개" },
+    { ...base, id: "game", category: "gaming", title: "신작 게임 업데이트 공개" },
+    { ...base, id: "routine", coverage: 1, title: "새 스마트폰 액세서리 소개" },
+    { ...base, id: "stale", publishedAt: "2026-07-05T18:00:00Z", title: "반도체 공급 계획 발표" }
+  ];
+  assert.ok(!(await engine.digest(user.id, { minScore: 0 })).top.some(item => item.id === "wanted"));
+  const alerts = await engine.digest(user.id, { alertsOnly: true, minScore: 0 });
+  assert.deepEqual(alerts.top.map(item => item.id), ["wanted"]);
+  assert.ok(alerts.top[0].matchScore < 0);
+  assert.deepEqual(user.seen, []);
+});
+
 test("NH146 repaired game and political classifications honor individual push exclusions", async () => {
   const store=new FeedStore({clock:fixedClock}), user=store.createUser("nh146-alerts");
   store.saveSurvey(user.id,{categories:["tech","humor"],avoid:["gaming"]});

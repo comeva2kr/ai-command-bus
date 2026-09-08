@@ -12,7 +12,7 @@
 // (sendPush) needs network access to the push endpoint.
 
 import crypto from "node:crypto";
-import { kstDate, resolveEditorialTarget } from "./editorial-inventory.js";
+import { kstDate, resolveEditorialTarget, nextEditorialSlot } from "./editorial-inventory.js";
 import { CATEGORIES } from "./taxonomy.js";
 
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
@@ -179,7 +179,7 @@ export async function sendPush(subscription, payload, keys, opts = {}) {
       Authorization: `vapid t=${jwt}, k=${keys.publicKey}`,
       "Content-Encoding": "aes128gcm",
       "Content-Type": "application/octet-stream",
-      TTL: String(opts.ttl || 86400)
+      TTL: String(opts.ttl ?? 86400)
     },
     body
   });
@@ -188,10 +188,31 @@ export async function sendPush(subscription, payload, keys, opts = {}) {
 
 // --- digest push fan-out (server-side re-engagement job) ---
 
-const digestPushRuns = new WeakSet();
-const editionPushRuns = new WeakSet();
+// ponytail: serialize both jobs per store; use per-user locks if fan-out outgrows a tick.
+const pushRuns = new WeakSet();
 const kstDay = (time) => Math.floor((time + 9 * 3600_000) / 86400_000);
 const pushItemIds = (item) => [item.id, ...(item.canonicalAliases || []).map((alias) => alias.id)].filter(Boolean);
+const pushWindow = (now) => {
+  const hour = new Date(now + 9 * 3600_000).getUTCHours();
+  return hour >= 7 && hour < 21;
+};
+const pushGap = (user, now) => [...(user.pushDeliveryTimes || []),
+  ...(user.editionPushDeliveries || []).map(row => row.at)].every(at => !(now - Date.parse(at) < 3600_000));
+const pushTtl = (now, hours) => Math.max(0, Math.floor(Math.min(hours * 3600_000,
+  kstDay(now) * 86400_000 + 12 * 3600_000 - now) / 1000));
+function digestAllowed(user, now, alertsOnly) {
+  if (!pushWindow(now) || !pushGap(user, now)) return false;
+  const times = (user.pushDeliveryTimes || []).map(at => Date.parse(at));
+  if (times.filter(at => kstDay(at) === kstDay(now)).length >= (alertsOnly ? 2 : 3)
+      || (!alertsOnly && times.some(at => now - at < 4 * 3600_000))) return false;
+  if (alertsOnly) {
+    if (nextEditorialSlot(now).asOfMs - now <= 3600_000) return false;
+    const target = resolveEditorialTarget(now);
+    if (now - target.asOfMs < 3600_000
+        && !(user.editionPushDeliveries || []).some(row => row.key === `${target.date}:${target.slot.id}`)) return false;
+  }
+  return true;
+}
 
 // Check every subscribed user's non-consuming digest (engine.digest) and push
 // the ones that actually have unseen matches right now. `sendImpl` stands in
@@ -207,19 +228,17 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
   let sent = 0;
   let failed = 0;
   if (!vapidKeys || !vapidKeys.publicKey || !vapidKeys.privateKey) return { sent, failed };
-  if (digestPushRuns.has(store)) return { sent, failed };
+  if (pushRuns.has(store)) return { sent, failed };
 
-  digestPushRuns.add(store);
+  pushRuns.add(store);
   try {
     for (const user of store.users.values()) {
       const sub = user.pushSubscription;
       if (!sub || !sub.endpoint || user.notifyEnabled === false) continue;
 
-      const now = new Date(clock()).getTime();
+      let now = new Date(clock()).getTime();
       const deliveryTimes = (user.pushDeliveryTimes || []).map((at) => Date.parse(at)).filter(Number.isFinite);
-      // Successful deliveries alone consume the KST daily budget and four-hour gap.
-      if (deliveryTimes.filter((at) => kstDay(at) === kstDay(now)).length >= (opts.alertsOnly ? 6 : 3)
-          || deliveryTimes.some((at) => now - at < (opts.alertsOnly ? 30 * 60_000 : 4 * 3600_000))) continue;
+      if (!digestAllowed(user, now, opts.alertsOnly)) continue;
       const excluded = new Set((user.pushNotified || []).map((row) => row.id));
 
       let digest;
@@ -230,6 +249,9 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
         continue; // e.g. user disappeared mid-loop; skip rather than fail the whole batch
       }
       if (!digest || !digest.count) continue;
+      now = new Date(clock()).getTime();
+      if (user.notifyEnabled === false || user.pushSubscription?.endpoint !== sub.endpoint
+          || !digestAllowed(user, now, opts.alertsOnly)) continue;
       // ponytail: one broad alert per day until interests emerge; reuse the
       // existing receipt history rather than creating a second subscriber policy.
       if (digest.alertMode === "popular" && deliveryTimes.some(at => kstDay(at) === kstDay(now))) continue;
@@ -239,24 +261,26 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
       if (!items.length) continue; // no safe, newly eligible preview — stay quiet
 
       const top = items[0];
+      const ttl = pushTtl(now, 1);
       const payload = JSON.stringify({
         title: "지금핫",
         body: opts.alertsOnly ? `${top.kind === "news" ? "주요 소식" : "반응 급상승"} · ${String(top.title || "").slice(0, 100)}`
           : `관심글 ${digest.count}개가 올라왔어요 · ${String(top.title || "").slice(0, 30)}`,
         url: `/live#post-${encodeURIComponent(top.id)}`,
         tag: `live:${top.id}`,
-        kind: "live"
+        kind: "live", expiresAt: new Date(now + ttl * 1000).toISOString()
       });
 
       let response;
       try {
-        response = await send(sub, payload, vapidKeys, { subject: vapidKeys.subject });
+        response = await send(sub, payload, vapidKeys, { subject: vapidKeys.subject, ttl });
       } catch {
         failed += 1;
         continue;
       }
       if (response?.status >= 200 && response.status < 300) {
-        await store.recordPushDelivery(user.id, [...new Set(items.flatMap(pushItemIds))], new Date(clock()).toISOString());
+        await store.recordPushDelivery(user.id, [...new Set((opts.alertsOnly ? [top] : items).flatMap(pushItemIds))],
+          new Date(clock()).toISOString(), opts.alertsOnly ? top : null);
         sent += 1;
       } else {
         failed += 1;
@@ -267,7 +291,7 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
       }
     }
   } finally {
-    digestPushRuns.delete(store);
+    pushRuns.delete(store);
   }
   return { sent, failed };
 }
@@ -276,11 +300,11 @@ export async function sendDigestPushes(store, engine, vapidKeys, opts = {}) {
 // must neither suppress the three daily editions nor resend the same slot.
 export async function sendEditionPushes(store, reader, vapidKeys, opts = {}) {
   let sent = 0, failed = 0;
-  if (!reader || !vapidKeys?.publicKey || !vapidKeys?.privateKey || editionPushRuns.has(store)) return {sent,failed};
+  if (!reader || !vapidKeys?.publicKey || !vapidKeys?.privateKey || pushRuns.has(store)) return {sent,failed};
   const clock = opts.clock || Date.now, now = new Date(clock()).getTime();
   const target = resolveEditorialTarget(now);
-  if (target.date !== kstDate(now)) return {sent,failed};
-  editionPushRuns.add(store);
+  if (!pushWindow(now) || target.date !== kstDate(now)) return {sent,failed};
+  pushRuns.add(store);
   try {
     let edition;
     try { edition = await reader.read({date:target.date,slotId:target.slot.id,categories:CATEGORIES.map(category=>category.id)}); }
@@ -289,14 +313,19 @@ export async function sendEditionPushes(store, reader, vapidKeys, opts = {}) {
         || edition?.serving?.state !== "slot_canonical_verified" || edition.serving.fallback
         || !edition.issues?.length) return {sent,failed};
     const key = `${target.date}:${target.slot.id}`;
-    const payload = JSON.stringify({title:`지금핫 ${target.slot.label} 오늘판`,
-      body:"새 오늘판이 발행됐어요. 관심 분야의 주요 소식을 확인하세요.",
-      url:`/?date=${target.date}&slot=${target.slot.id}`,tag:`today:${key}`,kind:"edition"});
     for (const user of store.users.values()) {
       const sub = user.pushSubscription;
       if (!sub?.endpoint || user.notifyEnabled === false || (user.editionPushDeliveries || []).some(row=>row.key===key)) continue;
+      const sendAt = new Date(clock()).getTime(), current = resolveEditorialTarget(sendAt);
+      if (!pushWindow(sendAt) || !pushGap(user, sendAt)
+          || `${current.date}:${current.slot.id}` !== key) continue;
+      const ttl = pushTtl(sendAt, 2);
+      const payload = JSON.stringify({title:`지금핫 ${target.slot.label} 오늘판`,
+        body:"새 오늘판이 발행됐어요. 관심 분야의 주요 소식을 확인하세요.",
+        url:`/?date=${target.date}&slot=${target.slot.id}`,tag:`today:${key}`,kind:"edition",
+        expiresAt:new Date(sendAt + ttl * 1000).toISOString()});
       let response;
-      try { response = await (opts.sendImpl || sendPush)(sub,payload,vapidKeys,{subject:vapidKeys.subject}); }
+      try { response = await (opts.sendImpl || sendPush)(sub,payload,vapidKeys,{subject:vapidKeys.subject,ttl}); }
       catch { failed++; continue; }
       if (response?.status >= 200 && response.status < 300) {
         store.recordEditionPushDelivery(user.id,key,new Date(clock()).toISOString());
@@ -308,6 +337,6 @@ export async function sendEditionPushes(store, reader, vapidKeys, opts = {}) {
         }
       }
     }
-  } finally { editionPushRuns.delete(store); }
+  } finally { pushRuns.delete(store); }
   return {sent,failed};
 }

@@ -188,7 +188,10 @@ function assertCampaignUrl(href, { pathname = "/live", hash = "", nhNotification
   const destination = new URL(href);
   assert.equal(destination.origin, ORIGIN);
   assert.equal(destination.pathname, pathname);
-  assert.equal(destination.hash, hash);
+  if (["/live", "/index.html"].includes(pathname) && hash.startsWith("#post-")) {
+    assert.equal(destination.hash, "");
+    assert.equal(destination.searchParams.get("nh-open"), decodeURIComponent(hash.slice(6)));
+  } else assert.equal(destination.hash, hash);
   assert.equal(destination.searchParams.get("utm_source"), "web_push");
   assert.equal(destination.searchParams.get("utm_medium"), "notification");
   if (nhNotification) assert.ok(destination.searchParams.get("nh-notification"));

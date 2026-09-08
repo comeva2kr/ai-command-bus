@@ -2128,10 +2128,28 @@ function showPersonalizeBanner(){
 
 // deep-link: a shared /p?id link bounces to /live#post-<id>; open that post
 function openFromHash(){
+  if(showNotificationLanding())return;
   if(location.hash==="#setup")return showSurvey();
   const id=postIdFromHash(location.hash);
   if(id)return openDetail(id,{fromHash:true});
   liveHistory.ensure(liveSnapshot());
+}
+function showNotificationLanding(){
+  const url=new URL(location.href),id=url.searchParams.get("nh-open");
+  if(!id || id.length>1000)return false;
+  closeDetail();
+  const entry=liveHistory.ensure(liveSnapshot());
+  history.replaceState({...entry,view:"list",detail:null},"",url.pathname+url.search);
+  liveHistory.save(liveSnapshot());
+  document.getElementById("notificationLanding")?.remove();
+  const bar=document.createElement("div");bar.id="notificationLanding";bar.className="digest";
+  bar.innerHTML='<div class="dtext"><b>알림으로 받은 소식</b> · 읽고 뒤로 가면 이 목록으로 돌아와요.</div><button id="notificationRead" type="button">소식 읽기</button><button class="dclose" type="button" aria-label="알림 닫기">✕</button>';
+  const feed=document.getElementById("feed");feed.before(bar);
+  const dismiss=()=>{const clean=new URL(location.href);clean.searchParams.delete("nh-open");history.replaceState(history.state,"",clean);bar.remove()};
+  bar.querySelector("#notificationRead").onclick=()=>{dismiss();openDetail(id)};
+  bar.querySelector(".dclose").onclick=dismiss;
+  bar.scrollIntoView({block:"center"});
+  return true;
 }
 function postIdFromHash(hash){
   try{return hash.startsWith("#post-")?decodeURIComponent(hash.slice(6))||null:null}catch{return null}
@@ -2141,6 +2159,9 @@ function workerNavigate(value){
   if(!href)return;
   if(!state.config){state.pendingWorkerUrl=href;return}
   const url=new URL(href);
+  if(url.pathname===location.pathname && url.searchParams.has("nh-open")){
+    history.replaceState(history.state,"",url);showNotificationLanding();return;
+  }
   if(url.pathname!==location.pathname||url.search!==location.search){saveLiveNavigation();location.assign(href);return}
   const id=postIdFromHash(url.hash);
   if(id)openDetail(id);else location.assign(href);

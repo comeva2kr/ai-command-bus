@@ -318,11 +318,18 @@ export class FeedStore {
     return user.notifyEnabled;
   }
 
-  recordPushDelivery(userId, itemIds, at = nowIso(this.clock)) {
+  recordPushDelivery(userId, itemIds, at = nowIso(this.clock), article = null) {
     const user = this.requireUser(userId);
     const sent = new Map((user.pushNotified || []).map((row) => [row.id, row]));
     for (const id of itemIds) if (typeof id === "string" && id) sent.set(id, { id, at });
-    user.pushNotified = [...sent.values()].slice(-3000);
+    if (article?.id && sent.has(article.id)) {
+      const metadata = Object.fromEntries(["id", "title", "originalTitle", "url", "kind", "category", "source", "publishedAt"]
+        .filter(key => typeof article[key] === "string").map(key => [key, article[key]]));
+      if (typeof article.canonicalUrl === "string" && article.canonicalUrl) metadata.url = article.canonicalUrl;
+      sent.get(article.id).article = metadata;
+    }
+    user.pushNotified = [...sent.values()].slice(-3000).map(row =>
+      Date.parse(at) - Date.parse(row.at) >= 86400_000 ? { id: row.id, at: row.at } : row);
     user.pushDeliveryTimes = [...(user.pushDeliveryTimes || []), at].slice(-12);
     this._persist();
   }

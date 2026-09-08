@@ -6,7 +6,7 @@
 //   - navigations are network-first, falling back only to the same page offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v162"; // v162: Live pagination boundary and restored end notice
+const CACHE = "feed-shell-v163"; // v163: notification landing preserves a genuine list-to-detail tap
 const SHELL = ["/audience-client.js?v=20260907", "/site-menu.js?v=20260907-deals", "/site-menu.css?v=20260907-deals", "/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js?v=20260907", "/notice-guide.js?v=20260907-deals", "/push-client.js?v=20260907-ios"];
 
@@ -34,6 +34,10 @@ function appUrl(value) {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const destination = new URL(appUrl(event.notification.data?.url || "/live") || appUrl("/live"));
+  if (["/live", "/index.html"].includes(destination.pathname) && destination.hash.startsWith("#post-")) {
+    try { destination.searchParams.set("nh-open", decodeURIComponent(destination.hash.slice(6))); } catch {}
+    destination.hash = "";
+  }
   destination.searchParams.set("utm_source","web_push");
   destination.searchParams.set("utm_medium","notification");
   const url = destination.href;
