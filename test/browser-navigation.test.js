@@ -688,6 +688,30 @@ test("browser: Live preserves the end notice when restoring a finished list", op
     "restoring the notice must not consume another page or replace the reading position");
 });
 
+test("browser: Live retries a failed next page in place without a request loop", options, async (t) => {
+  const { page, context, controls } = await fixture(t);
+  await page.waitForSelector('#feed [data-id="post-17"]');
+  controls.feedHandler = url => Number(url.searchParams.get("cursor")) === 0
+    ? { items, nextCursor: 18, exhausted: false }
+    : { items: [{ ...items[0], id: "after-retry" }], nextCursor: 19, exhausted: true };
+  let attempts = 0;
+  await context.route("**/api/feed?**", route => {
+    if (new URL(route.request().url()).searchParams.get("cursor") === "18" && ++attempts === 1)
+      return route.fulfill({ status: 503, json: { error: "temporarily unavailable" } });
+    return route.fallback();
+  });
+  await page.click('#sortBar [data-sort="latest"]');
+  await page.waitForSelector('#feed [data-id="post-17"]');
+  await page.locator("#sentinel").scrollIntoViewIfNeeded();
+  await page.waitForFunction(() => document.getElementById("sentinel").textContent.includes("불러오지 못했어요"));
+  await page.waitForTimeout(200);
+  assert.equal(attempts, 1, "a failed connection must not cause an automatic request loop");
+  await page.getByRole("button", { name: "다시 불러오기", exact: true }).click();
+  await page.waitForSelector('#feed [data-id="after-retry"]');
+  assert.equal(await page.locator('#feed [data-id^="post-"]').count(), 18);
+  assert.equal(attempts, 2);
+});
+
 test("browser: immersion loads more only near the nested feed bottom", options, async (t) => {
   const { page, controls, requests } = await fixture(t);
   await page.waitForSelector('#feed [data-id="post-17"]');

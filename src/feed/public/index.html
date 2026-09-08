@@ -3006,7 +3006,12 @@ async function loadMore(){
     const res = await API.feed(state.userId, state.cursor, 10, state.activeSource, state.sortMode, state.activeCategory);
     if(revision !== state.feedRevision) return;
     renderBatch(res); rendered = true;
-  } catch(e){ if(revision === state.feedRevision) setSentinel(false, "불러오지 못했어요 — 당겨서 다시 시도"); }
+  } catch(e){
+    if(revision === state.feedRevision){
+      setSentinel(false, '불러오지 못했어요. <button type="button" class="btn" id="feedRetry">다시 불러오기</button>');
+      document.getElementById("feedRetry").onclick = loadMore;
+    }
+  }
   finally {
     if(revision === state.feedRevision) {
       state.loading=false;
