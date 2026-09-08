@@ -2994,7 +2994,7 @@ function nearFeedEnd(){
   // 몰입 모드는 피드 안에서 스크롤하므로 바깥 sentinel 위치는 끝을 뜻하지 않는다.
   return state.immersion
     ? feed.scrollHeight - feed.scrollTop - feed.clientHeight < 1400
-    : document.getElementById("sentinel").getBoundingClientRect().top < innerHeight + 1400;
+    : document.getElementById("sentinel").getBoundingClientRect().top <= innerHeight + 1400;
 }
 
 async function loadMore(){

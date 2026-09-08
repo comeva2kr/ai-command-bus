@@ -654,15 +654,19 @@ for (const sort of ["hot", "latest"]) {
     await page.waitForSelector('#feed [data-id="post-17"]');
     await page.waitForTimeout(150);
     const before = requests.filter(path => path === "/api/feed").length;
-    const distance = await page.evaluate(() => {
+    const nearEndSource = readFileSync(new URL("../src/feed/public/index.html", import.meta.url), "utf8")
+      .match(/function nearFeedEnd\(\)\{[\s\S]*?\n\}/)[0];
+    const boundary = await page.evaluate(source => {
       const sentinel = document.getElementById("sentinel");
       const top = sentinel.getBoundingClientRect().top + scrollY;
       // Align fractional card heights to exercise the observer's inclusive edge.
       sentinel.style.transform = `translateY(${Math.ceil(top) - top}px)`;
       scrollTo(0, Math.ceil(top) - innerHeight - 1400);
-      return sentinel.getBoundingClientRect().top - innerHeight;
-    });
-    assert.equal(distance, 1400);
+      const state = { immersion: false };
+      return { distance: sentinel.getBoundingClientRect().top - innerHeight, near: eval(`(${source})`)() };
+    }, nearEndSource);
+    assert.equal(boundary.distance, 1400);
+    assert.equal(boundary.near, true, "recursive filling must use the same inclusive boundary");
     await page.waitForTimeout(150);
     await page.locator("#sentinel").scrollIntoViewIfNeeded();
     await page.waitForSelector('#feed [data-id="after-boundary"]');
