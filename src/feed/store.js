@@ -5,7 +5,7 @@
 // survives restarts. No external database required — this keeps the project's
 // zero-dependency posture while still being real enough to demo end to end.
 
-import { emptyBucket, applyEvent, bumpDeviceInfo, weekKey, monthKey, emptyJourney, JOURNEY_IDLE_MS, JOURNEY_ACTIONS, journeyBump, journeyChannel, acquisitionLabel, campaignKey, viewLabel, parseUserAgent } from "./analytics.js";
+import { emptyBucket, applyEvent, bumpDeviceInfo, weekKey, monthKey, emptyJourney, JOURNEY_IDLE_MS, JOURNEY_ACTIONS, journeyBump, journeyChannel, acquisitionLabel, campaignKey, linkEntryKey, viewLabel, parseUserAgent } from "./analytics.js";
 import { emptyCostBucket, recordCall } from "./costs.js";
 import fs from "node:fs";
 import { articleContentId, isCurrentArticleSummary } from "./article-summary.js";
@@ -752,6 +752,18 @@ export class FeedStore {
         journeyBump(j.device, agent.device); journeyBump(j.os, agent.os); journeyBump(j.browser, agent.browser);
       }
       const j = this._journeyBucket(day, now), cohort = this._journeyBucket(session.day, session.startedAt);
+      if (ev.type === 'view' && (!ev.resume || started)) {
+        const link = linkEntryKey(ev.params);
+        const seen = session.linkEntries ||= [];
+        if (link && !seen.includes(link)) {
+          // ponytail: at most 120 distinct tagged links per session; count excess as limited rather than inflate reloads.
+          if (seen.length >= 120) j.limitedEvents++;
+          else {
+            seen.push(link); j.linkSince ||= now;
+            journeyBump(j.linkEntries ||= {}, link, 1, 209);
+          }
+        }
+      }
       const addUid = (list, id) => {
         if(!id || list.includes(id))return;
         if(list.length < 100000)list.push(id);else j.limitedEvents++;

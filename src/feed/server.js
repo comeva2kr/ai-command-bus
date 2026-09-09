@@ -24,7 +24,7 @@ import {
 import { verifyEditorialLineage } from "./editorial-lineage.js";
 import { attachEditorialFulfillment } from "./editorial-fulfillment.js";
 import { SLOTS, slotById } from "./digest.js";
-import { series, mergeBuckets, summarize as summarizeAnalytics, weekKey, monthKey, retentionRows } from "./analytics.js";
+import { series, mergeBuckets, summarize as summarizeAnalytics, weekKey, monthKey, retentionRows, attributionParams } from "./analytics.js";
 import { mergeCostBuckets, profitAndLoss, daysInMonth } from "./costs.js";
 import { communityRanking, sourceBest, keywordIndex, keywordPage } from "./pages.js";
 import { loadMatrix, pickVariant } from "./ad-matrix.js";
@@ -247,12 +247,18 @@ function sharePage(data, origin, id, options = {}) {
   if (!data) {
     return `<!doctype html><meta charset="utf-8"><title>지금핫 NowHot</title><meta http-equiv="refresh" content="0; url=/"><p>이동 중…</p>`;
   }
-  const url = options.shareUrl || `${origin}/p?id=${encodeURIComponent(id)}`;
+  const url = new URL(options.shareUrl || `/p?id=${encodeURIComponent(id)}`, origin);
   const title = escapeHtml(data.title);
   const desc = escapeHtml((data.summary || "").slice(0, 160) || `${data.source} · ${data.category}`);
   const destination = new URL(options.appUrl || `/live#post-${encodeURIComponent(id)}`, origin);
-  destination.searchParams.set('utm_source','shared_link');
-  destination.searchParams.set('utm_medium','share');
+  const params = attributionParams(options.params);
+  params.utm_source ||= 'shared_link';
+  params.utm_medium ||= 'share';
+  params.utm_content ||= (id ? `post:${id}` : `edition:${url.searchParams.get('edition')}${url.searchParams.has('issue') ? ':' + url.searchParams.get('issue') : ''}`).slice(0,80);
+  for (const [key,value] of Object.entries(params)) {
+    destination.searchParams.set(key,value);
+    url.searchParams.set(key,value);
+  }
   const appUrl = destination.pathname + destination.search + destination.hash;
   // 글에 사진이 있으면 그 사진이 공유 카드 그림이 된다. 없을 때만 앱 아이콘.
   // 폴백은 SVG가 아니라 PNG를 쓴다 — 다수 SNS 크롤러가 SVG를 미리보기 이미지로
@@ -2346,7 +2352,7 @@ ${noindex ? "" : displayAdHtml()}
   //
   // 앱과 같은 /api/track 을 쓴다. 보내는 것은 앱과 동일하게 **유입 도메인,
   // 화면 종류, 체류 시간**뿐이다 — 제목이나 URL 자체는 보내지 않는다.
-  const pageTracker = () => '<script src="/audience-client.js?v=20260907"></script>';
+  const pageTracker = () => '<script src="/audience-client.js?v=20260909-share"></script>';
 
   const fmtNum = (n) => n >= 10000 ? `${Math.round(n / 1000) / 10}만` : String(n);
   // 받침 유무 조사 선택 — "(한겨레)이 있습니다" 같은 오류(2차 검수) 방지용.
@@ -4225,7 +4231,7 @@ ${rankingRows(list, (above) => {
             };
             const origin = originOf(req);
             res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" });
-            res.end(sharePage(data, origin, null, { shareUrl: `${origin}/p?${query}`, appUrl }));
+            res.end(sharePage(data, origin, null, { shareUrl: `${origin}/p?${query}`, appUrl, params: url.searchParams }));
           } catch (error) {
             const status = error.status || (error.code === "SLOT_CANONICAL_EDITION_NOT_FOUND" ? 404 : 409);
             const message = error.code === "SLOT_CANONICAL_EDITION_INVALID" ? "공유한 오늘판을 검증할 수 없습니다." : error.message;
@@ -4238,7 +4244,7 @@ ${rankingRows(list, (above) => {
         const data = id ? await engine.shareData(id) : null;
         const origin = originOf(req);
         res.writeHead(data ? 200 : 404, { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" });
-        res.end(sharePage(data, origin, id));
+        res.end(sharePage(data, origin, id, { params: url.searchParams }));
         return;
       }
 

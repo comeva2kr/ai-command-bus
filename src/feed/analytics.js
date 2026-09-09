@@ -55,12 +55,25 @@ export function refLabel(referrer, selfHost) {
 
 // 대외 광고 캠페인 키. David 채널별·매체별 성과를 갈라 보기 위한 축이다.
 // utm이 없으면 null — 캠페인이 아닌 유입까지 캠페인 표에 섞지 않는다.
+export function attributionParams(params) {
+  const out = {};
+  for (const key of ['utm_source','utm_medium','utm_campaign','utm_content']) {
+    const value = params instanceof URLSearchParams ? params.get(key) : params?.[key];
+    if (typeof value !== 'string') continue;
+    const clean = value.trim().replace(/[\u0000-\u001f\u007f]/g, '').slice(0, key === 'utm_content' ? 80 : 40).replace(/\|/g, '/');
+    if (clean) out[key] = clean;
+  }
+  return out;
+}
 export function campaignKey(params = {}) {
-  if (!params || typeof params !== 'object') return null;
-  const clean = (v) => (typeof v === "string" ? v.trim().slice(0, 40).replace(/[|]/g, "/") : "");
-  const s = clean(params.utm_source), m = clean(params.utm_medium), c = clean(params.utm_campaign);
+  const {utm_source:s,utm_medium:m,utm_campaign:c} = attributionParams(params);
   if (!s && !m && !c) return null;
   return [s || "-", m || "-", c || "-"].join(" | ");
+}
+
+export function linkEntryKey(params) {
+  const p = attributionParams(params);
+  return Object.keys(p).length ? ['utm_source','utm_medium','utm_campaign','utm_content'].map(k=>p[k] || '-').join(' | ') : null;
 }
 
 export function acquisitionLabel(referrer, selfHost, params) {
@@ -387,17 +400,17 @@ export function emptyJourney(at) {
   return { version: 2, since: at, uids: [], engagedUids: [], accountUids: [], newUids: [], visitUids: [],
     sessions: 0, finished: 0, bounces: 0, engagedSessions: 0, pv: 0,
     dwellMs: 0, dwellN: 0, sessionDwellMs: 0, sessionDwellN: 0, depth: 0, depthN: 0,
-    ref: {}, camp: {}, entry: {}, exit: {}, actions: {}, transitions: {}, screens: {}, sources: {}, categories: {}, ranks: {}, adSlots: {}, device: {}, os: {}, browser: {}, limitedEvents: 0 };
+    ref: {}, camp: {}, linkEntries: {}, linkSince: null, entry: {}, exit: {}, actions: {}, transitions: {}, screens: {}, sources: {}, categories: {}, ranks: {}, adSlots: {}, device: {}, os: {}, browser: {}, limitedEvents: 0 };
 }
 const safeMetricKey = key => key && !['__proto__', 'constructor', 'prototype'].includes(key);
-export function journeyBump(map, key, n = 1) {
-  key = String(key || '').slice(0, 100);
+export function journeyBump(map, key, n = 1, maxLength = 100) {
+  key = String(key || '').slice(0, maxLength);
   if (!safeMetricKey(key)) return;
   if (!Object.hasOwn(map, key) && Object.keys(map).length >= 120) key = '기타';
   map[key] = (Object.hasOwn(map, key) ? map[key] : 0) + n;
 }
 export function journeyChannel(map, key) {
-  key = String(key || '').slice(0, 120);
+  key = String(key || '').slice(0, 126); // Three 40-character fields and two separators.
   if (!safeMetricKey(key)) return null;
   if (!Object.hasOwn(map, key) && Object.keys(map).length >= 120) key = '기타';
   if (!Object.hasOwn(map, key)) map[key] = { sessions: 0, engaged: 0, returning: 0, content: 0, detail: 0, outbound: 0, preferences: 0, push: 0, share: 0, ad: 0, login: 0, onboarding: 0, filter: 0 };
@@ -412,6 +425,8 @@ export function mergeJourneys(list) {
     out[field + 'Count'] = valid.reduce((n, j) => n + (j[field + 'Count'] || 0), 0);
   }
   for (const j of valid) {
+    if (j.linkSince) out.linkSince = Math.min(out.linkSince || j.linkSince, j.linkSince);
+    for (const [key, count] of Object.entries(j.linkEntries || {})) journeyBump(out.linkEntries, key, count, 209);
     for (const field of ['sessions', 'finished', 'bounces', 'engagedSessions', 'pv', 'dwellMs', 'dwellN', 'sessionDwellMs', 'sessionDwellN', 'depth', 'depthN', 'limitedEvents']) out[field] += j[field] || 0;
     for (const field of ['entry', 'exit', 'actions', 'transitions', 'screens', 'sources', 'categories', 'ranks', 'adSlots', 'device', 'os', 'browser']) {
       for (const [key, count] of Object.entries(j[field] || {})) journeyBump(out[field], key, count);
@@ -434,6 +449,7 @@ export function summarizeJourney(j) {
     pv: j.pv, avgDwellSec: j.sessionDwellN ? Math.round(j.sessionDwellMs/j.sessionDwellN/1000) : null, dwellSamples: j.sessionDwellN,
     avgDepth: j.depthN ? Math.round(j.depth/j.depthN) : null, depthSamples: j.depthN,
     referrers: channelRows(j.ref), campaigns: channelRows(j.camp),
+    linkEntries: topN(j.linkEntries || {}, 121), linkSince: j.linkSince ? new Date(j.linkSince).toISOString() : null,
     entries: topN(j.entry), exits: topN(j.exit), actions: topN(j.actions,20), transitions: topN(j.transitions,20), screens: topN(j.screens,20),
     sources: topN(j.sources), categories: topN(j.categories), ranks: topN(j.ranks), adSlots: topN(j.adSlots), limitedEvents: j.limitedEvents || 0,
     devices: topN(j.device), os: topN(j.os), browsersByAgent: topN(j.browser) };

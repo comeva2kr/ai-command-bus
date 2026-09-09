@@ -1103,6 +1103,8 @@ test("NH130 actual HTTP Today shares serve frozen OG and exact API versions with
   assert.equal(whole.status, 200);
   assert.match(await whole.text(), /2026-08-27 런치 오늘판/);
   query.set("issue", unsafeId);
+  const attribution={utm_source:'threads',utm_medium:'social',utm_campaign:'launch',utm_content:'social-post-001'};
+  for(const [key,value] of Object.entries(attribution))query.set(key,value);
   response = await fetch(`${origin}/p?${query}`);
   assert.equal(response.status, 200);
   const html = await response.text();
@@ -1117,6 +1119,7 @@ test("NH130 actual HTTP Today shares serve frozen OG and exact API versions with
   assert.equal(app.searchParams.get("edition"), original.artifactId);
   assert.equal(app.searchParams.get("categories"), "news");
   assert.equal(decodeURIComponent(app.hash), `#issue-${original.artifactId}/${unsafeId}`);
+  for(const [key,value] of Object.entries(attribution))assert.equal(app.searchParams.get(key),value);
   for (const [field, value, status] of [["edition", "bad</script>", 400], ["edition", "", 400], ["edition", "SCE-0000000000000000", 404],
     ["date", "2026-08-28", 404], ["date", "", 400], ["slot", "morning", 404], ["slot", "night", 400],
     ["categories", "unknown", 400], ["issue", "missing", 404]]) {

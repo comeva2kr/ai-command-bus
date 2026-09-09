@@ -22,6 +22,52 @@ test('one browser: duplicate batch, refresh, Today→Live→detail keep one attr
  assert.equal(j.transitions.length,2);assert.ok(!JSON.stringify(store.analytics).includes('query=private'));
 });
 
+test('NH155: channel/post link arrivals survive a second campaign within one session without inflating visitors',()=>{
+ const {store,get,advance}=fixture();
+ const params={utm_source:'threads',utm_medium:'social',utm_campaign:'launch',utm_content:'post-a'};
+ const first=event(1,'view',{params});
+ store.recordJourneyEvents([first,first,event(2,'view',{params,resume:true})],ctx);
+ store.recordJourneyEvents([event(1,'view',{pageId:'c'.repeat(32),params})],ctx); // reload
+ store.recordJourneyEvents([event(1,'view',{pageId:'d'.repeat(32),params:{...params,utm_source:'kakao',utm_content:'post-b'}})],ctx);
+ assert.equal(get().sessions,1);assert.equal(get().browsers,1);
+ assert.equal(get().campaigns.length,1);assert.equal(get().campaigns[0].key,'threads | social | launch');
+ assert.deepEqual(get().linkEntries.map(r=>[r.key,r.count]),[['kakao | social | launch | post-b',1],['threads | social | launch | post-a',1]]);
+ // A late event in the first tab must neither reattribute nor add a second arrival.
+ store.recordJourneyEvents([event(3,'action',{params,action:'outbound'})],ctx);
+ assert.equal(get().campaigns[0].outbound,1);assert.equal(get().linkEntries.length,2);
+ advance(JOURNEY_IDLE_MS+1);store.recordJourneyEvents([event(4,'view',{params,resume:true})],ctx);
+ assert.equal(get().sessions,2);assert.equal(get().linkEntries[0].count,2);
+});
+
+test('NH155: full bounded campaign/post keys remain distinct; daily and period overflow stays visible',()=>{
+ const {store,get,advance}=fixture();
+ const params={utm_source:'a'.repeat(40),utm_medium:'b'.repeat(40),utm_campaign:'c'.repeat(39)+'1',utm_content:'d'.repeat(79)+'1'};
+ store.recordJourneyEvents([event(1,'view',{params})],ctx);
+ store.recordJourneyEvents([event(1,'view',{params:{...params,utm_campaign:'c'.repeat(39)+'2',utm_content:'d'.repeat(79)+'2'}})],{...ctx,visitorId:'e'.repeat(32)});
+ assert.equal(get().campaigns.length,2);assert.equal(get().linkEntries.length,2);
+ for(let i=0;i<125;i++)store.recordJourneyEvents([event(i+2,'view',{params:{utm_source:'x',utm_content:'placement-'+i}})],ctx);
+ assert.ok(get().linkEntries.length<=121);assert.ok(get().limitedEvents>0);
+ advance(86400000);store.recordJourneyEvents([event(200,'view',{params})],ctx);
+ assert.equal(get().linkEntries.find(r=>r.key.endsWith(params.utm_content)).count,2);
+ assert.equal(get().linkSince,'2026-09-07T00:00:00.000Z');
+});
+
+test('NH155: tagged arrivals survive restart and midnight without recounting a continued link',()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'nh155-')),file=path.join(dir,'feed.json');
+ let now=Date.parse('2026-09-07T23:55:00+09:00');
+ const clock=()=>new Date(now).toISOString(),params={utm_source:'x',utm_content:'post-one'};
+ try{
+  const store=new FeedStore({file,clock});store.recordJourneyEvents([event(1,'view',{params})],ctx);store.flushPending();
+  const restarted=new FeedStore({file,clock});now+=10*60000;
+  restarted.recordJourneyEvents([event(2,'view',{params,resume:true}),event(1,'view',{pageId:'e'.repeat(32),params}),event(3,'view',{params:{...params,utm_content:'post-two'}})],ctx);
+  const j=summarize(mergeBuckets(Object.values(restarted.analyticsBuckets()))).journey;
+  assert.equal(j.sessions,1);assert.equal(j.browsers,1);assert.equal(j.linkEntries.length,2);
+  assert.ok(j.linkEntries.every(row=>row.count===1));
+  assert.equal(summarize(restarted.analytics['2026-09-08']).journey.linkEntries[0].key,'x | - | - | post-two');
+  restarted.flushPending();
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
 test('background resume is not another PV; inactivity finalizes actual final screen once',()=>{
  const {store,get,advance}=fixture();
  store.recordJourneyEvents([event(1),event(2,'checkpoint',{dwellMs:12000,depth:40}),event(3,'engage')],ctx);

@@ -5,10 +5,14 @@
   let seq = 0, path = location.pathname, viewed = false, activeAt = document.visibilityState === 'visible' ? Date.now() : null;
   let lastInput = Date.now();
   let engaged = false, visibleMs = 0, maxDepth = 0, timer = null, sending = false;
-  const queue = [], params = {};
-  const sp = new URLSearchParams(location.search);
-  for (const k of ['utm_source','utm_medium','utm_campaign']) if (sp.get(k)) params[k] = sp.get(k).slice(0,40);
-  if (!params.utm_source && (sp.has('push') || sp.has('nh-notification') || sp.get('from') === 'push')) { params.utm_source='web_push'; params.utm_medium='notification'; }
+  const queue = [];
+  function readParams() {
+    const params = {}, sp = new URLSearchParams(location.search);
+    for (const k of ['utm_source','utm_medium','utm_campaign','utm_content']) if (sp.get(k)) params[k] = sp.get(k).slice(0,k==='utm_content'?80:40);
+    if (!params.utm_source && (sp.has('push') || sp.has('nh-notification') || sp.get('from') === 'push')) { params.utm_source='web_push'; params.utm_medium='notification'; }
+    return params;
+  }
+  let params = readParams();
   function event(type, values={}) {
     queue.push({type, pageId, seq:++seq, path, referrer:document.referrer, params, ...values});
     if(queue.length > 200) queue.shift();
@@ -35,8 +39,10 @@
     if(visibleMs>=10000&&!engaged) {engaged=true;event('engage');}
   }
   function view(next=location.pathname) {
-    if(viewed&&path===next)return;
+    const currentParams=readParams();
+    if(viewed&&path===next&&JSON.stringify(params)===JSON.stringify(currentParams))return;
     if(viewed)checkpoint();
+    params=currentParams;
     path=next;viewed=true;maxDepth=0;event('view');
   }
   const track=window.NowHotTrack={

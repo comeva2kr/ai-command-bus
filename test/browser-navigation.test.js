@@ -170,6 +170,68 @@ async function fixture(t, path = "/live", realWorker = false, guideState = "seen
   return { page, requests, controls, context, base, trackEvents };
 }
 
+test('NH155 browser: tagged arrivals and new share copies keep separate attribution',options,async t=>{
+ const query='?utm_source=x&utm_medium=social&utm_campaign=launch&utm_content=x-post-01';
+ const {page,base,trackEvents}=await fixture(t,'/live'+query+'#post-post-0');
+ await page.waitForSelector('#detail.open #detailTitle');
+ await page.evaluate(()=>NowHotTrack.flush());
+ assert.ok(trackEvents.some(e=>e.type==='view'&&e.params.utm_content==='x-post-01'));
+ await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>window.__copied=text}}));
+ await page.click('#shareBtn');
+ const link=new URL((await page.evaluate(()=>window.__copied)).split('\n')[1]);
+ assert.equal(link.searchParams.get('id'),'post-0');assert.equal(link.searchParams.get('utm_content'),'post:post-0');
+ assert.equal(link.searchParams.get('utm_source'),'shared_link');assert.equal(link.searchParams.has('utm_campaign'),false);
+ await page.evaluate(()=>{
+   const u=new URL(location.href);u.searchParams.set('utm_source','threads');u.searchParams.set('utm_content','threads-post-02');
+   history.replaceState(history.state,'',u);NowHotTrack.view('/live/detail');return NowHotTrack.flush();
+ });
+ assert.ok(trackEvents.some(e=>e.type==='view'&&e.params.utm_source==='threads'&&e.params.utm_content==='threads-post-02'));
+ await page.goto(base+'/'+query);await page.waitForSelector('.issue');
+ await page.click('[data-open-issue="0"]');await page.evaluate(()=>NowHotTrack.flush());
+ assert.ok(trackEvents.some(e=>e.path==='/today/detail'&&e.params.utm_content==='x-post-01'));
+});
+
+test('NH155 browser: a stale cached collector cannot shadow the versioned attribution script',options,async t=>{
+ const {page,base,trackEvents}=await fixture(t,'/live',true);
+ await page.evaluate(()=>navigator.serviceWorker.ready);
+ await page.evaluate(async()=>{
+   const old=await caches.open('feed-shell-v163');
+   await old.put('/audience-client.js?v=20260907',new Response('window.__oldCollector=true;',{headers:{'content-type':'text/javascript'}}));
+ });
+ await page.goto(base+'/live?utm_source=threads&utm_content=new-post');
+ await page.waitForSelector('#feed .card');await page.evaluate(()=>NowHotTrack.flush());
+ assert.equal(await page.evaluate(()=>Boolean(window.__oldCollector)),false);
+ assert.ok(trackEvents.some(e=>e.params.utm_content==='new-post'));
+});
+
+test('NH155 browser: admin link generator preserves the target, rejects external destinations and escapes tags',options,async t=>{
+ const {page,base}=await fixture(t,'/admin.html');
+ await page.evaluate(()=>{document.body.innerHTML=trackedLinkForm();document.querySelector('details').open=true;});
+ const input=base+'/?edition=SCE-test&date=2026-09-03&slot=lunch&categories=business&token=private&utm_source=old#issue-SCE-test/issue-1';
+ await page.locator('[name=destination]').fill(input);
+ await page.locator('[name=content]').fill('post-001');
+ await page.locator('[name=campaign]').fill('launch');
+ for(const source of ['kakao','x','threads']){
+   await page.locator('[name=source]').selectOption(source);await page.getByRole('button',{name:'추적 링크 만들기',exact:true}).click();
+   const link=new URL(await page.locator('[name=result]').inputValue());
+   assert.equal(link.searchParams.get('utm_source'),source);assert.equal(link.searchParams.get('utm_content'),'post-001');
+   assert.equal(link.searchParams.get('token'),null);assert.equal(link.searchParams.get('edition'),'SCE-test');
+   assert.equal(link.hash,'#issue-SCE-test/issue-1');
+ }
+ await page.locator('[name=destination]').fill(base+'/live?nh-open=post-123');
+ await page.getByRole('button',{name:'추적 링크 만들기',exact:true}).click();
+ assert.equal(new URL(await page.locator('[name=result]').inputValue()).searchParams.get('nh-open'),'post-123');
+ await page.locator('[name=destination]').fill('https://outside.test/');
+ await page.getByRole('button',{name:'추적 링크 만들기',exact:true}).click();
+ assert.equal(await page.locator('[name=result]').inputValue(),'');assert.match(await page.locator('[role=status]').innerText(),/지금핫/);
+ const {emptyJourney,summarizeJourney}=await import('../src/feed/analytics.js');
+ const j=emptyJourney(Date.now());j.linkEntries={'x | social | launch | <img src=x onerror=alert(1)>':2};j.linkSince=Date.now();
+ await page.evaluate(j=>{document.body.innerHTML=journeyHtml(j,[],[]);},summarizeJourney(j));
+ assert.equal(await page.locator('img[onerror]').count(),0);
+ assert.match(await page.locator('body').innerText(),/게시물별 링크 유입/);
+ assert.match(await page.locator('body').innerText(),/<img src=x onerror=alert\(1\)>/);
+});
+
 test('NH146 browser: Today keeps facts, omits unsupported explanations, labels excerpts and preserves legacy copy',options,async t=>{
  const first={...edition.issues[0],whyImportant:'과거의 일반 설명',reader:{headline:'차례상 비용 변화',summary:'채소와 축산물 가격 상승으로 차례상 비용이 올랐습니다.',whyImportant:''},
   articleSummary:{...edition.issues[0].articleSummary,status:'excerpt_only',textKo:'확인된 공개 원문에서 차례상 비용 변화를 전했습니다.'}};
@@ -382,11 +444,14 @@ test("browser: Today sharing copies the served edition and opens the same issue 
   assert.equal(editionLink.searchParams.get("edition"), edition.editionId);
   assert.equal(editionLink.searchParams.get("categories"), "business");
   assert.equal(editionLink.searchParams.has("issue"), false);
+  assert.equal(editionLink.searchParams.get('utm_source'),'shared_link');
+  assert.equal(editionLink.searchParams.get('utm_content'),`edition:${edition.editionId}`);
   await page.click('[data-open-issue="1"]');
   await page.click("#detailShare");
   const issueText = await page.evaluate(() => window.__copied);
   assert.match(issueText, /^Public article 1\n/);
   assert.equal(new URL(issueText.split("\n")[1]).searchParams.get("issue"), "issue-1");
+  assert.equal(new URL(issueText.split("\n")[1]).searchParams.get("utm_content"),`edition:${edition.editionId}:issue-1`);
   assert.equal(await page.locator("#toast").evaluate(el => {
     const box = el.getBoundingClientRect();
     return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === el

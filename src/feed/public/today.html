@@ -18,7 +18,7 @@
 <meta name="apple-mobile-web-app-title" content="지금핫">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
 <title>지금핫 오늘판</title>
-<script src="/audience-client.js?v=20260907"></script>
+<script src="/audience-client.js?v=20260909-share"></script>
 <script>
 (function(){
   var key="feed_theme", media=matchMedia("(prefers-color-scheme: dark)");
@@ -262,6 +262,8 @@ async function shareToday(issue=null,edition=state.edition){
   const link=new URL("/p",location.origin);
   link.search=new URLSearchParams({edition:edition.editionId,date:edition.editionDate,slot:edition.slot.id,categories:edition.requestedCategories.join(",")});
   if(issue)link.searchParams.set("issue",issue.evidenceHash||issue.id||issue.clusterId);
+  link.searchParams.set("utm_source","shared_link");link.searchParams.set("utm_medium","share");
+  link.searchParams.set("utm_content",(`edition:${edition.editionId}${issue?':'+(issue.evidenceHash||issue.id||issue.clusterId):''}`).slice(0,80));
   const title=issue?(issue.reader?.headline||issue.headline):`${edition.editionDate} ${edition.slot.label} 오늘판 · 지금핫`;
   const text=`${title}\n${link.href}`;
   try{await navigator.clipboard.writeText(text);window.NowHotTrack?.action("share");toast("링크가 클립보드에 복사되었습니다")}

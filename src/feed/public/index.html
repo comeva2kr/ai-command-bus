@@ -5,7 +5,7 @@
 <meta name="nh-build" content="dev">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&display=swap" rel="stylesheet">
-<script src="/audience-client.js?v=20260907"></script>
+<script src="/audience-client.js?v=20260909-share"></script>
 <script>/* 테마: 저장된 선택(light|dark) > 시스템 추종(system, 기본).
    드로어에서 바꿀 수 있고, system이면 OS 변경을 즉시 따라간다. */
 (function(){
@@ -3812,7 +3812,8 @@ async function renderDetail(itemId,revision=detailRevision){
   // 문구만). 복사 형식은 "제목 ↵ 링크" — 카톡 등에 붙였을 때 제목이 먼저
   // 보이고 링크 미리보기(/p OG 페이지)가 따라온다.
   document.getElementById("shareBtn").onclick = async ()=>{
-    const link = location.origin + "/p?id=" + encodeURIComponent(item.id);
+    const link = new URL("/p",location.origin);
+    link.search=new URLSearchParams({id:item.id,utm_source:"shared_link",utm_medium:"share",utm_content:("post:"+item.id).slice(0,80)});
     const text = item.title + "\n" + link;
     try { await navigator.clipboard.writeText(text); Track.action("share"); toast("링크가 클립보드에 복사되었습니다"); }
     catch { prompt("복사해 주세요", text); }

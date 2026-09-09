@@ -146,6 +146,19 @@ test("old pool links migrate independently of feed freshness and survive the HTT
   assert.match(shareHtml, /name="robots" content="noindex,follow,max-image-preview:large"/);
   assert.match(shareHtml, /name="twitter:card" content="summary_large_image"/);
   assert.equal(share.headers.get("cache-control"), "no-cache");
+  const destination = html => new URL(JSON.parse(html.match(/location\.replace\(("[^\n]+")\);/)[1]), origin);
+  const legacy=destination(shareHtml);
+  assert.equal(legacy.pathname,'/live');assert.equal(legacy.hash,'#post-old-public');
+  assert.equal(legacy.searchParams.get('utm_source'),'shared_link');assert.equal(legacy.searchParams.get('utm_content'),'post:old-public');
+  for (const channel of ['kakao','x','threads']) {
+    const tags=new URLSearchParams({id:'old-public',utm_source:channel,utm_medium:'social',utm_campaign:'launch',utm_content:'post-001'});
+    const tagged=await (await fetch(`${origin}/p?${tags}`)).text(),target=destination(tagged);
+    for(const key of ['utm_source','utm_medium','utm_campaign','utm_content'])assert.equal(target.searchParams.get(key),tags.get(key));
+    assert.equal(target.hash,legacy.hash);
+    assert.match(tagged,/utm_content=post-001/);
+  }
+  const hostile=await (await fetch(`${origin}/p?${new URLSearchParams({id:'old-public',utm_source:'x',utm_campaign:'</script><script>alert(1)</script>',utm_content:'a'.repeat(100)})}`)).text();
+  assert.doesNotMatch(hostile,/<script>alert/);assert.equal(destination(hostile).searchParams.get('utm_content').length,80);
   const robots = await (await fetch(`${origin}/robots.txt`)).text();
   assert.doesNotMatch(robots, /Disallow: \/p\?/);
   assert.match(robots, /Disallow: \/api\//);

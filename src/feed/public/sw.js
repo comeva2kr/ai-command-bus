@@ -6,8 +6,8 @@
 //   - navigations are network-first, falling back only to the same page offline
 //   - /api/* is always network (never cache dynamic personalized data)
 
-const CACHE = "feed-shell-v163"; // v163: notification landing preserves a genuine list-to-detail tap
-const SHELL = ["/audience-client.js?v=20260907", "/site-menu.js?v=20260907-deals", "/site-menu.css?v=20260907-deals", "/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
+const CACHE = "feed-shell-v164"; // v164: refresh the shared channel/post attribution collector
+const SHELL = ["/audience-client.js?v=20260909-share", "/site-menu.js?v=20260907-deals", "/site-menu.css?v=20260907-deals", "/live", "/manifest.webmanifest", "/icon.svg", "/icon-maskable.svg",
   "/icon-192.png", "/apple-touch-icon.png", "/navigation-history.js?v=20260907", "/notice-guide.js?v=20260907-deals", "/push-client.js?v=20260907-ios"];
 
 self.addEventListener("install", (event) => {
