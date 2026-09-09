@@ -78,6 +78,20 @@ test('NH155: tagged arrivals survive restart and midnight without recounting a c
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
 
+test('NH155: organic links cannot consume tracked-post capacity, and period merge retains both days',()=>{
+ const {store,get,advance}=fixture();
+ let n=0;
+ const arrive=(source,content)=>store.recordJourneyEvents([event(1,'view',{params:{utm_source:source,utm_content:content}})],{...ctx,visitorId:(++n).toString(16).padStart(32,'0')});
+ for(let i=0;i<130;i++)arrive('shared_link','post:'+i);
+ for(let i=0;i<100;i++)arrive('kakao','day1-'+i);
+ advance(86400000);
+ for(let i=0;i<100;i++)arrive('kakao','day2-'+i);
+ const rows=get().linkEntries;
+ assert.equal(rows.filter(r=>r.key.startsWith('kakao |')).length,200);
+ assert.equal(rows.filter(r=>!r.key.startsWith('kakao |')).reduce((n,r)=>n+r.count,0),130);
+ assert.equal(rows.reduce((n,r)=>n+r.count,0),330);
+});
+
 test('background resume is not another PV; inactivity finalizes actual final screen once',()=>{
  const {store,get,advance}=fixture();
  store.recordJourneyEvents([event(1),event(2,'checkpoint',{dwellMs:12000,depth:40}),event(3,'engage')],ctx);

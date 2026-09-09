@@ -421,7 +421,7 @@ function journeyHtml(j,rows,retention=[]){
     <div class="panel-h">채널·게시물별 링크 유입</div>
     <p>${j.linkSince?'첫 기록 '+esc(when(j.linkSince)):'보강 이후 기록 대기'}. 동일한 30분 세션에서 같은 채널·캠페인·게시물은 한 번만 셉니다. 다른 링크로 다시 들어온 경우도 보존하므로 행 합계는 고유 방문자 수와 다릅니다. 날짜는 각 링크의 첫 도착일입니다.</p>
     ${(j.linkEntries||[]).length?`<table><thead><tr><th>지정 채널</th><th>매체</th><th>캠페인</th><th>게시물 코드·기본 공유 대상</th><th>유입 세션 수</th></tr></thead><tbody>${j.linkEntries.map(row=>`<tr>${(row.key==='기타'?['기타 (집계 한도)','','','']:row.key.split(' | ')).map((value,i)=>`<td>${esc(i===0&&Object.hasOwn(channelNames,value)?channelNames[value]:value)}</td>`).join('')}<td>${num(row.count)}</td></tr>`).join('')}</tbody></table>`:'<p class="empty">태그가 있는 링크의 방문 기록이 아직 없습니다.</p>'}
-    <p>기존 ‘공유 링크’ 기록은 채널을 소급 복원할 수 없습니다. 일반 공유 버튼은 앱을 알 수 없어 ‘채널 미확인’으로 기록합니다. 카카오톡·X·스레드별로 아래에서 만든 주소를 사용하면 구분됩니다. 게시물 코드를 지정하지 않은 일반 공유는 기사·오늘판 ID를 사용합니다. 원래 세션 최초 유입·전환 표와 이 표는 합산하지 않습니다. 하루·선택 기간의 120종류 초과는 ‘기타’에 합산됩니다.</p>
+    <p>기존 ‘공유 링크’ 기록은 채널을 소급 복원할 수 없습니다. 일반 공유 버튼은 앱을 알 수 없어 ‘채널 미확인’으로 기록합니다. 카카오톡·X·스레드별로 아래에서 만든 주소를 사용하면 구분됩니다. 게시물 코드를 지정하지 않은 일반 공유는 기사·오늘판 ID를 사용합니다. 원래 세션 최초 유입·전환 표와 이 표는 합산하지 않습니다. 지정 채널과 일반 공유·푸시는 각각 하루 120종류까지 보존하고 초과분은 ‘기타’에 합산합니다. 기간 합산에서는 보존된 게시물을 추가로 접지 않습니다.</p>
     ${trackedLinkForm()}
     <div class="grid2"><div><h4>진입 화면</h4>${kvTable(j.entries,['화면','세션','비중'])}</div><div><h4>최종 이탈 화면</h4>${kvTable(j.exits,['화면','종료 세션','비중'])}</div></div>
     <p>마지막 활동 후 30분이 지난 세션의 최종 화면입니다. 휴대폰 화면을 잠깐 끈 것만으로 이탈 처리하지 않습니다. 평균 활성 체류 ${sec(j.avgDwellSec)} · 종료 세션 표본 ${num(j.dwellSamples)}건. 읽기·조작 없이 끝난 세션 ${num(j.bounces)} / 종료 ${num(j.finished)}건.</p>

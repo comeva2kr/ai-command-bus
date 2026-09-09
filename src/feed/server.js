@@ -4259,7 +4259,7 @@ ${rankingRows(list, (above) => {
         if (localEditorial) {
           // 오늘판은 기존 쿠팡 재고를 본문·상세에서 사용한다 (David, NH118).
           let todayEdition;
-          if (slotCanonicalEditionReader && !url.search) {
+          if (slotCanonicalEditionReader && [...url.searchParams.keys()].every(key=>['utm_source','utm_medium','utm_campaign','utm_content'].includes(key))) {
             try {
               const target = localEditionTarget();
               const selection = resolveEditorialSelection(null, null);

@@ -1174,6 +1174,7 @@ test("NH133 home HTML reads public canonical content with escaping, stable ETag 
   assert.equal(etag, '"' + crypto.createHash("sha1").update(html).digest("base64").slice(0, 22) + '"');
   assert.equal((await get("/", { "if-none-match": etag })).status, 304);
   assert.equal(await (await get("/", { cookie: "feed_uid=private-user" })).text(), html);
+  assert.equal(await (await get('/?utm_source=kakao&utm_medium=social&utm_campaign=launch&utm_content=post-001')).text(),html);
   for (const query of ["?userId=private-user", "?date=2026-08-26&slot=lunch", "?edition=untrusted"])
     assert.doesNotMatch(await (await get("/" + query)).text(), /id="todaySeed"|private-user|untrusted/);
   const revised = revisedArtifact(original, payload => { payload.issueTable[payload.lanes.news[1]].reader.headline = "새로 정정한 제목"; });

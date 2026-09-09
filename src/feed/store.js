@@ -760,7 +760,8 @@ export class FeedStore {
           if (seen.length >= 120) j.limitedEvents++;
           else {
             seen.push(link); j.linkSince ||= now;
-            journeyBump(j.linkEntries ||= {}, link, 1, 209);
+            const field = /^(shared_link|web_push) \| /.test(link) ? 'sharedEntries' : 'linkEntries';
+            journeyBump(j[field] ||= {}, link, 1, 209);
           }
         }
       }

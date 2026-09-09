@@ -400,13 +400,13 @@ export function emptyJourney(at) {
   return { version: 2, since: at, uids: [], engagedUids: [], accountUids: [], newUids: [], visitUids: [],
     sessions: 0, finished: 0, bounces: 0, engagedSessions: 0, pv: 0,
     dwellMs: 0, dwellN: 0, sessionDwellMs: 0, sessionDwellN: 0, depth: 0, depthN: 0,
-    ref: {}, camp: {}, linkEntries: {}, linkSince: null, entry: {}, exit: {}, actions: {}, transitions: {}, screens: {}, sources: {}, categories: {}, ranks: {}, adSlots: {}, device: {}, os: {}, browser: {}, limitedEvents: 0 };
+    ref: {}, camp: {}, linkEntries: {}, sharedEntries: {}, linkSince: null, entry: {}, exit: {}, actions: {}, transitions: {}, screens: {}, sources: {}, categories: {}, ranks: {}, adSlots: {}, device: {}, os: {}, browser: {}, limitedEvents: 0 };
 }
 const safeMetricKey = key => key && !['__proto__', 'constructor', 'prototype'].includes(key);
-export function journeyBump(map, key, n = 1, maxLength = 100) {
+export function journeyBump(map, key, n = 1, maxLength = 100, maxKeys = 120) {
   key = String(key || '').slice(0, maxLength);
   if (!safeMetricKey(key)) return;
-  if (!Object.hasOwn(map, key) && Object.keys(map).length >= 120) key = '기타';
+  if (!Object.hasOwn(map, key) && maxKeys !== Infinity && Object.keys(map).length >= maxKeys) key = '기타';
   map[key] = (Object.hasOwn(map, key) ? map[key] : 0) + n;
 }
 export function journeyChannel(map, key) {
@@ -426,7 +426,8 @@ export function mergeJourneys(list) {
   }
   for (const j of valid) {
     if (j.linkSince) out.linkSince = Math.min(out.linkSince || j.linkSince, j.linkSince);
-    for (const [key, count] of Object.entries(j.linkEntries || {})) journeyBump(out.linkEntries, key, count, 209);
+    // Daily maps are bounded; do not discard already measured posts again when combining up to 400 days.
+    for (const field of ['linkEntries','sharedEntries']) for (const [key, count] of Object.entries(j[field] || {})) journeyBump(out[field], key, count, 209, Infinity);
     for (const field of ['sessions', 'finished', 'bounces', 'engagedSessions', 'pv', 'dwellMs', 'dwellN', 'sessionDwellMs', 'sessionDwellN', 'depth', 'depthN', 'limitedEvents']) out[field] += j[field] || 0;
     for (const field of ['entry', 'exit', 'actions', 'transitions', 'screens', 'sources', 'categories', 'ranks', 'adSlots', 'device', 'os', 'browser']) {
       for (const [key, count] of Object.entries(j[field] || {})) journeyBump(out[field], key, count);
@@ -449,7 +450,8 @@ export function summarizeJourney(j) {
     pv: j.pv, avgDwellSec: j.sessionDwellN ? Math.round(j.sessionDwellMs/j.sessionDwellN/1000) : null, dwellSamples: j.sessionDwellN,
     avgDepth: j.depthN ? Math.round(j.depth/j.depthN) : null, depthSamples: j.depthN,
     referrers: channelRows(j.ref), campaigns: channelRows(j.camp),
-    linkEntries: topN(j.linkEntries || {}, 121), linkSince: j.linkSince ? new Date(j.linkSince).toISOString() : null,
+    linkEntries: [...topN(j.linkEntries || {}, Infinity),...topN(j.sharedEntries || {}, Infinity).map(row=>row.key==='기타'?{...row,key:'일반 공유·푸시 | - | - | 기타 (일일 집계 한도)'}:row)],
+    linkSince: j.linkSince ? new Date(j.linkSince).toISOString() : null,
     entries: topN(j.entry), exits: topN(j.exit), actions: topN(j.actions,20), transitions: topN(j.transitions,20), screens: topN(j.screens,20),
     sources: topN(j.sources), categories: topN(j.categories), ranks: topN(j.ranks), adSlots: topN(j.adSlots), limitedEvents: j.limitedEvents || 0,
     devices: topN(j.device), os: topN(j.os), browsersByAgent: topN(j.browser) };
