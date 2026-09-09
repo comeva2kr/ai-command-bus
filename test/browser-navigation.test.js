@@ -288,6 +288,11 @@ test("browser: NH133 anonymous home binds its initial edition only and preserves
   await page.reload();
   await page.waitForSelector("[data-open-issue]");
   assert.equal(new URLSearchParams(controls.todayQueries.at(-1)).has("edition"), false, "saved user uses their own selection");
+  const tagged=await fixture(t,'/?utm_source=threads&utm_medium=social&utm_campaign=launch&utm_content=post-001',false,'new',false,false,{html:seed});
+  await tagged.page.waitForSelector('[data-open-issue]');
+  assert.equal(new URLSearchParams(tagged.controls.todayQueries[0]).get('edition'),edition.editionId,'UTM-only home keeps the injected edition pin');
+  await tagged.page.evaluate(()=>NowHotTrack.flush());
+  assert.ok(tagged.trackEvents.some(e=>e.params.utm_content==='post-001'));
   for (const path of ["/?date=2026-09-03&slot=lunch", `/#issue-${edition.editionId}/issue-0`]) {
     const flow = await fixture(t, path, false, "new", false, false, {html:seed});
     await flow.page.waitForSelector("[data-open-issue]");
