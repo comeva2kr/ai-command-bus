@@ -254,7 +254,7 @@ function sharePage(data, origin, id, options = {}) {
   const params = attributionParams(options.params);
   params.utm_source ||= 'shared_link';
   params.utm_medium ||= 'share';
-  params.utm_content ||= (id ? `post:${id}` : `edition:${url.searchParams.get('edition')}${url.searchParams.has('issue') ? ':' + url.searchParams.get('issue') : ''}`).slice(0,80);
+  params.utm_content ||= (id ? `post:${id}` : url.searchParams.has('issue') ? `issue:${url.searchParams.get('issue')}` : `edition:${url.searchParams.get('edition')}`).slice(0,80);
   for (const [key,value] of Object.entries(params)) {
     destination.searchParams.set(key,value);
     url.searchParams.set(key,value);

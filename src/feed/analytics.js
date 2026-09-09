@@ -77,7 +77,7 @@ export function linkEntryKey(params) {
 }
 
 export function acquisitionLabel(referrer, selfHost, params) {
-  const source = typeof params?.utm_source === 'string' ? params.utm_source.trim().toLowerCase().slice(0,40) : '';
+  const source = (attributionParams(params).utm_source || '').toLowerCase();
   const known = {web_push:'웹 푸시',shared_link:'공유 링크',naver:'네이버',google:'구글',kakao:'카카오',instagram:'인스타그램',youtube:'유튜브',facebook:'페이스북',threads:'스레드',x:'X',twitter:'X'};
   if (Object.hasOwn(known, source)) return known[source];
   return source && /^[a-z0-9_.-]+$/.test(source) ? `캠페인: ${source}` : refLabel(referrer, selfHost);

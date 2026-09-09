@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { FeedStore } from '../src/feed/store.js';
 import { createServer } from '../src/feed/server.js';
-import { mergeBuckets, summarize, JOURNEY_IDLE_MS, retentionRows } from '../src/feed/analytics.js';
+import { mergeBuckets, summarize, JOURNEY_IDLE_MS, retentionRows, attributionParams, acquisitionLabel, campaignKey, linkEntryKey } from '../src/feed/analytics.js';
 
 const vid='a'.repeat(32), pageId='b'.repeat(32);
 const ctx={visitorId:vid,selfHost:'nowhot.kr',ua:'Mozilla/5.0 SamsungBrowser/26.0 Android Mobile Safari'};
@@ -37,6 +37,16 @@ test('NH155: channel/post link arrivals survive a second campaign within one ses
  assert.equal(get().campaigns[0].outbound,1);assert.equal(get().linkEntries.length,2);
  advance(JOURNEY_IDLE_MS+1);store.recordJourneyEvents([event(4,'view',{params,resume:true})],ctx);
  assert.equal(get().sessions,2);assert.equal(get().linkEntries[0].count,2);
+});
+
+test('NH155: URL and event attribution use the same bounded allowlist',()=>{
+ const p=new URLSearchParams({utm_source:' ka\u0000kao ',utm_medium:'social',utm_campaign:'launch | a',utm_content:'b'.repeat(81),token:'secret'});
+ const clean=attributionParams(p);
+ assert.equal(clean.utm_source,'kakao');assert.equal(clean.utm_content.length,80);assert.equal(clean.token,undefined);
+ assert.deepEqual(attributionParams(Object.fromEntries(p)),clean);
+ assert.equal(acquisitionLabel('', 'nowhot.kr',Object.fromEntries(p)),'카카오');
+ assert.equal(campaignKey(clean),'kakao | social | launch / a');assert.equal(linkEntryKey(clean).split(' | ').length,4);
+ assert.deepEqual(attributionParams({utm_source:[],utm_content:{},utm_medium:'  '}),{});
 });
 
 test('NH155: full bounded campaign/post keys remain distinct; daily and period overflow stays visible',()=>{

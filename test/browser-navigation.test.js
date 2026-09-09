@@ -451,7 +451,7 @@ test("browser: Today sharing copies the served edition and opens the same issue 
   const issueText = await page.evaluate(() => window.__copied);
   assert.match(issueText, /^Public article 1\n/);
   assert.equal(new URL(issueText.split("\n")[1]).searchParams.get("issue"), "issue-1");
-  assert.equal(new URL(issueText.split("\n")[1]).searchParams.get("utm_content"),`edition:${edition.editionId}:issue-1`);
+  assert.equal(new URL(issueText.split("\n")[1]).searchParams.get("utm_content"),'issue:issue-1');
   assert.equal(await page.locator("#toast").evaluate(el => {
     const box = el.getBoundingClientRect();
     return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === el
