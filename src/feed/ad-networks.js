@@ -23,10 +23,10 @@ export const WIRED_NETWORKS = [
     label: "구글 애드센스",
     kind: "display",
     envKeys: ["ADSENSE_CLIENT"],
-    placements: ["발행 페이지(랭킹·커뮤니티·키워드)", "홈 <head> 로더"],
+    placements: ["발행 페이지의 설정된 광고 단위", "홈 계정 확인 메타 태그"],
     console: "https://adsense.google.com/",
     revenueApi: "가능 — AdSense Management API(OAuth 필요)",
-    note: "소유권 확인은 코드 스니펫과 ads.txt 두 가지로 이미 통과. 남은 것은 콘텐츠 정책 심사다."
+    note: "키 설정은 소유권 확인·매체 승인을 뜻하지 않습니다. 사이트 연결과 정책 심사는 애드센스 콘솔에서, 실제 광고 게재는 공개 지면에서 따로 확인합니다."
   },
   {
     id: "adfit",
@@ -39,7 +39,7 @@ export const WIRED_NETWORKS = [
     placements: ["실시간 자동 지면 중단(설정값과 별개)", "발행 페이지"],
     console: "https://adfit.kakao.com/",
     revenueApi: "없음 — 정산액은 콘솔에서 보고 손으로 입력한다",
-    note: "매체 심사 2차 보류(2026-08-04). 사유 둘 다 처리 후 재심사 대기."
+    note: "키와 노출 설정만으로 매체 승인·실제 게재를 확인할 수 없습니다. 애드핏 콘솔의 최신 매체 심사 상태와 공개 지면의 광고 요청·소재를 따로 확인합니다."
   },
   {
     id: "coupang",
@@ -149,7 +149,7 @@ export function readWiredStatus(env = process.env) {
       connected,
       missingKeys: missing,                       // 이름만. 값은 절대 담지 않는다
       optionalSet: (n.optionalKeys || []).filter((k) => Boolean(env[k])),
-      // 승인 게이트가 따로 있는 곳(애드핏)은 그 플래그까지 봐야 실제 노출 여부를 안다
+      // 기존 API 호환 필드: 키/플래그 설정만 표시하며 승인·실제 노출 증거가 아니다.
       serving: connected && (!n.enabledKey || env[n.enabledKey] === "1"),
       gateKey: n.enabledKey || null,
       placements: n.placements,
