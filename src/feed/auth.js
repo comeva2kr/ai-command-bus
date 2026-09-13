@@ -48,7 +48,7 @@ export const PROVIDERS = {
     authorizeUrl: "https://kauth.kakao.com/oauth/authorize",
     tokenUrl: "https://kauth.kakao.com/oauth/token",
     userinfoUrl: "https://kapi.kakao.com/v2/user/me",
-    scope: "profile_nickname profile_image",
+    scope: "", // Use app-configured consent, like the SDK; forcing disabled profile scopes causes KOE205.
     clientIdEnv: "KAKAO_CLIENT_ID",
     clientSecretEnv: "KAKAO_CLIENT_SECRET",
     // { id, kakao_account: { profile: { nickname, profile_image_url } } }

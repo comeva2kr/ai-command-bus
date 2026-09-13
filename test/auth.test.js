@@ -356,11 +356,42 @@ test("GET /api/auth/:provider/login 302s to the provider's own authorize URL wit
     const loc = new URL(res.headers.get("location"));
     assert.equal(loc.origin, "https://kauth.kakao.com");
     assert.equal(loc.searchParams.get("client_id"), "kid");
+    assert.equal(loc.searchParams.has("scope"), false, "Kakao must inherit configured consent, not request disabled profile scopes (KOE205)");
     assert.ok(loc.searchParams.get("state"));
     assert.equal(loc.searchParams.get("redirect_uri"), `${base}/api/auth/kakao/callback`);
   } finally {
     server.close();
   }
+});
+
+test("Kakao ID-only login preserves the same account and preferences without profile consent", async () => {
+  const { server, base } = await startServer({
+    authEnv: { KAKAO_CLIENT_ID: "kid", KAKAO_CLIENT_SECRET: "ks" },
+    authFetch: async (url) => ({ ok: true, json: async () => url === PROVIDERS.kakao.tokenUrl ? { access_token: "fixture" } : { id: 998877 } })
+  });
+  try {
+    const initial = await fetch(`${base}/api/session`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    const { userId } = await initial.json();
+    const deviceCookie = initial.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    const answers = { categories: ["auto"], tags: ["cars"] };
+    assert.equal((await fetch(`${base}/api/survey`, { method: "POST", headers: { "content-type": "application/json", cookie: deviceCookie }, body: JSON.stringify({ userId, answers }) })).status, 200);
+    const before = await (await fetch(`${base}/api/me?userId=${userId}`, { headers: { cookie: deviceCookie } })).json();
+    assert.ok(before.taste.categories.some(c => c.id === "auto"));
+    for (const query of [`?userId=${userId}`, ""]) {
+      const login = await fetch(`${base}/api/auth/kakao/login${query}`, { redirect: "manual" });
+      const state = new URL(login.headers.get("location")).searchParams.get("state");
+      const callback = await fetch(`${base}/api/auth/kakao/callback?state=${state}&code=fixture`, { redirect: "manual" });
+      assert.equal(new URL(callback.headers.get("location"), base).searchParams.get("auth"), "success");
+      const cookie = callback.headers.get("set-cookie").split(";")[0];
+      const session = await (await fetch(`${base}/api/auth/session`, { headers: { cookie } })).json();
+      assert.equal(session.loggedIn, true);
+      assert.equal(session.userId, userId);
+      assert.deepEqual(session.social, { provider: "kakao", nickname: null, avatar: null });
+      const after = await (await fetch(`${base}/api/me?userId=${userId}`, { headers: { cookie } })).json();
+      assert.deepEqual(after.taste, before.taste);
+      assert.deepEqual(after.surveyAnswers, before.surveyAnswers);
+    }
+  } finally { server.close(); }
 });
 
 test("OAuth browser login and Kakao SDK state return to the original screen; callback targets cannot override state", async () => {
