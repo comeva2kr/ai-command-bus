@@ -184,12 +184,15 @@ function beatPrior(item, category, sourceMetadata) {
 // No other admission is invented: a report left with none is withheld from lanes.
 const REFUTING_SUBJECTS = new Set(["sports", "culture"]);
 const BEAT_KEYWORDS = new Map(CATEGORY_KEYWORDS);
+const hasBeatVocabulary = (item, category) => (BEAT_KEYWORDS.get(category) || [])
+  .some((keyword) => includesCategoryKeyword(String(item?.title || "").toLowerCase(), keyword));
 function refutedBeatPrior(item, category, sourceMetadata) {
-  const title = String(item?.title || "").toLowerCase();
   return beatPrior(item, category, sourceMetadata)
     && REFUTING_SUBJECTS.has(definiteCategory({ title: item.title, url: item.url, sourceId: item.source }))
-    && !(BEAT_KEYWORDS.get(category) || []).some((keyword) => includesCategoryKeyword(title, keyword));
+    && !hasBeatVocabulary(item, category);
 }
+const beatEvidence = (item, category, sourceMetadata) =>
+  !beatPrior(item, category, sourceMetadata) || hasBeatVocabulary(item, category);
 function eventSubjectCategories(members, sourceMetadata) {
   const categoriesOf = (item) => Array.isArray(item?.admittedCategories) && item.admittedCategories.length
     ? item.admittedCategories : [item?.category].filter(Boolean);
@@ -197,13 +200,13 @@ function eventSubjectCategories(members, sourceMetadata) {
   // so a business-paper beat cannot become evidence by riding on a general desk's card.
   const evidenceOf = (item) => {
     if (!Array.isArray(item?.admissionEvidence) || !item.admissionEvidence.length) {
-      return categoriesOf(item).filter((category) => !beatPrior(item, category, sourceMetadata));
+      return categoriesOf(item).filter((category) => beatEvidence(item, category, sourceMetadata));
     }
     const related = new Map((item.related || []).filter((row) => row?.source).map((row) => [row.id, row]));
     return item.admissionEvidence.flatMap(({ id, categories }) => {
       const contributor = related.has(id) && id !== item.id && id !== item.routingOriginalId
         ? { kind: item.kind, ...related.get(id) } : item;
-      return (categories || []).filter((category) => !beatPrior(contributor, category, sourceMetadata));
+      return (categories || []).filter((category) => beatEvidence(contributor, category, sourceMetadata));
     });
   };
   const all = [...new Set((members || []).flatMap(categoriesOf))];

@@ -124,6 +124,26 @@ test('NH167 audit: a culture award relayed by gnews and withheld desks does not 
   assert.deepEqual(award.categoryIds, ['culture']);
 });
 
+test('NH167 audit: a cultural-industry event with business vocabulary keeps its business co-admission', async () => {
+  const engine = auditEngine([
+    article('profit-gnews', 'gnews-ent', '하이브 영업이익 급증…BTS 컴백 효과',
+      'https://news.google.com/rss/articles/CBMiWkFVX3lxTE1RVGRKQjNk?oc=5', 30, ['culture']),
+    article('profit-yna', 'yna', '하이브, 영업이익 급증…BTS 컴백 효과',
+      'https://www.yna.co.kr/view/AKR20260928027300005', 45, []),
+    article('profit-etoday', 'etoday', '하이브 영업이익 급증⋯BTS 컴백 효과',
+      'https://www.etoday.co.kr/news/view/2629650', 60, ['business']),
+    article('profit-khan', 'khan', '하이브 영업이익 급증…BTS 컴백 효과',
+      'https://www.khan.co.kr/article/202609280948002/', 30, [])
+  ]);
+  const args = { slotId: 'lunch', asOfMs: at, editionDate: '2026-09-28' };
+  const members = ['profit-gnews', 'profit-yna', 'profit-etoday', 'profit-khan'];
+  const business = await engine.todayEdition({ ...args, categories: ['business'] });
+  const mixed = await engine.todayEdition({ ...args, categories: ['business', 'culture'] });
+  assert.ok(business.issues.some((issue) => members.some((id) => issueIds(issue).has(id))), 'business lane keeps it');
+  const event = mixed.issues.find((issue) => members.some((id) => issueIds(issue).has(id)));
+  assert.deepEqual([...event.categoryIds].sort(), ['business', 'culture']);
+});
+
 test('NH167 audit: a single business-paper report with definite sports or culture evidence stays out of business', async () => {
   const engine = auditEngine([
     article('solo-relay-etoday', 'etoday', '육상 남자 400m 계주, 실격 번복⋯이의신청 끝 결선행 [아시안게임]',
