@@ -96,6 +96,7 @@ export function createCategoryRouter(snapshot, registry = [], {
           registryCategory: item.registryCategory === undefined ? item.category : item.registryCategory,
           category: entry.categories[0] || categories[0],
           admittedCategories: categories,
+          admissionEvidence: entries.map((row) => ({ id: row.itemId, categories: [...(row.categories || [])] })),
           ...(editorialImportance ? { editorialImportance } : {}),
           categoryRoutingBasis: staleSnapshot
             ? `${entry.routingBasis || "classified_snapshot"}_stale`

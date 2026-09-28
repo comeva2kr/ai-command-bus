@@ -193,9 +193,21 @@ function refutedBeatPrior(item, category, sourceMetadata) {
 function eventSubjectCategories(members, sourceMetadata) {
   const categoriesOf = (item) => Array.isArray(item?.admittedCategories) && item.admittedCategories.length
     ? item.admittedCategories : [item?.category].filter(Boolean);
+  // A category inherited from a related report is judged by that report's own source,
+  // so a business-paper beat cannot become evidence by riding on a general desk's card.
+  const evidenceOf = (item) => {
+    if (!Array.isArray(item?.admissionEvidence) || !item.admissionEvidence.length) {
+      return categoriesOf(item).filter((category) => !beatPrior(item, category, sourceMetadata));
+    }
+    const related = new Map((item.related || []).filter((row) => row?.source).map((row) => [row.id, row]));
+    return item.admissionEvidence.flatMap(({ id, categories }) => {
+      const contributor = related.has(id) && id !== item.id && id !== item.routingOriginalId
+        ? { kind: item.kind, ...related.get(id) } : item;
+      return (categories || []).filter((category) => !beatPrior(contributor, category, sourceMetadata));
+    });
+  };
   const all = [...new Set((members || []).flatMap(categoriesOf))];
-  const evidenced = new Set((members || []).flatMap((item) =>
-    categoriesOf(item).filter((category) => !beatPrior(item, category, sourceMetadata))));
+  const evidenced = new Set((members || []).flatMap(evidenceOf));
   return [...evidenced].some((category) => !GENERAL_DESK_CATEGORIES.has(category))
     ? all.filter((category) => evidenced.has(category))
     : all.filter((category) => (members || []).some((item) =>
@@ -3021,6 +3033,7 @@ export class FeedEngine {
           ...item,
           ...(Array.isArray(routed?.admittedCategories)
             ? { admittedCategories: [...routed.admittedCategories] } : {}),
+          ...(Array.isArray(routed?.admissionEvidence) ? { admissionEvidence: routed.admissionEvidence } : {}),
           ...(routed?.editorialImportance ? { editorialImportance: routed.editorialImportance } : {}),
           sourceLabel: this._labelFor(item)
         };

@@ -96,6 +96,34 @@ test('NH167 audit: a business paper beat cannot route a sports or culture event 
   assert.deepEqual(relay.categoryIds, ['sports'], 'card categories follow event subject evidence');
 });
 
+test('NH167 audit: a culture award relayed by gnews and withheld desks does not enter business on an etoday beat', async () => {
+  const engine = auditEngine([
+    article('live-novel-gnews', 'gnews-ent', '이영도 ‘눈물을 마시는 새’ 프랑스 컬티심 소설상 수상',
+      'https://news.google.com/rss/articles/CBMiWkFVX3lxTE1RVGRKQjNj?oc=5', 30, ['culture']),
+    article('live-novel-yna', 'yna', "이영도 '눈물을 마시는 새', 프랑스 컬티심 소설상 수상",
+      'https://www.yna.co.kr/view/AKR20260928027200005', 45, []),
+    article('live-novel-etoday', 'etoday', '이영도 ‘눈물을 마시는 새’, 프랑스 컬티심 소설상 수상',
+      'https://www.etoday.co.kr/news/view/2629649', 60, ['business']),
+    article('live-novel-khan', 'khan', '이영도 ‘눈물을 마시는 새’ 프랑스 컬티심 소설상 수상',
+      'https://www.khan.co.kr/article/202609280948001/', 30, []),
+    article('live-kospi-mt', 'mt', '코스피, 연휴 끝나자 7000선 붕괴…삼전닉스 2%대 하락',
+      'https://www.mt.co.kr/stock/2026/09/28/kospi', 30, ['business']),
+    article('live-kospi-herald', 'heraldbiz', '코스피 연휴 끝나자 7000선 붕괴…삼전닉스 동반 하락',
+      'https://biz.heraldcorp.com/article/10885999', 35, ['business'])
+  ]);
+  const args = { slotId: 'lunch', asOfMs: at, editionDate: '2026-09-28' };
+  const business = await engine.todayEdition({ ...args, categories: ['business'] });
+  const mixed = await engine.todayEdition({ ...args, categories: ['business', 'culture'] });
+  const novel = ['live-novel-gnews', 'live-novel-yna', 'live-novel-etoday', 'live-novel-khan'];
+  for (const issue of business.issues) {
+    for (const id of novel) assert.equal(issueIds(issue).has(id), false, `${id} leaked into business: ${issue.subject}`);
+  }
+  assert.ok(business.issues.some((issue) => issueIds(issue).has('live-kospi-mt')), 'real business event is preserved');
+  const award = mixed.issues.find((issue) => novel.some((id) => issueIds(issue).has(id)));
+  assert.ok(award, 'award stays in the culture lane');
+  assert.deepEqual(award.categoryIds, ['culture']);
+});
+
 test('NH167 audit: a single business-paper report with definite sports or culture evidence stays out of business', async () => {
   const engine = auditEngine([
     article('solo-relay-etoday', 'etoday', '육상 남자 400m 계주, 실격 번복⋯이의신청 끝 결선행 [아시안게임]',
