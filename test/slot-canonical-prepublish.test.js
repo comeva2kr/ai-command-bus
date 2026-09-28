@@ -9,7 +9,9 @@ import { createServer } from "node:http";
 import { once } from "node:events";
 import { promisify } from "node:util";
 
+import { loadRegistry } from "../src/feed/registry.js";
 import { CATEGORIES } from "../src/feed/taxonomy.js";
+import { slotSourceArticles } from "../tools/build-slot-canonical-edition.mjs";
 import {
   activateSlotCanonicalEdition,
   buildSlotCanonicalEdition
@@ -29,7 +31,8 @@ function validArtifact({
   summaryBuildMode,
   editionDate = "2026-08-28",
   slotId = "morning",
-  slotLabel = "모닝"
+  slotLabel = "모닝",
+  urlBase = "https://example.com"
 }) {
   const issues = CATEGORIES.flatMap((category) => Array.from({ length: 13 }, (_, index) => ({
     evidenceHash: `${category.id}-${index}`,
@@ -39,11 +42,11 @@ function validArtifact({
     whyImportant: "중요한 이유입니다.",
     categoryIds: [category.id],
     selectedByCategories: [category.id],
-    eventSources: [{ sourceLabel: "매체", canonicalUrl: `https://example.com/${category.id}/${index}` }],
+    eventSources: [{ sourceLabel: "매체", canonicalUrl: `${urlBase}/${category.id}/${index}` }],
     articleSummary: {
       status: "ready",
       textKo: "공개 원문을 바탕으로 충분히 정리한 한국어 기사 요약입니다. ".repeat(4),
-      sourceLinks: [{ label: "매체", url: `https://example.com/${category.id}/${index}` }]
+      sourceLinks: [{ label: "매체", url: `${urlBase}/${category.id}/${index}` }]
     }
   })));
   const byCategory = Object.fromEntries(CATEGORIES.map((category) => [category.id, {
@@ -246,6 +249,80 @@ test("기존 빌더 호출은 기본적으로 키를 숨기고 명시적 유료 
   });
   assert.equal(seen[1].args.includes("--allow-paid"), true);
   assert.equal(seen[1].env.ANTHROPIC_API_KEY, "secret");
+});
+
+test("같은 슬롯 재빌드는 자기 판 상세를 재사용하고, 이전 슬롯이 낸 기사는 첫 빌드·재빌드 모두 다시 받지 않는다", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-prepublish-served-"));
+  const routing = {
+    contract: "NOWHOT-CATEGORY-ROUTING-SNAPSHOT-001",
+    snapshotId: "routing-served",
+    generatedAt: "2026-09-28T00:00:00.000Z",
+    source: { packetSha256: "b".repeat(64), predictionsSha256: "a".repeat(64) },
+    entries: []
+  };
+  const activate = (editionDate, slotId, slotLabel) => activateSlotCanonicalEdition({
+    artifact: validArtifact({
+      packetSha: "b".repeat(64), routingSnapshot: routing, editionDate, slotId, slotLabel,
+      urlBase: `https://example.com/${editionDate}/${slotId}`
+    }),
+    directory: root,
+    pointerFile: path.join(root, "active.json")
+  }).artifactFile;
+  const calls = [];
+  const execute = async (_command, args) => {
+    calls.push(args);
+    return { stdout: '{"state":"candidate_ready"}\n', stderr: "" };
+  };
+  const flag = (args, name) => args.includes(name) ? args[args.indexOf(name) + 1] : null;
+  const build = async (slotId) => {
+    await runBuilder({ editionDate: "2026-09-28", slotId, pool: "p", packet: "k", routingSnapshot: "r" }, root, { execute });
+    const args = calls.at(-1);
+    return { reuse: flag(args, "--reuse-edition"), served: flag(args, "--served-edition") };
+  };
+  const metadata = new Map(loadRegistry().map((source) => [source.id, source]));
+  const row = (id, url, publishedAt) => ({ item: { id, kind: "news", source: "yna", title: id, url, canonicalUrl: url, publishedAt } });
+  const candidates = (servedFile, slotId, evidenceAt, rows) => slotSourceArticles({
+    pool: { savedAt: Date.parse(evidenceAt), rows },
+    target: { editionDate: "2026-09-28", slotId, evidenceAsOfMs: Date.parse(evidenceAt) },
+    metadata,
+    servedArtifact: servedFile ? JSON.parse(fs.readFileSync(servedFile, "utf8")) : null
+  }).map((item) => item.id).sort();
+
+  // The evening edition was cut at 19:10 and published news up to 19:05.
+  const evening = activate("2026-09-27", "evening", "이브닝");
+  const morningRows = [
+    row("evening-1730", "https://example.com/2026-09-27/evening/news/0", "2026-09-27T17:30:00+09:00"),
+    row("evening-1905", "https://example.com/2026-09-27/evening/news/1", "2026-09-27T19:05:00+09:00"),
+    row("gap-1845", "https://www.yna.co.kr/view/gap-1845", "2026-09-27T18:45:00+09:00"),
+    row("daytime-1650", "https://www.yna.co.kr/view/daytime-1650", "2026-09-27T16:50:00+09:00"),
+    row("night-2300", "https://www.yna.co.kr/view/night-2300", "2026-09-27T23:00:00+09:00")
+  ];
+  const morningIds = ["gap-1845", "night-2300"];
+  const initialMorning = await build("morning");
+  assert.deepEqual(initialMorning, { reuse: evening, served: evening });
+  assert.deepEqual(candidates(initialMorning.served, "morning", "2026-09-28T06:30:00+09:00", morningRows), morningIds);
+
+  const morning = activate("2026-09-28", "morning", "모닝");
+  const lunchRows = [
+    row("morning-served", "https://example.com/2026-09-28/morning/news/0", "2026-09-28T06:00:00+09:00"),
+    row("lunch-own", "https://example.com/2026-09-28/lunch/news/0", "2026-09-28T10:30:00+09:00"),
+    row("lunch-new", "https://www.yna.co.kr/view/lunch-new", "2026-09-28T11:00:00+09:00")
+  ];
+  const initialLunch = await build("lunch");
+  assert.deepEqual(initialLunch, { reuse: morning, served: morning });
+  assert.deepEqual(candidates(initialLunch.served, "lunch", "2026-09-28T11:45:00+09:00", lunchRows), ["lunch-new", "lunch-own"]);
+
+  const lunch = activate("2026-09-28", "lunch", "런치");
+  const lunchRebuild = await build("lunch");
+  assert.equal(lunchRebuild.reuse, lunch, "same-slot rebuild keeps its own prepared article details");
+  assert.equal(lunchRebuild.served, morning, "same-slot rebuild still excludes what morning published");
+  assert.deepEqual(candidates(lunchRebuild.served, "lunch", "2026-09-28T11:45:00+09:00", lunchRows), ["lunch-new", "lunch-own"]);
+
+  const morningRebuild = await build("morning");
+  assert.deepEqual(morningRebuild, { reuse: morning, served: evening }, "a later active slot is neither cache nor dedupe source");
+  assert.deepEqual(candidates(morningRebuild.served, "morning", "2026-09-28T06:30:00+09:00", morningRows), morningIds);
+
+  assert.equal((await build("evening")).served, lunch);
 });
 
 test("사전 빌드가 끝나기 전에도 HTTP 요청을 처리하고 자식 실패는 전달한다", async (t) => {

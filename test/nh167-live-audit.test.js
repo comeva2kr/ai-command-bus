@@ -57,11 +57,11 @@ const auditArticles = [
     'https://biz.heraldcorp.com/article/10885999', 35, ['business'])
 ];
 
-const auditEngine = () => {
+const auditEngine = (articles = auditArticles) => {
   const router = createCategoryRouter(
-    snapshot(auditArticles.map(({ row, categories }) => [row.id, categories]), new Date(at - 60000).toISOString()),
+    snapshot(articles.map(({ row, categories }) => [row.id, categories]), new Date(at - 60000).toISOString()),
     loadRegistry(), { now: () => at });
-  const bySource = Map.groupBy(auditArticles.map(({ row }) => row), (row) => row.source);
+  const bySource = Map.groupBy(articles.map(({ row }) => row), (row) => row.source);
   const engine = new FeedEngine(new FeedStore({ clock: () => new Date(at).toISOString() }),
     [...bySource].map(([source, rows]) => new JsonSource(source, async () => rows, 'news')));
   engine.editorialCategoryRouter = (items) => router.project(items);
@@ -94,6 +94,40 @@ test('NH167 audit: a business paper beat cannot route a sports or culture event 
   assert.ok(business.issues.some((issue) => issueIds(issue).has('policy-etoday') || issueIds(issue).has('policy-yna')),
     'policy decision with business impact keeps business co-admission');
   assert.deepEqual(relay.categoryIds, ['sports'], 'card categories follow event subject evidence');
+});
+
+test('NH167 audit: a single business-paper report with definite sports or culture evidence stays out of business', async () => {
+  const engine = auditEngine([
+    article('solo-relay-etoday', 'etoday', '육상 남자 400m 계주, 실격 번복⋯이의신청 끝 결선행 [아시안게임]',
+      'https://www.etoday.co.kr/news/view/2629736', 20, ['business']),
+    article('solo-handball-chosun', 'chosunbiz', '여자 핸드볼, 일본 꺾고 4강 진출',
+      'https://biz.chosun.com/sports/sports_general/2026/09/28/handball/', 30, ['business']),
+    article('solo-idol-mk', 'mk-news', '뉴진스 컴백 앞두고 신곡 공개…음원차트 1위',
+      'https://www.mk.co.kr/news/culture/12160001', 40, ['business']),
+    article('solo-agency-herald', 'heraldbiz', '뉴진스 소속사 어도어 영업이익 공개…컴백 앞둬',
+      'https://biz.heraldcorp.com/article/10886001', 50, ['business']),
+    article('solo-kospi-etoday', 'etoday', '코스피, 7000선 붕괴…외국인 매도 폭탄',
+      'https://www.etoday.co.kr/news/view/2629800', 60, ['business']),
+    article('solo-kbo-gnews', 'gnews-sports', 'KBO 포스트시즌 대진 확정…LG 1위 직행',
+      'https://sports.example.com/kbo', 70, ['sports']),
+    article('solo-pingpong-etoday', 'etoday', '남자 탁구 단체전, 중국 꺾고 금메달 [아시안게임]',
+      'https://www.etoday.co.kr/news/view/2629810', 80, ['business', 'sports']),
+    article('solo-ambiguous-etoday', 'etoday', '추석 연휴 끝 첫 출근길…도심 곳곳 정체',
+      'https://www.etoday.co.kr/news/view/2629820', 90, ['business'])
+  ]);
+  const args = { slotId: 'lunch', asOfMs: at, editionDate: '2026-09-28' };
+  const ids = (edition) => new Set(edition.issues.flatMap((issue) => [...issueIds(issue)]));
+  const business = ids(await engine.todayEdition({ ...args, categories: ['business'] }));
+  const sports = ids(await engine.todayEdition({ ...args, categories: ['sports'] }));
+  for (const id of ['solo-relay-etoday', 'solo-handball-chosun', 'solo-idol-mk', 'solo-pingpong-etoday']) {
+    assert.equal(business.has(id), false, `${id} leaked into business`);
+  }
+  assert.ok(business.has('solo-kospi-etoday'), 'true business report is preserved');
+  assert.ok(business.has('solo-agency-herald'), 'a title with business evidence keeps its business admission');
+  assert.ok(business.has('solo-ambiguous-etoday'), 'without definite evidence the routed business admission is held');
+  assert.ok(sports.has('solo-kbo-gnews'));
+  assert.ok(sports.has('solo-pingpong-etoday'), 'an approved sports co-admission is kept');
+  assert.equal(sports.has('solo-relay-etoday'), false, 'no sports admission is invented without routing approval');
 });
 
 test('NH167 audit: explicit sexual humor title never enters default Today routing', () => {
@@ -142,7 +176,7 @@ test('NH167 audit: previous-slot served articles are not re-candidates; new deve
     }
   };
   const target = { editionDate: '2026-09-28', slotId: 'lunch', evidenceAsOfMs: pool.savedAt };
-  const ids = (previousArtifact) => slotSourceArticles({ pool, target, metadata, previousArtifact })
+  const ids = (servedArtifact) => slotSourceArticles({ pool, target, metadata, servedArtifact })
     .map((item) => item.id).sort();
   assert.deepEqual(ids(null), ['humor-new', 'humor-served', 'news-followup', 'news-served']);
   assert.deepEqual(ids(morning), ['humor-new', 'news-followup']);

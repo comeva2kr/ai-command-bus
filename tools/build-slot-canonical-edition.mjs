@@ -383,11 +383,11 @@ export function editionObservationReceipt(artifact, { registry = loadRegistry() 
 }
 
 // URLs an earlier slot already published. A same-slot rebuild is not earlier.
-function earlierSlotServedUrls(previousArtifact, target) {
+function earlierSlotServedUrls(servedArtifact, target) {
   const order = (date, slotId) => `${date}:${SLOTS.findIndex(row => row.id === slotId)}`;
-  if (!previousArtifact?.issueTable || order(previousArtifact.editionDate, previousArtifact.slot?.id)
+  if (!servedArtifact?.issueTable || order(servedArtifact.editionDate, servedArtifact.slot?.id)
     >= order(target.editionDate, target.slotId)) return new Set();
-  return new Set(Object.values(previousArtifact.issueTable).flatMap((issue) => [
+  return new Set(Object.values(servedArtifact.issueTable).flatMap((issue) => [
     ...(issue.refs || []), ...(issue.eventSources || []), ...(issue.sourceEvidence || []),
     ...(issue.articleSummary?.sourceLinks || [])
   ]).flatMap((row) => [row?.url, row?.canonicalUrl]).map(canonicalContentUrl).filter(Boolean));
@@ -395,9 +395,9 @@ function earlierSlotServedUrls(previousArtifact, target) {
 
 // Filter before collection deduplication, caps, category ranking and event formation.
 // An unchanged article is not a new slot candidate; newer reports of its event are.
-export function slotSourceArticles({ pool, target, metadata, previousArtifact = null }) {
+export function slotSourceArticles({ pool, target, metadata, servedArtifact = null }) {
   const slot = SLOTS.find(row => row.id === target.slotId);
-  const served = earlierSlotServedUrls(previousArtifact, target);
+  const served = earlierSlotServedUrls(servedArtifact, target);
   return poolRows(pool).filter(item =>
     ((item.kind || metadata.get(item.source)?.kind || "news") !== "news"
       || inBriefingWindow({ ...item, kind: "news" }, target.evidenceAsOfMs, slot, metadata, target.editionDate))
@@ -444,6 +444,7 @@ export async function buildSlotCanonicalEditionCandidate({
   evidenceAsOfMs = null,
   workDir,
   previousArtifact = null,
+  servedArtifact = previousArtifact,
   apiKey = null,
   summaryModel = process.env.NOWHOT_ARTICLE_SUMMARY_MODEL || "claude-sonnet-5",
   verifierModel = process.env.NOWHOT_ARTICLE_SUMMARY_VERIFIER_MODEL || "claude-sonnet-5",
@@ -474,7 +475,7 @@ export async function buildSlotCanonicalEditionCandidate({
   fs.mkdirSync(workDir, { recursive: true });
   const metadata = new Map(loadRegistry().map(source => [source.id, source]));
   const sources = groupArticlesAsSources(slotSourceArticles({
-    pool, target: { ...target, evidenceAsOfMs: poolEvidenceAsOf }, metadata, previousArtifact
+    pool, target: { ...target, evidenceAsOfMs: poolEvidenceAsOf }, metadata, servedArtifact
   }));
   const allCategories = CATEGORIES.map((category) => category.id);
   const run = await buildTodayEditionInProcess({
@@ -570,12 +571,13 @@ async function main() {
   const routingSnapshotFile = arg(args, "--routing-snapshot");
   const headlineReviewFile = arg(args, "--headline-review");
   const reuseEditionFile = arg(args, "--reuse-edition");
+  const servedEditionFile = arg(args, "--served-edition");
   const editionDate = arg(args, "--date");
   const slotId = arg(args, "--slot");
   const outDir = path.resolve(arg(args, "--out-dir") || path.join(ROOT, ".nowhot-local/slot-editions"));
   const activate = args.includes("--activate");
   if (!poolFile || !packetFile || !editionDate || !slotId || (!predictionsFile && !routingSnapshotFile)) {
-    throw new Error("usage: --pool <pool.json> --packet <packet.json> (--predictions <predictions.json> | --routing-snapshot <snapshot.json>) --date YYYY-MM-DD --slot <morning|lunch|evening> [--headline-review review.json] [--reuse-edition edition.json] [--out-dir dir] [--activate] [--allow-paid]");
+    throw new Error("usage: --pool <pool.json> --packet <packet.json> (--predictions <predictions.json> | --routing-snapshot <snapshot.json>) --date YYYY-MM-DD --slot <morning|lunch|evening> [--headline-review review.json] [--reuse-edition edition.json] [--served-edition edition.json] [--out-dir dir] [--activate] [--allow-paid]");
   }
   const poolRaw = fs.readFileSync(poolFile, "utf8");
   const packetRaw = fs.readFileSync(packetFile, "utf8");
@@ -599,6 +601,7 @@ async function main() {
     evidenceAsOfMs: target.evidenceAsOfMs,
     workDir: path.join(outDir, `.work-${process.pid}`),
     previousArtifact: reuseEditionFile ? assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(reuseEditionFile, "utf8"))) : null,
+    servedArtifact: servedEditionFile ? assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(servedEditionFile, "utf8"))) : undefined,
     apiKey,
     translateTitle: apiKey
       ? memoizedTranslator(anthropicTranslator({ apiKey, onUsage: (row) => usage.push(row) }))

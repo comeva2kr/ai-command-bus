@@ -10,7 +10,7 @@ import fs from "node:fs";
 import { ArticleArchive } from "./article-archive.js";
 import { collect, SeedSource, resolveCap, needsPublisherTime, expandRelatedNews } from "./content.js";
 import { loadRegistry } from "./registry.js";
-import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, UNTRAINED_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY, categoryGuardReason, isGeneralNewsGuardReason } from "./classify.js";
+import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, UNTRAINED_CATEGORIES, definiteCategory, CATEGORY_KEYWORDS, includesCategoryKeyword, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY, categoryGuardReason, isGeneralNewsGuardReason } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
 import { matchInterest, WEIGHTY } from "./interest.js";
 import { adUnsafe } from "./promotion.js";
@@ -172,21 +172,34 @@ function preferredPresentationMembers(members, canLead) {
 // labels such as mk-news are still multi-section priors. The general news
 // desks (news, politics) are not such evidence: policy stays co-admitted.
 const GENERAL_DESK_CATEGORIES = new Set(["news", "politics"]);
+function beatPrior(item, category, sourceMetadata) {
+  const meta = sourceMetadata?.get(item?.source);
+  return item?.kind === "news" && meta?.sourceTier === "aggregate" && meta.category === category
+    && !GENERAL_DESK_CATEGORIES.has(category) && meta.categoryRouting !== "declared_section"
+    && !(TRAIN_LABELS.get(item.source)?.weight >= 1)
+    && definiteCategory({ title: item.title, url: item.url, sourceId: item.source }) !== category;
+}
+// Definite sports/culture title/URL evidence refutes a beat prior outright unless the
+// title also carries that beat's own vocabulary (e.g. an agency's operating profit).
+// No other admission is invented: a report left with none is withheld from lanes.
+const REFUTING_SUBJECTS = new Set(["sports", "culture"]);
+const BEAT_KEYWORDS = new Map(CATEGORY_KEYWORDS);
+function refutedBeatPrior(item, category, sourceMetadata) {
+  const title = String(item?.title || "").toLowerCase();
+  return beatPrior(item, category, sourceMetadata)
+    && REFUTING_SUBJECTS.has(definiteCategory({ title: item.title, url: item.url, sourceId: item.source }))
+    && !(BEAT_KEYWORDS.get(category) || []).some((keyword) => includesCategoryKeyword(title, keyword));
+}
 function eventSubjectCategories(members, sourceMetadata) {
   const categoriesOf = (item) => Array.isArray(item?.admittedCategories) && item.admittedCategories.length
     ? item.admittedCategories : [item?.category].filter(Boolean);
-  const beatPrior = (item, category) => {
-    const meta = sourceMetadata?.get(item?.source);
-    return item?.kind === "news" && meta?.sourceTier === "aggregate" && meta.category === category
-      && !GENERAL_DESK_CATEGORIES.has(category) && meta.categoryRouting !== "declared_section"
-      && !(TRAIN_LABELS.get(item.source)?.weight >= 1)
-      && definiteCategory({ title: item.title, url: item.url, sourceId: item.source }) !== category;
-  };
   const all = [...new Set((members || []).flatMap(categoriesOf))];
   const evidenced = new Set((members || []).flatMap((item) =>
-    categoriesOf(item).filter((category) => !beatPrior(item, category))));
+    categoriesOf(item).filter((category) => !beatPrior(item, category, sourceMetadata))));
   return [...evidenced].some((category) => !GENERAL_DESK_CATEGORIES.has(category))
-    ? all.filter((category) => evidenced.has(category)) : all;
+    ? all.filter((category) => evidenced.has(category))
+    : all.filter((category) => (members || []).some((item) =>
+      categoriesOf(item).includes(category) && !refutedBeatPrior(item, category, sourceMetadata)));
 }
 
 function buildEventSourceIndex(items, events = buildEventClusters(items), leadEligibleIds = null, sourceMetadata = null) {
@@ -3115,11 +3128,13 @@ export class FeedEngine {
     const editionCategories = (item) => {
       const own = personalized && Array.isArray(item.admittedCategories)
         && item.admittedCategories.length ? item.admittedCategories : [editionCategory(item)];
-      const members = eventIndex?.groupsByItem.get(eventIndex.byId.get(item.routingOriginalId || item.id));
-      if (!members || members.length < 2) return own;
-      const subject = eventIndex.subjectCategories(members);
+      if (!eventIndex) return own;
+      const members = eventIndex.groupsByItem.get(eventIndex.byId.get(item.routingOriginalId || item.id));
+      const subject = members?.length > 1 ? eventIndex.subjectCategories(members)
+        : new Set(own.filter((category) => !refutedBeatPrior(item, category, this._itemSourceMetadata)));
       const kept = own.filter((category) => subject.has(category));
-      return kept.length ? kept : [...subject];
+      const routed = kept.length ? kept : [...subject];
+      return routed.length || selectedSet.size ? routed : own;
     };
     const eligibleBasePool = sharedContext.baseItems.filter((item) => !topicsBlocked(item, visibleTopics));
     const eligiblePool = eligibleBasePool

@@ -120,9 +120,11 @@ export async function runBuilder(job, outDir, {
     "--out-dir", outDir
   ];
   // Reuse only a validated earlier edition; cache availability must not block a new build.
+  // Details may come from a same-slot rebuild, but served-article dedupe needs the strictly earlier slot.
+  let entries = [];
   try {
     const pointer = JSON.parse(fs.readFileSync(path.join(outDir, "active.json"), "utf8"));
-    const entries = Object.entries(pointer.editions || {}).filter(([key]) => {
+    entries = Object.entries(pointer.editions || {}).filter(([key]) => {
       const [date, slot] = key.split(":");
       return date < job.editionDate || date === job.editionDate && SLOT_ORDER.get(slot) <= SLOT_ORDER.get(job.slotId);
     }).sort(([a], [b]) => {
@@ -130,12 +132,15 @@ export async function runBuilder(job, outDir, {
       const [bd, bs] = b.split(":");
       return ad.localeCompare(bd) || SLOT_ORDER.get(as) - SLOT_ORDER.get(bs);
     });
-    const row = entries.at(-1)?.[1];
-    if (row) {
+  } catch { /* A missing or invalid pointer is a cache miss. */ }
+  const earlier = entries.filter(([key]) => key !== `${job.editionDate}:${job.slotId}`);
+  for (const [flag, row] of [["--reuse-edition", entries.at(-1)?.[1]], ["--served-edition", earlier.at(-1)?.[1]]]) {
+    try {
+      if (!row) continue;
       readActiveArtifact(outDir, row);
-      args.push("--reuse-edition", path.resolve(outDir, row.file));
-    }
-  } catch { /* A missing or invalid prior edition is a cache miss. */ }
+      args.push(flag, path.resolve(outDir, row.file));
+    } catch { /* A missing or invalid prior edition is a cache miss. */ }
+  }
   if (allowPaid) args.push("--allow-paid");
   const env = { ...environment };
   if (!allowPaid) delete env.ANTHROPIC_API_KEY;
