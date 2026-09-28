@@ -235,7 +235,7 @@ export function parseRss(xml, feedUrl, itemFilter = null) {
       title,
       summary,
       url,
-      // RSS 2.0은 <pubDate>, Atom은 <updated>, 그런데 **RDF(RSS 1.0)와 일부
+      // RSS 2.0은 <pubDate>, Atom은 <published>, 그런데 **RDF(RSS 1.0)와 일부
       // RSS 2.0 피드는 Dublin Core의 <dc:date>만 쓴다.** 그것을 안 읽어서
       // 날짜가 통째로 null이 되고 있었다 (2026-08-06 실측):
       //   · Slashdot(RDF)  — pubDate 0건, dc:date 16건 → 16/16 전부 null
@@ -248,7 +248,7 @@ export function parseRss(xml, feedUrl, itemFilter = null) {
       // 표준 태그를 먼저 보고 없을 때만 dc:date로 내려간다 — 둘 다 있는 피드에서
       // 기존 동작이 바뀌지 않게.
       publishedAt: normalizeDate(
-        tag(block, isAtom ? "updated" : "pubDate") || tag(block, "dc:date")
+        isAtom ? tag(block, "published") : tag(block, "pubDate") || tag(block, "dc:date")
       ),
       // Slash 모듈의 댓글 수. 피드가 **이미 실어 보내는데** 읽지 않고 있었다
       // (2026-08-07 적대적 검수). 실측: 딴지일보 RSS 15건 중 14건이
@@ -291,7 +291,7 @@ function isSaneDate(ms, nowMs) {
   return true;
 }
 
-function normalizeDate(s, now = () => Date.now()) {
+export function normalizeDate(s, now = () => Date.now()) {
   if (!s) return null;
   const t = Date.parse(s);
   if (Number.isNaN(t)) return null;

@@ -7,7 +7,7 @@ const FIELDS = [
   "id", "source", "sourceLabel", "kind", "via", "url", "canonicalUrl", "image",
   "title", "summary", "originalTitle", "originalSummary", "lang", "originalLang",
   "translated", "summaryTranslated", "needsTranslation", "category", "tags", "topics", "publishedAt",
-  "firstSeenAt", "score", "commentCount", "viewCount", "coverage", "relatedCoverage",
+  "publishedAtSource", "firstSeenAt", "score", "commentCount", "viewCount", "coverage", "relatedCoverage",
   "feedGroup", "ownershipGroup", "isDeal", "price", "priceCheckedAt", "adult"
 ];
 const identifiers = (item) => [item.id, ...(item.canonicalAliases || []).map((a) => a.id)]

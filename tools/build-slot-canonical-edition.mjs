@@ -16,8 +16,9 @@ import {
   buildSlotCanonicalEdition,
   SLOT_CANONICAL_EDITION_CONTRACT
 } from "../src/feed/slot-canonical-edition.js";
-import { SLOTS } from "../src/feed/digest.js";
-import { AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS } from "../src/feed/selection-axes.js";
+import { SLOTS, slotForHour } from "../src/feed/digest.js";
+import { expandRelatedNews } from "../src/feed/content.js";
+import { briefingAvailableAt, inBriefingWindow } from "../src/feed/engine.js";
 import { CATEGORIES } from "../src/feed/taxonomy.js";
 import { memoizedTranslator } from "../src/feed/translate.js";
 import { anthropicTranslator, googleFreeTranslator } from "../src/feed/translator.js";
@@ -44,7 +45,7 @@ const atomicJson = (file, value) => {
 export function poolRows(pool) {
   const rows = Array.isArray(pool) ? pool : pool?.rows || pool?.articles || pool?.items;
   if (!Array.isArray(rows) || !rows.length) throw new Error("slot edition: pool rows required");
-  return rows.map((row) => row?.item || row);
+  return expandRelatedNews(rows.map((row) => row?.item || row));
 }
 
 export function resolveSlotCanonicalBuildTarget({ pool, editionDate, slotId }) {
@@ -279,23 +280,20 @@ export function foreignMajorLaneCoverage({
   const articleById = new Map(poolRows(pool).map((row) => [row.id, row]));
   const majorArticleIds = new Set([...articleById]
     .filter(([, row]) => majorSources.has(row.source)).map(([itemId]) => itemId));
-  const windowMs = AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS * 3600 * 1000;
-  const availableAt = (row) => {
-    const seen = Number.isFinite(row?.firstSeenAt) ? row.firstSeenAt : NaN;
-    const published = row?.publishedAt ? Date.parse(row.publishedAt) : NaN;
-    return Number.isFinite(published) ? published : seen;
-  };
+  const metadata = new Map(registry.map(source => [source.id, source]));
+  const slot = SLOTS.find(row => row.id === unionEdition.slot?.id)
+    || slotForHour(new Date(nowMs + 9 * 3600000).getUTCHours());
   const eligible = { news: new Set(), business: new Set(), tech: new Set() };
   const staleExcluded = { news: new Set(), business: new Set(), tech: new Set() };
   for (const entry of routingSnapshot.entries) {
     if (!majorArticleIds.has(entry.itemId)) continue;
-    const timestamp = availableAt(articleById.get(entry.itemId));
-    const inWindow = !Number.isFinite(timestamp)
-      || (timestamp <= nowMs && nowMs - timestamp <= windowMs);
+    const row = articleById.get(entry.itemId);
+    const timestamp = briefingAvailableAt(row, metadata.get(row.source));
+    const inWindow = inBriefingWindow(row, nowMs, slot, metadata, unionEdition.editionDate);
     for (const category of entry.categories) {
       if (!eligible[category]) continue;
       if (inWindow) eligible[category].add(entry.itemId);
-      else if (Number.isFinite(timestamp) && nowMs - timestamp > windowMs) {
+      else if (Number.isFinite(timestamp) && timestamp <= nowMs) {
         staleExcluded[category].add(entry.itemId);
       }
     }
@@ -435,7 +433,7 @@ export async function buildSlotCanonicalEditionCandidate({
   onUsage = null
 }) {
   const target = resolveSlotCanonicalBuildTarget({ pool, editionDate, slotId });
-  const poolEvidenceAsOf = Number.isFinite(Number(evidenceAsOfMs))
+  const poolEvidenceAsOf = evidenceAsOfMs != null && Number.isFinite(Number(evidenceAsOfMs))
     ? Number(evidenceAsOfMs)
     : target.evidenceAsOfMs;
   const activeRoutingSnapshot = routingSnapshot
@@ -450,7 +448,12 @@ export async function buildSlotCanonicalEditionCandidate({
     activeRoutingSnapshot.generatedAt
   );
   fs.mkdirSync(workDir, { recursive: true });
-  const sources = groupArticlesAsSources(poolRows(pool));
+  const metadata = new Map(loadRegistry().map(source => [source.id, source]));
+  const slot = SLOTS.find(row => row.id === target.slotId);
+  // Filter before collection deduplication, caps, category ranking and event formation.
+  const sources = groupArticlesAsSources(poolRows(pool).filter(item =>
+    (item.kind || metadata.get(item.source)?.kind || "news") !== "news"
+    || inBriefingWindow({ ...item, kind: "news" }, poolEvidenceAsOf, slot, metadata, target.editionDate)));
   const allCategories = CATEGORIES.map((category) => category.id);
   const run = await buildTodayEditionInProcess({
     sources,
@@ -464,7 +467,7 @@ export async function buildSlotCanonicalEditionCandidate({
     editionDate: target.editionDate,
     reserveIssues: 8,
     editorialPreselectedPool: true,
-    editorialPreselectedReferenceMs: referenceNow
+    editorialPreselectedReferenceMs: poolEvidenceAsOf
   });
   if (run.status !== 200 || !run.edition) {
     throw new Error(`slot edition: union build failed (${run.status}) ${run.body?.code || run.body?.error || ""}`.trim());
@@ -516,7 +519,7 @@ export async function buildSlotCanonicalEditionCandidate({
   }
   const editionsByCategory = categoryEditionsFromUnion(unionEdition);
   const foreignMajorCoverage = foreignMajorLaneCoverage({
-    pool, routingSnapshot: activeRoutingSnapshot, unionEdition, nowMs: referenceNow
+    pool, routingSnapshot: activeRoutingSnapshot, unionEdition, nowMs: poolEvidenceAsOf
   });
   const artifact = buildSlotCanonicalEdition({
     editionsByCategory,

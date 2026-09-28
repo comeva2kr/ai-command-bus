@@ -77,7 +77,8 @@ export function normalizeItem(raw, source) {
   // 별도 게이트를 만들지 않고 기존 verify-age/adult 게이트 하나로 처리한다.
   const topics = classifyTopics({ title: raw.title, url, sourceId, category });
   return {
-    id: raw.id || stableId(url, sourceId, raw.title, raw.publishedAt),
+    id: raw.id || (sourceId === "hani-rank" && url
+      ? stableId(url, sourceId, "", "") : stableId(url, sourceId, raw.title, raw.publishedAt)),
     // "news" | "community". 개별 아이템이 kind를 들고 오는 경우는 드물고(대부분
     // 어댑터는 제목/링크만 준다), 실제 구분은 소스 등록 정보(communities.json의
     // kind -> JsonSource.kind)에 있다. 예전엔 raw.kind만 봐서 그 값이 아이템까지
@@ -165,7 +166,8 @@ export function normalizeItem(raw, source) {
     length: Number.isFinite(raw.length)
       ? raw.length
       : String(raw.summary || raw.body || "").split(/\s+/).filter(Boolean).length,
-    publishedAt: raw.publishedAt || null,
+    publishedAt: needsPublisherTime({ ...raw, source: sourceId }) ? null : raw.publishedAt || null,
+    publishedAtSource: raw.publishedAtSource || null,
     // Board-hot rank (David 2026-07-24 home-feed redesign): this item's
     // 0-based position within its own source's *returned* order — RSS doc
     // order, a list-adapter's page-scan order, HN's front-page order, etc.
@@ -177,6 +179,28 @@ export function normalizeItem(raw, source) {
     // ingest.js's rankBySource for how this is used.
     sourceRank: Number.isFinite(raw.sourceRank) ? raw.sourceRank : null
   };
+}
+
+// 한겨레 랭킹 RSS의 pubDate는 기사 발행일이 아니라 랭킹 생성 시각이다.
+export function needsPublisherTime(item) {
+  return item?.source === "hani-rank" &&
+    (item.publishedAtSource !== "publisher" || !Number.isFinite(Date.parse(item.publishedAt)));
+}
+
+// Collection can fold newer reporting under an older same-title representative.
+// Recover the observed article before Today admission; never borrow its parent's date/body.
+export function expandRelatedNews(items) {
+  const result = [...items];
+  const ids = new Set(items.map(item => item?.id).filter(Boolean));
+  for (const item of items) {
+    if (item?.kind !== "news") continue;
+    for (const row of item.related || []) {
+      if (!row?.id || !row.source || !row.url || !row.title || row.kind === "community" || ids.has(row.id)) continue;
+      ids.add(row.id);
+      result.push({ ...row, kind: "news", category: row.category || item.category });
+    }
+  }
+  return result;
 }
 
 // Offline source backed by the bundled seed dataset. Always available.
@@ -479,7 +503,8 @@ export async function collect(sources, opts = {}) {
             score: item.score || 0,
             commentCount: item.commentCount || 0,
             relatedCoverage: item.relatedCoverage || 0,
-            publishedAt: item.publishedAt || null
+            publishedAt: item.publishedAt || null,
+            publishedAtSource: item.publishedAtSource || null
           });
         }
       }

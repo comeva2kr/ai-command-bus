@@ -744,6 +744,23 @@ export const SLOTS = [
 // 떨어지던 동작을 막는다.
 export const slotById = (id) => SLOTS.find((s) => s.id === (id === "midday" ? "lunch" : id)) || SLOTS[0];
 
+// Publisher age changes rank, never admission or historical source dates.
+// Three scheduled spans per half-life preserve the existing major-news priority
+// regression; one/two spans let recent snippets outrank that important report.
+export function newsPriorityWeight(item, weight, slotId, asOfMs) {
+  if (item?.kind !== "news" || !slotId || !Number.isFinite(asOfMs)) return weight;
+  const published = Date.parse(item.publishedAt || "");
+  if (!Number.isFinite(published) || published > asOfMs) return 0;
+  const slot = slotById(slotId);
+  const previous = SLOTS[(SLOTS.indexOf(slot) + SLOTS.length - 1) % SLOTS.length];
+  const hours = (slot.publishHour - previous.publishHour + 24) % 24;
+  return weight * 2 ** (-(asOfMs - published) / (3 * hours * 3600000));
+}
+
+// Only news contributes a publication-date tie key; community ordering is stable.
+export const newsPriorityTime = item => item?.kind === "news"
+  ? Date.parse(item.publishedAt || "") || 0 : 0;
+
 // 해외 소스인가 — 언어로 판별한다. kind는 community/news로 갈릴 뿐 국적을
 // 말해 주지 않고(해커뉴스가 community다), 소스 목록을 하드코딩하면 소스를
 // 추가할 때마다 여기도 고쳐야 한다.
@@ -789,7 +806,10 @@ export function buildDigest(items, {
   // weight로 정렬한다(부분 공급 시 안전망). null(기본, v1 전 경로)이면 이
   // 함수의 나머지 동작은 바이트 그대로다.
   externalRank = null,
-  canonicalEvents = null
+  canonicalEvents = null,
+  slotId = null,
+  asOfMs = null,
+  representativeFor = null
 } = {}) {
   const clusters = clusterIssues(items);
 
@@ -854,23 +874,30 @@ export function buildDigest(items, {
       : evidence.relatedCoverageSignal
         ? Math.min(5, evidence.coverage) * RELATED_COVERAGE_K
         : 0;
+    const draft = buildIssueDraft(members, perIssueRefs, requireKoreanAudience);
+    const representative = !externalRank && representativeFor
+      ? representativeFor({ ...draft, event: composeEventFromMembers(members) }) || members[0]
+      : members[0];
     return {
       members,
-      draft: buildIssueDraft(members, perIssueRefs, requireKoreanAudience),
+      draft,
+      representative,
       carryoverOnly: members.every((item) => Boolean(item.editorialCarryover)),
       externalRank: externalRankOf(members),
-      weight: Math.log10(1 + Math.max(0, eng)) * REACTION_K
+      weight: newsPriorityWeight(representative, Math.log10(1 + Math.max(0, eng)) * REACTION_K
         + coveragePoints
         + INTEREST_MAX * Math.min(1, best / 1000)
         + weighty
         + sourceTrust
-        + authorityBonus
+        + authorityBonus, externalRank ? null : slotId, asOfMs)
     };
   }).sort((a, b) => {
     if (Number(a.carryoverOnly) !== Number(b.carryoverOnly)) {
       return Number(a.carryoverOnly) - Number(b.carryoverOnly);
     }
     if (!externalRank) return b.weight - a.weight
+      || (slotId && Number.isFinite(asOfMs)
+        ? newsPriorityTime(b.representative) - newsPriorityTime(a.representative) : 0)
       || Number(a.members.every(isOverseas)) - Number(b.members.every(isOverseas));
     if (a.externalRank !== null && b.externalRank !== null) return a.externalRank - b.externalRank;
     if (a.externalRank !== null) return -1;

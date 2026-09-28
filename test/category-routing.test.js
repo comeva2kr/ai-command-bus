@@ -630,7 +630,7 @@ test("실제 오늘판은 중요한 해외 보도만 남기고 해외 주요 언
     score: 0,
     commentCount: 0,
     coverage: 0,
-    publishedAt: new Date(now - 17 * 3600 * 1000).toISOString()
+    publishedAt: new Date(now - 7 * 3600 * 1000).toISOString()
   };
   const foreignCorroborating = {
     id: "foreign-major-corroborating",
@@ -641,7 +641,7 @@ test("실제 오늘판은 중요한 해외 보도만 남기고 해외 주요 언
     score: 0,
     commentCount: 0,
     coverage: 0,
-    publishedAt: new Date(now - 18 * 3600 * 1000).toISOString()
+    publishedAt: new Date(now - 8 * 3600 * 1000).toISOString()
   };
   const foreignFiller = {
     id: "foreign-filler",
@@ -674,7 +674,7 @@ test("실제 오늘판은 중요한 해외 보도만 남기고 해외 주요 언
     score: 0,
     commentCount: 0,
     coverage: 0,
-    publishedAt: new Date(now - 18 * 3600 * 1000).toISOString()
+    publishedAt: new Date(now - 8 * 3600 * 1000).toISOString()
   };
   const domesticTopics = [
     "반도체 수출액 사상 최고 기록", "시중은행 가계대출 금리 조정",
@@ -1133,7 +1133,7 @@ test("사전선별 오늘판도 발행 시각이 수명 상한을 넘은 글은 
 
 test("저장 판 출처 재수화도 최초 판과 같은 슬롯 시간창만 사용한다", async () => {
   const now = Date.parse("2026-08-25T19:00:00+09:00");
-  let current = now - 10 * 60 * 60 * 1000;
+  let current = now - 20 * 60 * 60 * 1000;
   let includeRecent = false;
   const recent = {
     id: "recent", title: "반도체 기업 신규 공장 투자 계획 발표", source: "recent-news",
@@ -1143,7 +1143,7 @@ test("저장 판 출처 재수화도 최초 판과 같은 슬롯 시간창만 �
   const old = {
     id: "old", title: "반도체 기업 공장 투자 세부 계획 공개", source: "old-news",
     sourceLabel: "과거일보", category: "business", url: "https://old.example.com/1",
-    publishedAt: new Date(now - 10 * 60 * 60 * 1000).toISOString()
+    publishedAt: new Date(now - 20 * 60 * 60 * 1000).toISOString()
   };
   const engine = new FeedEngine(
     new FeedStore({ clock: () => new Date(current).toISOString() }),

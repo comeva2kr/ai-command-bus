@@ -2069,3 +2069,28 @@ test("브리핑 문단은 제목 끝글자와 무관하게 자연스러운 조�
   assert.match(applause, /게시물이 추천 120건/);
   assert.match(single, /제목이 올라 있다/);
 });
+
+for (const category of ['business','life']) test(`NH167 final digest ${category} favors own newer news including zero-weight ties`, async () => {
+  const {buildDigest}=await import('../src/feed/digest.js');
+  const rows=[
+    {id:'old',title:'은행 주택 대출 금리 조정안 발표',publishedAt:'2026-09-20T09:00+09:00'},
+    {id:'new',title:'자동차 기업 해외 수출 역대 최대 실적',publishedAt:'2026-09-20T15:00+09:00'}
+  ].map(i=>({...i,source:i.id,sourceLabel:i.id,kind:'news',category,score:0,commentCount:0,coverage:0}));
+  const options={maxIssues:2,maxPerSource:2,slotId:'evening',asOfMs:Date.parse('2026-09-20T18:30+09:00')};
+  assert.equal(buildDigest(rows,options).issues[0].refs[0].id,'new');
+  assert.equal(buildDigest(rows,{...options,externalRank:new Map([['old',0],['new',1]])}).issues[0].refs[0].id,'old','explicit rank is authoritative');
+  const community=rows.map(i=>({...i,kind:'community',score:i.id==='old'?100:50}));
+  assert.deepEqual(buildDigest(community,options),buildDigest(community,{maxIssues:2,maxPerSource:2}),'community-only behavior unchanged');
+});
+
+test('NH167 digest cannot borrow a newer community/member date for its news representative', async () => {
+  const {buildDigest}=await import('../src/feed/digest.js');
+  const old={id:'old',title:'은행 주택 대출 금리 조정안 발표',source:'one',sourceLabel:'one',kind:'news',category:'business',publishedAt:'2026-09-20T09:00+09:00'};
+  const community={...old,id:'reaction',kind:'community',publishedAt:'2026-09-20T18:20+09:00'};
+  const fresh={...old,id:'fresh',title:'자동차 기업 해외 수출 역대 최대 실적',publishedAt:'2026-09-20T15:00+09:00'};
+  const result=buildDigest([old,community,fresh],{maxIssues:2,maxPerSource:2,slotId:'evening',asOfMs:Date.parse('2026-09-20T18:30+09:00')});
+  assert.equal(result.issues[0].refs[0].id,'fresh');
+  const older=result.issues.find(i=>i.refs[0].id==='old');
+  assert.ok(older.refs.some(r=>r.id==='reaction'));
+  assert.equal(older.refs[0].publishedAt,old.publishedAt);
+});

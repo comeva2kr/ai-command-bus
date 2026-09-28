@@ -1,5 +1,6 @@
 import { decodeEntities } from "./html-text.js";
-import { discardBody } from "./fetchers.js";
+import { discardBody, normalizeDate } from "./fetchers.js";
+import { needsPublisherTime } from "./content.js";
 import { lookup as dnsLookup } from "node:dns/promises";
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
@@ -933,7 +934,9 @@ export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch } =
   } catch {
     return empty;
   }
-  return { image: extractOgImage(html, res.url || url), desc: extractOgDesc(html) };
+  const publishedAt = normalizeDate(metaContent(html, "article:published_time"));
+  return { image: extractOgImage(html, res.url || url), desc: extractOgDesc(html),
+    ...(publishedAt ? { publishedAt } : {}) };
 }
 
 // --- makeEnricher: 사이클마다 image 없는 아이템을 골라 동시성 있게 채운다 --
@@ -962,19 +965,25 @@ export function makeEnricher({
     return hit;
   }
 
-  function cacheSet(url, meta) {
-    const positive = Boolean(meta.image || meta.desc);
-    cache.set(url, { ...meta, expiresAt: clock() + (positive ? ttlMs : negativeTtlMs) });
+  function cacheSet(url, meta, timeRequired) {
+    const positive = Boolean(meta.image || meta.desc || meta.publishedAt) && (!timeRequired || Boolean(meta.publishedAt));
+    cache.set(url, { ...meta, publishedAt: meta.publishedAt || null,
+      expiresAt: clock() + (positive ? ttlMs : negativeTtlMs) });
   }
 
   // image가 비었거나 summary(발췌)가 빈 아이템이 후보다 — 한 번의 fetch로
   // 둘 다 채운다. desc가 제목의 단순 복제면 발췌 가치가 없으므로 버린다.
-  const needsWork = (it) => !it.image || !it.summary;
+  const needsWork = (it) => needsPublisherTime(it) || !it.image || !it.summary;
 
   // 메타를 아이템에 적용. 채운 게 있으면 true.
   function applyMeta(item, meta) {
     if (!meta) return false;
     let touched = false;
+    if (needsPublisherTime(item) && normalizeDate(meta.publishedAt)) {
+      item.publishedAt = normalizeDate(meta.publishedAt);
+      item.publishedAtSource = "publisher";
+      touched = true;
+    }
     if (!item.image && meta.image) { item.image = meta.image; touched = true; }
     // og:description도 원문 발췌와 같은 정리를 지난다 — 실시간 요약 칸은 이 값을 그대로
     // 그려서 게시자의 제휴 고지문이 지금핫 고지처럼 보였다(NH123 실시간 이토랜드 핫딜).
@@ -1000,13 +1009,16 @@ export function makeEnricher({
     let cacheApplied = 0;
     const needFetch = [];
     for (const it of pool) {
-      const hit = cacheGet(it.url);
+      let hit = cacheGet(it.url);
+      // 이전 이미지 캐시에는 날짜 조사를 하지 않았다. 한 번만 갱신한다.
+      if (hit && needsPublisherTime(it) && !("publishedAt" in hit)) hit = undefined;
       if (hit !== undefined) { if (applyMeta(it, hit)) cacheApplied++; }
       else needFetch.push(it);
     }
-    const noImage = needFetch.filter((it) => !it.image);
-    const rest = needFetch.filter((it) => it.image);
-    const candidates = [...noImage, ...rest].slice(0, maxPerCycle);
+    const dates = needFetch.filter(needsPublisherTime);
+    const noImage = needFetch.filter((it) => !needsPublisherTime(it) && !it.image);
+    const rest = needFetch.filter((it) => !needsPublisherTime(it) && it.image);
+    const candidates = [...dates, ...noImage, ...rest].slice(0, maxPerCycle);
 
     const attempted = candidates.length;
     let filled = cacheApplied;
@@ -1016,7 +1028,7 @@ export function makeEnricher({
       while (cursor < candidates.length) {
         const item = candidates[cursor++];
         const meta = await fetchOgMeta(item.url, { fetchImpl });
-        cacheSet(item.url, meta);
+        cacheSet(item.url, meta, needsPublisherTime(item));
         if (applyMeta(item, meta)) filled++;
       }
     }

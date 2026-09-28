@@ -57,7 +57,7 @@ test("NH146 political sections and restored source evidence share topic classifi
   t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
   const engine=new FeedEngine(new FeedStore(),[]);
   engine._poolFile=path.join(dir,"pool.json");
-  fs.writeFileSync(engine._poolFile,JSON.stringify({savedAt:Date.now(),rows:[{item:{id:"old-politics",title:"새 대표 선출",url:politicalUrl,source:"hani-rank",category:"news",topics:[]}}]}));
+  fs.writeFileSync(engine._poolFile,JSON.stringify({savedAt:Date.now(),rows:[{item:{id:"old-politics",title:"새 대표 선출",url:politicalUrl,source:"hani-rank",category:"news",topics:[],publishedAt:new Date().toISOString(),publishedAtSource:"publisher"}}]}));
   assert.equal(engine._loadPool(),true);
   assert.deepEqual(engine._cache[0].topics,["politics"],"warm row is tagged before advertising or filter consumers read it");
 });

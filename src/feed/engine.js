@@ -8,7 +8,7 @@
 
 import fs from "node:fs";
 import { ArticleArchive } from "./article-archive.js";
-import { collect, SeedSource, resolveCap } from "./content.js";
+import { collect, SeedSource, resolveCap, needsPublisherTime, expandRelatedNews } from "./content.js";
 import { loadRegistry } from "./registry.js";
 import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, UNTRAINED_CATEGORIES, definiteCategory, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY, categoryGuardReason, isGeneralNewsGuardReason } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
@@ -31,6 +31,8 @@ import { operationalSourceIdentity } from "./editorial-source-identity.js";
 import { coverageEvidence } from "./editorial-quality.js";
 import {
   buildDigest,
+  newsPriorityWeight,
+  newsPriorityTime,
   buildIssueDraft,
   canonicalDisplayDuplicate,
   MIN_ISSUES,
@@ -73,7 +75,6 @@ import { specialistCorrection, aggregateReclassification, untrainedOverrideAllow
 import { buildEditorialNote, editorialValue } from "./editorial.js";
 export { editorialValue } from "./editorial.js";
 import {
-  AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS,
   OVERSEAS_MARKET_SIGNAL_LEXICON,
   findMarketSignalMatches,
   isAuthoritativeForeignNewsSource
@@ -706,7 +707,12 @@ function safeImage(url) {
 
 export function briefingAvailableAt(item, sourceMetadata = null) {
   const seen = Number.isFinite(item?.firstSeenAt) ? item.firstSeenAt : NaN;
-  const published = item?.publishedAt ? Date.parse(item.publishedAt) : NaN;
+  const published = typeof item?.publishedAt === "number" ? item.publishedAt
+    : item?.publishedAt ? Date.parse(item.publishedAt) : NaN;
+  // News freshness is publication evidence, never discovery or ranking refresh.
+  if ((item?.kind || sourceMetadata?.kind) === "news") {
+    return needsPublisherTime(item) ? NaN : published;
+  }
   if (item?.kind === "community" && sourceMetadata?.adapter?.type === "list"
     && Number.isFinite(seen)) return seen;
   const times = [seen, published].filter(Number.isFinite);
@@ -729,14 +735,18 @@ export function briefingTimestampEligible(item, sourceMetadata = null) {
   return sourceMetadata?.adapter?.type !== "rss";
 }
 
-function inBriefingWindow(item, now, slotDef, sourceMetadata) {
-  const windowMs = (slotDef.windowHours || 12) * 3600 * 1000;
-  const authoritativeForeign = isAuthoritativeForeignNewsSource(sourceMetadata?.get(item.source));
-  const itemWindowMs = authoritativeForeign
-    ? Math.max(windowMs, AUTHORITATIVE_FOREIGN_NEWS_WINDOW_HOURS * 3600 * 1000)
-    : windowMs;
-  const available = briefingAvailableAt(item, sourceMetadata?.get(item.source));
-  return !Number.isFinite(available) || (available <= now && now - available <= itemWindowMs);
+export function inBriefingWindow(item, now, slotDef, sourceMetadata, editionDate = null) {
+  const metadata = sourceMetadata?.get(item.source);
+  const available = briefingAvailableAt(item, metadata);
+  if ((item.kind || metadata?.kind) === "news") {
+    const date = editionDate || new Date(now + 9 * 3600000).toISOString().slice(0, 10);
+    const midnight = Date.parse(`${date}T00:00:00+09:00`);
+    const start = midnight - (slotDef.id === "morning" ? 5 * 3600000 : 0);
+    return Number.isFinite(available) && available >= start && available <= now;
+  }
+  // Community current-hot/list-board semantics remain separate from news age.
+  const windowMs = (slotDef.windowHours || 12) * 3600000;
+  return !Number.isFinite(available) || (available <= now && now - available <= windowMs);
 }
 
 export function leanMultiplier(sourceId, balance) {
@@ -1182,15 +1192,19 @@ export class FeedEngine {
   // 새 글 100건이 들어온 뒤 전날 저녁판을 만들면, 당시 존재했던 글은 48시간
   // 풀에 남아 있어도 현재 상한 밖이라 전부 사라진다. 누적 풀에서 as-of를 먼저
   // 적용하고 그 시점의 최신 글에 소스 상한을 다시 건다.
-  async _itemsAsOf(asOfMs) {
+  async _itemsAsOf(asOfMs, { slotDef = null, editionDate = null } = {}) {
     await this._items();
     if (!Number.isFinite(asOfMs) || !this._pool.size) return this._cache || [];
 
     this._ensureCategoryIntegrityMetadata();
     const kindBySource = new Map(this.sources.map((source) => [source.id, source.kind]));
     const bySource = new Map();
-    for (const entry of this._pool.values()) {
-      if (!entry || !entry.item) continue;
+    const observed = [...this._pool.values()].filter(entry => entry?.item).map(entry => ({
+      ...entry.item,
+      related: entry.item.related?.map(row => ({ ...row, firstSeenAt: row.firstSeenAt ?? entry.lastSeenAt }))
+    }));
+    for (const observedItem of expandRelatedNews(observed)) {
+      const entry = this._pool.get(observedItem.id) || { item: observedItem };
       const firstSeenAt = Number.isFinite(entry.firstSeenAt)
         ? entry.firstSeenAt
         : Number.isFinite(entry.item.firstSeenAt) ? entry.item.firstSeenAt : NaN;
@@ -1209,6 +1223,8 @@ export class FeedEngine {
           : /^gnews(?:-|$)/i.test(entry.item.source || "") ? entry.item.coverage || 0 : 0,
         poolCoverage: 0
       };
+      if (slotDef && item.kind === "news"
+        && !inBriefingWindow(item, asOfMs, slotDef, this._itemSourceMetadata, editionDate)) continue;
       if (item.image) item.image = safeImage(item.image);
       const group = this._itemGroups && this._itemGroups.get(item.source);
       if (group) item.feedGroup = group;
@@ -1522,11 +1538,11 @@ export class FeedEngine {
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
     if (!Number.isFinite(parsed.savedAt) || now - parsed.savedAt > maxAgeMs) return false;
     for (const row of parsed.rows) {
-      if (row && row.item && row.item.id) this._pool.set(row.item.id, row);
+      if (row && row.item && row.item.id && !needsPublisherTime(row.item)) this._pool.set(row.item.id, row);
     }
     if (!this._pool.size) return false;
     // 지난 사이클의 노출 후보를 그대로 되살린다 — 순위 재계산 없이 바로 뜬다.
-    this._cache = parsed.rows.map((r) => r.item);
+    this._cache = [...this._pool.values()].map((r) => r.item);
     for (const item of this._cache) item.topics = classifyTopics(item);
     this._classifyItems(this._cache.filter(item => categoryGuardReason(item.category, item.title, item) === "game-content-subject"));
     this._briefingContextCache = null;
@@ -1572,6 +1588,10 @@ export class FeedEngine {
       // 사이클당 보강 상한(120건) 때문에 나머지는 다음 사이클에 원점으로
       // 돌아가 커버리지가 영원히 제자리였다. 이전 값을 물려준다.
       if (prior && prior.item) {
+        if (needsPublisherTime(item) && !needsPublisherTime(prior.item)) {
+          item.publishedAt = prior.item.publishedAt;
+          item.publishedAtSource = prior.item.publishedAtSource;
+        }
         if (!item.image && prior.item.image) item.image = prior.item.image;
         if (!item.summary && prior.item.summary) item.summary = prior.item.summary;
         // 직전 점수 — ingest가 관성 계산에 쓴다(목록이 매 수집마다 뒤집히지 않게)
@@ -1751,7 +1771,7 @@ export class FeedEngine {
       await this._translateFilledSummaries(capped);
     }
 
-    this._cache = capped;
+    this._cache = capped.filter(item => !needsPublisherTime(item));
     this._briefingContextCache = null;
     this._errors = errors;
     this.lastRefreshedAt = now;
@@ -2425,6 +2445,7 @@ export class FeedEngine {
   }
 
   _cleanItemSummary(item) {
+    if (needsPublisherTime(item)) item.publishedAt = null;
     if (item?.translated && item.summaryTranslated === false) item.summary = "";
     else if (typeof item?.summary === "string" && item.via !== "ourdeal" && !["ad", "affiliate"].includes(item.kind)) {
       const summary = cleanArticleTextChrome(item.summary);
@@ -2870,7 +2891,8 @@ export class FeedEngine {
     asOfMs = null,
     slotId = null,
     personalized = false,
-    allowCarryover = false
+    allowCarryover = false,
+    editionDate = null
   } = {}) {
     const requestedAsOf = asOfMs == null ? NaN : Number(asOfMs);
     const requestedNow = Number.isFinite(requestedAsOf)
@@ -2887,6 +2909,8 @@ export class FeedEngine {
       : `${new Date(requestedNow + 9 * 3600 * 1000).toISOString().slice(0, 10)}:${requestedSlotDef.id}`;
     const key = JSON.stringify([
       timeKey,
+      editionDate,
+      this.editorialPreselectedReferenceMs,
       personalized,
       allowCarryover,
       this.lastRefreshedAt || null,
@@ -2896,8 +2920,8 @@ export class FeedEngine {
     if (this._briefingContextCache?.key === key) return this._briefingContextCache.promise;
 
     const promise = (async () => {
-      const collectedItems = !this.editorialPreselectedPool && Number.isFinite(requestedAsOf)
-        ? await this._itemsAsOf(requestedAsOf)
+      let collectedItems = !this.editorialPreselectedPool && Number.isFinite(requestedAsOf)
+        ? await this._itemsAsOf(requestedAsOf, { slotDef: requestedSlotDef, editionDate })
         : await this._items();
       // 첫 수집은 firstSeenAt을 요청 시각보다 몇 ms 뒤에 기록한다. 요청 시작
       // 시각으로 창을 자르면 막 모은 모든 글이 미래 글이 되어 첫 화면만 빈다.
@@ -2906,13 +2930,22 @@ export class FeedEngine {
         : this._clock ? new Date(this._clock()).getTime() : Date.now();
       const kstHour = new Date(now + 9 * 3600 * 1000).getUTCHours();
       const slotDef = slotId ? slotById(slotId) : slotForHour(kstHour);
+      const offMain = this._offMainSet();
+      const freshnessNow = this.editorialPreselectedPool && Number.isFinite(this.editorialPreselectedReferenceMs)
+        ? Math.min(now, this.editorialPreselectedReferenceMs) : now;
+      const freshNews = (item) => item.kind !== "news"
+        || inBriefingWindow(item, freshnessNow, slotDef, this._itemSourceMetadata, editionDate);
+      // Related feed observations also become lineage/display dates. Keep their
+      // publication evidence inside the same news window before any attachment.
+      collectedItems = expandRelatedNews(collectedItems).map(item => item.kind === "news" && Array.isArray(item.related)
+        ? { ...item, related: item.related.filter(row => freshNews({ ...row, kind: "news" })) }
+        : item);
       const items = personalized && this.editorialCategoryRouter
         ? this.editorialCategoryRouter(collectedItems, now)
         : collectedItems;
-      const offMain = this._offMainSet();
       const admissible = (item) => item.kind !== "ad" && item.kind !== "affiliate" &&
         item.source !== "seed" && item.source !== "me" && promotable(item) &&
-        !offMain.has(item.source)
+        !offMain.has(item.source) && freshNews(item)
         && (this.editorialPreselectedPool
           ? (!Number.isFinite(this.editorialPreselectedReferenceMs)
             || !tooOld(item, this.editorialPreselectedReferenceMs))
@@ -2924,7 +2957,7 @@ export class FeedEngine {
       const carryoverWindowMs = EDITION_CANDIDATE_CONTRACT.carryoverMaxHours * 3600 * 1000;
       const sourceItems = evidenceBaseItems.filter((item) => {
         if (this.editorialPreselectedPool) return true;
-        if (inBriefingWindow(item, now, slotDef, this._itemSourceMetadata)) return true;
+        if (inBriefingWindow(item, freshnessNow, slotDef, this._itemSourceMetadata, editionDate)) return true;
         if (!personalized || !allowCarryover) return false;
         const at = briefingAvailableAt(item, this._itemSourceMetadata?.get(item.source));
         return Number.isFinite(at) && at <= now && now - at <= carryoverWindowMs;
@@ -2952,6 +2985,8 @@ export class FeedEngine {
         now,
         slotDef,
         baseItems,
+        freshnessNow,
+        editionDate,
         canonicalEvents,
         eventSourceIndex: personalized
           ? buildEventSourceIndex(labelledSourceItems, canonicalEvents, leadEligibleIds)
@@ -2968,12 +3003,13 @@ export class FeedEngine {
     }
   }
 
-  async canonicalEventSources(issues, { asOfMs = null, slotId = null } = {}) {
+  async canonicalEventSources(issues, { asOfMs = null, slotId = null, editionDate = null } = {}) {
     const context = await this._sharedBriefingContext({
       asOfMs,
       slotId,
       personalized: true,
-      allowCarryover: false
+      allowCarryover: false,
+      editionDate
     });
     return (issues || []).map((issue) => attachCanonicalEventSources(issue, context.eventSourceIndex));
   }
@@ -3025,9 +3061,9 @@ export class FeedEngine {
     // "아침엔 밤사이 일, 저녁엔 오늘 일"이 성립한다.
     const authoritativeForeignNews = (item) => isAuthoritativeForeignNewsSource(
       this._itemSourceMetadata && this._itemSourceMetadata.get(item.source));
-    const inWindow = this.editorialPreselectedPool
-      ? () => true
-      : (item) => inBriefingWindow(item, now, slotDef, this._itemSourceMetadata);
+    const inWindow = (item) => this.editorialPreselectedPool && item.kind !== "news"
+      || inBriefingWindow(item, sharedContext.freshnessNow, slotDef,
+        this._itemSourceMetadata, sharedContext.editionDate);
     // 정치 선택은 기존 공개 피드의 기본 숨김 계약을 바꾸지 않는다. 로컬 개인판에서
     // 사용자가 명시적으로 politics를 골랐을 때만 이미 판별된 정치 토픽을 해당
     // 분야의 편집 카테고리로 투영한다.
@@ -3175,12 +3211,14 @@ export class FeedEngine {
       if (!observedAcrossFeeds && !marketConsequence) return 0;
       return INTEREST_MAX;
     };
+    const prioritySlot = this.editorialExternalRank ? null : slotDef.id;
+    const priorityTie = (a, b) => prioritySlot ? newsPriorityTime(b) - newsPriorityTime(a) : 0;
     const weight = (i) => {
       const m = interestOf(i);
-      return engagement(i) + (i.coverage || 0) * 50
+      return newsPriorityWeight(i, engagement(i) + (i.coverage || 0) * 50
         + interestPoints(m)
         + (WEIGHTY.has(i.category) ? WEIGHTY_BONUS : 0)
-        + authorityPoints(i);
+        + authorityPoints(i), prioritySlot, sharedContext.freshnessNow);
     };
 
     const byCat = new Map();
@@ -3193,7 +3231,7 @@ export class FeedEngine {
     const sections = [];
     for (const [cat, list] of byCat) {
       // 화제성 순: 반응 실측 우선, 무신호 뉴스는 다중보도(coverage) 우선
-      list.sort((a, b) => weight(b) - weight(a));
+      list.sort((a, b) => weight(b) - weight(a) || priorityTie(a, b));
       // 같은 사건 중복 + 한 매체 독식 제거 (2026-08-02 검수 실측: 뉴스 브리핑
       // 10칸 중 동일 사건 2칸, 한 계열 매체 4칸, 제목에 '폭염' 6칸).
       // 브리핑은 10칸짜리 요약본이라 피드보다 중복 비용이 훨씬 크다.
@@ -3267,7 +3305,7 @@ export class FeedEngine {
         briefingWeight: weight(i)
       }))
       .filter((i) => promotable(i))
-      .sort((a, b) => b.briefingWeight - a.briefingWeight);
+      .sort((a, b) => b.briefingWeight - a.briefingWeight || priorityTie(a, b));
 
     // 동적 후보 계약은 로컬 개인판과 관리자 증거용이다. 기존 공개 브리핑에는
     // 새 응답 필드나 후보 컷을 끼워 넣지 않아 운영 동작을 그대로 보존한다.
@@ -3316,7 +3354,8 @@ export class FeedEngine {
     const bias = slotDef.overseasBias || 1;
     const slotPool = bias === 1 ? balancedPool : balancedPool.slice().sort((a, b) => {
       const w = (i) => ((i.score || 0) + (i.commentCount || 0) * 2) * (isOverseas(i) ? bias : 1);
-      return w(b) - w(a);
+      return w(b) - w(a) || (prioritySlot
+        ? b.briefingWeight - a.briefingWeight || priorityTie(a, b) : 0);
     });
     // 사건은 사용자가 고른 분야와 무관한 고정값이다. 전체 유효 풀에서 한 번
     // 계산한 사건 묶음을 분야별 digest가 재사용해야, 분야를 바꿔도 같은 기사에
@@ -3341,7 +3380,13 @@ export class FeedEngine {
       // 운영 서버·v1 인프로세스 인스턴스는 null이라 이 인자가 undefined와
       // 같은 기본값으로 buildDigest에 전달돼 기존 동작이 바이트 그대로다.
       externalRank: this.editorialExternalRank || null,
-      canonicalEvents
+      canonicalEvents,
+      slotId: prioritySlot,
+      asOfMs: sharedContext.freshnessNow,
+      // Rank using the same own source that canonical reattachment will display.
+      representativeFor: personalized && prioritySlot ? (draft) =>
+        sharedContext.eventSourceIndex.byId.get(
+          attachCanonicalEventSources(draft, sharedContext.eventSourceIndex).refs?.[0]?.id) : null
     });
     // 출처는 사용자가 고른 분야의 속성이 아니라 사건의 속성이다. 카드 선별은
     // 위의 분야별 pool을 그대로 쓰되, 출처 정본만 같은 시각의 전체 유효 풀에서
@@ -3460,7 +3505,8 @@ export class FeedEngine {
       asOfMs,
       slotId,
       personalized: true,
-      allowCarryover
+      allowCarryover,
+      editionDate: requestedEditionDate
     });
     const briefingOptions = {
       slotId,

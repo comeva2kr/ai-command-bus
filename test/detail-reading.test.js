@@ -177,13 +177,13 @@ test("오늘판은 정확한 날짜 판본을 고르고 상세에 원문 피드 
   assert.match(html, /state\.slot=initialSlot/, "직접 연 오늘판 URL의 슬롯을 초기 요청에 쓰지 않는다");
   assert.match(html, /state\.editionDate=initialDate/, "직접 연 오늘판 URL의 날짜를 초기 요청에 쓰지 않는다");
   assert.match(links, /publishedAt:row\.publishedAt\|\|sourceEvent\?\.publishedAt\|\|null/, "출처 발행시각을 상세까지 보존하지 않는다");
-  assert.match(list, /issue\.firstPublishedAt/, "목록에 고정된 최초 발행시각을 쓰지 않는다");
-  assert.match(list, /<time[^>]+datetime=/, "목록의 최초 발행시각이 time 요소가 아니다");
+  assert.match(list, /issue\.refs\?\.\[0\]\?\.publishedAt/, "목록이 대표 기사의 표기시각을 쓰지 않는다");
+  assert.match(list, /<time[^>]+datetime=/, "목록의 대표 기사 표기시각이 time 요소가 아니다");
   assert.match(html, /function formatListKst[\s\S]{0,220}year:"numeric"/, "목록 발행시각에 연도가 없어 과거 기사를 오늘 기사처럼 보이게 한다");
   assert.match(html, /function formatKst[\s\S]{0,220}year:"numeric"/, "상세 발행시각에 연도가 없어 목록과 같은 사건의 날짜가 다르게 보인다");
-  assert.match(detail, /firstPublishedAt/, "최초 발행시각을 계산하지 않는다");
-  assert.match(detail, /issue\.firstPublishedAt/, "상세가 사건에 고정된 최초 발행시각을 우선하지 않는다");
-  assert.match(detail, /원문 표기 시각/, "검증된 최초 발행처럼 과장하지 않고 원문 피드 표기시각을 표시하지 않는다");
+  assert.match(detail, /issue\.firstPublishedAt/, "상세가 과거 관련 근거의 시각을 보존하지 않는다");
+  assert.match(detail, /대표 기사 표기 시각/, "대표 출처 표기시각을 최초 발행처럼 과장한다");
+  assert.match(detail, /관련 근거 중 가장 이른 표기 시각/, "대표 기사와 과거 관련 근거의 시각을 구분하지 않는다");
   assert.doesNotMatch(detail, /<b>최초 발행<\/b>/, "피드 시각을 최초 발행으로 오인하게 만든다");
   assert.doesNotMatch(detail, /공개 원문 본문을 그대로 발췌했습니다/, "원문 전체를 복제한 것처럼 오해되는 문구가 남았다");
 });
@@ -218,6 +218,38 @@ function renderTodayDetail(issue, navigator = { userAgent: "Chrome Desktop" }) {
   assert.equal(document.activeElement, elements.get("detailClose"));
   return { html: elements.get("detailContent").innerHTML, list: elements.get("issues").innerHTML, links };
 }
+
+test("NH167 대표 뉴스 표기시각과 더 이른 커뮤니티 근거를 구분하고 원래 증거를 보존한다", () => {
+  const fresh = "2026-09-20T05:02:33.000Z", old = "2026-09-19T09:42:20.000Z";
+  const issue = {
+    headline: "인간의 뇌는 두 개다", firstPublishedAt: old,
+    refs: [
+      { id: "it_14g1lp6", sourceLabel: '자유일보 <img src=x onerror="alert(1)">', publishedAt: fresh },
+      { id: "it_1s725hk", sourceLabel: "긱뉴스", publishedAt: old }
+    ],
+    sourceEvidence: [{ itemId: "it_1s725hk", sourceId: "geeknews", publishedAt: old }]
+  };
+  const before = structuredClone(issue), result = renderTodayDetail(issue);
+  assert.match(result.list, /datetime="2026-09-20T05:02:33.000Z"/);
+  assert.doesNotMatch(result.list, /datetime="2026-09-19/);
+  assert.match(result.list, /대표 기사 · 자유일보 &lt;img/);
+  assert.match(result.html, /대표 기사 표기 시각<\/b> 자유일보 &lt;img[^<]*2026년 9월 20일/);
+  assert.match(result.html, /관련 근거 중 가장 이른 표기 시각<\/b> 2026년 9월 19일/);
+  assert.doesNotMatch(result.list + result.html, /<img src=x/);
+  assert.deepEqual(issue, before);
+});
+
+test("NH167 대표 시각이 없거나 유효하지 않으면 다른 출처의 과거 시각을 대신 표시하지 않는다", () => {
+  for (const publishedAt of [undefined, null, "", "invalid", Infinity, 1e20]) {
+    const result = renderTodayDetail({
+      headline: "대표 시각 미확인", firstPublishedAt: "2026-09-19T09:42:20.000Z",
+      refs: [{ publishedAt }, { publishedAt: "2026-09-20T05:02:33.000Z" }]
+    });
+    assert.doesNotMatch(result.list, /<time\b/);
+    assert.doesNotMatch(result.html, /<b>대표 기사 표기 시각<\/b>/);
+    assert.match(result.html, /관련 근거 중 가장 이른 표기 시각/);
+  }
+});
 
 test("NH108 Today 번역은 모바일 네이버 앱과 PC 정본 링크 한 개이며 준비된 내용은 불변이다", () => {
   const source = { evidenceId: "article:1", sourceGroup: "publisher", sourceLabel: "외신", url: "https://publisher.example/article?q=한글&part=2#text" };

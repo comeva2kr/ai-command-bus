@@ -836,7 +836,8 @@ export function createServer(opts = {}) {
     // 사건이 선택 분야에 따라 다른 기사처럼 보인다.
     const canonicalIssues = await engine.canonicalEventSources(continuity.issues, {
       asOfMs: evidenceAsOf,
-      slotId: preview.slot.id
+      slotId: preview.slot.id,
+      editionDate
     });
     const canonical = attachEditorialFulfillment({
       ...snapshot,
@@ -973,7 +974,8 @@ export function createServer(opts = {}) {
         const laneAnchor = Date.parse(edition?.editionSegment?.evidenceAsOf || "");
         const canonicalIssues = await engine.canonicalEventSources(edition?.issues || [], {
           asOfMs: Number.isFinite(laneAnchor) ? laneAnchor : evidenceAsOfMs,
-          slotId: target.slot.id
+          slotId: target.slot.id,
+          editionDate: date
         });
         return {
           category,

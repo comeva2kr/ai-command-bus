@@ -858,7 +858,8 @@ test("오늘판: 얇은 분야만 최근 24시간의 미제공 보도형 재고�
   assert.equal(withoutCarryover.editorialCarryover.enabled, false);
   assert.equal(withoutCarryover.editorialCarryover.candidateCount, 0);
   assert.equal(withoutCarryover.candidateFixture.metrics.carryoverCandidateCount, 0);
-  assert.deepEqual(withoutCarryover.candidateFixture.candidates.map((candidate) => candidate.itemId), ["fresh"]);
+  assert.deepEqual(new Set(withoutCarryover.candidateFixture.candidates.map((candidate) => candidate.itemId)),
+    new Set(["fresh", "older-1", "older-2", "older-3", "older-4", "served"]));
 
   const edition = await snapshotEngine(items).todayEdition({
     categories: ["science"],
@@ -874,18 +875,20 @@ test("오늘판: 얇은 분야만 최근 24시간의 미제공 보도형 재고�
   const carryoverIssues = edition.issues.filter((issue) => issue.metrics.carryoverUsed);
 
   assert.equal(edition.editorialCarryover.enabled, true);
-  assert.equal(edition.editorialCarryover.candidateCount, 5);
-  assert.equal(edition.candidateFixture.metrics.carryoverCandidateCount, 5);
-  assert.equal(edition.candidateFixture.metrics.carryoverCategoryCounts.science, 5);
+  assert.equal(edition.editorialCarryover.candidateCount, 1);
+  assert.equal(edition.candidateFixture.metrics.carryoverCandidateCount, 1);
+  assert.equal(edition.candidateFixture.metrics.carryoverCategoryCounts.science, 1);
   assert.ok(candidateIds.has("fresh"));
-  assert.ok(!candidateIds.has("served"), "이미 제공한 canonical URL은 다시 후보가 되면 안 된다");
+  assert.ok(candidateIds.has("served"), "당일 뉴스는 현재 슬롯 후보로 남고 최종 판 변화 검사에서 비교한다");
+  assert.ok(!carryoverCandidates.some((candidate) => candidate.itemId === "served"),
+    "이미 제공한 canonical URL을 이월 재고로 다시 추가하지 않는다");
   assert.ok(candidateIds.has("community"), "검증된 베스트글도 부족 분야의 미제공 재고로 쓴다");
   assert.ok(!candidateIds.has("stale"), "24시간을 넘긴 글은 이월하지 않는다");
   assert.ok(carryoverCandidates.some((candidate) => candidate.sourceRole === "community_signal"));
   assert.ok(edition.issues.length >= 3);
   assert.equal(edition.issues[0].metrics.carryoverUsed, false,
     "이월분은 현재 슬롯의 새 기사보다 앞에 서면 안 된다");
-  assert.ok(carryoverIssues.length >= 2);
+  assert.ok(carryoverIssues.length >= 1);
   assert.equal(edition.editorialCarryover.selectedIssueCount, carryoverIssues.length);
   assert.ok(carryoverIssues.every((issue) =>
     issue.refs.some((ref) => ref.carryover) && issue.sourceEvidence.some((evidence) => evidence.carryover)));
@@ -995,7 +998,8 @@ test("오늘판: 현재 슬롯 원시 글이 14건이어도 한 매체 편중이
   assert.equal(edition.issues.length, 14);
   assert.equal(edition.categoryFulfillment.rows[0].issueCount, 14);
   assert.equal(edition.categoryFulfillment.goalSatisfied, true);
-  assert.ok(edition.editorialCarryover.candidateCount > 0);
+  assert.equal(edition.editorialCarryover.candidateCount, 0,
+    "당일 오전 뉴스는 저녁에도 현재 후보로 평가하되 최신성 점수로 순위를 낮춘다");
 });
 
 test("오늘판: 세 전문 매체의 24시간 재고만으로도 부동산 분야 14건을 채운다", async () => {

@@ -382,6 +382,10 @@ function formatKst(value){
 function formatListKst(value){
   return new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(value));
 }
+function reportedTime(value){
+  const at=(typeof value==="string"||typeof value==="number")?new Date(value).getTime():NaN;
+  return Number.isFinite(at)?at:null;
+}
 
 function kstDate(value){
   const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(value));
@@ -550,7 +554,8 @@ function renderIssues(edition){
     const linked=directSources.map((row)=>`<a href="${esc(row.url)}" rel="noopener noreferrer" title="${esc(row.title)}">${esc(row.sourceLabel)}</a>`);
     const observed=(issue.eventSources?.length?[]:issue.evidence?.sources||[]).filter((source)=>!refLabels.has(source.label)).map((source)=>`<span>${esc(source.label)}</span>`);
     const sources=[...linked,...observed].join("");
-    const published=issue.firstPublishedAt?`<time class="published-time" datetime="${esc(issue.firstPublishedAt)}">${esc(formatListKst(issue.firstPublishedAt))} KST</time>`:"";
+    const publishedAt=reportedTime(issue.refs?.[0]?.publishedAt);
+    const published=publishedAt!==null?`<time class="published-time" datetime="${new Date(publishedAt).toISOString()}">대표 기사${issue.refs?.[0]?.sourceLabel?` · ${esc(issue.refs[0].sourceLabel)}`:""} · ${esc(formatListKst(publishedAt))} KST</time>`:"";
     return `<article class="issue" data-issue-index="${index}">
       <div class="issue-number">${String(index+1).padStart(2,"0")}</div>
       <div>
@@ -636,9 +641,10 @@ function openIssueDetail(index,returnFocus=null,restoring=false){
   const relaySourceCount=resolvedSources.filter((row)=>row.relay).length;
   const summarySourceCount=Number.isFinite(articleSummary.summarySourceCount)?articleSummary.summarySourceCount:0;
   const sourceLabel=articleSummary.sourceLabel||labels[0]||"확인 가능한";
-  const storedFirstPublishedAt=Date.parse(issue.firstPublishedAt||"");
-  const firstPublishedAt=Number.isFinite(storedFirstPublishedAt)?storedFirstPublishedAt:(resolvedSources.map((row)=>Date.parse(row.publishedAt)).filter(Number.isFinite).sort((a,b)=>a-b)[0]||null);
-  const publishedHtml=firstPublishedAt?`<p class="detail-basis"><b>원문 표기 시각</b> ${esc(formatKst(firstPublishedAt))} (한국시간)</p>`:"";
+  const publishedAt=reportedTime(issue.refs?.[0]?.publishedAt);
+  const firstPublishedAt=reportedTime(issue.firstPublishedAt);
+  const publishedHtml=(publishedAt!==null?`<p class="detail-basis"><b>대표 기사 표기 시각</b> ${issue.refs?.[0]?.sourceLabel?`${esc(issue.refs[0].sourceLabel)} · `:""}${esc(formatKst(publishedAt))} (한국시간)</p>`:"")
+    +(firstPublishedAt!==null&&(publishedAt===null||firstPublishedAt<publishedAt)?`<p class="detail-basis"><b>관련 근거 중 가장 이른 표기 시각</b> ${esc(formatKst(firstPublishedAt))} (한국시간)</p>`:"");
   const sourceInventory=directSourceCount&&relaySourceCount
     ? `${directSourceCount}개 원문과 ${relaySourceCount}개 Google 뉴스 중계 링크를 표시합니다.`
     : directSourceCount

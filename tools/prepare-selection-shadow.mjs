@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { expandRelatedNews } from "../src/feed/content.js";
 import { buildCategoryEventViews } from "../src/feed/category-event-view.js";
 import {
   categoryGuardReason,
@@ -27,9 +28,9 @@ const isId = (value) => typeof value === "string" && value.trim().length > 0 && 
 const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const sortedCounts = (values) => Object.fromEntries([...values].sort().map((key) => [key, values.filter((value) => value === key).length]));
 
-const articlesFromPool = (pool) => (Array.isArray(pool?.rows) ? pool.rows : [])
+const articlesFromPool = (pool) => expandRelatedNews((Array.isArray(pool?.rows) ? pool.rows : [])
   .map((row) => isObject(row) && Object.hasOwn(row, "item") ? row.item : row)
-  .filter(Boolean);
+  .filter(Boolean));
 
 const representativePriority = (article, meta = {}) =>
   (Array.isArray(meta.defaultTags) && meta.defaultTags.length > 0 ? 4 : 0)
