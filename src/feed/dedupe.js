@@ -58,12 +58,20 @@ export function isSameEvent(a, b) {
 // 콘텐츠 URL의 정규 식별자. 추적 파라미터만 걷고 글의 정체가 될 수 있는
 // 쿼리는 보존한다. 게시판 URL은 `id`·`no` 같은 쿼리가 글 자체이므로 pathname만
 // 남기면 게시판 전체가 한 건으로 합쳐진다.
+// 이토랜드 글 보기(/hit/<게시판>/view/<글>)는 글이 경로에 있어서 `page`가
+// 목록 위치일 뿐이다 — 남기면 같은 글이 목록이 밀릴 때마다 새 글로 보인다.
+function isNavigationOnlyParam(url, key) {
+  return key === "page" && /(^|\.)etoland\.co\.kr$/i.test(url.hostname) &&
+    /^\/hit\/[^/]+\/view\/[^/]+\/?$/.test(url.pathname);
+}
+
 export function canonicalContentUrl(value) {
   try {
     const url = new URL(value);
     if (!/^https?:$/.test(url.protocol)) return null;
     const params = [...url.searchParams]
       .filter(([key]) => !/^(utm_|fbclid|gclid|igshid|ref$)/i.test(key))
+      .filter(([key]) => !isNavigationOnlyParam(url, key))
       .sort((a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
     const query = params.length
       ? "?" + params.map(([key, val]) => `${encodeURIComponent(key)}=${encodeURIComponent(val)}`).join("&")

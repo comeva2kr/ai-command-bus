@@ -152,6 +152,32 @@ function snapshotEngine(items) {
   return engine;
 }
 
+test("정규 URL: 이토랜드 글 보기의 목록 page 쿼리는 글 정체가 아니다", () => {
+  const view = (slug, page) => `https://www.etoland.co.kr/hit/etohumor07/view/${slug}?page=${page}`;
+  assert.equal(canonicalContentUrl(view("abc-9459909", 2)), canonicalContentUrl(view("abc-9459909", 3)));
+  assert.equal(
+    canonicalContentUrl("https://etoland.co.kr/hit/freebbs/view/x-9460090?page=2"),
+    canonicalContentUrl("https://etoland.co.kr/hit/freebbs/view/x-9460090?page=3")
+  );
+  assert.notEqual(canonicalContentUrl(view("abc-9459909", 2)), canonicalContentUrl(view("abc-9459910", 2)));
+  assert.notEqual(
+    canonicalContentUrl("https://www.etoland.co.kr/hit/freebbs/view/x-9460090?page=2"),
+    canonicalContentUrl("https://www.etoland.co.kr/hit/etohumor07/view/x-9460090?page=2")
+  );
+  assert.notEqual(
+    canonicalContentUrl("https://www.etoland.co.kr/hit/etohumor07?page=2"),
+    canonicalContentUrl("https://www.etoland.co.kr/hit/etohumor07?page=3")
+  );
+  assert.notEqual(
+    canonicalContentUrl("https://board.example.com/hit/free/view/x?page=2"),
+    canonicalContentUrl("https://board.example.com/hit/free/view/x?page=3")
+  );
+  assert.equal(
+    canonicalContentUrl("https://board.example.com/bbs.php?page=2&id=free&no=7"),
+    "https://board.example.com/bbs.php?id=free&no=7&page=2"
+  );
+});
+
 test("동적 후보 계약: 추적값만 제거하고 식별 쿼리·다양성·한계를 보존한다", () => {
   assert.equal(
     canonicalContentUrl("https://board.example.com/zboard.php?utm_source=x&no=7&id=free"),
