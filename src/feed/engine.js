@@ -166,7 +166,30 @@ function preferredPresentationMembers(members, canLead) {
   return [...primary, ...withheld, ...(members || []).filter((item) => !chosen.has(item)).sort(eventSourceOrder)];
 }
 
-function buildEventSourceIndex(items, events = buildEventClusters(items), leadEligibleIds = null) {
+// A multi-section outlet's registry beat is a prior, not subject evidence. Inside
+// one event, a category carried only by such priors yields to another member's
+// title/URL/topical-section evidence for a specific subject. Weak (0.3) training
+// labels such as mk-news are still multi-section priors. The general news
+// desks (news, politics) are not such evidence: policy stays co-admitted.
+const GENERAL_DESK_CATEGORIES = new Set(["news", "politics"]);
+function eventSubjectCategories(members, sourceMetadata) {
+  const categoriesOf = (item) => Array.isArray(item?.admittedCategories) && item.admittedCategories.length
+    ? item.admittedCategories : [item?.category].filter(Boolean);
+  const beatPrior = (item, category) => {
+    const meta = sourceMetadata?.get(item?.source);
+    return item?.kind === "news" && meta?.sourceTier === "aggregate" && meta.category === category
+      && !GENERAL_DESK_CATEGORIES.has(category) && meta.categoryRouting !== "declared_section"
+      && !(TRAIN_LABELS.get(item.source)?.weight >= 1)
+      && definiteCategory({ title: item.title, url: item.url, sourceId: item.source }) !== category;
+  };
+  const all = [...new Set((members || []).flatMap(categoriesOf))];
+  const evidenced = new Set((members || []).flatMap((item) =>
+    categoriesOf(item).filter((category) => !beatPrior(item, category))));
+  return [...evidenced].some((category) => !GENERAL_DESK_CATEGORIES.has(category))
+    ? all.filter((category) => evidenced.has(category)) : all;
+}
+
+function buildEventSourceIndex(items, events = buildEventClusters(items), leadEligibleIds = null, sourceMetadata = null) {
   const byId = new Map();
   const byUrl = new Map();
   const add = (map, key, item) => {
@@ -194,7 +217,12 @@ function buildEventSourceIndex(items, events = buildEventClusters(items), leadEl
     }
   }
   const canLead = (item) => !leadEligibleIds || leadEligibleIds.has(item?.id);
-  return { byId, byUrl, groupsByItem, canLead };
+  const subjects = new Map();
+  const subjectCategories = (members) => {
+    if (!subjects.has(members)) subjects.set(members, new Set(eventSubjectCategories(members, sourceMetadata)));
+    return subjects.get(members);
+  };
+  return { byId, byUrl, groupsByItem, canLead, subjectCategories };
 }
 
 function attachCanonicalEventSources(issue, index) {
@@ -237,8 +265,10 @@ function attachCanonicalEventSources(issue, index) {
     ? [presentationLead, ...canonicalMembers.filter((item) => item !== presentationLead)]
     : canonicalMembers;
   const draft = buildIssueDraft(draftMembers, null, true);
+  const subject = index.subjectCategories ? index.subjectCategories(members) : null;
   const routedCategoryIds = [...new Set(members.flatMap((item) =>
-    Array.isArray(item.admittedCategories) ? item.admittedCategories : []))];
+    Array.isArray(item.admittedCategories) ? item.admittedCategories : []))]
+    .filter((category) => !subject || subject.has(category));
   const canonicalCategoryIds = routedCategoryIds.length ? routedCategoryIds : [...new Set(
     members.map((item) => item.category).filter(Boolean)
   )];
@@ -741,7 +771,9 @@ export function inBriefingWindow(item, now, slotDef, sourceMetadata, editionDate
   if ((item.kind || metadata?.kind) === "news") {
     const date = editionDate || new Date(now + 9 * 3600000).toISOString().slice(0, 10);
     const midnight = Date.parse(`${date}T00:00:00+09:00`);
-    const start = midnight - (slotDef.id === "morning" ? 5 * 3600000 : 0);
+    // The evening edition freezes its evidence before 19:00, so the morning opens
+    // with the evening preparation window; previous-slot dedupe removes overlap.
+    const start = midnight - (slotDef.id === "morning" ? (24 - slotById("evening").fromHour) * 3600000 : 0);
     return Number.isFinite(available) && available >= start && available <= now;
   }
   // Community current-hot/list-board semantics remain separate from news age.
@@ -2989,7 +3021,7 @@ export class FeedEngine {
         editionDate,
         canonicalEvents,
         eventSourceIndex: personalized
-          ? buildEventSourceIndex(labelledSourceItems, canonicalEvents, leadEligibleIds)
+          ? buildEventSourceIndex(labelledSourceItems, canonicalEvents, leadEligibleIds, this._itemSourceMetadata)
           : null,
         interests: await this._interests()
       };
@@ -3079,8 +3111,16 @@ export class FeedEngine {
         ? "politics"
         : category;
     };
-    const editionCategories = (item) => personalized && Array.isArray(item.admittedCategories)
-      && item.admittedCategories.length ? item.admittedCategories : [editionCategory(item)];
+    const eventIndex = sharedContext.eventSourceIndex;
+    const editionCategories = (item) => {
+      const own = personalized && Array.isArray(item.admittedCategories)
+        && item.admittedCategories.length ? item.admittedCategories : [editionCategory(item)];
+      const members = eventIndex?.groupsByItem.get(eventIndex.byId.get(item.routingOriginalId || item.id));
+      if (!members || members.length < 2) return own;
+      const subject = eventIndex.subjectCategories(members);
+      const kept = own.filter((category) => subject.has(category));
+      return kept.length ? kept : [...subject];
+    };
     const eligibleBasePool = sharedContext.baseItems.filter((item) => !topicsBlocked(item, visibleTopics));
     const eligiblePool = eligibleBasePool
       .filter((i) => !selectedSet.size

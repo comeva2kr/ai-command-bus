@@ -18,6 +18,7 @@ import {
 } from "../src/feed/slot-canonical-edition.js";
 import { SLOTS, slotForHour } from "../src/feed/digest.js";
 import { expandRelatedNews } from "../src/feed/content.js";
+import { canonicalContentUrl } from "../src/feed/dedupe.js";
 import { briefingAvailableAt, inBriefingWindow } from "../src/feed/engine.js";
 import { CATEGORIES } from "../src/feed/taxonomy.js";
 import { memoizedTranslator } from "../src/feed/translate.js";
@@ -381,6 +382,29 @@ export function editionObservationReceipt(artifact, { registry = loadRegistry() 
   };
 }
 
+// URLs an earlier slot already published. A same-slot rebuild is not earlier.
+function earlierSlotServedUrls(previousArtifact, target) {
+  const order = (date, slotId) => `${date}:${SLOTS.findIndex(row => row.id === slotId)}`;
+  if (!previousArtifact?.issueTable || order(previousArtifact.editionDate, previousArtifact.slot?.id)
+    >= order(target.editionDate, target.slotId)) return new Set();
+  return new Set(Object.values(previousArtifact.issueTable).flatMap((issue) => [
+    ...(issue.refs || []), ...(issue.eventSources || []), ...(issue.sourceEvidence || []),
+    ...(issue.articleSummary?.sourceLinks || [])
+  ]).flatMap((row) => [row?.url, row?.canonicalUrl]).map(canonicalContentUrl).filter(Boolean));
+}
+
+// Filter before collection deduplication, caps, category ranking and event formation.
+// An unchanged article is not a new slot candidate; newer reports of its event are.
+export function slotSourceArticles({ pool, target, metadata, previousArtifact = null }) {
+  const slot = SLOTS.find(row => row.id === target.slotId);
+  const served = earlierSlotServedUrls(previousArtifact, target);
+  return poolRows(pool).filter(item =>
+    ((item.kind || metadata.get(item.source)?.kind || "news") !== "news"
+      || inBriefingWindow({ ...item, kind: "news" }, target.evidenceAsOfMs, slot, metadata, target.editionDate))
+    && ![item.url, item.canonicalUrl, ...(item.canonicalAliases || []).map((alias) => alias?.url)]
+      .some((url) => served.has(canonicalContentUrl(url))));
+}
+
 export function reusePreparedArticleDetails(edition, previousIssues = [], nowMs = Date.now()) {
   const facts = (issue) => JSON.stringify((issue.eventSources || []).map((row) =>
     [row.evidenceId, row.canonicalUrl, row.sourceId, row.sourceLabel, row.sourceGroup,
@@ -449,11 +473,9 @@ export async function buildSlotCanonicalEditionCandidate({
   );
   fs.mkdirSync(workDir, { recursive: true });
   const metadata = new Map(loadRegistry().map(source => [source.id, source]));
-  const slot = SLOTS.find(row => row.id === target.slotId);
-  // Filter before collection deduplication, caps, category ranking and event formation.
-  const sources = groupArticlesAsSources(poolRows(pool).filter(item =>
-    (item.kind || metadata.get(item.source)?.kind || "news") !== "news"
-    || inBriefingWindow({ ...item, kind: "news" }, poolEvidenceAsOf, slot, metadata, target.editionDate)));
+  const sources = groupArticlesAsSources(slotSourceArticles({
+    pool, target: { ...target, evidenceAsOfMs: poolEvidenceAsOf }, metadata, previousArtifact
+  }));
   const allCategories = CATEGORIES.map((category) => category.id);
   const run = await buildTodayEditionInProcess({
     sources,

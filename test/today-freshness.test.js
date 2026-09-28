@@ -20,9 +20,9 @@ test('NH167 news age is publication, never first collection or source modificati
   assert.equal(parseRss('<feed><entry><title>기사</title><link>https://example.com/a</link><updated>2026-09-19T11:40:00+09:00</updated></entry></feed>')[0].publishedAt, null);
 });
 
-test('NH167 morning is anchored at prior 19 KST even with early preparation', () => {
+test('NH167 morning is anchored at prior evening preparation even with early preparation', () => {
   const at = ms('2026-09-20T06:32:00+09:00');
-  for (const [date, expected] of [['2026-09-19T18:59:59+09:00', false], ['2026-09-19T19:00:00+09:00', true], ['2026-09-20T06:31:59+09:00', true], ['2026-09-20T06:33:00+09:00', false]]) {
+  for (const [date, expected] of [['2026-09-19T16:59:59+09:00', false], ['2026-09-19T17:00:00+09:00', true], ['2026-09-20T06:31:59+09:00', true], ['2026-09-20T06:33:00+09:00', false]]) {
     assert.equal(inBriefingWindow(news(date), at, slotById('morning')), expected, date);
   }
   assert.equal(inBriefingWindow(news('2026-09-19T20:00:00+09:00'), ms('2026-09-19T21:00:00+09:00'), slotById('morning'), null, '2026-09-20'), true);
