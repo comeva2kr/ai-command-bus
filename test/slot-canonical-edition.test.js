@@ -8,14 +8,19 @@ import { sendEditionPushes } from "../src/feed/push.js";
 import { FeedStore } from "../src/feed/store.js";
 
 import { CATEGORIES } from "../src/feed/taxonomy.js";
+import { isPreparedArticleSummary } from "../src/feed/article-summary.js";
 import { createServer } from "../src/feed/server.js";
+import { readerIssueCopy } from "../src/feed/editorial-reader-copy.js";
 import {
   activateSlotCanonicalEdition,
   activateSlotCanonicalEditions,
   assertSlotCanonicalEdition,
   buildSlotCanonicalEdition,
   makeSlotCanonicalEditionReader,
-  projectSlotCanonicalEdition
+  projectSlotCanonicalEdition,
+  extraLaneFreshnessWindow,
+  extraLaneRejection,
+  validateSlotCanonicalEdition
 } from "../src/feed/slot-canonical-edition.js";
 import {
   applyHeadlineReview,
@@ -199,6 +204,66 @@ test("사람이 확인한 제목은 원문과 근거 해시가 정확히 맞을 
     ...review,
     entries: [{ ...review.entries[0], headlineKo: "비키니 화보를 대표 기사로 선정" }]
   }, "a".repeat(64)), /unsafe headline/);
+});
+
+test("2026-09-28 오역 두 건은 각 슬롯 검수 파일로 같은 근거에만 교정되고 독자 문구 전체에서 오역이 사라진다", () => {
+  const morningRaw = fs.readFileSync(new URL("../examples/headline-reviews/2026-09-28-morning-snl.json", import.meta.url), "utf8");
+  const eveningRaw = fs.readFileSync(new URL("../examples/headline-reviews/2026-09-28-evening-nvidia.json", import.meta.url), "utf8");
+  const morningReview = JSON.parse(morningRaw);
+  const eveningReview = JSON.parse(eveningRaw);
+  const { issues: incidents } = JSON.parse(fs.readFileSync(
+    new URL("./fixtures/nh167-headline-incidents-2026-09-28.json", import.meta.url), "utf8"));
+  const [nvidia, anthropic] = incidents;
+  const unrelated = {
+    evidenceHash: "5".repeat(64),
+    subject: "오픈AI, 새 추론 모델 공개",
+    headline: "오픈AI, 새 추론 모델 공개",
+    eventSources: [{ title: "오픈AI, 새 추론 모델 공개", originalTitle: "OpenAI releases new reasoning model", canLead: true }]
+  };
+  const sameTitleOtherEvidence = { ...structuredClone(nvidia), evidenceHash: "4".repeat(64) };
+  const morning = applyHeadlineReview({ issues: [anthropic] }, morningReview,
+    crypto.createHash("sha256").update(morningRaw).digest("hex"));
+  // NH167 F3: the same evening file also carries the source-bound BBC video-title correction.
+  const madonnaTitle = "시청: Madonna와 Taylor Swift가 MTV VMAs에서 큰 승리를 거두었습니다.";
+  const madonna = {
+    evidenceHash: "50e27037a1f665a86cc6628a7c86d2cdbd0d87bff728c147882bc6323d37ddab",
+    subject: madonnaTitle,
+    headline: madonnaTitle,
+    eventSources: [{ title: madonnaTitle, originalTitle: "Watch: Madonna and Taylor Swift win big at the MTV VMAs", sourceId: "bbc-world", canLead: true }],
+    articleSummary: { status: "source_unavailable" }
+  };
+  const evening = applyHeadlineReview({ issues: [nvidia, unrelated, sameTitleOtherEvidence, madonna] }, eveningReview,
+    crypto.createHash("sha256").update(eveningRaw).digest("hex"));
+  assert.equal(morning.applied, 1);
+  assert.equal(evening.applied, 2);
+  assert.equal(evening.edition.issues[3].preparedHeadline, "마돈나·테일러 스위프트, MTV VMA에서 주요 상 휩쓸어");
+  assert.equal(readerIssueCopy(evening.edition.issues[3]).headline, "마돈나·테일러 스위프트, MTV VMA에서 주요 상 휩쓸어");
+  const fixedAnthropic = morning.edition.issues[0];
+  const [fixedNvidia, keptUnrelated, keptSameTitle] = evening.edition.issues;
+  assert.equal(fixedNvidia.preparedHeadline, "엔비디아 초기 자문위원, 10억 달러 규모 주식 받아야 한다고 주장");
+  assert.doesNotMatch(fixedNvidia.preparedHeadline, /빚/, "owed(받을 쪽)를 빚진 쪽으로 뒤집으면 안 된다");
+  assert.match(fixedNvidia.preparedHeadline, /주장$/, "원문 작성자의 주장을 확정 사실로 쓰지 않는다");
+  assert.equal(fixedAnthropic.preparedHeadline, "Anthropic의 다리오 아모데이, SNL 패러디 대상 되다");
+  assert.doesNotMatch(fixedNvidia.articleSummary.textKo, /빚을 지고|빚을/, "상세 원문 발췌도 받을 권리의 방향을 유지한다");
+  assert.doesNotMatch(fixedAnthropic.articleSummary.textKo, /SNL 치료/, "상세 원문 발췌에 오역이 남지 않는다");
+  assert.equal(isPreparedArticleSummary(fixedNvidia.articleSummary, fixedNvidia), true);
+  assert.equal(isPreparedArticleSummary(fixedAnthropic.articleSummary, fixedAnthropic), true,
+    "교정 발췌가 발행 요건보다 짧아 판 전체를 막으면 안 된다");
+  for (const issue of [fixedNvidia, fixedAnthropic]) {
+    const copy = readerIssueCopy(issue);
+    assert.equal(copy.headline, issue.preparedHeadline);
+    assert.doesNotMatch(JSON.stringify(copy), /빚을 지고|SNL 치료/);
+  }
+  assert.deepEqual(keptUnrelated, unrelated);
+  assert.deepEqual(keptSameTitle, sameTitleOtherEvidence,
+    "같은 원문 제목이라도 검수하지 않은 근거 해시는 바꾸지 않는다");
+  assert.throws(() => applyHeadlineReview({ issues: [nvidia] }, {
+    ...eveningReview,
+    entries: [{ ...eveningReview.entries[0], originalTitle: "Owed a billion dollars in Nvidia stocks" }]
+  }, "a".repeat(64)), /originalTitle mismatch/);
+  assert.throws(() => applyHeadlineReview({ issues: [nvidia] }, morningReview,
+    crypto.createHash("sha256").update(morningRaw).digest("hex")), /unknown evidenceHash/,
+  "다른 슬롯의 검수 파일은 조용히 무시하지 않는다");
 });
 
 test("제목 검수에서 확인한 요약 교정은 같은 근거에만 적용하고 나머지 상세 메타데이터는 보존한다", () => {
@@ -390,7 +455,7 @@ test("NH127 available verified lanes publish seven auto stories without blocking
     routingSnapshot: { source: { packetSha256: packetSha } }
   });
   assert.equal(artifact.coveragePolicy, "available_verified");
-  assert.equal(artifact.targetPerCategory, 14);
+  assert.equal(artifact.targetPerCategory, 8, "eight qualified stories per category is the goal");
   assert.equal(artifact.activationMinimumPerCategory, 13, "legacy metadata is preserved");
   const both = projectSlotCanonicalEdition(artifact, { categories: ["news", "auto"] });
   assert.equal(both.issues.length, 21);
@@ -398,7 +463,7 @@ test("NH127 available verified lanes publish seven auto stories without blocking
   assert.equal(both.publishable, true);
   assert.deepEqual(both.servedCategories, ["news", "auto"]);
   assert.deepEqual(both.categoryFulfillment.rows.map(row => [row.categoryId, row.issueCount, row.target, row.state]),
-    [["news", 14, 14, "met"], ["auto", 7, 14, "underfilled"]]);
+    [["news", 14, 8, "met"], ["auto", 7, 8, "underfilled"]]);
   assert.equal(both.categoryFulfillment.goalSatisfied, false);
   assert.equal(both.categoryFulfillment.metCount, 1);
   assert.equal(both.categoryFulfillment.state, "fulfillment_partial");
@@ -1031,6 +1096,28 @@ function revisedArtifact(original, change) {
   return assertSlotCanonicalEdition({ ...payload, artifactId: `SCE-${hash.slice(0, 16)}`, contentSha256: hash });
 }
 
+test("선택 분야 투영은 레인 필터 전 전체판의 요약 문장·판본 변화 집계를 그대로 싣지 않는다", () => {
+  const unionOnly = {
+    digestSummary: "선택한 21개 분야의 고정 상위 목록을 합쳐 같은 사건은 한 번만 남긴 288개 이슈입니다.",
+    editionChange: { counts: { new: 288, material_update: 0 } },
+    continuityProjection: { counts: { new: 288, material_update: 0 } }
+  };
+  const { byCategory, unionEdition } = editions();
+  const built = buildSlotCanonicalEdition({
+    editionsByCategory: byCategory,
+    unionEdition: { ...unionEdition, ...unionOnly },
+    builderPacketSha256: packetSha,
+    routingSnapshot: { source: { packetSha256: packetSha } }
+  });
+  assert.equal(built.baseEdition.digestSummary, undefined);
+  const legacy = revisedArtifact(build(), (payload) => Object.assign(payload.baseEdition, unionOnly));
+  for (const artifact of [built, legacy]) {
+    const tech = projectSlotCanonicalEdition(artifact, { categories: ["tech"] });
+    assert.equal(tech.issues.length, 13);
+    for (const key of Object.keys(unionOnly)) assert.equal(key in tech, false, key);
+  }
+});
+
 test("NH130 exact shared editions retain activated revisions and reject orphan files without fallback", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-sce-share-reader-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -1372,4 +1459,139 @@ test("NH133 preflight checks cited initial articles and preserves the unseeded f
   assert.equal(check('<div id="todaySeed">'+article.replace(/<h2>[\s\S]*?<\/h2>/,'')+'</div>'),false);
   assert.equal(check('<div id="todaySeed">'+article.replace('href="https://publisher.test/a"','href="javascript:alert(1)"')+'</div>'),false);
   assert.equal(check('<a href="https://publisher.test/a">기사 없는 외부 링크</a>'),false);
+});
+
+test("NH167 Bose lunch review: the shipped evidence-bound correction replaces a mistranslated headline and detail", () => {
+  const raw = fs.readFileSync(new URL("../examples/headline-reviews/2026-09-30-lunch-bose.json", import.meta.url), "utf8");
+  const { issues: [bose] } = JSON.parse(fs.readFileSync(new URL("./fixtures/nh167-headline-incidents-2026-09-30.json", import.meta.url), "utf8"));
+  assert.match(bose.subject, /절대 사기/, "fixture carries the real mistranslation");
+  assert.match(bose.articleSummary.textKo, /훔칠/, "fixture carries the real detail mistranslation");
+  const { edition, applied } = applyHeadlineReview({ issues: [bose] }, JSON.parse(raw), crypto.createHash("sha256").update(raw).digest("hex"));
+  assert.equal(applied, 1);
+  const [fixed] = edition.issues;
+  assert.equal(fixed.preparedHeadline, "보스 노이즈 캔슬링 유선 이어버드, 99달러 가격 소개");
+  assert.doesNotMatch(fixed.articleSummary.textKo, /사기|훔칠/);
+  assert.match(fixed.articleSummary.textKo, /99달러/);
+  assert.equal(isPreparedArticleSummary(fixed.articleSummary, fixed), true);
+  const copy = readerIssueCopy(fixed);
+  assert.equal(copy.headline, fixed.preparedHeadline);
+  assert.doesNotMatch(JSON.stringify(copy), /절대 사기|훔칠/);
+});
+
+test("NH167 target 8: nine qualified stories meet the lane goal, fourteen stays the lane capacity, stored v1 targets project as 8", () => {
+  const { byCategory, unionEdition } = editions();
+  byCategory.auto.issues = byCategory.auto.issues.slice(0, 9);
+  byCategory.science.issues = byCategory.science.issues.slice(0, 7);
+  const kept = new Set(Object.values(byCategory).flatMap(edition => edition.issues.map(row => row.evidenceHash)));
+  unionEdition.issues = unionEdition.issues.filter(row => kept.has(row.evidenceHash));
+  const artifact = buildSlotCanonicalEdition({
+    editionsByCategory: byCategory, unionEdition, builderPacketSha256: packetSha,
+    routingSnapshot: { source: { packetSha256: packetSha } }
+  });
+  const nine = projectSlotCanonicalEdition(artifact, { categories: ["auto"] });
+  assert.equal(nine.partial, false, "nine real stories are not 'underfilled' against an old 14 goal");
+  assert.deepEqual(nine.categoryFulfillment.rows.map(row => [row.categoryId, row.issueCount, row.target, row.state]),
+    [["auto", 9, 8, "met"]]);
+  assert.equal(nine.selection.categoryIssueLimit, 20, "a lane can carry 14 baseline plus qualified extras");
+  const seven = projectSlotCanonicalEdition(artifact, { categories: ["science"] });
+  assert.equal(seven.partial, true, "seven stories stay an honest partial lane, not filler");
+  assert.deepEqual(seven.categoryFulfillment.rows.map(row => [row.issueCount, row.target, row.state]), [[7, 8, "underfilled"]]);
+
+  // Already served v1 artifacts recorded 14; the reader projects the current goal without a rebuild.
+  const legacy = { ...structuredClone(artifact), targetPerCategory: 14 };
+  legacy.contentSha256 = crypto.createHash("sha256").update(JSON.stringify((({ artifactId, contentSha256, ...rest }) => rest)(legacy))).digest("hex");
+  legacy.artifactId = `SCE-${legacy.contentSha256.slice(0, 16)}`;
+  assert.equal(validateSlotCanonicalEdition(legacy).ok, true);
+  assert.equal(projectSlotCanonicalEdition(legacy, { categories: ["auto"] }).categoryFulfillment.rows[0].target, 8);
+  assert.equal(projectSlotCanonicalEdition(legacy, { categories: ["auto"] }).selection.maxIssues, 20);
+  const v1 = { ...structuredClone(artifact), contractVersion: 1 };
+  delete v1.laneCapacity; delete v1.extraLaneCapacity; delete v1.maxPreparedIssues; delete v1.extraLanePolicy;
+  v1.contentSha256 = crypto.createHash("sha256").update(JSON.stringify((({ artifactId, contentSha256, ...rest }) => rest)(v1))).digest("hex");
+  v1.artifactId = `SCE-${v1.contentSha256.slice(0, 16)}`;
+  assert.equal(validateSlotCanonicalEdition(v1).ok, true, "already served v1 files stay readable");
+  assert.equal(projectSlotCanonicalEdition(v1, { categories: ["auto"] }).selection.maxIssues, 14);
+  assert.equal(artifact.contractVersion, 2);
+  assert.equal(artifact.extraLanePolicy, "automated_multi_source_news_selection");
+
+});
+
+test("NH167 extras: a 15th lane story needs a news lead reported by two independent groups; engagement alone never qualifies", () => {
+  const lead = (row, publishedAt) => ({ ...row, eventSources: row.eventSources.map((source) => ({ ...source, publishedAt })) });
+  const reporting = (...groups) => ({ counts: { independentReportingGroups: groups.filter((g) => g !== "board").length },
+    sourceEvidence: groups.map((group, index) => ({ articleId: `a-${index}`, operatorGroup: group,
+      evidenceRole: group === "board" ? "community_post" : "reporting" })) });
+  const qualified = (id, categories, publishedAt = "2026-08-27T10:20:00+09:00") => lead({ ...issue(id, categories),
+    metrics: { sourceCount: 2, independentGroupCount: 2, score: 0, comments: 0, coverage: 1,
+      evidenceMode: "multiple_feed_observed", sourceRoles: { reported_secondary: 2 }, communityOnly: false },
+    evidence: { mode: "multiple_feed_observed", independentGroupCount: 2 }, event: reporting("yonhap", "kbs") }, publishedAt);
+  // One newsroom plus one community board: independentGroupCount says 2, reporting groups say 1.
+  const mixed = (id, categories) => lead({ ...issue(id, categories),
+    metrics: { sourceCount: 2, independentGroupCount: 2, score: 120, comments: 40, coverage: 1,
+      evidenceMode: "multiple_feed_observed", sourceRoles: { reported_secondary: 1, community_signal: 1 }, communityOnly: false },
+    evidence: { mode: "multiple_feed_observed", independentGroupCount: 2 }, event: reporting("yonhap", "board") }, "2026-08-27T10:20:00+09:00");
+  const stale = (id, categories) => qualified(id, categories, "2026-08-27T06:30:00+09:00");
+  const communityHit = (id, categories) => ({ ...issue(id, categories),
+    metrics: { sourceCount: 1, independentGroupCount: 1, score: 665, comments: 279, coverage: 0,
+      evidenceMode: "single_feed_observed", sourceRoles: { community_signal: 1 }, communityOnly: true },
+    evidence: { mode: "single_feed_observed", independentGroupCount: 1 } });
+  const twoBoards = (id, categories) => ({ ...issue(id, categories),
+    metrics: { sourceCount: 2, independentGroupCount: 2, score: 900, comments: 400, coverage: 0,
+      evidenceMode: "multiple_feed_observed", sourceRoles: { community_signal: 2 }, communityOnly: true },
+    evidence: { mode: "multiple_feed_observed", independentGroupCount: 2 } });
+  const singleNews = (id, categories) => ({ ...issue(id, categories),
+    metrics: { sourceCount: 1, independentGroupCount: 1, score: 0, comments: 0, coverage: 3,
+      evidenceMode: "single_feed_observed", sourceRoles: { reported_secondary: 1 }, communityOnly: false },
+    evidence: { mode: "single_feed_observed", independentGroupCount: 1 } });
+  const withExtra = (extra) => {
+    const { byCategory, unionEdition } = editions();
+    const fourteenth = issue("news-13", ["news"]);
+    byCategory.news.issues.push(fourteenth, extra);
+    unionEdition.issues.push(fourteenth, extra);
+    return () => buildSlotCanonicalEdition({
+      editionsByCategory: byCategory, unionEdition, builderPacketSha256: packetSha,
+      routingSnapshot: { source: { packetSha256: packetSha } }
+    });
+  };
+  const artifact = withExtra(qualified("news-14", ["news"]))();
+  assert.equal(artifact.lanes.news.length, 15);
+  assert.equal(validateSlotCanonicalEdition(artifact).ok, true);
+  assert.equal(projectSlotCanonicalEdition(artifact, { categories: ["news"] }).issues.length, 15);
+  for (const [label, extra] of [["community hit", communityHit], ["two boards", twoBoards], ["single news feed", singleNews], ["plain", issue]]) {
+    assert.throws(withExtra(extra("news-14", ["news"])), /news extra issue not qualified \(not_multi_source_news\): evidence-news-14/, label);
+  }
+  assert.throws(withExtra(stale("news-14", ["news"])), /not qualified \(outside_current_slot_window\)/,
+    "a multi-source story from before this slot's window is not a current-slot extra");
+  assert.throws(withExtra(mixed("news-14", ["news"])), /not qualified \(fewer_than_two_reporting_groups\)/,
+    "one newsroom plus one board is not two reporting groups");
+  const sameNewsroomTwice = { ...qualified("news-14", ["news"]), event: reporting("yonhap", "yonhap") };
+  assert.throws(withExtra(sameNewsroomTwice), /fewer_than_two_reporting_groups/, "two articles from one operator group are one group");
+  const unknownRole = { ...qualified("news-14", ["news"]) };
+  unknownRole.metrics = { ...unknownRole.metrics, sourceRoles: { reported_unknown: 2 } };
+  assert.throws(withExtra(unknownRole), /not qualified \(not_multi_source_news\)/, "an unknown source role does not qualify");
+  const roleless = { ...qualified("news-14", ["news"]) };
+  delete roleless.metrics.communityOnly;
+  assert.throws(withExtra(roleless), /not qualified \(not_multi_source_news\)/, "communityOnly must be an explicit false");
+  // The morning window opens at the previous evening's publish hour, not its preparation start.
+  const morning = { editionDate: "2026-08-28", slotId: "morning" };
+  const at = (publishedAt) => extraLaneRejection(qualified("news-14", ["news"], publishedAt), morning);
+  assert.equal(at("2026-08-27T18:59:00+09:00"), "outside_current_slot_window");
+  assert.equal(at("2026-08-27T19:00:00+09:00"), null);
+  assert.equal(at("2026-08-28T07:00:00+09:00"), null);
+  assert.equal(at("2026-08-28T07:01:00+09:00"), "outside_current_slot_window");
+  assert.deepEqual(extraLaneFreshnessWindow("2026-08-28", "morning"),
+    { start: Date.parse("2026-08-27T19:00:00+09:00"), end: Date.parse("2026-08-28T07:00:00+09:00") });
+  const { byCategory, unionEdition } = editions();
+  for (let index = 13; index < 21; index += 1) {
+    const extra = qualified(`news-${index}`, ["news"]);
+    byCategory.news.issues.push(extra);
+    unionEdition.issues.push(extra);
+  }
+  assert.throws(() => buildSlotCanonicalEdition({
+    editionsByCategory: byCategory, unionEdition, builderPacketSha256: packetSha,
+    routingSnapshot: { source: { packetSha256: packetSha } }
+  }), /news lane exceeds 20 issues/);
+  // A stored file cannot smuggle an extra past the validator by editing the lane list alone.
+  const tampered = structuredClone(artifact);
+  tampered.issueTable["evidence-news-14"].metrics.communityOnly = true;
+  assert.match(validateSlotCanonicalEdition(tampered).errors.join("; "), /not qualified \(not_multi_source_news\)/);
 });

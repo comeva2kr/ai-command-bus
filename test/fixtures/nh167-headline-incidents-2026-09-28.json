@@ -1,0 +1,539 @@
+{
+  "source": "public /today evening edition SCE-b38ae028dcaaf887 (2026-09-28), reader projections removed",
+  "issues": [
+    {
+      "subject": "Nvidia 주식에 10억 달러 빚을 지고 있음",
+      "headline": "추천 665건을 모은 “Nvidia 주식에 10억 달러 빚을 지고 있음”",
+      "paragraph": "해커뉴스의 “Nvidia 주식에 10억 달러 빚을 지고 있음” 게시물이 추천 665건을 모았다. 댓글은 279건이다.",
+      "tone": "호응",
+      "shape": "applause",
+      "categoryIds": [
+        "tech"
+      ],
+      "metrics": {
+        "sourceCount": 1,
+        "independentGroupCount": 1,
+        "score": 665,
+        "comments": 279,
+        "coverage": 0,
+        "evidenceMode": "single_feed_observed",
+        "relatedCoverageSignal": false,
+        "sourceRoles": {
+          "community_signal": 1
+        },
+        "verifiedSourceCount": 0,
+        "carryoverUsed": false,
+        "carryoverEvidenceCount": 0,
+        "communityOnly": true
+      },
+      "evidence": {
+        "mode": "single_feed_observed",
+        "observedFeedCount": 1,
+        "independentGroupCount": 1,
+        "ownershipGroups": [
+          "hackernews"
+        ],
+        "groups": [
+          {
+            "ownershipGroup": "hackernews",
+            "label": "해커뉴스",
+            "sources": [
+              "hackernews"
+            ]
+          }
+        ],
+        "independenceBasis": "operational_group_not_legal_independence",
+        "relatedCoverageSignal": false,
+        "coverage": 0,
+        "sources": [
+          {
+            "source": "hackernews",
+            "label": "해커뉴스",
+            "ownershipGroup": "hackernews",
+            "ownershipBasis": "publisher_alias_operational"
+          }
+        ]
+      },
+      "sourceEvidence": [
+        {
+          "evidenceId": "NHE-e8c00ab7a7867ab9",
+          "itemId": "hn_49872723",
+          "title": "Nvidia 주식에 10억 달러 빚을 지고 있음",
+          "sourceId": "hackernews",
+          "sourceLabel": "해커뉴스",
+          "sourceRole": "unknown",
+          "ownershipGroup": "hackernews",
+          "ownershipBasis": "publisher_alias_operational",
+          "syndicationGroup": null,
+          "canonicalUrl": "https://colo.to/nvidia-stock-narrative.html",
+          "publishedAt": "2026-09-28T02:05:13Z",
+          "observedAt": null,
+          "carryover": null,
+          "evidenceRole": "lead"
+        }
+      ],
+      "editorialGate": {
+        "state": "machine_gate_pass",
+        "pass": true,
+        "checks": {
+          "headlineSubjectComplete": true,
+          "sourceEvidencePresent": true,
+          "crossSourceWordingSupported": true,
+          "paragraphHasEditorialContext": true,
+          "koreanAudienceReadable": true,
+          "categoryFitSupported": true,
+          "sensitiveAllegationSupported": true,
+          "communityViolentExhortationAbsent": true
+        },
+        "failures": []
+      },
+      "refs": [
+        {
+          "id": "hn_49872723",
+          "title": "Nvidia 주식에 10억 달러 빚을 지고 있음",
+          "sourceLabel": "해커뉴스",
+          "category": "tech",
+          "score": 665,
+          "commentCount": 279,
+          "coverage": 0,
+          "canonicalUrl": null,
+          "publishedAt": "2026-09-28T02:05:13Z",
+          "sourceRole": "unknown",
+          "ownershipGroup": "hackernews",
+          "ownershipBasis": "publisher_alias_operational",
+          "syndicationGroup": null,
+          "carryover": null
+        }
+      ],
+      "overseasOnly": true,
+      "clusterId": "EV-5d88e1ff10850506",
+      "event": {
+        "eventId": "EV-5d88e1ff10850506",
+        "memberArticleIds": [
+          "hn_49872723"
+        ],
+        "reactionArticleIds": [],
+        "representativeId": "hn_49872723",
+        "aliases": [],
+        "mergeHistory": [],
+        "firstSeenAt": "2026-09-28T02:05:13Z",
+        "lastMaterialChangeAt": "2026-09-28T02:05:13Z",
+        "factsFingerprint": "EVF-21a20f05ae2de869",
+        "counts": {
+          "articles": 1,
+          "independentReportingGroups": 0,
+          "communityGroups": 1,
+          "communityReactions": 0
+        },
+        "sourceEvidence": [
+          {
+            "articleId": "hn_49872723",
+            "title": "Nvidia 주식에 10억 달러 빚을 지고 있음",
+            "originalTitle": "Owed a billion dollars in Nvidia stock",
+            "sourceId": "hackernews",
+            "sourceLabel": "해커뉴스",
+            "operatorGroup": "hackernews",
+            "canonicalUrl": "https://colo.to/nvidia-stock-narrative.html",
+            "publishedAt": "2026-09-28T02:05:13Z",
+            "evidenceRole": "community_post"
+          }
+        ]
+      },
+      "whatHappened": "해커뉴스의 “Nvidia 주식에 10억 달러 빚을 지고 있음” 게시물이 추천 665건을 모았다. 댓글은 279건이다.",
+      "impactLens": "기술·제품",
+      "whyImportant": "확정된 보도 사실이 아니라 해당 커뮤니티의 관심·논쟁 신호로만 참고할 가치가 있다.",
+      "whyHot": "추천 665건 · 댓글 279건.",
+      "whyForYou": "기술/IT를 선택한 오늘판이라 포함했다.",
+      "watchNext": "추천·댓글의 증가 속도와 후속 반응이 유지되는지 다음 판에서 확인한다.",
+      "confidence": {
+        "code": "community_signal",
+        "label": "커뮤니티 반응 신호",
+        "note": "보도 사실 확인이 아니라 한 커뮤니티의 공개 반응을 관측했다."
+      },
+      "evidenceHash": "516db249d1a637dd14c0a7fc478d1f1c0fb09f5b0d1e2c951004ec53170c814c",
+      "claimLineage": {
+        "contractId": "NOWHOT-EDITORIAL-LINEAGE-CONTRACT-001",
+        "fingerprintVersion": 5,
+        "state": "lineage_attached",
+        "claims": {
+          "headline": {
+            "basis": "source_titles",
+            "evidenceIds": [
+              "NHE-e8c00ab7a7867ab9"
+            ]
+          },
+          "paragraph": {
+            "basis": "source_titles",
+            "evidenceIds": [
+              "NHE-e8c00ab7a7867ab9"
+            ]
+          },
+          "whatHappened": {
+            "basis": "source_titles",
+            "evidenceIds": [
+              "NHE-e8c00ab7a7867ab9"
+            ]
+          },
+          "whyImportant": {
+            "basis": "editorial_policy",
+            "evidenceIds": [
+              "NHE-e8c00ab7a7867ab9"
+            ],
+            "policyRule": "기술·제품"
+          },
+          "whyHot": {
+            "basis": "measured_signal",
+            "evidenceIds": [
+              "NHE-e8c00ab7a7867ab9"
+            ],
+            "measured": {
+              "evidenceMode": "single_feed_observed",
+              "observedFeedCount": 1,
+              "independentGroupCount": 1,
+              "relatedCoverageSignal": false,
+              "score": 665,
+              "comments": 279,
+              "coverage": 0
+            }
+          },
+          "whyForYou": {
+            "basis": "explicit_selection",
+            "categoryIds": [
+              "tech"
+            ]
+          },
+          "watchNext": {
+            "basis": "editorial_watch",
+            "evidenceIds": [
+              "NHE-e8c00ab7a7867ab9"
+            ]
+          }
+        },
+        "contentHash": "1478e20b606579f5ec1d2aa43a1197c1342e7ae26e8efc1ebdeb586f3fba52ab"
+      },
+      "selectedByCategories": [
+        "tech"
+      ],
+      "eventSourceSetId": "EV-5d88e1ff10850506:hackernews",
+      "eventSources": [
+        {
+          "evidenceId": "event-source:hn_49872723",
+          "id": "hn_49872723",
+          "title": "Nvidia 주식에 10억 달러 빚을 지고 있음",
+          "originalTitle": "Owed a billion dollars in Nvidia stock",
+          "summary": "",
+          "sourceId": "hackernews",
+          "sourceGroup": "hackernews",
+          "sourceLabel": "해커뉴스",
+          "url": "https://colo.to/nvidia-stock-narrative.html",
+          "canonicalUrl": "https://colo.to/nvidia-stock-narrative.html",
+          "publishedAt": "2026-09-28T02:05:13Z",
+          "image": null,
+          "canLead": true,
+          "relay": false
+        }
+      ],
+      "articleSummary": {
+        "status": "excerpt_only",
+        "contractId": "NOWHOT-ARTICLE-SUMMARY-001",
+        "contractVersion": 38,
+        "promptVersion": 20,
+        "articleContentId": "NHC-e36d6bb76b78ae430639cc25",
+        "articleContentAliases": [
+          "NHC-e36d6bb76b78ae430639cc25"
+        ],
+        "eventSourceSetId": "EV-5d88e1ff10850506:hackernews",
+        "textKo": "NVDA 주식에 10억 달러의 빚을 지고 있음 Eric Gullichsen, 2026년 9월 저는 1993년에 NVIDIA의 초기 자문위원이었으며 최근에 약 10억 달러의 주식에 빚을 지고 있다는 사실을 알게 되었습니다.",
+        "sourceEvidenceId": "event-source:hn_49872723",
+        "sourceLabel": "해커뉴스",
+        "sourceCount": 1,
+        "summarySourceCount": 1,
+        "sourceLinks": [
+          {
+            "evidenceId": "event-source:hn_49872723",
+            "sourceLabel": "해커뉴스",
+            "sourceGroup": "hackernews",
+            "url": "https://colo.to/nvidia-stock-narrative.html",
+            "publishedAt": "2026-09-28T02:05:13Z",
+            "originalTitle": "Owed a billion dollars in Nvidia stock"
+          }
+        ],
+        "image": null,
+        "generationModel": null,
+        "unavailableReasonCode": null,
+        "generatedAt": "2026-09-28T09:29:39.881Z",
+        "excerptBasis": "public_anchor_body"
+      },
+      "firstPublishedAt": "2026-09-28T02:05:13.000Z",
+      "publicationTimeBasis": "source_feed_timestamp"
+    },
+    {
+      "subject": "Anthropic’s Dario Amodei가 SNL 치료를 받습니다.",
+      "headline": "테크크런치 상위의 “Anthropics Dario Amodei가 SNL 치료를 받습니다.”",
+      "paragraph": "테크크런치 상위 목록에 “Anthropic’s Dario Amodei가 SNL 치료를 받습니다.” 제목이 올라 있다.",
+      "tone": "단독",
+      "shape": "single",
+      "categoryIds": [
+        "tech"
+      ],
+      "metrics": {
+        "sourceCount": 1,
+        "independentGroupCount": 1,
+        "score": 0,
+        "comments": 0,
+        "coverage": 0,
+        "evidenceMode": "single_feed_observed",
+        "relatedCoverageSignal": false,
+        "sourceRoles": {
+          "reported_secondary": 1
+        },
+        "verifiedSourceCount": 1,
+        "carryoverUsed": false,
+        "carryoverEvidenceCount": 0,
+        "communityOnly": false
+      },
+      "evidence": {
+        "mode": "single_feed_observed",
+        "observedFeedCount": 1,
+        "independentGroupCount": 1,
+        "ownershipGroups": [
+          "techcrunch"
+        ],
+        "groups": [
+          {
+            "ownershipGroup": "techcrunch",
+            "label": "테크크런치",
+            "sources": [
+              "techcrunch"
+            ]
+          }
+        ],
+        "independenceBasis": "operational_group_not_legal_independence",
+        "relatedCoverageSignal": false,
+        "coverage": 0,
+        "sources": [
+          {
+            "source": "techcrunch",
+            "label": "테크크런치",
+            "ownershipGroup": "techcrunch",
+            "ownershipBasis": "publisher_alias_operational"
+          }
+        ]
+      },
+      "sourceEvidence": [
+        {
+          "evidenceId": "NHE-6901e576884284fc",
+          "itemId": "it_wgsl4b",
+          "title": "Anthropic’s Dario Amodei가 SNL 치료를 받습니다.",
+          "sourceId": "techcrunch",
+          "sourceLabel": "테크크런치",
+          "sourceRole": "unknown",
+          "ownershipGroup": "techcrunch",
+          "ownershipBasis": "publisher_alias_operational",
+          "syndicationGroup": null,
+          "canonicalUrl": "https://techcrunch.com/2026/09/27/anthropics-dario-amodei-gets-the-snl-treatment/",
+          "publishedAt": "2026-09-27T16:30:00.000Z",
+          "observedAt": null,
+          "carryover": null,
+          "evidenceRole": "lead"
+        }
+      ],
+      "editorialGate": {
+        "state": "machine_gate_pass",
+        "pass": true,
+        "checks": {
+          "headlineSubjectComplete": true,
+          "sourceEvidencePresent": true,
+          "crossSourceWordingSupported": true,
+          "paragraphHasEditorialContext": true,
+          "koreanAudienceReadable": true,
+          "categoryFitSupported": true,
+          "sensitiveAllegationSupported": true,
+          "communityViolentExhortationAbsent": true
+        },
+        "failures": []
+      },
+      "refs": [
+        {
+          "id": "it_wgsl4b",
+          "title": "Anthropic’s Dario Amodei가 SNL 치료를 받습니다.",
+          "sourceLabel": "테크크런치",
+          "category": "tech",
+          "score": 0,
+          "commentCount": 0,
+          "coverage": 0,
+          "canonicalUrl": null,
+          "publishedAt": "2026-09-27T16:30:00.000Z",
+          "sourceRole": "unknown",
+          "ownershipGroup": "techcrunch",
+          "ownershipBasis": "publisher_alias_operational",
+          "syndicationGroup": null,
+          "carryover": null
+        }
+      ],
+      "overseasOnly": true,
+      "clusterId": "EV-b8c653da48186e48",
+      "event": {
+        "eventId": "EV-b8c653da48186e48",
+        "memberArticleIds": [
+          "it_wgsl4b"
+        ],
+        "reactionArticleIds": [],
+        "representativeId": "it_wgsl4b",
+        "aliases": [],
+        "mergeHistory": [],
+        "firstSeenAt": "2026-09-27T16:30:00.000Z",
+        "lastMaterialChangeAt": "2026-09-27T16:30:00.000Z",
+        "factsFingerprint": "EVF-ef399f989f8be77d",
+        "counts": {
+          "articles": 1,
+          "independentReportingGroups": 1,
+          "communityGroups": 0,
+          "communityReactions": 0
+        },
+        "sourceEvidence": [
+          {
+            "articleId": "it_wgsl4b",
+            "title": "Anthropic’s Dario Amodei가 SNL 치료를 받습니다.",
+            "originalTitle": "Anthropic’s Dario Amodei gets the SNL treatment",
+            "sourceId": "techcrunch",
+            "sourceLabel": "테크크런치",
+            "operatorGroup": "techcrunch",
+            "canonicalUrl": "https://techcrunch.com/2026/09/27/anthropics-dario-amodei-gets-the-snl-treatment",
+            "publishedAt": "2026-09-27T16:30:00.000Z",
+            "evidenceRole": "reporting"
+          }
+        ]
+      },
+      "whatHappened": "테크크런치 상위 목록에 “Anthropic’s Dario Amodei가 SNL 치료를 받습니다.” 제목이 올라 있다.",
+      "impactLens": "기술·제품",
+      "whyImportant": "기술 채택과 제품·산업 경쟁의 변화를 따라가는 데 필요한 맥락이라 실제 적용 범위와 후속 발표를 볼 가치가 있다.",
+      "whyHot": "현재 수집 목록의 상위 후보로 들어왔다.",
+      "whyForYou": "기술/IT를 선택한 오늘판이라 포함했다.",
+      "watchNext": "새 근거가 추가되는지 다음 판에서 다시 확인한다.",
+      "confidence": {
+        "code": "single_source_observed",
+        "label": "단일 출처 관측",
+        "note": "추가 교차 확인 전의 관측 후보다."
+      },
+      "evidenceHash": "7b8159984e5c4dca699fa1c59ab201e0c73b247855e7f1b977301f4940b22e0d",
+      "claimLineage": {
+        "contractId": "NOWHOT-EDITORIAL-LINEAGE-CONTRACT-001",
+        "fingerprintVersion": 5,
+        "state": "lineage_attached",
+        "claims": {
+          "headline": {
+            "basis": "source_titles",
+            "evidenceIds": [
+              "NHE-6901e576884284fc"
+            ]
+          },
+          "paragraph": {
+            "basis": "source_titles",
+            "evidenceIds": [
+              "NHE-6901e576884284fc"
+            ]
+          },
+          "whatHappened": {
+            "basis": "source_titles",
+            "evidenceIds": [
+              "NHE-6901e576884284fc"
+            ]
+          },
+          "whyImportant": {
+            "basis": "editorial_policy",
+            "evidenceIds": [
+              "NHE-6901e576884284fc"
+            ],
+            "policyRule": "기술·제품"
+          },
+          "whyHot": {
+            "basis": "measured_signal",
+            "evidenceIds": [
+              "NHE-6901e576884284fc"
+            ],
+            "measured": {
+              "evidenceMode": "single_feed_observed",
+              "observedFeedCount": 1,
+              "independentGroupCount": 1,
+              "relatedCoverageSignal": false,
+              "score": 0,
+              "comments": 0,
+              "coverage": 0
+            }
+          },
+          "whyForYou": {
+            "basis": "explicit_selection",
+            "categoryIds": [
+              "tech"
+            ]
+          },
+          "watchNext": {
+            "basis": "editorial_watch",
+            "evidenceIds": [
+              "NHE-6901e576884284fc"
+            ]
+          }
+        },
+        "contentHash": "6265e47d78a11ffcc91d9f12a4fccdd4e9949c06e8fe20a35c204901520769aa"
+      },
+      "selectedByCategories": [
+        "tech"
+      ],
+      "eventSourceSetId": "EV-b8c653da48186e48:techcrunch",
+      "eventSources": [
+        {
+          "evidenceId": "event-source:it_wgsl4b",
+          "id": "it_wgsl4b",
+          "title": "Anthropic’s Dario Amodei가 SNL 치료를 받습니다.",
+          "originalTitle": "Anthropic’s Dario Amodei gets the SNL treatment",
+          "summary": "\"AI는 악마이고 나는 그것을 만든 사람입니다.\"",
+          "sourceId": "techcrunch",
+          "sourceGroup": "techcrunch",
+          "sourceLabel": "테크크런치",
+          "url": "https://techcrunch.com/2026/09/27/anthropics-dario-amodei-gets-the-snl-treatment",
+          "canonicalUrl": "https://techcrunch.com/2026/09/27/anthropics-dario-amodei-gets-the-snl-treatment",
+          "publishedAt": "2026-09-27T16:30:00.000Z",
+          "image": "https://techcrunch.com/wp-content/uploads/2026/09/saturday-night-live.jpg?resize=1200,603",
+          "canLead": true,
+          "relay": false
+        }
+      ],
+      "articleSummary": {
+        "status": "excerpt_only",
+        "contractId": "NOWHOT-ARTICLE-SUMMARY-001",
+        "contractVersion": 38,
+        "promptVersion": 20,
+        "articleContentId": "NHC-45f15a0aaab612f0d6a295a0",
+        "articleContentAliases": [
+          "NHC-45f15a0aaab612f0d6a295a0"
+        ],
+        "eventSourceSetId": "EV-b8c653da48186e48:techcrunch",
+        "textKo": "간략하게 게시됨: 9:30 AM PDT · 2026년 9월 27일 Anthony Ha Anthropic’s Dario Amodei가 SNL 치료를 받습니다. Saturday Night Live는 어젯밤 AI 업계의 최근 파멸 경고를 캐스팅했습니다.",
+        "sourceEvidenceId": "event-source:it_wgsl4b",
+        "sourceLabel": "테크크런치",
+        "sourceCount": 1,
+        "summarySourceCount": 1,
+        "sourceLinks": [
+          {
+            "evidenceId": "event-source:it_wgsl4b",
+            "sourceLabel": "테크크런치",
+            "sourceGroup": "techcrunch",
+            "url": "https://techcrunch.com/2026/09/27/anthropics-dario-amodei-gets-the-snl-treatment/",
+            "summary": "\"AI는 악마이고 나는 그것을 만든 사람입니다.\"",
+            "image": "https://techcrunch.com/wp-content/uploads/2026/09/saturday-night-live.jpg?resize=1200,603",
+            "publishedAt": "2026-09-27T16:30:00.000Z",
+            "originalTitle": "Anthropic’s Dario Amodei gets the SNL treatment"
+          }
+        ],
+        "image": "https://techcrunch.com/wp-content/uploads/2026/09/saturday-night-live.jpg?resize=1200,603",
+        "generationModel": null,
+        "unavailableReasonCode": null,
+        "generatedAt": "2026-09-28T09:29:39.881Z",
+        "excerptBasis": "public_anchor_body"
+      },
+      "firstPublishedAt": "2026-09-27T16:30:00.000Z",
+      "publicationTimeBasis": "source_feed_timestamp"
+    }
+  ]
+}

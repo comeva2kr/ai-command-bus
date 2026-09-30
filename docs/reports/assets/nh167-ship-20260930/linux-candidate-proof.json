@@ -1,0 +1,37 @@
+{
+  "node": "v22.23.3",
+  "checks": [
+    {
+      "editionId": "SCE-adb5727a72202567",
+      "date": "2026-09-30",
+      "slot": "evening",
+      "status": 200,
+      "issues": 42
+    },
+    {
+      "editionId": "SCE-9e4e79542a5adb26",
+      "date": "2026-09-28",
+      "slot": "evening",
+      "status": 200,
+      "issues": 49
+    },
+    {
+      "editionId": "SCE-f1a4019b224898a5",
+      "date": "2026-09-30",
+      "slot": "lunch",
+      "status": 200,
+      "issues": 43
+    },
+    {
+      "editionId": "SCE-7c2f28e117249005",
+      "date": "2026-09-30",
+      "slot": "evening",
+      "status": 200,
+      "issues": 54
+    }
+  ],
+  "adminUnauthenticated": 401,
+  "preMeasurementState": "unmeasured",
+  "preMeasurementMetrics": null,
+  "liveWrites": false
+}

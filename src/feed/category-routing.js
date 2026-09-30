@@ -1,5 +1,6 @@
 import fs from "node:fs";
 
+import { categoryGuardReason } from "./classify.js";
 import { unsafeForLead } from "./profanity.js";
 import { isKnownCategory } from "./taxonomy.js";
 
@@ -13,6 +14,18 @@ const ROUTING_BASES = new Set([
   "specialist_registry_default", "legacy_classifier_fallback", "withheld"
 ]);
 const EDITORIAL_IMPORTANCE_STATES = new Set(["pass", "fail"]);
+export const REFUTED_ADMISSIONS = new Set([
+  "mourning-without-humor-subject",
+  "culture-event-without-tech-subject",
+  "public-outrage-without-tech-subject",
+  // NH167 F2: economy-section registration alone admitted political complaints, unification
+  // polls and university research into business; the item keeps its other lanes.
+  "political-complaint-without-business-subject",
+  "public-opinion-without-business-subject",
+  "research-without-business-subject",
+  "military-incident-without-business-subject",
+  "gaming-without-business-subject"
+]);
 
 export function validateCategoryRoutingSnapshot(snapshot) {
   if (!snapshot || snapshot.contract !== CATEGORY_ROUTING_CONTRACT || !isId(snapshot.snapshotId)
@@ -85,7 +98,9 @@ export function createCategoryRouter(snapshot, registry = [], {
           ...(item.related || []).map((related) => related?.id)]
           .map((id) => byId.get(id)).filter(Boolean);
         const entry = byId.get(item.id) || entries[0];
-        const categories = [...new Set(entries.flatMap((row) => row.categories || []))];
+        // These subject guards refute one admission only; the item keeps its other lanes.
+        const categories = [...new Set(entries.flatMap((row) => row.categories || []))]
+          .filter((category) => !REFUTED_ADMISSIONS.has(categoryGuardReason(category, item.title, item)));
         if (!categories.length) return [];
         const editorialImportance = entries.some((row) => row.editorialImportance === "pass") ? "pass"
           : entries.some((row) => row.editorialImportance === "fail") ? "fail" : undefined;
@@ -94,7 +109,7 @@ export function createCategoryRouter(snapshot, registry = [], {
           ...item,
           routingOriginalId: item.id,
           registryCategory: item.registryCategory === undefined ? item.category : item.registryCategory,
-          category: entry.categories[0] || categories[0],
+          category: entry.categories.find((category) => categories.includes(category)) || categories[0],
           admittedCategories: categories,
           admissionEvidence: entries.map((row) => ({ id: row.itemId, categories: [...(row.categories || [])] })),
           ...(editorialImportance ? { editorialImportance } : {}),

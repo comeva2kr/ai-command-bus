@@ -720,7 +720,9 @@ addEventListener("popstate",()=>{
 function renderRail(edition){
   const change=edition.continuityProjection||edition.editionChange||{};
   const changeCounts=change.counts||{};
-  const changeMetrics=(changeCounts.baseline??0)>0
+  const changeMetrics=!change.counts
+    ? ""
+    : (changeCounts.baseline??0)>0
     ? `<dt>첫 저장 기준선</dt><dd>${changeCounts.baseline}건</dd>`
     : `<dt>새 사건</dt><dd>${changeCounts.new??0}건</dd><dt>실질 변화</dt><dd>${changeCounts.material_update??0}건</dd>`;
   const fulfillment=edition.categoryFulfillment;

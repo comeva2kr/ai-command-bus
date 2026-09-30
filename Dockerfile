@@ -7,6 +7,8 @@ WORKDIR /app
 COPY package.json ./
 COPY src ./src
 COPY tools ./tools
+# Reviewed headline corrections are read by the scheduled publisher's default review directory.
+COPY examples/headline-reviews ./examples/headline-reviews
 COPY test/fixtures/selection-d1-candidates.json ./test/fixtures/selection-d1-candidates.json
 
 # The scheduled publisher must load in the shipped image, not just the checkout.

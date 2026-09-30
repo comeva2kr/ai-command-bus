@@ -291,7 +291,8 @@ function changeFor(issue, match, hasPreviousEdition) {
   const newSources = currentRefs.sources.filter((source) => !previousSources.has(source));
   const reasons = [];
   if (evidenceMode(issue) !== evidenceMode(previous)) reasons.push("evidence_mode_changed");
-  if (deltas.sourceCount !== 0) reasons.push("observed_feed_count_changed");
+  // Fewer observed feeds than before is not new evidence; only more feeds count.
+  if (deltas.sourceCount > 0) reasons.push("observed_feed_count_changed");
   if (newSources.length) reasons.push("new_observed_source");
   if (deltas.coverage > 0) reasons.push("related_coverage_increased");
 
@@ -404,7 +405,9 @@ export function applyEditionChanges(currentEdition, previousEdition = null, {
   additiveCategoryUnion = null,
   categoryIssueLimit = null,
   enforceRepeatRule = true,
-  historyEditions = []
+  historyEditions = [],
+  // Opt-in for callers that decide on the matched previous issue itself; never persisted by default.
+  attachMatchedIssue = false
 } = {}) {
   const currentIssues = Array.isArray(currentEdition && currentEdition.issues) ? currentEdition.issues : [];
   const priorEditions = comparisonEditions(previousEdition, historyEditions);
@@ -452,7 +455,8 @@ export function applyEditionChanges(currentEdition, previousEdition = null, {
         previousIdentityText: match && match.previousIdentityText || null,
         reasons: change.reasons,
         deltas: change.deltas,
-        newSources: change.newSources || []
+        newSources: change.newSources || [],
+        ...(attachMatchedIssue && match ? { matchedIssue: match.issue } : {})
       },
       publishedAt,
       updatedAt

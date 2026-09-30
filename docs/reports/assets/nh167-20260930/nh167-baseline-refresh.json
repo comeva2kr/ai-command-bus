@@ -1,0 +1,13 @@
+{
+  "changed": {
+    "legacyClassifier": {
+      "before": "20f62bf1d7cae07e",
+      "after": "70708f7969aa8b9d"
+    },
+    "eventCluster": {
+      "before": "c94da0311586666c",
+      "after": "f882a697cd28924c"
+    }
+  },
+  "reason": "Approved classifier repair; eventCluster lock already lagged committed follow-up matcher. No new eventCluster product diff remains. Other locks unchanged."
+}

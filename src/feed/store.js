@@ -5,7 +5,7 @@
 // survives restarts. No external database required — this keeps the project's
 // zero-dependency posture while still being real enough to demo end to end.
 
-import { emptyBucket, applyEvent, bumpDeviceInfo, weekKey, monthKey, emptyJourney, JOURNEY_IDLE_MS, JOURNEY_ACTIONS, journeyBump, journeyChannel, acquisitionLabel, campaignKey, linkEntryKey, viewLabel, parseUserAgent } from "./analytics.js";
+import { emptyBucket, applyEvent, bumpDeviceInfo, weekKey, monthKey, emptyJourney, JOURNEY_IDLE_MS, JOURNEY_ACTIONS, journeyBump, journeyChannel, acquisitionLabel, campaignKey, linkEntryKey, viewLabel, parseUserAgent, attributionParams, summarizeCampaignWindow, JOURNEY_WINDOW_DAYS } from "./analytics.js";
 import { emptyCostBucket, recordCall } from "./costs.js";
 import fs from "node:fs";
 import { articleContentId, isCurrentArticleSummary } from "./article-summary.js";
@@ -41,6 +41,7 @@ export class FeedStore {
     this.sessions = new Map(); // token -> { userId, expiresAt } (social login sessions)
     this._seq = 0;
     if (this.file && fs.existsSync(this.file)) this._load();
+    this.journeyWindow ||= { since: this._nowMs(), rows: [] };
     // 밀린 저장은 종료 직전에 비운다. 지연 저장 타이머는 unref라 프로세스를
     // 붙잡지 않으니, 여기서 안 비우면 마지막 몇 초가 그냥 사라진다.
     // 파일에 붙은 스토어에만 건다 — 테스트가 만드는 메모리 스토어는 제외.
@@ -696,6 +697,7 @@ export class FeedStore {
       if (session.dwellMs > 0) { j.sessionDwellMs = (j.sessionDwellMs || 0) + session.dwellMs; j.sessionDwellN = (j.sessionDwellN || 0) + 1; }
       if (!session.engaged && !session.actions.content) j.bounces++;
       journeyBump(j.exit, session.path);
+      if (session.measure) this.journeyWindow.rows.push(session.measure);
       delete this.journeySessions[vid];
       changed = true;
     }
@@ -705,7 +707,34 @@ export class FeedStore {
     for (const [key, page] of Object.entries(this.journeyPages || {})) {
       if (now - page.at > 24 * 3600 * 1000) {delete this.journeyPages[key];changed=true;}
     }
+    // ponytail: bounded JSON session facts; use indexed storage if 100k closed sessions in 45 days is reached.
+    const archive = this.journeyWindow;
+    const expired = now - JOURNEY_WINDOW_DAYS * 86400000;
+    if (!archive.prunedAt || now-archive.prunedAt >= 3600000 || archive.rows.length > 100000) {
+      archive.rows = archive.rows.filter(r=>r.at>=expired).sort((a,b)=>a.at-b.at);
+      archive.gaps = (archive.gaps || []).filter(([,end])=>end>expired);
+      for (const session of Object.values(this.journeySessions || {})) if (session.measure?.at < expired) delete session.measure;
+      if (archive.rows.length > 100000) {
+        const removed = archive.rows.splice(0,archive.rows.length-100000);
+        archive.since = Math.max(archive.since,removed.at(-1).at+1);
+      }
+      archive.since = Math.max(archive.since,expired); archive.prunedAt = now; changed = true;
+    }
     if (changed) this._persistSoon();
+  }
+
+  campaignWindow(options) {
+    this.finishJourneySessions();
+    return summarizeCampaignWindow(this.journeyWindow, Object.values(this.journeySessions || {}).flatMap(s=>s.measure ? [s.measure] : []), options, this._nowMs());
+  }
+
+  _journeyWindowGap(now) {
+    const archive=this.journeyWindow, gaps=archive.gaps ||= [], last=gaps.at(-1);
+    // A dropped arrival can obscure the following 30-minute session boundary.
+    if (last && last[1]>=now) last[1]=Math.max(last[1],now+JOURNEY_IDLE_MS);
+    else gaps.push([now,now+JOURNEY_IDLE_MS]);
+    if (gaps.length>1000) archive.since=Math.max(archive.since,gaps.shift()[1]);
+    this._persistSoon();
   }
 
   recordJourneyEvents(events, ctx) {
@@ -725,7 +754,7 @@ export class FeedStore {
       let page = this.journeyPages[pageKey];
       if (!page) {
         // ponytail: bounded JSON state; move active sessions to a database if concurrency reaches this cap.
-        if (Object.keys(this.journeyPages).length >= 20000) { this._journeyBucket(day,now).limitedEvents++; continue; }
+        if (Object.keys(this.journeyPages).length >= 20000) { this._journeyBucket(day,now).limitedEvents++; this._journeyWindowGap(now); continue; }
         page = this.journeyPages[pageKey] = { seen: [], max: 0, at: now };
       }
       if (page.seen.includes(ev.seq) || ev.seq <= page.max - 512) continue;
@@ -735,13 +764,14 @@ export class FeedStore {
       const started = !session;
       if (!session) {
         if (ev.type === 'checkpoint') continue;
-        if (Object.keys(this.journeySessions).length >= 10000) { this._journeyBucket(day,now).limitedEvents++; continue; }
+        if (Object.keys(this.journeySessions).length >= 10000) { this._journeyBucket(day,now).limitedEvents++; this._journeyWindowGap(now); continue; }
         const firstAt = this.journeyVisitors[vid]?.firstAt ?? now;
         this.journeyVisitors[vid] = { firstAt, lastAt: now };
         const ref = acquisitionLabel(ev.referrer, ctx.selfHost, ev.params);
         const camp = campaignKey(ev.params);
         const path = viewLabel(ev.path);
         session = this.journeySessions[vid] = { day, startedAt: now, lastAt: now, ref, camp, path, actions: {}, engaged: false, pageId: ev.pageId };
+        session.measure = { vid, at:now, camp, content:attributionParams(ev.params).utm_content || null, returning:firstAt<now, actions:{} };
         const j = this._journeyBucket(day, now);
         j.sessions++;
         journeyBump(j.entry, path);
@@ -777,11 +807,13 @@ export class FeedStore {
       session.lastAt = now;
       const channel = (key) => { for (const row of [journeyChannel(cohort.ref, session.ref), journeyChannel(cohort.camp, session.camp)]) if(row)row[key]++; };
       const engage = () => {
+        if (session.measure) session.measure.engagedAt ??= now;
         addUid(j.engagedUids, vid);
         if (!session.engaged) { session.engaged = true; cohort.engagedSessions++; channel('engaged'); }
       };
       const action = name => {
         if (!JOURNEY_ACTIONS.has(name)) return;
+        if (session.measure) session.measure.actions[name] ??= now;
         engage(); journeyBump(j.actions, name);
         if (!session.actions[name]) { session.actions[name] = true; channel(name); }
       };
@@ -2241,6 +2273,7 @@ export class FeedStore {
       journeySessions: this.journeySessions || {},
       journeyVisitors: this.journeyVisitors || {},
       journeyPages: this.journeyPages || {},
+      journeyWindow: this.journeyWindow,
       costs: this.costs || {},
       fixedCosts: this.fixedCosts || {},
       revenue: this.revenue || {},
@@ -2330,6 +2363,7 @@ export class FeedStore {
       this.journeySessions = data.journeySessions || {};
       this.journeyVisitors = data.journeyVisitors || {};
       this.journeyPages = data.journeyPages || {};
+      this.journeyWindow = data.journeyWindow;
       this.costs = data.costs || {};
       this.fixedCosts = data.fixedCosts || {};
       this.revenue = data.revenue || {};

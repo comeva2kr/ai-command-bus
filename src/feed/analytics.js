@@ -71,6 +71,41 @@ export function campaignKey(params = {}) {
   return [s || "-", m || "-", c || "-"].join(" | ");
 }
 
+// Compact session facts complement daily totals; never reconstruct missing timestamps.
+export const JOURNEY_WINDOW_DAYS = 45;
+export function summarizeCampaignWindow(archive, active, { fromAt, toAt, params = {} }, now) {
+  const instant = value => {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) return NaN;
+    const date = new Date(value.slice(0,10) + 'T00:00:00Z');
+    return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10) === value.slice(0,10) ? Date.parse(value) : NaN;
+  };
+  const from = instant(fromAt), to = instant(toAt), day = 86400000;
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to || to-from > 31*day) {
+    throw Object.assign(new Error('fromAt/toAt require valid timestamps with timezone, fromAt < toAt, maximum 31 days'), {status:400});
+  }
+  const since = Math.max(archive?.since ?? now, now-JOURNEY_WINDOW_DAYS*day);
+  const overlapsGap = (a,b) => (archive?.gaps || []).some(([start,end])=>start<b && end>a);
+  const campaign = campaignKey(params), content = attributionParams(params).utm_content;
+  const result = {fromAt:new Date(from).toISOString(),toAt:new Date(to).toISOString(),measuredSince:new Date(since).toISOString(),
+    campaign,content:content || null,basis:'session starts in [fromAt,toAt); browser cookies, not people',
+    state:from < since || overlapsGap(from,to) ? 'unmeasured' : to > now ? 'pending' : 'complete',metrics:null,day7:null};
+  if (result.state !== 'complete') return result;
+  const facts = [...(archive?.rows || []), ...active];
+  const rows = facts.filter(r => r.at >= from && r.at < to && (!campaign || r.camp === campaign) && (!content || r.content === content));
+  const browsers = new Set(rows.map(r=>r.vid));
+  const actions = Object.fromEntries([...JOURNEY_ACTIONS].map(action=>[action,rows.filter(r=>r.actions?.[action] >= from && r.actions[action] < to).length]));
+  result.metrics = {sessions:rows.length,browsers:browsers.size,
+    returningBrowsers:new Set(rows.filter(r=>r.returning).map(r=>r.vid)).size,
+    engagedSessions:rows.filter(r=>r.engagedAt >= from && r.engagedAt < to).length,actions};
+  const cohort = new Map();
+  for (const r of rows) cohort.set(r.vid,Math.min(cohort.get(r.vid) ?? Infinity,r.at));
+  if ([...cohort.values()].every(at=>at+8*day<=now && !overlapsGap(at+7*day,at+8*day))) {
+    const returned = new Set(facts.filter(r=>cohort.has(r.vid) && r.at>=cohort.get(r.vid)+7*day && r.at<cohort.get(r.vid)+8*day).map(r=>r.vid));
+    result.day7={count:returned.size,total:cohort.size};
+  }
+  return result;
+}
+
 export function linkEntryKey(params) {
   const p = attributionParams(params);
   return Object.keys(p).length ? ['utm_source','utm_medium','utm_campaign','utm_content'].map(k=>p[k] || '-').join(' | ') : null;

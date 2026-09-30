@@ -242,7 +242,8 @@ export async function buildTodayEditionInProcess({
   editionDate = null,
   reserveIssues = 0,
   editorialPreselectedPool = false,
-  editorialPreselectedReferenceMs = null
+  editorialPreselectedReferenceMs = null,
+  laneDepth = null
 } = {}) {
   const previousPoolFile = process.env.FEED_POOL_FILE;
   // 웜캐시로 이전 실행의 (제한된) 풀이 새 판에 새어 들지 않게 비운다.
@@ -294,7 +295,8 @@ export async function buildTodayEditionInProcess({
         sharedCanonical: true,
         allowCarryover: false,
         reserveIssues,
-        editionDate
+        editionDate,
+        laneDepth
       });
       const body = {
         ...edition,

@@ -431,7 +431,16 @@ export const CATEGORY_GUARDS = new Map([
 const TECH_SUBJECT = /(인공지능|\bai\b|챗gpt|chatgpt|gpt-|클로드|제미나이|오픈ai|반도체|hbm|파운드리|소프트웨어|앱\b|ios\b|안드로이드|클라우드|데이터센터|해킹|랜섬웨어|스마트폰|노트북|그래픽카드|디지털|가상현실|증강현실|\bvr\b|\bar\b)/i;
 const FINANCIAL_SECTOR_SUBJECT = /(저축은행|인터넷은행|시중은행|은행권|상호금융|금융감독원|금감원|보험사|증권사|카드사|캐피털)/i;
 const FINANCIAL_PERFORMANCE = /(순이익|연체율|고정이하여신|예대마진|중[·ㆍ.\-\s]?저신용(?:대출)?)/i;
-const CULTURE_EVENT_SUBJECT = /(?:아티스트|아이돌|가수|보이그룹|걸그룹|엔하이픈).{0,40}(?:전시|콘서트|팬미팅)|(?:전시|콘서트|팬미팅).{0,40}(?:아티스트|아이돌|가수|보이그룹|걸그룹|엔하이픈)/i;
+const CULTURE_EVENT_SUBJECT = /(?:아티스트|아이돌|가수|보이그룹|걸그룹|엔하이픈).{0,40}(?:전시|콘서트|팬미팅)|(?:전시|콘서트|팬미팅).{0,40}(?:아티스트|아이돌|가수|보이그룹|걸그룹|엔하이픈)|초대전|개인전|추상\s*회화/i;
+const PUBLIC_OUTRAGE_STORY = /(?:온라인|누리꾼|네티즌)\s*공분/;
+const GRAVESITE_GOLF_STORY = /(?:성묘|산소|묘지).*골프|골프.*(?:성묘|산소|묘지)/;
+// Ritual words alone mark mourning. 숨진/숨져 needs a real casualty context and
+// is not a death when only acted (숨진 척), so playful posts keep humor.
+const MOURNING_SUBJECT = /(?:유족|유가족|빈소|발인|별세|타계|장례)/;
+const DEATH_REPORT = /(?:숨진|숨져|숨졌)(?!\s*(?:척|연기|장난|놀이|흉내))/;
+const DEATH_CONTEXT = /(?:사고|화재|추락|참사|사망|경찰|병원|피해자|근로자|노동자|발견|익사|붕괴|폭발|피살|총격|추돌|실종)/;
+const isMourningSubject = (raw) => MOURNING_SUBJECT.test(raw)
+  || (DEATH_REPORT.test(raw) && DEATH_CONTEXT.test(raw));
 const GAMING_SUBJECT = /(게임|게이머|오버워치|overwatch|옵치|팰월드|palworld|포켓몬|pok[eé]mon|pokopia|포트나이트|fortnite|스팀\s*머신|플레이스테이션|xbox|엑스박스|\bcbt\b)/i;
 const TECH_GAME_FRANCHISE = /(?:\bgta\b|grand\s+theft\s+auto|크레이지\s*택시)/i;
 const TECH_IN_GAME_CONTEXT = /(?:dlss|\bdll\b|그래픽카드|드라이버|악성\s*코드|malware|랜섬웨어)/i;
@@ -457,6 +466,23 @@ const POLITICAL_PROCESS_CONTEXT = /(대통령|정부|국회|민주당|국민의�
 const GOVERNMENT_LEADERSHIP = /(?:국무)?총리/i;
 const GENERAL_REGULATORY_SLOGAN = /규제\s*타파/i;
 const AUTO_PRODUCT_CONTEXT = /(자동차|차량|현대차|기아|제네시스|테슬라|벤츠|bmw|아우디|폭스바겐|볼보|포르쉐|렉서스|토요타|도요타|혼다|쉐보레|르노|kgm|byd|아반떼|쏘나타|그랜저|팰리세이드|싼타페|투싼|쏘렌토|스포티지|카니발|셀토스|캐스퍼|아이오닉|ev[369]|모델[3y]|씨라이언|전기차|하이브리드|내연기관|suv|세단|쿠페|해치백|시승|연비|주행거리|자율주행|급발진|리콜|배터리|브레이크)/i;
+
+// NH167 F2 (2026-09-30 실제 저녁·점심판): 경제지(헤럴드경제·매경·조선비즈) 섹션 등록만으로
+// 정치 고발, 통일 여론조사, 대학 연구 성과가 경제 레인에 들어갔다. 경제 주제어가 하나도 없는
+// 세 사건형만 경제 승인에서 뺀다. 가드는 다른 분야로 옮기지 않는다 — "경제가 아니다"까지만
+// 안다(위 CATEGORY_GUARDS 원칙). 경제 주제어가 있으면(물가 여론조사·기업 협약·회장 기소) 남긴다.
+const BUSINESS_SUBJECT = /(경제|경기|금융|증시|주가|주식|환율|금리|물가|세금|(?<!자)세제(?!품)|세액|예산|재정|수출|수입|무역|관세|산업|기업|회사|회장|총수|재계|투자|매출|실적|영업이익|은행|보험|증권|펀드|고용|일자리|임금|채권|국채|소비|가계|부채|대출|부동산|집값|분양|반도체|자동차|철강|조선(?!일보)|배터리|에너지|유가|원자재|공정위|국세청|기재부|기획재정부|산업부|산업통상|중기부|금융위|금감원|한은|한국은행|경총|전경련|대한상의|상공회의소|노조|파업|시장|판매|가격|요금|할인|상장|배당|자산|억\s*원|조\s*원|달러|원화|코스피|코스닥|나스닥|삼성|현대|롯데|한화|포스코|네이버|카카오|쿠팡|스타트업|창업|소상공인|자영업|\bipo\b|m&a|\blg\b|\bsk\b)/i;
+const CRIMINAL_COMPLAINT = /(고발|고소|기소|명예훼손|구속영장|체포|피의자|입건)/;
+// 같은 조사를 다른 매체가 결과 낱말로만 쓴 제목("북한 불신 최고 수준 통일 불요파가 최다…")도 잡는다.
+// 세 번째 매체("'북한 피로감' 최고치…통일보다 현재가 낫다")처럼 조사 결과의 정서 낱말만 남은 제목도 같은 조사다.
+const PUBLIC_OPINION_SURVEY = /(여론조사|의식조사|설문|응답자|\d+\s*명\s*중\s*\d+\s*명|지지율|인식|의식|불신|신뢰|피로감|찬성|반대|찬반|불요파|필요파|낫다)/;
+const UNIFICATION_SUBJECT = /(통일|남북|북한)/;
+const RESEARCH_INSTITUTION = /(GIST|KAIST|POSTECH|DGIST|UNIST|광주과학기술원|한국과학기술원|포항공대|포스텍|\bMIT\b|연구진|연구팀|연구원(?!장)|연구소|과학자|교수(?:팀|진)?)/i;
+const RESEARCH_OUTCOME = /(개발|구현|규명|발견|입증|논문|연구\s*결과|실험)/;
+// 실제 9/30 점심 business 16 "軍 “…北지뢰로 심각 부상”"(매경 정치면)과 9/28 저녁 business 14 "올해를 빛낸 게임은?…"
+// (구글뉴스 경제 섹션): 군 사건 보도와 게임 소식은 경제 주제어가 없으면 경제가 아니다. 방산 수출·게임사 매출은 남는다.
+const MILITARY_CONTEXT = /(軍|국군|우리\s*군|합참|장병|북한군|北|지뢰|DMZ|비무장지대|휴전선|포격|총격|교전|미사일)/;
+const MILITARY_INCIDENT = /(부상|피격|사망|숨져|숨진|폭발|교전|포격|총격|피해)/;
 
 const GENERAL_NEWS_GUARD_REASONS = new Set([
   "geopolitical-conflict-without-tech-subject",
@@ -510,6 +536,13 @@ export function categoryGuardReason(category, title, item = null) {
   if (category === "tech" && CULTURE_EVENT_SUBJECT.test(raw) && !TECH_SUBJECT.test(raw)) {
     return "culture-event-without-tech-subject";
   }
+  if (category === "tech" && PUBLIC_OUTRAGE_STORY.test(raw) && GRAVESITE_GOLF_STORY.test(raw)
+      && !TECH_SUBJECT.test(raw) && !AUTO_PRODUCT_CONTEXT.test(raw)) {
+    return "public-outrage-without-tech-subject";
+  }
+  if (category === "humor" && isMourningSubject(raw)) {
+    return "mourning-without-humor-subject";
+  }
   if (category === "culture" && GEOPOLITICAL_ACTOR.test(raw)
       && GEOPOLITICAL_CONFLICT.test(raw) && !CULTURE_SUBJECT.test(raw)) {
     return "geopolitical-conflict-without-culture-subject";
@@ -524,6 +557,26 @@ export function categoryGuardReason(category, title, item = null) {
   }
   if (category === "business" && CULTURE_PERFORMER.test(raw) && /(별세|타계)/.test(raw)) {
     return "performer-obituary-without-business-subject";
+  }
+  if (category === "business" && POLITICAL_PROCESS_CONTEXT.test(raw) && CRIMINAL_COMPLAINT.test(raw)
+      && !BUSINESS_SUBJECT.test(raw)) {
+    return "political-complaint-without-business-subject";
+  }
+  if (category === "business" && PUBLIC_OPINION_SURVEY.test(raw)
+      && (UNIFICATION_SUBJECT.test(raw) || GEOPOLITICAL_ACTOR.test(raw) || POLITICAL_PROCESS_CONTEXT.test(raw))
+      && !BUSINESS_SUBJECT.test(raw)) {
+    return "public-opinion-without-business-subject";
+  }
+  if (category === "business" && RESEARCH_INSTITUTION.test(raw) && RESEARCH_OUTCOME.test(raw)
+      && !BUSINESS_SUBJECT.test(raw)) {
+    return "research-without-business-subject";
+  }
+  if (category === "business" && MILITARY_CONTEXT.test(raw) && MILITARY_INCIDENT.test(raw)
+      && !BUSINESS_SUBJECT.test(raw)) {
+    return "military-incident-without-business-subject";
+  }
+  if (category === "business" && GAMING_SUBJECT.test(raw) && !BUSINESS_SUBJECT.test(raw)) {
+    return "gaming-without-business-subject";
   }
   if (category === "fashion" && CULTURE_PERFORMER.test(raw) && !FASHION_SUBJECT.test(raw)) {
     return "performer-name-collision-without-fashion-subject";

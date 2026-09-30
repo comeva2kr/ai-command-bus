@@ -1,0 +1,43 @@
+{
+  "results": [
+    {
+      "artifactId": "SCE-9e4e79542a5adb26",
+      "date": "2026-09-28",
+      "slot": "evening",
+      "items": 46,
+      "detailLinks": 2,
+      "backToList": true,
+      "overflow": false,
+      "screenshot": "/tmp/nh167-ship-local-2026-09-28-evening-mobile.png",
+      "reviewed": [
+        "엔비디아 초기 자문위원, 10억 달러 규모 주식 받아야 한다고 주장",
+        "마돈나·테일러 스위프트, MTV VMA에서 주요 상 휩쓸어"
+      ]
+    },
+    {
+      "artifactId": "SCE-f1a4019b224898a5",
+      "date": "2026-09-30",
+      "slot": "lunch",
+      "items": 43,
+      "detailLinks": 2,
+      "backToList": true,
+      "overflow": false,
+      "screenshot": "/tmp/nh167-ship-local-2026-09-30-lunch-mobile.png",
+      "reviewed": [
+        "보스 노이즈 캔슬링 유선 이어버드, 99달러 가격 소개"
+      ]
+    },
+    {
+      "artifactId": "SCE-7c2f28e117249005",
+      "date": "2026-09-30",
+      "slot": "evening",
+      "items": 51,
+      "detailLinks": 3,
+      "backToList": true,
+      "overflow": false,
+      "screenshot": "/tmp/nh167-ship-local-2026-09-30-evening-mobile.png",
+      "reviewed": []
+    }
+  ],
+  "pageErrors": []
+}

@@ -1,0 +1,3175 @@
+{
+ "source": "real 9/30 morning edition SCE-37205d1f3b7b issues and 9/30 lunch pool lead articles (public headlines/URLs only; article text removed); pairs the in-slot concept matcher linked during the offline lunch replay; plus 9/28 evening pairs against the 9/28 morning/lunch editions",
+ "pairs": [
+  {
+   "label": "김하성",
+   "expected": "distinct",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "복수",
+    "수집",
+    "경로",
+    "확인"
+   ],
+   "currentLead": {
+    "id": "it_54ox1o",
+    "title": "김하성, 4년 만의 MLB 가을야구에서 연타석 삼진 후 교체",
+    "originalTitle": null,
+    "url": "https://news.google.com/rss/articles/CBMiXkFVX3lxTE1Ga1JqRjB5MGZvYTc5TXl6UlB1S3NVR0I5SU56c3ptZFFMWXVKY0ZuOXhiSWlmLUowN2NUOWZiekZLWEUxMXh3VXNWSmlLUng5aDg5bDUyVVpDMldZVlE?oc=5",
+    "canonicalUrl": null,
+    "source": "gnews-sports",
+    "kind": "news",
+    "publishedAt": "2026-09-30T00:48:00.000Z",
+    "category": "sports"
+   },
+   "previous": {
+    "subject": "52위 태국 만날 수 있었는데…중국전 2-3 패배 한국, 8강에서 디펜딩 챔프 이란…8년 만에 4강 진출 '빨간불'",
+    "headline": "“52위 태국 만날 수 있었는데 중국전 2-3 패배 한국, 8강에서 디펜딩 챔프 이란” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "sports"
+    ],
+    "selectedByCategories": [
+     "sports"
+    ],
+    "metrics": {
+     "sourceCount": 2,
+     "independentGroupCount": 2,
+     "score": 0,
+     "comments": 0,
+     "coverage": 5,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 2
+     },
+     "verifiedSourceCount": 2,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 2,
+     "independentGroupCount": 2,
+     "ownershipGroups": [
+      "chosun",
+      "yonhap"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "chosun",
+       "label": "조선비즈",
+       "sources": [
+        "chosunbiz"
+       ]
+      },
+      {
+       "ownershipGroup": "yonhap",
+       "label": "연합뉴스 스포츠",
+       "sources": [
+        "yna-sports"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 5,
+     "sources": [
+      {
+       "source": "chosunbiz",
+       "label": "조선비즈",
+       "ownershipGroup": "chosun",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "yna-sports",
+       "label": "연합뉴스 스포츠",
+       "ownershipGroup": "yonhap",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_1a76jwl",
+      "title": "52위 태국 만날 수 있었는데…중국전 2-3 패배 한국, 8강에서 디펜딩 챔프 이란…8년 만에 4강 진출 '빨간불'",
+      "sourceLabel": "조선비즈",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T16:15:00.000Z",
+      "ownershipGroup": "chosun"
+     },
+     {
+      "id": "it_1l274hm",
+      "title": "[아시안게임] 남자배구, 중국에 2-3 석패…디펜딩 챔피언 이란과 8강전",
+      "sourceLabel": "연합뉴스 스포츠",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T13:41:37.000Z",
+      "ownershipGroup": "yonhap"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_1a76jwl",
+      "id": "it_1a76jwl",
+      "title": "52위 태국 만날 수 있었는데…중국전 2-3 패배 한국, 8강에서 디펜딩 챔프 이란…8년 만에 4강 진출 '빨간불'",
+      "originalTitle": null,
+      "sourceId": "chosunbiz",
+      "sourceLabel": "조선비즈",
+      "url": "https://biz.chosun.com/sports/sports_general/2026/09/30/MMZTMOBVMU4WGOJWMUZTIYRZHA",
+      "canonicalUrl": "https://biz.chosun.com/sports/sports_general/2026/09/30/MMZTMOBVMU4WGOJWMUZTIYRZHA",
+      "publishedAt": "2026-09-29T16:15:00.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_1l274hm",
+      "id": "it_1l274hm",
+      "title": "[아시안게임] 남자배구, 중국에 2-3 석패…디펜딩 챔피언 이란과 8강전",
+      "originalTitle": null,
+      "sourceId": "yna-sports",
+      "sourceLabel": "연합뉴스 스포츠",
+      "url": "https://www.yna.co.kr/view/AKR20260929186500007",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260929186500007",
+      "publishedAt": "2026-09-29T13:41:37.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-12c4347707c6d755",
+      "itemId": "it_1a76jwl",
+      "title": "52위 태국 만날 수 있었는데…중국전 2-3 패배 한국, 8강에서 디펜딩 챔프 이란…8년 만에 4강 진출 '빨간불'",
+      "sourceId": "chosunbiz",
+      "sourceLabel": "조선비즈",
+      "ownershipGroup": "chosun",
+      "canonicalUrl": "https://biz.chosun.com/sports/sports_general/2026/09/30/MMZTMOBVMU4WGOJWMUZTIYRZHA/",
+      "publishedAt": "2026-09-29T16:15:00.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-fc07cf4d92650b3f",
+      "itemId": "it_1l274hm",
+      "title": "[아시안게임] 남자배구, 중국에 2-3 석패…디펜딩 챔피언 이란과 8강전",
+      "sourceId": "yna-sports",
+      "sourceLabel": "연합뉴스 스포츠",
+      "ownershipGroup": "yonhap",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260929186500007",
+      "publishedAt": "2026-09-29T13:41:37.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T13:41:37.000Z",
+    "evidenceHash": "2172aa93d865034310d8c5625efa147ac8e783bb6f801d6d62d07bd0fb8dbd69",
+    "clusterId": "EV-96df8a0cab368acb",
+    "event": {
+     "eventId": "EV-96df8a0cab368acb",
+     "factsFingerprint": "EVF-60f79d15dce545ed",
+     "representativeId": "it_1l274hm"
+    }
+   }
+  },
+  {
+   "label": "McDonald",
+   "expected": "distinct",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "복수",
+    "수집",
+    "경로",
+    "확인"
+   ],
+   "currentLead": {
+    "id": "it_qnuz1r",
+    "title": "McDonald's는 AI를 사용하여 버거 가격을 '동적으로' 책정하는 것으로 알려졌습니다.",
+    "originalTitle": "McDonald's Reportedly Using AI to 'Dynamically' Price Its Burgers",
+    "url": "https://tech.slashdot.org/story/26/09/29/1815221/mcdonalds-reportedly-using-ai-to-dynamically-price-its-burgers?utm_source=rss1.0mainlinkanon&utm_medium=feed",
+    "canonicalUrl": "https://tech.slashdot.org/story/26/09/29/1815221/mcdonalds-reportedly-using-ai-to-dynamically-price-its-burgers",
+    "source": "slashdot",
+    "kind": "community",
+    "publishedAt": "2026-09-29T20:00:00.000Z",
+    "category": "tech"
+   },
+   "previous": {
+    "subject": "OpenAI는 1.4조 달러 가치로 300억 달러 규모의 자금을 조달하기 위해 협상 중인 것으로 알려졌습니다.",
+    "headline": "“OpenAI는 위해” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "tech"
+    ],
+    "selectedByCategories": [
+     "tech"
+    ],
+    "metrics": {
+     "sourceCount": 2,
+     "independentGroupCount": 2,
+     "score": 0,
+     "comments": 0,
+     "coverage": 0,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 2
+     },
+     "verifiedSourceCount": 2,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 2,
+     "independentGroupCount": 2,
+     "ownershipGroups": [
+      "techcrunch",
+      "techmeme"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "techcrunch",
+       "label": "테크크런치",
+       "sources": [
+        "techcrunch"
+       ]
+      },
+      {
+       "ownershipGroup": "techmeme",
+       "label": "Techmeme",
+       "sources": [
+        "techmeme"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "techcrunch",
+       "label": "테크크런치",
+       "ownershipGroup": "techcrunch",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "techmeme",
+       "label": "Techmeme",
+       "ownershipGroup": "techmeme",
+       "ownershipBasis": "source_id_fallback"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_vtlu3i",
+      "title": "OpenAI는 1.4조 달러 가치로 300억 달러 규모의 자금을 조달하기 위해 협상 중인 것으로 알려졌습니다.",
+      "sourceLabel": "테크크런치",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T19:52:37.000Z",
+      "ownershipGroup": "techcrunch"
+     },
+     {
+      "id": "it_zv0sra",
+      "title": "출처: OpenAI는 IPO(Bloomberg)을 대신하여 자본을 제공하기 위한 교량 라운드 역할을 하기 위해 약 $1.4T의 사전 가치 평가로 최소 $300억을 모으는 것을 목표로 합니다.",
+      "sourceLabel": "Techmeme",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T17:42:48.000Z",
+      "ownershipGroup": "techmeme"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_vtlu3i",
+      "id": "it_vtlu3i",
+      "title": "OpenAI는 1.4조 달러 가치로 300억 달러 규모의 자금을 조달하기 위해 협상 중인 것으로 알려졌습니다.",
+      "originalTitle": "OpenAI repotedly in talks to raise $30B round at $1.4T valuation",
+      "sourceId": "techcrunch",
+      "sourceLabel": "테크크런치",
+      "url": "https://techcrunch.com/2026/09/29/openai-repotedly-in-talks-to-raise-30b-round-at-1-4t-valuation",
+      "canonicalUrl": "https://techcrunch.com/2026/09/29/openai-repotedly-in-talks-to-raise-30b-round-at-1-4t-valuation",
+      "publishedAt": "2026-09-29T19:52:37.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_zv0sra",
+      "id": "it_zv0sra",
+      "title": "출처: OpenAI는 IPO(Bloomberg)을 대신하여 자본을 제공하기 위한 교량 라운드 역할을 하기 위해 약 $1.4T의 사전 가치 평가로 최소 $300억을 모으는 것을 목표로 합니다.",
+      "originalTitle": "Sources: OpenAI aims to raise at least $30B at a pre-money valuation of around $1.4T, meant to be a bridge round to provide it with capital in place of an IPO (Bloomberg)",
+      "sourceId": "techmeme",
+      "sourceLabel": "Techmeme",
+      "url": "https://www.techmeme.com/260929/p36",
+      "canonicalUrl": "https://www.techmeme.com/260929/p36",
+      "publishedAt": "2026-09-29T17:42:48.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-36193bd2fd972c29",
+      "itemId": "it_vtlu3i",
+      "title": "OpenAI는 1.4조 달러 가치로 300억 달러 규모의 자금을 조달하기 위해 협상 중인 것으로 알려졌습니다.",
+      "sourceId": "techcrunch",
+      "sourceLabel": "테크크런치",
+      "ownershipGroup": "techcrunch",
+      "canonicalUrl": "https://techcrunch.com/2026/09/29/openai-repotedly-in-talks-to-raise-30b-round-at-1-4t-valuation/",
+      "publishedAt": "2026-09-29T19:52:37.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-054fb6d4392d75d6",
+      "itemId": "it_zv0sra",
+      "title": "출처: OpenAI는 IPO(Bloomberg)을 대신하여 자본을 제공하기 위한 교량 라운드 역할을 하기 위해 약 $1.4T의 사전 가치 평가로 최소 $300억을 모으는 것을 목표로 합니다.",
+      "sourceId": "techmeme",
+      "sourceLabel": "Techmeme",
+      "ownershipGroup": "techmeme",
+      "canonicalUrl": "https://www.techmeme.com/260929/p36",
+      "publishedAt": "2026-09-29T17:42:48.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T17:42:48.000Z",
+    "evidenceHash": "be7cbef09895d1da37560c684308dff25c9f5ea8ff0fd5e0e34e1381e2665866",
+    "clusterId": "EV-7547e0958f472cce",
+    "event": {
+     "eventId": "EV-7547e0958f472cce",
+     "factsFingerprint": "EVF-a49ab5d424194c67",
+     "representativeId": "it_zv0sra"
+    }
+   }
+  },
+  {
+   "label": "송전망",
+   "expected": "same",
+   "matchMethod": "shared_normalized_title",
+   "matchedTerms": [],
+   "currentLead": {
+    "id": "it_1aqk3zc",
+    "title": "송전망 확장 당장엔 한계… 낮에 만든 전기, ESS 활용 밤에 공급",
+    "originalTitle": null,
+    "url": "https://www.donga.com/news/Economy/article/all/20260930/134756291/2",
+    "canonicalUrl": "https://www.donga.com/news/Economy/article/all/20260930/134756291/2",
+    "source": "donga-politics",
+    "kind": "news",
+    "publishedAt": "2026-09-29T19:30:00.000Z",
+    "category": "politics"
+   },
+   "previous": {
+    "subject": "송전망 확장 당장엔 한계… 낮에 만든 전기, ESS 활용 밤에 공급",
+    "headline": "동아일보 정치 상위의 “송전망 확장 당장엔 한계”",
+    "categoryIds": [
+     "politics"
+    ],
+    "selectedByCategories": [
+     "politics"
+    ],
+    "metrics": {
+     "sourceCount": 1,
+     "independentGroupCount": 1,
+     "score": 0,
+     "comments": 0,
+     "coverage": 0,
+     "evidenceMode": "single_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 1
+     },
+     "verifiedSourceCount": 1,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "single_feed_observed",
+     "observedFeedCount": 1,
+     "independentGroupCount": 1,
+     "ownershipGroups": [
+      "donga"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "donga",
+       "label": "동아일보 정치",
+       "sources": [
+        "donga-politics"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "donga-politics",
+       "label": "동아일보 정치",
+       "ownershipGroup": "donga",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_1aqk3zc",
+      "title": "송전망 확장 당장엔 한계… 낮에 만든 전기, ESS 활용 밤에 공급",
+      "sourceLabel": "동아일보 정치",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T19:30:00.000Z",
+      "ownershipGroup": "donga"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_1aqk3zc",
+      "id": "it_1aqk3zc",
+      "title": "송전망 확장 당장엔 한계… 낮에 만든 전기, ESS 활용 밤에 공급",
+      "originalTitle": null,
+      "sourceId": "donga-politics",
+      "sourceLabel": "동아일보 정치",
+      "url": "https://www.donga.com/news/Economy/article/all/20260930/134756291/2",
+      "canonicalUrl": "https://www.donga.com/news/Economy/article/all/20260930/134756291/2",
+      "publishedAt": "2026-09-29T19:30:00.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-be504f4abde79b70",
+      "itemId": "it_1aqk3zc",
+      "title": "송전망 확장 당장엔 한계… 낮에 만든 전기, ESS 활용 밤에 공급",
+      "sourceId": "donga-politics",
+      "sourceLabel": "동아일보 정치",
+      "ownershipGroup": "donga",
+      "canonicalUrl": "https://www.donga.com/news/Economy/article/all/20260930/134756291/2",
+      "publishedAt": "2026-09-29T19:30:00.000Z",
+      "evidenceRole": "lead"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T19:30:00.000Z",
+    "evidenceHash": "d4cb636cc42fbaa464acf9c577f07b4632fcaeb3c963e016167f4093122781d9",
+    "clusterId": "EV-bb3b1150dea08836",
+    "event": {
+     "eventId": "EV-bb3b1150dea08836",
+     "factsFingerprint": "EVF-4d1d1d986e6c4c7f",
+     "representativeId": "it_1aqk3zc"
+    }
+   }
+  },
+  {
+   "label": "한송이",
+   "expected": "distinct",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "복수",
+    "수집",
+    "경로",
+    "확인"
+   ],
+   "currentLead": {
+    "id": "it_m8txxg",
+    "title": "'탈북민' 한송이 \"'암살자(들)', 北 선전 영화와 똑같아…어처구니없다\"",
+    "originalTitle": null,
+    "url": "https://www.mt.co.kr/society/2026/09/30/2026093010143982420",
+    "canonicalUrl": "https://www.mt.co.kr/society/2026/09/30/2026093010143982420",
+    "source": "mt",
+    "kind": "news",
+    "publishedAt": "2026-09-30T01:52:11.000Z",
+    "category": "culture"
+   },
+   "previous": {
+    "subject": "\"친정엄마 황혼육아 시키지마\"…황보라, 결국 입 열었다 \"母 지킬 것\" ('보라이어티')",
+    "headline": "“보라이어티 황혼육아” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "culture"
+    ],
+    "selectedByCategories": [
+     "culture"
+    ],
+    "metrics": {
+     "sourceCount": 2,
+     "independentGroupCount": 2,
+     "score": 0,
+     "comments": 0,
+     "coverage": 5,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 2
+     },
+     "verifiedSourceCount": 2,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 2,
+     "independentGroupCount": 2,
+     "ownershipGroups": [
+      "tenasia",
+      "publisher:bizchosun"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "tenasia",
+       "label": "텐아시아",
+       "sources": [
+        "tenasia"
+       ]
+      },
+      {
+       "ownershipGroup": "publisher:bizchosun",
+       "label": "biz.chosun",
+       "sources": [
+        "gnews-ent"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 5,
+     "sources": [
+      {
+       "source": "tenasia",
+       "label": "텐아시아",
+       "ownershipGroup": "tenasia",
+       "ownershipBasis": "source_id_fallback"
+      },
+      {
+       "source": "gnews-ent",
+       "label": "biz.chosun",
+       "ownershipGroup": "publisher:bizchosun",
+       "ownershipBasis": "publisher_label_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_tqb50o",
+      "title": "\"친정엄마 황혼육아 시키지마\"…황보라, 결국 입 열었다 \"母 지킬 것\" ('보라이어티')",
+      "sourceLabel": "텐아시아",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T13:28:33.000Z",
+      "ownershipGroup": "tenasia"
+     },
+     {
+      "id": "it_1dfse5p",
+      "title": "황보라, 母 ‘황혼육아’ 악플에 입 열었다 “시터 절대 안 된다고..제가 지킬 것”('보라이어티') - 조선비즈",
+      "sourceLabel": "biz.chosun.com",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T11:18:00.000Z",
+      "ownershipGroup": "publisher:bizchosun"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_tqb50o",
+      "id": "it_tqb50o",
+      "title": "\"친정엄마 황혼육아 시키지마\"…황보라, 결국 입 열었다 \"母 지킬 것\" ('보라이어티')",
+      "originalTitle": null,
+      "sourceId": "tenasia",
+      "sourceLabel": "텐아시아",
+      "url": "https://www.tenasia.co.kr/article/2026092929954",
+      "canonicalUrl": "https://www.tenasia.co.kr/article/2026092929954",
+      "publishedAt": "2026-09-29T13:28:33.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_1dfse5p",
+      "id": "it_1dfse5p",
+      "title": "황보라, 母 ‘황혼육아’ 악플에 입 열었다 “시터 절대 안 된다고..제가 지킬 것”('보라이어티') - 조선비즈",
+      "originalTitle": null,
+      "sourceId": "gnews-ent",
+      "sourceLabel": "biz.chosun.com",
+      "url": "https://news.google.com/rss/articles/CBMikwFBVV95cUxQdnExY05hTFVUa0Rjb3Fib2tyVXhsU3JXbG5lN1NVR2VfVjZnY2RQQUtrZ2tqYWdEakk5U2k1SFZtUjdSLUYwWDM1VmRWYjlPdE9WeTNqR1U5SURHTEVGbmRoQkdUY1JCWXA1TzV4UUxkalIyZW9mUGNpcjZEM1g3N2Fidl81VkFHWU1WTFNZaUJLcTDSAacBQVVfeXFMTnVRT0dXRlVaV2ViSk5JeTFNZFkzT29YRFFUQ3VLUkZ5UFVTTmJyS0pHV2xVUlVOeEhQazFlRGpuM1luZEFKZkVNNS12eWpGMm1Tcmc0ZzVqQXgyaEE1ZW96VHNRSjZzVEhBc3J2c3FudHEwbEdEVmZYb3V2LTk0RWYydUctOW9QNGhZNXVScUFvSEt6dHJUOG5ONDgyTUM3MmlNbGJ6MHM?oc=5",
+      "canonicalUrl": "https://news.google.com/rss/articles/CBMikwFBVV95cUxQdnExY05hTFVUa0Rjb3Fib2tyVXhsU3JXbG5lN1NVR2VfVjZnY2RQQUtrZ2tqYWdEakk5U2k1SFZtUjdSLUYwWDM1VmRWYjlPdE9WeTNqR1U5SURHTEVGbmRoQkdUY1JCWXA1TzV4UUxkalIyZW9mUGNpcjZEM1g3N2Fidl81VkFHWU1WTFNZaUJLcTDSAacBQVVfeXFMTnVRT0dXRlVaV2ViSk5JeTFNZFkzT29YRFFUQ3VLUkZ5UFVTTmJyS0pHV2xVUlVOeEhQazFlRGpuM1luZEFKZkVNNS12eWpGMm1Tcmc0ZzVqQXgyaEE1ZW96VHNRSjZzVEhBc3J2c3FudHEwbEdEVmZYb3V2LTk0RWYydUctOW9QNGhZNXVScUFvSEt6dHJUOG5ONDgyTUM3MmlNbGJ6MHM?oc=5",
+      "publishedAt": "2026-09-29T11:18:00.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-ea585bdf9e07479b",
+      "itemId": "it_tqb50o",
+      "title": "\"친정엄마 황혼육아 시키지마\"…황보라, 결국 입 열었다 \"母 지킬 것\" ('보라이어티')",
+      "sourceId": "tenasia",
+      "sourceLabel": "텐아시아",
+      "ownershipGroup": "tenasia",
+      "canonicalUrl": "https://www.tenasia.co.kr/article/2026092929954",
+      "publishedAt": "2026-09-29T13:28:33.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-6b40319d93f0b2f7",
+      "itemId": "it_1dfse5p",
+      "title": "황보라, 母 ‘황혼육아’ 악플에 입 열었다 “시터 절대 안 된다고..제가 지킬 것”('보라이어티') - 조선비즈",
+      "sourceId": "gnews-ent",
+      "sourceLabel": "biz.chosun.com",
+      "ownershipGroup": "publisher:bizchosun",
+      "canonicalUrl": "https://news.google.com/rss/articles/CBMikwFBVV95cUxQdnExY05hTFVUa0Rjb3Fib2tyVXhsU3JXbG5lN1NVR2VfVjZnY2RQQUtrZ2tqYWdEakk5U2k1SFZtUjdSLUYwWDM1VmRWYjlPdE9WeTNqR1U5SURHTEVGbmRoQkdUY1JCWXA1TzV4UUxkalIyZW9mUGNpcjZEM1g3N2Fidl81VkFHWU1WTFNZaUJLcTDSAacBQVVfeXFMTnVRT0dXRlVaV2ViSk5JeTFNZFkzT29YRFFUQ3VLUkZ5UFVTTmJyS0pHV2xVUlVOeEhQazFlRGpuM1luZEFKZkVNNS12eWpGMm1Tcmc0ZzVqQXgyaEE1ZW96VHNRSjZzVEhBc3J2c3FudHEwbEdEVmZYb3V2LTk0RWYydUctOW9QNGhZNXVScUFvSEt6dHJUOG5ONDgyTUM3MmlNbGJ6MHM?oc=5",
+      "publishedAt": "2026-09-29T11:18:00.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T11:18:00.000Z",
+    "evidenceHash": "3a0353295e51f07f08e96f3c4c0889977d9e029d6c19f49bc892270ca41bba6b",
+    "clusterId": "EV-31d0a664ea452dd7",
+    "event": {
+     "eventId": "EV-31d0a664ea452dd7",
+     "factsFingerprint": "EVF-f7869e87e89db8e1",
+     "representativeId": "it_1dfse5p"
+    }
+   }
+  },
+  {
+   "label": "8월 서울 주택 인허가 7배 늘었다",
+   "expected": "same",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "8월",
+    "서울",
+    "주택",
+    "인허",
+    "7배"
+   ],
+   "currentLead": {
+    "id": "it_1xngv4t",
+    "title": "8월 서울 주택 인허가 7배 늘었다",
+    "originalTitle": null,
+    "url": "https://www.hankyung.com/article/2026092927431",
+    "canonicalUrl": "https://www.hankyung.com/article/2026092927431",
+    "source": "hankyung-realestate",
+    "kind": "news",
+    "publishedAt": "2026-09-30T01:33:55.000Z",
+    "category": "realestate"
+   },
+   "previous": {
+    "subject": "8월 서울 주택 인허가 7배 ‘껑충’… 전국 미분양은 7만가구 육박 ‘연중 최고’",
+    "headline": "“인허가 서울” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "realestate"
+    ],
+    "selectedByCategories": [
+     "realestate"
+    ],
+    "metrics": {
+     "sourceCount": 3,
+     "independentGroupCount": 2,
+     "score": 0,
+     "comments": 0,
+     "coverage": 0,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 3
+     },
+     "verifiedSourceCount": 3,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 3,
+     "independentGroupCount": 2,
+     "ownershipGroups": [
+      "chosun",
+      "yonhap"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "chosun",
+       "label": "조선비즈 부동산",
+       "sources": [
+        "chosunbiz-realestate",
+        "chosunbiz"
+       ]
+      },
+      {
+       "ownershipGroup": "yonhap",
+       "label": "연합뉴스",
+       "sources": [
+        "yna"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "chosunbiz-realestate",
+       "label": "조선비즈 부동산",
+       "ownershipGroup": "chosun",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "yna",
+       "label": "연합뉴스",
+       "ownershipGroup": "yonhap",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "chosunbiz",
+       "label": "조선비즈",
+       "ownershipGroup": "chosun",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_147tu38",
+      "title": "8월 서울 주택 인허가 7배 ‘껑충’… 전국 미분양은 7만가구 육박 ‘연중 최고’",
+      "sourceLabel": "조선비즈 부동산",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T21:00:01.000Z",
+      "ownershipGroup": "chosun"
+     },
+     {
+      "id": "it_192fx6b",
+      "title": "'주택공급 선행지표' 서울 인허가 올들어 개선 추세",
+      "sourceLabel": "연합뉴스",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T21:00:12.000Z",
+      "ownershipGroup": "yonhap"
+     },
+     {
+      "id": "it_1hv23nz",
+      "title": "서울허가 7배 증가 미분양 7만도 다가온다",
+      "sourceLabel": "조선비즈",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T21:00:01.000Z",
+      "ownershipGroup": "chosun"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_147tu38",
+      "id": "it_147tu38",
+      "title": "8월 서울 주택 인허가 7배 ‘껑충’… 전국 미분양은 7만가구 육박 ‘연중 최고’",
+      "originalTitle": null,
+      "sourceId": "chosunbiz-realestate",
+      "sourceLabel": "조선비즈 부동산",
+      "url": "https://biz.chosun.com/real_estate/real_estate_general/2026/09/30/WFV57IJ65VGLDHJP4GEV64G7EE",
+      "canonicalUrl": "https://biz.chosun.com/real_estate/real_estate_general/2026/09/30/WFV57IJ65VGLDHJP4GEV64G7EE",
+      "publishedAt": "2026-09-29T21:00:01.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_192fx6b",
+      "id": "it_192fx6b",
+      "title": "'주택공급 선행지표' 서울 인허가 올들어 개선 추세",
+      "originalTitle": null,
+      "sourceId": "yna",
+      "sourceLabel": "연합뉴스",
+      "url": "https://www.yna.co.kr/view/AKR20260929143100003",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260929143100003",
+      "publishedAt": "2026-09-29T21:00:12.000Z",
+      "canLead": false
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-87a50c99e83475dd",
+      "itemId": "it_147tu38",
+      "title": "8월 서울 주택 인허가 7배 ‘껑충’… 전국 미분양은 7만가구 육박 ‘연중 최고’",
+      "sourceId": "chosunbiz-realestate",
+      "sourceLabel": "조선비즈 부동산",
+      "ownershipGroup": "chosun",
+      "canonicalUrl": "https://biz.chosun.com/real_estate/real_estate_general/2026/09/30/WFV57IJ65VGLDHJP4GEV64G7EE/",
+      "publishedAt": "2026-09-29T21:00:01.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-e2591208cafedbf6",
+      "itemId": "it_192fx6b",
+      "title": "'주택공급 선행지표' 서울 인허가 올들어 개선 추세",
+      "sourceId": "yna",
+      "sourceLabel": "연합뉴스",
+      "ownershipGroup": "yonhap",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260929143100003",
+      "publishedAt": "2026-09-29T21:00:12.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-3a722f123461717c",
+      "itemId": "it_1hv23nz",
+      "title": "서울허가 7배 증가 미분양 7만도 다가온다",
+      "sourceId": "chosunbiz",
+      "sourceLabel": "조선비즈",
+      "ownershipGroup": "chosun",
+      "canonicalUrl": "https://biz.chosun.com/jp/jp-realestate/2026/09/30/QRIPZI7TBFEOTJKTAM7NC4S7E4/",
+      "publishedAt": "2026-09-29T21:00:01.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T21:00:01.000Z",
+    "evidenceHash": "9d41d5eea89c2aa48fd0dd22efaa6b8052c4a2b79ccd98a764c39942e99a6b50",
+    "clusterId": "EV-d9a909046c54c9fa",
+    "event": {
+     "eventId": "EV-d9a909046c54c9fa",
+     "factsFingerprint": "EVF-380a795db4356c04",
+     "representativeId": "it_147tu38"
+    }
+   }
+  },
+  {
+   "label": "CDPR",
+   "expected": "distinct",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "복수",
+    "수집",
+    "경로",
+    "확인"
+   ],
+   "currentLead": {
+    "id": "it_1hbxvl6",
+    "title": "CDPR, '더 위쳐 3: 와일드 헌트 - 리마스터' 출시... 기존 이용자 무료 업그레이드",
+    "originalTitle": null,
+    "url": "https://news.google.com/rss/articles/CBMiTkFVX3lxTE1Ec1dqU0Zuck1VYzVQQ0Q2M0hsU3gyRWhhNjFJV3lrR1RhdkZ3Y2gtMjBVMWlmcGs5TzRQcExpUmdraWdBTDB1anBUaW5RUQ?oc=5",
+    "canonicalUrl": null,
+    "source": "gnews-tech",
+    "kind": "news",
+    "publishedAt": "2026-09-30T00:56:18.000Z",
+    "category": "tech"
+   },
+   "previous": {
+    "subject": "OpenAI는 1.4조 달러 가치로 300억 달러 규모의 자금을 조달하기 위해 협상 중인 것으로 알려졌습니다.",
+    "headline": "“OpenAI는 위해” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "tech"
+    ],
+    "selectedByCategories": [
+     "tech"
+    ],
+    "metrics": {
+     "sourceCount": 2,
+     "independentGroupCount": 2,
+     "score": 0,
+     "comments": 0,
+     "coverage": 0,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 2
+     },
+     "verifiedSourceCount": 2,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 2,
+     "independentGroupCount": 2,
+     "ownershipGroups": [
+      "techcrunch",
+      "techmeme"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "techcrunch",
+       "label": "테크크런치",
+       "sources": [
+        "techcrunch"
+       ]
+      },
+      {
+       "ownershipGroup": "techmeme",
+       "label": "Techmeme",
+       "sources": [
+        "techmeme"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "techcrunch",
+       "label": "테크크런치",
+       "ownershipGroup": "techcrunch",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "techmeme",
+       "label": "Techmeme",
+       "ownershipGroup": "techmeme",
+       "ownershipBasis": "source_id_fallback"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_vtlu3i",
+      "title": "OpenAI는 1.4조 달러 가치로 300억 달러 규모의 자금을 조달하기 위해 협상 중인 것으로 알려졌습니다.",
+      "sourceLabel": "테크크런치",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T19:52:37.000Z",
+      "ownershipGroup": "techcrunch"
+     },
+     {
+      "id": "it_zv0sra",
+      "title": "출처: OpenAI는 IPO(Bloomberg)을 대신하여 자본을 제공하기 위한 교량 라운드 역할을 하기 위해 약 $1.4T의 사전 가치 평가로 최소 $300억을 모으는 것을 목표로 합니다.",
+      "sourceLabel": "Techmeme",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T17:42:48.000Z",
+      "ownershipGroup": "techmeme"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_vtlu3i",
+      "id": "it_vtlu3i",
+      "title": "OpenAI는 1.4조 달러 가치로 300억 달러 규모의 자금을 조달하기 위해 협상 중인 것으로 알려졌습니다.",
+      "originalTitle": "OpenAI repotedly in talks to raise $30B round at $1.4T valuation",
+      "sourceId": "techcrunch",
+      "sourceLabel": "테크크런치",
+      "url": "https://techcrunch.com/2026/09/29/openai-repotedly-in-talks-to-raise-30b-round-at-1-4t-valuation",
+      "canonicalUrl": "https://techcrunch.com/2026/09/29/openai-repotedly-in-talks-to-raise-30b-round-at-1-4t-valuation",
+      "publishedAt": "2026-09-29T19:52:37.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_zv0sra",
+      "id": "it_zv0sra",
+      "title": "출처: OpenAI는 IPO(Bloomberg)을 대신하여 자본을 제공하기 위한 교량 라운드 역할을 하기 위해 약 $1.4T의 사전 가치 평가로 최소 $300억을 모으는 것을 목표로 합니다.",
+      "originalTitle": "Sources: OpenAI aims to raise at least $30B at a pre-money valuation of around $1.4T, meant to be a bridge round to provide it with capital in place of an IPO (Bloomberg)",
+      "sourceId": "techmeme",
+      "sourceLabel": "Techmeme",
+      "url": "https://www.techmeme.com/260929/p36",
+      "canonicalUrl": "https://www.techmeme.com/260929/p36",
+      "publishedAt": "2026-09-29T17:42:48.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-36193bd2fd972c29",
+      "itemId": "it_vtlu3i",
+      "title": "OpenAI는 1.4조 달러 가치로 300억 달러 규모의 자금을 조달하기 위해 협상 중인 것으로 알려졌습니다.",
+      "sourceId": "techcrunch",
+      "sourceLabel": "테크크런치",
+      "ownershipGroup": "techcrunch",
+      "canonicalUrl": "https://techcrunch.com/2026/09/29/openai-repotedly-in-talks-to-raise-30b-round-at-1-4t-valuation/",
+      "publishedAt": "2026-09-29T19:52:37.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-054fb6d4392d75d6",
+      "itemId": "it_zv0sra",
+      "title": "출처: OpenAI는 IPO(Bloomberg)을 대신하여 자본을 제공하기 위한 교량 라운드 역할을 하기 위해 약 $1.4T의 사전 가치 평가로 최소 $300억을 모으는 것을 목표로 합니다.",
+      "sourceId": "techmeme",
+      "sourceLabel": "Techmeme",
+      "ownershipGroup": "techmeme",
+      "canonicalUrl": "https://www.techmeme.com/260929/p36",
+      "publishedAt": "2026-09-29T17:42:48.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T17:42:48.000Z",
+    "evidenceHash": "be7cbef09895d1da37560c684308dff25c9f5ea8ff0fd5e0e34e1381e2665866",
+    "clusterId": "EV-7547e0958f472cce",
+    "event": {
+     "eventId": "EV-7547e0958f472cce",
+     "factsFingerprint": "EVF-a49ab5d424194c67",
+     "representativeId": "it_zv0sra"
+    }
+   }
+  },
+  {
+   "label": "전국 미분양 주택",
+   "expected": "same",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "전국",
+    "미분양",
+    "주택",
+    "7만가구",
+    "육박"
+   ],
+   "currentLead": {
+    "id": "it_1ujr29s",
+    "title": "전국 미분양 주택, 다시 7만가구 육박",
+    "originalTitle": null,
+    "url": "https://www.donga.com/news/Economy/article/all/20260930/134758135/1",
+    "canonicalUrl": "https://www.donga.com/news/Economy/article/all/20260930/134758135/1",
+    "source": "donga",
+    "kind": "news",
+    "publishedAt": "2026-09-30T01:11:44.000Z",
+    "category": "realestate"
+   },
+   "previous": {
+    "subject": "8월 서울 주택 인허가 7배 ‘껑충’… 전국 미분양은 7만가구 육박 ‘연중 최고’",
+    "headline": "“인허가 서울” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "realestate"
+    ],
+    "selectedByCategories": [
+     "realestate"
+    ],
+    "metrics": {
+     "sourceCount": 3,
+     "independentGroupCount": 2,
+     "score": 0,
+     "comments": 0,
+     "coverage": 0,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 3
+     },
+     "verifiedSourceCount": 3,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 3,
+     "independentGroupCount": 2,
+     "ownershipGroups": [
+      "chosun",
+      "yonhap"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "chosun",
+       "label": "조선비즈 부동산",
+       "sources": [
+        "chosunbiz-realestate",
+        "chosunbiz"
+       ]
+      },
+      {
+       "ownershipGroup": "yonhap",
+       "label": "연합뉴스",
+       "sources": [
+        "yna"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "chosunbiz-realestate",
+       "label": "조선비즈 부동산",
+       "ownershipGroup": "chosun",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "yna",
+       "label": "연합뉴스",
+       "ownershipGroup": "yonhap",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "chosunbiz",
+       "label": "조선비즈",
+       "ownershipGroup": "chosun",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_147tu38",
+      "title": "8월 서울 주택 인허가 7배 ‘껑충’… 전국 미분양은 7만가구 육박 ‘연중 최고’",
+      "sourceLabel": "조선비즈 부동산",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T21:00:01.000Z",
+      "ownershipGroup": "chosun"
+     },
+     {
+      "id": "it_192fx6b",
+      "title": "'주택공급 선행지표' 서울 인허가 올들어 개선 추세",
+      "sourceLabel": "연합뉴스",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T21:00:12.000Z",
+      "ownershipGroup": "yonhap"
+     },
+     {
+      "id": "it_1hv23nz",
+      "title": "서울허가 7배 증가 미분양 7만도 다가온다",
+      "sourceLabel": "조선비즈",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T21:00:01.000Z",
+      "ownershipGroup": "chosun"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_147tu38",
+      "id": "it_147tu38",
+      "title": "8월 서울 주택 인허가 7배 ‘껑충’… 전국 미분양은 7만가구 육박 ‘연중 최고’",
+      "originalTitle": null,
+      "sourceId": "chosunbiz-realestate",
+      "sourceLabel": "조선비즈 부동산",
+      "url": "https://biz.chosun.com/real_estate/real_estate_general/2026/09/30/WFV57IJ65VGLDHJP4GEV64G7EE",
+      "canonicalUrl": "https://biz.chosun.com/real_estate/real_estate_general/2026/09/30/WFV57IJ65VGLDHJP4GEV64G7EE",
+      "publishedAt": "2026-09-29T21:00:01.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_192fx6b",
+      "id": "it_192fx6b",
+      "title": "'주택공급 선행지표' 서울 인허가 올들어 개선 추세",
+      "originalTitle": null,
+      "sourceId": "yna",
+      "sourceLabel": "연합뉴스",
+      "url": "https://www.yna.co.kr/view/AKR20260929143100003",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260929143100003",
+      "publishedAt": "2026-09-29T21:00:12.000Z",
+      "canLead": false
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-87a50c99e83475dd",
+      "itemId": "it_147tu38",
+      "title": "8월 서울 주택 인허가 7배 ‘껑충’… 전국 미분양은 7만가구 육박 ‘연중 최고’",
+      "sourceId": "chosunbiz-realestate",
+      "sourceLabel": "조선비즈 부동산",
+      "ownershipGroup": "chosun",
+      "canonicalUrl": "https://biz.chosun.com/real_estate/real_estate_general/2026/09/30/WFV57IJ65VGLDHJP4GEV64G7EE/",
+      "publishedAt": "2026-09-29T21:00:01.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-e2591208cafedbf6",
+      "itemId": "it_192fx6b",
+      "title": "'주택공급 선행지표' 서울 인허가 올들어 개선 추세",
+      "sourceId": "yna",
+      "sourceLabel": "연합뉴스",
+      "ownershipGroup": "yonhap",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260929143100003",
+      "publishedAt": "2026-09-29T21:00:12.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-3a722f123461717c",
+      "itemId": "it_1hv23nz",
+      "title": "서울허가 7배 증가 미분양 7만도 다가온다",
+      "sourceId": "chosunbiz",
+      "sourceLabel": "조선비즈",
+      "ownershipGroup": "chosun",
+      "canonicalUrl": "https://biz.chosun.com/jp/jp-realestate/2026/09/30/QRIPZI7TBFEOTJKTAM7NC4S7E4/",
+      "publishedAt": "2026-09-29T21:00:01.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T21:00:01.000Z",
+    "evidenceHash": "9d41d5eea89c2aa48fd0dd22efaa6b8052c4a2b79ccd98a764c39942e99a6b50",
+    "clusterId": "EV-d9a909046c54c9fa",
+    "event": {
+     "eventId": "EV-d9a909046c54c9fa",
+     "factsFingerprint": "EVF-380a795db4356c04",
+     "representativeId": "it_147tu38"
+    }
+   }
+  },
+  {
+   "label": "범여권 일부 반발",
+   "expected": "same",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "망설",
+    "대통령",
+    "김지용",
+    "중수청장",
+    "인사청문요청안",
+    "제출",
+    "놓고",
+    "고심"
+   ],
+   "currentLead": {
+    "id": "it_n72svi",
+    "title": "범여권 일부 반발에 망설이는 이 대통령···김지용 중수청장 인사청문요청안 제출 놓고 고심",
+    "originalTitle": null,
+    "url": "https://www.khan.co.kr/article/202609300601001/?utm_source=khan_rss&utm_medium=rss&utm_campaign=politic_news",
+    "canonicalUrl": "https://www.khan.co.kr/article/202609300601001",
+    "source": "khan-politics",
+    "kind": "news",
+    "publishedAt": "2026-09-29T21:01:00.000Z",
+    "category": "politics"
+   },
+   "previous": {
+    "subject": "이 대통령 망설이나···김지용 중수청장 인사청문요청안 인사청문요청안 제출 놓고 고심",
+    "headline": "khan-politics 상위의 “이 대통령 망설이나”",
+    "categoryIds": [
+     "politics"
+    ],
+    "selectedByCategories": [
+     "politics"
+    ],
+    "metrics": {
+     "sourceCount": 2,
+     "independentGroupCount": 1,
+     "score": 0,
+     "comments": 0,
+     "coverage": 0,
+     "evidenceMode": "single_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 2
+     },
+     "verifiedSourceCount": 2,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "single_feed_observed",
+     "observedFeedCount": 2,
+     "independentGroupCount": 1,
+     "ownershipGroups": [
+      "khan"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "khan",
+       "label": "경향신문",
+       "sources": [
+        "khan-politics",
+        "khan"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "khan-politics",
+       "label": "khan-politics",
+       "ownershipGroup": "khan",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "khan",
+       "label": "경향신문",
+       "ownershipGroup": "khan",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_1tj5fd2",
+      "title": "이 대통령 망설이나···김지용 중수청장 인사청문요청안 인사청문요청안 제출 놓고 고심",
+      "sourceLabel": "khan-politics",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T21:01:00.000Z",
+      "ownershipGroup": "khan"
+     },
+     {
+      "id": "it_ldsk68",
+      "title": "이 대통령 망설이나···김지용 중수청장 인사청문요청안 인사청문요청안 제출 놓고 고심",
+      "sourceLabel": "경향신문",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T21:01:00.000Z",
+      "ownershipGroup": "khan"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_1tj5fd2",
+      "id": "it_1tj5fd2",
+      "title": "이 대통령 망설이나···김지용 중수청장 인사청문요청안 인사청문요청안 제출 놓고 고심",
+      "originalTitle": null,
+      "sourceId": "khan-politics",
+      "sourceLabel": "khan-politics",
+      "url": "https://www.khan.co.kr/article/202609300601001",
+      "canonicalUrl": "https://www.khan.co.kr/article/202609300601001",
+      "publishedAt": "2026-09-29T21:01:00.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-0c0928ce901ffd4a",
+      "itemId": "it_1tj5fd2",
+      "title": "이 대통령 망설이나···김지용 중수청장 인사청문요청안 인사청문요청안 제출 놓고 고심",
+      "sourceId": "khan-politics",
+      "sourceLabel": "khan-politics",
+      "ownershipGroup": "khan",
+      "canonicalUrl": "https://www.khan.co.kr/article/202609300601001/",
+      "publishedAt": "2026-09-29T21:01:00.000Z",
+      "evidenceRole": "lead"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T21:01:00.000Z",
+    "evidenceHash": "76acb408d78242c12a30c92b040445b52d2558daa58da6b8b19f32c6a5216ea4",
+    "clusterId": "EV-5e9160bb9ac4671d",
+    "event": {
+     "eventId": "EV-5e9160bb9ac4671d",
+     "factsFingerprint": "EVF-da19bbeea1923a11",
+     "representativeId": "it_1tj5fd2"
+    }
+   }
+  },
+  {
+   "label": "안세영",
+   "expected": "distinct",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "아시안게임",
+    "묶음",
+    "포착"
+   ],
+   "currentLead": {
+    "id": "it_unvh46",
+    "title": "안세영·이소희-백하나·김민영, 아시안게임 금빛 승전보",
+    "originalTitle": null,
+    "url": "https://news.google.com/rss/articles/CBMibEFVX3lxTE1WcDBJcUNZdFV5aGI1eHo0ODBwYkNLdnE4WS00X2NjeDRpZmt2a0FycGtnVEtUVEtOTDhBR0VGZndLYXh3dnNVeUVuUUEtM0RYZUNsUzdMOGJhdjVFYzl2enZadXNjU3E3UzQ1VA?oc=5",
+    "canonicalUrl": null,
+    "source": "gnews-sports",
+    "kind": "news",
+    "publishedAt": "2026-09-29T20:33:56.000Z",
+    "category": "sports"
+   },
+   "previous": {
+    "subject": "아시안게임 다녀오자마자 '쾅'...김도영, 첫 타석서 41호포 '타이거즈 새 역사'",
+    "headline": "“아시안게임 다녀오자마자 쾅” · 관련 보도 묶음 포착",
+    "categoryIds": [
+     "sports"
+    ],
+    "selectedByCategories": [
+     "sports"
+    ],
+    "metrics": {
+     "sourceCount": 1,
+     "independentGroupCount": 1,
+     "score": 0,
+     "comments": 0,
+     "coverage": 5,
+     "evidenceMode": "related_coverage_signal",
+     "relatedCoverageSignal": true,
+     "sourceRoles": {
+      "reported_secondary": 1
+     },
+     "verifiedSourceCount": 1,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "related_coverage_signal",
+     "observedFeedCount": 1,
+     "independentGroupCount": 1,
+     "ownershipGroups": [
+      "publisher:kbc광주방송"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "publisher:kbc광주방송",
+       "label": "KBC광주방송",
+       "sources": [
+        "gnews-sports"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": true,
+     "coverage": 5,
+     "sources": [
+      {
+       "source": "gnews-sports",
+       "label": "KBC광주방송",
+       "ownershipGroup": "publisher:kbc광주방송",
+       "ownershipBasis": "publisher_label_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_lximt3",
+      "title": "아시안게임 다녀오자마자 '쾅'...김도영, 첫 타석서 41호포 '타이거즈 새 역사'",
+      "sourceLabel": "KBC광주방송",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T10:11:40.000Z",
+      "ownershipGroup": "publisher:kbc광주방송"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_lximt3",
+      "id": "it_lximt3",
+      "title": "아시안게임 다녀오자마자 '쾅'...김도영, 첫 타석서 41호포 '타이거즈 새 역사'",
+      "originalTitle": null,
+      "sourceId": "gnews-sports",
+      "sourceLabel": "KBC광주방송",
+      "url": "https://news.google.com/rss/articles/CBMiYkFVX3lxTE8zN0Qyd3RsRTJ2TzZTaHcxRW1SMERjSTZxNVh5bXE4M1BvMlVmMkZhMDJUbFhtcTI3N0hwMWxrNVBPcjlralBtQk9QM1k1TjU2VXZRclBpd0FuQUlnZDI0cXNn?oc=5",
+      "canonicalUrl": "https://news.google.com/rss/articles/CBMiYkFVX3lxTE8zN0Qyd3RsRTJ2TzZTaHcxRW1SMERjSTZxNVh5bXE4M1BvMlVmMkZhMDJUbFhtcTI3N0hwMWxrNVBPcjlralBtQk9QM1k1TjU2VXZRclBpd0FuQUlnZDI0cXNn?oc=5",
+      "publishedAt": "2026-09-29T10:11:40.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-eb3477bc7c0ec5a5",
+      "itemId": "it_lximt3",
+      "title": "아시안게임 다녀오자마자 '쾅'...김도영, 첫 타석서 41호포 '타이거즈 새 역사'",
+      "sourceId": "gnews-sports",
+      "sourceLabel": "KBC광주방송",
+      "ownershipGroup": "publisher:kbc광주방송",
+      "canonicalUrl": "https://news.google.com/rss/articles/CBMiYkFVX3lxTE8zN0Qyd3RsRTJ2TzZTaHcxRW1SMERjSTZxNVh5bXE4M1BvMlVmMkZhMDJUbFhtcTI3N0hwMWxrNVBPcjlralBtQk9QM1k1TjU2VXZRclBpd0FuQUlnZDI0cXNn?oc=5",
+      "publishedAt": "2026-09-29T10:11:40.000Z",
+      "evidenceRole": "lead"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T10:11:40.000Z",
+    "evidenceHash": "d9a158fe6f4412346d77b86b45e21a275626913fbfe8e1e9f317d5ecccc8c202",
+    "clusterId": "EV-f0930870768f24a8",
+    "event": {
+     "eventId": "EV-f0930870768f24a8",
+     "factsFingerprint": "EVF-15c25e202a649aae",
+     "representativeId": "it_lximt3"
+    }
+   }
+  },
+  {
+   "label": "루테인",
+   "expected": "same",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "상위",
+    "루테인",
+    "오메가3",
+    "코큐텐",
+    "소비기한",
+    "임박",
+    "건강식품",
+    "8종",
+    "달분",
+    "num:3700"
+   ],
+   "currentLead": {
+    "id": "it_y1hxt5",
+    "title": "루테인 오메가3 코큐텐.. 소비기한 임박 건강식품 8종 ‘한 달분 3700원’ 특별전",
+    "originalTitle": null,
+    "url": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxPcE53UFJIeGlZd1l6U3dfN3BfT1VPVmZ3SWd0bXppMUpYZ2VjeWQ0dklLTUNoRzZVMUlJWXAtV1pqUkZPUFR5eWwwSGl5YXFxM2s0a000Yk1hQWhNMlBzYjBQd3o4Sno0WnFwdUZwQk5MMWdLRmxaOU1xSWthRk5CMkI5YnByLXA0b3hz?oc=5",
+    "canonicalUrl": null,
+    "source": "gnews-science",
+    "kind": "news",
+    "publishedAt": "2026-09-29T20:09:26.000Z",
+    "category": "life"
+   },
+   "previous": {
+    "subject": "루테인 오메가3 코큐텐.. 소비기한 임박 건강식품 8종 ‘한 달분 3700원’ 초특가",
+    "headline": "조선일보 상위의 “루테인 오메가3 코큐텐.. 소비기한 임박 건강식품 8종 한 달분 3700원 초특가”",
+    "categoryIds": [
+     "life"
+    ],
+    "selectedByCategories": [
+     "life"
+    ],
+    "metrics": {
+     "sourceCount": 1,
+     "independentGroupCount": 1,
+     "score": 0,
+     "comments": 0,
+     "coverage": 0,
+     "evidenceMode": "single_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 1
+     },
+     "verifiedSourceCount": 1,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "single_feed_observed",
+     "observedFeedCount": 1,
+     "independentGroupCount": 1,
+     "ownershipGroups": [
+      "chosun"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "chosun",
+       "label": "조선일보",
+       "sources": [
+        "gnews-science"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "gnews-science",
+       "label": "조선일보",
+       "ownershipGroup": "chosun",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_1gtfm2j",
+      "title": "루테인 오메가3 코큐텐.. 소비기한 임박 건강식품 8종 ‘한 달분 3700원’ 초특가",
+      "sourceLabel": "조선일보",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T20:05:00.000Z",
+      "ownershipGroup": "chosun"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_1gtfm2j",
+      "id": "it_1gtfm2j",
+      "title": "루테인 오메가3 코큐텐.. 소비기한 임박 건강식품 8종 ‘한 달분 3700원’ 초특가",
+      "originalTitle": null,
+      "sourceId": "gnews-science",
+      "sourceLabel": "조선일보",
+      "url": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxPcE53UFJIeGlZd1l6U3dfN3BfT1VPVmZ3SWd0bXppMUpYZ2VjeWQ0dklLTUNoRzZVMUlJWXAtV1pqUkZPUFR5eWwwSGl5YXFxM2s0a000Yk1hQWhNMlBzYjBQd3o4Sno0WnFwdUZwQk5MMWdLRmxaOU1xSWthRk5CMkI5YnByLXA0b3hz?oc=5",
+      "canonicalUrl": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxPcE53UFJIeGlZd1l6U3dfN3BfT1VPVmZ3SWd0bXppMUpYZ2VjeWQ0dklLTUNoRzZVMUlJWXAtV1pqUkZPUFR5eWwwSGl5YXFxM2s0a000Yk1hQWhNMlBzYjBQd3o4Sno0WnFwdUZwQk5MMWdLRmxaOU1xSWthRk5CMkI5YnByLXA0b3hz?oc=5",
+      "publishedAt": "2026-09-29T20:05:00.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-b5792a82eef904c9",
+      "itemId": "it_1gtfm2j",
+      "title": "루테인 오메가3 코큐텐.. 소비기한 임박 건강식품 8종 ‘한 달분 3700원’ 초특가",
+      "sourceId": "gnews-science",
+      "sourceLabel": "조선일보",
+      "ownershipGroup": "chosun",
+      "canonicalUrl": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxPcE53UFJIeGlZd1l6U3dfN3BfT1VPVmZ3SWd0bXppMUpYZ2VjeWQ0dklLTUNoRzZVMUlJWXAtV1pqUkZPUFR5eWwwSGl5YXFxM2s0a000Yk1hQWhNMlBzYjBQd3o4Sno0WnFwdUZwQk5MMWdLRmxaOU1xSWthRk5CMkI5YnByLXA0b3hz?oc=5",
+      "publishedAt": "2026-09-29T20:05:00.000Z",
+      "evidenceRole": "lead"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T20:05:00.000Z",
+    "evidenceHash": "4cbcd5fe88d653867d94177b3c068b02e790b2814dd8b478ce8bcaa96e913e19",
+    "clusterId": "EV-da190a182ab8b77c",
+    "event": {
+     "eventId": "EV-da190a182ab8b77c",
+     "factsFingerprint": "EVF-dd52b7b5a16e83bf",
+     "representativeId": "it_1gtfm2j"
+    }
+   }
+  },
+  {
+   "label": "나이키 고스트페이스",
+   "expected": "distinct",
+   "slot": "lunch",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "하이스노바이어티",
+    "상위",
+    "나이키",
+    "에어",
+    "1은"
+   ],
+   "currentLead": {
+    "id": "it_1y3k6do",
+    "title": "나이키 고스트페이스 에어포스 1은 정말 좋아요",
+    "originalTitle": "Nike’s Ghostface Air Force 1 Is Scary Good",
+    "url": "https://www.highsnobiety.com/p/nike-air-force-1-ghostface/",
+    "canonicalUrl": "https://www.highsnobiety.com/p/nike-air-force-1-ghostface",
+    "source": "highsnobiety",
+    "kind": "news",
+    "publishedAt": "2026-09-30T01:08:01.000Z",
+    "category": "fashion"
+   },
+   "previous": {
+    "subject": "나이키의 방수 에어 포스 1은 진정한 윈터 솔저입니다",
+    "headline": "하이스노바이어티 상위의 “나이키의 방수 에어 포스 1은 진정한 윈터 솔저입니다”",
+    "categoryIds": [
+     "fashion"
+    ],
+    "selectedByCategories": [
+     "fashion"
+    ],
+    "metrics": {
+     "sourceCount": 1,
+     "independentGroupCount": 1,
+     "score": 0,
+     "comments": 0,
+     "coverage": 0,
+     "evidenceMode": "single_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 1
+     },
+     "verifiedSourceCount": 1,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "single_feed_observed",
+     "observedFeedCount": 1,
+     "independentGroupCount": 1,
+     "ownershipGroups": [
+      "highsnobiety"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "highsnobiety",
+       "label": "하이스노바이어티",
+       "sources": [
+        "highsnobiety"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "highsnobiety",
+       "label": "하이스노바이어티",
+       "ownershipGroup": "highsnobiety",
+       "ownershipBasis": "source_id_fallback"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_qgij22",
+      "title": "나이키의 방수 에어 포스 1은 진정한 윈터 솔저입니다",
+      "sourceLabel": "하이스노바이어티",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-29T19:48:51.000Z",
+      "ownershipGroup": "highsnobiety"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_qgij22",
+      "id": "it_qgij22",
+      "title": "나이키의 방수 에어 포스 1은 진정한 윈터 솔저입니다",
+      "originalTitle": "Nike’s Waterproof Air Force 1 Is the Real Winter Soldier",
+      "sourceId": "highsnobiety",
+      "sourceLabel": "하이스노바이어티",
+      "url": "https://www.highsnobiety.com/p/nike-air-force-1-gore-tex-vibram-black-pine",
+      "canonicalUrl": "https://www.highsnobiety.com/p/nike-air-force-1-gore-tex-vibram-black-pine",
+      "publishedAt": "2026-09-29T19:48:51.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-351377645c15bbc8",
+      "itemId": "it_qgij22",
+      "title": "나이키의 방수 에어 포스 1은 진정한 윈터 솔저입니다",
+      "sourceId": "highsnobiety",
+      "sourceLabel": "하이스노바이어티",
+      "ownershipGroup": "highsnobiety",
+      "canonicalUrl": "https://www.highsnobiety.com/p/nike-air-force-1-gore-tex-vibram-black-pine/",
+      "publishedAt": "2026-09-29T19:48:51.000Z",
+      "evidenceRole": "lead"
+     }
+    ],
+    "firstPublishedAt": "2026-09-29T19:48:51.000Z",
+    "evidenceHash": "a048915691d2409cf05fc3e62960966e1674c6d1ab009c200cd0c5a3c25c1aef",
+    "clusterId": "EV-49582c8f72e653f1",
+    "event": {
+     "eventId": "EV-49582c8f72e653f1",
+     "factsFingerprint": "EVF-3a914eed23889d09",
+     "representativeId": "it_qgij22"
+    }
+   }
+  },
+  {
+   "label": "블박차 과실",
+   "expected": "same",
+   "slot": "evening",
+   "matchMethod": "shared_normalized_title",
+   "matchedTerms": [],
+   "currentLead": {
+    "id": "it_lupm1z",
+    "title": "블박차 과실 40% 나온 레전드 판결.gif",
+    "originalTitle": null,
+    "url": "https://etoland.co.kr/hit/etohumor07/view/%EB%B8%94%EB%B0%95%EC%B0%A8-%EA%B3%BC%EC%8B%A4-40-%EB%82%98%EC%98%A8-%EB%A0%88%EC%A0%84%EB%93%9C-%ED%8C%90%EA%B2%B0-gif-9461300?page=2",
+    "canonicalUrl": "https://etoland.co.kr/hit/etohumor07/view/%EB%B8%94%EB%B0%95%EC%B0%A8-%EA%B3%BC%EC%8B%A4-40-%EB%82%98%EC%98%A8-%EB%A0%88%EC%A0%84%EB%93%9C-%ED%8C%90%EA%B2%B0-gif-9461300?page=2",
+    "source": "etoland",
+    "kind": "community",
+    "publishedAt": "2026-09-28T04:06:19.291Z",
+    "category": "humor"
+   },
+   "previous": {
+    "subject": "블박차 과실 40% 나온 레전드 판결. gif",
+    "headline": "보배드림 상위의 “블박차 과실 40% 나온 레전드 판결. gif” · 댓글 54건",
+    "categoryIds": [
+     "auto"
+    ],
+    "selectedByCategories": [
+     "auto"
+    ],
+    "metrics": {
+     "sourceCount": 1,
+     "independentGroupCount": 1,
+     "score": 87,
+     "comments": 54,
+     "coverage": 0,
+     "evidenceMode": "single_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "community_signal": 1
+     },
+     "verifiedSourceCount": 0,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": true
+    },
+    "evidence": {
+     "mode": "single_feed_observed",
+     "observedFeedCount": 1,
+     "independentGroupCount": 1,
+     "ownershipGroups": [
+      "bobae"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "bobae",
+       "label": "보배드림",
+       "sources": [
+        "bobae"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "bobae",
+       "label": "보배드림",
+       "ownershipGroup": "bobae",
+       "ownershipBasis": "source_id_fallback"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_15vblzi",
+      "title": "블박차 과실 40% 나온 레전드 판결. gif",
+      "sourceLabel": "보배드림",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T00:07:00.000Z",
+      "ownershipGroup": "bobae"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_15vblzi",
+      "id": "it_15vblzi",
+      "title": "블박차 과실 40% 나온 레전드 판결. gif",
+      "originalTitle": null,
+      "sourceId": "bobae",
+      "sourceLabel": "보배드림",
+      "url": "https://www.bobaedream.co.kr/view?code=best&No=1035178&vdate=",
+      "canonicalUrl": "https://www.bobaedream.co.kr/view?code=best&No=1035178&vdate=",
+      "publishedAt": "2026-09-28T00:07:00.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-9b70a2d8d8639b67",
+      "itemId": "it_15vblzi",
+      "title": "블박차 과실 40% 나온 레전드 판결. gif",
+      "sourceId": "bobae",
+      "sourceLabel": "보배드림",
+      "ownershipGroup": "bobae",
+      "canonicalUrl": "https://www.bobaedream.co.kr/view?code=best&No=1035178&vdate=",
+      "publishedAt": "2026-09-28T00:07:00.000Z",
+      "evidenceRole": "lead"
+     }
+    ],
+    "firstPublishedAt": "2026-09-28T00:07:00.000Z",
+    "evidenceHash": "89c4988db471eabbfc353320814b8215bfedd2af2774a03683dd71885c42b4d7",
+    "clusterId": "EV-a497f890fe2f11e0",
+    "event": {
+     "eventId": "EV-a497f890fe2f11e0",
+     "factsFingerprint": "EVF-1ecfb345ab71ec2a",
+     "representativeId": "it_15vblzi"
+    }
+   }
+  },
+  {
+   "label": "LG화학, 폭스바겐과",
+   "expected": "same",
+   "slot": "evening",
+   "matchMethod": "shared_normalized_title",
+   "matchedTerms": [],
+   "currentLead": {
+    "id": "it_1btsr8k",
+    "title": "LG화학, 폭스바겐과 미래차 경량화·친환경 소재 공동 개발",
+    "originalTitle": null,
+    "url": "https://biz.chosun.com/industry/company/2026/09/28/CJOMIJF5VZALPHT4FJIFOEGBCY/",
+    "canonicalUrl": "https://biz.chosun.com/industry/company/2026/09/28/CJOMIJF5VZALPHT4FJIFOEGBCY",
+    "source": "chosunbiz",
+    "kind": "news",
+    "publishedAt": "2026-09-28T09:20:45.000Z",
+    "category": "auto"
+   },
+   "previous": {
+    "subject": "LG화학·폭스바겐, 미래차 소재 개발 협력",
+    "headline": "“LG화학 미래차” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "auto"
+    ],
+    "selectedByCategories": [
+     "auto"
+    ],
+    "metrics": {
+     "sourceCount": 4,
+     "independentGroupCount": 4,
+     "score": 0,
+     "comments": 0,
+     "coverage": 0,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 5
+     },
+     "verifiedSourceCount": 5,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 4,
+     "independentGroupCount": 4,
+     "ownershipGroups": [
+      "herald",
+      "moneytoday",
+      "yonhap",
+      "etoday"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "herald",
+       "label": "헤럴드경제",
+       "sources": [
+        "heraldbiz"
+       ]
+      },
+      {
+       "ownershipGroup": "moneytoday",
+       "label": "머니투데이",
+       "sources": [
+        "mt"
+       ]
+      },
+      {
+       "ownershipGroup": "yonhap",
+       "label": "연합뉴스",
+       "sources": [
+        "yna"
+       ]
+      },
+      {
+       "ownershipGroup": "etoday",
+       "label": "이투데이",
+       "sources": [
+        "etoday"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "heraldbiz",
+       "label": "헤럴드경제",
+       "ownershipGroup": "herald",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "mt",
+       "label": "머니투데이",
+       "ownershipGroup": "moneytoday",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "yna",
+       "label": "연합뉴스",
+       "ownershipGroup": "yonhap",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "etoday",
+       "label": "이투데이",
+       "ownershipGroup": "etoday",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_8ddds1",
+      "title": "LG화학·폭스바겐, 미래차 소재 개발 협력",
+      "sourceLabel": "헤럴드경제",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T02:25:29.000Z",
+      "ownershipGroup": "herald"
+     },
+     {
+      "id": "it_1uf2gwv",
+      "title": "LG화학, 폭스바겐그룹과 '미래차 경량화 소재 개발' 협약",
+      "sourceLabel": "머니투데이",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T00:06:38.000Z",
+      "ownershipGroup": "moneytoday"
+     },
+     {
+      "id": "it_15pp449",
+      "title": "LG화학, 폭스바겐그룹과 미래차 경량·친환경화 소재 혁신 맞손",
+      "sourceLabel": "연합뉴스",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T23:48:47.000Z",
+      "ownershipGroup": "yonhap"
+     },
+     {
+      "id": "it_q0cfua",
+      "title": "LG화학, 폭스바겐과 미래차 경량화·친환경 소재 공동 개발",
+      "sourceLabel": "이투데이",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T23:35:00.000Z",
+      "ownershipGroup": "etoday"
+     },
+     {
+      "id": "it_xz8437",
+      "title": "LG화학·폭스바겐그룹, 미래차 소재 개발 ‘맞손’",
+      "sourceLabel": "헤럴드경제",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T23:54:30.000Z",
+      "ownershipGroup": "herald"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_8ddds1",
+      "id": "it_8ddds1",
+      "title": "LG화학·폭스바겐, 미래차 소재 개발 협력",
+      "originalTitle": null,
+      "sourceId": "heraldbiz",
+      "sourceLabel": "헤럴드경제",
+      "url": "https://biz.heraldcorp.com/article/10886006",
+      "canonicalUrl": "https://biz.heraldcorp.com/article/10886006",
+      "publishedAt": "2026-09-28T02:25:29.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_1uf2gwv",
+      "id": "it_1uf2gwv",
+      "title": "LG화학, 폭스바겐그룹과 '미래차 경량화 소재 개발' 협약",
+      "originalTitle": null,
+      "sourceId": "mt",
+      "sourceLabel": "머니투데이",
+      "url": "https://www.mt.co.kr/industry/2026/09/28/2026092808440177896",
+      "canonicalUrl": "https://www.mt.co.kr/industry/2026/09/28/2026092808440177896",
+      "publishedAt": "2026-09-28T00:06:38.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_15pp449",
+      "id": "it_15pp449",
+      "title": "LG화학, 폭스바겐그룹과 미래차 경량·친환경화 소재 혁신 맞손",
+      "originalTitle": null,
+      "sourceId": "yna",
+      "sourceLabel": "연합뉴스",
+      "url": "https://www.yna.co.kr/view/AKR20260928024100003",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260928024100003",
+      "publishedAt": "2026-09-27T23:48:47.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_q0cfua",
+      "id": "it_q0cfua",
+      "title": "LG화학, 폭스바겐과 미래차 경량화·친환경 소재 공동 개발",
+      "originalTitle": null,
+      "sourceId": "etoday",
+      "sourceLabel": "이투데이",
+      "url": "https://www.etoday.co.kr/news/view/2629659",
+      "canonicalUrl": "https://www.etoday.co.kr/news/view/2629659",
+      "publishedAt": "2026-09-27T23:35:00.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-2f4e01df43676248",
+      "itemId": "it_8ddds1",
+      "title": "LG화학·폭스바겐, 미래차 소재 개발 협력",
+      "sourceId": "heraldbiz",
+      "sourceLabel": "헤럴드경제",
+      "ownershipGroup": "herald",
+      "canonicalUrl": "https://biz.heraldcorp.com/article/10886006",
+      "publishedAt": "2026-09-28T02:25:29.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-abf7e14946870192",
+      "itemId": "it_1uf2gwv",
+      "title": "LG화학, 폭스바겐그룹과 '미래차 경량화 소재 개발' 협약",
+      "sourceId": "mt",
+      "sourceLabel": "머니투데이",
+      "ownershipGroup": "moneytoday",
+      "canonicalUrl": "https://www.mt.co.kr/industry/2026/09/28/2026092808440177896",
+      "publishedAt": "2026-09-28T00:06:38.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-a0187d520571c4b6",
+      "itemId": "it_15pp449",
+      "title": "LG화학, 폭스바겐그룹과 미래차 경량·친환경화 소재 혁신 맞손",
+      "sourceId": "yna",
+      "sourceLabel": "연합뉴스",
+      "ownershipGroup": "yonhap",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260928024100003",
+      "publishedAt": "2026-09-27T23:48:47.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-1cad888a2a5f8d3e",
+      "itemId": "it_q0cfua",
+      "title": "LG화학, 폭스바겐과 미래차 경량화·친환경 소재 공동 개발",
+      "sourceId": "etoday",
+      "sourceLabel": "이투데이",
+      "ownershipGroup": "etoday",
+      "canonicalUrl": "https://www.etoday.co.kr/news/view/2629659",
+      "publishedAt": "2026-09-27T23:35:00.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-09c48d4e22d770e9",
+      "itemId": "it_xz8437",
+      "title": "LG화학·폭스바겐그룹, 미래차 소재 개발 ‘맞손’",
+      "sourceId": "heraldbiz",
+      "sourceLabel": "헤럴드경제",
+      "ownershipGroup": "herald",
+      "canonicalUrl": "https://biz.heraldcorp.com/article/10885607",
+      "publishedAt": "2026-09-27T23:54:30.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-27T23:35:00.000Z",
+    "evidenceHash": "51471c99a3d6dee60bdbe6a7c24c1fbaaffe756c6a2f1d959a642fba39b2ec1e",
+    "clusterId": "EV-80795610c35997de",
+    "event": {
+     "eventId": "EV-80795610c35997de",
+     "factsFingerprint": "EVF-145d66cf09765b43",
+     "representativeId": "it_q0cfua"
+    }
+   }
+  },
+  {
+   "label": "DMZ 폭발 인근서",
+   "expected": "distinct",
+   "slot": "evening",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "dmz",
+    "복수",
+    "수집",
+    "경로",
+    "확인"
+   ],
+   "currentLead": {
+    "id": "it_1a8bfc",
+    "title": "DMZ 폭발 인근서 ‘북한 목함지뢰 유사한 형상 봤다’ 진술…군 “다른 진술도 있어 특정 어려워”",
+    "originalTitle": null,
+    "url": "https://www.khan.co.kr/article/202609281630001/?utm_source=khan_rss&utm_medium=rss&utm_campaign=total_news",
+    "canonicalUrl": "https://www.khan.co.kr/article/202609281630001",
+    "source": "khan",
+    "kind": "news",
+    "publishedAt": "2026-09-28T07:30:00.000Z",
+    "category": "news"
+   },
+   "previous": {
+    "subject": "지뢰 사고 6일 만에 DMZ 현장조사…폭발 지점엔 도달 못 해",
+    "headline": "“DMZ 지뢰” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "politics",
+     "news"
+    ],
+    "selectedByCategories": [
+     "politics"
+    ],
+    "metrics": {
+     "sourceCount": 4,
+     "independentGroupCount": 3,
+     "score": 0,
+     "comments": 0,
+     "coverage": 5,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 4
+     },
+     "verifiedSourceCount": 4,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 4,
+     "independentGroupCount": 3,
+     "ownershipGroups": [
+      "hankyoreh",
+      "khan",
+      "donga"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "hankyoreh",
+       "label": "한겨레 뉴스랭킹",
+       "sources": [
+        "hani-rank"
+       ]
+      },
+      {
+       "ownershipGroup": "khan",
+       "label": "경향신문 정치",
+       "sources": [
+        "khan-politics",
+        "khan"
+       ]
+      },
+      {
+       "ownershipGroup": "donga",
+       "label": "동아일보 정치",
+       "sources": [
+        "donga-politics"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 5,
+     "sources": [
+      {
+       "source": "hani-rank",
+       "label": "한겨레 뉴스랭킹",
+       "ownershipGroup": "hankyoreh",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "khan-politics",
+       "label": "경향신문 정치",
+       "ownershipGroup": "khan",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "khan",
+       "label": "경향신문",
+       "ownershipGroup": "khan",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "donga-politics",
+       "label": "동아일보 정치",
+       "ownershipGroup": "donga",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_1bw9mx9",
+      "title": "지뢰 사고 6일 만에 DMZ 현장조사…폭발 지점엔 도달 못 해",
+      "sourceLabel": "한겨레 뉴스랭킹",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T20:59:47.000Z",
+      "ownershipGroup": "hankyoreh"
+     },
+     {
+      "id": "it_3fzi5q",
+      "title": "DMZ 지뢰 폭발 현장 도달 무산…군 “차후 재개”",
+      "sourceLabel": "경향신문 정치",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T11:47:00.000Z",
+      "ownershipGroup": "khan"
+     },
+     {
+      "id": "it_183eb4s",
+      "title": "[속보]軍·유엔사, 사고 엿새만에 DMZ 폭발현장 조사…지뢰 정밀탐색",
+      "sourceLabel": "동아일보 정치",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T10:35:00.000Z",
+      "ownershipGroup": "donga"
+     },
+     {
+      "id": "it_8bx87",
+      "title": "군·유엔사, DMZ 현장조사했지만 폭발지점 도달 못해…‘미확인 지뢰지대’로 기동로 확보 어려워",
+      "sourceLabel": "경향신문 정치",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T08:07:00.000Z",
+      "ownershipGroup": "khan"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_1bw9mx9",
+      "id": "it_1bw9mx9",
+      "title": "지뢰 사고 6일 만에 DMZ 현장조사…폭발 지점엔 도달 못 해",
+      "originalTitle": null,
+      "sourceId": "hani-rank",
+      "sourceLabel": "한겨레 뉴스랭킹",
+      "url": "https://www.hani.co.kr/arti/politics/defense/1279659.html",
+      "canonicalUrl": "https://www.hani.co.kr/arti/politics/defense/1279659.html",
+      "publishedAt": "2026-09-27T20:59:47.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_3fzi5q",
+      "id": "it_3fzi5q",
+      "title": "DMZ 지뢰 폭발 현장 도달 무산…군 “차후 재개”",
+      "originalTitle": null,
+      "sourceId": "khan-politics",
+      "sourceLabel": "경향신문 정치",
+      "url": "https://www.khan.co.kr/article/202609272047005",
+      "canonicalUrl": "https://www.khan.co.kr/article/202609272047005",
+      "publishedAt": "2026-09-27T11:47:00.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_183eb4s",
+      "id": "it_183eb4s",
+      "title": "[속보]軍·유엔사, 사고 엿새만에 DMZ 폭발현장 조사…지뢰 정밀탐색",
+      "originalTitle": null,
+      "sourceId": "donga-politics",
+      "sourceLabel": "동아일보 정치",
+      "url": "https://www.donga.com/news/Politics/article/all/20260927/134739318/1",
+      "canonicalUrl": "https://www.donga.com/news/Politics/article/all/20260927/134739318/1",
+      "publishedAt": "2026-09-27T10:35:00.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-d0856d7afa4e7af0",
+      "itemId": "it_1bw9mx9",
+      "title": "지뢰 사고 6일 만에 DMZ 현장조사…폭발 지점엔 도달 못 해",
+      "sourceId": "hani-rank",
+      "sourceLabel": "한겨레 뉴스랭킹",
+      "ownershipGroup": "hankyoreh",
+      "canonicalUrl": "https://www.hani.co.kr/arti/politics/defense/1279659.html",
+      "publishedAt": "2026-09-27T20:59:47.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-65294f1e905cab49",
+      "itemId": "it_3fzi5q",
+      "title": "DMZ 지뢰 폭발 현장 도달 무산…군 “차후 재개”",
+      "sourceId": "khan-politics",
+      "sourceLabel": "경향신문 정치",
+      "ownershipGroup": "khan",
+      "canonicalUrl": "https://www.khan.co.kr/article/202609272047005/",
+      "publishedAt": "2026-09-27T11:47:00.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-6464a8b5415a8a3f",
+      "itemId": "it_183eb4s",
+      "title": "[속보]軍·유엔사, 사고 엿새만에 DMZ 폭발현장 조사…지뢰 정밀탐색",
+      "sourceId": "donga-politics",
+      "sourceLabel": "동아일보 정치",
+      "ownershipGroup": "donga",
+      "canonicalUrl": "https://www.donga.com/news/Politics/article/all/20260927/134739318/1",
+      "publishedAt": "2026-09-27T10:35:00.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-8c0d65d923330c13",
+      "itemId": "it_8bx87",
+      "title": "군·유엔사, DMZ 현장조사했지만 폭발지점 도달 못해…‘미확인 지뢰지대’로 기동로 확보 어려워",
+      "sourceId": "khan-politics",
+      "sourceLabel": "경향신문 정치",
+      "ownershipGroup": "khan",
+      "canonicalUrl": "https://www.khan.co.kr/article/202609271707001/",
+      "publishedAt": "2026-09-27T08:07:00.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-27T08:07:00.000Z",
+    "evidenceHash": "bd7da708261a0c101cc312d0a9012ddc196f7145720c09142ee312c5d7d9ead7",
+    "clusterId": "EV-30f3b2b8fd42363f",
+    "event": {
+     "eventId": "EV-30f3b2b8fd42363f",
+     "factsFingerprint": "EVF-bcffbf87b028e608",
+     "representativeId": "it_8bx87"
+    }
+   }
+  },
+  {
+   "label": "與 “지뢰 사고",
+   "expected": "distinct",
+   "slot": "evening",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "복수",
+    "수집",
+    "경로",
+    "확인"
+   ],
+   "currentLead": {
+    "id": "it_1wk4ztd",
+    "title": "與 “지뢰 사고 투명하게 조사” 국힘 “사고 은폐 지시는 탄핵사유”",
+    "originalTitle": null,
+    "url": "https://biz.chosun.com/policy/politics/assembly/2026/09/28/OVOJZOM5EZDZ7BT4EAT22MW6VQ/",
+    "canonicalUrl": "https://biz.chosun.com/policy/politics/assembly/2026/09/28/OVOJZOM5EZDZ7BT4EAT22MW6VQ",
+    "source": "chosunbiz",
+    "kind": "news",
+    "publishedAt": "2026-09-28T02:39:21.000Z",
+    "category": "business"
+   },
+   "previous": {
+    "subject": "지뢰 사고 6일 만에 DMZ 현장조사…폭발 지점엔 도달 못 해",
+    "headline": "“DMZ 지뢰” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "politics",
+     "news"
+    ],
+    "selectedByCategories": [
+     "politics"
+    ],
+    "metrics": {
+     "sourceCount": 4,
+     "independentGroupCount": 3,
+     "score": 0,
+     "comments": 0,
+     "coverage": 5,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 4
+     },
+     "verifiedSourceCount": 4,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 4,
+     "independentGroupCount": 3,
+     "ownershipGroups": [
+      "hankyoreh",
+      "khan",
+      "donga"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "hankyoreh",
+       "label": "한겨레 뉴스랭킹",
+       "sources": [
+        "hani-rank"
+       ]
+      },
+      {
+       "ownershipGroup": "khan",
+       "label": "경향신문 정치",
+       "sources": [
+        "khan-politics",
+        "khan"
+       ]
+      },
+      {
+       "ownershipGroup": "donga",
+       "label": "동아일보 정치",
+       "sources": [
+        "donga-politics"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 5,
+     "sources": [
+      {
+       "source": "hani-rank",
+       "label": "한겨레 뉴스랭킹",
+       "ownershipGroup": "hankyoreh",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "khan-politics",
+       "label": "경향신문 정치",
+       "ownershipGroup": "khan",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "khan",
+       "label": "경향신문",
+       "ownershipGroup": "khan",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "donga-politics",
+       "label": "동아일보 정치",
+       "ownershipGroup": "donga",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_1bw9mx9",
+      "title": "지뢰 사고 6일 만에 DMZ 현장조사…폭발 지점엔 도달 못 해",
+      "sourceLabel": "한겨레 뉴스랭킹",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T20:59:47.000Z",
+      "ownershipGroup": "hankyoreh"
+     },
+     {
+      "id": "it_3fzi5q",
+      "title": "DMZ 지뢰 폭발 현장 도달 무산…군 “차후 재개”",
+      "sourceLabel": "경향신문 정치",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T11:47:00.000Z",
+      "ownershipGroup": "khan"
+     },
+     {
+      "id": "it_183eb4s",
+      "title": "[속보]軍·유엔사, 사고 엿새만에 DMZ 폭발현장 조사…지뢰 정밀탐색",
+      "sourceLabel": "동아일보 정치",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T10:35:00.000Z",
+      "ownershipGroup": "donga"
+     },
+     {
+      "id": "it_8bx87",
+      "title": "군·유엔사, DMZ 현장조사했지만 폭발지점 도달 못해…‘미확인 지뢰지대’로 기동로 확보 어려워",
+      "sourceLabel": "경향신문 정치",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-27T08:07:00.000Z",
+      "ownershipGroup": "khan"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_1bw9mx9",
+      "id": "it_1bw9mx9",
+      "title": "지뢰 사고 6일 만에 DMZ 현장조사…폭발 지점엔 도달 못 해",
+      "originalTitle": null,
+      "sourceId": "hani-rank",
+      "sourceLabel": "한겨레 뉴스랭킹",
+      "url": "https://www.hani.co.kr/arti/politics/defense/1279659.html",
+      "canonicalUrl": "https://www.hani.co.kr/arti/politics/defense/1279659.html",
+      "publishedAt": "2026-09-27T20:59:47.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_3fzi5q",
+      "id": "it_3fzi5q",
+      "title": "DMZ 지뢰 폭발 현장 도달 무산…군 “차후 재개”",
+      "originalTitle": null,
+      "sourceId": "khan-politics",
+      "sourceLabel": "경향신문 정치",
+      "url": "https://www.khan.co.kr/article/202609272047005",
+      "canonicalUrl": "https://www.khan.co.kr/article/202609272047005",
+      "publishedAt": "2026-09-27T11:47:00.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_183eb4s",
+      "id": "it_183eb4s",
+      "title": "[속보]軍·유엔사, 사고 엿새만에 DMZ 폭발현장 조사…지뢰 정밀탐색",
+      "originalTitle": null,
+      "sourceId": "donga-politics",
+      "sourceLabel": "동아일보 정치",
+      "url": "https://www.donga.com/news/Politics/article/all/20260927/134739318/1",
+      "canonicalUrl": "https://www.donga.com/news/Politics/article/all/20260927/134739318/1",
+      "publishedAt": "2026-09-27T10:35:00.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-d0856d7afa4e7af0",
+      "itemId": "it_1bw9mx9",
+      "title": "지뢰 사고 6일 만에 DMZ 현장조사…폭발 지점엔 도달 못 해",
+      "sourceId": "hani-rank",
+      "sourceLabel": "한겨레 뉴스랭킹",
+      "ownershipGroup": "hankyoreh",
+      "canonicalUrl": "https://www.hani.co.kr/arti/politics/defense/1279659.html",
+      "publishedAt": "2026-09-27T20:59:47.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-65294f1e905cab49",
+      "itemId": "it_3fzi5q",
+      "title": "DMZ 지뢰 폭발 현장 도달 무산…군 “차후 재개”",
+      "sourceId": "khan-politics",
+      "sourceLabel": "경향신문 정치",
+      "ownershipGroup": "khan",
+      "canonicalUrl": "https://www.khan.co.kr/article/202609272047005/",
+      "publishedAt": "2026-09-27T11:47:00.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-6464a8b5415a8a3f",
+      "itemId": "it_183eb4s",
+      "title": "[속보]軍·유엔사, 사고 엿새만에 DMZ 폭발현장 조사…지뢰 정밀탐색",
+      "sourceId": "donga-politics",
+      "sourceLabel": "동아일보 정치",
+      "ownershipGroup": "donga",
+      "canonicalUrl": "https://www.donga.com/news/Politics/article/all/20260927/134739318/1",
+      "publishedAt": "2026-09-27T10:35:00.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-8c0d65d923330c13",
+      "itemId": "it_8bx87",
+      "title": "군·유엔사, DMZ 현장조사했지만 폭발지점 도달 못해…‘미확인 지뢰지대’로 기동로 확보 어려워",
+      "sourceId": "khan-politics",
+      "sourceLabel": "경향신문 정치",
+      "ownershipGroup": "khan",
+      "canonicalUrl": "https://www.khan.co.kr/article/202609271707001/",
+      "publishedAt": "2026-09-27T08:07:00.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-27T08:07:00.000Z",
+    "evidenceHash": "bd7da708261a0c101cc312d0a9012ddc196f7145720c09142ee312c5d7d9ead7",
+    "clusterId": "EV-30f3b2b8fd42363f",
+    "event": {
+     "eventId": "EV-30f3b2b8fd42363f",
+     "factsFingerprint": "EVF-bcffbf87b028e608",
+     "representativeId": "it_8bx87"
+    }
+   }
+  },
+  {
+   "label": "8700억 군산",
+   "expected": "same",
+   "slot": "evening",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "num:870000000000",
+    "군산",
+    "데이터센터",
+    "현대eng",
+    "수주"
+   ],
+   "currentLead": {
+    "id": "it_zq20t6",
+    "title": "8700억 군산 AI데이터센터 … 현대ENG 수주…내달 착공",
+    "originalTitle": null,
+    "url": "https://www.mk.co.kr/news/it/12162859",
+    "canonicalUrl": "https://www.mk.co.kr/news/it/12162859",
+    "source": "mk-news",
+    "kind": "news",
+    "publishedAt": "2026-09-28T08:11:22.000Z",
+    "category": "tech"
+   },
+   "previous": {
+    "subject": "현대엔지니어링, 8700억 군산 AI 데이터센터 수주",
+    "headline": "“데이터센터 군산” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "tech"
+    ],
+    "selectedByCategories": [
+     "tech"
+    ],
+    "metrics": {
+     "sourceCount": 7,
+     "independentGroupCount": 7,
+     "score": 0,
+     "comments": 0,
+     "coverage": 5,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 8
+     },
+     "verifiedSourceCount": 8,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 7,
+     "independentGroupCount": 7,
+     "ownershipGroups": [
+      "herald",
+      "moneytoday",
+      "donga",
+      "yonhap",
+      "etoday",
+      "publisher:연합인포맥스",
+      "chosun"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "herald",
+       "label": "헤럴드경제",
+       "sources": [
+        "heraldbiz"
+       ]
+      },
+      {
+       "ownershipGroup": "moneytoday",
+       "label": "머니투데이",
+       "sources": [
+        "mt"
+       ]
+      },
+      {
+       "ownershipGroup": "donga",
+       "label": "동아일보",
+       "sources": [
+        "donga"
+       ]
+      },
+      {
+       "ownershipGroup": "yonhap",
+       "label": "연합뉴스",
+       "sources": [
+        "yna"
+       ]
+      },
+      {
+       "ownershipGroup": "etoday",
+       "label": "이투데이",
+       "sources": [
+        "etoday"
+       ]
+      },
+      {
+       "ownershipGroup": "publisher:연합인포맥스",
+       "label": "연합인포맥스",
+       "sources": [
+        "gnews-biz"
+       ]
+      },
+      {
+       "ownershipGroup": "chosun",
+       "label": "조선비즈",
+       "sources": [
+        "chosunbiz"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 5,
+     "sources": [
+      {
+       "source": "heraldbiz",
+       "label": "헤럴드경제",
+       "ownershipGroup": "herald",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "mt",
+       "label": "머니투데이",
+       "ownershipGroup": "moneytoday",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "donga",
+       "label": "동아일보",
+       "ownershipGroup": "donga",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "yna",
+       "label": "연합뉴스",
+       "ownershipGroup": "yonhap",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "etoday",
+       "label": "이투데이",
+       "ownershipGroup": "etoday",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "gnews-biz",
+       "label": "연합인포맥스",
+       "ownershipGroup": "publisher:연합인포맥스",
+       "ownershipBasis": "publisher_label_operational"
+      },
+      {
+       "source": "chosunbiz",
+       "label": "조선비즈",
+       "ownershipGroup": "chosun",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_1oofakx",
+      "title": "현대엔지니어링, 8700억 군산 AI 데이터센터 수주",
+      "sourceLabel": "헤럴드경제",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T02:26:55.000Z",
+      "ownershipGroup": "herald"
+     },
+     {
+      "id": "it_itjzkh",
+      "title": "현대엔지니어링, 8700억 군산 AI 데이터센터 신축사업 수주",
+      "sourceLabel": "머니투데이",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T01:42:37.000Z",
+      "ownershipGroup": "moneytoday"
+     },
+     {
+      "id": "it_sm0jc0",
+      "title": "현대엔지니어링, 군산 60MW AI 데이터센터 수주…8700억 규모",
+      "sourceLabel": "동아일보",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T01:26:14.000Z",
+      "ownershipGroup": "donga"
+     },
+     {
+      "id": "it_1x0joxd",
+      "title": "현대엔지니어링, 군산 SGC AI 데이터센터 신축사업 수주",
+      "sourceLabel": "연합뉴스",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T01:17:47.000Z",
+      "ownershipGroup": "yonhap"
+     },
+     {
+      "id": "it_zwjvuu",
+      "title": "현대ENG, 8700억 군산 AI 데이터센터 수주",
+      "sourceLabel": "이투데이",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T01:00:00.000Z",
+      "ownershipGroup": "etoday"
+     },
+     {
+      "id": "it_mk9uly",
+      "title": "현대엔지, 군산 AI 데이터센터 신축 수주",
+      "sourceLabel": "연합인포맥스",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T00:38:39.000Z",
+      "ownershipGroup": "publisher:연합인포맥스"
+     },
+     {
+      "id": "it_19gz7xe",
+      "title": "현대엔지니어링, 8700억원 규모 군산 AI 데이터센터 수주",
+      "sourceLabel": "조선비즈",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T01:00:09.000Z",
+      "ownershipGroup": "chosun"
+     },
+     {
+      "id": "it_1f3s6gz",
+      "title": "현대엔지니어링, 8700억원 ‘군산 AI 데이터센터 신축 사업’ 수주",
+      "sourceLabel": "헤럴드경제",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T00:26:52.000Z",
+      "ownershipGroup": "herald"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_1oofakx",
+      "id": "it_1oofakx",
+      "title": "현대엔지니어링, 8700억 군산 AI 데이터센터 수주",
+      "originalTitle": null,
+      "sourceId": "heraldbiz",
+      "sourceLabel": "헤럴드경제",
+      "url": "https://biz.heraldcorp.com/article/10886023",
+      "canonicalUrl": "https://biz.heraldcorp.com/article/10886023",
+      "publishedAt": "2026-09-28T02:26:55.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_itjzkh",
+      "id": "it_itjzkh",
+      "title": "현대엔지니어링, 8700억 군산 AI 데이터센터 신축사업 수주",
+      "originalTitle": null,
+      "sourceId": "mt",
+      "sourceLabel": "머니투데이",
+      "url": "https://www.mt.co.kr/estate/2026/09/28/2026092810371264074",
+      "canonicalUrl": "https://www.mt.co.kr/estate/2026/09/28/2026092810371264074",
+      "publishedAt": "2026-09-28T01:42:37.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_sm0jc0",
+      "id": "it_sm0jc0",
+      "title": "현대엔지니어링, 군산 60MW AI 데이터센터 수주…8700억 규모",
+      "originalTitle": null,
+      "sourceId": "donga",
+      "sourceLabel": "동아일보",
+      "url": "https://www.donga.com/news/Economy/article/all/20260928/134741825/1",
+      "canonicalUrl": "https://www.donga.com/news/Economy/article/all/20260928/134741825/1",
+      "publishedAt": "2026-09-28T01:26:14.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_1x0joxd",
+      "id": "it_1x0joxd",
+      "title": "현대엔지니어링, 군산 SGC AI 데이터센터 신축사업 수주",
+      "originalTitle": null,
+      "sourceId": "yna",
+      "sourceLabel": "연합뉴스",
+      "url": "https://www.yna.co.kr/view/AKR20260928054800003",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260928054800003",
+      "publishedAt": "2026-09-28T01:17:47.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_zwjvuu",
+      "id": "it_zwjvuu",
+      "title": "현대ENG, 8700억 군산 AI 데이터센터 수주",
+      "originalTitle": null,
+      "sourceId": "etoday",
+      "sourceLabel": "이투데이",
+      "url": "https://www.etoday.co.kr/news/view/2629767",
+      "canonicalUrl": "https://www.etoday.co.kr/news/view/2629767",
+      "publishedAt": "2026-09-28T01:00:00.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_mk9uly",
+      "id": "it_mk9uly",
+      "title": "현대엔지, 군산 AI 데이터센터 신축 수주",
+      "originalTitle": null,
+      "sourceId": "gnews-biz",
+      "sourceLabel": "연합인포맥스",
+      "url": "https://news.google.com/rss/articles/CBMicEFVX3lxTE5kQ1JOX2JTY2lFaGcxM0k3ekVGa1VpY0t3WU5rR1o5NnNnNkZnTzhTR2xjczEtMGR5WDl5TlUtTjJ1aG9SdXR3b2oxOHlIWVlsS0FtUE5mMHBiZ3MzSWwwZllfVDdua2VuSXJqakVBVDQ?oc=5",
+      "canonicalUrl": "https://news.google.com/rss/articles/CBMicEFVX3lxTE5kQ1JOX2JTY2lFaGcxM0k3ekVGa1VpY0t3WU5rR1o5NnNnNkZnTzhTR2xjczEtMGR5WDl5TlUtTjJ1aG9SdXR3b2oxOHlIWVlsS0FtUE5mMHBiZ3MzSWwwZllfVDdua2VuSXJqakVBVDQ?oc=5",
+      "publishedAt": "2026-09-28T00:38:39.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_19gz7xe",
+      "id": "it_19gz7xe",
+      "title": "현대엔지니어링, 8700억원 규모 군산 AI 데이터센터 수주",
+      "originalTitle": null,
+      "sourceId": "chosunbiz",
+      "sourceLabel": "조선비즈",
+      "url": "https://biz.chosun.com/real_estate/real_estate_general/2026/09/28/ZAL56QNEXJBATFPPYYHB7SZGKI",
+      "canonicalUrl": "https://biz.chosun.com/real_estate/real_estate_general/2026/09/28/ZAL56QNEXJBATFPPYYHB7SZGKI",
+      "publishedAt": "2026-09-28T01:00:09.000Z",
+      "canLead": false
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-30a437c468324495",
+      "itemId": "it_1oofakx",
+      "title": "현대엔지니어링, 8700억 군산 AI 데이터센터 수주",
+      "sourceId": "heraldbiz",
+      "sourceLabel": "헤럴드경제",
+      "ownershipGroup": "herald",
+      "canonicalUrl": "https://biz.heraldcorp.com/article/10886023",
+      "publishedAt": "2026-09-28T02:26:55.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-d3b1c9ec5841ca9f",
+      "itemId": "it_itjzkh",
+      "title": "현대엔지니어링, 8700억 군산 AI 데이터센터 신축사업 수주",
+      "sourceId": "mt",
+      "sourceLabel": "머니투데이",
+      "ownershipGroup": "moneytoday",
+      "canonicalUrl": "https://www.mt.co.kr/estate/2026/09/28/2026092810371264074",
+      "publishedAt": "2026-09-28T01:42:37.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-1a00ecaecf5ad5ee",
+      "itemId": "it_sm0jc0",
+      "title": "현대엔지니어링, 군산 60MW AI 데이터센터 수주…8700억 규모",
+      "sourceId": "donga",
+      "sourceLabel": "동아일보",
+      "ownershipGroup": "donga",
+      "canonicalUrl": "https://www.donga.com/news/Economy/article/all/20260928/134741825/1",
+      "publishedAt": "2026-09-28T01:26:14.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-04fbefa36016ba5d",
+      "itemId": "it_1x0joxd",
+      "title": "현대엔지니어링, 군산 SGC AI 데이터센터 신축사업 수주",
+      "sourceId": "yna",
+      "sourceLabel": "연합뉴스",
+      "ownershipGroup": "yonhap",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260928054800003",
+      "publishedAt": "2026-09-28T01:17:47.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-40fdff1d53a44b93",
+      "itemId": "it_zwjvuu",
+      "title": "현대ENG, 8700억 군산 AI 데이터센터 수주",
+      "sourceId": "etoday",
+      "sourceLabel": "이투데이",
+      "ownershipGroup": "etoday",
+      "canonicalUrl": "https://www.etoday.co.kr/news/view/2629767",
+      "publishedAt": "2026-09-28T01:00:00.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-f8a724b7f38de6f6",
+      "itemId": "it_mk9uly",
+      "title": "현대엔지, 군산 AI 데이터센터 신축 수주",
+      "sourceId": "gnews-biz",
+      "sourceLabel": "연합인포맥스",
+      "ownershipGroup": "publisher:연합인포맥스",
+      "canonicalUrl": "https://news.google.com/rss/articles/CBMicEFVX3lxTE5kQ1JOX2JTY2lFaGcxM0k3ekVGa1VpY0t3WU5rR1o5NnNnNkZnTzhTR2xjczEtMGR5WDl5TlUtTjJ1aG9SdXR3b2oxOHlIWVlsS0FtUE5mMHBiZ3MzSWwwZllfVDdua2VuSXJqakVBVDQ?oc=5",
+      "publishedAt": "2026-09-28T00:38:39.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-6078ac86e6392486",
+      "itemId": "it_19gz7xe",
+      "title": "현대엔지니어링, 8700억원 규모 군산 AI 데이터센터 수주",
+      "sourceId": "chosunbiz",
+      "sourceLabel": "조선비즈",
+      "ownershipGroup": "chosun",
+      "canonicalUrl": "https://biz.chosun.com/real_estate/real_estate_general/2026/09/28/ZAL56QNEXJBATFPPYYHB7SZGKI/",
+      "publishedAt": "2026-09-28T01:00:09.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-c435fbeb1eba942c",
+      "itemId": "it_1f3s6gz",
+      "title": "현대엔지니어링, 8700억원 ‘군산 AI 데이터센터 신축 사업’ 수주",
+      "sourceId": "heraldbiz",
+      "sourceLabel": "헤럴드경제",
+      "ownershipGroup": "herald",
+      "canonicalUrl": "https://biz.heraldcorp.com/article/10885727",
+      "publishedAt": "2026-09-28T00:26:52.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-28T00:26:52.000Z",
+    "evidenceHash": "f5c8ca6a12b1f7fbf6ce1179287fcf6217b391cf27d3462d1865ff1a2085abe1",
+    "clusterId": "EV-98600c4b676f6bc4",
+    "event": {
+     "eventId": "EV-98600c4b676f6bc4",
+     "factsFingerprint": "EVF-8164e832d50ee10d",
+     "representativeId": "it_1f3s6gz"
+    }
+   }
+  },
+  {
+   "label": "LAFC, 도스 산토스 감독 전격 경질",
+   "expected": "same",
+   "slot": "evening",
+   "matchMethod": "shared_event_concepts",
+   "matchedTerms": [
+    "손흥민",
+    "소속팀",
+    "lafc",
+    "도스",
+    "산토스",
+    "감독",
+    "경질"
+   ],
+   "currentLead": {
+    "id": "it_106oyox",
+    "title": "'충격' 손흥민 대표팀 차출되자 결국 터졌다...LAFC, 도스 산토스 감독 전격 경질 '9개월 동행 끝'",
+    "originalTitle": null,
+    "url": "https://biz.chosun.com/sports/football/2026/09/28/GRQTGY3GGY2GKMJQMM3WMN3EME/",
+    "canonicalUrl": "https://biz.chosun.com/sports/football/2026/09/28/GRQTGY3GGY2GKMJQMM3WMN3EME",
+    "source": "chosunbiz",
+    "kind": "news",
+    "publishedAt": "2026-09-28T09:20:00.000Z",
+    "category": "sports"
+   },
+   "previous": {
+    "subject": "손흥민 소속팀 LAFC, 도스 산토스 감독 경질⋯새 사령탑 물색",
+    "headline": "“LAFC 손흥민” · 복수 수집 경로 확인",
+    "categoryIds": [
+     "sports"
+    ],
+    "selectedByCategories": [
+     "sports"
+    ],
+    "metrics": {
+     "sourceCount": 3,
+     "independentGroupCount": 3,
+     "score": 0,
+     "comments": 0,
+     "coverage": 0,
+     "evidenceMode": "multiple_feed_observed",
+     "relatedCoverageSignal": false,
+     "sourceRoles": {
+      "reported_secondary": 3
+     },
+     "verifiedSourceCount": 3,
+     "carryoverUsed": false,
+     "carryoverEvidenceCount": 0,
+     "communityOnly": false
+    },
+    "evidence": {
+     "mode": "multiple_feed_observed",
+     "observedFeedCount": 3,
+     "independentGroupCount": 3,
+     "ownershipGroups": [
+      "etoday",
+      "yonhap",
+      "moneytoday"
+     ],
+     "groups": [
+      {
+       "ownershipGroup": "etoday",
+       "label": "이투데이",
+       "sources": [
+        "etoday"
+       ]
+      },
+      {
+       "ownershipGroup": "yonhap",
+       "label": "연합뉴스 스포츠",
+       "sources": [
+        "yna-sports"
+       ]
+      },
+      {
+       "ownershipGroup": "moneytoday",
+       "label": "머니투데이",
+       "sources": [
+        "mt"
+       ]
+      }
+     ],
+     "independenceBasis": "operational_group_not_legal_independence",
+     "relatedCoverageSignal": false,
+     "coverage": 0,
+     "sources": [
+      {
+       "source": "etoday",
+       "label": "이투데이",
+       "ownershipGroup": "etoday",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "yna-sports",
+       "label": "연합뉴스 스포츠",
+       "ownershipGroup": "yonhap",
+       "ownershipBasis": "publisher_alias_operational"
+      },
+      {
+       "source": "mt",
+       "label": "머니투데이",
+       "ownershipGroup": "moneytoday",
+       "ownershipBasis": "publisher_alias_operational"
+      }
+     ]
+    },
+    "refs": [
+     {
+      "id": "it_kdgkl6",
+      "title": "손흥민 소속팀 LAFC, 도스 산토스 감독 경질⋯새 사령탑 물색",
+      "sourceLabel": "이투데이",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T02:26:00.000Z",
+      "ownershipGroup": "etoday"
+     },
+     {
+      "id": "it_dp4ulc",
+      "title": "손흥민 뛰는 LAFC, 도스 산토스 감독 경질",
+      "sourceLabel": "연합뉴스 스포츠",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T01:50:35.000Z",
+      "ownershipGroup": "yonhap"
+     },
+     {
+      "id": "it_imb35o",
+      "title": "[오피셜] '손흥민 국가대표 떠난 사이' LAFC 감독, 끝내 충격 경질... '단 1년 만에' 불명예 퇴진",
+      "sourceLabel": "머니투데이",
+      "canonicalUrl": null,
+      "publishedAt": "2026-09-28T01:37:32.000Z",
+      "ownershipGroup": "moneytoday"
+     }
+    ],
+    "eventSources": [
+     {
+      "evidenceId": "event-source:it_kdgkl6",
+      "id": "it_kdgkl6",
+      "title": "손흥민 소속팀 LAFC, 도스 산토스 감독 경질⋯새 사령탑 물색",
+      "originalTitle": null,
+      "sourceId": "etoday",
+      "sourceLabel": "이투데이",
+      "url": "https://www.etoday.co.kr/news/view/2629838",
+      "canonicalUrl": "https://www.etoday.co.kr/news/view/2629838",
+      "publishedAt": "2026-09-28T02:26:00.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_dp4ulc",
+      "id": "it_dp4ulc",
+      "title": "손흥민 뛰는 LAFC, 도스 산토스 감독 경질",
+      "originalTitle": null,
+      "sourceId": "yna-sports",
+      "sourceLabel": "연합뉴스 스포츠",
+      "url": "https://www.yna.co.kr/view/AKR20260928064900007",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260928064900007",
+      "publishedAt": "2026-09-28T01:50:35.000Z",
+      "canLead": true
+     },
+     {
+      "evidenceId": "event-source:it_imb35o",
+      "id": "it_imb35o",
+      "title": "[오피셜] '손흥민 국가대표 떠난 사이' LAFC 감독, 끝내 충격 경질... '단 1년 만에' 불명예 퇴진",
+      "originalTitle": null,
+      "sourceId": "mt",
+      "sourceLabel": "머니투데이",
+      "url": "https://www.mt.co.kr/sports/2026/09/28/2026092810292962267",
+      "canonicalUrl": "https://www.mt.co.kr/sports/2026/09/28/2026092810292962267",
+      "publishedAt": "2026-09-28T01:37:32.000Z",
+      "canLead": true
+     }
+    ],
+    "sourceEvidence": [
+     {
+      "evidenceId": "NHE-49d6ca4d5d79f1b7",
+      "itemId": "it_kdgkl6",
+      "title": "손흥민 소속팀 LAFC, 도스 산토스 감독 경질⋯새 사령탑 물색",
+      "sourceId": "etoday",
+      "sourceLabel": "이투데이",
+      "ownershipGroup": "etoday",
+      "canonicalUrl": "https://www.etoday.co.kr/news/view/2629838",
+      "publishedAt": "2026-09-28T02:26:00.000Z",
+      "evidenceRole": "lead"
+     },
+     {
+      "evidenceId": "NHE-6e80fcad7ad7a515",
+      "itemId": "it_dp4ulc",
+      "title": "손흥민 뛰는 LAFC, 도스 산토스 감독 경질",
+      "sourceId": "yna-sports",
+      "sourceLabel": "연합뉴스 스포츠",
+      "ownershipGroup": "yonhap",
+      "canonicalUrl": "https://www.yna.co.kr/view/AKR20260928064900007",
+      "publishedAt": "2026-09-28T01:50:35.000Z",
+      "evidenceRole": "corroborating"
+     },
+     {
+      "evidenceId": "NHE-db271264fdb3f757",
+      "itemId": "it_imb35o",
+      "title": "[오피셜] '손흥민 국가대표 떠난 사이' LAFC 감독, 끝내 충격 경질... '단 1년 만에' 불명예 퇴진",
+      "sourceId": "mt",
+      "sourceLabel": "머니투데이",
+      "ownershipGroup": "moneytoday",
+      "canonicalUrl": "https://www.mt.co.kr/sports/2026/09/28/2026092810292962267",
+      "publishedAt": "2026-09-28T01:37:32.000Z",
+      "evidenceRole": "corroborating"
+     }
+    ],
+    "firstPublishedAt": "2026-09-28T01:37:32.000Z",
+    "evidenceHash": "e3758082add9b278cbe6a50ddf3733167c5d0dea095d1393e67ad146171702c4",
+    "clusterId": "EV-6c3dffb0f5a8a4fc",
+    "event": {
+     "eventId": "EV-6c3dffb0f5a8a4fc",
+     "factsFingerprint": "EVF-764a053f0627219f",
+     "representativeId": "it_imb35o"
+    }
+   }
+  }
+ ]
+}

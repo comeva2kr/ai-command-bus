@@ -1,0 +1,126 @@
+[
+  {
+    "date": "2026-09-28",
+    "slot": "evening",
+    "before": {
+      "artifactId": "SCE-b38ae028dcaaf887",
+      "total": 191,
+      "news": 161,
+      "primaryNews": 138,
+      "previousDayNews": 0,
+      "primaryNewsPct": 85.7,
+      "earlierExactLeadUrls": 10,
+      "lanes": {
+        "news": 14,
+        "tech": 14,
+        "auto": 14,
+        "science": 14,
+        "business": 14,
+        "gaming": 14,
+        "sports": 14,
+        "culture": 14,
+        "life": 14,
+        "humor": 14,
+        "politics": 14,
+        "realestate": 14,
+        "fashion": 14,
+        "art": 14
+      },
+      "detailStates": {
+        "source_unavailable": 37,
+        "excerpt_only": 154
+      }
+    },
+    "after": {
+      "artifactId": "SCE-8513db1b0c5f79d4",
+      "total": 209,
+      "news": 181,
+      "primaryNews": 166,
+      "previousDayNews": 0,
+      "primaryNewsPct": 91.7,
+      "earlierExactLeadUrls": 1,
+      "lanes": {
+        "news": 16,
+        "tech": 15,
+        "auto": 18,
+        "science": 14,
+        "business": 17,
+        "gaming": 14,
+        "sports": 15,
+        "culture": 18,
+        "life": 16,
+        "humor": 14,
+        "politics": 16,
+        "realestate": 14,
+        "fashion": 13,
+        "art": 14
+      },
+      "detailStates": {
+        "source_unavailable": 33,
+        "excerpt_only": 176
+      }
+    }
+  },
+  {
+    "date": "2026-09-30",
+    "slot": "lunch",
+    "before": {
+      "artifactId": "SCE-9da8530b0dd50c50",
+      "total": 190,
+      "news": 166,
+      "primaryNews": 142,
+      "previousDayNews": 0,
+      "primaryNewsPct": 85.5,
+      "earlierExactLeadUrls": 0,
+      "lanes": {
+        "news": 14,
+        "tech": 14,
+        "auto": 14,
+        "science": 14,
+        "business": 14,
+        "gaming": 14,
+        "sports": 14,
+        "culture": 14,
+        "life": 14,
+        "humor": 14,
+        "politics": 14,
+        "realestate": 14,
+        "fashion": 14,
+        "art": 12
+      },
+      "detailStates": {
+        "source_unavailable": 32,
+        "excerpt_only": 158
+      }
+    },
+    "after": {
+      "artifactId": "SCE-f11ad1898284fa08",
+      "total": 198,
+      "news": 172,
+      "primaryNews": 148,
+      "previousDayNews": 0,
+      "primaryNewsPct": 86,
+      "earlierExactLeadUrls": 1,
+      "lanes": {
+        "news": 14,
+        "tech": 15,
+        "auto": 17,
+        "science": 14,
+        "business": 16,
+        "gaming": 14,
+        "sports": 16,
+        "culture": 15,
+        "life": 14,
+        "humor": 14,
+        "politics": 14,
+        "realestate": 14,
+        "fashion": 14,
+        "art": 12
+      },
+      "detailStates": {
+        "source_unavailable": 34,
+        "excerpt_only": 164
+      }
+    }
+  }
+]

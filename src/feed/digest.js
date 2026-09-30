@@ -309,7 +309,7 @@ const fmt = (n) => {
 // 과학은 화제성만으로 대표 이슈를 세우면 농담·추측성 커뮤니티 글이 연구 보도보다
 // 앞설 수 있다. 커뮤니티 신호는 유지하되 보도·공식 근거가 있는 이슈를 먼저 둔다.
 const EDITORIAL_WEIGHTY = new Set([...WEIGHTY, "realestate", "science"]);
-const VERIFIED_SOURCE_ROLES = new Set(["primary", "reported_secondary", "first_party"]);
+export const VERIFIED_SOURCE_ROLES = new Set(["primary", "reported_secondary", "first_party"]);
 const VERIFIED_SOURCE_BONUS = 90;
 
 function sourceRoleOf(item) {

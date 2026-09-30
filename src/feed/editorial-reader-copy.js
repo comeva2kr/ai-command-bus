@@ -22,10 +22,10 @@ export const EDITORIAL_READER_COPY_CONTRACT = deepFreeze({
 
 export const EDITORIAL_EVENT_FRAME_CONTRACT = deepFreeze({
   stableId: "NOWHOT-EDITORIAL-EVENT-FRAME-CONTRACT-001",
-  version: 2,
+  version: 3,
   primaryFields: ["preparedHeadline", "subject", "headline"],
   excludedInputs: ["refs", "related_observation"],
-  rule: "교정 제목·주제·제목 순으로 주 사건을 선택한다. 배경 문단과 관련기사는 프레임을 바꾸지 못한다."
+  rule: "교정 제목·주제·제목 순으로 주 사건을 선택한다. 배경 문단과 관련기사는 프레임을 바꾸지 못한다. 커뮤니티 단독 글에는 뉴스 사건 프레임을 적용하지 않는다."
 });
 
 export const READER_COPY_FIELDS = Object.freeze([
@@ -195,6 +195,7 @@ function issueEventText(issue) {
 }
 
 function editorialEventFrameMatch(issue) {
+  if (issue && issue.metrics && issue.metrics.communityOnly === true) return null;
   const text = issueEventText(issue);
   const frame = EDITORIAL_EVENT_FRAMES.find((candidate) => candidate.match.test(text)) || null;
   if (!frame) return null;
@@ -207,10 +208,15 @@ function editorialEventFrameMatch(issue) {
 
 const editorialEventFrame = (issue) => editorialEventFrameMatch(issue)?.frame || null;
 
+// NH167 F3: a broadcaster's video label ("Watch: …" → "시청: …") is a lead tag, not the story.
+// Only the colon-delimited label is removed; words like 시청률 or a title that merely starts with
+// 영상 are untouched.
+export const VIDEO_TITLE_PREFIX = /^\s*(?:watch|video|시청|영상|동영상)\s*[:：]\s*/i;
+
 function stripLeadTags(value) {
   let text = clean(value);
   for (let index = 0; index < 3; index += 1) {
-    const stripped = text.replace(/^\s*[[【(<][^\]】)>]{0,16}[\]】)>]\s*/, "");
+    const stripped = text.replace(/^\s*[[【(<][^\]】)>]{0,16}[\]】)>]\s*/, "").replace(VIDEO_TITLE_PREFIX, "");
     if (stripped === text) break;
     text = stripped;
   }
@@ -311,7 +317,8 @@ function withEventContext(issue, sentence) {
 }
 
 function readerHeadline(issue) {
-  const prepared = clean(issue && issue.preparedHeadline);
+  // A prepared headline is the reviewed/translated text; only the video label is normalised off it.
+  const prepared = clean(issue && issue.preparedHeadline).replace(VIDEO_TITLE_PREFIX, "");
   if (prepared) return prepared;
   if (verifiedEditSupport(issue, "headline")) return clean(issue.headline);
   const subject = stripPublisherTitleTail(stripLeadTags(issue && issue.subject), issue);
@@ -404,14 +411,14 @@ function readerWatchNext(issue) {
   const eventFrame = editorialEventFrame(issue);
   if (eventFrame) return withEventContext(issue, eventFrame.watchNext);
   const text = issueEventText(issue);
-  if (/(호르무즈|전쟁|공습|미사일|정유시설|관세|제재|공급망|이란|우크라)/.test(text)) {
+  const metrics = issue && issue.metrics || {};
+  if (metrics.communityOnly !== true && /(호르무즈|전쟁|공습|미사일|정유시설|관세|제재|공급망|이란|우크라)/.test(text)) {
     return withEventContext(issue,
       "당사국 공식 발표와 국제유가·증시 움직임이 다음 확인 대상입니다.");
   }
-  if (/(금리|채권|환율|코스피|코스닥|증시|주가|실적|매출|배당)/.test(text)) {
+  if (metrics.communityOnly !== true && /(금리|채권|환율|코스피|코스닥|증시|주가|실적|매출|배당)/.test(text)) {
     return withEventContext(issue, "후속 수치와 공식 발표가 다음 확인 대상입니다.");
   }
-  const metrics = issue && issue.metrics || {};
   if (Number(metrics.score) >= 50 || Number(metrics.comments) >= 30) {
     const names = sourceNames(issue);
     return withEventContext(issue, names.length

@@ -1,0 +1,24 @@
+{
+  "node": "v22.23.3",
+  "compatibleRecovery": true,
+  "currentPointerOnlyRestore": true,
+  "sharedVersionsSurviveRestore": true,
+  "currentAndOldSharedEditions": [
+    {
+      "id": "SCE-9da8530b0dd50c50",
+      "contractVersion": 1,
+      "status": 200,
+      "issues": 14
+    },
+    {
+      "id": "SCE-f11ad1898284fa08",
+      "contractVersion": 2,
+      "status": 200,
+      "issues": 17
+    }
+  ],
+  "preservedSessions": 1,
+  "preservedJourneyWindow": true,
+  "publisherEnabled": false,
+  "liveWrites": false
+}

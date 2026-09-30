@@ -13,7 +13,7 @@ import {
   isGeneralNewsGuardReason,
   MIXED_NEUTRAL_CATEGORY
 } from "../src/feed/classify.js";
-import { validateCategoryRoutingSnapshot } from "../src/feed/category-routing.js";
+import { REFUTED_ADMISSIONS, validateCategoryRoutingSnapshot } from "../src/feed/category-routing.js";
 import { d1cTaxonomyVersion, normalizeClassifierInput } from "../src/feed/selection-classifier-lab.js";
 import { loadRegistry } from "../src/feed/registry.js";
 import { findMarketSignalMatches, OVERSEAS_MARKET_SIGNAL_LEXICON } from "../src/feed/selection-axes.js";
@@ -72,15 +72,25 @@ const deterministicRoutingVote = (article, meta = {}) => {
   }
   const freshCategory = definiteCategory({ title: article.title, url: article.url, sourceId: article.source });
   const urlCategory = definiteCategory({ title: "", url: article.url, sourceId: article.source });
+  // NH167 F2: an economy-section registration is not evidence of an economy subject. When the
+  // shared business guard (the same one the request-time router refutes) rejects the vote, reuse
+  // the already definite non-business category if the title has one; otherwise vote nothing so
+  // the target is withheld rather than filed under business.
+  const businessGuarded = (category) => {
+    if (category !== "business") return category;
+    const reason = categoryGuardReason("business", article.title, article);
+    if (!reason || !reason.endsWith("-without-business-subject") || !REFUTED_ADMISSIONS.has(reason)) return category;
+    return freshCategory && freshCategory !== "business" && isKnownCategory(freshCategory) ? freshCategory : null;
+  };
   if ((meta.sourceTier === "specialist" || meta.categoryRouting === "declared_section") && declared) {
     const validCorrection = article.categoryCorrection?.rule === "specialist-title-definite"
       && freshCategory === article.category;
-    return validCorrection ? article.category : declared;
+    return validCorrection ? article.category : businessGuarded(declared);
   }
   if (meta.sourceTier === "aggregate" && declared && meta.category !== "news") {
     if (urlCategory) return urlCategory;
-    if (article.category === "auto" && freshCategory !== "auto") return declared;
-    return article.category;
+    if (article.category === "auto" && freshCategory !== "auto") return businessGuarded(declared);
+    return businessGuarded(article.category);
   }
   if (meta.sourceTier === "aggregate" && generalNews && meta.country === "KR") {
     return freshCategory

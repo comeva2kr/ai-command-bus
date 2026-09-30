@@ -7,13 +7,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { validateCategoryRoutingSnapshot } from "../src/feed/category-routing.js";
 import { nextEditorialSlot, resolveEditorialTarget } from "../src/feed/editorial-inventory.js";
+import { buildReaderLineage, readerIssueCopy } from "../src/feed/editorial-reader-copy.js";
 import { loadRegistry } from "../src/feed/registry.js";
 import {
   activateSlotCanonicalEditions,
   assertSlotCanonicalEdition
 } from "../src/feed/slot-canonical-edition.js";
 import { buildRecoveredCategoryRoutingSnapshot } from "./build-category-routing-snapshot.mjs";
-import { resolveSlotCanonicalBuildTarget } from "./build-slot-canonical-edition.mjs";
+import { HEADLINE_REVIEW_CONTRACT, applyHeadlineReview, headlineSource, resolveSlotCanonicalBuildTarget } from "./build-slot-canonical-edition.mjs";
 import { buildSelectionShadowPacket } from "./prepare-selection-shadow.mjs";
 import { getCandidate } from "./selection-candidate-registry.mjs";
 
@@ -21,6 +22,8 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BUILDER = path.join(ROOT, "tools/build-slot-canonical-edition.mjs");
 const COMMUNITIES = path.join(ROOT, "src/feed/communities.json");
 const CATEGORY_POLICY = path.join(ROOT, "src/feed/category-admission-policy.json");
+// Reviewed headline corrections ship with the image; manifest or environment overrides this path.
+export const DEFAULT_HEADLINE_REVIEW_DIR = path.join(ROOT, "examples/headline-reviews");
 const DEFAULT_CANDIDATE = "p14-policy-shadow-haiku-full-nh91-20260828-evening";
 const SLOTS = new Set(["morning", "lunch", "evening"]);
 const SLOT_ORDER = new Map(["morning", "lunch", "evening"].map((id, index) => [id, index]));
@@ -56,7 +59,8 @@ function normalizeJob(job, baseDir) {
     pool: resolve(job.pool),
     packet: resolve(job.packet),
     predictions: resolve(job.predictions),
-    routingSnapshot: resolve(job.routingSnapshot)
+    routingSnapshot: resolve(job.routingSnapshot),
+    headlineReview: resolve(job.headlineReview)
   };
   if (!normalized.pool || !normalized.packet || (!normalized.predictions && !normalized.routingSnapshot)) {
     throw new Error(`prepublish: ${editionDate}:${slotId} input paths required`);
@@ -65,12 +69,85 @@ function normalizeJob(job, baseDir) {
 }
 
 function inputIdentity(job) {
-  const files = [job.pool, job.packet, job.predictions || job.routingSnapshot];
+  const files = [job.pool, job.packet, job.predictions || job.routingSnapshot,
+    ...(job.headlineReview ? [job.headlineReview] : [])];
   return sha256(JSON.stringify({
     editionDate: job.editionDate,
     slotId: job.slotId,
     files: files.map((file) => sha256(fs.readFileSync(file)))
   }));
+}
+
+const cleanText = (value) => String(value || "").replace(/\s+/g, " ").trim();
+
+// Artifacts do not record which review built them; compare every reviewed reader-facing field:
+// the corrected headline, the stored reader copy that the page actually shows, the source text
+// the reviewer corrected from, and the corrected detail excerpt.
+function headlineReviewReflected(artifact, reviewFile) {
+  const review = JSON.parse(fs.readFileSync(reviewFile, "utf8"));
+  const issues = new Map(Object.values(artifact.issueTable || {}).map((issue) => [issue.evidenceHash, issue]));
+  return review?.contract === HEADLINE_REVIEW_CONTRACT
+    && Array.isArray(review.entries) && review.entries.length > 0 && review.entries.every((entry) => {
+      const issue = issues.get(entry.evidenceHash);
+      if (!issue) return false;
+      if (entry.headlineKo) {
+        const headlineKo = cleanText(entry.headlineKo);
+        if (issue.preparedHeadline !== headlineKo
+          || cleanText(issue.reader?.headline) !== cleanText(readerIssueCopy(issue).headline)) return false;
+        if (cleanText(headlineSource(issue)?.originalTitle) !== cleanText(entry.originalTitle)) return false;
+      }
+      return !Object.hasOwn(entry, "articleSummaryTextKo")
+        || issue.articleSummary?.textKo === cleanText(entry.articleSummaryTextKo);
+    });
+}
+
+// Scheduled builds get their reviews from a directory: <date>-<slot>.json or <date>-<slot>-<note>.json.
+// Several files for one slot merge in name order; two corrections for one evidence hash hold the slot.
+// An explicit job review wins. A configured directory that cannot be read holds instead of skipping.
+function discoverHeadlineReview(job, reviewDir, outDir, { configured = true } = {}) {
+  if (job.headlineReview || !reviewDir) return job;
+  const pattern = new RegExp(`^${job.editionDate}-${job.slotId}(?:-[a-z0-9-]+)?\\.json$`);
+  let names;
+  try {
+    names = fs.readdirSync(reviewDir).filter((name) => pattern.test(name)).sort();
+  } catch (error) {
+    // The shipped default may be absent in a stripped checkout; a configured directory may not.
+    if (!configured && error?.code === "ENOENT") return job;
+    throw new Error(`prepublish: headline review directory unreadable: ${error.message}`);
+  }
+  if (!names.length) return job;
+  const files = names.map((name) => path.join(reviewDir, name));
+  if (files.length === 1) return { ...job, headlineReview: files[0] };
+  const entries = [];
+  const seen = new Set();
+  for (const file of files) {
+    const review = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (review?.contract !== HEADLINE_REVIEW_CONTRACT || !Array.isArray(review.entries)) {
+      throw new Error(`prepublish: headline review ${path.basename(file)} invalid`);
+    }
+    for (const entry of review.entries) {
+      const hash = entry?.evidenceHash;
+      if (seen.has(hash)) throw new Error(`prepublish: headline review ${path.basename(file)} repeats evidenceHash ${hash}`);
+      seen.add(hash);
+      entries.push(entry);
+    }
+  }
+  const merged = path.join(outDir, "headline-reviews", `${job.editionDate}-${job.slotId}.merged.json`);
+  atomicJson(merged, { contract: HEADLINE_REVIEW_CONTRACT, entries });
+  return { ...job, headlineReview: merged, headlineReviewSources: files };
+}
+
+function writeHoldReceipt(outDir, job, identity, error) {
+  const receipt = {
+    state: "hold",
+    editionDate: job.editionDate,
+    slotId: job.slotId,
+    inputIdentity: identity,
+    error: String(error?.message || error)
+  };
+  atomicJson(path.join(outDir,
+    `prepublish-hold-${job.editionDate}-${job.slotId}-${identity.slice(0, 12)}.json`), receipt);
+  return receipt;
 }
 
 export function slotAlreadyActive(job, outDir, { allowPaid = false } = {}) {
@@ -92,6 +169,7 @@ export function slotAlreadyActive(job, outDir, { allowPaid = false } = {}) {
     const packet = JSON.parse(packetRaw);
     if (artifact.builderPacketSha256 !== sha256(packetRaw)
       || packet?.sourceSnapshot?.sha256 !== sha256(poolRaw)) return false;
+    if (job.headlineReview && !headlineReviewReflected(artifact, job.headlineReview)) return false;
     if (job.predictions) {
       return artifact.routingSnapshot?.source?.predictionsSha256 === sha256(fs.readFileSync(job.predictions));
     }
@@ -117,10 +195,13 @@ export async function runBuilder(job, outDir, {
     job.predictions || job.routingSnapshot,
     "--date", job.editionDate,
     "--slot", job.slotId,
-    "--out-dir", outDir
+    "--out-dir", outDir,
+    ...(job.headlineReview ? ["--headline-review", job.headlineReview] : [])
   ];
   // Reuse only a validated earlier edition; cache availability must not block a new build.
-  // Details may come from a same-slot rebuild, but served-article dedupe needs the strictly earlier slot.
+  // Details may come from a same-slot rebuild, but served-article dedupe needs strictly earlier slots:
+  // every earlier slot of the same day (lunch may omit a morning article), else the latest earlier one.
+  // An advertised served slot that cannot be read would silently re-serve its articles, so it holds the build.
   let entries = [];
   try {
     const pointer = JSON.parse(fs.readFileSync(path.join(outDir, "active.json"), "utf8"));
@@ -134,12 +215,21 @@ export async function runBuilder(job, outDir, {
     });
   } catch { /* A missing or invalid pointer is a cache miss. */ }
   const earlier = entries.filter(([key]) => key !== `${job.editionDate}:${job.slotId}`);
-  for (const [flag, row] of [["--reuse-edition", entries.at(-1)?.[1]], ["--served-edition", earlier.at(-1)?.[1]]]) {
+  const sameDay = earlier.filter(([key]) => key.startsWith(`${job.editionDate}:`));
+  try {
+    const reuse = entries.at(-1)?.[1];
+    if (reuse) {
+      readActiveArtifact(outDir, reuse);
+      args.push("--reuse-edition", path.resolve(outDir, reuse.file));
+    }
+  } catch { /* A missing or invalid prior edition is a cache miss. */ }
+  for (const [key, row] of sameDay.length ? sameDay : earlier.slice(-1)) {
     try {
-      if (!row) continue;
       readActiveArtifact(outDir, row);
-      args.push(flag, path.resolve(outDir, row.file));
-    } catch { /* A missing or invalid prior edition is a cache miss. */ }
+    } catch (error) {
+      throw new Error(`prepublish: served edition ${key} unreadable: ${error.message}`);
+    }
+    args.push("--served-edition", path.resolve(outDir, row.file));
   }
   if (allowPaid) args.push("--allow-paid");
   const env = { ...environment };
@@ -188,28 +278,32 @@ export async function runPrepublishManifest(manifest, {
     a.editionDate.localeCompare(b.editionDate) || SLOT_ORDER.get(a.slotId) - SLOT_ORDER.get(b.slotId));
   const unique = new Set(jobs.map((job) => `${job.editionDate}:${job.slotId}`));
   if (unique.size !== jobs.length) throw new Error("prepublish: duplicate date-slot job");
+  const configured = manifest.headlineReviewDir
+    ? path.resolve(baseDir, String(manifest.headlineReviewDir))
+    : process.env.NOWHOT_HEADLINE_REVIEW_DIR ? path.resolve(process.env.NOWHOT_HEADLINE_REVIEW_DIR) : null;
+  const reviewDir = configured || DEFAULT_HEADLINE_REVIEW_DIR;
   const results = [];
   const built = [];
-  for (const job of jobs) {
+  for (const declared of jobs) {
+    let job;
+    try {
+      job = discoverHeadlineReview(declared, reviewDir, outDir, { configured: Boolean(configured) });
+    } catch (error) {
+      const receipt = writeHoldReceipt(outDir, declared, inputIdentity(declared), error);
+      throw new Error(`prepublish: ${declared.slotId} ${receipt.error}`);
+    }
     const identity = inputIdentity(job);
     if (await isActive(job, outDir, { allowPaid })) {
       results.push({ editionDate: job.editionDate, slotId: job.slotId, state: "already_active", inputIdentity: identity });
       continue;
     }
     try {
-      const result = { ...(await runBuild(job, outDir, { allowPaid })), inputIdentity: identity };
+      const result = { ...(await runBuild(job, outDir, { allowPaid })), inputIdentity: identity,
+        ...(job.headlineReviewSources ? { headlineReviewSources: job.headlineReviewSources } : {}) };
       built.push(result);
       results.push(result);
     } catch (error) {
-      const receipt = {
-        state: "hold",
-        editionDate: job.editionDate,
-        slotId: job.slotId,
-        inputIdentity: identity,
-        error: String(error?.message || error)
-      };
-      atomicJson(path.join(outDir,
-        `prepublish-hold-${job.editionDate}-${job.slotId}-${identity.slice(0, 12)}.json`), receipt);
+      const receipt = writeHoldReceipt(outDir, job, identity, error);
       throw new Error(`prepublish: ${job.slotId} ${receipt.error}`);
     }
   }
@@ -280,14 +374,58 @@ export async function runDueSlotPrepublish({
   if (!poolFile) throw new Error("prepublish: current pool file required");
   const resolvedPool = path.resolve(poolFile);
   const resolvedOut = path.resolve(outDir);
-  const poolRaw = fs.readFileSync(resolvedPool, "utf8");
-  const pool = JSON.parse(poolRaw);
   const nextTarget = nextEditorialSlot(nowMs);
   const target = nextTarget.asOfMs - nowMs <= 20 * 60_000 ? nextTarget : resolveEditorialTarget(nowMs);
+  const resolvedWork = path.resolve(workDir || path.join(
+    path.dirname(resolvedOut), "slot-prepublish", `${target.date}-${target.slot.id}`
+  ));
   const pointer = JSON.parse(fs.readFileSync(path.join(resolvedOut, "active.json"), "utf8"));
   const activeRow = pointer?.editions?.[`${target.date}:${target.slot.id}`];
   if (activeRow) {
     const artifact = readActiveArtifact(resolvedOut, activeRow);
+    const configured = process.env.NOWHOT_HEADLINE_REVIEW_DIR;
+    const job = discoverHeadlineReview({
+      editionDate: target.date,
+      slotId: target.slot.id,
+      pool: path.join(resolvedWork, "pool.json"),
+      packet: path.join(resolvedWork, "packet.json"),
+      routingSnapshot: path.join(resolvedWork, "routing.json")
+    }, configured ? path.resolve(configured) : DEFAULT_HEADLINE_REVIEW_DIR, resolvedOut,
+    { configured: Boolean(configured) });
+    if (job.headlineReview) {
+      const reviewRaw = fs.readFileSync(job.headlineReview, "utf8");
+      const identity = sha256(`${artifact.artifactId}:${reviewRaw}`);
+      const holdFile = path.join(resolvedOut,
+        `prepublish-hold-${target.date}-${target.slot.id}-${identity.slice(0, 12)}.json`);
+      if (fs.existsSync(holdFile)) return JSON.parse(fs.readFileSync(holdFile, "utf8"));
+      try {
+        // Correct only this immutable edition: never reselect articles or depend on the rolling pool.
+        const reviewed = applyHeadlineReview({ issues: Object.values(artifact.issueTable) },
+          JSON.parse(reviewRaw), sha256(reviewRaw));
+        if (!headlineReviewReflected(artifact, job.headlineReview)) {
+          const { artifactId: _id, contentSha256: _sha, ...payload } = artifact;
+          const issueTable = { ...artifact.issueTable };
+          for (const issue of reviewed.edition.issues) {
+            if (issue === artifact.issueTable[issue.evidenceHash]) continue;
+            const reader = readerIssueCopy(issue);
+            issueTable[issue.evidenceHash] = { ...issue, reader, readerLineage: buildReaderLineage(issue, reader) };
+          }
+          const corrected = { ...payload, issueTable,
+            baseEdition: { ...payload.baseEdition, headlineReviewReceipt: reviewed.receipt } };
+          const contentSha256 = sha256(JSON.stringify(corrected));
+          if (contentSha256 === artifact.contentSha256) return { state: "already_active",
+            editionDate: target.date, slotId: target.slot.id, artifactId: artifact.artifactId, paidCalls: 0 };
+          const revised = assertSlotCanonicalEdition({ ...corrected, contentSha256,
+            artifactId: `SCE-${contentSha256.slice(0, 16)}` });
+          activateSlotCanonicalEditions({ artifacts: [revised], directory: resolvedOut,
+            pointerFile: path.join(resolvedOut, "active.json") });
+          return { state: "complete", editionDate: target.date, slotId: target.slot.id,
+            artifactId: revised.artifactId, paidCalls: 0 };
+        }
+      } catch (error) {
+        return writeHoldReceipt(resolvedOut, job, identity, error);
+      }
+    }
     return {
       state: "already_active",
       editionDate: target.date,
@@ -296,6 +434,8 @@ export async function runDueSlotPrepublish({
       paidCalls: 0
     };
   }
+  const poolRaw = fs.readFileSync(resolvedPool, "utf8");
+  const pool = JSON.parse(poolRaw);
   resolveSlotCanonicalBuildTarget({
     pool,
     editionDate: target.date,
@@ -330,9 +470,6 @@ export async function runDueSlotPrepublish({
       categoryPolicySha256: sha256(policyRaw)
     }
   );
-  const resolvedWork = path.resolve(workDir || path.join(
-    path.dirname(resolvedOut), "slot-prepublish", `${target.date}-${target.slot.id}`
-  ));
   const frozenPoolFile = path.join(resolvedWork, "pool.json");
   const packetFile = path.join(resolvedWork, "packet.json");
   const routingSnapshotFile = path.join(resolvedWork, "routing.json");

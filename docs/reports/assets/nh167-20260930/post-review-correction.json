@@ -1,0 +1,9 @@
+{
+  "reviewedPatchSha256": "c2b2893ef5e6c136fc07eb363b5df25115add8252d2ee60e08d5287afc38af86",
+  "finalPatchSha256": "b67d4d9fa5ae9b5f2477e2449f090052efa74613397b507cdf5b1f5173bb9ddc",
+  "changedAfterReview": [
+    "test/slot-canonical-prepublish.test.js",
+    "tools/build-slot-canonical-edition.mjs"
+  ],
+  "reason": "Grok residual: $99 and 99달러 should not be counted as a new quantity. One normalization plus regression; red failed and green22 passed. No other editorial bytes changed."
+}

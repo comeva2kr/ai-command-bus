@@ -23,6 +23,9 @@ export const EDITORIAL_FULFILLMENT_CONTRACT = deepFreeze({
     twoCategories: 28,
     rule: "selected_count * 14",
     maxPublished: 196,
+    // Slot canonical editions may prepare 20 per lane (14 baseline + qualified extras): 20 x 14.
+    flexibleLaneDepth: 20,
+    flexibleMaxPublished: 280,
     maxGeneratedWithChangeReserve: 308
   },
   categoryUnionRule: "선택 분야마다 중요도 상위 14건을 선별한 뒤 동일 사건만 한 번 남기고 분야별 중요도 순위 층을 합쳐 같은 층에서는 전체 중요도 순으로 병합",
@@ -59,19 +62,25 @@ function countEligibleIssues(selected, issues) {
   };
 }
 
-export function editorialIssueBudget(selectedCount) {
+export function editorialIssueBudget(selectedCount, {
+  perCategory = EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory
+} = {}) {
   const count = Math.max(1, finiteCount(selectedCount));
-  const budget = count * EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory;
-  return Math.min(EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.maxPublished, budget);
+  const depth = Math.max(1, finiteCount(perCategory) || EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory);
+  const budget = count * depth;
+  const cap = depth > EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory
+    ? EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.flexibleMaxPublished
+    : EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.maxPublished;
+  return Math.min(cap, budget);
 }
 
-export function editorialMinimumPerCategory(selectedCount, issueBudget = null) {
+export function editorialMinimumPerCategory(selectedCount, issueBudget = null, {
+  perCategory = EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory
+} = {}) {
   const count = Math.max(1, finiteCount(selectedCount));
-  const budget = Math.max(1, finiteCount(issueBudget) || editorialIssueBudget(count));
-  return Math.max(1, Math.min(
-    EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory,
-    Math.floor(budget / count)
-  ));
+  const depth = Math.max(1, finiteCount(perCategory) || EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory);
+  const budget = Math.max(1, finiteCount(issueBudget) || editorialIssueBudget(count, { perCategory: depth }));
+  return Math.max(1, Math.min(depth, Math.floor(budget / count)));
 }
 
 export function buildEditorialFulfillment({

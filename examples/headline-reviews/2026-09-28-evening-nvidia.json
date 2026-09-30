@@ -1,0 +1,16 @@
+{
+  "contract": "NOWHOT-HEADLINE-REVIEW-001",
+  "entries": [
+    {
+      "evidenceHash": "516db249d1a637dd14c0a7fc478d1f1c0fb09f5b0d1e2c951004ec53170c814c",
+      "originalTitle": "Owed a billion dollars in Nvidia stock",
+      "headlineKo": "엔비디아 초기 자문위원, 10억 달러 규모 주식 받아야 한다고 주장",
+      "articleSummaryTextKo": "글쓴이는 1993년 엔비디아 초기 자문위원으로 활동했고, 자신이 약 10억 달러어치 주식을 받아야 한다고 주장합니다."
+    },
+    {
+      "evidenceHash": "50e27037a1f665a86cc6628a7c86d2cdbd0d87bff728c147882bc6323d37ddab",
+      "originalTitle": "Watch: Madonna and Taylor Swift win big at the MTV VMAs",
+      "headlineKo": "마돈나·테일러 스위프트, MTV VMA에서 주요 상 휩쓸어"
+    }
+  ]
+}

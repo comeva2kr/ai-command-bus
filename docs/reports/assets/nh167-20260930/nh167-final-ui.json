@@ -1,0 +1,31 @@
+{
+  "results": [
+    {
+      "artifactId": "SCE-8513db1b0c5f79d4",
+      "date": "2026-09-28",
+      "slot": "evening",
+      "items": 46,
+      "detailLinks": 6,
+      "backToList": true,
+      "overflow": false,
+      "screenshot": "/tmp/nh167-2026-09-28-evening-mobile.png",
+      "reviewed": [
+        "엔비디아 초기 자문위원, 10억 달러 규모 주식 받아야 한다고 주장"
+      ]
+    },
+    {
+      "artifactId": "SCE-f11ad1898284fa08",
+      "date": "2026-09-30",
+      "slot": "lunch",
+      "items": 45,
+      "detailLinks": 2,
+      "backToList": true,
+      "overflow": false,
+      "screenshot": "/tmp/nh167-2026-09-30-lunch-mobile.png",
+      "reviewed": [
+        "보스 노이즈 캔슬링 유선 이어버드, 99달러 가격 소개"
+      ]
+    }
+  ],
+  "pageErrors": []
+}

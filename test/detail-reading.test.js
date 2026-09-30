@@ -407,3 +407,20 @@ test("온보딩 취향 워밍업은 즉시 저장한다", async () => {
   assert.ok(fn.includes("this._persist();"), "applyHistory가 지연 저장으로 돌아갔다");
   assert.ok(!fn.includes("_persistSoon"), "applyHistory가 지연 저장이다");
 });
+
+test("오늘판 현황은 연속성 자료가 없으면 새 사건·실질 변화를 0건으로 지어내지 않고, 실제 0건은 보여준다", () => {
+  const html = readFileSync("src/feed/public/today.html", "utf8");
+  const railFn = html.slice(html.indexOf("function renderRail(edition){"), html.indexOf("function render(edition){"));
+  const metrics = (extra) => {
+    const nodes = { metrics: {}, selection: {} };
+    new Function("$", `${railFn}; return renderRail;`)((id) => nodes[id])({
+      issues: [], sourceCount: 3, overseasShare: 0,
+      selection: { categories: [] }, ...extra
+    });
+    return nodes.metrics.innerHTML;
+  };
+  assert.doesNotMatch(metrics({}), /새 사건|실질 변화/);
+  assert.match(metrics({ editionChange: { counts: { new: 0, material_update: 0 } } }),
+    /<dt>새 사건<\/dt><dd>0건<\/dd><dt>실질 변화<\/dt><dd>0건<\/dd>/);
+  assert.match(metrics({ continuityProjection: { counts: { baseline: 12 } } }), /첫 저장 기준선<\/dt><dd>12건/);
+});

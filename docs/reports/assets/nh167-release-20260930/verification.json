@@ -1,0 +1,81 @@
+{
+  "candidateBase": "cf13d28b7dcd370e1eda88988cd5b5cf587425e0",
+  "productManifestUnchanged": true,
+  "manifest": {
+    "Dockerfile": "847df415ce0afe4f549044c223f48051da2db162c6fec733cc09458415761f93",
+    "examples/headline-reviews/2026-09-28-evening-nvidia.json": "e9a48ef8ceb3bea5632bad88db17d40e64aa325bafb3ea0a54ae77e03b535ccf",
+    "examples/headline-reviews/2026-09-28-morning-snl.json": "adccf7e66d930d54168dd6eb1463edc311781f3756c26d6e355c88ad01bcc26b",
+    "examples/headline-reviews/2026-09-30-lunch-bose.json": "c0d538a1eba6afccbd72d2bcea45e9da1e8626f8401fd2f0ea8d6271ece0f913",
+    "src/feed/category-routing.js": "06bc038bc0cc34626c61a8c6de6d382de4aa896c77e2db70646dbea87e6527de",
+    "src/feed/classify.js": "b37e94a961cfef1a83fedab4405fbdd354fecbd30cbb59e070376420870c51f9",
+    "src/feed/digest.js": "f65e5b078c775cfca4589becf584f0b8a9e8082172af668d1237f274856b550c",
+    "src/feed/edition-change.js": "ee2dee874f027e32650ced22cc0480b5e73c3124862f0599a6128d743309ed69",
+    "src/feed/editorial-fulfillment.js": "b5a55da266c6c0562846c9a9cf3187e8bbb0270ddb7d40c7c19dcf9d5986a834",
+    "src/feed/editorial-reader-copy.js": "1218e606ef81d97ed5172bcff1918f0f30dea393a3057bab29d1c6522c3ea53c",
+    "src/feed/engine.js": "759ac0359a15475a3b51c44412a8c752d9cd4709e1d3cce8861fc28430fa03d1",
+    "src/feed/public/today.html": "9e6693adff071e09508c4f27d689349e8fe2ea93b307fa1d5827019cb7cf3164",
+    "src/feed/slot-canonical-edition.js": "a78c78e141133e4ede25cf7126feccc375c0f079e8acdc29262c63a06eca7c5a",
+    "test/category-routing.test.js": "bc9eaffe0978682e63afd12edc223c79294ced8dd93172d210ba4340f6871388",
+    "test/detail-reading.test.js": "a41686268e4ef364b19a61cff0575b313d4485e126a8b7416f63aa73f2c4950e",
+    "test/edition-change.test.js": "7c938278b4292d85b371b1bda3867cbbea71aec12a45a2a32c4d8e6c9e396ee1",
+    "test/editorial-reader-copy.test.js": "6a27e412523c8e23dd4247733066dcb546128315e287593b259b17e4b07fbcb9",
+    "test/fixtures/nh167-cross-slot-pairs-2026-09-30.json": "9315652b37c90bc6acee1227995430df108de588d615ca3f32dcef0b928d8506",
+    "test/fixtures/nh167-headline-incidents-2026-09-28.json": "b9319ab146ab5ae9e694893055863b673942385be808a295fc3fd93079956286",
+    "test/fixtures/nh167-headline-incidents-2026-09-30.json": "d75c1da7881774bc386646dbc33549437258275139ab19d13e7e7e79f9a34ff8",
+    "test/fixtures/selection-baseline.lock.json": "37476446bbdb0f8c1b65d39645b7f4cec22904e01ecd2ba9dcd91a7a9a735684",
+    "test/slot-canonical-edition.test.js": "ce05d3ceccd78032cacea3a3a3b66777bfde51dff6fd1314a61ebb65df53ddd8",
+    "test/slot-canonical-prepublish.test.js": "4c66f4b5a67df8f18374816a671d1537ae7523175a395607c5bf019907da9460",
+    "tools/build-editions.mjs": "ad6166c03bbdae9fe751750c612b7f61f959f748ecb84be2cef2523cda2278f8",
+    "tools/build-slot-canonical-edition.mjs": "faa4714df4c11846d8f140d0781b356cc5764cf028d7f919dd014f51779a05ba",
+    "tools/run-slot-canonical-prepublish.mjs": "48712b436d95cdb36a672e732df5787c70330deeb9ff0dfa4249382b80cdd6a1",
+    "src/feed/analytics.js": "9a3f3e2c876f3375eb60b8eaf7823d43f6356007f87c12372a117c2876fd2a06",
+    "src/feed/store.js": "2967912131548a0a3eca8bc511f7d3e5435a871b1458f27e869df4c3c1a7fd7c",
+    "src/feed/server.js": "49d3e7fd82863a1872297ff11b2a4e0587d5bdaae84b291d4943b4af583c4b09",
+    "src/feed/public/admin.html": "6d648dd24ee60581dc42e5e60ed49ed422241109dc3e3618a60a22fb357dad23",
+    "src/feed/public/privacy.html": "29ecd1414f139839fae41f516b2f6062dbc3024cd9888874d723f7790c9d2968",
+    "src/feed/release-notes.js": "ecc39df881e7af5b0593bbade7c5435ade7e43c9051a7e654e076cb0e901482e",
+    "test/analytics-window.test.js": "cb0fef0281547b94743bf44e4dc7e62638e708955e86571dcbde342105533642"
+  },
+  "fullSuite": {
+    "tests": 2131,
+    "passed": 2066,
+    "failed": 0,
+    "skipped": 65
+  },
+  "browserFollowup": {
+    "tests": 72,
+    "passed": 72,
+    "failed": 0,
+    "skipped": 0,
+    "coveredEverySkippedTest": true
+  },
+  "uniquePassingTests": 2131,
+  "liveTrackedDrift": false,
+  "liveRuntimeMismatchFiles": [],
+  "packagedServer": "Node22 COPY payload checked; actual Docker build unavailable locally",
+  "productionMutation": false,
+  "verdict": "HOLD",
+  "reviewers": {
+    "fable": {
+      "dispatch": "ctx_14834bfab56d",
+      "requested": "claude-fable-5-1",
+      "effort": "high",
+      "state": "released"
+    },
+    "grok": {
+      "dispatch": "ctx_79603a4366c3",
+      "requested": "grok-4.7-xhigh",
+      "observedUi": "Grok 4.7 256K Extra High",
+      "providerAck": null,
+      "state": "released"
+    }
+  },
+  "blocker": "same Tucson announcement appears at auto lane ranks 1, 16, 17",
+  "independentRootReproductions": [
+    "same_event_triple",
+    "extra_category_and_headline_cases",
+    "quantity_spelling_and_analytics_boundaries"
+  ],
+  "productChangesDuringAudit": false,
+  "reclaimableWorkerCount": 0
+}

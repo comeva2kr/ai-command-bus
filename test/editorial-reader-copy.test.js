@@ -508,7 +508,7 @@ test("독자 문장: 검증된 LLM 편집문은 결정론적 사건 프레임보
 });
 
 test("독자 문장: 관련기사의 임상시험 키워드가 문화행사 프레임을 바꾸지 않는다", () => {
-  assert.equal(EDITORIAL_EVENT_FRAME_CONTRACT.version, 2);
+  assert.equal(EDITORIAL_EVENT_FRAME_CONTRACT.version, 3);
   assert.deepEqual(EDITORIAL_EVENT_FRAME_CONTRACT.excludedInputs, ["refs", "related_observation"]);
   const sourceEvidence = [
     {
@@ -572,4 +572,32 @@ test("독자 문장: 관련기사의 임상시험 키워드가 문화행사 프�
   assert.match(lineage.basis.whyImportant.kind, /^editorial_policy:/);
   assert.deepEqual(lineage.basis.whyImportant.evidenceIds, ["NHE-culture-lead"]);
   assert.equal(assessReaderIssueCopy(issue, copy).pass, true);
+});
+
+test("독자 문장: 커뮤니티 단독 유머 태풍 글에는 기상 기사 프레임을 붙이지 않고 뉴스 태풍 기사는 유지한다", () => {
+  const base = hormuzIssue();
+  const post = (title, communityOnly) => attachEditorialLineage({
+    ...base, subject: title, headline: title, paragraph: title, whatHappened: title,
+    whyImportant: "", impactLens: "", editorialEdit: null, changedSincePrevious: "", changeState: "", changeEvidence: null,
+    categoryIds: [communityOnly ? "humor" : "news"],
+    metrics: { ...base.metrics, communityOnly },
+    refs: [{ title, sourceLabel: communityOnly ? "이토랜드" : "연합뉴스" }],
+    sourceEvidence: [{ ...base.sourceEvidence[0], title, sourceId: communityOnly ? "etoland" : "yna",
+      sourceLabel: communityOnly ? "이토랜드" : "연합뉴스" }]
+  }, { selectedCategories: [communityOnly ? "humor" : "news"] });
+  const gif = post("태풍 레전드.gif", true);
+  const gifCopy = readerIssueCopy(gif);
+  assert.doesNotMatch(`${gifCopy.whyImportant} ${gifCopy.watchNext}`, /기상|특보|예보/);
+  const gifBasis = buildReaderLineage(gif, gifCopy);
+  assert.doesNotMatch(JSON.stringify(gifBasis), /event_frame:severe_weather/);
+  const news = post("태풍 북상에 남해안 호우 특보", false);
+  const newsCopy = readerIssueCopy(news);
+  assert.match(newsCopy.watchNext, /기상청 특보/);
+  assert.match(JSON.stringify(buildReaderLineage(news, newsCopy)), /event_frame:severe_weather/);
+  const geopoliticalGif = readerIssueCopy(post("이란 공습 레전드.gif", true));
+  assert.doesNotMatch(geopoliticalGif.watchNext, /당사국|국제유가|증시/);
+  const marketGif = readerIssueCopy(post("주가 레전드.gif", true));
+  assert.doesNotMatch(marketGif.watchNext, /후속 수치|공식 발표/);
+  const geopoliticalNews = readerIssueCopy(post("이란 공습으로 정유시설 타격", false));
+  assert.match(geopoliticalNews.watchNext, /피해 규모에 대한 공식 확인/);
 });

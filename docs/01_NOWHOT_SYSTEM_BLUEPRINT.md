@@ -1,5 +1,14 @@
 # NOWHOT-SYSTEM-BLUEPRINT-003
 
+## NH167 조건부 라이브 승인 이행 — 2026-09-30
+
+- 현재3자 검수·전체2142/2142·3판 모바일·실제 Linux 후보/복구 검증 통과. 아래 이전 HOLD는 수정 전 기록이다. David 승인으로 배포 진행, 공개 반영은 [최종 보고서](reports/NOWHOT_NH167_LIVE_CLOSURE_2026-09-30.md)의 운영 영수증으로 확인한다.
+
+
+## 2026-09-30 실행 결과 연결
+
+NH167 구현 기록은 [로컬 최종 보고서](reports/NOWHOT_NH167_REPAIR_AND_TRAFFIC_2026-09-30.md), 최신 배포 판정은 [3자 적대 검수 보고서](reports/NOWHOT_NH167_RELEASE_ADVERSARIAL_REVIEW_2026-09-30.md)를 따른다. **현재 후보는 동일 사건 중복과 추가 기사 품질 보완이 필요해 배포 보류다.** 고유 검사2,131개 통과와 독자 품질 완료를 구분한다. 운영 배포와 광고/자체 기자단 계획은 이번에 수행하지 않았다.
+
 ## 상태와 경계
 
 - 기준 헌장: `NOWHOT-PRODUCT-CHARTER-001`

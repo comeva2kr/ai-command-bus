@@ -586,6 +586,60 @@ test("v2 카테고리 라우팅은 복수 분야를 보존하고 미분류·미�
     "스냅샷에 없는 전문소스도 요청 시점에 되살리지 않는다");
 });
 
+test("NH167: 유족 게시글은 유머 입장만, 미술 전시·성묘 골프 공분은 기술 입장만 반려하고 정상 기사는 남긴다", () => {
+  const entries = [
+    ["bereaved", ["humor"]], ["bereaved-news", ["news", "humor"]], ["humor-ok", ["humor"]],
+    ["exhibition", ["tech"]], ["exhibition-culture", ["tech", "culture"]], ["ai-art", ["tech"]],
+    ["golf", ["tech"]], ["hack-outrage", ["tech"]],
+    ["museum-docent", ["tech"]], ["memorial-meme", ["humor"]],
+    ["skt-outrage", ["tech"]], ["kakao-outrage", ["tech"]],
+    ["playing-dead", ["humor"]], ["dead-found", ["humor"]], ["dead-worker", ["humor", "news"]]
+  ].map(([itemId, categories], index) => ({
+    itemId, evidenceHash: String(index).repeat(64).slice(0, 64), categories, routingBasis: "deterministic_tier_policy"
+  }));
+  const router = createCategoryRouter({
+    contract: "NOWHOT-CATEGORY-ROUTING-SNAPSHOT-001",
+    snapshotId: "nh167-admission-guard",
+    generatedAt: "2026-09-28T09:00:00.000Z",
+    source: { packetSha256: sha, predictionsSha256: sha },
+    entries
+  }, [], { now: () => Date.parse("2026-09-28T09:10:00.000Z") });
+  const bereaved = "장윤기에게 여고생 딸을 잃은 유족분 근황";
+  const exhibition = "[NC전시관] 정희경 초대전 ‘속삭이는 빛’, 추상회화로 만나는 빛의 내면";
+  const golf = "남의 산소 앞에서…“할머니 성묘하러 갔는데 어떤 아저씨가 골프 연습을” 온라인 공분";
+  const rows = router.project([
+    { id: "bereaved", title: bereaved, source: "bobae", kind: "community" },
+    { id: "bereaved-news", title: bereaved, source: "bobae", kind: "community" },
+    { id: "humor-ok", title: "퇴근길에 만난 고양이 레전드.gif", source: "bobae", kind: "community" },
+    { id: "exhibition", title: exhibition, source: "gnews-tech", kind: "news" },
+    { id: "exhibition-culture", title: exhibition, source: "gnews-tech", kind: "news" },
+    { id: "ai-art", title: "AI가 그린 추상회화 초대전, 생성형 모델 저작권 논쟁", source: "gnews-tech", kind: "news" },
+    { id: "golf", title: golf, source: "etnews", kind: "news" },
+    { id: "hack-outrage", title: "개인정보 해킹 사태에 온라인 공분", source: "etnews", kind: "news" },
+    { id: "museum-docent", title: "네이버 클로바, 국립현대미술관 도슨트 공개", source: "gnews-tech", kind: "news" },
+    { id: "memorial-meme", title: "퇴근 후 추모 밈 레전드.gif", source: "bobae", kind: "community" },
+    { id: "skt-outrage", title: "SKT 유심 정보 유출 사태에 네티즌 공분", source: "gnews-tech", kind: "news" },
+    { id: "kakao-outrage", title: "카카오톡 친구탭 개편에 누리꾼 공분", source: "gnews-tech", kind: "news" },
+    { id: "playing-dead", title: "숨진 척하는 고양이, 주인 반응 레전드.gif", source: "bobae", kind: "community" },
+    { id: "dead-found", title: "실종 등산객 숨진 채 발견", source: "bobae", kind: "community" },
+    { id: "dead-worker", title: "공장 화재로 숨진 근로자 3명…유족 오열", source: "gnews-news", kind: "news" }
+  ]);
+  assert.deepEqual(Object.fromEntries(rows.map((row) => [row.routingOriginalId, row.admittedCategories])), {
+    "bereaved-news": ["news"],
+    "humor-ok": ["humor"],
+    "exhibition-culture": ["culture"],
+    "ai-art": ["tech"],
+    "hack-outrage": ["tech"],
+    "museum-docent": ["tech"],
+    "memorial-meme": ["humor"],
+    "skt-outrage": ["tech"],
+    "kakao-outrage": ["tech"],
+    "playing-dead": ["humor"],
+    "dead-worker": ["news"]
+  });
+  assert.equal(rows.find((row) => row.routingOriginalId === "exhibition-culture").category, "culture");
+});
+
 test("스냅샷 생성 뒤 들어온 새 글은 다음 패킷 전까지 요청 경로에서 보류한다", () => {
   const generatedAtMs = Date.parse(snapshot.generatedAt);
   const router = createCategoryRouter(snapshot, [], { now: () => generatedAtMs + 60_000 });

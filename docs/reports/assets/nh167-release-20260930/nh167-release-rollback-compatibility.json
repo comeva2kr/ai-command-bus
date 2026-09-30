@@ -1,0 +1,27 @@
+[
+  {
+    "file": "/tmp/nh167-fable-20260930-final-replay/artifact-2026-09-30-lunch-f11ad1898284.json",
+    "artifactId": "SCE-f11ad1898284fa08",
+    "version": 2,
+    "validation": {
+      "ok": false,
+      "errors": [
+        "contract mismatch",
+        "tech lane exceeds 14 issues",
+        "auto lane exceeds 14 issues",
+        "business lane exceeds 14 issues",
+        "sports lane exceeds 14 issues",
+        "culture lane exceeds 14 issues"
+      ]
+    }
+  },
+  {
+    "file": "/tmp/nh167-real-20260930/editions/edition-2026-09-30-lunch-9da8530b0dd5.json",
+    "artifactId": "SCE-9da8530b0dd50c50",
+    "version": 1,
+    "validation": {
+      "ok": true,
+      "errors": []
+    }
+  }
+]

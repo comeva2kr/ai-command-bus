@@ -14,11 +14,15 @@ import {
   activateSlotCanonicalEdition,
   assertSlotCanonicalEdition,
   buildSlotCanonicalEdition,
-  SLOT_CANONICAL_EDITION_CONTRACT
+  SLOT_CANONICAL_EDITION_CONTRACT,
+  extraLaneRejection
 } from "../src/feed/slot-canonical-edition.js";
 import { SLOTS, slotForHour } from "../src/feed/digest.js";
 import { expandRelatedNews } from "../src/feed/content.js";
 import { canonicalContentUrl } from "../src/feed/dedupe.js";
+import { applyEditionChanges } from "../src/feed/edition-change.js";
+import { decideEventMerge, eventEntityTokens, isConfirmedEventFollowUp, parseExactNumber, sharedEventTokens } from "../src/feed/event-cluster.js";
+import { VIDEO_TITLE_PREFIX } from "../src/feed/editorial-reader-copy.js";
 import { briefingAvailableAt, inBriefingWindow } from "../src/feed/engine.js";
 import { CATEGORIES } from "../src/feed/taxonomy.js";
 import { memoizedTranslator } from "../src/feed/translate.js";
@@ -36,6 +40,8 @@ const arg = (args, name) => {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] || null : null;
 };
+const argsFor = (args, name) => args.flatMap((value, index) =>
+  value === name && args[index + 1] ? [args[index + 1]] : []);
 const atomicJson = (file, value) => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.${Date.now()}.tmp`;
@@ -108,11 +114,16 @@ export function assertSemanticPublicationRouting(snapshot) {
   return snapshot;
 }
 
-export function categoryEditionsFromUnion(unionEdition) {
+// Every lane takes its first 14 by lane rank. Positions 15..20 are filled lane by lane, with
+// no shared quota, only by issues that already qualify on their own evidence (news lead from
+// the current slot window, two independent source groups). Extras that do not qualify or do
+// not fit are reported with their reason, not silently dropped.
+export function assembleCategoryLanes(unionEdition, target = { editionDate: unionEdition?.editionDate, slotId: unionEdition?.slot?.id }) {
   if (!Array.isArray(unionEdition?.issues)) throw new TypeError("slot edition: union issues required");
-  return Object.fromEntries(CATEGORIES.map((category) => [category.id, {
-    ...unionEdition,
-    issues: unionEdition.issues.map((issue, unionRank) => ({ issue, unionRank })).filter(({ issue }) => {
+  const { laneCapacity, extraLaneCapacity } = SLOT_CANONICAL_EDITION_CONTRACT;
+  const extras = { policy: SLOT_CANONICAL_EDITION_CONTRACT.extraLanePolicy, admitted: [], withheld: [], rejected: [] };
+  const editions = Object.fromEntries(CATEGORIES.map((category) => {
+    const ranked = unionEdition.issues.map((issue, unionRank) => ({ issue, unionRank })).filter(({ issue }) => {
       if (!Array.isArray(issue.selectedByCategories)) {
         throw new Error(`slot edition: selectedByCategories missing '${issue?.evidenceHash || "unknown"}'`);
       }
@@ -120,9 +131,48 @@ export function categoryEditionsFromUnion(unionEdition) {
     }).sort((left, right) =>
       (left.issue._categoryLaneRanks?.[category.id] ?? Number.MAX_SAFE_INTEGER)
       - (right.issue._categoryLaneRanks?.[category.id] ?? Number.MAX_SAFE_INTEGER)
-      || left.unionRank - right.unionRank
-    ).slice(0, SLOT_CANONICAL_EDITION_CONTRACT.targetPerCategory).map(({ issue }) => issue)
-  }]));
+      || left.unionRank - right.unionRank).map(({ issue }) => issue);
+    // NH167 F1: the same event is one card at every lane position. A candidate that the
+    // single-truth event merge (plus the cross-slot identity guard) judges to be the same story
+    // as an issue already placed in this lane is rejected, whether it would take a baseline or
+    // an extra seat, and the freed seat goes to the next ranked candidate.
+    const lane = [];
+    for (const issue of ranked) {
+      const record = { evidenceHash: issue.evidenceHash, category: category.id,
+        headline: issue.preparedHeadline || issue.subject || issue.headline || null };
+      const repeat = sameLaneEvent(lane, issue);
+      if (repeat) { extras.rejected.push({ ...record, reason: "same_event_in_lane", sameAs: repeat.evidenceHash, basis: repeat.basis }); continue; }
+      if (lane.length < laneCapacity) { lane.push(issue); continue; }
+      const rejection = extraLaneRejection(issue, target);
+      if (rejection) extras.rejected.push({ ...record, reason: rejection });
+      else if (lane.length >= extraLaneCapacity) extras.withheld.push({ ...record, reason: `lane_capacity_${extraLaneCapacity}` });
+      else { lane.push(issue); extras.admitted.push(record); }
+    }
+    return [category.id, { ...unionEdition, issues: lane }];
+  }));
+  return { editions, extras };
+}
+
+export function categoryEditionsFromUnion(unionEdition) {
+  return assembleCategoryLanes(unionEdition).editions;
+}
+
+// Order matters: withhold cross-slot repeats on the whole generated edition first, so a
+// repeated top-14 story frees its baseline seat for a fresh reserve candidate (which needs no
+// extras qualification), and only then trim to lanes and qualified extras.
+export function selectPublicationEdition(runEdition, servedArtifacts, target) {
+  const repeatCheck = withholdServedEventRepeats(runEdition, servedArtifacts, target);
+  const { editions: publicationLanes, extras } = assembleCategoryLanes(repeatCheck.edition, target);
+  if (!Object.values(publicationLanes).some((edition) => edition.issues.length)) {
+    throw new Error("slot edition: no qualified issues in any category");
+  }
+  const publicationIssues = new Set(Object.values(publicationLanes).flatMap((edition) => edition.issues));
+  return {
+    edition: { ...repeatCheck.edition, issues: repeatCheck.edition.issues.filter((issue) => publicationIssues.has(issue)) },
+    repeatCheck,
+    extras,
+    generated: runEdition.issues.length
+  };
 }
 
 export function assertSemanticLaneCoverage(unionEdition) {
@@ -141,7 +191,7 @@ const latinRatio = (value) => {
   return text.length ? (text.match(/[A-Za-z]/g) || []).length / text.length : 0;
 };
 
-function headlineSource(issue) {
+export function headlineSource(issue) {
   const current = clean(issue?.subject || issue?.headline || issue?.reader?.headline);
   const rows = [...(issue?.eventSources || []), ...(issue?.refs || []), ...(issue?.sourceEvidence || [])]
     .filter((row) => row?.canLead !== false && clean(row?.originalTitle));
@@ -175,7 +225,8 @@ export async function polishIssueHeadlines(edition, {
     const source = headlineNeedsPolish(issue) ? headlineSource(issue) : null;
     if (!source || attempted >= maxCalls) { issues.push(issue); continue; }
     attempted += 1;
-    const translated = clean(await translateTitle(source.originalTitle, { from: "auto", to: "ko" }));
+    // NH167 F3: a broadcaster's video prefix (Watch: / 시청:) is not part of the story.
+    const translated = clean(await translateTitle(clean(source.originalTitle).replace(VIDEO_TITLE_PREFIX, ""), { from: "auto", to: "ko" }));
     if (translated && /[가-힣]/.test(translated) && !headlineNeedsPolish({
       ...issue,
       subject: translated,
@@ -382,15 +433,235 @@ export function editionObservationReceipt(artifact, { registry = loadRegistry() 
   };
 }
 
-// URLs an earlier slot already published. A same-slot rebuild is not earlier.
-function earlierSlotServedUrls(servedArtifact, target) {
+// Article URLs earlier slots already published, each with the titles served under it.
+// A same-slot rebuild is not earlier. Related observations were only cited, not served,
+// so they stay eligible. The same URL carrying a changed title (사망 3명 → 5명) is an
+// update the change classifier must see, so it is not removed here.
+const servedTitleKey = (value) => String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
+function earlierSlotServedUrls(servedArtifacts, target) {
+  const served = new Map();
+  const note = (row) => {
+    for (const url of [row?.url, row?.canonicalUrl].map(canonicalContentUrl).filter(Boolean)) {
+      if (!served.has(url)) served.set(url, new Set());
+      for (const title of [row?.title, row?.originalTitle].map(servedTitleKey).filter(Boolean)) served.get(url).add(title);
+    }
+  };
+  for (const artifact of earlierServedArtifacts(servedArtifacts, target)) {
+    for (const issue of Object.values(artifact.issueTable)) {
+      const evidence = issue.sourceEvidence || [];
+      const related = new Set(evidence.filter((row) => row?.evidenceRole === "related_observation")
+        .flatMap((row) => [row?.url, row?.canonicalUrl]).map(canonicalContentUrl).filter(Boolean));
+      const rows = [...evidence.filter((row) => ["lead", "corroborating"].includes(row?.evidenceRole)),
+        ...[...(issue.refs || []), ...(issue.eventSources || []), ...evidence]
+          .filter((row) => row?.evidenceRole !== "related_observation")];
+      for (const row of rows) {
+        const urls = [row?.url, row?.canonicalUrl].map(canonicalContentUrl).filter(Boolean);
+        const servedAsEvidence = ["lead", "corroborating"].includes(row?.evidenceRole);
+        if (!servedAsEvidence && urls.length && urls.every((url) => related.has(url))) continue;
+        note(row);
+      }
+    }
+  }
+  return served;
+}
+
+// Artifacts strictly earlier than the target, in the same order earlierSlotServedUrls uses.
+function earlierServedArtifacts(servedArtifacts, target) {
   const order = (date, slotId) => `${date}:${SLOTS.findIndex(row => row.id === slotId)}`;
-  if (!servedArtifact?.issueTable || order(servedArtifact.editionDate, servedArtifact.slot?.id)
-    >= order(target.editionDate, target.slotId)) return new Set();
-  return new Set(Object.values(servedArtifact.issueTable).flatMap((issue) => [
-    ...(issue.refs || []), ...(issue.eventSources || []), ...(issue.sourceEvidence || []),
-    ...(issue.articleSummary?.sourceLinks || [])
-  ]).flatMap((row) => [row?.url, row?.canonicalUrl]).map(canonicalContentUrl).filter(Boolean));
+  return [servedArtifacts].flat().filter((artifact) => artifact?.issueTable
+    && order(artifact.editionDate, artifact.slot?.id) < order(target.editionDate, target.slotId));
+}
+
+// Exact-URL dedupe cannot see the same event arriving under another outlet's URL, and a
+// same-URL update passes it on purpose. Reuse the edition change classifier against every
+// earlier slot of the day to find the previous issue, then judge the change on demonstrated
+// facts only: a number the earlier headline did not state (사망 3명 → 5명) or a confirmed
+// outcome of a scheduled event (발사 예정 → 발사 성공). A paraphrase (같은 말 + 확인), another
+// outlet, an evidence-mode change or a fingerprint difference alone is not new evidence.
+// Kept issues stay the builder's own objects; only the decision is taken from the classifier.
+// Quantities are read from the lead article title only: generated headlines embed reaction
+// counts (추천 734건) and secondary references carry unrelated figures. Where the source keeps
+// its original title, that original is the fact record; a translated title that states a
+// different number than its original does not prove a new fact.
+const leadArticle = (issue) => {
+  const lead = issue?.eventSources?.[0] || issue?.refs?.[0] || {};
+  const ref = issue?.refs?.[0] || {};
+  return {
+    id: lead.evidenceId || ref.id || issue?.evidenceHash || null,
+    kind: issue?.metrics?.communityOnly === true ? "community" : "news",
+    source: lead.sourceId || ref.source || ref.ownershipGroup || null,
+    url: lead.canonicalUrl || lead.url || ref.canonicalUrl || ref.url || null,
+    publishedAt: lead.publishedAt || ref.publishedAt || issue?.firstPublishedAt || null,
+    title: lead.title || ref.title || issue?.subject || issue?.headline || "",
+    originalTitle: lead.originalTitle || null
+  };
+};
+// The in-slot classifier's concept match also fires on boilerplate tokens shared by generated
+// headlines (복수·수집·경로·확인, 이토랜드·상위·댓글). Across slots only an identity match, or a
+// concept match confirmed by the single-truth event merge decision on the two lead articles,
+// counts as the same story.
+const IDENTITY_MATCHES = new Set(["shared_ref_id", "shared_canonical_url", "shared_normalized_title", "same_subject_and_category"]);
+// Conservative identity for a merge-confirmed concept match: most of the shorter headline's
+// entities must be shared (product variants like 고스트페이스 에어포스 1 vs 방수 에어포스 1 fail;
+// a witness statement or political response to an earlier incident also fails and stays a new
+// development), unless the two headlines share a large stated quantity (8700억 군산 수주).
+const CROSS_SLOT_MIN_ENTITY_SHARE = 0.6;
+const CROSS_SLOT_STRONG_QUANTITY = 100;
+const leadTitle = (issue) => { const lead = leadArticle(issue); return lead.originalTitle || lead.title; };
+// ponytail: explicit headline quantities cover demonstrated updates; unrecognized prose needs editorial review.
+// Keep units so a new amount is distinguishable from a year, tenure, or a product model number.
+// NH167 F1: the same amount spelled differently (1천60만대 = 1060만대 = 1,060만대, $99 = $99.00)
+// is one quantity; the exact value is kept and rendered back in Korean units for receipts.
+function formatKoreanNumber(value) {
+  if (!Number.isSafeInteger(value) || value < 10000) return String(value);
+  const parts = [];
+  let rest = value;
+  for (const [unit, size] of [["조", 1e12], ["억", 1e8], ["만", 1e4]]) {
+    const count = Math.floor(rest / size);
+    if (count) { parts.push(`${count}${unit}`); rest -= count * size; }
+  }
+  if (rest) parts.push(String(rest));
+  return parts.join("");
+}
+function canonicalQuantity(value) {
+  const parsed = parseExactNumber(value);
+  return parsed ? `${formatKoreanNumber(parsed.value)}${value.replace(/^[\d.,조억만천백]+/u, "")}` : value;
+}
+const quantityValue = (value) => parseExactNumber(value)?.value ?? parseFloat(value.replace(/^[$€£₩]/, ""));
+function headlineQuantities(title) {
+  const text = String(title || "").toLowerCase();
+  const quantities = text.match(/[$€£₩]\s*\d[\d,.]*(?:\s*(?:million|billion|trillion))?|\d[\d,.]*(?:(?:억|조|만|천)\d*)*(?:원|달러|명|건|가구|관왕|%|배|개(?!월)|곳|대)|\d[\d,.]*(?:억|조)|\d[\d,.]*\s+(?:dead|killed|injured|people|dollars|percent)\b/giu) || [];
+  return [...new Set(quantities.map(value => canonicalQuantity(value.replace(/[\s,]/g, "")
+    .replace(/(?:dead|killed|injured|people)$/, "명").replace(/dollars$/, "달러").replace(/percent$/, "%")
+    .replace(/([억조])원$/, "$1").replace(/^\$(\d+(?:\.\d+)?)$/, "$1달러"))))];
+}
+function conservativeSameEventTitles(beforeTitle, afterTitle) {
+  const before = eventEntityTokens(beforeTitle);
+  const after = eventEntityTokens(afterTitle);
+  const shared = sharedEventTokens(beforeTitle, afterTitle);
+  const shorter = Math.min(before.length, after.length);
+  if (!shorter) return { same: false, basis: "distinct:no_entities" };
+  const share = shared.length / shorter;
+  const afterQuantities = new Set(headlineQuantities(afterTitle));
+  const strongQuantity = headlineQuantities(beforeTitle).some(value => afterQuantities.has(value) && quantityValue(value) >= CROSS_SLOT_STRONG_QUANTITY);
+  if (share >= CROSS_SLOT_MIN_ENTITY_SHARE || (strongQuantity && shared.length >= 3)) {
+    return { same: true, basis: `entity_share:${share.toFixed(2)}${strongQuantity ? "+quantity" : ""}` };
+  }
+  return { same: false, basis: `distinct:low_entity_share:${share.toFixed(2)}` };
+}
+const conservativeSameEvent = (previous, current) => conservativeSameEventTitles(leadTitle(previous), leadTitle(current));
+// A merge that passed the number guard on corroborated summary evidence (NH167 F1) already shares a
+// stated sales quantity of at least 1000, which is the strong-quantity identity the guard looks for.
+const identityAfterMerge = (decision, guard) => guard.same || decision.reason.includes("|summary_number:")
+  ? { same: true, basis: `event_merge:${decision.reason}|${guard.same ? guard.basis : "corroborated_quantity"}` }
+  : guard;
+export function sameServedEvent(previous, current, matchMethod) {
+  if (IDENTITY_MATCHES.has(matchMethod)) return { same: true, basis: matchMethod };
+  const decision = decideEventMerge(leadArticle(previous), leadArticle(current));
+  if (!decision.merge) return { same: false, basis: `distinct:${decision.reason}` };
+  return identityAfterMerge(decision, conservativeSameEvent(previous, current));
+}
+// Lead-eligible reporting rows of an issue as event articles (title, original title, summary,
+// time). Two issues in one lane are the same story when any pair of their rows passes the same
+// two-step test used across slots: the single-truth event merge, then the conservative identity
+// guard. Community-only issues keep their strong-match-only behaviour through decideEventMerge.
+const leadEligibleArticles = (issue) => {
+  const kind = issue?.metrics?.communityOnly === true ? "community" : "news";
+  const rows = (issue?.eventSources || []).filter((row) => row?.canLead !== false && clean(row?.title || row?.originalTitle));
+  const articles = rows.map((row) => ({
+    id: row.evidenceId || null, kind, source: row.sourceId || null,
+    url: row.canonicalUrl || row.url || null, publishedAt: row.publishedAt || issue?.firstPublishedAt || null,
+    title: row.title || row.originalTitle || "", originalTitle: row.originalTitle || null, summary: row.summary || null
+  }));
+  return articles.length ? articles : [leadArticle(issue)];
+};
+const articleTitle = (article) => article.originalTitle || article.title;
+// Two lead titles that both state quantities, neither set containing the other, are two facts
+// (22년 1060만대 vs 22년 1100만대): the later card stays even though the event merge accepts the
+// shared year. A title without a stated quantity (1000만 고지) does not conflict.
+function leadQuantityConflict(placed, candidate) {
+  const before = new Set(headlineQuantities(leadTitle(placed)));
+  const after = new Set(headlineQuantities(leadTitle(candidate)));
+  if (!before.size || !after.size) return false;
+  const subset = (left, right) => [...left].every((value) => right.has(value));
+  return !subset(before, after) && !subset(after, before);
+}
+export function sameEditionEvent(placed, candidate) {
+  if (leadQuantityConflict(placed, candidate)) return { same: false, basis: "distinct:lead_quantity_conflict" };
+  for (const a of leadEligibleArticles(placed)) {
+    for (const b of leadEligibleArticles(candidate)) {
+      const decision = decideEventMerge(a, b);
+      if (!decision.merge) continue;
+      const identity = identityAfterMerge(decision, conservativeSameEventTitles(articleTitle(a), articleTitle(b)));
+      if (identity.same) return identity;
+    }
+  }
+  return { same: false, basis: "distinct" };
+}
+function sameLaneEvent(lane, issue) {
+  for (const placed of lane) {
+    const identity = sameEditionEvent(placed, issue);
+    if (identity.same) return { evidenceHash: placed.evidenceHash, basis: identity.basis };
+  }
+  return null;
+}
+// A first stated amount or changed count can be new evidence; a date, model number or tenure cannot.
+export function crossSlotMaterialChange(previous, current) {
+  const before = new Set(headlineQuantities(leadTitle(previous)));
+  const newNumbers = headlineQuantities(leadTitle(current)).filter((number) => !before.has(number));
+  if (newNumbers.length) return { material: true, basis: "changed_headline_number", numbers: newNumbers };
+  if (isConfirmedEventFollowUp(leadArticle(previous), leadArticle(current))) {
+    return { material: true, basis: "confirmed_follow_up" };
+  }
+  return { material: false, basis: "no_demonstrated_fact_change" };
+}
+export function withholdServedEventRepeats(edition, servedArtifacts, target) {
+  const earlier = earlierServedArtifacts(servedArtifacts, target);
+  const issues = Array.isArray(edition?.issues) ? edition.issues : [];
+  if (!earlier.length || !issues.length) {
+    return { edition, withheld: [], kept: [], comparedEditions: earlier.length };
+  }
+  const historyEditions = earlier.map((artifact) => ({
+    editionId: artifact.artifactId,
+    issues: Object.values(artifact.issueTable)
+  }));
+  // One candidate at a time: the classifier's one-to-one continuity claim must not let a
+  // second repeat of the same served story pass as "new" because a first repeat claimed it.
+  const annotated = issues.map((issue) => applyEditionChanges({ ...edition, issues: [issue] }, null, {
+    historyEditions, enforceRepeatRule: false, attachMatchedIssue: true
+  }).issues[0]);
+  const withheld = [];
+  const kept = [];
+  const distinct = [];
+  const filtered = issues.filter((issue, index) => {
+    const row = annotated[index];
+    const evidence = row.changeEvidence || {};
+    if (!evidence.matchMethod || !evidence.matchedIssue) return true;
+    const identity = sameServedEvent(evidence.matchedIssue, issue, evidence.matchMethod);
+    if (!identity.same) {
+      distinct.push({ evidenceHash: issue.evidenceHash || null, matchMethod: evidence.matchMethod,
+        matchedEvidenceHash: evidence.matchedIssue.evidenceHash || null, basis: identity.basis });
+      return true;
+    }
+    const change = crossSlotMaterialChange(evidence.matchedIssue, issue);
+    const record = {
+      sameEventBasis: identity.basis,
+      evidenceHash: issue.evidenceHash || null,
+      headline: issue.preparedHeadline || issue.subject || issue.headline || null,
+      changeState: row.changeState,
+      matchMethod: evidence.matchMethod,
+      matchedEditionId: evidence.matchedEditionId || null,
+      matchedEvidenceHash: evidence.matchedIssue.evidenceHash || null,
+      matchedHeadline: evidence.matchedIssue.preparedHeadline || evidence.matchedIssue.subject || evidence.matchedIssue.headline || null,
+      matchRatio: evidence.matchRatio ?? null,
+      matchedTerms: evidence.matchedTerms || [],
+      basis: change.basis,
+      ...(change.numbers ? { numbers: change.numbers } : {})
+    };
+    (change.material ? kept : withheld).push(record);
+    return change.material;
+  });
+  return { edition: { ...edition, issues: filtered }, withheld, kept, distinct, comparedEditions: earlier.length };
 }
 
 // Filter before collection deduplication, caps, category ranking and event formation.
@@ -402,7 +673,13 @@ export function slotSourceArticles({ pool, target, metadata, servedArtifact = nu
     ((item.kind || metadata.get(item.source)?.kind || "news") !== "news"
       || inBriefingWindow({ ...item, kind: "news" }, target.evidenceAsOfMs, slot, metadata, target.editionDate))
     && ![item.url, item.canonicalUrl, ...(item.canonicalAliases || []).map((alias) => alias?.url)]
-      .some((url) => served.has(canonicalContentUrl(url))));
+      .some((url) => {
+        const titles = served.get(canonicalContentUrl(url));
+        if (!titles) return false;
+        const current = [item.title, item.originalTitle].map(servedTitleKey).filter(Boolean);
+        // Unknown served titles (older artifacts) or an unchanged title: already served.
+        return !titles.size || !current.length || current.some((title) => titles.has(title));
+      }));
 }
 
 export function reusePreparedArticleDetails(edition, previousIssues = [], nowMs = Date.now()) {
@@ -489,6 +766,7 @@ export async function buildSlotCanonicalEditionCandidate({
     slotId: target.slotId,
     editionDate: target.editionDate,
     reserveIssues: 8,
+    laneDepth: SLOT_CANONICAL_EDITION_CONTRACT.extraLaneCapacity,
     editorialPreselectedPool: true,
     editorialPreselectedReferenceMs: poolEvidenceAsOf
   });
@@ -497,14 +775,7 @@ export async function buildSlotCanonicalEditionCandidate({
   }
   const schema = validateTodayEdition(run.edition);
   if (!schema.ok) throw new Error(`slot edition: today schema invalid: ${schema.errors.join("; ")}`);
-  const publicationLanes = assertSemanticLaneCoverage(run.edition);
-  const publicationIssues = new Set(Object.values(publicationLanes)
-    .flatMap((edition) => edition.issues));
-  const publicationEdition = {
-    ...run.edition,
-    issues: run.edition.issues.filter((issue) => publicationIssues.has(issue))
-  };
-
+  const { edition: publicationEdition, repeatCheck, extras: selectionExtras, generated } = selectPublicationEdition(run.edition, servedArtifact, target);
   const detailReuse = reusePreparedArticleDetails(publicationEdition,
     previousArtifact ? Object.values(assertSlotCanonicalEdition(previousArtifact).issueTable) : [], referenceNow);
   const summaryPipeline = makeArticleSummaryPipeline({
@@ -540,7 +811,10 @@ export async function buildSlotCanonicalEditionCandidate({
     }));
     throw new Error(`slot edition: ${unprepared.length} article details are not prepared ${JSON.stringify(sample)}`);
   }
-  const editionsByCategory = categoryEditionsFromUnion(unionEdition);
+  // Rejections and overflow were decided on the generated edition; the prepared union only re-derives the lanes.
+  const { editions: editionsByCategory, extras: preparedExtras } = assembleCategoryLanes(unionEdition,
+    { editionDate: target.editionDate, slotId: target.slotId });
+  const laneExtras = { ...preparedExtras, withheld: selectionExtras.withheld, rejected: selectionExtras.rejected };
   const foreignMajorCoverage = foreignMajorLaneCoverage({
     pool, routingSnapshot: activeRoutingSnapshot, unionEdition, nowMs: poolEvidenceAsOf
   });
@@ -558,6 +832,18 @@ export async function buildSlotCanonicalEditionCandidate({
     identity,
     foreignMajorCoverage,
     detailReuse: { reused: detailReuse.reused, total: publicationEdition.issues.length },
+    laneExtras,
+    servedEventRepeats: {
+      comparedEditions: repeatCheck.comparedEditions,
+      candidates: generated,
+      published: publicationEdition.issues.length,
+      withheld: repeatCheck.withheld.length,
+      keptAsMaterialUpdate: repeatCheck.kept.length,
+      conceptMatchesJudgedDistinct: repeatCheck.distinct.length,
+      withheldIssues: repeatCheck.withheld,
+      keptIssues: repeatCheck.kept,
+      distinctIssues: repeatCheck.distinct
+    },
     headlinePolish: { attempted: headlinePolish.attempted, changed: headlinePolish.changed },
     headlineReview: headlineReviewResult.receipt
   };
@@ -571,13 +857,13 @@ async function main() {
   const routingSnapshotFile = arg(args, "--routing-snapshot");
   const headlineReviewFile = arg(args, "--headline-review");
   const reuseEditionFile = arg(args, "--reuse-edition");
-  const servedEditionFile = arg(args, "--served-edition");
+  const servedEditionFiles = argsFor(args, "--served-edition");
   const editionDate = arg(args, "--date");
   const slotId = arg(args, "--slot");
   const outDir = path.resolve(arg(args, "--out-dir") || path.join(ROOT, ".nowhot-local/slot-editions"));
   const activate = args.includes("--activate");
   if (!poolFile || !packetFile || !editionDate || !slotId || (!predictionsFile && !routingSnapshotFile)) {
-    throw new Error("usage: --pool <pool.json> --packet <packet.json> (--predictions <predictions.json> | --routing-snapshot <snapshot.json>) --date YYYY-MM-DD --slot <morning|lunch|evening> [--headline-review review.json] [--reuse-edition edition.json] [--served-edition edition.json] [--out-dir dir] [--activate] [--allow-paid]");
+    throw new Error("usage: --pool <pool.json> --packet <packet.json> (--predictions <predictions.json> | --routing-snapshot <snapshot.json>) --date YYYY-MM-DD --slot <morning|lunch|evening> [--headline-review review.json] [--reuse-edition edition.json] [--served-edition edition.json ...] [--out-dir dir] [--activate] [--allow-paid]");
   }
   const poolRaw = fs.readFileSync(poolFile, "utf8");
   const packetRaw = fs.readFileSync(packetFile, "utf8");
@@ -601,7 +887,9 @@ async function main() {
     evidenceAsOfMs: target.evidenceAsOfMs,
     workDir: path.join(outDir, `.work-${process.pid}`),
     previousArtifact: reuseEditionFile ? assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(reuseEditionFile, "utf8"))) : null,
-    servedArtifact: servedEditionFile ? assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(servedEditionFile, "utf8"))) : undefined,
+    servedArtifact: servedEditionFiles.length
+      ? servedEditionFiles.map((file) => assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(file, "utf8"))))
+      : undefined,
     apiKey,
     translateTitle: apiKey
       ? memoizedTranslator(anthropicTranslator({ apiKey, onUsage: (row) => usage.push(row) }))
@@ -626,6 +914,8 @@ async function main() {
     issueCount: result.artifact.displayOrder.length,
     headlinePolish: result.headlinePolish,
     detailReuse: result.detailReuse,
+    servedEventRepeats: result.servedEventRepeats,
+    laneExtras: result.laneExtras,
     headlineReview: result.headlineReview,
     laneCounts: Object.fromEntries(Object.entries(result.artifact.lanes).map(([id, rows]) => [id, rows.length])),
     detailStatuses: result.artifact.displayOrder.reduce((counts, id) => {

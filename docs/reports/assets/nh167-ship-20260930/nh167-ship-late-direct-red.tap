@@ -1,0 +1,29 @@
+TAP version 13
+# Subtest: NH167 late review corrects the active artifact without rebuilding and preserves old shared editions
+not ok 1 - NH167 late review corrects the active artifact without rebuilding and preserves old shared editions
+  ---
+  duration_ms: 58.920084
+  type: 'test'
+  location: '/Users/hyundonghwang/orca/workspaces/NowHot-Local-Dev/nowhot-nh167-freshness-v4/test/slot-canonical-prepublish.test.js:1050:1'
+  failureType: 'testCodeFailure'
+  error: 'slot edition headline review: originalTitle mismatch'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    applyHeadlineReview (file:///Users/hyundonghwang/orca/workspaces/NowHot-Local-Dev/nowhot-nh167-freshness-v4/tools/build-slot-canonical-edition.mjs:278:13)
+    runDueSlotPrepublish (file:///Users/hyundonghwang/orca/workspaces/NowHot-Local-Dev/nowhot-nh167-freshness-v4/tools/run-slot-canonical-prepublish.mjs:398:7)
+    run (file:///Users/hyundonghwang/orca/workspaces/NowHot-Local-Dev/nowhot-nh167-freshness-v4/test/slot-canonical-prepublish.test.js:1083:21)
+    TestContext.<anonymous> (file:///Users/hyundonghwang/orca/workspaces/NowHot-Local-Dev/nowhot-nh167-freshness-v4/test/slot-canonical-prepublish.test.js:1087:24)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 255.0385

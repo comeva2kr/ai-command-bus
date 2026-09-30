@@ -1,0 +1,273 @@
+{
+ "source": "public 9/30 lunch inputs replayed offline (artifact SCE-712a0c6d0b6b2c92, same fields as the live edition SCE-9da8530b0dd5), reader projections removed",
+ "issues": [
+  {
+   "subject": "보스 노이즈 캔슬링 유선 이어버드는 99달러에 절대 사기입니다",
+   "headline": "얀코디자인 상위의 “보스 노이즈 캔슬링 유선 이어버드는 99달러에 절대 사기입니다”",
+   "paragraph": "얀코디자인 상위 목록에 “보스 노이즈 캔슬링 유선 이어버드는 99달러에 절대 사기입니다” 제목이 올라 있다.",
+   "tone": "단독",
+   "shape": "single",
+   "categoryIds": [
+    "art"
+   ],
+   "metrics": {
+    "sourceCount": 1,
+    "independentGroupCount": 1,
+    "score": 0,
+    "comments": 0,
+    "coverage": 0,
+    "evidenceMode": "single_feed_observed",
+    "relatedCoverageSignal": false,
+    "sourceRoles": {
+     "reported_secondary": 1
+    },
+    "verifiedSourceCount": 1,
+    "carryoverUsed": false,
+    "carryoverEvidenceCount": 0,
+    "communityOnly": false
+   },
+   "evidence": {
+    "mode": "single_feed_observed",
+    "observedFeedCount": 1,
+    "independentGroupCount": 1,
+    "ownershipGroups": [
+     "yankodesign"
+    ],
+    "groups": [
+     {
+      "ownershipGroup": "yankodesign",
+      "label": "얀코디자인",
+      "sources": [
+       "yankodesign"
+      ]
+     }
+    ],
+    "independenceBasis": "operational_group_not_legal_independence",
+    "relatedCoverageSignal": false,
+    "coverage": 0,
+    "sources": [
+     {
+      "source": "yankodesign",
+      "label": "얀코디자인",
+      "ownershipGroup": "yankodesign",
+      "ownershipBasis": "source_id_fallback"
+     }
+    ]
+   },
+   "sourceEvidence": [
+    {
+     "evidenceId": "NHE-5e1e30c8013e0f01",
+     "itemId": "it_1iwd6tm",
+     "title": "보스 노이즈 캔슬링 유선 이어버드는 99달러에 절대 사기입니다",
+     "sourceId": "yankodesign",
+     "sourceLabel": "얀코디자인",
+     "sourceRole": "unknown",
+     "ownershipGroup": "yankodesign",
+     "ownershipBasis": "source_id_fallback",
+     "syndicationGroup": null,
+     "canonicalUrl": "https://www.yankodesign.com/2026/09/29/bose-noise-cancelling-wired-earbuds-are-an-absolute-steal-for-99/",
+     "publishedAt": "2026-09-29T15:20:42.000Z",
+     "observedAt": null,
+     "carryover": null,
+     "evidenceRole": "lead"
+    }
+   ],
+   "editorialGate": {
+    "state": "machine_gate_pass",
+    "pass": true,
+    "checks": {
+     "headlineSubjectComplete": true,
+     "sourceEvidencePresent": true,
+     "crossSourceWordingSupported": true,
+     "paragraphHasEditorialContext": true,
+     "koreanAudienceReadable": true,
+     "categoryFitSupported": true,
+     "sensitiveAllegationSupported": true,
+     "communityViolentExhortationAbsent": true
+    },
+    "failures": []
+   },
+   "refs": [
+    {
+     "id": "it_1iwd6tm",
+     "title": "보스 노이즈 캔슬링 유선 이어버드는 99달러에 절대 사기입니다",
+     "sourceLabel": "얀코디자인",
+     "category": "art",
+     "score": 0,
+     "commentCount": 0,
+     "coverage": 0,
+     "canonicalUrl": null,
+     "publishedAt": "2026-09-29T15:20:42.000Z",
+     "sourceRole": "unknown",
+     "ownershipGroup": "yankodesign",
+     "ownershipBasis": "source_id_fallback",
+     "syndicationGroup": null,
+     "carryover": null
+    }
+   ],
+   "overseasOnly": true,
+   "clusterId": "EV-c6b99a006424fcc9",
+   "event": {
+    "eventId": "EV-c6b99a006424fcc9",
+    "memberArticleIds": [
+     "it_1iwd6tm"
+    ],
+    "reactionArticleIds": [],
+    "representativeId": "it_1iwd6tm",
+    "aliases": [],
+    "mergeHistory": [],
+    "firstSeenAt": "2026-09-29T15:20:42.000Z",
+    "lastMaterialChangeAt": "2026-09-29T15:20:42.000Z",
+    "factsFingerprint": "EVF-d1c6280bfa98de10",
+    "counts": {
+     "articles": 1,
+     "independentReportingGroups": 1,
+     "communityGroups": 0,
+     "communityReactions": 0
+    },
+    "sourceEvidence": [
+     {
+      "articleId": "it_1iwd6tm",
+      "title": "보스 노이즈 캔슬링 유선 이어버드는 99달러에 절대 사기입니다",
+      "originalTitle": "Bose Noise Cancelling Wired Earbuds are an absolute steal for $99",
+      "sourceId": "yankodesign",
+      "sourceLabel": "얀코디자인",
+      "operatorGroup": "yankodesign",
+      "canonicalUrl": "https://www.yankodesign.com/2026/09/29/bose-noise-cancelling-wired-earbuds-are-an-absolute-steal-for-99",
+      "publishedAt": "2026-09-29T15:20:42.000Z",
+      "evidenceRole": "reporting"
+     }
+    ]
+   },
+   "whatHappened": "얀코디자인 상위 목록에 “보스 노이즈 캔슬링 유선 이어버드는 99달러에 절대 사기입니다” 제목이 올라 있다.",
+   "impactLens": "작품·디자인",
+   "whyImportant": "작품·전시·디자인의 현재 흐름을 이해하는 데 필요한 맥락이라 창작 배경과 공개 반응을 함께 볼 가치가 있다.",
+   "whyHot": "현재 수집 목록의 상위 후보로 들어왔다.",
+   "whyForYou": "예술·디자인을 선택한 오늘판이라 포함했다.",
+   "watchNext": "새 근거가 추가되는지 다음 판에서 다시 확인한다.",
+   "confidence": {
+    "code": "single_source_observed",
+    "label": "단일 출처 관측",
+    "note": "추가 교차 확인 전의 관측 후보다."
+   },
+   "evidenceHash": "b6b2fb801416636b1811368f25cc42c7a0622b43d1f7ecb249162895e062c7ad",
+   "claimLineage": {
+    "contractId": "NOWHOT-EDITORIAL-LINEAGE-CONTRACT-001",
+    "fingerprintVersion": 5,
+    "state": "lineage_attached",
+    "claims": {
+     "headline": {
+      "basis": "source_titles",
+      "evidenceIds": [
+       "NHE-5e1e30c8013e0f01"
+      ]
+     },
+     "paragraph": {
+      "basis": "source_titles",
+      "evidenceIds": [
+       "NHE-5e1e30c8013e0f01"
+      ]
+     },
+     "whatHappened": {
+      "basis": "source_titles",
+      "evidenceIds": [
+       "NHE-5e1e30c8013e0f01"
+      ]
+     },
+     "whyImportant": {
+      "basis": "editorial_policy",
+      "evidenceIds": [
+       "NHE-5e1e30c8013e0f01"
+      ],
+      "policyRule": "작품·디자인"
+     },
+     "whyHot": {
+      "basis": "measured_signal",
+      "evidenceIds": [
+       "NHE-5e1e30c8013e0f01"
+      ],
+      "measured": {
+       "evidenceMode": "single_feed_observed",
+       "observedFeedCount": 1,
+       "independentGroupCount": 1,
+       "relatedCoverageSignal": false,
+       "score": 0,
+       "comments": 0,
+       "coverage": 0
+      }
+     },
+     "whyForYou": {
+      "basis": "explicit_selection",
+      "categoryIds": [
+       "art"
+      ]
+     },
+     "watchNext": {
+      "basis": "editorial_watch",
+      "evidenceIds": [
+       "NHE-5e1e30c8013e0f01"
+      ]
+     }
+    },
+    "contentHash": "0401278355ed723af8c89470d8348e97fbad5e6941d6dff7d2eb1baac6f539b9"
+   },
+   "selectedByCategories": [
+    "art"
+   ],
+   "eventSourceSetId": "EV-c6b99a006424fcc9:yankodesign",
+   "eventSources": [
+    {
+     "evidenceId": "event-source:it_1iwd6tm",
+     "id": "it_1iwd6tm",
+     "title": "보스 노이즈 캔슬링 유선 이어버드는 99달러에 절대 사기입니다",
+     "originalTitle": "Bose Noise Cancelling Wired Earbuds are an absolute steal for $99",
+     "summary": "유선 이어버드가 강력한 복귀를 보이고 있는 데에는 그럴 만한 이유가 있습니다. 케이스 충전에 대해 걱정할 필요가 없습니다. 새싹이 죽는 것에 대해 걱정할 필요가 없습니다…",
+     "sourceId": "yankodesign",
+     "sourceGroup": "yankodesign",
+     "sourceLabel": "얀코디자인",
+     "url": "https://www.yankodesign.com/2026/09/29/bose-noise-cancelling-wired-earbuds-are-an-absolute-steal-for-99",
+     "canonicalUrl": "https://www.yankodesign.com/2026/09/29/bose-noise-cancelling-wired-earbuds-are-an-absolute-steal-for-99",
+     "publishedAt": "2026-09-29T15:20:42.000Z",
+     "image": "https://www.yankodesign.com/images/design_news/2026/09/bose-noise-cancelling-wired-earbuds-are-an-absolute-steal-for-99/Bose-Noise-Cancelling-Wired-Earbuds-7.jpg",
+     "canLead": true,
+     "relay": false
+    }
+   ],
+   "articleSummary": {
+    "status": "excerpt_only",
+    "contractId": "NOWHOT-ARTICLE-SUMMARY-001",
+    "contractVersion": 38,
+    "promptVersion": 20,
+    "articleContentId": "NHC-625fbb2005e230778437d11b",
+    "articleContentAliases": [
+     "NHC-625fbb2005e230778437d11b"
+    ],
+    "eventSourceSetId": "EV-c6b99a006424fcc9:yankodesign",
+    "textKo": "오디오 2026년 9월 29일 3분 읽기 Bose 소음 차단 유선 이어버드는 99달러에 절대 훔칠 수 있는 제품입니다. 향수를 불러일으키는 버드는 적응형 ANC와 오디오 애호가들이 진정으로 높이 평가할 무손실 오디오를 자랑합니다.",
+    "sourceEvidenceId": "event-source:it_1iwd6tm",
+    "sourceLabel": "얀코디자인",
+    "sourceCount": 1,
+    "summarySourceCount": 1,
+    "sourceLinks": [
+     {
+      "evidenceId": "event-source:it_1iwd6tm",
+      "sourceLabel": "얀코디자인",
+      "sourceGroup": "yankodesign",
+      "url": "https://www.yankodesign.com/2026/09/29/bose-noise-cancelling-wired-earbuds-are-an-absolute-steal-for-99/",
+      "summary": "유선 이어버드가 강력한 복귀를 보이고 있는 데에는 그럴 만한 이유가 있습니다. 케이스 충전에 대해 걱정할 필요가 없습니다. 새싹이 죽는 것에 대해 걱정할 필요가 없습니다…",
+      "image": "https://www.yankodesign.com/images/design_news/2026/09/bose-noise-cancelling-wired-earbuds-are-an-absolute-steal-for-99/Bose-Noise-Cancelling-Wired-Earbuds-7.jpg",
+      "publishedAt": "2026-09-29T15:20:42.000Z",
+      "originalTitle": "Bose Noise Cancelling Wired Earbuds are an absolute steal for $99"
+     }
+    ],
+    "image": "https://www.yankodesign.com/images/design_news/2026/09/bose-noise-cancelling-wired-earbuds-are-an-absolute-steal-for-99/Bose-Noise-Cancelling-Wired-Earbuds-7.jpg",
+    "generationModel": null,
+    "unavailableReasonCode": null,
+    "generatedAt": "2026-09-30T02:25:50.189Z",
+    "excerptBasis": "public_anchor_body"
+   },
+   "firstPublishedAt": "2026-09-29T15:20:42.000Z",
+   "publicationTimeBasis": "source_feed_timestamp"
+  }
+ ]
+}

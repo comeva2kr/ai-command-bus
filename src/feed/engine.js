@@ -3530,7 +3530,9 @@ export class FeedEngine {
     allowCarryover = false,
     servedCanonicalUrls = [],
     categoryEditions = null,
-    editionDate: requestedEditionDate = null
+    editionDate: requestedEditionDate = null,
+    // Slot canonical builds prepare 20 per lane (14 baseline + qualified extras); null keeps 14.
+    laneDepth = null
   } = {}) {
     const user = userId ? this.store.getUser(userId) : null;
     const selection = resolveEditorialSelection(categories, user);
@@ -3538,8 +3540,9 @@ export class FeedEngine {
     const mode = selection.mode;
 
     const count = selected.length;
-    const perCategory = EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory;
-    const maxIssues = editorialIssueBudget(count);
+    const perCategory = Math.max(EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.perSelectedCategory,
+      Math.min(EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.flexibleLaneDepth, Math.floor(Number(laneDepth) || 0)));
+    const maxIssues = editorialIssueBudget(count, { perCategory });
     const additiveCategoryUnion = true;
     // 이전 판과 같은 사건을 제거한 뒤에도 새 사건으로 지면을 채울 수 있도록
     // 서버의 판본 확정 경로만 여분 이슈를 요청한다. 기본값은 0이라 기존 호출과
@@ -3556,7 +3559,7 @@ export class FeedEngine {
       Math.max(generatedIssueBudget * 8, perCategory * count * 2)
     );
     const minIssuesPerCategory = selected.length
-      ? editorialMinimumPerCategory(selected.length, maxIssues)
+      ? editorialMinimumPerCategory(selected.length, maxIssues, { perCategory })
       : 0;
     // 직전 판과 같은 사건 한 건이 보류돼도 분야 최소 깊이가 무너지지 않도록
     // 변화 검사 전에는 분야마다 같은 수의 대체 후보를 더 요청한다. 여분을

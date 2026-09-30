@@ -34,6 +34,7 @@ import { createHash } from "node:crypto";
 import { eventKey, normalizeForDedupe, titleConcepts, titleWords } from "./dedupe.js";
 import { canonicalizeUrl, isGoogleNewsRedirect } from "./canonical-url.js";
 import { operationalSourceIdentity } from "./editorial-source-identity.js";
+import { AUTO_KEYWORDS } from "./classify.js";
 
 const sha = (value) => createHash("sha256").update(String(value || "")).digest("hex");
 
@@ -142,21 +143,109 @@ export function eventEntityTokens(title) {
   const out = [];
   // 하나의 회사 이름을 두 개의 독립 근거로 세지 않는다. 한/영 제목에서
   // 영문 이름 뒤 한국어 조사도 같은 이름으로 비교한다.
-  const normalized = String(title || "")
+  // NH167 F1: 수 표기는 낱말 분리 전에 정확히 정규화한다(normalizeNumberSpelling).
+  const normalized = normalizeNumberSpelling(title)
     // ponytail: 명시적인 report claims 제목의 before 배경절만 제외한다.
     // 다른 문형은 실제 오병합 표본이 생기면 확장하며 원문·강한 식별 키는 보존한다.
     .replace(/\s+before\s+[^,]+,\s*report claims[.!]?$/i, "")
     .replace(/\bhugging\s+face(?=[^a-z]|$)/gi, "huggingface")
-    .replace(/([a-z0-9])(?:으로|에서|에게|까지|부터|처럼|보다|에|가|이|은|는|을|를|의|와|과|도|만)(?=\s|[^\p{L}\p{N}]|$)/giu, "$1");
+    .replace(/([a-z])(?:으로|에서|에게|까지|부터|처럼|보다|에|가|이|은|는|을|를|의|와|과|도|만)(?=\s|[^\p{L}\p{N}]|$)/giu, "$1")
+    // 숫자 바로 뒤의 '만'은 조사가 아니라 단위다(1000만 고지 ≠ 1000 고지).
+    .replace(/(\d)(?:으로|에서|에게|까지|부터|처럼|보다|에|가|이|은|는|을|를|의|와|과|도)(?=\s|[^\p{L}\p{N}]|$)/gu, "$1");
   for (const concept of titleConcepts(normalized)) {
     if (EVENT_GENERIC_TOKENS.has(concept)) continue;
     const particleStem = concept.replace(/(?:으로|로)$/u, "");
     out.push(CROSS_LANGUAGE_ENTITY_ALIASES.get(concept)
       || CROSS_LANGUAGE_ENTITY_ALIASES.get(particleStem)
-      || concept);
+      || canonicalNumberToken(concept));
   }
   return [...new Set(out)];
 }
+
+// ── NH167 F1: 정확한 한국어 수 읽기 ───────────────────────────────────────
+// "1천60만대"·"1060만대"·"1,060만대"는 같은 수(10,600,000)다. 근사 동치는 만들지
+// 않는다 — 1000만과 1060만, 1.060만과 1060만, 1060과 1060만은 다른 수로 남는다.
+// 지원 형식: 정수(천 단위 쉼표 허용) 또는 소수 + 조/억/만/천/백 조합. 값은 BigInt로
+// 정확히 셈해 canonical 문자열로 비교한다(반올림 없음). unit은 큰 단위 뒤의 첫 글자
+// (대·명·원·%)이고 조사는 걷는다. 반환: { value, canonical, unit } 또는 null.
+const KOREAN_BIG_UNITS = new Map([["조", 12n], ["억", 8n], ["만", 4n], ["천", 3n], ["백", 2n]]);
+const NUMBER_TAIL_PARTICLE = /(?:으로|에서|에게|까지|부터|처럼|보다|마다|이나|에|가|이|은|는|을|를|의|와|과|도)$/u;
+export function parseExactNumber(raw) {
+  const text = String(raw || "").replace(/^num:/, "").replace(/(\d),(?=\d{3}(?!\d))/g, "$1");
+  if (!/^\d/.test(text)) return null;
+  const group = /(\d+(?:\.\d+)?)?([조억만천백])?/y;
+  let index = 0;
+  let scale = 0;
+  let total = 0n;
+  let sub = 0n;
+  const rescale = (target) => {
+    if (target <= scale) return;
+    const factor = 10n ** BigInt(target - scale);
+    total *= factor;
+    sub *= factor;
+    scale = target;
+  };
+  const term = (decimal) => {
+    const [whole, fraction = ""] = decimal.split(".");
+    rescale(fraction.length);
+    return BigInt(`${whole}${fraction}`) * 10n ** BigInt(scale - fraction.length);
+  };
+  while (index < text.length) {
+    group.lastIndex = index;
+    const match = group.exec(text);
+    if (!match || !match[0]) break;
+    const [, decimal, unit] = match;
+    if (unit === "천" || unit === "백") sub += (decimal ? term(decimal) : 10n ** BigInt(scale)) * 10n ** KOREAN_BIG_UNITS.get(unit);
+    else if (unit) { total += (sub + (decimal ? term(decimal) : 0n)) * 10n ** KOREAN_BIG_UNITS.get(unit); sub = 0n; }
+    else sub += term(decimal);
+    index += match[0].length;
+  }
+  total += sub;
+  const denominator = 10n ** BigInt(scale);
+  const canonical = total % denominator === 0n
+    ? String(total / denominator)
+    : `${total / denominator}.${String(total % denominator).padStart(scale, "0").replace(/0+$/, "")}`;
+  const suffix = text.slice(index).replace(NUMBER_TAIL_PARTICLE, "");
+  return { value: Number(canonical), canonical, unit: suffix ? suffix[0] : "" };
+}
+
+// 천 단위 쉼표(1,060만대), 큰 단위 소수(1.5억), 0으로 끝나는 소수($99.00)는 같은 수의
+// 다른 표기다. 소수점 자체는 보존한다(3.14는 314가 아니다). 정수가 되지 않는 큰 단위
+// 소수(1.2345천)는 그대로 둔다.
+function normalizeNumberSpelling(text) {
+  return String(text || "")
+    .replace(/(\d),(?=\d{3}(?!\d))/g, "$1")
+    .replace(/(\d+\.\d+)([조억만천백])/gu, (match, decimal, unit) => {
+      const parsed = parseExactNumber(`${decimal}${unit}`);
+      return parsed && /^\d{1,15}$/.test(parsed.canonical) ? parsed.canonical : match;
+    })
+    .replace(/(\d+)\.0+(?!\d)/g, "$1");
+}
+
+// 본문·제목의 수치 사실 (값, 단위, 위치). titleConcepts는 3자리 이상 수의 명·건·원
+// 단위를 걷어내므로, 단위가 필요한 비교는 원문 낱말에서 직접 읽는다.
+export function exactNumberFacts(text) {
+  const normalized = normalizeNumberSpelling(text);
+  const facts = [];
+  for (const match of normalized.matchAll(/(?<![\p{L}\p{N}])(\d[\p{L}\p{N}.%]*)/gu)) {
+    const parsed = parseExactNumber(match[1].replace(/\.+$/, ""));
+    if (parsed) facts.push({ ...parsed, index: match.index, text: normalized });
+  }
+  return facts;
+}
+
+// 큰 단위가 섞인 수 토큰만 정확한 값의 num: 토큰으로 접는다. "17명"·"22년" 같은
+// 기존 표기는 그대로 둔다(토큰 표면형을 넓게 바꾸지 않는다).
+function canonicalNumberToken(token) {
+  if (!/^(?:num:)?\d/.test(token) || !/[조억만천백]/u.test(token)) return token;
+  const parsed = parseExactNumber(token);
+  if (!parsed || !/^\d{1,15}$/.test(parsed.canonical)) return token;
+  return `num:${parsed.canonical}${parsed.unit}`;
+}
+
+// 사실 비교: canonical 값이 같고 단위가 같아야 한다. 단위가 없는 수는 단위 있는 같은 값과
+// 대응한다(1000만 고지 ↔ 1000만대). 이 비교는 아래 이정표 규칙 안에서만 쓴다.
+const sameNumberFact = (a, b) => a.canonical === b.canonical && (a.unit === b.unit || !a.unit || !b.unit);
 
 // 숫자 토큰 판정 — dedupe.js는 3자리 이상만 num: 접두를 붙이므로 "17" 같은
 // 1~2자리 순수 숫자 토큰도 여기서는 숫자로 취급한다. 안 그러면 2자리 숫자
@@ -166,7 +255,10 @@ export function eventEntityTokens(title) {
 // "숫자로 시작"을 숫자 판정으로 쓴다(순수 숫자만 보면 수치 충돌 가드가
 // 통째로 빠진다 — 실측: "부상 17명" vs "부상 90명"이 병합됐다).
 const isNumericToken = (t) => t.startsWith("num:") || /^\d/.test(t);
-const numericValue = (token) => String(token || "").replace(/^num:/, "").match(/^\d+(?:[.,]\d+)?/)?.[0] || "";
+const numericValue = (token) => {
+  const parsed = parseExactNumber(token);
+  return parsed ? parsed.canonical : String(token || "").replace(/^num:/, "").match(/^\d+(?:[.,]\d+)?/)?.[0] || "";
+};
 
 // dedupe.js sameTitleConcept과 같은 셈법: 완전일치 또는 조사·합성어 수준의
 // 접두/접미 포함(한글 2자·영문 3자 이상).
@@ -236,10 +328,14 @@ function prepareEventArticle(article) {
   const source = operationalSourceIdentity(article);
   return {
     article,
+    title,
     url: canonicalizeUrl(article && article.url),
     key: eventKey(title),
     tokens,
     numbers: tokens.filter(isNumericToken).map(numericValue).filter(Boolean),
+    headlineFacts: exactNumberFacts(title),
+    summaryText: String(article?.summary || article?.originalSummary || ""),
+    summaryFacts: null,
     time: parseTime(article && article.publishedAt),
     korean: hasKoreanScript(title),
     community: isCommunity(article),
@@ -265,6 +361,7 @@ function sharedPreparedTokens(a, b) {
   return shared;
 }
 
+const STOCK_INDEX_SUBJECT = /(코스피|코스닥|나스닥|다우|kospi|kosdaq|nasdaq|\bdow\b)/i;
 function decidePreparedEventMerge(a, b) {
   if (a.url && b.url && a.url === b.url) {
     return { merge: true, mode: "strong", reason: "canonical_url_exact" };
@@ -285,6 +382,11 @@ function decidePreparedEventMerge(a, b) {
   if (a.competition && b.competition && a.competition !== b.competition) {
     return { merge: false, reason: "guard_competition_conflict" };
   }
+  // NH167 (실제 9/30 점심 business 15): 코스피 시황과 개별 종목 기사가 상승·투자·기대만 겹쳐 한 사건이 됐다.
+  // 한쪽 제목만 주가지수를 주체로 두면 내용어 결합을 하지 않는다(강한 결합 경로는 위에서 이미 끝났다).
+  if (STOCK_INDEX_SUBJECT.test(a.title) !== STOCK_INDEX_SUBJECT.test(b.title)) {
+    return { merge: false, reason: "guard_stock_index_subject" };
+  }
   const crossLanguage = a.korean !== b.korean;
   const minShared = crossLanguage
     ? EVENT_MERGE_RULES.minSharedEntityTokensCrossLanguage
@@ -298,9 +400,89 @@ function decidePreparedEventMerge(a, b) {
   const crossLanguageUpdate = crossLanguage && sharedFacts.length >= minShared;
   if (a.numbers.length && b.numbers.length && !a.numbers.some((number) => b.numbers.includes(number))
       && !crossLanguageUpdate && !measuredFollowUp) {
-    return { merge: false, reason: "guard_number_conflict" };
+    const corroborated = summaryCorroboratedNumber(a, b);
+    if (!corroborated) return { merge: false, reason: "guard_number_conflict" };
+    return { merge: true, mode: "content", crossLanguage,
+      reason: `entity_overlap:${shared.join("+")}|summary_number:${corroborated}` };
   }
   return { merge: true, mode: "content", crossLanguage, reason: `entity_overlap:${shared.join("+")}` };
+}
+
+// NH167 F1: 제목 수치가 다를 때 숫자 충돌 가드를 넘는 유일한 경우 — 판매 이정표의 같은 발표.
+// 한쪽 제목은 판매 이정표(유효숫자 한 자리, 1000 이상: 1000만·1억; 사상자 단위 '명' 제외), 다른 쪽
+// 제목은 그 이정표를 막 넘은 정확한 양(이정표 초과, 2배 미만 — 이 창은 가드일 뿐 증거가 아니다).
+// 근거는 실제 요약의 한 문장에서만 나온다(3자 합의, 2026-09-30):
+//   (a) 이정표 기사의 자기 요약이 상대의 정확한 양을 판매 문맥·달성 문맥과 함께 그대로 말한다
+//       ("…누적 판매 1060만대를 돌파했다"), 또는
+//   (b) 정확한 양을 쓴 기사의 자기 요약이 그 이정표를 **이번 발표의 첫 달성**으로 말한다 —
+//       이정표 수 앞뒤 24자 창에 판매 문맥 + (고지|클럽) + (처음|최초|첫)이 있고, 창에 역사·전망 표지
+//       (기존·지난·앞서·이전·이후·당시·종전·과거·전망·예상·목표·계획·예정)가 없으며, 수 **뒤**에
+//       "에서"·"을/를 넘어"가 오지 않는다("1000만대에서 1100만대로", "1000만을 넘어 1100만"은 변화의 역사;
+//       수 앞의 "시장에서 누적"은 장소 표현이라 허용). 예: "누적 1000만대 고지를 밟은 것은 이번이 처음이다".
+//       "1000만대 판매 목표"는 전망이라 근거가 아니다. 폭탄 1000발 같은 비판매 수치도 아니다.
+// 두 제목이 서로 다른 자동차 브랜드·차종(기존 classify AUTO_KEYWORDS)을 각각 들고 있으면 같은 발표가 아니다
+// (투싼 1000만 고지 vs 싼타페 1060만대). 근사 동치는 없다 — 1061만6102대와 1060만대는 다른 수로 남는다.
+const isSalesMilestoneFact = (fact) => /^[1-9]0{3,}$/.test(fact.canonical) && fact.unit !== "명";
+const ACHIEVEMENT_CONTEXT = /(돌파|넘어|넘었|넘긴|넘겼|고지|달성|처음|최초|첫|클럽|기록|대기록|기념|surpass|milestone|reach|pass|top)/i;
+const FIRST_ACHIEVEMENT = /(처음|최초|첫|first)/i;
+const SALES_CONTEXT = /(판매|누적|출고|출하|판매량|매출|가입자|관객|다운로드|sales|sold|units|cumulative)/i;
+const HISTORY_OR_FORECAST = /(기존|지난|앞서|이전|이후|당시|종전|과거|전망|예상|목표|계획|예정|→|previous|earlier|target|forecast|expected|plan)/i;
+const summaryFactsOf = (prepared) => {
+  if (prepared.summaryFacts) return prepared.summaryFacts;
+  prepared.summaryFacts = prepared.summaryText ? exactNumberFacts(prepared.summaryText) : [];
+  return prepared.summaryFacts;
+};
+// 수치가 놓인 요약 문장(문장 부호 사이)만 본다.
+const factSentence = (fact) => {
+  const text = fact.text;
+  const start = Math.max(text.lastIndexOf(".", fact.index), text.lastIndexOf("。", fact.index),
+    text.lastIndexOf("!", fact.index), text.lastIndexOf("?", fact.index), text.lastIndexOf("\n", fact.index)) + 1;
+  const ends = [".", "。", "!", "?", "\n"].map((mark) => text.indexOf(mark, fact.index)).filter((at) => at >= 0);
+  return text.slice(start, ends.length ? Math.min(...ends) : text.length);
+};
+const summaryMentions = (prepared, fact, test) => summaryFactsOf(prepared)
+  .some((candidate) => sameNumberFact(fact, candidate) && test(factSentence(candidate)));
+const statesAchievement = (sentence) => SALES_CONTEXT.test(sentence) && ACHIEVEMENT_CONTEXT.test(sentence);
+const THRESHOLD_WINDOW = 24;
+const FIRST_CROSSING_MARK = /(고지|클럽)/;
+const HISTORY_AFTER_THRESHOLD = /(에서|[을를]\s*넘)/;
+const factWindow = (fact, width) => fact.text.slice(Math.max(0, fact.index - width), fact.index + width);
+const factAfter = (fact, width) => fact.text.slice(fact.index, fact.index + width);
+const summaryStatesFirstCrossing = (prepared, fact) => summaryFactsOf(prepared).some((candidate) => {
+  if (!sameNumberFact(fact, candidate)) return false;
+  const window = factWindow(candidate, THRESHOLD_WINDOW);
+  return SALES_CONTEXT.test(window) && FIRST_CROSSING_MARK.test(window) && FIRST_ACHIEVEMENT.test(window)
+    && !HISTORY_OR_FORECAST.test(window) && !HISTORY_AFTER_THRESHOLD.test(factAfter(candidate, THRESHOLD_WINDOW));
+});
+// 기존 자동차 사전으로 읽는 주체 정체: 한쪽에만 있는 브랜드·차종이 양쪽 모두에 있으면 다른 제품이다.
+const autoSubjects = (title) => {
+  const lower = String(title || "").toLowerCase();
+  return AUTO_KEYWORDS.filter((keyword) => lower.includes(keyword.toLowerCase()));
+};
+function conflictingAutoSubjects(titleA, titleB) {
+  const left = autoSubjects(titleA);
+  const right = new Set(autoSubjects(titleB));
+  const onlyLeft = left.filter((keyword) => !right.has(keyword));
+  const onlyRight = [...right].filter((keyword) => !left.includes(keyword));
+  return onlyLeft.length > 0 && onlyRight.length > 0;
+}
+function summaryCorroboratedNumber(a, b) {
+  if (conflictingAutoSubjects(a.title, b.title)) return null;
+  for (const [milestoneSide, preciseSide] of [[a, b], [b, a]]) {
+    for (const milestone of milestoneSide.headlineFacts.filter(isSalesMilestoneFact)) {
+      for (const precise of preciseSide.headlineFacts) {
+        if (precise.unit === "명" || !(precise.value > milestone.value && precise.value < 2 * milestone.value)) continue;
+        if (milestone.unit && precise.unit && milestone.unit !== precise.unit) continue;
+        if (summaryMentions(milestoneSide, precise, statesAchievement)) {
+          return `${milestone.canonical}${milestone.unit}~${precise.canonical}${precise.unit}:own_summary`;
+        }
+        if (summaryStatesFirstCrossing(preciseSide, milestone)) {
+          return `${milestone.canonical}${milestone.unit}~${precise.canonical}${precise.unit}:first_achievement`;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 // 병합 판정 — 단일 진실. 반환: { merge, mode, reason }.

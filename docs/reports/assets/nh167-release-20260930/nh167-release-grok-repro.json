@@ -1,0 +1,158 @@
+{
+  "dollars": [
+    {
+      "material": false,
+      "basis": "no_demonstrated_fact_change"
+    },
+    {
+      "material": true,
+      "basis": "changed_headline_number",
+      "numbers": [
+        "129달러"
+      ]
+    },
+    {
+      "material": true,
+      "basis": "changed_headline_number",
+      "numbers": [
+        "99.00달러"
+      ]
+    }
+  ],
+  "tucson": [
+    {
+      "pair": [
+        0,
+        1
+      ],
+      "tokens": [
+        [
+          "22살",
+          "투싼",
+          "글로벌",
+          "누적",
+          "판매",
+          "1천60만대",
+          "돌파"
+        ],
+        [
+          "세계",
+          "통한",
+          "한국산",
+          "suv",
+          "발자취",
+          "현대차",
+          "투싼",
+          "22년",
+          "num:1000",
+          "고지",
+          "넘었다"
+        ]
+      ],
+      "merge": {
+        "merge": false,
+        "reason": "guard_entity_overlap_min"
+      },
+      "material": {
+        "material": false,
+        "basis": "no_demonstrated_fact_change"
+      }
+    },
+    {
+      "pair": [
+        0,
+        2
+      ],
+      "tokens": [
+        [
+          "22살",
+          "투싼",
+          "글로벌",
+          "누적",
+          "판매",
+          "1천60만대",
+          "돌파"
+        ],
+        [
+          "현대차",
+          "투싼",
+          "누적판매",
+          "1060만대",
+          "돌파",
+          "국산",
+          "suv",
+          "천만대",
+          "클럽",
+          "진입"
+        ]
+      ],
+      "merge": {
+        "merge": false,
+        "reason": "guard_number_conflict"
+      },
+      "material": {
+        "material": true,
+        "basis": "changed_headline_number",
+        "numbers": [
+          "1060만대"
+        ]
+      }
+    },
+    {
+      "pair": [
+        1,
+        2
+      ],
+      "tokens": [
+        [
+          "세계",
+          "통한",
+          "한국산",
+          "suv",
+          "발자취",
+          "현대차",
+          "투싼",
+          "22년",
+          "num:1000",
+          "고지",
+          "넘었다"
+        ],
+        [
+          "현대차",
+          "투싼",
+          "누적판매",
+          "1060만대",
+          "돌파",
+          "국산",
+          "suv",
+          "천만대",
+          "클럽",
+          "진입"
+        ]
+      ],
+      "merge": {
+        "merge": false,
+        "reason": "guard_number_conflict"
+      },
+      "material": {
+        "material": true,
+        "basis": "changed_headline_number",
+        "numbers": [
+          "1060만대"
+        ]
+      }
+    }
+  ],
+  "analytics": {
+    "since": 1790737200000,
+    "continuedState": "complete",
+    "continuedSessions": 0,
+    "continuedHasVid": false,
+    "afterIdleSessions": 1,
+    "beforeState": "unmeasured",
+    "beforeMetrics": null,
+    "rolledState": "unmeasured",
+    "rolledMetrics": null,
+    "rolledSince": 1790996400000
+  }
+}

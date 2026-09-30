@@ -4009,6 +4009,11 @@ ${rankingRows(list, (above) => {
           }
           return send(res, 200, { sources, alerts: bad, checkedAt: engine.lastRefreshedAt || null });
         }
+        if (p === "/api/admin/analytics/window" && req.method === "GET") {
+          try {
+            return send(res, 200, store.campaignWindow({fromAt:url.searchParams.get('fromAt'),toAt:url.searchParams.get('toAt'),params:Object.fromEntries(url.searchParams)}));
+          } catch (error) { if (error.status === 400) return send(res,400,{error:error.message}); throw error; }
+        }
         // 행동 분석 — 일/주/월. 기간 축만 바꿔 같은 표를 그린다.
         if (p === "/api/admin/analytics" && req.method === "GET") {
           const g = url.searchParams.get("granularity") || "day";

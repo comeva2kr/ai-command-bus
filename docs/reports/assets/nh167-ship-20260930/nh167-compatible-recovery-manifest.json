@@ -1,0 +1,11 @@
+{
+  "base": "cf13d28b7dcd370e1eda88988cd5b5cf587425e0",
+  "compatibleModules": {
+    "src/feed/slot-canonical-edition.js": "a78c78e141133e4ede25cf7126feccc375c0f079e8acdc29262c63a06eca7c5a",
+    "src/feed/editorial-fulfillment.js": "b5a55da266c6c0562846c9a9cf3187e8bbb0270ddb7d40c7c19dcf9d5986a834",
+    "src/feed/store.js": "2967912131548a0a3eca8bc511f7d3e5435a871b1458f27e869df4c3c1a7fd7c",
+    "src/feed/analytics.js": "9a3f3e2c876f3375eb60b8eaf7823d43f6356007f87c12372a117c2876fd2a06",
+    "src/feed/digest.js": "f65e5b078c775cfca4589becf584f0b8a9e8082172af668d1237f274856b550c"
+  },
+  "publisherDefault": "0"
+}

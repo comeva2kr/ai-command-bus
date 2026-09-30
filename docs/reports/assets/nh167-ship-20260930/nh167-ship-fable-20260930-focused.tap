@@ -1,0 +1,5225 @@
+TAP version 13
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: exact campaign interval excludes its end, deduplicates browser, preserves first attribution and action time
+ok 1 - exact campaign interval excludes its end, deduplicates browser, preserves first attribution and action time
+  ---
+  duration_ms: 14.382583
+  type: 'test'
+  ...
+# Subtest: D7 is mature only after rolling day7 closes; return uses same browser in any campaign
+ok 2 - D7 is mature only after rolling day7 closes; return uses same browser in any campaign
+  ---
+  duration_ms: 1.840417
+  type: 'test'
+  ...
+# Subtest: unmeasured, unfinished and expired windows stay null; restart keeps closed and active session facts
+ok 3 - unmeasured, unfinished and expired windows stay null; restart keeps closed and active session facts
+  ---
+  duration_ms: 31.015834
+  type: 'test'
+  ...
+# Subtest: window API requires admin auth, explicit timezone and bounded valid interval
+ok 4 - window API requires admin auth, explicit timezone and bounded valid interval
+  ---
+  duration_ms: 76.572708
+  type: 'test'
+  ...
+# Subtest: tracking capacity drops invalidate exact counts instead of claiming a complete zero
+ok 5 - tracking capacity drops invalidate exact counts instead of claiming a complete zero
+  ---
+  duration_ms: 247.131625
+  type: 'test'
+  ...
+# Subtest: a later collection gap preserves closed windows but makes overlapping D7 unknown
+ok 6 - a later collection gap preserves closed windows but makes overlapping D7 unknown
+  ---
+  duration_ms: 73.670375
+  type: 'test'
+  ...
+# Subtest: archive overflow and retention remove identities and mark coverage accurately
+ok 7 - archive overflow and retention remove identities and mark coverage accurately
+  ---
+  duration_ms: 140.532042
+  type: 'test'
+  ...
+# Subtest: admin window form uses KST and displays real measured results without exposing identities
+ok 8 - admin window form uses KST and displays real measured results without exposing identities # SKIP
+  ---
+  duration_ms: 0.132042
+  type: 'test'
+  ...
+# [feed] pool: 45 accumulated (48h retention) -> 45 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# Subtest: groupArticlesAsSources: 소스별 청크(기본 20)로 쪼개고 id·kind를 보존한다
+ok 9 - groupArticlesAsSources: 소스별 청크(기본 20)로 쪼개고 id·kind를 보존한다
+  ---
+  duration_ms: 1.078542
+  type: 'test'
+  ...
+# Subtest: 발행 전 동결 풀은 실시간 피드용 출처당 상한으로 다시 잘리지 않는다
+ok 10 - 발행 전 동결 풀은 실시간 피드용 출처당 상한으로 다시 잘리지 않는다
+  ---
+  duration_ms: 93.761625
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# Subtest: buildTodayEditionInProcess: 주입한 동결 풀도 발행 전 번역 경로를 지난다
+ok 11 - buildTodayEditionInProcess: 주입한 동결 풀도 발행 전 번역 경로를 지난다
+  ---
+  duration_ms: 1003.921541
+  type: 'test'
+  ...
+# Subtest: validateTodayEdition: 필수 필드 누락을 잡는다
+ok 12 - validateTodayEdition: 필수 필드 누락을 잡는다
+  ---
+  duration_ms: 0.561375
+  type: 'test'
+  ...
+# Subtest: editionIssueDiff: refs 겹침으로 같은 이슈를 세고 나머지를 각자 몫으로 나눈다
+ok 13 - editionIssueDiff: refs 겹침으로 같은 이슈를 세고 나머지를 각자 몫으로 나눈다
+  ---
+  duration_ms: 0.954208
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# Subtest: v1 생성 경로: 기존 편성 파이프라인을 리슨 없이 통과해 오늘판 스키마 200을 낸다
+ok 14 - v1 생성 경로: 기존 편성 파이프라인을 리슨 없이 통과해 오늘판 스키마 200을 낸다
+  ---
+  duration_ms: 468.6425
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 14 accumulated (48h retention) -> 14 after per-source cap
+# Subtest: 판 생성기는 운영 고정판 환경에서도 기존 포인터 대신 주입 기사로 생성한다
+ok 15 - 판 생성기는 운영 고정판 환경에서도 기존 포인터 대신 주입 기사로 생성한다
+  ---
+  duration_ms: 829.436541
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# Subtest: v2 생성 경로: shadow 선별 → 같은 편집 문장 계층 → 오늘판 스키마 200
+ok 16 - v2 생성 경로: shadow 선별 → 같은 편집 문장 계층 → 오늘판 스키마 200
+  ---
+  duration_ms: 674.867125
+  type: 'test'
+  ...
+# Subtest: 고정판 직접 생성은 실행 시각으로 동결 풀을 다시 자르지 않는다
+ok 17 - 고정판 직접 생성은 실행 시각으로 동결 풀을 다시 자르지 않는다
+  ---
+  duration_ms: 373.871958
+  type: 'test'
+  ...
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [feed] pool: 19 accumulated (48h retention) -> 19 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 24 accumulated (48h retention) -> 24 after per-source cap
+# [feed] pool: 8 accumulated (48h retention) -> 8 after per-source cap
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 5 accumulated (48h retention) -> 5 after per-source cap
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [feed] pool: 3 accumulated (48h retention) -> 3 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 4 accumulated (48h retention) -> 4 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# Subtest: 분야별 판 합집합은 정본 출처 집합이 같은 사건을 한 장으로 합친다
+ok 18 - 분야별 판 합집합은 정본 출처 집합이 같은 사건을 한 장으로 합친다
+  ---
+  duration_ms: 52.23525
+  type: 'test'
+  ...
+# Subtest: 분야별 판 합집합은 사건 ID가 달라도 같은 최종 사건을 한 장으로 표시한다
+ok 19 - 분야별 판 합집합은 사건 ID가 달라도 같은 최종 사건을 한 장으로 표시한다
+  ---
+  duration_ms: 6.30975
+  type: 'test'
+  ...
+# Subtest: 분야별 합집합도 결혼 보도와 커뮤니티 전재를 한 장으로 접되 다른 분기 수치는 합치지 않는다
+ok 20 - 분야별 합집합도 결혼 보도와 커뮤니티 전재를 한 장으로 접되 다른 분기 수치는 합치지 않는다
+  ---
+  duration_ms: 1.295541
+  type: 'test'
+  ...
+# Subtest: 대표 기사 한 건만 후보에 남아도 사건 전체의 복수 분야를 보존한다
+ok 21 - 대표 기사 한 건만 후보에 남아도 사건 전체의 복수 분야를 보존한다
+  ---
+  duration_ms: 85.512791
+  type: 'test'
+  ...
+# Subtest: 분야별 판을 합칠 때 이미 확정한 사건 문안을 다시 덮지 않는다
+ok 22 - 분야별 판을 합칠 때 이미 확정한 사건 문안을 다시 덮지 않는다
+  ---
+  duration_ms: 0.593083
+  type: 'test'
+  ...
+# Subtest: 여러 완료 attempt의 progress를 한 복구 입력으로 합친다
+ok 23 - 여러 완료 attempt의 progress를 한 복구 입력으로 합친다
+  ---
+  duration_ms: 0.113541
+  type: 'test'
+  ...
+# Subtest: 중단된 현재 분류판은 현재 모델→동일 해시 과거 모델→현재 패킷 deterministic 순으로 복구한다
+ok 24 - 중단된 현재 분류판은 현재 모델→동일 해시 과거 모델→현재 패킷 deterministic 순으로 복구한다
+  ---
+  duration_ms: 1.990666
+  type: 'test'
+  ...
+# Subtest: 직접 모델 판정은 근거를 명시하고 근거 없는 과거 판정은 재사용하지 않는다
+ok 25 - 직접 모델 판정은 근거를 명시하고 근거 없는 과거 판정은 재사용하지 않는다
+  ---
+  duration_ms: 0.543625
+  type: 'test'
+  ...
+# Subtest: NH101: 사전 중요도 판정은 해외 주요 세계·경제 기사만 통과시키고 판정값을 투영한다
+ok 26 - NH101: 사전 중요도 판정은 해외 주요 세계·경제 기사만 통과시키고 판정값을 투영한다
+  ---
+  duration_ms: 1.012083
+  type: 'test'
+  ...
+# Subtest: API 장애 복구도 요청 시 레거시 폴백 없이 현재 패킷 deterministic만 사용한다
+ok 27 - API 장애 복구도 요청 시 레거시 폴백 없이 현재 패킷 deterministic만 사용한다
+  ---
+  duration_ms: 0.403667
+  type: 'test'
+  ...
+# Subtest: v2 카테고리 라우팅은 복수 분야를 보존하고 미분류·미승인·성인 글을 보류한다
+ok 28 - v2 카테고리 라우팅은 복수 분야를 보존하고 미분류·미승인·성인 글을 보류한다
+  ---
+  duration_ms: 0.257625
+  type: 'test'
+  ...
+# Subtest: NH167: 유족 게시글은 유머 입장만, 미술 전시·성묘 골프 공분은 기술 입장만 반려하고 정상 기사는 남긴다
+ok 29 - NH167: 유족 게시글은 유머 입장만, 미술 전시·성묘 골프 공분은 기술 입장만 반려하고 정상 기사는 남긴다
+  ---
+  duration_ms: 0.634
+  type: 'test'
+  ...
+# Subtest: 스냅샷 생성 뒤 들어온 새 글은 다음 패킷 전까지 요청 경로에서 보류한다
+ok 30 - 스냅샷 생성 뒤 들어온 새 글은 다음 패킷 전까지 요청 경로에서 보류한다
+  ---
+  duration_ms: 0.089042
+  type: 'test'
+  ...
+# Subtest: 해외 주요 원문 소스는 권위·전문 섹션 메타데이터를 명시한다
+ok 31 - 해외 주요 원문 소스는 권위·전문 섹션 메타데이터를 명시한다
+  ---
+  duration_ms: 1.156
+  type: 'test'
+  ...
+# Subtest: 실제 오늘판은 중요한 해외 보도만 남기고 해외 주요 언론의 가벼운 단신을 자리 채우기로 쓰지 않는다
+ok 32 - 실제 오늘판은 중요한 해외 보도만 남기고 해외 주요 언론의 가벼운 단신을 자리 채우기로 쓰지 않는다
+  ---
+  duration_ms: 213.996625
+  type: 'test'
+  ...
+# Subtest: 검수된 주요 해외 다중보도의 정본 제목은 대표 기사 제목과 같다
+ok 33 - 검수된 주요 해외 다중보도의 정본 제목은 대표 기사 제목과 같다
+  ---
+  duration_ms: 37.299584
+  type: 'test'
+  ...
+# Subtest: 분류 스냅샷이 낡아도 마지막 v2 판만 유지하고 스냅샷 밖 기사는 보류한다
+ok 34 - 분류 스냅샷이 낡아도 마지막 v2 판만 유지하고 스냅샷 밖 기사는 보류한다
+  ---
+  duration_ms: 0.301208
+  type: 'test'
+  ...
+# Subtest: 판 기준 시각보다 미래에 생성된 분류 스냅샷도 스냅샷 밖 기사를 되살리지 않는다
+ok 35 - 판 기준 시각보다 미래에 생성된 분류 스냅샷도 스냅샷 밖 기사를 되살리지 않는다
+  ---
+  duration_ms: 0.20475
+  type: 'test'
+  ...
+# Subtest: 과거 오늘판은 컴퓨터 현재 시각이 아니라 판의 기준 시각으로 분류 유효성을 판단한다
+ok 36 - 과거 오늘판은 컴퓨터 현재 시각이 아니라 판의 기준 시각으로 분류 유효성을 판단한다
+  ---
+  duration_ms: 0.396083
+  type: 'test'
+  ...
+# Subtest: v2 라우터는 새 정상 스냅샷을 재시작 없이 적용하고 깨진 파일에서는 마지막 정상본을 유지한다
+ok 37 - v2 라우터는 새 정상 스냅샷을 재시작 없이 적용하고 깨진 파일에서는 마지막 정상본을 유지한다
+  ---
+  duration_ms: 6.287458
+  type: 'test'
+  ...
+# Subtest: 복수 분야 기사는 각 관심사를 충족하되 오늘판에는 한 번만 표시한다
+ok 38 - 복수 분야 기사는 각 관심사를 충족하되 오늘판에는 한 번만 표시한다
+  ---
+  duration_ms: 366.262333
+  type: 'test'
+  ...
+# Subtest: 같은 사건의 출처 정본은 선택 분야가 달라도 같고 직접 무관한 기사는 섞지 않는다
+ok 39 - 같은 사건의 출처 정본은 선택 분야가 달라도 같고 직접 무관한 기사는 섞지 않는다
+  ---
+  duration_ms: 103.491459
+  type: 'test'
+  ...
+# Subtest: 출처의 등록 분야가 아니라 최종 승인 분야로 왜 중요한가를 만든다
+ok 40 - 출처의 등록 분야가 아니라 최종 승인 분야로 왜 중요한가를 만든다
+  ---
+  duration_ms: 14.532917
+  type: 'test'
+  ...
+# Subtest: 분야 보류 기사는 사건 근거에는 남지만 대표 제목과 사진은 가져가지 않는다
+ok 41 - 분야 보류 기사는 사건 근거에는 남지만 대표 제목과 사진은 가져가지 않는다
+  ---
+  duration_ms: 10.143916
+  type: 'test'
+  ...
+# Subtest: 사전선별 오늘판도 발행 시각이 수명 상한을 넘은 글은 리드 후보에서 제외한다
+ok 42 - 사전선별 오늘판도 발행 시각이 수명 상한을 넘은 글은 리드 후보에서 제외한다
+  ---
+  duration_ms: 20.412083
+  type: 'test'
+  ...
+# Subtest: 저장 판 출처 재수화도 최초 판과 같은 슬롯 시간창만 사용한다
+ok 43 - 저장 판 출처 재수화도 최초 판과 같은 슬롯 시간창만 사용한다
+  ---
+  duration_ms: 31.845
+  type: 'test'
+  ...
+# Subtest: 같은 사건에 직접 언론사 URL이 있으면 Google 뉴스 중계보다 먼저 요약 기준으로 쓴다
+ok 44 - 같은 사건에 직접 언론사 URL이 있으면 Google 뉴스 중계보다 먼저 요약 기준으로 쓴다
+  ---
+  duration_ms: 17.201917
+  type: 'test'
+  ...
+# Subtest: NH124: 같은 매체의 최신 대표 제목과 원문 링크가 같은 기사를 가리킨다
+ok 45 - NH124: 같은 매체의 최신 대표 제목과 원문 링크가 같은 기사를 가리킨다
+  ---
+  duration_ms: 21.8045
+  type: 'test'
+  ...
+# Subtest: 같은 발행사의 한국어판과 외국어판이 함께 있으면 한국어 원문을 대표로 쓴다
+ok 46 - 같은 발행사의 한국어판과 외국어판이 함께 있으면 한국어 원문을 대표로 쓴다
+  ---
+  duration_ms: 31.547791
+  type: 'test'
+  ...
+# Subtest: 같은 사건의 수치가 갱신되면 최신 보도를 카드 대표로 쓴다
+ok 47 - 같은 사건의 수치가 갱신되면 최신 보도를 카드 대표로 쓴다
+  ---
+  duration_ms: 24.926625
+  type: 'test'
+  ...
+# Subtest: 편집 단계가 한 이슈로 확정한 여러 보도 묶음은 출처 정본에서도 모두 보존한다
+ok 48 - 편집 단계가 한 이슈로 확정한 여러 보도 묶음은 출처 정본에서도 모두 보존한다
+  ---
+  duration_ms: 39.584792
+  type: 'test'
+  ...
+# Subtest: 커뮤니티 반응이 붙어도 독자에게 남은 직접 보도가 한 곳이면 단일 출처로 표기한다
+ok 49 - 커뮤니티 반응이 붙어도 독자에게 남은 직접 보도가 한 곳이면 단일 출처로 표기한다
+  ---
+  duration_ms: 42.15025
+  type: 'test'
+  ...
+# Subtest: 사건 멤버가 고정된 이슈는 다른 참조 사건의 출처를 섞지 않는다
+ok 50 - 사건 멤버가 고정된 이슈는 다른 참조 사건의 출처를 섞지 않는다
+  ---
+  duration_ms: 9.859791
+  type: 'test'
+  ...
+# Subtest: 요청 라우터는 레거시 행도 URL로 다시 분류하지 않고 스냅샷 값만 투영한다
+ok 51 - 요청 라우터는 레거시 행도 URL로 다시 분류하지 않고 스냅샷 값만 투영한다
+  ---
+  duration_ms: 0.17825
+  type: 'test'
+  ...
+# Subtest: 요청 라우터는 Google 뉴스 발행사 라벨로 스냅샷 분야를 덮지 않는다
+ok 52 - 요청 라우터는 Google 뉴스 발행사 라벨로 스냅샷 분야를 덮지 않는다
+  ---
+  duration_ms: 0.180625
+  type: 'test'
+  ...
+# Subtest: Google 뉴스 발행사 정체성 보정도 요청 시점이 아니라 패킷 전에 끝나야 한다
+ok 53 - Google 뉴스 발행사 정체성 보정도 요청 시점이 아니라 패킷 전에 끝나야 한다
+  ---
+  duration_ms: 0.872792
+  type: 'test'
+  ...
+# [health] 수집중단 0 · 신호소실 1 / 전체 107
+#   - ruliweb-deal(루리웹 핫딜) signal-lost: 반응 수치 정규식이 있으나 한 번도 매칭된 적이 없다
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [health] 수집중단 0 · 신호소실 2 / 전체 107
+#   - bobae(보배드림) signal-lost: 반응 수치 정규식이 있으나 한 번도 매칭된 적이 없다
+#   - clien(클리앙) signal-lost: 반응 수치 정규식이 있으나 한 번도 매칭된 적이 없다
+# [feed] pool: 122 accumulated (48h retention) -> 122 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [health] 수집중단 0 · 신호소실 2 / 전체 107
+#   - clien(클리앙) signal-lost: 반응 수치 정규식이 있으나 한 번도 매칭된 적이 없다
+#   - inven_hot(인벤 핫벤) signal-lost: 반응 수치 정규식이 있으나 한 번도 매칭된 적이 없다
+# [feed] pool: 3 accumulated (48h retention) -> 3 after per-source cap
+# [feed] pool: 4 accumulated (48h retention) -> 4 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 3 accumulated (48h retention) -> 3 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# Subtest: NH134 game subjects override technology and sports labels without stealing finance or real sports
+ok 54 - NH134 game subjects override technology and sports labels without stealing finance or real sports
+  ---
+  duration_ms: 39.29075
+  type: 'test'
+  ...
+# Subtest: NH146 political sections and restored source evidence share topic classification
+ok 55 - NH146 political sections and restored source evidence share topic classification
+  ---
+  duration_ms: 10.997584
+  type: 'test'
+  ...
+# Subtest: 정치 사전: 실측 실패 사례가 이제 politics로 잡힌다
+ok 56 - 정치 사전: 실측 실패 사례가 이제 politics로 잡힌다
+  ---
+  duration_ms: 0.139625
+  type: 'test'
+  ...
+# Subtest: 정치 사전: 비정치 제목을 오탐하지 않는다
+ok 57 - 정치 사전: 비정치 제목을 오탐하지 않는다
+  ---
+  duration_ms: 0.31125
+  type: 'test'
+  ...
+# Subtest: normalizeTitle: 구글뉴스 ' - 매체명' 꼬리와 말머리를 제거한다
+ok 58 - normalizeTitle: 구글뉴스 ' - 매체명' 꼬리와 말머리를 제거한다
+  ---
+  duration_ms: 1.46075
+  type: 'test'
+  ...
+# Subtest: features: 음절 바이그램 + 영숫자 통짜 토큰
+ok 59 - features: 음절 바이그램 + 영숫자 통짜 토큰
+  ---
+  duration_ms: 0.2155
+  type: 'test'
+  ...
+# Subtest: NB: 학습한 어휘 방향의 새 제목을 맞게 분류한다
+ok 60 - NB: 학습한 어휘 방향의 새 제목을 맞게 분류한다
+  ---
+  duration_ms: 0.644958
+  type: 'test'
+  ...
+# Subtest: NB: 균등 사전확률 — 라벨 수가 많은 카테고리로 쏠리지 않는다
+ok 61 - NB: 균등 사전확률 — 라벨 수가 많은 카테고리로 쏠리지 않는다
+  ---
+  duration_ms: 0.351125
+  type: 'test'
+  ...
+# Subtest: NB: 모르는 어휘 투성이 제목엔 기권한다 (classifyTitle이 null)
+ok 62 - NB: 모르는 어휘 투성이 제목엔 기권한다 (classifyTitle이 null)
+  ---
+  duration_ms: 0.337042
+  type: 'test'
+  ...
+# Subtest: NB: 직렬화 왕복 후에도 같은 예측을 낸다 (결정성)
+ok 63 - NB: 직렬화 왕복 후에도 같은 예측을 낸다 (결정성)
+  ---
+  duration_ms: 0.515792
+  type: 'test'
+  ...
+# Subtest: TRAIN_LABELS: 혼합 게시판(클리앙·뽐뿌·이토랜드·루리웹 유머판)은 학습 소스가 아니다
+ok 64 - TRAIN_LABELS: 혼합 게시판(클리앙·뽐뿌·이토랜드·루리웹 유머판)은 학습 소스가 아니다
+  ---
+  duration_ms: 0.124125
+  type: 'test'
+  ...
+# Subtest: isReclassifiable: 학습 소스와 gnews 종합 섹션은 재분류하지 않는다
+ok 65 - isReclassifiable: 학습 소스와 gnews 종합 섹션은 재분류하지 않는다
+  ---
+  duration_ms: 0.049125
+  type: 'test'
+  ...
+# Subtest: 분류 무결성: 핫딜은 가격 어휘로 business에 들어가지 않는다
+ok 66 - 분류 무결성: 핫딜은 가격 어휘로 business에 들어가지 않는다
+  ---
+  duration_ms: 33.744625
+  type: 'test'
+  ...
+# Subtest: 분류 무결성: 캐시에 남은 이전 분류를 등록 분류에서 다시 계산한다
+ok 67 - 분류 무결성: 캐시에 남은 이전 분류를 등록 분류에서 다시 계산한다
+  ---
+  duration_ms: 30.048833
+  type: 'test'
+  ...
+# Subtest: 분류 무결성: 영문 단어 안의 ISA 문자열을 금융상품으로 오인하지 않는다
+ok 68 - 분류 무결성: 영문 단어 안의 ISA 문자열을 금융상품으로 오인하지 않는다
+  ---
+  duration_ms: 0.291083
+  type: 'test'
+  ...
+# Subtest: 분류 무결성: 전세는 잡되 전세계를 부동산으로 오인하지 않는다
+ok 69 - 분류 무결성: 전세는 잡되 전세계를 부동산으로 오인하지 않는다
+  ---
+  duration_ms: 0.274209
+  type: 'test'
+  ...
+# Subtest: 분류 무결성: 자동차 브랜드가 증권사명이나 골프 대회명일 뿐이면 자동차가 아니다
+ok 70 - 분류 무결성: 자동차 브랜드가 증권사명이나 골프 대회명일 뿐이면 자동차가 아니다
+  ---
+  duration_ms: 0.169583
+  type: 'test'
+  ...
+# Subtest: 분류 무결성: 발행사 연예 섹션 URL은 종합 피드의 기본 분야를 이긴다
+ok 71 - 분류 무결성: 발행사 연예 섹션 URL은 종합 피드의 기본 분야를 이긴다
+  ---
+  duration_ms: 0.075542
+  type: 'test'
+  ...
+# Subtest: 독립 검수 회귀: 야구·과학·생활 제목이 등록 섹션이나 지뢰어에 끌려가지 않는다
+ok 72 - 독립 검수 회귀: 야구·과학·생활 제목이 등록 섹션이나 지뢰어에 끌려가지 않는다
+  ---
+  duration_ms: 0.40625
+  type: 'test'
+  ...
+# Subtest: NH126: 조선비즈 스포츠 섹션은 종목과 무관하게 경제 기본값을 이긴다
+ok 73 - NH126: 조선비즈 스포츠 섹션은 종목과 무관하게 경제 기본값을 이긴다
+  ---
+  duration_ms: 0.478709
+  type: 'test'
+  ...
+# Subtest: engine.refresh: 혼합 소스의 자동차 글이 tech에서 auto로 재분류된다
+ok 74 - engine.refresh: 혼합 소스의 자동차 글이 tech에서 auto로 재분류된다
+  ---
+  duration_ms: 122.703042
+  type: 'test'
+  ...
+# Subtest: engine.refresh: NB 내부 준비 보호값 전에는 통계 재분류를 시작하지 않는다
+ok 75 - engine.refresh: NB 내부 준비 보호값 전에는 통계 재분류를 시작하지 않는다
+  ---
+  duration_ms: 6.173416
+  type: 'test'
+  ...
+# Subtest: 종합게시판은 등록 카테고리를 아이템에 물려주지 않는다 (전문 커뮤니티는 유지)
+ok 76 - 종합게시판은 등록 카테고리를 아이템에 물려주지 않는다 (전문 커뮤니티는 유지)
+  ---
+  duration_ms: 6.073375
+  type: 'test'
+  ...
+# Subtest: registry: gnews 제목 꼬리 ' - 매체명'이 sourceLabel로 승격되고 제목에서 사라진다
+ok 77 - registry: gnews 제목 꼬리 ' - 매체명'이 sourceLabel로 승격되고 제목에서 사라진다
+  ---
+  duration_ms: 0.859458
+  type: 'test'
+  ...
+# Subtest: 재분류 안전장치: 정치 태그 글과 말투 기반 카테고리(humor/gaming)로는 덮어쓰지 않는다
+ok 78 - 재분류 안전장치: 정치 태그 글과 말투 기반 카테고리(humor/gaming)로는 덮어쓰지 않는다
+  ---
+  duration_ms: 0.113291
+  type: 'test'
+  ...
+# Subtest: lean: 슬라이더 0(기본)이면 어떤 소스도 가중치가 변하지 않는다
+ok 79 - lean: 슬라이더 0(기본)이면 어떤 소스도 가중치가 변하지 않는다
+  ---
+  duration_ms: 0.900917
+  type: 'test'
+  ...
+# Subtest: lean: 슬라이더 극단에서도 반대편이 완전히 사라지지 않는다 (하한 0.2)
+ok 80 - lean: 슬라이더 극단에서도 반대편이 완전히 사라지지 않는다 (하한 0.2)
+  ---
+  duration_ms: 0.076959
+  type: 'test'
+  ...
+# Subtest: lean: 분류 안 함 매체(전문지·커뮤니티·구글뉴스)는 슬라이더의 영향을 받지 않는다
+ok 81 - lean: 분류 안 함 매체(전문지·커뮤니티·구글뉴스)는 슬라이더의 영향을 받지 않는다
+  ---
+  duration_ms: 0.074084
+  type: 'test'
+  ...
+# Subtest: lean: 레지스트리 성향값 무결성 — 값 범위, 근거 주석, 좌우 공급 존재
+ok 82 - lean: 레지스트리 성향값 무결성 — 값 범위, 근거 주석, 좌우 공급 존재
+  ---
+  duration_ms: 0.841458
+  type: 'test'
+  ...
+# Subtest: store: setLeanBalance는 [-1,1]로 클램프하고 세션 응답에 실린다
+ok 83 - store: setLeanBalance는 [-1,1]로 클램프하고 세션 응답에 실린다
+  ---
+  duration_ms: 0.433375
+  type: 'test'
+  ...
+# Subtest: 카드 기본 동작: 내부 상세 우선, 원문은 ↗ 지름길 (아웃링크 위주 판정 해소)
+ok 84 - 카드 기본 동작: 내부 상세 우선, 원문은 ↗ 지름길 (아웃링크 위주 판정 해소)
+  ---
+  duration_ms: 1.756167
+  type: 'test'
+  ...
+# Subtest: keywordCategory: 자동차 사전 — 시승·모델·전기차는 auto, 금융 문맥은 가드
+ok 85 - keywordCategory: 자동차 사전 — 시승·모델·전기차는 auto, 금융 문맥은 가드
+  ---
+  duration_ms: 0.441375
+  type: 'test'
+  ...
+# Subtest: 보배 베스트: 자동차 키워드 글만 auto, 나머지는 혼합 폴백(humor) — 실측 재현
+ok 86 - 보배 베스트: 자동차 키워드 글만 auto, 나머지는 혼합 폴백(humor) — 실측 재현
+  ---
+  duration_ms: 70.039166
+  type: 'test'
+  ...
+# Subtest: 루리웹 300143: 게임 고유어가 있는 글만 gaming, 일반 유머 글은 humor
+ok 87 - 루리웹 300143: 게임 고유어가 있는 글만 gaming, 일반 유머 글은 humor
+  ---
+  duration_ms: 6.75275
+  type: 'test'
+  ...
+# Subtest: 경제 뉴스의 시승기: 키워드 확정이 소스 불문 auto로 옮긴다
+ok 88 - 경제 뉴스의 시승기: 키워드 확정이 소스 불문 auto로 옮긴다
+  ---
+  duration_ms: 13.9265
+  type: 'test'
+  ...
+# Subtest: keywordCategory: 커뮤니티 제목을 사람이 유추하는 대로 분류한다
+ok 89 - keywordCategory: 커뮤니티 제목을 사람이 유추하는 대로 분류한다
+  ---
+  duration_ms: 0.723375
+  type: 'test'
+  ...
+# Subtest: 실제 판 분류: 금융·관광 문맥이 과학·기술·게임 분야를 훔치지 않는다
+ok 90 - 실제 판 분류: 금융·관광 문맥이 과학·기술·게임 분야를 훔치지 않는다
+  ---
+  duration_ms: 0.441875
+  type: 'test'
+  ...
+# Subtest: 실제 런치판: 국제 갈등과 중대 피해를 문화·유머 대표로 소비하지 않는다
+ok 91 - 실제 런치판: 국제 갈등과 중대 피해를 문화·유머 대표로 소비하지 않는다
+  ---
+  duration_ms: 0.3745
+  type: 'test'
+  ...
+# Subtest: 섹션 뉴스는 등록 분야를 지키되 명백한 인디게임 기사는 게임으로 바로잡는다
+ok 92 - 섹션 뉴스는 등록 분야를 지키되 명백한 인디게임 기사는 게임으로 바로잡는다
+  ---
+  duration_ms: 6.344833
+  type: 'test'
+  ...
+# Subtest: 기관 교육 운영은 자율주행 한 단어만으로 자동차 분야를 얻지 않는다
+ok 93 - 기관 교육 운영은 자율주행 한 단어만으로 자동차 분야를 얻지 않는다
+  ---
+  duration_ms: 0.087625
+  type: 'test'
+  ...
+# Subtest: A9: 국제 정치가 정치 토글을 우회하면 안 된다
+ok 94 - A9: 국제 정치가 정치 토글을 우회하면 안 된다
+  ---
+  duration_ms: 0.118834
+  type: 'test'
+  ...
+# Subtest: A2/A6: 일반어 지뢰어가 카테고리를 훔치면 안 된다
+ok 95 - A2/A6: 일반어 지뢰어가 카테고리를 훔치면 안 된다
+  ---
+  duration_ms: 0.37375
+  type: 'test'
+  ...
+# Subtest: A3: 회사명 + 금융 문맥이면 확신에 찬 오답 대신 기권한다
+ok 96 - A3: 회사명 + 금융 문맥이면 확신에 찬 오답 대신 기권한다
+  ---
+  duration_ms: 17.753208
+  type: 'test'
+  ...
+# Subtest: A4: 히트 수 동점이면 확정하지 않고 기권한다
+ok 97 - A4: 히트 수 동점이면 확정하지 않고 기권한다
+  ---
+  duration_ms: 0.201916
+  type: 'test'
+  ...
+# Subtest: A5: 소문자 영문 브랜드도 잡는다
+ok 98 - A5: 소문자 영문 브랜드도 잡는다
+  ---
+  duration_ms: 0.206833
+  type: 'test'
+  ...
+# Subtest: 혼합 게시판의 연예 글은 culture로 — 등록값 humor를 물려받지 않는다
+ok 99 - 혼합 게시판의 연예 글은 culture로 — 등록값 humor를 물려받지 않는다
+  ---
+  duration_ms: 1.618917
+  type: 'test'
+  ...
+# Subtest: 전문 커뮤니티(인벤)의 등록 카테고리는 유지 — 혼합 폴백을 씌우면 안 된다
+ok 100 - 전문 커뮤니티(인벤)의 등록 카테고리는 유지 — 혼합 폴백을 씌우면 안 된다
+  ---
+  duration_ms: 0.3595
+  type: 'test'
+  ...
+# Subtest: 사건 보도는 주제 글이 아니다 — 등장하는 사물이 주제가 되면 안 된다
+ok 101 - 사건 보도는 주제 글이 아니다 — 등장하는 사물이 주제가 되면 안 된다
+  ---
+  duration_ms: 0.151542
+  type: 'test'
+  ...
+# Subtest: 카테고리 브리핑: 같은 사건을 두 번 싣지 않는다
+ok 102 - 카테고리 브리핑: 같은 사건을 두 번 싣지 않는다
+  ---
+  duration_ms: 42.113042
+  type: 'test'
+  ...
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# Subtest: 같은 사건을 다룬 다른 소스를 상세에 함께 준다
+ok 103 - 같은 사건을 다룬 다른 소스를 상세에 함께 준다
+  ---
+  duration_ms: 138.817167
+  type: 'test'
+  ...
+# Subtest: 같은 소스가 목록을 독식하지 않는다
+ok 104 - 같은 소스가 목록을 독식하지 않는다
+  ---
+  duration_ms: 17.063
+  type: 'test'
+  ...
+# Subtest: 브리핑과 같은 사건 판정을 쓴다 — 두 벌로 두지 않는다
+ok 105 - 브리핑과 같은 사건 판정을 쓴다 — 두 벌로 두지 않는다
+  ---
+  duration_ms: 1.342459
+  type: 'test'
+  ...
+# Subtest: 상세 화면이 우리가 만든 것을 그린다 — 재료가 없으면 줄을 뺀다
+ok 106 - 상세 화면이 우리가 만든 것을 그린다 — 재료가 없으면 줄을 뺀다
+  ---
+  duration_ms: 1.020625
+  type: 'test'
+  ...
+# Subtest: 접힌 중복은 버리지 않고 기록으로 남는다
+ok 107 - 접힌 중복은 버리지 않고 기록으로 남는다
+  ---
+  duration_ms: 0.638209
+  type: 'test'
+  ...
+# Subtest: 관련글도 정치·종교 관문을 지난다 — 앞에서 막은 것이 뒤로 새지 않게
+ok 108 - 관련글도 정치·종교 관문을 지난다 — 앞에서 막은 것이 뒤로 새지 않게
+  ---
+  duration_ms: 18.811458
+  type: 'test'
+  ...
+# Subtest: 관리자가 끈 소스는 관련글에도 안 나온다
+ok 109 - 관리자가 끈 소스는 관련글에도 안 나온다
+  ---
+  duration_ms: 12.701709
+  type: 'test'
+  ...
+# Subtest: 오래 저장된 Google 뉴스 자리표시자 이미지는 상세 응답에서도 제거한다
+ok 110 - 오래 저장된 Google 뉴스 자리표시자 이미지는 상세 응답에서도 제거한다
+  ---
+  duration_ms: 26.14225
+  type: 'test'
+  ...
+# Subtest: 오늘판 상세는 출처 운영그룹으로 직접 URL을 우선하고 중계만 있으면 원문이라고 부르지 않는다
+ok 111 - 오늘판 상세는 출처 운영그룹으로 직접 URL을 우선하고 중계만 있으면 원문이라고 부르지 않는다
+  ---
+  duration_ms: 0.851375
+  type: 'test'
+  ...
+# Subtest: 오늘판 상세는 준비된 요약의 출처 정본에 과거 Google 중계를 다시 합치지 않는다
+ok 112 - 오늘판 상세는 준비된 요약의 출처 정본에 과거 Google 중계를 다시 합치지 않는다
+  ---
+  duration_ms: 0.939416
+  type: 'test'
+  ...
+# Subtest: 오늘판은 정확한 날짜 판본을 고르고 상세에 원문 피드 표기시각을 표시한다
+ok 113 - 오늘판은 정확한 날짜 판본을 고르고 상세에 원문 피드 표기시각을 표시한다
+  ---
+  duration_ms: 0.581667
+  type: 'test'
+  ...
+# Subtest: NH167 대표 뉴스 표기시각과 더 이른 커뮤니티 근거를 구분하고 원래 증거를 보존한다
+ok 114 - NH167 대표 뉴스 표기시각과 더 이른 커뮤니티 근거를 구분하고 원래 증거를 보존한다
+  ---
+  duration_ms: 14.170875
+  type: 'test'
+  ...
+# Subtest: NH167 대표 시각이 없거나 유효하지 않으면 다른 출처의 과거 시각을 대신 표시하지 않는다
+ok 115 - NH167 대표 시각이 없거나 유효하지 않으면 다른 출처의 과거 시각을 대신 표시하지 않는다
+  ---
+  duration_ms: 12.908875
+  type: 'test'
+  ...
+# Subtest: NH108 Today 번역은 모바일 네이버 앱과 PC 정본 링크 한 개이며 준비된 내용은 불변이다
+ok 116 - NH108 Today 번역은 모바일 네이버 앱과 PC 정본 링크 한 개이며 준비된 내용은 불변이다
+  ---
+  duration_ms: 3.874958
+  type: 'test'
+  ...
+# Subtest: NH108 원문 제목은 정확한 기사에만 연결하고 실제 글자와 명시된 원어로 판별한다
+ok 117 - NH108 원문 제목은 정확한 기사에만 연결하고 실제 글자와 명시된 원어로 판별한다
+  ---
+  duration_ms: 49.093917
+  type: 'test'
+  ...
+# Subtest: NH108 준비된 출처의 기준 외신을 번역하며 과거 중계와 다른 출처를 합치지 않는다
+ok 118 - NH108 준비된 출처의 기준 외신을 번역하며 과거 중계와 다른 출처를 합치지 않는다
+  ---
+  duration_ms: 1.915583
+  type: 'test'
+  ...
+# Subtest: NH108 번역 링크는 위험 주소를 배제하고 원문 제목과 매체명을 이스케이프한다
+ok 119 - NH108 번역 링크는 위험 주소를 배제하고 원문 제목과 매체명을 이스케이프한다
+  ---
+  duration_ms: 10.32225
+  type: 'test'
+  ...
+# Subtest: NH108 저장된 실패 사유를 보존하고 알 수 없는 사유를 추정하지 않는다
+ok 120 - NH108 저장된 실패 사유를 보존하고 알 수 없는 사유를 추정하지 않는다
+  ---
+  duration_ms: 2.730417
+  type: 'test'
+  ...
+# Subtest: NH108 피드 발췌는 공개 본문과 구분하고 저장된 짧은 발췌만 표시한다
+ok 121 - NH108 피드 발췌는 공개 본문과 구분하고 저장된 짧은 발췌만 표시한다
+  ---
+  duration_ms: 0.948666
+  type: 'test'
+  ...
+# Subtest: NH108 정본 출처만 있는 접근 차단 기사도 준비된 사진을 기존 우선순위와 필터로 표시한다
+ok 122 - NH108 정본 출처만 있는 접근 차단 기사도 준비된 사진을 기존 우선순위와 필터로 표시한다
+  ---
+  duration_ms: 4.06375
+  type: 'test'
+  ...
+# Subtest: 홈 seed가 비면 3분이 아니라 곧 다시 시도한다
+ok 123 - 홈 seed가 비면 3분이 아니라 곧 다시 시도한다
+  ---
+  duration_ms: 0.822833
+  type: 'test'
+  ...
+# Subtest: 온보딩 취향 워밍업은 즉시 저장한다
+ok 124 - 온보딩 취향 워밍업은 즉시 저장한다
+  ---
+  duration_ms: 0.428125
+  type: 'test'
+  ...
+# Subtest: 오늘판 현황은 연속성 자료가 없으면 새 사건·실질 변화를 0건으로 지어내지 않고, 실제 0건은 보여준다
+ok 125 - 오늘판 현황은 연속성 자료가 없으면 새 사건·실질 변화를 0건으로 지어내지 않고, 실제 0건은 보여준다
+  ---
+  duration_ms: 0.606209
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 첫 저장 판은 기준선이며 안정 필드를 채운다
+ok 126 - 판본 변화: 첫 저장 판은 기준선이며 안정 필드를 채운다
+  ---
+  duration_ms: 4.496708
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 분야별 상위 목록은 같은 사건만 한 번 남기고 순위 층별로 섞는다
+ok 127 - 판본 변화: 분야별 상위 목록은 같은 사건만 한 번 남기고 순위 층별로 섞는다
+  ---
+  duration_ms: 7.208875
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 한 분야에서 본 사건도 새로 선택한 다른 분야의 몫까지 지우지 않는다
+ok 128 - 판본 변화: 한 분야에서 본 사건도 새로 선택한 다른 분야의 몫까지 지우지 않는다
+  ---
+  duration_ms: 0.407084
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 같은 분야의 중복 행은 14칸을 두 번 소비하지 않는다
+ok 129 - 판본 변화: 같은 분야의 중복 행은 14칸을 두 번 소비하지 않는다
+  ---
+  duration_ms: 1.364833
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 과거 사건 ID 하나를 현재의 서로 다른 두 사건이 함께 승계하지 않는다
+ok 130 - 판본 변화: 과거 사건 ID 하나를 현재의 서로 다른 두 사건이 함께 승계하지 않는다
+  ---
+  duration_ms: 0.73475
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 같은 원문이라도 관심 분야가 다르면 다른 분야의 과거판이 현재판을 누르지 않는다
+ok 131 - 판본 변화: 같은 원문이라도 관심 분야가 다르면 다른 분야의 과거판이 현재판을 누르지 않는다
+  ---
+  duration_ms: 0.158209
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 분야 합집합은 핵심 숫자가 다른 별개 사건을 합치지 않는다
+ok 132 - 판본 변화: 분야 합집합은 핵심 숫자가 다른 별개 사건을 합치지 않는다
+  ---
+  duration_ms: 0.216208
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 정본 사건 ID가 같으면 제목과 대표 기사 차이에도 카드 한 장만 남긴다
+ok 133 - 판본 변화: 정본 사건 ID가 같으면 제목과 대표 기사 차이에도 카드 한 장만 남긴다
+  ---
+  duration_ms: 0.202917
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 조합별 생성 ID가 달라도 같은 원문이면 카드와 분야 크레딧은 하나로 합친다
+ok 134 - 판본 변화: 조합별 생성 ID가 달라도 같은 원문이면 카드와 분야 크레딧은 하나로 합친다
+  ---
+  duration_ms: 0.514667
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 새 관측 출처는 실질 변화이고 기존 clusterId를 잇는다
+ok 135 - 판본 변화: 새 관측 출처는 실질 변화이고 기존 clusterId를 잇는다
+  ---
+  duration_ms: 0.514917
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 기사와 clusterId가 달라도 호르무즈 협상 핵심 사건어가 같으면 지난 브리핑을 잇는다
+ok 136 - 판본 변화: 기사와 clusterId가 달라도 호르무즈 협상 핵심 사건어가 같으면 지난 브리핑을 잇는다
+  ---
+  duration_ms: 0.938417
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 호르무즈 한 단어만 같은 기뢰 제거와 협상 난항은 별개 사건으로 둔다
+ok 137 - 판본 변화: 호르무즈 한 단어만 같은 기뢰 제거와 협상 난항은 별개 사건으로 둔다
+  ---
+  duration_ms: 4.416542
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 브랜드와 공개 일반어만 같은 서로 다른 갤럭시 제품 발표는 합치지 않는다
+ok 138 - 판본 변화: 브랜드와 공개 일반어만 같은 서로 다른 갤럭시 제품 발표는 합치지 않는다
+  ---
+  duration_ms: 0.202875
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 자동 생성 본문만 같은 별개 사건을 과거 사건으로 잇지 않는다
+ok 139 - 판본 변화: 자동 생성 본문만 같은 별개 사건을 과거 사건으로 잇지 않는다
+  ---
+  duration_ms: 0.216542
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 관련기사 관측 제목은 다음 판 사건 정체성으로 사용하지 않는다
+ok 140 - 판본 변화: 관련기사 관측 제목은 다음 판 사건 정체성으로 사용하지 않는다
+  ---
+  duration_ms: 0.306291
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 반응 수치만 달라진 반복은 새 사건 대체 후보가 있을 때 보류한다
+ok 141 - 판본 변화: 반응 수치만 달라진 반복은 새 사건 대체 후보가 있을 때 보류한다
+  ---
+  duration_ms: 0.348375
+  type: 'test'
+  ...
+# Subtest: 판본 변화: 바로 전 판에 없어도 같은 날 앞선 브리핑의 사건을 새 소식으로 되돌리지 않는다
+ok 142 - 판본 변화: 바로 전 판에 없어도 같은 날 앞선 브리핑의 사건을 새 소식으로 되돌리지 않는다
+  ---
+  duration_ms: 0.336916
+  type: 'test'
+  ...
+# Subtest: 판본 조합 키는 선택 순서와 무관하다
+ok 143 - 판본 조합 키는 선택 순서와 무관하다
+  ---
+  duration_ms: 0.053458
+  type: 'test'
+  ...
+# Subtest: 스토어: 로컬 판본·이전 슬롯·독립 검수자 원장을 재시작 뒤에도 보존한다
+ok 144 - 스토어: 로컬 판본·이전 슬롯·독립 검수자 원장을 재시작 뒤에도 보존한다
+  ---
+  duration_ms: 34.881417
+  type: 'test'
+  ...
+# Subtest: NH167 fewer observed feeds than the previous edition is not a material update and is not described as growth
+ok 145 - NH167 fewer observed feeds than the previous edition is not a material update and is not described as growth
+  ---
+  duration_ms: 0.400542
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 현재 슬롯의 다른 단독 분야 요청은 고정된 근거 시각의 수집 결과를 함께 쓴다
+ok 146 - 현재 슬롯의 다른 단독 분야 요청은 고정된 근거 시각의 수집 결과를 함께 쓴다
+  ---
+  duration_ms: 1119.989125
+  type: 'test'
+  ...
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: S2-①②: 무효 슬러그 동시 요청은 전부 400이고 판·캐시를 오염시키지 않는다
+ok 147 - S2-①②: 무효 슬러그 동시 요청은 전부 400이고 판·캐시를 오염시키지 않는다
+  ---
+  duration_ms: 538.3095
+  type: 'test'
+  ...
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: S2-③: 콜드 상태에서 같은 조합 동시 요청은 같은 판·같은 내용을 받는다
+ok 148 - S2-③: 콜드 상태에서 같은 조합 동시 요청은 같은 판·같은 내용을 받는다
+  ---
+  duration_ms: 1873.804042
+  type: 'test'
+  ...
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: S2-⑤: 영속 스토어로 재시작해도 같은 조합은 같은 판을 받는다
+ok 149 - S2-⑤: 영속 스토어로 재시작해도 같은 조합은 같은 판을 받는다
+  ---
+  duration_ms: 773.309916
+  type: 'test'
+  ...
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판: 복수 선택은 저장된 단독 분야 판의 정확한 합집합이다
+ok 150 - 오늘판: 복수 선택은 저장된 단독 분야 판의 정확한 합집합이다
+  ---
+  duration_ms: 1669.077083
+  type: 'test'
+  ...
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# Subtest: 오늘판: 서로 다른 조합의 동시 요청이 서로의 판을 받지 않는다
+ok 151 - 오늘판: 서로 다른 조합의 동시 요청이 서로의 판을 받지 않는다
+  ---
+  duration_ms: 1320.072209
+  type: 'test'
+  ...
+# Subtest: 실행 영수증: 시스템 시계 10분 안만 정시이고 주입 시계는 증거가 아니다
+ok 152 - 실행 영수증: 시스템 시계 10분 안만 정시이고 주입 시계는 증거가 아니다
+  ---
+  duration_ms: 6.602292
+  type: 'test'
+  ...
+# Subtest: 실행 영수증: 세 판이 정시·완결·서로 다른 내용일 때만 실제 시간차 증거다
+ok 153 - 실행 영수증: 세 판이 정시·완결·서로 다른 내용일 때만 실제 시간차 증거다
+  ---
+  duration_ms: 0.678666
+  type: 'test'
+  ...
+# Subtest: 실행 영수증: 기본 조합의 세 판 증명과 다른 조합의 분야 미충족을 분리한다
+ok 154 - 실행 영수증: 기본 조합의 세 판 증명과 다른 조합의 분야 미충족을 분리한다
+  ---
+  duration_ms: 10.415167
+  type: 'test'
+  ...
+# Subtest: 실행 영수증: 늦은 백필이나 보류 판을 실제 하루 증거로 승격하지 않는다
+ok 155 - 실행 영수증: 늦은 백필이나 보류 판을 실제 하루 증거로 승격하지 않는다
+  ---
+  duration_ms: 0.366834
+  type: 'test'
+  ...
+# Subtest: 실행 영수증: 최초 날짜·슬롯 관측은 재시작 뒤에도 덮어쓰지 않는다
+ok 156 - 실행 영수증: 최초 날짜·슬롯 관측은 재시작 뒤에도 덮어쓰지 않는다
+  ---
+  duration_ms: 5.784792
+  type: 'test'
+  ...
+# Subtest: 선택 분야 수가 늘면 판본 예산과 분야 최소 깊이가 함께 늘어난다
+ok 157 - 선택 분야 수가 늘면 판본 예산과 분야 최소 깊이가 함께 늘어난다
+  ---
+  duration_ms: 1.604709
+  type: 'test'
+  ...
+# Subtest: 선택 분야 충족도: 전체 판본 수가 아니라 분야별 공급과 이슈를 판정한다
+ok 158 - 선택 분야 충족도: 전체 판본 수가 아니라 분야별 공급과 이슈를 판정한다
+  ---
+  duration_ms: 0.490625
+  type: 'test'
+  ...
+# Subtest: 선택 분야 충족도: 다중 분야 이슈 한 건은 실제 속한 모든 선택 분야를 충족한다
+ok 159 - 선택 분야 충족도: 다중 분야 이슈 한 건은 실제 속한 모든 선택 분야를 충족한다
+  ---
+  duration_ms: 0.147916
+  type: 'test'
+  ...
+# Subtest: 선택 분야 충족도: 공유 이슈도 각 분야의 독립 상위 목록 깊이에 반영한다
+ok 160 - 선택 분야 충족도: 공유 이슈도 각 분야의 독립 상위 목록 깊이에 반영한다
+  ---
+  duration_ms: 0.092583
+  type: 'test'
+  ...
+# Subtest: 선택 분야 충족도: 전용 이슈와 공유 이슈를 각 분야에 빠짐없이 반영한다
+ok 161 - 선택 분야 충족도: 전용 이슈와 공유 이슈를 각 분야에 빠짐없이 반영한다
+  ---
+  duration_ms: 0.240166
+  type: 'test'
+  ...
+# Subtest: 선택 분야 충족도: 후보가 많아도 실제 판본 이슈가 부족하면 통과시키지 않는다
+ok 162 - 선택 분야 충족도: 후보가 많아도 실제 판본 이슈가 부족하면 통과시키지 않는다
+  ---
+  duration_ms: 0.083917
+  type: 'test'
+  ...
+# Subtest: 선택 분야 충족도: 수집 후보가 많아도 기계 유효 클러스터가 없으면 별도로 드러낸다
+ok 163 - 선택 분야 충족도: 수집 후보가 많아도 기계 유효 클러스터가 없으면 별도로 드러낸다
+  ---
+  duration_ms: 0.135625
+  type: 'test'
+  ...
+# Subtest: 선택 분야 충족도: 판본 변경 뒤 남은 이슈로 다시 계산할 수 있다
+ok 164 - 선택 분야 충족도: 판본 변경 뒤 남은 이슈로 다시 계산할 수 있다
+  ---
+  duration_ms: 0.109375
+  type: 'test'
+  ...
+# [feed] pool: 9 accumulated (48h retention) -> 9 after per-source cap
+# [feed] pool: 6 accumulated (48h retention) -> 6 after per-source cap
+# [feed] pool: 106 accumulated (48h retention) -> 100 after per-source cap
+# [health] 수집중단 0 · 신호소실 1 / 전체 107
+#   - bobae(보배드림) signal-lost: 반응 수치 정규식이 있으나 한 번도 매칭된 적이 없다
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [health] 수집중단 0 · 신호소실 1 / 전체 107
+#   - bobae(보배드림) signal-lost: 반응 수치 정규식이 있으나 한 번도 매칭된 적이 없다
+# [feed] pool: 101 accumulated (48h retention) -> 100 after per-source cap
+# Subtest: 슬롯 시각 계약: 현재까지 발행된 판만 시간순으로 돌려준다
+ok 165 - 슬롯 시각 계약: 현재까지 발행된 판만 시간순으로 돌려준다
+  ---
+  duration_ms: 15.042542
+  type: 'test'
+  ...
+# Subtest: 재고 판본 계약: v30이 현재 정본 계약 버전을 고정하고 불일치를 fail-closed 한다
+ok 166 - 재고 판본 계약: v30이 현재 정본 계약 버전을 고정하고 불일치를 fail-closed 한다
+  ---
+  duration_ms: 0.642166
+  type: 'test'
+  ...
+# Subtest: as-of 오늘판: 요청 시각이 늦어도 슬롯 뒤 항목을 미래에서 끌어오지 않는다
+ok 167 - as-of 오늘판: 요청 시각이 늦어도 슬롯 뒤 항목을 미래에서 끌어오지 않는다
+  ---
+  duration_ms: 303.020291
+  type: 'test'
+  ...
+# Subtest: late backfill: 현재 소스 상한에 밀린 과거 글을 48시간 풀에서 as-of로 복원한다
+ok 168 - late backfill: 현재 소스 상한에 밀린 과거 글을 48시간 풀에서 as-of로 복원한다
+  ---
+  duration_ms: 127.936625
+  type: 'test'
+  ...
+# Subtest: late backfill: 현재 상한 밖 과거 혼합게시판 글도 현재 분류 규칙으로 복원한다
+ok 169 - late backfill: 현재 상한 밖 과거 혼합게시판 글도 현재 분류 규칙으로 복원한다
+  ---
+  duration_ms: 106.1385
+  type: 'test'
+  ...
+# Subtest: 카테고리 조합 재고: 같은 취향은 공유하고 사용자 식별자는 키에 넣지 않는다
+ok 170 - 카테고리 조합 재고: 같은 취향은 공유하고 사용자 식별자는 키에 넣지 않는다
+  ---
+  duration_ms: 0.757333
+  type: 'test'
+  ...
+# Subtest: 재고 상태: 저장됐어도 발행 최소 조건을 못 채우면 완료와 분리한다
+ok 171 - 재고 상태: 저장됐어도 발행 최소 조건을 못 채우면 완료와 분리한다
+  ---
+  duration_ms: 1.876208
+  type: 'test'
+  ...
+# Subtest: 재고 관측 시각: 정시 판정에 큐 시작이 아니라 실제 완료 시각을 남긴다
+ok 172 - 재고 관측 시각: 정시 판정에 큐 시작이 아니라 실제 완료 시각을 남긴다
+  ---
+  duration_ms: 0.395958
+  type: 'test'
+  ...
+# Subtest: 재고 백필: 저장판의 기사 요약이 만료됐으면 클릭 요청이 아니라 백그라운드 큐가 다시 준비한다
+ok 173 - 재고 백필: 저장판의 기사 요약이 만료됐으면 클릭 요청이 아니라 백그라운드 큐가 다시 준비한다
+  ---
+  duration_ms: 2.760875
+  type: 'test'
+  ...
+# Subtest: 요약 워밍업: 제한 큐는 모든 분야의 현재판을 과거판보다 먼저 준비한다
+ok 174 - 요약 워밍업: 제한 큐는 모든 분야의 현재판을 과거판보다 먼저 준비한다
+  ---
+  duration_ms: 0.718375
+  type: 'test'
+  ...
+# Subtest: 누락 재고 백필: 핵심 조합 우선·슬롯 계보 보존·v30 재시작 생존
+ok 175 - 누락 재고 백필: 핵심 조합 우선·슬롯 계보 보존·v30 재시작 생존
+  ---
+  duration_ms: 11.335166
+  type: 'test'
+  ...
+# Subtest: 판본 버전 경계: v30 이전 슬롯이 없으면 같은 조합의 최신 구버전을 연속성 기준으로 읽는다
+ok 176 - 판본 버전 경계: v30 이전 슬롯이 없으면 같은 조합의 최신 구버전을 연속성 기준으로 읽는다
+  ---
+  duration_ms: 0.458292
+  type: 'test'
+  ...
+# Subtest: 주장 계보는 원문·측정·선택·편집 판단을 분리하고 안정 해시를 만든다
+ok 177 - 주장 계보는 원문·측정·선택·편집 판단을 분리하고 안정 해시를 만든다
+  ---
+  duration_ms: 2.686458
+  type: 'test'
+  ...
+# Subtest: 근거 해시나 측정 계보를 사후 변경하면 HOLD다
+ok 178 - 근거 해시나 측정 계보를 사후 변경하면 HOLD다
+  ---
+  duration_ms: 0.322875
+  type: 'test'
+  ...
+# Subtest: 독자에게 보이는 주장 문장을 계보 부착 뒤 바꾸면 HOLD다
+ok 179 - 독자에게 보이는 주장 문장을 계보 부착 뒤 바꾸면 HOLD다
+  ---
+  duration_ms: 0.287708
+  type: 'test'
+  ...
+# Subtest: 독자 리드 paragraph만 계보 부착 뒤 바꿔도 HOLD다
+ok 180 - 독자 리드 paragraph만 계보 부착 뒤 바꿔도 HOLD다
+  ---
+  duration_ms: 1.637334
+  type: 'test'
+  ...
+# Subtest: 주 사건 주장에는 관련기사 관측 근거를 결박하지 않는다
+ok 181 - 주 사건 주장에는 관련기사 관측 근거를 결박하지 않는다
+  ---
+  duration_ms: 16.314542
+  type: 'test'
+  ...
+# Subtest: editorial LLM canary: local loopback only
+ok 182 - editorial LLM canary: local loopback only
+  ---
+  duration_ms: 0.882375
+  type: 'test'
+  ...
+# Subtest: editorial LLM canary: execute requires separate approval and key
+ok 183 - editorial LLM canary: execute requires separate approval and key
+  ---
+  duration_ms: 0.106208
+  type: 'test'
+  ...
+# Subtest: editorial LLM canary: at most three issues with category diversity
+ok 184 - editorial LLM canary: at most three issues with category diversity
+  ---
+  duration_ms: 0.799667
+  type: 'test'
+  ...
+# Subtest: 고정 표본: 6종 모두 members 2건 이상(단독기사 표본 9 제외)이 사건 결합 목적에 맞는다
+ok 185 - 고정 표본: 6종 모두 members 2건 이상(단독기사 표본 9 제외)이 사건 결합 목적에 맞는다
+  ---
+  duration_ms: 6.353958
+  type: 'test'
+  ...
+# Subtest: 고정 표본 9(coverage 이진 포화)는 구성원 1건뿐이다 — 근거 라벨 정직성의 핵심
+ok 186 - 고정 표본 9(coverage 이진 포화)는 구성원 1건뿐이다 — 근거 라벨 정직성의 핵심
+  ---
+  duration_ms: 0.188958
+  type: 'test'
+  ...
+# Subtest: buildCanaryFixedSampleIssuePacket: 발췌 없으면 null로 명시(제목만 보낸다는 사실이 프롬프트에 남는다)
+ok 187 - buildCanaryFixedSampleIssuePacket: 발췌 없으면 null로 명시(제목만 보낸다는 사실이 프롬프트에 남는다)
+  ---
+  duration_ms: 0.096458
+  type: 'test'
+  ...
+# Subtest: buildCanaryFixedSamplePrompt: 여러 표본을 issues 배열로 묶고 sampleNo를 보존한다
+ok 188 - buildCanaryFixedSamplePrompt: 여러 표본을 issues 배열로 묶고 sampleNo를 보존한다
+  ---
+  duration_ms: 7.120708
+  type: 'test'
+  ...
+# Subtest: CANARY_FIXED_SAMPLE_SCHEMA: changedSince와 두 evidenceIds 필드를 요구한다
+ok 189 - CANARY_FIXED_SAMPLE_SCHEMA: changedSince와 두 evidenceIds 필드를 요구한다
+  ---
+  duration_ms: 0.096583
+  type: 'test'
+  ...
+# Subtest: 환각 게이트: 입력에 없던 숫자는 미지원으로 잡힌다
+ok 190 - 환각 게이트: 입력에 없던 숫자는 미지원으로 잡힌다
+  ---
+  duration_ms: 0.250583
+  type: 'test'
+  ...
+# Subtest: 환각 게이트: 입력(제목)에 있던 숫자는 통과한다
+ok 191 - 환각 게이트: 입력(제목)에 있던 숫자는 통과한다
+  ---
+  duration_ms: 0.133041
+  type: 'test'
+  ...
+# Subtest: 환각 게이트: 원문에 없는 큰따옴표 인용은 미지원으로 잡힌다
+ok 192 - 환각 게이트: 원문에 없는 큰따옴표 인용은 미지원으로 잡힌다
+  ---
+  duration_ms: 2.5545
+  type: 'test'
+  ...
+# Subtest: 환각 게이트: 원문에 있는 인용은 통과한다
+ok 193 - 환각 게이트: 원문에 있는 인용은 통과한다
+  ---
+  duration_ms: 0.467583
+  type: 'test'
+  ...
+# Subtest: 환각 게이트: 원문에 없는 영문 고유명사는 미지원으로 잡힌다
+ok 194 - 환각 게이트: 원문에 없는 영문 고유명사는 미지원으로 잡힌다
+  ---
+  duration_ms: 0.381458
+  type: 'test'
+  ...
+# Subtest: 환각 게이트: 원문에 있는 영문 고유명사는 통과한다
+ok 195 - 환각 게이트: 원문에 있는 영문 고유명사는 통과한다
+  ---
+  duration_ms: 0.128958
+  type: 'test'
+  ...
+# Subtest: 환각 게이트: 근거만으로 쓴 문장은 완전히 통과한다(오탐 없음)
+ok 196 - 환각 게이트: 근거만으로 쓴 문장은 완전히 통과한다(오탐 없음)
+  ---
+  duration_ms: 0.07
+  type: 'test'
+  ...
+# Subtest: unsupportedClaimRateForDraft: 세 필드를 합산하고, changedSince 필드도 검사한다
+ok 197 - unsupportedClaimRateForDraft: 세 필드를 합산하고, changedSince 필드도 검사한다
+  ---
+  duration_ms: 0.126875
+  type: 'test'
+  ...
+# Subtest: compareToRuleBasedBaseline: 제목을 그대로 재인용하면 titleReusedVerbatim=true
+ok 198 - compareToRuleBasedBaseline: 제목을 그대로 재인용하면 titleReusedVerbatim=true
+  ---
+  duration_ms: 0.069
+  type: 'test'
+  ...
+# Subtest: compareToRuleBasedBaseline: 종합·해설 문장은 titleReusedVerbatim=false, infoDelta>0
+ok 199 - compareToRuleBasedBaseline: 종합·해설 문장은 titleReusedVerbatim=false, infoDelta>0
+  ---
+  duration_ms: 0.044959
+  type: 'test'
+  ...
+# Subtest: runFixedSampleCanary: apiKey 없으면 전부 dry_run_no_key이고 fetch를 호출하지 않는다
+ok 200 - runFixedSampleCanary: apiKey 없으면 전부 dry_run_no_key이고 fetch를 호출하지 않는다
+  ---
+  duration_ms: 2.546667
+  type: 'test'
+  ...
+# Subtest: roughTokenEstimate: 근사치일 뿐 API 실측이 아니라는 계약(단조 증가) 확인
+ok 201 - roughTokenEstimate: 근사치일 뿐 API 실측이 아니라는 계약(단조 증가) 확인
+  ---
+  duration_ms: 0.120916
+  type: 'test'
+  ...
+# Subtest: estimateCostUsd: 모델별 단가로 계산하고 sonnet-5는 도입가 노트를 남긴다
+ok 202 - estimateCostUsd: 모델별 단가로 계산하고 sonnet-5는 도입가 노트를 남긴다
+  ---
+  duration_ms: 0.194375
+  type: 'test'
+  ...
+# Subtest: runFixedSampleCanary: apiKey 있으면 usage·환각검사·룰비교가 채워진 executed 결과를 낸다(가짜 fetch)
+ok 203 - runFixedSampleCanary: apiKey 있으면 usage·환각검사·룰비교가 채워진 executed 결과를 낸다(가짜 fetch)
+  ---
+  duration_ms: 2.565542
+  type: 'test'
+  ...
+# Subtest: LLM은 판본당 편집·검증 두 번만 호출하고 검증된 문장만 적용한다
+ok 204 - LLM은 판본당 편집·검증 두 번만 호출하고 검증된 문장만 적용한다
+  ---
+  duration_ms: 14.576166
+  type: 'test'
+  ...
+# Subtest: 같은 사건의 동시 판 생성은 편집을 한 번만 만들고 같은 정본을 공유한다
+ok 205 - 같은 사건의 동시 판 생성은 편집을 한 번만 만들고 같은 정본을 공유한다
+  ---
+  duration_ms: 14.728209
+  type: 'test'
+  ...
+# Subtest: 검증자가 하나라도 거부하면 결정론적 문장을 유지하고 캐시하지 않는다
+ok 206 - 검증자가 하나라도 거부하면 결정론적 문장을 유지하고 캐시하지 않는다
+  ---
+  duration_ms: 0.82025
+  type: 'test'
+  ...
+# Subtest: 검증자 영수증이 빠진 편집 캐시는 재사용하지 않고 다시 검증한다
+ok 207 - 검증자 영수증이 빠진 편집 캐시는 재사용하지 않고 다시 검증한다
+  ---
+  duration_ms: 1.354625
+  type: 'test'
+  ...
+# Subtest: 플래그나 키가 없으면 호출 없이 현재 판을 그대로 제공한다
+ok 208 - 플래그나 키가 없으면 호출 없이 현재 판을 그대로 제공한다
+  ---
+  duration_ms: 1.125167
+  type: 'test'
+  ...
+# Subtest: 모델 입력은 근거 ID·제목만 보내고 URL·원문 전문·사용자 ID를 싣지 않는다
+ok 209 - 모델 입력은 근거 ID·제목만 보내고 URL·원문 전문·사용자 ID를 싣지 않는다
+  ---
+  duration_ms: 1.978167
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 62 accumulated (48h retention) -> 62 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 현재 서빙: 한 분야라도 미달이면 선택 분야를 뺀 부분판을 제공하지 않는다
+ok 210 - 현재 서빙: 한 분야라도 미달이면 선택 분야를 뺀 부분판을 제공하지 않는다
+  ---
+  duration_ms: 2062.604959
+  type: 'test'
+  ...
+# [feed] pool: 62 accumulated (48h retention) -> 62 after per-source cap
+# Subtest: 부분 서빙: 선택한 모든 분야가 미달이면 그대로 409다
+ok 211 - 부분 서빙: 선택한 모든 분야가 미달이면 그대로 409다
+  ---
+  duration_ms: 508.012083
+  type: 'test'
+  ...
+# [feed] pool: 12 accumulated (48h retention) -> 12 after per-source cap
+# Subtest: 개인 오늘판 투영: 공유 판본의 내용·개수·선택 분야는 그대로 두고 가까운 중요도 묶음 안에서만 순서를 바꾼다
+ok 212 - 개인 오늘판 투영: 공유 판본의 내용·개수·선택 분야는 그대로 두고 가까운 중요도 묶음 안에서만 순서를 바꾼다
+  ---
+  duration_ms: 3.027792
+  type: 'test'
+  ...
+# Subtest: 개인 오늘판 투영: 취향 신호가 없거나 한 분야만 골랐으면 공유 중요도 순서를 보존한다
+ok 213 - 개인 오늘판 투영: 취향 신호가 없거나 한 분야만 골랐으면 공유 중요도 순서를 보존한다
+  ---
+  duration_ms: 0.378209
+  type: 'test'
+  ...
+# Subtest: 개인 오늘판 투영: 선택 밖 이슈를 조용히 숨기지 않고 무결성 HOLD로 드러낸다
+ok 214 - 개인 오늘판 투영: 선택 밖 이슈를 조용히 숨기지 않고 무결성 HOLD로 드러낸다
+  ---
+  duration_ms: 0.167541
+  type: 'test'
+  ...
+# Subtest: 개인 오늘판 투영: 선택 분야 하나와 맞는 복수 분야 이슈는 침입으로 보지 않는다
+ok 215 - 개인 오늘판 투영: 선택 분야 하나와 맞는 복수 분야 이슈는 침입으로 보지 않는다
+  ---
+  duration_ms: 0.136125
+  type: 'test'
+  ...
+# Subtest: 개인 오늘판 효용 가드: 선호 적중이 늘어도 상단 출처 다양성을 깎으면 공유 순서로 되돌린다
+ok 216 - 개인 오늘판 효용 가드: 선호 적중이 늘어도 상단 출처 다양성을 깎으면 공유 순서로 되돌린다
+  ---
+  duration_ms: 0.517708
+  type: 'test'
+  ...
+# Subtest: 공유 오늘판 생성: 첫 요청자의 종교 토픽 설정을 카테고리 공유 원본에 섞지 않는다
+ok 217 - 공유 오늘판 생성: 첫 요청자의 종교 토픽 설정을 카테고리 공유 원본에 섞지 않는다
+  ---
+  duration_ms: 348.041166
+  type: 'test'
+  ...
+# Subtest: 판본 품질 원장: 저장 판의 기계·계보·근거 유형과 사람 검수 진행률을 슬롯별로 누적한다
+ok 218 - 판본 품질 원장: 저장 판의 기계·계보·근거 유형과 사람 검수 진행률을 슬롯별로 누적한다
+  ---
+  duration_ms: 30.854084
+  type: 'test'
+  ...
+# Subtest: 판본 품질 원장: 저장 뒤 근거 계보가 변조된 판은 사람 검수 대기와 별개로 기계 주의다
+ok 219 - 판본 품질 원장: 저장 뒤 근거 계보가 변조된 판은 사람 검수 대기와 별개로 기계 주의다
+  ---
+  duration_ms: 0.509583
+  type: 'test'
+  ...
+# Subtest: 판본 품질 원장: 계보 계약 전 구형 판은 해시 불일치와 분리한다
+ok 220 - 판본 품질 원장: 계보 계약 전 구형 판은 해시 불일치와 분리한다
+  ---
+  duration_ms: 0.304625
+  type: 'test'
+  ...
+# Subtest: 편집 근거: 관련기사 묶음과 지금핫 복수 피드 직접 관측을 분리한다
+ok 221 - 편집 근거: 관련기사 묶음과 지금핫 복수 피드 직접 관측을 분리한다
+  ---
+  duration_ms: 5.702375
+  type: 'test'
+  ...
+# Subtest: 편집 근거: 같은 발행사의 직접 RSS와 중계 피드를 독립 관측으로 세지 않는다
+ok 222 - 편집 근거: 같은 발행사의 직접 RSS와 중계 피드를 독립 관측으로 세지 않는다
+  ---
+  duration_ms: 27.219208
+  type: 'test'
+  ...
+# Subtest: 편집 문장: 한 글자·조사로 끝나는 주제어를 발행 가능한 제목으로 보지 않는다
+ok 223 - 편집 문장: 한 글자·조사로 끝나는 주제어를 발행 가능한 제목으로 보지 않는다
+  ---
+  duration_ms: 0.453458
+  type: 'test'
+  ...
+# Subtest: 편집 문장: 번역되지 않은 영문 원제목은 한국어 오늘판 후보에서 보류한다
+ok 224 - 편집 문장: 번역되지 않은 영문 원제목은 한국어 오늘판 후보에서 보류한다
+  ---
+  duration_ms: 0.87525
+  type: 'test'
+  ...
+# Subtest: 편집 분야: 출처 라벨이나 비유 한 단어가 실제 사건 분야를 훔치지 않는다
+ok 225 - 편집 분야: 출처 라벨이나 비유 한 단어가 실제 사건 분야를 훔치지 않는다
+  ---
+  duration_ms: 2.04075
+  type: 'test'
+  ...
+# Subtest: 편집 분야: 복구 경로의 출처 분류보다 실제 제목 문맥을 우선한다
+ok 226 - 편집 분야: 복구 경로의 출처 분류보다 실제 제목 문맥을 우선한다
+  ---
+  duration_ms: 1.033834
+  type: 'test'
+  ...
+# Subtest: 편집 분야: 대표 분야뿐 아니라 승인된 복수 분야를 모두 검증한다
+ok 227 - 편집 분야: 대표 분야뿐 아니라 승인된 복수 분야를 모두 검증한다
+  ---
+  duration_ms: 0.231375
+  type: 'test'
+  ...
+# Subtest: 자체 브리핑: 폭력을 직접 권하는 커뮤니티 제목은 후보에서 제외한다
+ok 228 - 자체 브리핑: 폭력을 직접 권하는 커뮤니티 제목은 후보에서 제외한다
+  ---
+  duration_ms: 0.224375
+  type: 'test'
+  ...
+# Subtest: 민감한 혈통·매국 주장은 커뮤니티 단독 관측으로 대표 이슈가 되지 않는다
+ok 229 - 민감한 혈통·매국 주장은 커뮤니티 단독 관측으로 대표 이슈가 되지 않는다
+  ---
+  duration_ms: 0.445958
+  type: 'test'
+  ...
+# Subtest: 블라인드 검수 패킷: 현재 판은 동적이고 E1은 규모 미정의 층화 평가 경계다
+ok 230 - 블라인드 검수 패킷: 현재 판은 동적이고 E1은 규모 미정의 층화 평가 경계다
+  ---
+  duration_ms: 94.314125
+  type: 'test'
+  ...
+# Subtest: 블라인드 검수 패킷: 독자 문안과 그 기계 판정을 불변 식별자에 함께 동결한다
+ok 231 - 블라인드 검수 패킷: 독자 문안과 그 기계 판정을 불변 식별자에 함께 동결한다
+  ---
+  duration_ms: 1.418958
+  type: 'test'
+  ...
+# Subtest: 2인 검수 판정: 불일치와 만장일치 부정을 PASS로 숨기지 않는다
+ok 232 - 2인 검수 판정: 불일치와 만장일치 부정을 PASS로 숨기지 않는다
+  ---
+  duration_ms: 0.6165
+  type: 'test'
+  ...
+# Subtest: 2인 검수 독립성: 두 원장이 끝나기 전에는 부분 일치와 답을 공개하지 않는다
+ok 233 - 2인 검수 독립성: 두 원장이 끝나기 전에는 부분 일치와 답을 공개하지 않는다
+  ---
+  duration_ms: 0.103458
+  type: 'test'
+  ...
+# Subtest: 사람 검수 상태: 독자 문장 기계 HOLD를 human ready로 덮어쓰지 않는다
+ok 234 - 사람 검수 상태: 독자 문장 기계 HOLD를 human ready로 덮어쓰지 않는다
+  ---
+  duration_ms: 0.055167
+  type: 'test'
+  ...
+# Subtest: 사람 검수 보호: 완료 행이 0이어도 저장된 메모·빈 초안·조정 원장은 작업으로 본다
+ok 235 - 사람 검수 보호: 완료 행이 0이어도 저장된 메모·빈 초안·조정 원장은 작업으로 본다
+  ---
+  duration_ms: 0.071417
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 호르무즈 기계 문구를 기자식 제목·리드·변화 문장으로 투영한다
+ok 236 - 독자 문장: 호르무즈 기계 문구를 기자식 제목·리드·변화 문장으로 투영한다
+  ---
+  duration_ms: 11.073333
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 근거 없는 분야별 중요성은 생략하고 핵심 소식과 출처는 남긴다
+ok 237 - 독자 문장: 근거 없는 분야별 중요성은 생략하고 핵심 소식과 출처는 남긴다
+  ---
+  duration_ms: 1.476666
+  type: 'test'
+  ...
+# Subtest: NH146 price headlines do not inherit weather explanations from background paragraphs
+ok 238 - NH146 price headlines do not inherit weather explanations from background paragraphs
+  ---
+  duration_ms: 2.27675
+  type: 'test'
+  ...
+# Subtest: NH146 valid lineage does not promote category boilerplate into article-specific importance
+ok 239 - NH146 valid lineage does not promote category boilerplate into article-specific importance
+  ---
+  duration_ms: 0.843834
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 영문 약어 매체명 뒤 조사를 발음에 맞춘다
+ok 240 - 독자 문장: 영문 약어 매체명 뒤 조사를 발음에 맞춘다
+  ---
+  duration_ms: 0.574375
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 온라인 반응을 기사 발행 언론사의 반응으로 돌리지 않는다
+ok 241 - 독자 문장: 온라인 반응을 기사 발행 언론사의 반응으로 돌리지 않는다
+  ---
+  duration_ms: 34.299791
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 발행 전 준비한 제목을 모든 분야에 같은 읽기 제목으로 쓴다
+ok 242 - 독자 문장: 발행 전 준비한 제목을 모든 분야에 같은 읽기 제목으로 쓴다
+  ---
+  duration_ms: 1.035208
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 발행 전 교정 제목은 단일 기사의 요약과 이유에도 같은 대표 제목으로 쓰인다
+ok 243 - 독자 문장: 발행 전 교정 제목은 단일 기사의 요약과 이유에도 같은 대표 제목으로 쓰인다
+  ---
+  duration_ms: 0.584042
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 원본 이슈와 근거 계보는 바꾸지 않고 reader 필드만 추가한다
+ok 244 - 독자 문장: 원본 이슈와 근거 계보는 바꾸지 않고 reader 필드만 추가한다
+  ---
+  duration_ms: 0.688958
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 저장 내부의 이전 판 표현을 대중적인 브리핑 문장으로 바꾼다
+ok 245 - 독자 문장: 저장 내부의 이전 판 표현을 대중적인 브리핑 문장으로 바꾼다
+  ---
+  duration_ms: 0.516833
+  type: 'test'
+  ...
+# Subtest: NH124: Techmeme의 저자 꼬리와 Sources 번역만 교정하고 기사 정보는 보존한다
+ok 246 - NH124: Techmeme의 저자 꼬리와 Sources 번역만 교정하고 기사 정보는 보존한다
+  ---
+  duration_ms: 0.742541
+  type: 'test'
+  ...
+# Subtest: NH126: 출처 라벨 접미와 확인된 중계 게시판 꼬리를 제목에서만 제외한다
+ok 247 - NH126: 출처 라벨 접미와 확인된 중계 게시판 꼬리를 제목에서만 제외한다
+  ---
+  duration_ms: 0.437916
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 긴 원문 제목은 사건명을 보존한 채 화면 제한 안으로 줄인다
+ok 248 - 독자 문장: 긴 원문 제목은 사건명을 보존한 채 화면 제한 안으로 줄인다
+  ---
+  duration_ms: 0.179959
+  type: 'test'
+  ...
+# Subtest: 독자 문장 게이트: 내부 용어와 같은 관전 문구의 대량 반복을 PASS로 숨기지 않는다
+ok 249 - 독자 문장 게이트: 내부 용어와 같은 관전 문구의 대량 반복을 PASS로 숨기지 않는다
+  ---
+  duration_ms: 0.640875
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 같은 분야·출처의 여러 사건도 사건명을 붙여 반복 관문을 통과한다
+ok 250 - 독자 문장: 같은 분야·출처의 여러 사건도 사건명을 붙여 반복 관문을 통과한다
+  ---
+  duration_ms: 0.651167
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 같은 분야 일반 설명을 빼도 근거에 있는 핵심 연구 소식은 남긴다
+ok 251 - 독자 문장: 같은 분야 일반 설명을 빼도 근거에 있는 핵심 연구 소식은 남긴다
+  ---
+  duration_ms: 2.178167
+  type: 'test'
+  ...
+# Subtest: 독자 문장 게이트: 이전 브리핑 대비 변화 근거가 없으면 HOLD다
+ok 252 - 독자 문장 게이트: 이전 브리핑 대비 변화 근거가 없으면 HOLD다
+  ---
+  duration_ms: 0.3955
+  type: 'test'
+  ...
+# Subtest: 독자 문장 게이트: 구조화 근거 없는 중요성·변화 문장은 HOLD다
+ok 253 - 독자 문장 게이트: 구조화 근거 없는 중요성·변화 문장은 HOLD다
+  ---
+  duration_ms: 0.650625
+  type: 'test'
+  ...
+# Subtest: 독자 문장 게이트: 일곱 필드는 현재 근거 지문과 일치해야 한다
+ok 254 - 독자 문장 게이트: 일곱 필드는 현재 근거 지문과 일치해야 한다
+  ---
+  duration_ms: 1.975833
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 서로 다른 뉴스 사건을 사회·지정학 상용구 하나로 뭉치지 않는다
+ok 255 - 독자 문장: 서로 다른 뉴스 사건을 사회·지정학 상용구 하나로 뭉치지 않는다
+  ---
+  duration_ms: 0.311625
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 지정학 사건별로 실제 다음 확인 대상을 나눈다
+ok 256 - 독자 문장: 지정학 사건별로 실제 다음 확인 대상을 나눈다
+  ---
+  duration_ms: 3.61525
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 검증된 LLM 편집문은 결정론적 사건 프레임보다 우선한다
+ok 257 - 독자 문장: 검증된 LLM 편집문은 결정론적 사건 프레임보다 우선한다
+  ---
+  duration_ms: 0.366125
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 관련기사의 임상시험 키워드가 문화행사 프레임을 바꾸지 않는다
+ok 258 - 독자 문장: 관련기사의 임상시험 키워드가 문화행사 프레임을 바꾸지 않는다
+  ---
+  duration_ms: 4.215333
+  type: 'test'
+  ...
+# Subtest: 독자 문장: 커뮤니티 단독 유머 태풍 글에는 기상 기사 프레임을 붙이지 않고 뉴스 태풍 기사는 유지한다
+ok 259 - 독자 문장: 커뮤니티 단독 유머 태풍 글에는 기상 기사 프레임을 붙이지 않고 뉴스 태풍 기사는 유지한다
+  ---
+  duration_ms: 0.715542
+  type: 'test'
+  ...
+# Subtest: 신뢰도 원장: 오늘은 현재까지 도래한 슬롯만 평가한다
+ok 260 - 신뢰도 원장: 오늘은 현재까지 도래한 슬롯만 평가한다
+  ---
+  duration_ms: 5.545834
+  type: 'test'
+  ...
+# Subtest: 신뢰도 원장: 관측 시작 뒤 통째로 빈 과거 날짜를 누락으로 남긴다
+ok 261 - 신뢰도 원장: 관측 시작 뒤 통째로 빈 과거 날짜를 누락으로 남긴다
+  ---
+  duration_ms: 11.011792
+  type: 'test'
+  ...
+# Subtest: 신뢰도 원장: 정시·완결·서로 다른 세 판과 분야 충족을 하루 완료로 집계한다
+ok 262 - 신뢰도 원장: 정시·완결·서로 다른 세 판과 분야 충족을 하루 완료로 집계한다
+  ---
+  duration_ms: 0.616708
+  type: 'test'
+  ...
+# Subtest: 신뢰도 원장: 늦은 저장과 분야 미충족을 각각 숨기지 않는다
+ok 263 - 신뢰도 원장: 늦은 저장과 분야 미충족을 각각 숨기지 않는다
+  ---
+  duration_ms: 0.39975
+  type: 'test'
+  ...
+# Subtest: 편집 데스크: 독자용 문장과 현재 검수자 답만 제공한다
+ok 264 - 편집 데스크: 독자용 문장과 현재 검수자 답만 제공한다
+  ---
+  duration_ms: 4.054208
+  type: 'test'
+  ...
+# Subtest: 편집 데스크: 미판정은 완성 행이나 보류 행으로 계산하지 않는다
+ok 265 - 편집 데스크: 미판정은 완성 행이나 보류 행으로 계산하지 않는다
+  ---
+  duration_ms: 0.340375
+  type: 'test'
+  ...
+# Subtest: 검수 패킷 원장: 활성 대상은 다음 패킷 저장과 재시작에도 바뀌지 않는다
+ok 266 - 검수 패킷 원장: 활성 대상은 다음 패킷 저장과 재시작에도 바뀌지 않는다
+  ---
+  duration_ms: 4.545875
+  type: 'test'
+  ...
+# Subtest: 검수 패킷 원장: 자동 슬롯 표본은 대기열에만 동결하고 명시 조회가 기존 패킷을 활성화할 수 있다
+ok 267 - 검수 패킷 원장: 자동 슬롯 표본은 대기열에만 동결하고 명시 조회가 기존 패킷을 활성화할 수 있다
+  ---
+  duration_ms: 1.458375
+  type: 'test'
+  ...
+# Subtest: 검수 패킷 원장: 구버전의 빈 객체 저장값도 최신 대기열 구조로 복구한다
+ok 268 - 검수 패킷 원장: 구버전의 빈 객체 저장값도 최신 대기열 구조로 복구한다
+  ---
+  duration_ms: 2.170291
+  type: 'test'
+  ...
+# Subtest: 판본 저장소: 품질 원장이 날짜·슬롯·공유 조합과 불변 저장 판을 함께 읽는다
+ok 269 - 판본 저장소: 품질 원장이 날짜·슬롯·공유 조합과 불변 저장 판을 함께 읽는다
+  ---
+  duration_ms: 9.899916
+  type: 'test'
+  ...
+# Subtest: 검수 조정 원장: 검수자 답과 분리해 재시작 뒤에도 보존한다
+ok 270 - 검수 조정 원장: 검수자 답과 분리해 재시작 뒤에도 보존한다
+  ---
+  duration_ms: 2.660541
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 제공 가능 계약: 실제 응답의 기계·독자 문장·다양성·분야 충족을 함께 통과시킨다
+ok 271 - 제공 가능 계약: 실제 응답의 기계·독자 문장·다양성·분야 충족을 함께 통과시킨다
+  ---
+  duration_ms: 93.784208
+  type: 'test'
+  ...
+# Subtest: 제공 가능 계약: 같은 정본 사건 카드가 두 번 있으면 마지막 관문에서 차단한다
+ok 272 - 제공 가능 계약: 같은 정본 사건 카드가 두 번 있으면 마지막 관문에서 차단한다
+  ---
+  duration_ms: 5.689833
+  type: 'test'
+  ...
+# Subtest: 제공 가능 계약: eventSourceSetId가 없어도 같은 정본 eventId 중복을 차단한다
+ok 273 - 제공 가능 계약: eventSourceSetId가 없어도 같은 정본 eventId 중복을 차단한다
+  ---
+  duration_ms: 5.260625
+  type: 'test'
+  ...
+# Subtest: 제공 가능 계약: 별개 사건은 보조 기사 하나를 공유해도 중복으로 차단하지 않는다
+ok 274 - 제공 가능 계약: 별개 사건은 보조 기사 하나를 공유해도 중복으로 차단하지 않는다
+  ---
+  duration_ms: 11.405625
+  type: 'test'
+  ...
+# Subtest: 제공 가능 계약: 독자 문장과 분야별 최소 13건 미달을 차단한다
+ok 275 - 제공 가능 계약: 독자 문장과 분야별 최소 13건 미달을 차단한다
+  ---
+  duration_ms: 60.337375
+  type: 'test'
+  ...
+# Subtest: 제공 가능 계약: 문장 보류 한 건만 제외하고 남은 판이 충족되면 제공한다
+ok 276 - 제공 가능 계약: 문장 보류 한 건만 제외하고 남은 판이 충족되면 제공한다
+  ---
+  duration_ms: 5.797459
+  type: 'test'
+  ...
+# Subtest: 제공 가능 계약: 실제 다중 분야 이슈는 두 분야를 채우되 화면에는 한 번만 둔다
+ok 277 - 제공 가능 계약: 실제 다중 분야 이슈는 두 분야를 채우되 화면에는 한 번만 둔다
+  ---
+  duration_ms: 11.316083
+  type: 'test'
+  ...
+# Subtest: 제공 가능 계약: 분야 조합은 순서와 무관하지만 하나라도 다르면 이전판 대체가 아니다
+ok 278 - 제공 가능 계약: 분야 조합은 순서와 무관하지만 하나라도 다르면 이전판 대체가 아니다
+  ---
+  duration_ms: 0.109167
+  type: 'test'
+  ...
+# Subtest: 제공 검증 영수증: 같은 응답 지문은 덮어쓰지 않고 재시작 뒤에도 남는다
+ok 279 - 제공 검증 영수증: 같은 응답 지문은 덮어쓰지 않고 재시작 뒤에도 남는다
+  ---
+  duration_ms: 4.549958
+  type: 'test'
+  ...
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 현재 응답이 분야 충족에 실패하면 빈 성공 대신 409로 닫는다
+ok 280 - 오늘판 API: 현재 응답이 분야 충족에 실패하면 빈 성공 대신 409로 닫는다
+  ---
+  duration_ms: 804.501333
+  type: 'test'
+  ...
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 현재 슬롯 콜드 스타트는 과거를 꾸미지 않고 관측 지연판으로 복구한다
+ok 281 - 오늘판 API: 현재 슬롯 콜드 스타트는 과거를 꾸미지 않고 관측 지연판으로 복구한다
+  ---
+  duration_ms: 478.382959
+  type: 'test'
+  ...
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 먼저 확정된 분야는 고정하고 늦게 처음 연 분야는 실제 증거 시각을 기록한다
+ok 282 - 오늘판 API: 먼저 확정된 분야는 고정하고 늦게 처음 연 분야는 실제 증거 시각을 기록한다
+  ---
+  duration_ms: 1212.446541
+  type: 'test'
+  ...
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 복수 분야는 조합별 과거가 달라도 각 단독 분야 확정판의 합집합이다
+ok 283 - 오늘판 API: 복수 분야는 조합별 과거가 달라도 각 단독 분야 확정판의 합집합이다
+  ---
+  duration_ms: 1980.0105
+  type: 'test'
+  ...
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 저장 단독판이 없는 사용자 GET도 편집 LLM을 호출하지 않는다
+ok 284 - 오늘판 API: 저장 단독판이 없는 사용자 GET도 편집 LLM을 호출하지 않는다
+  ---
+  duration_ms: 542.630333
+  type: 'test'
+  ...
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 재고 작업이 최종 이슈 요약을 미리 준비하고 사용자 조회는 저장본만 읽는다
+ok 285 - 오늘판 API: 재고 작업이 최종 이슈 요약을 미리 준비하고 사용자 조회는 저장본만 읽는다
+  ---
+  duration_ms: 1376.021458
+  type: 'test'
+  ...
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# (node:72275) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 beforeExit listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 사용자 조회는 기사 요약 모델을 호출하거나 기다리지 않는다
+ok 286 - 오늘판 API: 사용자 조회는 기사 요약 모델을 호출하거나 기다리지 않는다
+  ---
+  duration_ms: 369.099208
+  type: 'test'
+  ...
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# (node:72275) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 SIGTERM listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+# (node:72275) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 SIGINT listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 이전 계약의 ready 요약은 조회에서 숨기고 백그라운드 준비 대상으로 남긴다
+ok 287 - 오늘판 API: 이전 계약의 ready 요약은 조회에서 숨기고 백그라운드 준비 대상으로 남긴다
+  ---
+  duration_ms: 754.53075
+  type: 'test'
+  ...
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 부분 수집 보류판은 고정하지 않고 다음 수집의 정상판으로 회복한다
+ok 288 - 오늘판 API: 부분 수집 보류판은 고정하지 않고 다음 수집의 정상판으로 회복한다
+  ---
+  duration_ms: 626.604042
+  type: 'test'
+  ...
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 같은 분야의 24시간 이내 검증판만 반복 보류 현재판을 대신한다
+ok 289 - 오늘판 API: 같은 분야의 24시간 이내 검증판만 반복 보류 현재판을 대신한다
+  ---
+  duration_ms: 646.489916
+  type: 'test'
+  ...
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 오늘판 API: 이전 검증 영수증 지문이 달라지면 같은 판본도 대체 제공하지 않는다
+ok 290 - 오늘판 API: 이전 검증 영수증 지문이 달라지면 같은 판본도 대체 제공하지 않는다
+  ---
+  duration_ms: 742.684458
+  type: 'test'
+  ...
+# [feed] pool: 30 accumulated (48h retention) -> 30 after per-source cap
+# [feed] pool: 46 accumulated (48h retention) -> 46 after per-source cap
+# Subtest: 오늘판 API: 일부 분야판만 저장된 조합은 누락 분야를 현재 시각으로 보충한다
+ok 291 - 오늘판 API: 일부 분야판만 저장된 조합은 누락 분야를 현재 시각으로 보충한다
+  ---
+  duration_ms: 476.572125
+  type: 'test'
+  ...
+# Subtest: 운영 출처 식별: 중계·섹션·표기 경로가 달라도 같은 발행사는 같은 키다
+ok 292 - 운영 출처 식별: 중계·섹션·표기 경로가 달라도 같은 발행사는 같은 키다
+  ---
+  duration_ms: 0.970625
+  type: 'test'
+  ...
+# Subtest: 운영 출처 식별: 모르는 구글뉴스 발행사는 표시명별로 분리한다
+ok 293 - 운영 출처 식별: 모르는 구글뉴스 발행사는 표시명별로 분리한다
+  ---
+  duration_ms: 0.229042
+  type: 'test'
+  ...
+# Subtest: 운영 출처 식별: 명시적 레지스트리 그룹이 최우선이다
+ok 294 - 운영 출처 식별: 명시적 레지스트리 그룹이 최우선이다
+  ---
+  duration_ms: 0.075292
+  type: 'test'
+  ...
+# Subtest: editorial: 급상승형 fires for fresh + very high score/comments, and every printed number traces to real fields
+ok 295 - editorial: 급상승형 fires for fresh + very high score/comments, and every printed number traces to real fields
+  ---
+  duration_ms: 2.353125
+  type: 'test'
+  ...
+# Subtest: editorial: 급상승형 rounds a large score into '만' units without inventing a different number
+ok 296 - editorial: 급상승형 rounds a large score into '만' units without inventing a different number
+  ---
+  duration_ms: 0.219167
+  type: 'test'
+  ...
+# Subtest: editorial: 압도적 반응형 states a multiplier only when actually computed from context.sourceStats — not a hardcoded string
+ok 297 - editorial: 압도적 반응형 states a multiplier only when actually computed from context.sourceStats — not a hardcoded string
+  ---
+  duration_ms: 0.343667
+  type: 'test'
+  ...
+# Subtest: editorial: 압도적 반응형 does not fire without enough same-source samples or a positive mean
+ok 298 - editorial: 압도적 반응형 does not fire without enough same-source samples or a positive mean
+  ---
+  duration_ms: 0.158917
+  type: 'test'
+  ...
+# Subtest: editorial: 게시판 1위형 fires only when rank \#1 AND real engagement exists, and prints those numbers
+ok 299 - editorial: 게시판 1위형 fires only when rank \#1 AND real engagement exists, and prints those numbers
+  ---
+  duration_ms: 0.204959
+  type: 'test'
+  ...
+# Subtest: editorial: 댓글 폭발형 fires when comments heavily outweigh score, regardless of age
+ok 300 - editorial: 댓글 폭발형 fires when comments heavily outweigh score, regardless of age
+  ---
+  duration_ms: 0.110042
+  type: 'test'
+  ...
+# Subtest: editorial: 신선형 fires for a just-published item with modest (below-surge-floor) early traction
+ok 301 - editorial: 신선형 fires for a just-published item with modest (below-surge-floor) early traction
+  ---
+  duration_ms: 0.228291
+  type: 'test'
+  ...
+# Subtest: editorial: 번역/해외형 fires for translated overseas items, stating only a real score
+ok 302 - editorial: 번역/해외형 fires for translated overseas items, stating only a real score
+  ---
+  duration_ms: 0.083083
+  type: 'test'
+  ...
+# Subtest: editorial: 번역/해외형 with no score still says something honest, with no number at all
+ok 303 - editorial: 번역/해외형 with no score still says something honest, with no number at all
+  ---
+  duration_ms: 0.28225
+  type: 'test'
+  ...
+# Subtest: editorial: 발췌가 없으면 '한글로 옮겨왔어요'라고 쓰지 않는다
+ok 304 - editorial: 발췌가 없으면 '한글로 옮겨왔어요'라고 쓰지 않는다
+  ---
+  duration_ms: 1.054458
+  type: 'test'
+  ...
+# Subtest: editorial: all-zero/missing data returns '' — no forced filler sentence
+ok 305 - editorial: all-zero/missing data returns '' — no forced filler sentence
+  ---
+  duration_ms: 1.217583
+  type: 'test'
+  ...
+# Subtest: editorial: affiliate/ad items never get a note, even if their fields would otherwise qualify
+ok 306 - editorial: affiliate/ad items never get a note, even if their fields would otherwise qualify
+  ---
+  duration_ms: 0.233042
+  type: 'test'
+  ...
+# Subtest: editorial: priority order — a fresh, hugely-outlying, rank-1 item still reads as 급상승형 (priority 1), not the lower-priority templates
+ok 307 - editorial: priority order — a fresh, hugely-outlying, rank-1 item still reads as 급상승형 (priority 1), not the lower-priority templates
+  ---
+  duration_ms: 0.146042
+  type: 'test'
+  ...
+# Subtest: NH124: Hugging Face 인수·조사·독일 웹사이트 사건은 분리하고 같은 사건 보도는 보존한다
+ok 308 - NH124: Hugging Face 인수·조사·독일 웹사이트 사건은 분리하고 같은 사건 보도는 보존한다
+  ---
+  duration_ms: 41.461375
+  type: 'test'
+  ...
+# Subtest: 표본 1: 한/영 동일 사건은 영문 표기 고유명사 축으로 한 사건에 결합된다
+ok 309 - 표본 1: 한/영 동일 사건은 영문 표기 고유명사 축으로 한 사건에 결합된다
+  ---
+  duration_ms: 0.855916
+  type: 'test'
+  ...
+# Subtest: 표본 2: 부동산대책 파편은 한 사건으로 병합되고 타 매체 근거가 하나도 사라지지 않는다
+ok 310 - 표본 2: 부동산대책 파편은 한 사건으로 병합되고 타 매체 근거가 하나도 사라지지 않는다
+  ---
+  duration_ms: 0.490042
+  type: 'test'
+  ...
+# Subtest: 표본 3: 동일 발언 사건은 매체·지면이 달라도 한 사건으로 결합된다
+ok 311 - 표본 3: 동일 발언 사건은 매체·지면이 달라도 한 사건으로 결합된다
+  ---
+  duration_ms: 0.228375
+  type: 'test'
+  ...
+# Subtest: 표본 4: 카테고리(tech/gaming)가 달라도 같은 사건은 병합된다
+ok 312 - 표본 4: 카테고리(tech/gaming)가 달라도 같은 사건은 병합된다
+  ---
+  duration_ms: 0.178
+  type: 'test'
+  ...
+# Subtest: 표본 5: 중계·재유통은 canonicalUrl 강한 결합으로 같은 사건이 되고 독립 계수는 1이다
+ok 313 - 표본 5: 중계·재유통은 canonicalUrl 강한 결합으로 같은 사건이 되고 독립 계수는 1이다
+  ---
+  duration_ms: 0.251042
+  type: 'test'
+  ...
+# Subtest: 오병합 가드 1: 같은 회사의 다른 사건은 병합하지 않는다 (고유명사 1개 겹침)
+ok 314 - 오병합 가드 1: 같은 회사의 다른 사건은 병합하지 않는다 (고유명사 1개 겹침)
+  ---
+  duration_ms: 0.241416
+  type: 'test'
+  ...
+# Subtest: 오병합 가드 2: 같은 숫자만 겹치는 다른 주제는 병합하지 않는다
+ok 315 - 오병합 가드 2: 같은 숫자만 겹치는 다른 주제는 병합하지 않는다
+  ---
+  duration_ms: 0.227458
+  type: 'test'
+  ...
+# Subtest: 오병합 가드 3: 커뮤니티 유머글은 내용어가 겹쳐도 뉴스와 병합하지 않는다
+ok 316 - 오병합 가드 3: 커뮤니티 유머글은 내용어가 겹쳐도 뉴스와 병합하지 않는다
+  ---
+  duration_ms: 0.603875
+  type: 'test'
+  ...
+# Subtest: 오병합 가드 4: 고유명사 1개 겹침은 병합하지 않는다
+ok 317 - 오병합 가드 4: 고유명사 1개 겹침은 병합하지 않는다
+  ---
+  duration_ms: 0.734042
+  type: 'test'
+  ...
+# Subtest: 같은 매체가 한 원영상을 여러 각도로 연속 보도해도 한 사건으로 묶는다
+ok 318 - 같은 매체가 한 원영상을 여러 각도로 연속 보도해도 한 사건으로 묶는다
+  ---
+  duration_ms: 1.015708
+  type: 'test'
+  ...
+# Subtest: 같은 매체의 가까운 보도라도 공통 주제가 하나뿐이면 합치지 않는다
+ok 319 - 같은 매체의 가까운 보도라도 공통 주제가 하나뿐이면 합치지 않는다
+  ---
+  duration_ms: 0.231334
+  type: 'test'
+  ...
+# Subtest: 같은 매체의 가까운 보도라도 일반어만 같으면 서로 다른 사건으로 둔다
+ok 320 - 같은 매체의 가까운 보도라도 일반어만 같으면 서로 다른 사건으로 둔다
+  ---
+  duration_ms: 0.207875
+  type: 'test'
+  ...
+# Subtest: 오병합 가드 7: 일반 명사 2개만 겹치는 서로 다른 사건은 병합하지 않는다 (한/한 임계 3)
+ok 321 - 오병합 가드 7: 일반 명사 2개만 겹치는 서로 다른 사건은 병합하지 않는다 (한/한 임계 3)
+  ---
+  duration_ms: 0.217542
+  type: 'test'
+  ...
+# Subtest: 오병합 가드: 기간 상투어와 개발만 겹치는 서로 다른 회사 사건은 병합하지 않는다
+ok 322 - 오병합 가드: 기간 상투어와 개발만 겹치는 서로 다른 회사 사건은 병합하지 않는다
+  ---
+  duration_ms: 0.334
+  type: 'test'
+  ...
+# Subtest: 오병합 가드 5: 핵심 숫자 충돌(같은 주제 다른 수치)은 병합을 보류한다
+ok 323 - 오병합 가드 5: 핵심 숫자 충돌(같은 주제 다른 수치)은 병합을 보류한다
+  ---
+  duration_ms: 0.411
+  type: 'test'
+  ...
+# Subtest: 오병합 가드 6: 발행 24시간 창 밖이면 내용어 결합을 하지 않는다
+ok 324 - 오병합 가드 6: 발행 24시간 창 밖이면 내용어 결합을 하지 않는다
+  ---
+  duration_ms: 0.102083
+  type: 'test'
+  ...
+# Subtest: 안정성: 같은 입력 2회는 같은 eventId·같은 factsFingerprint를 낸다
+ok 325 - 안정성: 같은 입력 2회는 같은 eventId·같은 factsFingerprint를 낸다
+  ---
+  duration_ms: 7.151333
+  type: 'test'
+  ...
+# Subtest: 안정성: 판 간(아침→런치) 재등장 시 eventId가 유지되고, 새 사실이 붙으면 실질 변화로 감지된다
+ok 326 - 안정성: 판 간(아침→런치) 재등장 시 eventId가 유지되고, 새 사실이 붙으면 실질 변화로 감지된다
+  ---
+  duration_ms: 0.43275
+  type: 'test'
+  ...
+# Subtest: 안정성: composeEventFromMembers는 digest 투영에서 같은 ID·근거 보존을 보장한다
+ok 327 - 안정성: composeEventFromMembers는 digest 투영에서 같은 ID·근거 보존을 보장한다
+  ---
+  duration_ms: 0.78925
+  type: 'test'
+  ...
+# Subtest: 오병합 가드: 1~2자리 숫자만 겹치는 무관한 한/영 제목은 병합되지 않는다 (검수 P2 회귀)
+ok 328 - 오병합 가드: 1~2자리 숫자만 겹치는 무관한 한/영 제목은 병합되지 않는다 (검수 P2 회귀)
+  ---
+  duration_ms: 4.475
+  type: 'test'
+  ...
+# Subtest: 오병합 가드: 2자리 수치 충돌(부상 17명 vs 부상 90명)도 감지된다 (검수 P2 회귀)
+ok 329 - 오병합 가드: 2자리 수치 충돌(부상 17명 vs 부상 90명)도 감지된다 (검수 P2 회귀)
+  ---
+  duration_ms: 0.170333
+  type: 'test'
+  ...
+# Subtest: 실기사 회귀: 번역된 일본어 보도와 영문 보도는 Anthropic 판결 한 사건으로 묶인다
+ok 330 - 실기사 회귀: 번역된 일본어 보도와 영문 보도는 Anthropic 판결 한 사건으로 묶인다
+  ---
+  duration_ms: 0.413209
+  type: 'test'
+  ...
+# Subtest: 실기사 회귀: Nepal-Tibet 홍수의 본류 보도는 묶고 후속 각도·네팔 대사 기사는 별개다
+ok 331 - 실기사 회귀: Nepal-Tibet 홍수의 본류 보도는 묶고 후속 각도·네팔 대사 기사는 별개다
+  ---
+  duration_ms: 5.928667
+  type: 'test'
+  ...
+# Subtest: C4: 같은 사건의 bbc-business+bbc-sport 기사는 독립 언론 계수 1로 센다
+ok 332 - C4: 같은 사건의 bbc-business+bbc-sport 기사는 독립 언론 계수 1로 센다
+  ---
+  duration_ms: 1.082916
+  type: 'test'
+  ...
+# Subtest: C4 대조: 다른 운영그룹(bbc+yonhap) 2곳이면 독립 계수 2다
+ok 333 - C4 대조: 다른 운영그룹(bbc+yonhap) 2곳이면 독립 계수 2다
+  ---
+  duration_ms: 0.278584
+  type: 'test'
+  ...
+# Subtest: C4: 등재 레지스트리 기준으로도 bbc-sport·yna-sports가 운영그룹에 귀속된다
+ok 334 - C4: 등재 레지스트리 기준으로도 bbc-sport·yna-sports가 운영그룹에 귀속된다
+  ---
+  duration_ms: 0.058541
+  type: 'test'
+  ...
+# Subtest: 계보: eventId 유지 재등장은 event_id 근거로 승계되고 aliasChain이 늘지 않는다
+ok 335 - 계보: eventId 유지 재등장은 event_id 근거로 승계되고 aliasChain이 늘지 않는다
+  ---
+  duration_ms: 0.598
+  type: 'test'
+  ...
+# Subtest: 계보: 이른 기사 지연 합류로 eventId가 바뀌어도 구성원 겹침으로 같은 계보를 승계한다 (반례 b 구조부)
+ok 336 - 계보: 이른 기사 지연 합류로 eventId가 바뀌어도 구성원 겹침으로 같은 계보를 승계한다 (반례 b 구조부)
+  ---
+  duration_ms: 0.467125
+  type: 'test'
+  ...
+# Subtest: 계보 오승계 방지 1: 무관한 사건은 구성이 그럴듯해도 계보를 가로채지 못한다 (반례 c)
+ok 337 - 계보 오승계 방지 1: 무관한 사건은 구성이 그럴듯해도 계보를 가로채지 못한다 (반례 c)
+  ---
+  duration_ms: 0.315125
+  type: 'test'
+  ...
+# Subtest: 계보 오승계 방지 2: 최상 근거가 동률인 계보 2개면 승계를 포기한다 (오병합>미병합 원칙의 계보 적용)
+ok 338 - 계보 오승계 방지 2: 최상 근거가 동률인 계보 2개면 승계를 포기한다 (오병합>미병합 원칙의 계보 적용)
+  ---
+  duration_ms: 11.2625
+  type: 'test'
+  ...
+# Subtest: 프루닝 계약값: 미서빙 TTL 72h, 서빙 계보 영구 보존
+ok 339 - 프루닝 계약값: 미서빙 TTL 72h, 서빙 계보 영구 보존
+  ---
+  duration_ms: 0.066875
+  type: 'test'
+  ...
+# Subtest: 프루닝 경계: 미서빙 계보는 72h 직전 보존, 72h 정각·직후 제거
+ok 340 - 프루닝 경계: 미서빙 계보는 72h 직전 보존, 72h 정각·직후 제거
+  ---
+  duration_ms: 0.310208
+  type: 'test'
+  ...
+# Subtest: 프루닝: 서빙 이력 계보는 아무리 오래돼도 보존된다(재등장 게이트 재료)
+ok 341 - 프루닝: 서빙 이력 계보는 아무리 오래돼도 보존된다(재등장 게이트 재료)
+  ---
+  duration_ms: 0.156292
+  type: 'test'
+  ...
+# Subtest: 프루닝: 관측 시각 없는 구 형식 레코드는 만료를 증명할 수 없어 보존한다
+ok 342 - 프루닝: 관측 시각 없는 구 형식 레코드는 만료를 증명할 수 없어 보존한다
+  ---
+  duration_ms: 0.146375
+  type: 'test'
+  ...
+# Subtest: 프루닝: nowMs 없이 부르면 던진다(시계 직접 접근 금지 — 순수·결정적)
+ok 343 - 프루닝: nowMs 없이 부르면 던진다(시계 직접 접근 금지 — 순수·결정적)
+  ---
+  duration_ms: 0.230334
+  type: 'test'
+  ...
+# Subtest: 관측 시각: 이번 판에 관측(승계·신규)된 레코드에 nowMs가 찍힌다
+ok 344 - 관측 시각: 이번 판에 관측(승계·신규)된 레코드에 nowMs가 찍힌다
+  ---
+  duration_ms: 0.555291
+  type: 'test'
+  ...
+# Subtest: 관측 시각: 이월(미관측)은 갱신하지 않는다 — 갱신하면 72h 시계가 판마다 리셋된다
+ok 345 - 관측 시각: 이월(미관측)은 갱신하지 않는다 — 갱신하면 72h 시계가 판마다 리셋된다
+  ---
+  duration_ms: 0.237875
+  type: 'test'
+  ...
+# Subtest: 관측 시각: 시각 없는 구 형식 이월 레코드는 처음 만나는 판 시각으로 초기화된다(마이그레이션)
+ok 346 - 관측 시각: 시각 없는 구 형식 이월 레코드는 처음 만나는 판 시각으로 초기화된다(마이그레이션)
+  ---
+  duration_ms: 0.220708
+  type: 'test'
+  ...
+# Subtest: 관측 시각: nowMs를 안 주면 필드를 만들지 않는다(구 호출 하위 호환)
+ok 347 - 관측 시각: nowMs를 안 주면 필드를 만들지 않는다(구 호출 하위 호환)
+  ---
+  duration_ms: 0.130292
+  type: 'test'
+  ...
+# Subtest: G1-1: 무관한 앨범 발표 기사들은 announces/new/album/hear로 병합되지 않는다 (실측 EV-83c3f0dcdddf6157)
+ok 348 - G1-1: 무관한 앨범 발표 기사들은 announces/new/album/hear로 병합되지 않는다 (실측 EV-83c3f0dcdddf6157)
+  ---
+  duration_ms: 2.261958
+  type: 'test'
+  ...
+# Subtest: G1-2: 무관한 과학 기사들은 scientists/brain/can으로 병합되지 않는다 (실측 EV-606ccd6127cef311)
+ok 349 - G1-2: 무관한 과학 기사들은 scientists/brain/can으로 병합되지 않는다 (실측 EV-606ccd6127cef311)
+  ---
+  duration_ms: 1.775625
+  type: 'test'
+  ...
+# Subtest: G1-3: 무관한 AI 기사들은 fire/ai/says로 병합되지 않는다 (실측 EV-9fcaf3253767a5a0)
+ok 350 - G1-3: 무관한 AI 기사들은 fire/ai/says로 병합되지 않는다 (실측 EV-9fcaf3253767a5a0)
+  ---
+  duration_ms: 0.314333
+  type: 'test'
+  ...
+# Subtest: G1-4: 무관한 구인 공고는 hiring/new/york로 병합되지 않는다 (실측 EV-8626d45bf101265f)
+ok 351 - G1-4: 무관한 구인 공고는 hiring/new/york로 병합되지 않는다 (실측 EV-8626d45bf101265f)
+  ---
+  duration_ms: 0.565791
+  type: 'test'
+  ...
+# Subtest: G1-5: 무관한 화석 기사들은 million/year/fossil로 병합되지 않는다 (실측 EV-a26325700b4c7ab5)
+ok 352 - G1-5: 무관한 화석 기사들은 million/year/fossil로 병합되지 않는다 (실측 EV-a26325700b4c7ab5)
+  ---
+  duration_ms: 0.494417
+  type: 'test'
+  ...
+# Subtest: G1-6: 브랜드 접미어 jo/malone/london만 겹치는 무관 기사는 병합되지 않는다 (실측 EV-148276d6fe6422c7)
+ok 353 - G1-6: 브랜드 접미어 jo/malone/london만 겹치는 무관 기사는 병합되지 않는다 (실측 EV-148276d6fe6422c7)
+  ---
+  duration_ms: 0.221292
+  type: 'test'
+  ...
+# Subtest: G1-7: 범용 AI 동작어가 무관한 실기사를 한 사건으로 병합하지 않는다
+ok 354 - G1-7: 범용 AI 동작어가 무관한 실기사를 한 사건으로 병합하지 않는다
+  ---
+  duration_ms: 0.513958
+  type: 'test'
+  ...
+# Subtest: NH108: Broadcom/HPE 실기사는 earnings와 upbeat/beat만으로 병합하지 않는다
+ok 355 - NH108: Broadcom/HPE 실기사는 earnings와 upbeat/beat만으로 병합하지 않는다
+  ---
+  duration_ms: 0.567709
+  type: 'test'
+  ...
+# Subtest: NH108: 같은 기업의 실적 후속 보도는 publisher burst 병합을 유지한다
+ok 356 - NH108: 같은 기업의 실적 후속 보도는 publisher burst 병합을 유지한다
+  ---
+  duration_ms: 0.171458
+  type: 'test'
+  ...
+# Subtest: 같은 발행사의 같은 시각·같은 이미지는 언어판 제목이 달라도 한 사건이다
+ok 357 - 같은 발행사의 같은 시각·같은 이미지는 언어판 제목이 달라도 한 사건이다
+  ---
+  duration_ms: 0.160792
+  type: 'test'
+  ...
+# Subtest: PGA와 LPGA의 서로 다른 경기는 공통 단어가 많아도 병합하지 않는다
+ok 358 - PGA와 LPGA의 서로 다른 경기는 공통 단어가 많아도 병합하지 않는다
+  ---
+  duration_ms: 0.300708
+  type: 'test'
+  ...
+# Subtest: Anthropic 법원 사건의 한글 음차와 영문 표기는 한 사건으로 결합된다
+ok 359 - Anthropic 법원 사건의 한글 음차와 영문 표기는 한 사건으로 결합된다
+  ---
+  duration_ms: 0.143167
+  type: 'test'
+  ...
+# Subtest: 번역된 외국 기사는 화면 제목이 달라도 보존된 원제목으로 사건을 결합한다
+ok 360 - 번역된 외국 기사는 화면 제목이 달라도 보존된 원제목으로 사건을 결합한다
+  ---
+  duration_ms: 0.14825
+  type: 'test'
+  ...
+# Subtest: 영문 원제목의 일반어 세 개만 겹치는 무관 기사는 병합하지 않는다
+ok 361 - 영문 원제목의 일반어 세 개만 겹치는 무관 기사는 병합하지 않는다
+  ---
+  duration_ms: 0.643042
+  type: 'test'
+  ...
+# Subtest: 네팔 홍수의 한글·영문 보도는 한 사건으로 결합된다
+ok 362 - 네팔 홍수의 한글·영문 보도는 한 사건으로 결합된다
+  ---
+  duration_ms: 0.157
+  type: 'test'
+  ...
+# Subtest: 법률 일반어만 겹치는 서로 다른 한글·영문 사건은 결합하지 않는다
+ok 363 - 법률 일반어만 겹치는 서로 다른 한글·영문 사건은 결합하지 않는다
+  ---
+  duration_ms: 0.144041
+  type: 'test'
+  ...
+# Subtest: 같은 커뮤니티의 재사용 이미지·동일 시각 글은 서로 다른 사건으로 남는다
+ok 364 - 같은 커뮤니티의 재사용 이미지·동일 시각 글은 서로 다른 사건으로 남는다
+  ---
+  duration_ms: 0.140833
+  type: 'test'
+  ...
+# Subtest: 같은 발행일만 겹치는 날짜형 연재물은 서로 다른 사건으로 남는다
+ok 365 - 같은 발행일만 겹치는 날짜형 연재물은 서로 다른 사건으로 남는다
+  ---
+  duration_ms: 0.165625
+  type: 'test'
+  ...
+# Subtest: GTA라는 작품명과 일반 영문 조각만 겹치는 서로 다른 사건은 병합하지 않는다
+ok 366 - GTA라는 작품명과 일반 영문 조각만 겹치는 서로 다른 사건은 병합하지 않는다
+  ---
+  duration_ms: 0.22875
+  type: 'test'
+  ...
+# Subtest: 같은 인터뷰의 안나 넷째 임신 기사는 숫자 단위가 달라도 한 사건이다
+ok 367 - 같은 인터뷰의 안나 넷째 임신 기사는 숫자 단위가 달라도 한 사건이다
+  ---
+  duration_ms: 0.239542
+  type: 'test'
+  ...
+# Subtest: Google 뉴스 제목의 발행사 꼬리만 같은 서로 다른 기사는 병합하지 않는다
+ok 368 - Google 뉴스 제목의 발행사 꼬리만 같은 서로 다른 기사는 병합하지 않는다
+  ---
+  duration_ms: 3.573083
+  type: 'test'
+  ...
+# Subtest: 같은 재난의 수치 갱신은 합치되 관련 후속 기사를 한 사건으로 삼키지 않는다
+ok 369 - 같은 재난의 수치 갱신은 합치되 관련 후속 기사를 한 사건으로 삼키지 않는다
+  ---
+  duration_ms: 0.397375
+  type: 'test'
+  ...
+# [feed] pool: 120 accumulated (48h retention) -> 120 after per-source cap
+# [feed] pool: 28 accumulated (48h retention) -> 28 after per-source cap
+# [feed] pool: 54 accumulated (48h retention) -> 54 after per-source cap
+# [feed] pool: 54 accumulated (48h retention) -> 54 after per-source cap
+# [feed] pool: 8 accumulated (48h retention) -> 8 after per-source cap
+# [feed] pool: 120 accumulated (48h retention) -> 120 after per-source cap
+# [feed] pool: 120 accumulated (48h retention) -> 120 after per-source cap
+# [feed] pool: 70 accumulated (48h retention) -> 70 after per-source cap
+# [feed] pool: 4 accumulated (48h retention) -> 4 after per-source cap
+# [feed] pool: 36 accumulated (48h retention) -> 36 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 정규 URL: 이토랜드 글 보기의 목록 page 쿼리는 글 정체가 아니다
+ok 370 - 정규 URL: 이토랜드 글 보기의 목록 page 쿼리는 글 정체가 아니다
+  ---
+  duration_ms: 17.087458
+  type: 'test'
+  ...
+# Subtest: 동적 후보 계약: 추적값만 제거하고 식별 쿼리·다양성·한계를 보존한다
+ok 371 - 동적 후보 계약: 추적값만 제거하고 식별 쿼리·다양성·한계를 보존한다
+  ---
+  duration_ms: 14.767959
+  type: 'test'
+  ...
+# Subtest: 동적 후보 계약: 한국어 독자판은 분야 최소 후보에서 읽을 수 있는 항목을 먼저 확보한다
+ok 372 - 동적 후보 계약: 한국어 독자판은 분야 최소 후보에서 읽을 수 있는 항목을 먼저 확보한다
+  ---
+  duration_ms: 3.44
+  type: 'test'
+  ...
+# Subtest: 동적 후보 계약: 분야 목표보다 작은 출처 상한으로 유효 후보를 잘라내지 않는다
+ok 373 - 동적 후보 계약: 분야 목표보다 작은 출처 상한으로 유효 후보를 잘라내지 않는다
+  ---
+  duration_ms: 1.06575
+  type: 'test'
+  ...
+# Subtest: 동적 후보 계약: 본문 없는 Google 중계 한 단어 페이지 제목은 후보로 쓰지 않는다
+ok 374 - 동적 후보 계약: 본문 없는 Google 중계 한 단어 페이지 제목은 후보로 쓰지 않는다
+  ---
+  duration_ms: 2.645417
+  type: 'test'
+  ...
+# Subtest: 동적 후보 계약: 단일 지역 편성 분야는 검수 전 국내외 후보 한 지면씩을 유지한다
+ok 375 - 동적 후보 계약: 단일 지역 편성 분야는 검수 전 국내외 후보 한 지면씩을 유지한다
+  ---
+  duration_ms: 3.001375
+  type: 'test'
+  ...
+# Subtest: 동적 후보 계약: 지역 편성 예약이 앞 분야에 두 지면을 써서 뒤 분야를 굶기지 않는다
+ok 376 - 동적 후보 계약: 지역 편성 예약이 앞 분야에 두 지면을 써서 뒤 분야를 굶기지 않는다
+  ---
+  duration_ms: 1.938834
+  type: 'test'
+  ...
+# Subtest: 동적 후보 계약: 두 분야 13건의 홀수 지역 예약도 각각 최소선을 채운다
+ok 377 - 동적 후보 계약: 두 분야 13건의 홀수 지역 예약도 각각 최소선을 채운다
+  ---
+  duration_ms: 1.133084
+  type: 'test'
+  ...
+# Subtest: 오늘판: 명시적으로 고른 한 분야가 지면을 소유하고 편집 근거가 붙는다
+ok 378 - 오늘판: 명시적으로 고른 한 분야가 지면을 소유하고 편집 근거가 붙는다
+  ---
+  duration_ms: 690.159
+  type: 'test'
+  ...
+# Subtest: 오늘판: 분야별 점수 분포가 달라도 단독 상위 목록을 순위 층으로 섞는다
+ok 379 - 오늘판: 분야별 점수 분포가 달라도 단독 상위 목록을 순위 층으로 섞는다
+  ---
+  duration_ms: 297.730958
+  type: 'test'
+  ...
+# Subtest: 오늘판: 복수 선택은 단독 분야의 고정 상위 목록을 다시 뽑지 않고 합친다
+ok 380 - 오늘판: 복수 선택은 단독 분야의 고정 상위 목록을 다시 뽑지 않고 합친다
+  ---
+  duration_ms: 55.27225
+  type: 'test'
+  ...
+# Subtest: 오늘판: 여러 분야도 이전 판 중복을 분야별로 대체해 각 14건을 유지한다
+ok 381 - 오늘판: 여러 분야도 이전 판 중복을 분야별로 대체해 각 14건을 유지한다
+  ---
+  duration_ms: 83.988708
+  type: 'test'
+  ...
+# Subtest: 오늘판: 서로 다른 URL과 제목 변형으로 들어온 같은 사건은 두 분야 합집합에서 한 번만 제공한다
+ok 382 - 오늘판: 서로 다른 URL과 제목 변형으로 들어온 같은 사건은 두 분야 합집합에서 한 번만 제공한다
+  ---
+  duration_ms: 146.427
+  type: 'test'
+  ...
+# Subtest: 오늘판: 저장 선택이 설문보다 우선하고 기존 설문·취향은 보존된다
+ok 383 - 오늘판: 저장 선택이 설문보다 우선하고 기존 설문·취향은 보존된다
+  ---
+  duration_ms: 155.71625
+  type: 'test'
+  ...
+# Subtest: 오늘판: 여러 선택 분야는 대표 이슈를 확보하고 남은 자리는 중요도 순으로 채운다
+ok 384 - 오늘판: 여러 선택 분야는 대표 이슈를 확보하고 남은 자리는 중요도 순으로 채운다
+  ---
+  duration_ms: 394.325625
+  type: 'test'
+  ...
+# Subtest: 오늘판: 선택 분야별 유효 이슈를 최대 14건씩 합쳐 공급량만큼 늘린다
+ok 385 - 오늘판: 선택 분야별 유효 이슈를 최대 14건씩 합쳐 공급량만큼 늘린다
+  ---
+  duration_ms: 1508.122583
+  type: 'test'
+  ...
+# Subtest: 오늘판: 낡은 빈 v2 스냅샷은 정치 토픽을 요청 경로에서 재분류하지 않는다
+ok 386 - 오늘판: 낡은 빈 v2 스냅샷은 정치 토픽을 요청 경로에서 재분류하지 않는다
+  ---
+  duration_ms: 12.849292
+  type: 'test'
+  ...
+# Subtest: 오늘판: 동적 최소 깊이를 생성 단계에도 전달해 공급 많은 분야의 독식을 막는다
+ok 387 - 오늘판: 동적 최소 깊이를 생성 단계에도 전달해 공급 많은 분야의 독식을 막는다
+  ---
+  duration_ms: 163.503084
+  type: 'test'
+  ...
+# Subtest: 오늘판: 얇은 분야만 최근 24시간의 미제공 보도형 재고로 보충한다
+ok 388 - 오늘판: 얇은 분야만 최근 24시간의 미제공 보도형 재고로 보충한다
+  ---
+  duration_ms: 36.367375
+  type: 'test'
+  ...
+# Subtest: 오늘판: 현재 슬롯 공급이 2건이어도 최근 24시간 미제공 재고로 분야 14건을 채운다
+ok 389 - 오늘판: 현재 슬롯 공급이 2건이어도 최근 24시간 미제공 재고로 분야 14건을 채운다
+  ---
+  duration_ms: 36.614333
+  type: 'test'
+  ...
+# Subtest: 오늘판: 현재 슬롯 원시 글이 14건이어도 한 매체 편중이면 24시간 재고로 편집 깊이를 채운다
+ok 390 - 오늘판: 현재 슬롯 원시 글이 14건이어도 한 매체 편중이면 24시간 재고로 편집 깊이를 채운다
+  ---
+  duration_ms: 86.601958
+  type: 'test'
+  ...
+# Subtest: 오늘판: 세 전문 매체의 24시간 재고만으로도 부동산 분야 14건을 채운다
+ok 391 - 오늘판: 세 전문 매체의 24시간 재고만으로도 부동산 분야 14건을 채운다
+  ---
+  duration_ms: 45.276709
+  type: 'test'
+  ...
+# Subtest: 오늘판: 영문 최신글이 앞서도 한국어 24시간 재고로 게임 분야를 채운다
+ok 392 - 오늘판: 영문 최신글이 앞서도 한국어 24시간 재고로 게임 분야를 채운다
+  ---
+  duration_ms: 108.223
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 검수 패킷 조회: 사람 입력이 없는 구계약 패킷도 자동 교체하지 않는다
+ok 393 - 검수 패킷 조회: 사람 입력이 없는 구계약 패킷도 자동 교체하지 않는다
+  ---
+  duration_ms: 147.266
+  type: 'test'
+  ...
+# [feed] pool: 43 accumulated (48h retention) -> 43 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 검수 패킷 고정: 42행을 파일에 보존하고 재시작 뒤 같은 입력을 돌려준다
+ok 394 - 검수 패킷 고정: 42행을 파일에 보존하고 재시작 뒤 같은 입력을 돌려준다
+  ---
+  duration_ms: 1501.61875
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [feed] pool: 60 accumulated (48h retention) -> 60 after per-source cap
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] pool: 120 accumulated (48h retention) -> 120 after per-source cap
+# Subtest: 서버: 오늘판 홈·선택·지난 판은 유지하고 플래그가 꺼지면 실시간으로 이동한다
+ok 395 - 서버: 오늘판 홈·선택·지난 판은 유지하고 플래그가 꺼지면 실시간으로 이동한다
+  ---
+  duration_ms: 1891.816833
+  type: 'test'
+  ...
+# Subtest: F1 수 표기: 같은 수의 다른 한국어 표기는 같은 토큰이고 숫자 뒤 '만'은 단위이며, 다른 수는 그대로 다르다
+ok 396 - F1 수 표기: 같은 수의 다른 한국어 표기는 같은 토큰이고 숫자 뒤 '만'은 단위이며, 다른 수는 그대로 다르다
+  ---
+  duration_ms: 6.663167
+  type: 'test'
+  ...
+# Subtest: F1 사건 판정: 투싼 누적 판매 발표는 표기가 달라도 한 사건이고, 다른 제품·실제 증가·요약 어디의 숫자는 다리가 되지 않는다
+ok 397 - F1 사건 판정: 투싼 누적 판매 발표는 표기가 달라도 한 사건이고, 다른 제품·실제 증가·요약 어디의 숫자는 다리가 되지 않는다
+  ---
+  duration_ms: 18.342792
+  type: 'test'
+  ...
+# Subtest: F1 시황 주체: 코스피 시황과 개별 종목 기사는 상승·투자·기대만 겹쳐도 한 사건이 아니고, 코스피 시황끼리는 그대로 묶인다
+ok 398 - F1 시황 주체: 코스피 시황과 개별 종목 기사는 상승·투자·기대만 겹쳐도 한 사건이 아니고, 코스피 시황끼리는 그대로 묶인다
+  ---
+  duration_ms: 0.852
+  type: 'test'
+  ...
+# Subtest: F1 슬롯 간 수치: $99와 $99.00, 1천60만대와 1060만대는 새 수치가 아니고 진짜 가격·비율·인원 변화는 남는다
+ok 399 - F1 슬롯 간 수치: $99와 $99.00, 1천60만대와 1060만대는 새 수치가 아니고 진짜 가격·비율·인원 변화는 남는다
+  ---
+  duration_ms: 1.264959
+  type: 'test'
+  ...
+# Subtest: F1 레인 조립: 실제 세 제목은 1·16·17번째 어디에서도 한 장이고, 다른 제품·다른 레인의 자리·실제 판매 증가는 남는다
+ok 400 - F1 레인 조립: 실제 세 제목은 1·16·17번째 어디에서도 한 장이고, 다른 제품·다른 레인의 자리·실제 판매 증가는 남는다
+  ---
+  duration_ms: 28.03
+  type: 'test'
+  ...
+# Subtest: F2 분류 가드: 정치 고발·통일 여론조사·대학 연구 성과는 경제 주제가 없으면 경제 승인에서 빠지고, 진짜 경제 기사는 남는다
+ok 401 - F2 분류 가드: 정치 고발·통일 여론조사·대학 연구 성과는 경제 주제가 없으면 경제 승인에서 빠지고, 진짜 경제 기사는 남는다
+  ---
+  duration_ms: 14.16275
+  type: 'test'
+  ...
+# Subtest: F2 요청 경로: 경제지 등록 기사의 비경제 승인은 빠지고 정치 레인·진짜 경제 기사는 보존된다
+ok 402 - F2 요청 경로: 경제지 등록 기사의 비경제 승인은 빠지고 정치 레인·진짜 경제 기사는 보존된다
+  ---
+  duration_ms: 5.175042
+  type: 'test'
+  ...
+# Subtest: F2 패킷 경로: 경제지 등록 기사의 결정적 투표도 같은 가드를 지나 보류되고, 제목으로 확정되는 다른 분야가 있으면 그 분야로 간다
+ok 403 - F2 패킷 경로: 경제지 등록 기사의 결정적 투표도 같은 가드를 지나 보류되고, 제목으로 확정되는 다른 분야가 있으면 그 분야로 간다
+  ---
+  duration_ms: 26.972625
+  type: 'test'
+  ...
+# Subtest: F3 독자 제목: 영상 접두어는 걷어내되 외신 제목 자체·시청률·검수 제목은 그대로 둔다
+ok 404 - F3 독자 제목: 영상 접두어는 걷어내되 외신 제목 자체·시청률·검수 제목은 그대로 둔다
+  ---
+  duration_ms: 3.82675
+  type: 'test'
+  ...
+# Subtest: F3 제목 마감: 영상 접두어는 번역 입력에서 걷어내고 원문 제목 기록·검수 대조는 그대로 둔다
+ok 405 - F3 제목 마감: 영상 접두어는 번역 입력에서 걷어내고 원문 제목 기록·검수 대조는 그대로 둔다
+  ---
+  duration_ms: 0.944083
+  type: 'test'
+  ...
+# [feed] pool: 10 accumulated (48h retention) -> 10 after per-source cap
+# [feed] pool: 3 accumulated (48h retention) -> 3 after per-source cap
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [feed] pool: 8 accumulated (48h retention) -> 8 after per-source cap
+# Subtest: NH167 audit: a business paper beat cannot route a sports or culture event into business
+ok 406 - NH167 audit: a business paper beat cannot route a sports or culture event into business
+  ---
+  duration_ms: 205.310625
+  type: 'test'
+  ...
+# Subtest: NH167 audit: a culture award relayed by gnews and withheld desks does not enter business on an etoday beat
+ok 407 - NH167 audit: a culture award relayed by gnews and withheld desks does not enter business on an etoday beat
+  ---
+  duration_ms: 102.024292
+  type: 'test'
+  ...
+# Subtest: NH167 audit: a cultural-industry event with business vocabulary keeps its business co-admission
+ok 408 - NH167 audit: a cultural-industry event with business vocabulary keeps its business co-admission
+  ---
+  duration_ms: 142.762042
+  type: 'test'
+  ...
+# Subtest: NH167 audit: a single business-paper report with definite sports or culture evidence stays out of business
+ok 409 - NH167 audit: a single business-paper report with definite sports or culture evidence stays out of business
+  ---
+  duration_ms: 93.43825
+  type: 'test'
+  ...
+# Subtest: NH167 audit: explicit sexual humor title never enters default Today routing
+ok 410 - NH167 audit: explicit sexual humor title never enters default Today routing
+  ---
+  duration_ms: 0.294166
+  type: 'test'
+  ...
+# Subtest: NH167 audit: news between evening evidence cutoff and 19 KST reaches next morning
+ok 411 - NH167 audit: news between evening evidence cutoff and 19 KST reaches next morning
+  ---
+  duration_ms: 0.092209
+  type: 'test'
+  ...
+# Subtest: NH167 audit: previous-slot served articles are not re-candidates; new developments are
+ok 412 - NH167 audit: previous-slot served articles are not re-candidates; new developments are
+  ---
+  duration_ms: 1.685625
+  type: 'test'
+  ...
+# Subtest: shared push client restores only existing permission and subscriptions, and explicitly enables real push
+ok 413 - shared push client restores only existing permission and subscriptions, and explicitly enables real push
+  ---
+  duration_ms: 14.097459
+  type: 'test'
+  ...
+# Subtest: iPhone and desktop-mode iPad get Home Screen instructions without a permission prompt
+ok 414 - iPhone and desktop-mode iPad get Home Screen instructions without a permission prompt
+  ---
+  duration_ms: 0.711708
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: push subscription validates provider, URL and actual encryption keys before any send
+ok 415 - push subscription validates provider, URL and actual encryption keys before any send
+  ---
+  duration_ms: 3.042416
+  type: 'test'
+  ...
+# Subtest: persisted malformed subscriptions stop retrying through both existing delivery cleanup paths
+ok 416 - persisted malformed subscriptions stop retrying through both existing delivery cleanup paths
+  ---
+  duration_ms: 25.92075
+  type: 'test'
+  ...
+# Subtest: push subscription API rejects malformed updates without replacing the owner's valid connection
+ok 417 - push subscription API rejects malformed updates without replacing the owner's valid connection
+  ---
+  duration_ms: 239.787459
+  type: 'test'
+  ...
+# Subtest: sendPush reuses VAPID for one hour per origin, keypair and subject while encrypting each payload
+ok 418 - sendPush reuses VAPID for one hour per origin, keypair and subject while encrypting each payload
+  ---
+  duration_ms: 29.214625
+  type: 'test'
+  ...
+# Subtest: push delivery records accepted top IDs and canonical aliases without consuming seen/opened
+ok 419 - push delivery records accepted top IDs and canonical aliases without consuming seen/opened
+  ---
+  duration_ms: 40.262042
+  type: 'test'
+  ...
+# Subtest: push delivery excludes the full A-B-A history and canonical replacements before digest selection
+ok 420 - push delivery excludes the full A-B-A history and canonical replacements before digest selection
+  ---
+  duration_ms: 2.47525
+  type: 'test'
+  ...
+# Subtest: push delivery accepts only 2xx and timestamps success after the send resolves
+ok 421 - push delivery accepts only 2xx and timestamps success after the send resolves
+  ---
+  duration_ms: 0.49825
+  type: 'test'
+  ...
+# Subtest: push delivery failures never mark items or consume cadence and can retry immediately
+ok 422 - push delivery failures never mark items or consume cadence and can retry immediately
+  ---
+  duration_ms: 0.564167
+  type: 'test'
+  ...
+# Subtest: push delivery clears expired 404/410 subscriptions through the real store
+ok 423 - push delivery clears expired 404/410 subscriptions through the real store
+  ---
+  duration_ms: 0.342875
+  type: 'test'
+  ...
+# Subtest: push delivery keeps a replacement subscription when the old endpoint returns 404/410
+ok 424 - push delivery keeps a replacement subscription when the old endpoint returns 404/410
+  ---
+  duration_ms: 0.287666
+  type: 'test'
+  ...
+# Subtest: push delivery retains notified IDs and cadence after real-file restart
+ok 425 - push delivery retains notified IDs and cadence after real-file restart
+  ---
+  duration_ms: 8.11925
+  type: 'test'
+  ...
+# Subtest: push delivery enforces four hours and keeps the overnight window quiet
+ok 426 - push delivery enforces four hours and keeps the overnight window quiet
+  ---
+  duration_ms: 0.216667
+  type: 'test'
+  ...
+# Subtest: push delivery is capped at three successes per KST date, not per UTC date
+ok 427 - push delivery is capped at three successes per KST date, not per UTC date
+  ---
+  duration_ms: 0.164209
+  type: 'test'
+  ...
+# Subtest: push delivery locks overlapping runs per store, without blocking another store
+ok 428 - push delivery locks overlapping runs per store, without blocking another store
+  ---
+  duration_ms: 0.14175
+  type: 'test'
+  ...
+# Subtest: push delivery never previews adult titles and skips when no safe new top remains
+ok 429 - push delivery never previews adult titles and skips when no safe new top remains
+  ---
+  duration_ms: 0.179375
+  type: 'test'
+  ...
+# Subtest: push delivery ignores stale digest repeats defensively and keeps links same-origin
+ok 430 - push delivery ignores stale digest repeats defensively and keeps links same-origin
+  ---
+  duration_ms: 0.141917
+  type: 'test'
+  ...
+# Subtest: push delivery preserves empty, missing-key, and digest-error no-ops and releases its lock
+ok 431 - push delivery preserves empty, missing-key, and digest-error no-ops and releases its lock
+  ---
+  duration_ms: 0.117958
+  type: 'test'
+  ...
+# Subtest: edition notifications follow ready 07/12/19 slots independently of Live quota and survive restart
+ok 432 - edition notifications follow ready 07/12/19 slots independently of Live quota and survive restart
+  ---
+  duration_ms: 2.571375
+  type: 'test'
+  ...
+# Subtest: edition push retries failures, locks overlap, expires only the attempted subscription
+ok 433 - edition push retries failures, locks overlap, expires only the attempted subscription
+  ---
+  duration_ms: 0.22375
+  type: 'test'
+  ...
+# Subtest: live alerts have separate bounded cadence, one matching preview and honor disabled notifications
+ok 434 - live alerts have separate bounded cadence, one matching preview and honor disabled notifications
+  ---
+  duration_ms: 0.249875
+  type: 'test'
+  ...
+# Subtest: NH134 real digest separates declared, learned and unknown interests without game leakage
+ok 435 - NH134 real digest separates declared, learned and unknown interests without game leakage
+  ---
+  duration_ms: 234.063209
+  type: 'test'
+  ...
+# Subtest: NH152 actual reading signals refine push topic and source ranking without increasing delivery counts
+ok 436 - NH152 actual reading signals refine push topic and source ranking without increasing delivery counts
+  ---
+  duration_ms: 41.488375
+  type: 'test'
+  ...
+# Subtest: NH152 repeated topic dislikes stop push candidates while source learning demotes without hiding unrelated topics
+ok 437 - NH152 repeated topic dislikes stop push candidates while source learning demotes without hiding unrelated topics
+  ---
+  duration_ms: 29.188792
+  type: 'test'
+  ...
+# Subtest: NH152 learning keeps selected underlearned categories and style-mismatched major news, never excluded games
+ok 438 - NH152 learning keeps selected underlearned categories and style-mismatched major news, never excluded games
+  ---
+  duration_ms: 1.877666
+  type: 'test'
+  ...
+# Subtest: NH152 KST boundaries reserve 30 minutes around Today and keep all pushes inside 07–21
+ok 439 - NH152 KST boundaries reserve 30 minutes around Today and keep all pushes inside 07–21
+  ---
+  duration_ms: 59.539042
+  type: 'test'
+  ...
+# Subtest: NH152 personal alerts allow 3+3+2 successful sends across restarts without consuming three Today editions
+ok 440 - NH152 personal alerts allow 3+3+2 successful sends across restarts without consuming three Today editions
+  ---
+  duration_ms: 54.684417
+  type: 'test'
+  ...
+# Subtest: NH152 a delayed verified Today has priority and Live waits 30 minutes from its actual delivery
+ok 441 - NH152 a delayed verified Today has priority and Live waits 30 minutes from its actual delivery
+  ---
+  duration_ms: 1.5565
+  type: 'test'
+  ...
+# Subtest: NH152 a new interval does not erase the Live gap measured at provider acceptance
+ok 442 - NH152 a new interval does not erase the Live gap measured at provider acceptance
+  ---
+  duration_ms: 1.2685
+  type: 'test'
+  ...
+# Subtest: NH150 overlapping Live and Today runs cannot deliver twice to one subscriber
+ok 443 - NH150 overlapping Live and Today runs cannot deliver twice to one subscriber
+  ---
+  duration_ms: 1.3545
+  type: 'test'
+  ...
+# Subtest: NH150 work started before 21:00 cannot send after an asynchronous digest or edition read crosses the fence
+ok 444 - NH150 work started before 21:00 cannot send after an asynchronous digest or edition read crosses the fence
+  ---
+  duration_ms: 25.826417
+  type: 'test'
+  ...
+# Subtest: NH150 push lifetime is one hour for Live, two for Today, and both expire by 21:00
+ok 445 - NH150 push lifetime is one hour for Live, two for Today, and both expire by 21:00
+  ---
+  duration_ms: 9.440875
+  type: 'test'
+  ...
+# Subtest: NH150 successful event history survives restart and suppresses changed IDs while a new independent event survives
+ok 446 - NH150 successful event history survives restart and suppresses changed IDs while a new independent event survives
+  ---
+  duration_ms: 48.525208
+  type: 'test'
+  ...
+# Subtest: NH150 declined and failed sends consume no receipt, allowing an immediate successful retry
+ok 447 - NH150 declined and failed sends consume no receipt, allowing an immediate successful retry
+  ---
+  duration_ms: 2.625209
+  type: 'test'
+  ...
+# Subtest: NH150 retained original titles keep a background incident from suppressing a different investigation
+ok 448 - NH150 retained original titles keep a background incident from suppressing a different investigation
+  ---
+  duration_ms: 2.208375
+  type: 'test'
+  ...
+# Subtest: NH152 a new confirmed outcome can follow a scheduled event once, including after restart
+ok 449 - NH152 a new confirmed outcome can follow a scheduled event once, including after restart
+  ---
+  duration_ms: 29.70525
+  type: 'test'
+  ...
+# Subtest: NH152 follow-up requires a newer unambiguous news outcome, never mere wording or an already seen article
+ok 450 - NH152 follow-up requires a newer unambiguous news outcome, never mere wording or an already seen article
+  ---
+  duration_ms: 100.821792
+  type: 'test'
+  ...
+# D1C_CONSUMED_DIAGNOSTIC_HOLD: sealed canary diagnostic (exact 3 SHA) (0 API/Keychain/write)
+# PRECONDITION_HOLD: consumed diagnostic drift sha_mismatch:canary-predictions.json,missing:run-receipt.json,missing:canary-adversarial-diagnosis.json (0 API/Keychain/write)
+# D1C_CONSUMED_DIAGNOSTIC_HOLD: sealed canary diagnostic (exact 3 SHA) (0 API/Keychain/write)
+# PRECONDITION_HOLD: attemptId required (non-empty) (0 API/Keychain/write)
+# RUN_IN_PROGRESS_HOLD: run lock held (or stale crash lock; fail-closed, not auto-removed) (0 API/Keychain/write)
+# BUDGET_PRECONDITION_HOLD: no callable canary item within budget (lifetime calls 12/max 12) (0 API/Keychain/write)
+# Subtest: gates SHA=상수, corpus read-only byte-identical, validateGatesLock(GATES)=true
+ok 451 - gates SHA=상수, corpus read-only byte-identical, validateGatesLock(GATES)=true
+  ---
+  duration_ms: 399.171459
+  type: 'test'
+  ...
+# Subtest: R1: gates semantic 모든 primitive leaf 하나씩 변조 → 전부 reject, extra field도 reject
+ok 452 - R1: gates semantic 모든 primitive leaf 하나씩 변조 → 전부 reject, extra field도 reject
+  ---
+  duration_ms: 5.569833
+  type: 'test'
+  ...
+# Subtest: R2: fixture_only의 모든 성능 gate pass:false·status NOT_EVALUATED
+ok 453 - R2: fixture_only의 모든 성능 gate pass:false·status NOT_EVALUATED
+  ---
+  duration_ms: 1.050958
+  type: 'test'
+  ...
+# Subtest: R3: candidate 전건 non-answer면 effectiveNonAnswerRate=1, abstain gate pass:false, 원인별 breakdown
+ok 454 - R3: candidate 전건 non-answer면 effectiveNonAnswerRate=1, abstain gate pass:false, 원인별 breakdown
+  ---
+  duration_ms: 3.718666
+  type: 'test'
+  ...
+# Subtest: R4: original frozen canonical 유지, items+gold+prediction을 함께 politics로 바꿔도 CORRUPT_EVAL_DATA
+ok 455 - R4: original frozen canonical 유지, items+gold+prediction을 함께 politics로 바꿔도 CORRUPT_EVAL_DATA
+  ---
+  duration_ms: 0.877917
+  type: 'test'
+  ...
+# Subtest: §4.7: buildStructuredRequest·request에 contractGold/gold 없음
+ok 456 - §4.7: buildStructuredRequest·request에 contractGold/gold 없음
+  ---
+  duration_ms: 0.179541
+  type: 'test'
+  ...
+# Subtest: 유지: gold 위조 §9.1-9 canonical authority 기준 reject
+ok 457 - 유지: gold 위조 §9.1-9 canonical authority 기준 reject
+  ---
+  duration_ms: 1.132833
+  type: 'test'
+  ...
+# Subtest: 유지: adjudicated blind hash·A/B 계약
+ok 458 - 유지: adjudicated blind hash·A/B 계약
+  ---
+  duration_ms: 0.196583
+  type: 'test'
+  ...
+# Subtest: 유지: dup/orphan/1:1/mode 데이터셋·candidate 무예측 corrupt
+ok 459 - 유지: dup/orphan/1:1/mode 데이터셋·candidate 무예측 corrupt
+  ---
+  duration_ms: 0.645625
+  type: 'test'
+  ...
+# Subtest: 유지→D1-G: adversarial decisive 10 PASS(authority-002 기준, 대체 2 포함), leak/scope-mismatch FAIL
+ok 460 - 유지→D1-G: adversarial decisive 10 PASS(authority-002 기준, 대체 2 포함), leak/scope-mismatch FAIL
+  ---
+  duration_ms: 5.034041
+  type: 'test'
+  ...
+# Subtest: 유지: admission precision·contentType critical·13분야 precision FAIL
+ok 461 - 유지: admission precision·contentType critical·13분야 precision FAIL
+  ---
+  duration_ms: 1.943333
+  type: 'test'
+  ...
+# Subtest: 유지: releaseGoldState canonical real 정합·Wilson 재현 (D1-C 승격 후 real corpus sufficient)
+ok 462 - 유지: releaseGoldState canonical real 정합·Wilson 재현 (D1-C 승격 후 real corpus sufficient)
+  ---
+  duration_ms: 9.846584
+  type: 'test'
+  ...
+# Subtest: 유지: budget overrun/timeout 회계·no-cache·불변식, receipt raw-text 없음
+ok 463 - 유지: budget overrun/timeout 회계·no-cache·불변식, receipt raw-text 없음
+  ---
+  duration_ms: 1.209125
+  type: 'test'
+  ...
+# Subtest: 유지: mutation semantic/invariance gate
+ok 464 - 유지: mutation semantic/invariance gate
+  ---
+  duration_ms: 1.525459
+  type: 'test'
+  ...
+# Subtest: D1-C: 실단가·schema 14분야·taxonomyVersion 결정성
+ok 465 - D1-C: 실단가·schema 14분야·taxonomyVersion 결정성
+  ---
+  duration_ms: 0.096125
+  type: 'test'
+  ...
+# Subtest: D1-C: 비용·호출 preflight 0-call 차단(maxCalls 0 / maxCostUsd 0)
+ok 466 - D1-C: 비용·호출 preflight 0-call 차단(maxCalls 0 / maxCostUsd 0)
+  ---
+  duration_ms: 4.343583
+  type: 'test'
+  ...
+# Subtest: D1-C: cache 변조 거부 → 재분류
+ok 467 - D1-C: cache 변조 거부 → 재분류
+  ---
+  duration_ms: 1.1535
+  type: 'test'
+  ...
+# Subtest: D1-C: canary→full 중복호출 0(cache 공유 → 재실행 전부 cache_hit)
+ok 468 - D1-C: canary→full 중복호출 0(cache 공유 → 재실행 전부 cache_hit)
+  ---
+  duration_ms: 2.439
+  type: 'test'
+  ...
+# Subtest: D1-C: grounding·primary·other 불변식
+ok 469 - D1-C: grounding·primary·other 불변식
+  ---
+  duration_ms: 1.106333
+  type: 'test'
+  ...
+# Subtest: D1-C: gold/라벨 필드 프롬프트 누출 0
+ok 470 - D1-C: gold/라벨 필드 프롬프트 누출 0
+  ---
+  duration_ms: 0.206
+  type: 'test'
+  ...
+# Subtest: D1-C: snapshot 1:1 매핑 + category/hash 불일치 차단(실데이터)
+ok 471 - D1-C: snapshot 1:1 매핑 + category/hash 불일치 차단(실데이터)
+  ---
+  duration_ms: 253.347625
+  type: 'test'
+  ...
+# Subtest: D1-C: gold 승격 계획 멱등·거부 + candidate 계약 검증(실데이터)
+ok 472 - D1-C: gold 승격 계획 멱등·거부 + candidate 계약 검증(실데이터)
+  ---
+  duration_ms: 24.597541
+  type: 'test'
+  ...
+# Subtest: D1-C: releasePass는 goldState+7게이트 AND(하나만 false여도 false)
+ok 473 - D1-C: releasePass는 goldState+7게이트 AND(하나만 false여도 false)
+  ---
+  duration_ms: 0.130708
+  type: 'test'
+  ...
+# Subtest: D1-C: legacy baseline 결정성 + candidate 비교(recall/supply 감소 금지)
+ok 474 - D1-C: legacy baseline 결정성 + candidate 비교(recall/supply 감소 금지)
+  ---
+  duration_ms: 0.47475
+  type: 'test'
+  ...
+# Subtest: D1C-integrity \#1: cache-hit여도 lifetime usage는 priorUsage 포함(0으로 안 돌아감)
+ok 475 - D1C-integrity \#1: cache-hit여도 lifetime usage는 priorUsage 포함(0으로 안 돌아감)
+  ---
+  duration_ms: 0.224042
+  type: 'test'
+  ...
+# Subtest: D1C-integrity \#2: canary+full lifetime 통합 상한이 다음 호출 전 차단(cost/calls/token)
+ok 476 - D1C-integrity \#2: canary+full lifetime 통합 상한이 다음 호출 전 차단(cost/calls/token)
+  ---
+  duration_ms: 0.132167
+  type: 'test'
+  ...
+# Subtest: D1C-integrity \#3: consumed guard가 기존 canary 산출물 감지(Keychain/API 0 경로)
+ok 477 - D1C-integrity \#3: consumed guard가 기존 canary 산출물 감지(Keychain/API 0 경로)
+  ---
+  duration_ms: 2.577125
+  type: 'test'
+  ...
+# Subtest: D1C-integrity \#4: 기존 D1-C 소비 산출물 SHA 전부 불변
+ok 478 - D1C-integrity \#4: 기존 D1-C 소비 산출물 SHA 전부 불변
+  ---
+  duration_ms: 0.371334
+  type: 'test'
+  ...
+# Subtest: D1C-integrity \#5: baseline payload/extra/missing/raw-byte/locksha 변조 전부 reject
+ok 479 - D1C-integrity \#5: baseline payload/extra/missing/raw-byte/locksha 변조 전부 reject
+  ---
+  duration_ms: 1.181458
+  type: 'test'
+  ...
+# Subtest: D1C-integrity \#6: corpus v2 adversarial geo — scope==resolveScopeClass, span grounded, sourceCountry 비추론
+ok 480 - D1C-integrity \#6: corpus v2 adversarial geo — scope==resolveScopeClass, span grounded, sourceCountry 비추론
+  ---
+  duration_ms: 1.980708
+  type: 'test'
+  ...
+# Subtest: D1C-integrity \#7: corpus v2 결정적 build, real 78/mutation 8 불변, gold/gates 불변
+ok 481 - D1C-integrity \#7: corpus v2 결정적 build, real 78/mutation 8 불변, gold/gates 불변
+  ---
+  duration_ms: 0.611792
+  type: 'test'
+  ...
+# Subtest: D1C-integrity \#8: full-predictions/evaluation 부재, 나머지 84 sealed
+ok 482 - D1C-integrity \#8: full-predictions/evaluation 부재, 나머지 84 sealed
+  ---
+  duration_ms: 0.329584
+  type: 'test'
+  ...
+# Subtest: D1CI2 \#1-4: canonical scope 재계산·검증(저장 scope 미신뢰), mutation=null
+ok 483 - D1CI2 \#1-4: canonical scope 재계산·검증(저장 scope 미신뢰), mutation=null
+  ---
+  duration_ms: 2.353416
+  type: 'test'
+  ...
+# Subtest: D1CI2 \#5,\#7: ledger 프로세스 재생성 복원 + 미정산 reserve estimated lifetime
+ok 484 - D1CI2 \#5,\#7: ledger 프로세스 재생성 복원 + 미정산 reserve estimated lifetime
+  ---
+  duration_ms: 0.253583
+  type: 'test'
+  ...
+# Subtest: D1CI2 \#6: runPriced reserve가 provider(settle) 전에 영구 기록
+ok 485 - D1CI2 \#6: runPriced reserve가 provider(settle) 전에 영구 기록
+  ---
+  duration_ms: 0.455583
+  type: 'test'
+  ...
+# Subtest: D1CI2 \#8: canary+full lifetime 통합 상한 $0.1836+$1.092 차단(ledger)
+ok 486 - D1CI2 \#8: canary+full lifetime 통합 상한 $0.1836+$1.092 차단(ledger)
+  ---
+  duration_ms: 0.098708
+  type: 'test'
+  ...
+# Subtest: D1CI2 \#9,\#10: consumed guard sealed/drift/absent (getApiKey/provider 0)
+ok 487 - D1CI2 \#9,\#10: consumed guard sealed/drift/absent (getApiKey/provider 0)
+  ---
+  duration_ms: 5.055042
+  type: 'test'
+  ...
+# Subtest: D1CI2 \#11,\#12: corpus builder byte-identical + current/supersedes ID·baseline lineage exact
+ok 488 - D1CI2 \#11,\#12: corpus builder byte-identical + current/supersedes ID·baseline lineage exact
+  ---
+  duration_ms: 219.288666
+  type: 'test'
+  ...
+# Subtest: D1CI3 §7: geo 공백 원소·span 공백 reject, contractProjectionOf scope 필수
+ok 489 - D1CI3 §7: geo 공백 원소·span 공백 reject, contractProjectionOf scope 필수
+  ---
+  duration_ms: 0.310834
+  type: 'test'
+  ...
+# Subtest: D1CI3 §5: ledger strict schema 전건 LEDGER_CORRUPT_HOLD + seq 주입 불가
+ok 490 - D1CI3 §5: ledger strict schema 전건 LEDGER_CORRUPT_HOLD + seq 주입 불가
+  ---
+  duration_ms: 0.231333
+  type: 'test'
+  ...
+# Subtest: D1CI3 §5: provider throw/usage invalid → 정확히 1회 후 즉시 중단, 미정산, 다음 0
+ok 491 - D1CI3 §5: provider throw/usage invalid → 정확히 1회 후 즉시 중단, 미정산, 다음 0
+  ---
+  duration_ms: 0.400666
+  type: 'test'
+  ...
+# Subtest: provider 400을 명시적으로 취소 처리하면 해당 항목만 보류하고 배치를 계속한다
+ok 492 - provider 400을 명시적으로 취소 처리하면 해당 항목만 보류하고 배치를 계속한다
+  ---
+  duration_ms: 0.376709
+  type: 'test'
+  ...
+# Subtest: D1CI3 §4/§6: stepRunModel sealed/absent/lock/attemptId (getApiKey 0 on HOLD, 산출물 attemptDir만)
+ok 493 - D1CI3 §4/§6: stepRunModel sealed/absent/lock/attemptId (getApiKey 0 on HOLD, 산출물 attemptDir만)
+  ---
+  duration_ms: 580.227125
+  type: 'test'
+  ...
+# Subtest: D1CI3 §5/§8: corrupt file ledger throw + 기존 consumed 3파일·ledger recovery 정확값
+ok 494 - D1CI3 §5/§8: corrupt file ledger throw + 기존 consumed 3파일·ledger recovery 정확값
+  ---
+  duration_ms: 5.268584
+  type: 'test'
+  ...
+# Subtest: D1CI4 §A: file ledger seq 강제(주입 무시) + malformed 원장 append reject(원본 바이트 불변)
+ok 495 - D1CI4 §A: file ledger seq 강제(주입 무시) + malformed 원장 append reject(원본 바이트 불변)
+  ---
+  duration_ms: 23.864417
+  type: 'test'
+  ...
+# Subtest: D1CI4 §B: BUDGET_PRECONDITION_HOLD(key/provider/write 0) vs MODEL_KEY_MISSING 분리
+ok 496 - D1CI4 §B: BUDGET_PRECONDITION_HOLD(key/provider/write 0) vs MODEL_KEY_MISSING 분리
+  ---
+  duration_ms: 888.752333
+  type: 'test'
+  ...
+# Subtest: D1CI4 §C: provider throw/invalid → stats lifetime == 마지막 ledger summary(미정산 estimated 포함)
+ok 497 - D1CI4 §C: provider throw/invalid → stats lifetime == 마지막 ledger summary(미정산 estimated 포함)
+  ---
+  duration_ms: 0.364708
+  type: 'test'
+  ...
+# {
+#   "contract": "NOWHOT-SELECTION-BASELINE-001",
+#   "kind": "legacy_baseline_freeze",
+#   "baselineVersion": 1,
+#   "semanticContractVersion": "NOWHOT-SELECTION-ADMISSION-CONTRACT-001 v3 (runtimeWired:false)",
+#   "git": {
+#     "head": "cf13d28b7dcd370e1eda88988cd5b5cf587425e0",
+#     "branch": "comeva2kr/nowhot-nh167-freshness-v4",
+#     "aheadOfOriginMain": "0"
+#   },
+#   "canonicalSpec": {
+#     "path": "/Users/hyundonghwang/Documents/WRC_MANUS_HANDOFF/system/reports/NOWHOT_FINAL_SELECTION_ARCHITECTURE_AND_OPUS48_REVIEW_2026-08-18.md",
+#     "expectedSha256": "1bbde69e18f1b162e4528b4071e4dc7c65c4a3092a2c92cff0d67f902fb380e5",
+#     "actualSha256": "1bbde69e18f1b162e4528b4071e4dc7c65c4a3092a2c92cff0d67f902fb380e5",
+#     "matches": true
+#   },
+#   "fingerprints": {
+#     "selectionContract": "8c586d5e2c4da240",
+#     "taxonomy": "4b40bc914e46a7ef",
+#     "legacyClassifier": "a337f4b47c781843",
+#     "categoryPolicy": "5418ea483ec23905",
+#     "shadowSelectionParams": "b5c6d50f7f1ba929",
+#     "eventCluster": "e22bbb7be5b815c0",
+#     "sourceRegistry": "52bb45ceca678cb1",
+#     "sourceIdentity": "5526f8b80814e4ed"
+#   },
+#   "taxonomyIds": [
+#     "news",
+#     "tech",
+#     "auto",
+#     "science",
+#     "business",
+#     "gaming",
+#     "sports",
+#     "culture",
+#     "life",
+#     "humor",
+#     "politics",
+#     "realestate",
+#     "fashion",
+#     "art"
+#   ],
+#   "globalMustKnow": {
+#     "hits": [
+#       {
+#         "file": "src/feed/product-blueprint.js",
+#         "occurrences": 2
+#       }
+#     ],
+#     "runtimeAutoInsertFunction": false,
+#     "knownRuntimeUnselectedInjection": {
+#       "file": "src/feed/taste-share.js",
+#       "note": "실시간 Hot의 취향 주입 루프(k>0 조건으로 첫 칸 제외). 이것이 '관심없는 분야만 뜬다'의 런타임 원인. D0에서 변경하지 않음(runtime 무변경)."
+#     }
+#   },
+#   "knownLimitations": [
+#     {
+#       "id": "overseas-by-source-country",
+#       "where": "src/feed/shadow-selection.js allMembersOverseas",
+#       "statement": "현재 해외 판정은 memberArticles의 소스 country만 본다. 사건 위치(event jurisdiction)가 아니다. 손흥민 EPL(발생지 GB)이 gnews-sports(KR)라 국내로 오분류됨. 새 계약(selection-contract.resolveScopeClass)은 사건 위치 기준이나 D0에서 런타임 미연결."
+#     },
+#     {
+#       "id": "operator-group-not-claim-independence",
+#       "where": "src/feed/editorial-source-identity.js source_id_fallback",
+#       "statement": "operatorGroup 미설정 소스는 source id 자체가 그룹이 되어, 같은 보도자료를 받아쓴 두 매체가 '독립 2'로 계수될 수 있다. 새 계약(claimOriginGroup)이 주장 기원을 분리하나 D0에서 legacy independentReportingGroups 의미는 무변경."
+#     }
+#   ],
+#   "coGatesRegistered": {
+#     "recall": {
+#       "status": "registered_pending_measurement",
+#       "lockedBaseline": null
+#     },
+#     "qualifiedSupply": {
+#       "status": "registered_pending_measurement",
+#       "lockedBaseline": null
+#     },
+#     "abstainRate": {
+#       "status": "registered_pending_measurement",
+#       "lockedBaseline": null
+#     },
+#     "note": "프롬프트 튜닝 전에 등록됨(정본 §9 gate 4). 실측 잠금값은 D1."
+#   }
+# }
+# Subtest: 계약: enum은 taxonomy 정본과 일치하고 runtime 미연결(v2)
+ok 498 - 계약: enum은 taxonomy 정본과 일치하고 runtime 미연결(v2)
+  ---
+  duration_ms: 2.26725
+  type: 'test'
+  ...
+# Subtest: 스키마: 모든 필수 필드(지역성·근거 기원 포함)를 갖춘 분류만 통과
+ok 499 - 스키마: 모든 필수 필드(지역성·근거 기원 포함)를 갖춘 분류만 통과
+  ---
+  duration_ms: 0.8935
+  type: 'test'
+  ...
+# Subtest: 스키마: accept 행은 비어 있지 않은 evidenceSpans·reasonCodes 요구 (수리 3)
+ok 500 - 스키마: accept 행은 비어 있지 않은 evidenceSpans·reasonCodes 요구 (수리 3)
+  ---
+  duration_ms: 0.235042
+  type: 'test'
+  ...
+# Subtest: canonical gate: 스키마 통과 분류만 admission 가능
+ok 501 - canonical gate: 스키마 통과 분류만 admission 가능
+  ---
+  duration_ms: 0.12275
+  type: 'test'
+  ...
+# Subtest: canonical gate: contentType=other·primaryCategory=unknown은 accept 있어도 비승인
+ok 502 - canonical gate: contentType=other·primaryCategory=unknown은 accept 있어도 비승인
+  ---
+  duration_ms: 0.188167
+  type: 'test'
+  ...
+# Subtest: admission: accept 행만 자격 — secondary·abstain·reject 불가
+ok 503 - admission: accept 행만 자격 — secondary·abstain·reject 불가
+  ---
+  duration_ms: 0.13975
+  type: 'test'
+  ...
+# Subtest: precedence: 모든 단계·enum 요구, 앞단 fail 뒤 fail 외 결과 금지
+ok 504 - precedence: 모든 단계·enum 요구, 앞단 fail 뒤 fail 외 결과 금지
+  ---
+  duration_ms: 0.173709
+  type: 'test'
+  ...
+# Subtest: degraded: 정상·장애 모두 unclassified는 항상 withheld
+ok 505 - degraded: 정상·장애 모두 unclassified는 항상 withheld
+  ---
+  duration_ms: 0.078792
+  type: 'test'
+  ...
+# Subtest: contentType: community→news / deal→news는 치명, 뉴스 신뢰는 news만
+ok 506 - contentType: community→news / deal→news는 치명, 뉴스 신뢰는 news만
+  ---
+  duration_ms: 0.3115
+  type: 'test'
+  ...
+# Subtest: assembleUnion: 표시만 담당 — 1회 표시·매칭 카테고리 기록(크레딧 배정은 안 함)
+ok 507 - assembleUnion: 표시만 담당 — 1회 표시·매칭 카테고리 기록(크레딧 배정은 안 함)
+  ---
+  duration_ms: 0.641417
+  type: 'test'
+  ...
+# Subtest: assembleUnion: 분류 행 분리도 병합·1회 표시 / id 없으면 evidenceHash로 중복 방지
+ok 508 - assembleUnion: 분류 행 분리도 병합·1회 표시 / id 없으면 evidenceHash로 중복 방지
+  ---
+  duration_ms: 0.328042
+  type: 'test'
+  ...
+# Subtest: 반례 26: fulfillment는 실제 복수 소속을 보존 — A(biz+pol)·B(biz) → biz 2·pol 1
+ok 509 - 반례 26: fulfillment는 실제 복수 소속을 보존 — A(biz+pol)·B(biz) → biz 2·pol 1
+  ---
+  duration_ms: 16.371666
+  type: 'test'
+  ...
+# Subtest: 반례 27: rank-layer 정렬 실제 적용 — 늦은 politics보다 이른 business가 앞 (재검수 P1-2)
+ok 510 - 반례 27: rank-layer 정렬 실제 적용 — 늦은 politics보다 이른 business가 앞 (재검수 P1-2)
+  ---
+  duration_ms: 0.680541
+  type: 'test'
+  ...
+# Subtest: 반례 28: 공백 id는 서로 다른 evidenceHash 사건을 합치지 않는다 (재검수 P2)
+ok 511 - 반례 28: 공백 id는 서로 다른 evidenceHash 사건을 합치지 않는다 (재검수 P2)
+  ---
+  duration_ms: 20.584458
+  type: 'test'
+  ...
+# Subtest: F1: assembleUnion→fulfillmentFromDisplay 전체 결합·복수 분야 소속 보존
+ok 512 - F1: assembleUnion→fulfillmentFromDisplay 전체 결합·복수 분야 소속 보존
+  ---
+  duration_ms: 13.996125
+  type: 'test'
+  ...
+# Subtest: F2: fulfillmentFromDisplay 입력 진실성 — fail-closed·명시0=no_supply·qualified0=no_qualified·availableCategories
+ok 513 - F2: fulfillmentFromDisplay 입력 진실성 — fail-closed·명시0=no_supply·qualified0=no_qualified·availableCategories
+  ---
+  duration_ms: 0.52425
+  type: 'test'
+  ...
+# Subtest: R1: rank metadata — 유효 정렬·역순 결정성 / 누락·무효 tier·S는 폴백 없이 사건 전체 withheld
+ok 514 - R1: rank metadata — 유효 정렬·역순 결정성 / 누락·무효 tier·S는 폴백 없이 사건 전체 withheld
+  ---
+  duration_ms: 0.296416
+  type: 'test'
+  ...
+# Subtest: I1: 사건 ID namespace — id:<x> vs eh:<x> 분리, 공백 id 폴백, 입력순 무관
+ok 515 - I1: 사건 ID namespace — id:<x> vs eh:<x> 분리, 공백 id 폴백, 입력순 무관
+  ---
+  duration_ms: 1.198958
+  type: 'test'
+  ...
+# Subtest: resolveEventEditorial: 지원되는 편집 주장이 없으면 event withheld
+ok 516 - resolveEventEditorial: 지원되는 편집 주장이 없으면 event withheld
+  ---
+  duration_ms: 0.125458
+  type: 'test'
+  ...
+# Subtest: baseline lock: 현재 지문이 고정 lock과 drift 없음(--check가 exit 1 낼 상태 아님)
+ok 517 - baseline lock: 현재 지문이 고정 lock과 drift 없음(--check가 exit 1 낼 상태 아님)
+  ---
+  duration_ms: 7.638916
+  type: 'test'
+  ...
+# Subtest: 반례 1·2·4: 승인 행 없는 노출 → 위반
+ok 518 - 반례 1·2·4: 승인 행 없는 노출 → 위반
+  ---
+  duration_ms: 0.325083
+  type: 'test'
+  ...
+# Subtest: 반례 3: 양분야 accept + 둘 다 선택 → 불변식 성립·union 1회
+ok 519 - 반례 3: 양분야 accept + 둘 다 선택 → 불변식 성립·union 1회
+  ---
+  duration_ms: 0.10975
+  type: 'test'
+  ...
+# Subtest: 반례 5: 같은 보도자료 두 매체 → claimOriginGroup 1, 공유 사실 자격 없음
+ok 520 - 반례 5: 같은 보도자료 두 매체 → claimOriginGroup 1, 공유 사실 자격 없음
+  ---
+  duration_ms: 0.103042
+  type: 'test'
+  ...
+# Subtest: 반례 6~10: 지역성은 사건 위치 기준
+ok 521 - 반례 6~10: 지역성은 사건 위치 기준
+  ---
+  duration_ms: 0.262958
+  type: 'test'
+  ...
+# Subtest: 반례 11·20: unclassified withheld (장애·정상)
+ok 522 - 반례 11·20: unclassified withheld (장애·정상)
+  ---
+  duration_ms: 0.11175
+  type: 'test'
+  ...
+# Subtest: 반례 12: 지원 편집 주장 없으면 withheld
+ok 523 - 반례 12: 지원 편집 주장 없으면 withheld
+  ---
+  duration_ms: 0.043167
+  type: 'test'
+  ...
+# Subtest: 반례 13·19: 앞단 fail 뒤 pass·narrow 모두 위반
+ok 524 - 반례 13·19: 앞단 fail 뒤 pass·narrow 모두 위반
+  ---
+  duration_ms: 0.045834
+  type: 'test'
+  ...
+# Subtest: 반례 14·17·18: 스키마 무효 분류는 canonical gate가 비승인
+ok 525 - 반례 14·17·18: 스키마 무효 분류는 canonical gate가 비승인
+  ---
+  duration_ms: 0.1675
+  type: 'test'
+  ...
+# Subtest: 반례 15·16: other·unknown은 accept 있어도 비승인
+ok 526 - 반례 15·16: other·unknown은 accept 있어도 비승인
+  ---
+  duration_ms: 0.089
+  type: 'test'
+  ...
+# Subtest: 반례 21·22: 공백 관할·빈 근거·scopeClass 불일치는 fail-open 아니라 reject (재검수 수리 3)
+ok 527 - 반례 21·22: 공백 관할·빈 근거·scopeClass 불일치는 fail-open 아니라 reject (재검수 수리 3)
+  ---
+  duration_ms: 0.059792
+  type: 'test'
+  ...
+# Subtest: 반례 23·24: 라벨만으로 fail-open 금지 — primary는 claimOriginGroup, 뉴스신뢰는 스키마 요구
+ok 528 - 반례 23·24: 라벨만으로 fail-open 금지 — primary는 claimOriginGroup, 뉴스신뢰는 스키마 요구
+  ---
+  duration_ms: 0.049042
+  type: 'test'
+  ...
+# Subtest: v3 반례: admission 누락·잉여·중복치환은 스키마 거부 + canonical gate 비승인
+ok 529 - v3 반례: admission 누락·잉여·중복치환은 스키마 거부 + canonical gate 비승인
+  ---
+  duration_ms: 0.149208
+  type: 'test'
+  ...
+# Subtest: v3 반례: accept∩descriptiveSecondary 겹침 거부·비accept secondary는 허용
+ok 530 - v3 반례: accept∩descriptiveSecondary 겹침 거부·비accept secondary는 허용
+  ---
+  duration_ms: 0.169875
+  type: 'test'
+  ...
+# Subtest: D1-B blind packet contains only 78 real items and hides source/category/gold priors
+ok 531 - D1-B blind packet contains only 78 real items and hides source/category/gold priors
+  ---
+  duration_ms: 26.581583
+  type: 'test'
+  ...
+# Subtest: D1-B review validation is exact and fail-closed
+ok 532 - D1-B review validation is exact and fail-closed
+  ---
+  duration_ms: 25.484583
+  type: 'test'
+  ...
+# Subtest: D1-B matching A/B labels produce sufficient independent gold without touching the fixture
+ok 533 - D1-B matching A/B labels produce sufficient independent gold without touching the fixture
+  ---
+  duration_ms: 32.855708
+  type: 'test'
+  ...
+# Subtest: D1-B resolved out-of-scope negatives complete gold without entering model metrics
+ok 534 - D1-B resolved out-of-scope negatives complete gold without entering model metrics
+  ---
+  duration_ms: 12.867292
+  type: 'test'
+  ...
+# Subtest: D1-B reviewer reject suggestions are non-authoritative and normalize to taxonomy complement
+ok 535 - D1-B reviewer reject suggestions are non-authoritative and normalize to taxonomy complement
+  ---
+  duration_ms: 40.63725
+  type: 'test'
+  ...
+# Subtest: D1-B disagreement is isolated and only a third identity can adjudicate it
+ok 536 - D1-B disagreement is isolated and only a third identity can adjudicate it
+  ---
+  duration_ms: 53.023917
+  type: 'test'
+  ...
+# Subtest: D1-B rejects a blind packet changed after preparation
+ok 537 - D1-B rejects a blind packet changed after preparation
+  ---
+  duration_ms: 10.196459
+  type: 'test'
+  ...
+# Subtest: D1D: p2 promptVersion + gold/라벨 필드 누출 0 + 실패패턴 겨냥 명시
+ok 538 - D1D: p2 promptVersion + gold/라벨 필드 누출 0 + 실패패턴 겨냥 명시
+  ---
+  duration_ms: 1.261708
+  type: 'test'
+  ...
+# Subtest: D1D: itemsFromCorpus 96 (real 78 / adversarial 10 / mutation 8)
+ok 539 - D1D: itemsFromCorpus 96 (real 78 / adversarial 10 / mutation 8)
+  ---
+  duration_ms: 0.261291
+  type: 'test'
+  ...
+# Subtest: D1D: evaluateCanaryD1d — 12건 미만 classified면 canary fail(HOLD)
+ok 540 - D1D: evaluateCanaryD1d — 12건 미만 classified면 canary fail(HOLD)
+  ---
+  duration_ms: 0.271583
+  type: 'test'
+  ...
+# Subtest: D1D: recovery = D1-C 누적, attemptId 고정
+ok 541 - D1D: recovery = D1-C 누적, attemptId 고정
+  ---
+  duration_ms: 0.288375
+  type: 'test'
+  ...
+# Subtest: D1E: p3 promptVersion + gold/라벨 필드 누출 0 + grounding 규율 명시
+ok 542 - D1E: p3 promptVersion + gold/라벨 필드 누출 0 + grounding 규율 명시
+  ---
+  duration_ms: 0.990333
+  type: 'test'
+  ...
+# Subtest: D1E: attempt/dir/promptVersion가 D1-D와 분리
+ok 543 - D1E: attempt/dir/promptVersion가 D1-D와 분리
+  ---
+  duration_ms: 0.117292
+  type: 'test'
+  ...
+# Subtest: D1E: recovery = D1-C+D1-D 누적($0.114332), 원본 SHA 지참
+ok 544 - D1E: recovery = D1-C+D1-D 누적($0.114332), 원본 SHA 지참
+  ---
+  duration_ms: 0.261125
+  type: 'test'
+  ...
+# Subtest: D1F: 단일변수 고정 — p3 프롬프트 SHA 동일, promptVersion 그대로, 모델만 교체
+ok 545 - D1F: 단일변수 고정 — p3 프롬프트 SHA 동일, promptVersion 그대로, 모델만 교체
+  ---
+  duration_ms: 2.34675
+  type: 'test'
+  ...
+# Subtest: D1F: 모델·단가는 저장소 정의(costs.js)와 정확 일치
+ok 546 - D1F: 모델·단가는 저장소 정의(costs.js)와 정확 일치
+  ---
+  duration_ms: 14.225208
+  type: 'test'
+  ...
+# Subtest: D1F: attempt/dir 분리 + prior 누적·상한 상수 정합
+ok 547 - D1F: attempt/dir 분리 + prior 누적·상한 상수 정합
+  ---
+  duration_ms: 4.173583
+  type: 'test'
+  ...
+# D1-C measured: releasePass=false
+# D1C_CANARY_MEASURED: canary gate PASS — full 84는 David 승인 전 호출하지 않음
+# FULL_NOT_APPROVED_HOLD: canary PASS — full 84는 fullApproved=true 명시 승인 필요
+# D1C_CANARY_MEASURED: canary gate PASS — full 84는 David 승인 전 호출하지 않음
+# D1C_CANARY_MEASURED: canary gate PASS — full 84는 David 승인 전 호출하지 않음
+# D1C_CANARY_MEASURED: canary gate PASS — full 84는 David 승인 전 호출하지 않음
+# CANDIDATE_NOT_RUNNABLE_HOLD: p3.1-haiku is not approved_canary (0 API/Keychain/write)
+# CANDIDATE_NOT_RUNNABLE_HOLD: p3.1-haiku is not approved_canary (0 API/Keychain/write)
+# Subtest: D1G: 자급 기준선 분류는 유효(수리가 정상 출력을 깨지 않음)
+ok 548 - D1G: 자급 기준선 분류는 유효(수리가 정상 출력을 깨지 않음)
+  ---
+  duration_ms: 4.009416
+  type: 'test'
+  ...
+# Subtest: D1G: admission 13행(누락) fail-closed
+ok 549 - D1G: admission 13행(누락) fail-closed
+  ---
+  duration_ms: 0.893417
+  type: 'test'
+  ...
+# Subtest: D1G: 14행이지만 중복+누락(치환) fail-closed
+ok 550 - D1G: 14행이지만 중복+누락(치환) fail-closed
+  ---
+  duration_ms: 0.444375
+  type: 'test'
+  ...
+# Subtest: D1G: 15행(잉여) fail-closed
+ok 551 - D1G: 15행(잉여) fail-closed
+  ---
+  duration_ms: 0.153417
+  type: 'test'
+  ...
+# Subtest: D1G: accept∩descriptiveSecondary fail-closed·비accept secondary는 허용
+ok 552 - D1G: accept∩descriptiveSecondary fail-closed·비accept secondary는 허용
+  ---
+  duration_ms: 0.809792
+  type: 'test'
+  ...
+# Subtest: D1G-P1-1: canary = authority decisive 10 + mutation 2 (감사용 제외·대체 포함)
+ok 553 - D1G-P1-1: canary = authority decisive 10 + mutation 2 (감사용 제외·대체 포함)
+  ---
+  duration_ms: 2.745166
+  type: 'test'
+  ...
+# Subtest: D1G-P1-3: authority 스키마 공격 전부 거부
+ok 554 - D1G-P1-3: authority 스키마 공격 전부 거부
+  ---
+  duration_ms: 2.02575
+  type: 'test'
+  ...
+# Subtest: D1G-P1-2: decisive 10 전건 예측이면 COMPLETE — 공용 게이트 판정·wholeRow·실패항목
+ok 555 - D1G-P1-2: decisive 10 전건 예측이면 COMPLETE — 공용 게이트 판정·wholeRow·실패항목
+  ---
+  duration_ms: 13.53075
+  type: 'test'
+  ...
+# Subtest: D1H: 지역성만 틀리면 카테고리 선별 PASS와 지역성 HOLD를 분리 보고
+ok 556 - D1H: 지역성만 틀리면 카테고리 선별 PASS와 지역성 HOLD를 분리 보고
+  ---
+  duration_ms: 6.038917
+  type: 'test'
+  ...
+# Subtest: D1G-P1-2: 오답 1건은 실패항목·게이트 FAIL로 정직 보고
+ok 557 - D1G-P1-2: 오답 1건은 실패항목·게이트 FAIL로 정직 보고
+  ---
+  duration_ms: 8.300042
+  type: 'test'
+  ...
+# Subtest: D1G-P1-2: 대체 반례 예측 부재면 점수·순위 없이 HOLD
+ok 558 - D1G-P1-2: 대체 반례 예측 부재면 점수·순위 없이 HOLD
+  ---
+  duration_ms: 2.155666
+  type: 'test'
+  ...
+# Subtest: D1G-재검수: d1gEvaluationSet — 정확히 96 = canary 12 + rest 84, 감사 제외·대체 포함
+ok 559 - D1G-재검수: d1gEvaluationSet — 정확히 96 = canary 12 + rest 84, 감사 제외·대체 포함
+  ---
+  duration_ms: 3.235958
+  type: 'test'
+  ...
+# Subtest: D1G-재검수 E2E(full, 명시 승인): canary 12 → full 96, 정확한 ID·상태·캐시 적중 고정
+ok 560 - D1G-재검수 E2E(full, 명시 승인): canary 12 → full 96, 정확한 ID·상태·캐시 적중 고정
+  ---
+  duration_ms: 1882.535625
+  type: 'test'
+  ...
+# Subtest: D1G-재검수 P1: canary_only — 정확히 12건 뒤 무조건 종료, full 미진입, manifest 기록
+ok 561 - D1G-재검수 P1: canary_only — 정확히 12건 뒤 무조건 종료, full 미진입, manifest 기록
+  ---
+  duration_ms: 289.177208
+  type: 'test'
+  ...
+# Subtest: D1G-재검수 P1: full 모드도 fullApproved 미명시면 canary 후 차단(FULL_NOT_APPROVED_HOLD)
+ok 562 - D1G-재검수 P1: full 모드도 fullApproved 미명시면 canary 후 차단(FULL_NOT_APPROVED_HOLD)
+  ---
+  duration_ms: 326.012417
+  type: 'test'
+  ...
+# Subtest: D1G-재검수 P1: rescore --attempt는 검증된 manifest 디렉터리만 — 실제 CLI subprocess 회귀
+ok 563 - D1G-재검수 P1: rescore --attempt는 검증된 manifest 디렉터리만 — 실제 CLI subprocess 회귀
+  ---
+  duration_ms: 1190.179
+  type: 'test'
+  ...
+# Subtest: D1G-재검수 P1: manifest 위조 거부 — 빈 디렉터리·retries·resolvedModels 변조
+ok 564 - D1G-재검수 P1: manifest 위조 거부 — 빈 디렉터리·retries·resolvedModels 변조
+  ---
+  duration_ms: 264.878709
+  type: 'test'
+  ...
+# Subtest: D1G-재검수: rescore 혼합 — 완결 attempt만 점수화, 미완결은 INCOMPLETE 표기·순위 제외
+ok 565 - D1G-재검수: rescore 혼합 — 완결 attempt만 점수화, 미완결은 INCOMPLETE 표기·순위 제외
+  ---
+  duration_ms: 4.949958
+  type: 'test'
+  ...
+# Subtest: D1G-4차: p3.1 후보 — 최신 지역성 정본 정렬, 구 통화 일반규칙 제거
+ok 566 - D1G-4차: p3.1 후보 — 최신 지역성 정본 정렬, 구 통화 일반규칙 제거
+  ---
+  duration_ms: 0.11175
+  type: 'test'
+  ...
+# Subtest: D1H: 후보 정의는 JSON data-driven이고 불합격 후보는 실행 불가
+ok 567 - D1H: 후보 정의는 JSON data-driven이고 불합격 후보는 실행 불가
+  ---
+  duration_ms: 1.127333
+  type: 'test'
+  ...
+# Subtest: D1G-4차: loader — 모델 불일치·promptSha·pricing·미등록 후보·callId·별칭 위조 거부
+ok 568 - D1G-4차: loader — 모델 불일치·promptSha·pricing·미등록 후보·callId·별칭 위조 거부
+  ---
+  duration_ms: 402.167584
+  type: 'test'
+  ...
+# Subtest: D1G-4차: --run-canary CLI — 후보 필수·전용 경로·기존 디렉터리 사전 중단(쓰기 0)
+ok 569 - D1G-4차: --run-canary CLI — 후보 필수·전용 경로·기존 디렉터리 사전 중단(쓰기 0)
+  ---
+  duration_ms: 585.093167
+  type: 'test'
+  ...
+# Subtest: D1H: stepRunModel 직접 호출도 non-runnable 후보를 쓰기 전에 차단
+ok 570 - D1H: stepRunModel 직접 호출도 non-runnable 후보를 쓰기 전에 차단
+  ---
+  duration_ms: 2.474333
+  type: 'test'
+  ...
+# Subtest: D1H: 테스트 우회 플래그만으로 production 모델 경로를 열 수 없다
+ok 571 - D1H: 테스트 우회 플래그만으로 production 모델 경로를 열 수 없다
+  ---
+  duration_ms: 0.675083
+  type: 'test'
+  ...
+# Subtest: D1G-4차: 실패 종단은 terminal receipt — MODEL_KEY_MISSING에 manifest 없음
+ok 572 - D1G-4차: 실패 종단은 terminal receipt — MODEL_KEY_MISSING에 manifest 없음
+  ---
+  duration_ms: 27.805542
+  type: 'test'
+  ...
+# CANDIDATE_APPROVAL_CONSUMED_HOLD: p4-category-haiku approval consumed by d1i-20260821-01 (0 API/Keychain/write)
+# Subtest: D1I: p4 후보 정의 지문은 보존하고 소비된 1회 승인은 재사용할 수 없다
+ok 573 - D1I: p4 후보 정의 지문은 보존하고 소비된 1회 승인은 재사용할 수 없다
+  ---
+  duration_ms: 5.860916
+  type: 'test'
+  ...
+# Subtest: D1I: 소비된 p4 승인은 새 attempt ID와 직접 실행 경로 모두 쓰기 전에 차단된다
+ok 574 - D1I: 소비된 p4 승인은 새 attempt ID와 직접 실행 경로 모두 쓰기 전에 차단된다
+  ---
+  duration_ms: 17.664
+  type: 'test'
+  ...
+# Subtest: D1I: category-only 후보는 category gate만 사용하고 combined 후보는 AND gate를 유지한다
+ok 575 - D1I: category-only 후보는 category gate만 사용하고 combined 후보는 AND gate를 유지한다
+  ---
+  duration_ms: 0.296542
+  type: 'test'
+  ...
+# Subtest: D1I: holdout 84건은 canary·감사용과 겹치지 않는 기계적 고정 집합이다
+ok 576 - D1I: holdout 84건은 canary·감사용과 겹치지 않는 기계적 고정 집합이다
+  ---
+  duration_ms: 59.742208
+  type: 'test'
+  ...
+# Subtest: D1I: 84건 category gate는 1건 miss를 허용하되 unexpected admission은 0건만 허용한다
+ok 577 - D1I: 84건 category gate는 1건 miss를 허용하되 unexpected admission은 0건만 허용한다
+  ---
+  duration_ms: 104.302125
+  type: 'test'
+  ...
+# CANDIDATE_APPROVAL_CONSUMED_HOLD: p5-compact-category-haiku approval consumed by d1j-20260821-01 (0 API/Keychain/write)
+# Subtest: D1J: p5 compact 후보 정의와 실행 지문을 보존하고 소비된 단일 canary 승인은 재사용하지 않는다
+ok 578 - D1J: p5 compact 후보 정의와 실행 지문을 보존하고 소비된 단일 canary 승인은 재사용하지 않는다
+  ---
+  duration_ms: 31.226125
+  type: 'test'
+  ...
+# Subtest: D1J: 모델 출력 계약은 근거·14행을 제외한 compact 5필드뿐이다
+ok 579 - D1J: 모델 출력 계약은 근거·14행을 제외한 compact 5필드뿐이다
+  ---
+  duration_ms: 0.253125
+  type: 'test'
+  ...
+# Subtest: D1J: 음식 커뮤니티 글은 life 한 분야로 조립되고 근거는 제목에서 생성된다
+ok 580 - D1J: 음식 커뮤니티 글은 life 한 분야로 조립되고 근거는 제목에서 생성된다
+  ---
+  duration_ms: 7.194917
+  type: 'test'
+  ...
+# Subtest: D1J: 법·정책 사건은 politics를 코드가 보장하고 직접 영향과 단순 주제를 분리한다
+ok 581 - D1J: 법·정책 사건은 politics를 코드가 보장하고 직접 영향과 단순 주제를 분리한다
+  ---
+  duration_ms: 0.974708
+  type: 'test'
+  ...
+# Subtest: D1J: compact 의미 충돌과 무근거 승인은 모두 fail-closed다
+ok 582 - D1J: compact 의미 충돌과 무근거 승인은 모두 fail-closed다
+  ---
+  duration_ms: 1.30425
+  type: 'test'
+  ...
+# Subtest: D1J: 기존 유료 실행 코어는 주입된 compact 조립기를 한 번 사용해 정상 분류한다
+ok 583 - D1J: 기존 유료 실행 코어는 주입된 compact 조립기를 한 번 사용해 정상 분류한다
+  ---
+  duration_ms: 1.874208
+  type: 'test'
+  ...
+# Subtest: D1J: 소비된 p5 승인은 직접 실행 경로에서도 Keychain·파일 쓰기 전에 차단된다
+ok 584 - D1J: 소비된 p5 승인은 직접 실행 경로에서도 Keychain·파일 쓰기 전에 차단된다
+  ---
+  duration_ms: 2.846833
+  type: 'test'
+  ...
+# Subtest: D1J: p5의 동일 84건 홀드아웃은 미노출 상태로 별도 잠긴다
+ok 585 - D1J: p5의 동일 84건 홀드아웃은 미노출 상태로 별도 잠긴다
+  ---
+  duration_ms: 8.427167
+  type: 'test'
+  ...
+# Subtest: D1K authority-003 changes only the approved gaming-PC category boundary
+ok 586 - D1K authority-003 changes only the approved gaming-PC category boundary
+  ---
+  duration_ms: 5.449292
+  type: 'test'
+  ...
+# Subtest: D1K authority overlay fails closed on base, policy, or prior-value drift
+ok 587 - D1K authority overlay fails closed on base, policy, or prior-value drift
+  ---
+  duration_ms: 13.509
+  type: 'test'
+  ...
+# Subtest: D1K offline category rescore moves only the approved item: 6/10 to 7/10
+ok 588 - D1K offline category rescore moves only the approved item: 6/10 to 7/10
+  ---
+  duration_ms: 1.927792
+  type: 'test'
+  ...
+# Subtest: D2-A 후보: D1-K 일반 정책만 투영하고 소비된 단일 승인은 재사용하지 않는다
+ok 589 - D2-A 후보: D1-K 일반 정책만 투영하고 소비된 단일 승인은 재사용하지 않는다
+  ---
+  duration_ms: 2.820167
+  type: 'test'
+  ...
+# Subtest: NH90 전량 후보는 최신 풀의 정확한 호출 수와 비용 상한을 고정한다
+ok 590 - NH90 전량 후보는 최신 풀의 정확한 호출 수와 비용 상한을 고정한다
+  ---
+  duration_ms: 0.098209
+  type: 'test'
+  ...
+# Subtest: NH90 공급자 진단 후보는 같은 요청을 단 한 번만 보낸다
+ok 591 - NH90 공급자 진단 후보는 같은 요청을 단 한 번만 보낸다
+  ---
+  duration_ms: 0.062041
+  type: 'test'
+  ...
+# Subtest: NH91 이브닝 전량 후보는 중복을 뺀 현재 풀 2,198건만 같은 분류 규칙으로 측정한다
+ok 592 - NH91 이브닝 전량 후보는 중복을 뺀 현재 풀 2,198건만 같은 분류 규칙으로 측정한다
+  ---
+  duration_ms: 0.088208
+  type: 'test'
+  ...
+# Subtest: D2-F 전량 후보: 오늘 packet 1,967건 측정 후 추가 유료 실행을 차단한다
+ok 593 - D2-F 전량 후보: 오늘 packet 1,967건 측정 후 추가 유료 실행을 차단한다
+  ---
+  duration_ms: 0.154958
+  type: 'test'
+  ...
+# Subtest: D2-F 교정 후보: 일상 행정은 자동 정치가 아니며 법·선거 정치는 유지한다
+ok 594 - D2-F 교정 후보: 일상 행정은 자동 정치가 아니며 법·선거 정치는 유지한다
+  ---
+  duration_ms: 0.23225
+  type: 'test'
+  ...
+# Subtest: D2-F 뉴스 랭킹: 직접 발행 대형 언론의 비민감 단독 속보는 B등급으로 통과한다
+ok 595 - D2-F 뉴스 랭킹: 직접 발행 대형 언론의 비민감 단독 속보는 B등급으로 통과한다
+  ---
+  duration_ms: 27.771084
+  type: 'test'
+  ...
+# Subtest: D2-F 판 조립: 각 분야에는 그 분야로 승인된 대표 제목을 쓴다
+ok 596 - D2-F 판 조립: 각 분야에는 그 분야로 승인된 대표 제목을 쓴다
+  ---
+  duration_ms: 0.730292
+  type: 'test'
+  ...
+# Subtest: D2-A 후보: 미등록 정책 projection과 projection 제거는 fail-closed
+ok 597 - D2-A 후보: 미등록 정책 projection과 projection 제거는 fail-closed
+  ---
+  duration_ms: 2.334958
+  type: 'test'
+  ...
+# Subtest: D2-A 종단 계약: tech+gaming 복수 승인·선택 조합별 한 번 표시
+ok 598 - D2-A 종단 계약: tech+gaming 복수 승인·선택 조합별 한 번 표시
+  ---
+  duration_ms: 3.016458
+  type: 'test'
+  ...
+# Subtest: D2-F 비교판: 새 복수 승인 분야를 기존 사건 랭킹이 그대로 사용한다
+ok 599 - D2-F 비교판: 새 복수 승인 분야를 기존 사건 랭킹이 그대로 사용한다
+  ---
+  duration_ms: 2.198125
+  type: 'test'
+  ...
+# Subtest: D2-B: 전역 사건은 공유하되 카테고리별 승인 근거와 1차 근거만 분리한다
+ok 600 - D2-B: 전역 사건은 공유하되 카테고리별 승인 근거와 1차 근거만 분리한다
+  ---
+  duration_ms: 51.860167
+  type: 'test'
+  ...
+# Subtest: D2-B: 다른 카테고리의 비1차 기사 변화는 선택 분야 지문을 바꾸지 않는다
+ok 601 - D2-B: 다른 카테고리의 비1차 기사 변화는 선택 분야 지문을 바꾸지 않는다
+  ---
+  duration_ms: 33.097375
+  type: 'test'
+  ...
+# Subtest: D2-B: 근거 불일치는 보류하고 한 판의 분류기 버전 혼합은 거부한다
+ok 602 - D2-B: 근거 불일치는 보류하고 한 판의 분류기 버전 혼합은 거부한다
+  ---
+  duration_ms: 26.643125
+  type: 'test'
+  ...
+# Subtest: D2-C: 앵커 제목으로 eventId가 바뀌어도 분야별 서빙 지문은 같은 계보로 이어진다
+ok 603 - D2-C: 앵커 제목으로 eventId가 바뀌어도 분야별 서빙 지문은 같은 계보로 이어진다
+  ---
+  duration_ms: 1.405208
+  type: 'test'
+  ...
+# Subtest: D2-C: 이전 계보와 실제 서빙 지문은 기형 입력을 조용히 승계하지 않는다
+ok 604 - D2-C: 이전 계보와 실제 서빙 지문은 기형 입력을 조용히 승계하지 않는다
+  ---
+  duration_ms: 12.605542
+  type: 'test'
+  ...
+# Subtest: NH126: 종합 경제 피드의 농구·배드민턴은 오늘판 패킷에서 스포츠만 허용한다
+ok 605 - NH126: 종합 경제 피드의 농구·배드민턴은 오늘판 패킷에서 스포츠만 허용한다
+  ---
+  duration_ms: 13.8125
+  type: 'test'
+  ...
+# Subtest: D2-D: 실제 풀은 증거 해시당 한 번만 분류하는 무URL shadow packet으로 동결된다
+ok 606 - D2-D: 실제 풀은 증거 해시당 한 번만 분류하는 무URL shadow packet으로 동결된다
+  ---
+  duration_ms: 7.468
+  type: 'test'
+  ...
+# Subtest: D2-D: 같은 원문은 종합 피드보다 직접 전문 섹션을 대표 출처로 고정한다
+ok 607 - D2-D: 같은 원문은 종합 피드보다 직접 전문 섹션을 대표 출처로 고정한다
+  ---
+  duration_ms: 1.033541
+  type: 'test'
+  ...
+# Subtest: NH94: 엔진 최종 분야는 명확한 소스만 투표하고 충돌은 패킷에서 보류한다
+ok 608 - NH94: 엔진 최종 분야는 명확한 소스만 투표하고 충돌은 패킷에서 보류한다
+  ---
+  duration_ms: 23.551916
+  type: 'test'
+  ...
+# Subtest: NH106: 발행사 연예 URL은 오래된 aggregate 분류를 발행 전에 바로잡는다
+ok 609 - NH106: 발행사 연예 URL은 오래된 aggregate 분류를 발행 전에 바로잡는다
+  ---
+  duration_ms: 0.900708
+  type: 'test'
+  ...
+# Subtest: NH106: 종합 섹션의 정치·세계 사건은 IT로 동결하지 않고 실제 IT는 보존한다
+ok 610 - NH106: 종합 섹션의 정치·세계 사건은 IT로 동결하지 않고 실제 IT는 보존한다
+  ---
+  duration_ms: 2.66925
+  type: 'test'
+  ...
+# Subtest: NH99: 해외 중요도 신호는 번역 제목에서 사라져도 원제목에서 보존된다
+ok 611 - NH99: 해외 중요도 신호는 번역 제목에서 사라져도 원제목에서 보존된다
+  ---
+  duration_ms: 0.142875
+  type: 'test'
+  ...
+# Subtest: D2-D: 저장 예측은 원 기사로 확장돼 실제 분야별 사건 predicate를 측정한다
+ok 612 - D2-D: 저장 예측은 원 기사로 확장돼 실제 분야별 사건 predicate를 측정한다
+  ---
+  duration_ms: 29.494958
+  type: 'test'
+  ...
+# Subtest: D2-F: 측정은 모델이 본 packet excerpt와 같은 근거만 검증한다
+ok 613 - D2-F: 측정은 모델이 본 packet excerpt와 같은 근거만 검증한다
+  ---
+  duration_ms: 1.111875
+  type: 'test'
+  ...
+# Subtest: D2-E: 현재 풀 canary는 공급이 적은 분야부터 한 건씩 12건을 결정적으로 고른다
+ok 614 - D2-E: 현재 풀 canary는 공급이 적은 분야부터 한 건씩 12건을 결정적으로 고른다
+  ---
+  duration_ms: 13.4495
+  type: 'test'
+  ...
+# Subtest: NH93: 미분류 shortlist는 부족 분야 후보와 전문 원문 소스를 먼저 고른다
+ok 615 - NH93: 미분류 shortlist는 부족 분야 후보와 전문 원문 소스를 먼저 고른다
+  ---
+  duration_ms: 9.818625
+  type: 'test'
+  ...
+# Subtest: NH93: shortlist 러너는 전역 반응량보다 부족 분야 미분류 후보를 먼저 실행한다
+ok 616 - NH93: shortlist 러너는 전역 반응량보다 부족 분야 미분류 후보를 먼저 실행한다
+  ---
+  duration_ms: 95.311417
+  type: 'test'
+  ...
+# Subtest: D2-F: 전량 shadow는 packet 전건을 기존 유료 레일로 한 번씩만 측정한다
+ok 617 - D2-F: 전량 shadow는 packet 전건을 기존 유료 레일로 한 번씩만 측정한다
+  ---
+  duration_ms: 2221.855875
+  type: 'test'
+  ...
+# Subtest: D2-F: 중단된 전량 checkpoint는 검증된 결과를 재사용하고 남은 항목만 호출한다
+ok 618 - D2-F: 중단된 전량 checkpoint는 검증된 결과를 재사용하고 남은 항목만 호출한다
+  ---
+  duration_ms: 1823.279291
+  type: 'test'
+  ...
+# Subtest: NH89: 400으로 멈춘 shadow는 한 항목만 보류하고 보수적 비용을 승계해 재개한다
+ok 619 - NH89: 400으로 멈춘 shadow는 한 항목만 보류하고 보수적 비용을 승계해 재개한다
+  ---
+  duration_ms: 1277.198208
+  type: 'test'
+  ...
+# Subtest: D2-E: 소비된 p6 승인은 디렉터리·Keychain·모델 호출 전에 차단한다
+ok 620 - D2-E: 소비된 p6 승인은 디렉터리·Keychain·모델 호출 전에 차단한다
+  ---
+  duration_ms: 6.612375
+  type: 'test'
+  ...
+# Subtest: D2-E: 가짜 모델 E2E는 현재 풀 대표 12건만 측정하고 품질 PASS를 주장하지 않는다
+ok 621 - D2-E: 가짜 모델 E2E는 현재 풀 대표 12건만 측정하고 품질 PASS를 주장하지 않는다
+  ---
+  duration_ms: 176.761042
+  type: 'test'
+  ...
+# Subtest: D2-E: 기존 attempt와 packet drift는 어떤 유료 준비보다 먼저 거부한다
+ok 622 - D2-E: 기존 attempt와 packet drift는 어떤 유료 준비보다 먼저 거부한다
+  ---
+  duration_ms: 37.828583
+  type: 'test'
+  ...
+# Subtest: D2-E: 실제 응답 모델이 후보 alias와 다르면 정산 기록만 남기고 측정 manifest를 만들지 않는다
+ok 623 - D2-E: 실제 응답 모델이 후보 alias와 다르면 정산 기록만 남기고 측정 manifest를 만들지 않는다
+  ---
+  duration_ms: 191.686625
+  type: 'test'
+  ...
+# Subtest: D2-E: CLI도 소비된 p6 승인을 전용 attempt 쓰기 전에 차단한다
+ok 624 - D2-E: CLI도 소비된 p6 승인을 전용 attempt 쓰기 전에 차단한다
+  ---
+  duration_ms: 276.354833
+  type: 'test'
+  ...
+# Subtest: heat: log10 포화 — 단조 증가·포화점에서 1.0 상한
+ok 625 - heat: log10 포화 — 단조 증가·포화점에서 1.0 상한
+  ---
+  duration_ms: 2.044541
+  type: 'test'
+  ...
+# Subtest: heat: 커뮤니티 반응은 heat에 계수되고, importance 독립 그룹에는 계수되지 않는다 (정정 3)
+ok 626 - heat: 커뮤니티 반응은 heat에 계수되고, importance 독립 그룹에는 계수되지 않는다 (정정 3)
+  ---
+  duration_ms: 0.480209
+  type: 'test'
+  ...
+# Subtest: importance: 독립 그룹 포화(5)·weighty·primary 구성 요소와 근거
+ok 627 - importance: 독립 그룹 포화(5)·weighty·primary 구성 요소와 근거
+  ---
+  duration_ms: 0.314833
+  type: 'test'
+  ...
+# Subtest: 동결: 해외 경제 사건 — marketSignal로 importance 역전 (David 채택 옵션 1, 2026-08-17)
+ok 628 - 동결: 해외 경제 사건 — marketSignal로 importance 역전 (David 채택 옵션 1, 2026-08-17)
+  ---
+  duration_ms: 2.824667
+  type: 'test'
+  ...
+# Subtest: 해외 중요도 신호는 국가명·영어 rate 단독이 아니라 실제 파급 신호만 인정한다
+ok 629 - 해외 중요도 신호는 국가명·영어 rate 단독이 아니라 실제 파급 신호만 인정한다
+  ---
+  duration_ms: 3.327791
+  type: 'test'
+  ...
+# Subtest: 해외 주요 언론은 제목 키워드가 없어도 권위 신호와 24시간 창을 적용한다
+ok 630 - 해외 주요 언론은 제목 키워드가 없어도 권위 신호와 24시간 창을 적용한다
+  ---
+  duration_ms: 5.221083
+  type: 'test'
+  ...
+# Subtest: 동결: 국내 사건은 marketSignal 분기를 타지 않는다 — 기존 3성분 산식 무변경
+ok 631 - 동결: 국내 사건은 marketSignal 분기를 타지 않는다 — 기존 3성분 산식 무변경
+  ---
+  duration_ms: 0.376667
+  type: 'test'
+  ...
+# Subtest: change: 신선도 계단 — 창 4등분·창 밖 0
+ok 632 - change: 신선도 계단 — 창 4등분·창 밖 0
+  ---
+  duration_ms: 0.080458
+  type: 'test'
+  ...
+# Subtest: change: factsFingerprint 재등장 게이트 — 지문 동일이면 0, 변화면 계단값 유지
+ok 633 - change: factsFingerprint 재등장 게이트 — 지문 동일이면 0, 변화면 계단값 유지
+  ---
+  duration_ms: 0.371875
+  type: 'test'
+  ...
+# Subtest: 팩 배속: 미결 2 추천안 — tech·auto→newsy, gaming→culture, life·kind=community→community
+ok 634 - 팩 배속: 미결 2 추천안 — tech·auto→newsy, gaming→culture, life·kind=community→community
+  ---
+  duration_ms: 0.484584
+  type: 'test'
+  ...
+# Subtest: 게이트: reported_secondary 1건 단독은 어느 뉴스 팩에서도 차단된다 (공통 원칙 1)
+ok 635 - 게이트: reported_secondary 1건 단독은 어느 뉴스 팩에서도 차단된다 (공통 원칙 1)
+  ---
+  duration_ms: 8.04175
+  type: 'test'
+  ...
+# Subtest: 게이트: 기관 primary 1곳은 단독으로 통과한다 (과학 팩 — NASA 경로)
+ok 636 - 게이트: 기관 primary 1곳은 단독으로 통과한다 (과학 팩 — NASA 경로)
+  ---
+  duration_ms: 4.659459
+  type: 'test'
+  ...
+# Subtest: 게이트: 독립 운영그룹 2곳이면 통과한다 (뉴스 기본 계약)
+ok 637 - 게이트: 독립 운영그룹 2곳이면 통과한다 (뉴스 기본 계약)
+  ---
+  duration_ms: 1.091958
+  type: 'test'
+  ...
+# Subtest: 게이트: 같은 운영그룹 2건은 독립 계수 1 — 통과하지 못한다 (공통 원칙 3·C4)
+ok 638 - 게이트: 같은 운영그룹 2건은 독립 계수 1 — 통과하지 못한다 (공통 원칙 3·C4)
+  ---
+  duration_ms: 1.698
+  type: 'test'
+  ...
+# Subtest: 게이트: 커뮤 팩 절대 반응선 eng≥30 — 29는 탈락, 30은 통과, 언론 신뢰 라벨 없음
+ok 639 - 게이트: 커뮤 팩 절대 반응선 eng≥30 — 29는 탈락, 30은 통과, 언론 신뢰 라벨 없음
+  ---
+  duration_ms: 2.088708
+  type: 'test'
+  ...
+# Subtest: 게이트: 신선도 창 — 커뮤 6h 밖 글은 탈락한다
+ok 640 - 게이트: 신선도 창 — 커뮤 6h 밖 글은 탈락한다
+  ---
+  duration_ms: 0.657792
+  type: 'test'
+  ...
+# Subtest: 게이트: 미래 publishedAt — 1시간 넘는 미래는 무효, 1시간 이내는 0으로 클램프 (검수 P2-2)
+ok 641 - 게이트: 미래 publishedAt — 1시간 넘는 미래는 무효, 1시간 이내는 0으로 클램프 (검수 P2-2)
+  ---
+  duration_ms: 1.254542
+  type: 'test'
+  ...
+# Subtest: 게이트: 재등장 — 직전 판과 factsFingerprint가 같으면 제외된다 (공통 원칙 5)
+ok 642 - 게이트: 재등장 — 직전 판과 factsFingerprint가 같으면 제외된다 (공통 원칙 5)
+  ---
+  duration_ms: 0.457875
+  type: 'test'
+  ...
+# Subtest: R5 동결 ⓐ: ESPN(specialist) 단독 경기 소식 — B등급 통과 + '단일 출처' 표기, ID 예외는 제거됐다
+ok 643 - R5 동결 ⓐ: ESPN(specialist) 단독 경기 소식 — B등급 통과 + '단일 출처' 표기, ID 예외는 제거됐다
+  ---
+  duration_ms: 3.377417
+  type: 'test'
+  ...
+# Subtest: R5 동결 ⓑ: 전문매체 단독 의혹·시장 영향 기사 — 민감 2출처 강제로 차단 (실물 표본 2건)
+ok 644 - R5 동결 ⓑ: 전문매체 단독 의혹·시장 영향 기사 — 민감 2출처 강제로 차단 (실물 표본 2건)
+  ---
+  duration_ms: 1.04225
+  type: 'test'
+  ...
+# Subtest: R5 동결 ⓒ: NASA(기관 primary) 단독 — A등급 (실물 표본)
+ok 645 - R5 동결 ⓒ: NASA(기관 primary) 단독 — A등급 (실물 표본)
+  ---
+  duration_ms: 0.258834
+  type: 'test'
+  ...
+# Subtest: R5 동결 ⓓ: gnews(aggregate) 단독 — 등급제 도입 후에도 여전히 차단 (원계약 유지, 실물 표본)
+ok 646 - R5 동결 ⓓ: gnews(aggregate) 단독 — 등급제 도입 후에도 여전히 차단 (원계약 유지, 실물 표본)
+  ---
+  duration_ms: 0.480125
+  type: 'test'
+  ...
+# Subtest: R5 민감 반례 동결: 일반 경기 소식·수술(surgery) 기사는 민감이 아니다 — 과잉 차단 없음 (실물 표본)
+ok 647 - R5 민감 반례 동결: 일반 경기 소식·수술(surgery) 기사는 민감이 아니다 — 과잉 차단 없음 (실물 표본)
+  ---
+  duration_ms: 0.319
+  type: 'test'
+  ...
+# Subtest: R5 민감 사전 동결: 목록은 SHADOW_PACK_PARAMS.sensitive 한 곳 — David 검토 대상 전문
+ok 648 - R5 민감 사전 동결: 목록은 SHADOW_PACK_PARAMS.sensitive 한 곳 — David 검토 대상 전문
+  ---
+  duration_ms: 0.127708
+  type: 'test'
+  ...
+# Subtest: R5 동결 ⓔ: 소스캡은 대표기사 기준 — 비대표 구성원의 그룹은 캡을 소모하지 않는다 (검수 P2-1 정방향)
+ok 649 - R5 동결 ⓔ: 소스캡은 대표기사 기준 — 비대표 구성원의 그룹은 캡을 소모하지 않는다 (검수 P2-1 정방향)
+  ---
+  duration_ms: 30.5315
+  type: 'test'
+  ...
+# Subtest: R5 대표기사 규칙: primary > specialist > 반응 > 이른 발행 > id — 결정적 tie-break
+ok 650 - R5 대표기사 규칙: primary > specialist > 반응 > 이른 발행 > id — 결정적 tie-break
+  ---
+  duration_ms: 0.153125
+  type: 'test'
+  ...
+# Subtest: 동적 분량: 게이트 통과가 8건 미만이면 그대로 부분판이다
+ok 651 - 동적 분량: 게이트 통과가 8건 미만이면 그대로 부분판이다
+  ---
+  duration_ms: 1.229084
+  type: 'test'
+  ...
+# Subtest: 동적 분량: 13위가 12위 S의 95% 이상이면 13까지, 미달 14위는 확장하지 않는다
+ok 652 - 동적 분량: 13위가 12위 S의 95% 이상이면 13까지, 미달 14위는 확장하지 않는다
+  ---
+  duration_ms: 31.949958
+  type: 'test'
+  ...
+# Subtest: 동적 분량: 13위가 95% 미달이면 12건에서 멈춘다
+ok 653 - 동적 분량: 13위가 95% 미달이면 12건에서 멈춘다
+  ---
+  duration_ms: 4.128541
+  type: 'test'
+  ...
+# Subtest: 소스캡: 운영그룹 캡 초과는 제외되고, 부족해도 캡을 자동 완화하지 않는다 (공통 원칙 4)
+ok 654 - 소스캡: 운영그룹 캡 초과는 제외되고, 부족해도 캡을 자동 완화하지 않는다 (공통 원칙 4)
+  ---
+  duration_ms: 0.728542
+  type: 'test'
+  ...
+# Subtest: 표본 1(딥시크 한/영): HN은 커뮤 반응 축 — 언론 1곳뿐이면 뉴스 기본 계약 미충족으로 차단
+ok 655 - 표본 1(딥시크 한/영): HN은 커뮤 반응 축 — 언론 1곳뿐이면 뉴스 기본 계약 미충족으로 차단
+  ---
+  duration_ms: 0.961709
+  type: 'test'
+  ...
+# Subtest: 표본 2(부동산대책 파편): 병합 후 독립 그룹 3 — 통과하고 근거가 보존된다
+ok 656 - 표본 2(부동산대책 파편): 병합 후 독립 그룹 3 — 통과하고 근거가 보존된다
+  ---
+  duration_ms: 0.481166
+  type: 'test'
+  ...
+# Subtest: 표본 5(geeknews 재유통): 커뮤 팩 잣대 — 독립 언론 계수 0, 절대 반응선으로만 판정
+ok 657 - 표본 5(geeknews 재유통): 커뮤 팩 잣대 — 독립 언론 계수 0, 절대 반응선으로만 판정
+  ---
+  duration_ms: 0.316166
+  type: 'test'
+  ...
+# Subtest: 표본 9(coverage 이진 포화): relatedCoverage=5여도 그룹 1 — 다중 소스 주장 없이 차단
+ok 658 - 표본 9(coverage 이진 포화): relatedCoverage=5여도 그룹 1 — 다중 소스 주장 없이 차단
+  ---
+  duration_ms: 3.04775
+  type: 'test'
+  ...
+# Subtest: 파라미터: 팩 테이블 초기값이 설계안과 일치하고 동결돼 있다
+ok 659 - 파라미터: 팩 테이블 초기값이 설계안과 일치하고 동결돼 있다
+  ---
+  duration_ms: 0.1195
+  type: 'test'
+  ...
+# Subtest: 파라미터: overrideShadowParams는 원본을 두고 깊은 병합 사본을 만든다 (David 답 즉시 반영 경로)
+ok 660 - 파라미터: overrideShadowParams는 원본을 두고 깊은 병합 사본을 만든다 (David 답 즉시 반영 경로)
+  ---
+  duration_ms: 0.141917
+  type: 'test'
+  ...
+# Subtest: 반례 a: 스포츠 매체+종합뉴스 같은 사건 — 전체 클러스터링 선행으로 스포츠 팩 게이트 통과
+ok 661 - 반례 a: 스포츠 매체+종합뉴스 같은 사건 — 전체 클러스터링 선행으로 스포츠 팩 게이트 통과
+  ---
+  duration_ms: 0.63275
+  type: 'test'
+  ...
+# Subtest: 반례 b: 이른 기사 지연 합류로 eventId가 바뀌어도 계보 승계 — 지문 동일이면 재등장 게이트 차단
+ok 662 - 반례 b: 이른 기사 지연 합류로 eventId가 바뀌어도 계보 승계 — 지문 동일이면 재등장 게이트 차단
+  ---
+  duration_ms: 0.772542
+  type: 'test'
+  ...
+# Subtest: 반례 b 대조: 같은 계보라도 실질 변화(지문 변경)가 있으면 재등장 게이트를 통과한다
+ok 663 - 반례 b 대조: 같은 계보라도 실질 변화(지문 변경)가 있으면 재등장 게이트를 통과한다
+  ---
+  duration_ms: 5.293167
+  type: 'test'
+  ...
+# Subtest: 반례 c: 비슷한 구성의 다른 사건이 계보를 가로채 재등장 게이트를 오작동시키지 않는다
+ok 664 - 반례 c: 비슷한 구성의 다른 사건이 계보를 가로채 재등장 게이트를 오작동시키지 않는다
+  ---
+  duration_ms: 2.610958
+  type: 'test'
+  ...
+# Subtest: 반례 a: business 단독 선택 — politics·tech 전용 사건은 같은 newsy 팩이어도 0건
+ok 665 - 반례 a: business 단독 선택 — politics·tech 전용 사건은 같은 newsy 팩이어도 0건
+  ---
+  duration_ms: 1.809208
+  type: 'test'
+  ...
+# Subtest: 반례 b: business+politics — 각 분야가 각자 최대 14건씩 선별된 뒤 합쳐진다 (16건 재발 방지)
+ok 666 - 반례 b: business+politics — 각 분야가 각자 최대 14건씩 선별된 뒤 합쳐진다 (16건 재발 방지)
+  ---
+  duration_ms: 28.34175
+  type: 'test'
+  ...
+# Subtest: 반례 b 비대칭: 한쪽 공급이 많아도 다른 쪽 분야 몫을 밀어내지 않는다
+ok 667 - 반례 b 비대칭: 한쪽 공급이 많아도 다른 쪽 분야 몫을 밀어내지 않는다
+  ---
+  duration_ms: 6.785708
+  type: 'test'
+  ...
+# Subtest: 반례 c: 두 분야에 다 귀속된 사건은 1회만 — 층·전체 S 규칙대로 배치된다
+ok 668 - 반례 c: 두 분야에 다 귀속된 사건은 1회만 — 층·전체 S 규칙대로 배치된다
+  ---
+  duration_ms: 1.783042
+  type: 'test'
+  ...
+# Subtest: 반례 d: 미선택 분야 사건은 일반 지면(briefing)에 자동 혼합되지 않는다
+ok 669 - 반례 d: 미선택 분야 사건은 일반 지면(briefing)에 자동 혼합되지 않는다
+  ---
+  duration_ms: 0.904167
+  type: 'test'
+  ...
+# Subtest: shadowSelectBriefing: 알 수 없는 카테고리·빈 선택은 즉시 오류 (침묵 혼입 방지)
+ok 670 - shadowSelectBriefing: 알 수 없는 카테고리·빈 선택은 즉시 오류 (침묵 혼입 방지)
+  ---
+  duration_ms: 0.176625
+  type: 'test'
+  ...
+# Subtest: shadowSelectBriefing: 계보 연속 — briefing에 배치된 사건만 다음 판 재등장 게이트 대상
+ok 671 - shadowSelectBriefing: 계보 연속 — briefing에 배치된 사건만 다음 판 재등장 게이트 대상
+  ---
+  duration_ms: 0.666417
+  type: 'test'
+  ...
+# Subtest: 재등장 게이트는 직전 판에 서빙(선택)된 사건만 차단한다 (검수 P1 수리)
+ok 672 - 재등장 게이트는 직전 판에 서빙(선택)된 사건만 차단한다 (검수 P1 수리)
+  ---
+  duration_ms: 0.813625
+  type: 'test'
+  ...
+# Subtest: 품질 게이트 기본 ON: 가격 표기 딜 광고(실물)는 커뮤 절대선 이전에 excluded.quality로 빠진다
+ok 673 - 품질 게이트 기본 ON: 가격 표기 딜 광고(실물)는 커뮤 절대선 이전에 excluded.quality로 빠진다
+  ---
+  duration_ms: 0.36475
+  type: 'test'
+  ...
+# Subtest: 구멍 봉합(S2-1): etoland 하루특가류는 저가치 사전이 잡아 판에 오르지 못한다
+ok 674 - 구멍 봉합(S2-1): etoland 하루특가류는 저가치 사전이 잡아 판에 오르지 못한다
+  ---
+  duration_ms: 0.272625
+  type: 'test'
+  ...
+# Subtest: 품질 게이트 OFF 경계: qualityGate:false면 배선 전과 동일하게 딜 광고도 후보가 된다
+ok 675 - 품질 게이트 OFF 경계: qualityGate:false면 배선 전과 동일하게 딜 광고도 후보가 된다
+  ---
+  duration_ms: 0.403916
+  type: 'test'
+  ...
+# Subtest: 품질 게이트 사유 사전: 현행 판정별 대표 사례가 각자의 사유로 기록된다
+ok 676 - 품질 게이트 사유 사전: 현행 판정별 대표 사례가 각자의 사유로 기록된다
+  ---
+  duration_ms: 0.123083
+  type: 'test'
+  ...
+# Subtest: shadowSelectEdition(팩 단위)도 같은 품질 게이트를 공유한다
+ok 677 - shadowSelectEdition(팩 단위)도 같은 품질 게이트를 공유한다
+  ---
+  duration_ms: 0.07125
+  type: 'test'
+  ...
+# Subtest: 비교기 로딩: 저장 키는 서버 저장 규칙(editorialInventorySegmentKey) 그대로
+ok 678 - 비교기 로딩: 저장 키는 서버 저장 규칙(editorialInventorySegmentKey) 그대로
+  ---
+  duration_ms: 0.1665
+  type: 'test'
+  ...
+# Subtest: 비교기 로딩: 저장된 판은 그대로, 없으면 found:false — 모형 대체 금지(그게 결함 5였다)
+ok 679 - 비교기 로딩: 저장된 판은 그대로, 없으면 found:false — 모형 대체 금지(그게 결함 5였다)
+  ---
+  duration_ms: 0.175084
+  type: 'test'
+  ...
+# Subtest: 비교기 로딩: 풀 스냅샷은 rows[].item(서버 저장 구조)을 그대로 편다
+ok 680 - 비교기 로딩: 풀 스냅샷은 rows[].item(서버 저장 구조)을 그대로 편다
+  ---
+  duration_ms: 0.078208
+  type: 'test'
+  ...
+# Subtest: 비교기 diff: 진입·탈락(사유 포함)·순위 변화를 가른다
+ok 681 - 비교기 diff: 진입·탈락(사유 포함)·순위 변화를 가른다
+  ---
+  duration_ms: 0.340667
+  type: 'test'
+  ...
+# Subtest: R4 반례 ⓐ: 슬롯1 서빙 사건이 변화 없이 슬롯2 후보에 오면 재등장 차단
+ok 682 - R4 반례 ⓐ: 슬롯1 서빙 사건이 변화 없이 슬롯2 후보에 오면 재등장 차단
+  ---
+  duration_ms: 1.442333
+  type: 'test'
+  ...
+# Subtest: R4 반례 ⓑ: 실질 변화(지문 변경)면 슬롯2에서 재통과 — 지문 변천이 관찰된다
+ok 683 - R4 반례 ⓑ: 실질 변화(지문 변경)면 슬롯2에서 재통과 — 지문 변천이 관찰된다
+  ---
+  duration_ms: 1.277
+  type: 'test'
+  ...
+# Subtest: R4 반례 ⓒ: 슬롯1 게이트 탈락(미서빙) 사건은 슬롯2에서 재등장 차단되지 않는다
+ok 684 - R4 반례 ⓒ: 슬롯1 게이트 탈락(미서빙) 사건은 슬롯2에서 재등장 차단되지 않는다
+  ---
+  duration_ms: 1.142541
+  type: 'test'
+  ...
+# Subtest: R4 반례 ⓓ: 3연속 체이닝 — 슬롯1 서빙·슬롯2 부재·슬롯3 재등장도 계보 이월로 차단
+ok 685 - R4 반례 ⓓ: 3연속 체이닝 — 슬롯1 서빙·슬롯2 부재·슬롯3 재등장도 계보 이월로 차단
+  ---
+  duration_ms: 2.439833
+  type: 'test'
+  ...
+# Subtest: S2-2: 미서빙 계보는 72h 경과 후 브리핑 계보에서 제거되고, 서빙 계보는 남는다 (기본 ON)
+ok 686 - S2-2: 미서빙 계보는 72h 경과 후 브리핑 계보에서 제거되고, 서빙 계보는 남는다 (기본 ON)
+  ---
+  duration_ms: 2.752208
+  type: 'test'
+  ...
+# Subtest: S2-2: lineagePruning:false면 미서빙 계보도 72h 뒤까지 그대로 이월된다 (스위치 한 곳)
+ok 687 - S2-2: lineagePruning:false면 미서빙 계보도 72h 뒤까지 그대로 이월된다 (스위치 한 곳)
+  ---
+  duration_ms: 0.401166
+  type: 'test'
+  ...
+# Subtest: S2-2: 72h 이내 미서빙 계보는 프루닝 ON에서도 살아 지연 합류 승계가 깨지지 않는다 (반례 b·ⓒ 무파괴)
+ok 688 - S2-2: 72h 이내 미서빙 계보는 프루닝 ON에서도 살아 지연 합류 승계가 깨지지 않는다 (반례 b·ⓒ 무파괴)
+  ---
+  duration_ms: 0.48725
+  type: 'test'
+  ...
+# Subtest: R7 영수증: 결정성 — 같은 입력이면 바이트 동일 JSON·동일 해시
+ok 689 - R7 영수증: 결정성 — 같은 입력이면 바이트 동일 JSON·동일 해시
+  ---
+  duration_ms: 2.932916
+  type: 'test'
+  ...
+# Subtest: R7 영수증: 경량 계약 — 제목·URL·본문 필드가 어디에도 없다
+ok 690 - R7 영수증: 경량 계약 — 제목·URL·본문 필드가 어디에도 없다
+  ---
+  duration_ms: 0.960958
+  type: 'test'
+  ...
+# Subtest: R7 영수증: 선택·탈락 내용 — 선택 lineageId 일치·탈락은 ID+사유 코드
+ok 691 - R7 영수증: 선택·탈락 내용 — 선택 lineageId 일치·탈락은 ID+사유 코드
+  ---
+  duration_ms: 1.283958
+  type: 'test'
+  ...
+# Subtest: R7 영수증: 파라미터가 바뀌면 paramsHash가 바뀐다 (재현·감사 축)
+ok 692 - R7 영수증: 파라미터가 바뀌면 paramsHash가 바뀐다 (재현·감사 축)
+  ---
+  duration_ms: 0.285042
+  type: 'test'
+  ...
+# Subtest: R7 취합기 ①: business 단독 혼입 0 (R2 반례)
+ok 693 - R7 취합기 ①: business 단독 혼입 0 (R2 반례)
+  ---
+  duration_ms: 1.651625
+  type: 'test'
+  ...
+# Subtest: R7 취합기 ②: 클러스터링 선행 — 요청 조합을 바꿔도 사건 수 동일 (R1 반례 a)
+ok 694 - R7 취합기 ②: 클러스터링 선행 — 요청 조합을 바꿔도 사건 수 동일 (R1 반례 a)
+  ---
+  duration_ms: 1.16975
+  type: 'test'
+  ...
+# Subtest: R7 취합기 ③: 품질 게이트 ON이 광고를 차단하고 OFF는 차단 0 (R3 반례)
+ok 695 - R7 취합기 ③: 품질 게이트 ON이 광고를 차단하고 OFF는 차단 0 (R3 반례)
+  ---
+  duration_ms: 1.781833
+  type: 'test'
+  ...
+# Subtest: R7 취합기 ④: 3슬롯 연속 — 판 간 같은 지문 재등장 0 (R4 반례)
+ok 696 - R7 취합기 ④: 3슬롯 연속 — 판 간 같은 지문 재등장 0 (R4 반례)
+  ---
+  duration_ms: 7.657958
+  type: 'test'
+  ...
+# Subtest: G2 슬롯 판정: 가장 최근 지난 publishHour (07/12/19 KST)
+ok 697 - G2 슬롯 판정: 가장 최근 지난 publishHour (07/12/19 KST)
+  ---
+  duration_ms: 0.321458
+  type: 'test'
+  ...
+# Subtest: G2 멱등: 요약 파일 존재 = 완료, 없으면 미완료
+ok 698 - G2 멱등: 요약 파일 존재 = 완료, 없으면 미완료
+  ---
+  duration_ms: 36.06425
+  type: 'test'
+  ...
+# Subtest: G2 수집 장부는 슬롯별 풀이 아니라 관찰판 전체가 공유한다
+ok 699 - G2 수집 장부는 슬롯별 풀이 아니라 관찰판 전체가 공유한다
+  ---
+  duration_ms: 6.594458
+  type: 'test'
+  ...
+# Subtest: G2 직전 lineage 파일: 같은 날 직전 슬롯 → 전날 이브닝 → 없으면 null
+ok 700 - G2 직전 lineage 파일: 같은 날 직전 슬롯 → 전날 이브닝 → 없으면 null
+  ---
+  duration_ms: 31.516209
+  type: 'test'
+  ...
+# Subtest: G2 조합 계약: 기본 조합은 4100 실서빙 기본과 동일 + 관찰 2조합
+ok 701 - G2 조합 계약: 기본 조합은 4100 실서빙 기본과 동일 + 관찰 2조합
+  ---
+  duration_ms: 7.778875
+  type: 'test'
+  ...
+# Subtest: S2-3 소스 결측: enabled 비시드 대비 결측만, 직전 슬롯 존재 여부 병기
+ok 702 - S2-3 소스 결측: enabled 비시드 대비 결측만, 직전 슬롯 존재 여부 병기
+  ---
+  duration_ms: 0.837667
+  type: 'test'
+  ...
+# Subtest: S2-3 앞선 파일 목록: prefix별, 시간 오름차순, 자기 자신·미래 제외
+ok 703 - S2-3 앞선 파일 목록: prefix별, 시간 오름차순, 자기 자신·미래 제외
+  ---
+  duration_ms: 14.759167
+  type: 'test'
+  ...
+# Subtest: S2-3 마지막 서빙 슬롯 유도: 지문이 새 값으로 바뀐 슬롯 = 서빙 슬롯
+ok 704 - S2-3 마지막 서빙 슬롯 유도: 지문이 새 값으로 바뀐 슬롯 = 서빙 슬롯
+  ---
+  duration_ms: 0.304666
+  type: 'test'
+  ...
+# Subtest: v2: 지원 카테고리는 팩 테이블에서 유도 — taxonomy 부분집합·중복 없음
+ok 705 - v2: 지원 카테고리는 팩 테이블에서 유도 — taxonomy 부분집합·중복 없음
+  ---
+  duration_ms: 0.157625
+  type: 'test'
+  ...
+# Subtest: v2: 판 조립 → 계약 자가 검증 통과(뉴스 B등급 trustLabel·커뮤 community 등급)
+ok 706 - v2: 판 조립 → 계약 자가 검증 통과(뉴스 B등급 trustLabel·커뮤 community 등급)
+  ---
+  duration_ms: 1.678875
+  type: 'test'
+  ...
+# Subtest: v2: 계약 자가 검증 — 위반을 잡아낸다
+ok 707 - v2: 계약 자가 검증 — 위반을 잡아낸다
+  ---
+  duration_ms: 0.367792
+  type: 'test'
+  ...
+# Subtest: v2: 슬롯 자동 판정은 관찰 도구 함수 재사용 — 07/12/19 KST 계약 동일
+ok 708 - v2: 슬롯 자동 판정은 관찰 도구 함수 재사용 — 07/12/19 KST 계약 동일
+  ---
+  duration_ms: 0.096875
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 런타임 풀의 row.item 래퍼를 기사 배열로 정확히 푼다
+ok 709 - 런타임 풀의 row.item 래퍼를 기사 배열로 정확히 푼다
+  ---
+  duration_ms: 1.942666
+  type: 'test'
+  ...
+# Subtest: 판 날짜·슬롯과 근거 시각을 실행 시계와 섞지 않는다
+ok 710 - 판 날짜·슬롯과 근거 시각을 실행 시계와 섞지 않는다
+  ---
+  duration_ms: 0.473292
+  type: 'test'
+  ...
+# Subtest: 불량 기계번역 제목만 발행 전에 고치고 사건·카테고리·요약은 그대로 둔다
+ok 711 - 불량 기계번역 제목만 발행 전에 고치고 사건·카테고리·요약은 그대로 둔다
+  ---
+  duration_ms: 2.561
+  type: 'test'
+  ...
+# Subtest: 읽을 수 있는 혼합 한글 제목과 무료 빌드는 유료 제목 호출을 만들지 않는다
+ok 712 - 읽을 수 있는 혼합 한글 제목과 무료 빌드는 유료 제목 호출을 만들지 않는다
+  ---
+  duration_ms: 0.111209
+  type: 'test'
+  ...
+# Subtest: NH146 translated sentence endings enter bounded headline review without claiming semantic proof
+ok 713 - NH146 translated sentence endings enter bounded headline review without claiming semantic proof
+  ---
+  duration_ms: 0.415083
+  type: 'test'
+  ...
+# Subtest: 별도 제목 번역기가 없으면 기존 무료 본문 번역기를 약한 제목 마감에 재사용한다
+ok 714 - 별도 제목 번역기가 없으면 기존 무료 본문 번역기를 약한 제목 마감에 재사용한다
+  ---
+  duration_ms: 0.200417
+  type: 'test'
+  ...
+# Subtest: 사람이 확인한 제목은 원문과 근거 해시가 정확히 맞을 때만 준비 제목으로 적용한다
+ok 715 - 사람이 확인한 제목은 원문과 근거 해시가 정확히 맞을 때만 준비 제목으로 적용한다
+  ---
+  duration_ms: 0.531458
+  type: 'test'
+  ...
+# Subtest: 2026-09-28 오역 두 건은 각 슬롯 검수 파일로 같은 근거에만 교정되고 독자 문구 전체에서 오역이 사라진다
+ok 716 - 2026-09-28 오역 두 건은 각 슬롯 검수 파일로 같은 근거에만 교정되고 독자 문구 전체에서 오역이 사라진다
+  ---
+  duration_ms: 28.983542
+  type: 'test'
+  ...
+# Subtest: 제목 검수에서 확인한 요약 교정은 같은 근거에만 적용하고 나머지 상세 메타데이터는 보존한다
+ok 717 - 제목 검수에서 확인한 요약 교정은 같은 근거에만 적용하고 나머지 상세 메타데이터는 보존한다
+  ---
+  duration_ms: 0.494875
+  type: 'test'
+  ...
+# Subtest: 원문 제목이 없는 기사도 정확한 출처 URL과 근거 해시에 묶인 본문 교정만 허용한다
+ok 718 - 원문 제목이 없는 기사도 정확한 출처 URL과 근거 해시에 묶인 본문 교정만 허용한다
+  ---
+  duration_ms: 0.695625
+  type: 'test'
+  ...
+# Subtest: 분류는 수집 풀을 얼린 직후 끝나도 같은 슬롯의 준비 시각으로 인정한다
+ok 719 - 분류는 수집 풀을 얼린 직후 끝나도 같은 슬롯의 준비 시각으로 인정한다
+  ---
+  duration_ms: 0.1575
+  type: 'test'
+  ...
+# Subtest: NH146 freezing a correction caps excerpts without shrinking prepared summaries or mutating the old edition
+ok 720 - NH146 freezing a correction caps excerpts without shrinking prepared summaries or mutating the old edition
+  ---
+  duration_ms: 97.620459
+  type: 'test'
+  ...
+# Subtest: NH127 available verified lanes publish seven auto stories without blocking news or hiding empty selections
+ok 721 - NH127 available verified lanes publish seven auto stories without blocking news or hiding empty selections
+  ---
+  duration_ms: 57.60075
+  type: 'test'
+  ...
+# Subtest: NH127 coverage policy retains legacy constraints and rejects malformed policy or artifact tampering
+ok 722 - NH127 coverage policy retains legacy constraints and rejects malformed policy or artifact tampering
+  ---
+  duration_ms: 199.819
+  type: 'test'
+  ...
+# Subtest: NH127 edition push reads a real auto-only publication and rejects fallback
+ok 723 - NH127 edition push reads a real auto-only publication and rejects fallback
+  ---
+  duration_ms: 66.640208
+  type: 'test'
+  ...
+# Subtest: 사건 원문 표기시각은 카테고리와 무관하게 가장 이른 피드 시각으로 고정한다
+ok 724 - 사건 원문 표기시각은 카테고리와 무관하게 가장 이른 피드 시각으로 고정한다
+  ---
+  duration_ms: 76.545042
+  type: 'test'
+  ...
+# Subtest: 관찰 영수증은 레인을 바꾸지 않고 소스·운영주체·국내외 편중만 측정한다
+ok 725 - 관찰 영수증은 레인을 바꾸지 않고 소스·운영주체·국내외 편중만 측정한다
+  ---
+  duration_ms: 130.154541
+  type: 'test'
+  ...
+# Subtest: 슬롯 고정판은 복수 분야를 정확한 합집합으로 투영하고 사건 내용은 고정한다
+ok 726 - 슬롯 고정판은 복수 분야를 정확한 합집합으로 투영하고 사건 내용은 고정한다
+  ---
+  duration_ms: 145.769875
+  type: 'test'
+  ...
+# Subtest: 슬롯 고정판은 요청 전에 기존 독자용 제목을 계산해 얼린다
+ok 727 - 슬롯 고정판은 요청 전에 기존 독자용 제목을 계산해 얼린다
+  ---
+  duration_ms: 117.197959
+  type: 'test'
+  ...
+# Subtest: 슬롯 고정판은 기사 사진 대신 사이트 기본 로고가 들어오면 사진 없이 얼린다
+ok 728 - 슬롯 고정판은 기사 사진 대신 사이트 기본 로고가 들어오면 사진 없이 얼린다
+  ---
+  duration_ms: 46.13575
+  type: 'test'
+  ...
+# Subtest: NH108 출처 사진도 기존 안전 경계를 통과하고 정상 상세와 입력 판은 보존한다
+ok 729 - NH108 출처 사진도 기존 안전 경계를 통과하고 정상 상세와 입력 판은 보존한다
+  ---
+  duration_ms: 352.847625
+  type: 'test'
+  ...
+# Subtest: 슬롯 고정판은 과거 캐시의 게시판 HIT 목록을 기사 본문으로 얼리지 않는다
+ok 730 - 슬롯 고정판은 과거 캐시의 게시판 HIT 목록을 기사 본문으로 얼리지 않는다
+  ---
+  duration_ms: 299.56625
+  type: 'test'
+  ...
+# Subtest: 한 전체판에서 14개 고정 레인을 파생하고 다른 풀 조합은 거부한다
+ok 731 - 한 전체판에서 14개 고정 레인을 파생하고 다른 풀 조합은 거부한다
+  ---
+  duration_ms: 159.015875
+  type: 'test'
+  ...
+# Subtest: 분야 내부 순위 표식은 최종 사용자 판에 남기지 않는다
+ok 732 - 분야 내부 순위 표식은 최종 사용자 판에 남기지 않는다
+  ---
+  duration_ms: 38.176334
+  type: 'test'
+  ...
+# Subtest: 레인과 전체판 불일치·미준비 상세·다른 풀의 라우팅 스냅샷은 판 전체를 거부한다
+ok 733 - 레인과 전체판 불일치·미준비 상세·다른 풀의 라우팅 스냅샷은 판 전체를 거부한다
+  ---
+  duration_ms: 131.317292
+  type: 'test'
+  ...
+# Subtest: 발행판은 모델·동일 근거 모델·현재 패킷 deterministic만 승인한다
+ok 734 - 발행판은 모델·동일 근거 모델·현재 패킷 deterministic만 승인한다
+  ---
+  duration_ms: 1.313375
+  type: 'test'
+  ...
+# Subtest: 분야별 의미 승인 부족은 정상 분야를 막지 않고 빈 전체판은 거부한다
+ok 735 - 분야별 의미 승인 부족은 정상 분야를 막지 않고 빈 전체판은 거부한다
+  ---
+  duration_ms: 108.565833
+  type: 'test'
+  ...
+# Subtest: 해외 주요 매체 건수는 발행 차단 조건이 아니라 관측 영수증이다
+ok 736 - 해외 주요 매체 건수는 발행 차단 조건이 아니라 관측 영수증이다
+  ---
+  duration_ms: 22.675541
+  type: 'test'
+  ...
+# Subtest: 활성화 실패는 이전 포인터를 보존하고 성공판은 날짜·슬롯별로 원자 교체한다
+ok 737 - 활성화 실패는 이전 포인터를 보존하고 성공판은 날짜·슬롯별로 원자 교체한다
+  ---
+  duration_ms: 107.560375
+  type: 'test'
+  ...
+# Subtest: 누락판 복구는 24시간 안의 가장 최근 정상판만 쓰고 미래·위조 포인터를 제외한다
+ok 738 - 누락판 복구는 24시간 안의 가장 최근 정상판만 쓰고 미래·위조 포인터를 제외한다
+  ---
+  duration_ms: 227.391208
+  type: 'test'
+  ...
+# Subtest: 같은 날짜의 모닝·런치·이브닝은 한 포인터에 독립적으로 누적된다
+ok 739 - 같은 날짜의 모닝·런치·이브닝은 한 포인터에 독립적으로 누적된다
+  ---
+  duration_ms: 234.48675
+  type: 'test'
+  ...
+# Subtest: 세 슬롯 활성화는 전부 검증된 뒤 포인터를 한 번만 교체한다
+ok 740 - 세 슬롯 활성화는 전부 검증된 뒤 포인터를 한 번만 교체한다
+  ---
+  duration_ms: 249.595791
+  type: 'test'
+  ...
+# Subtest: 선택 분야 투영은 레인 필터 전 전체판의 요약 문장·판본 변화 집계를 그대로 싣지 않는다
+ok 741 - 선택 분야 투영은 레인 필터 전 전체판의 요약 문장·판본 변화 집계를 그대로 싣지 않는다
+  ---
+  duration_ms: 76.634125
+  type: 'test'
+  ...
+# Subtest: NH130 exact shared editions retain activated revisions and reject orphan files without fallback
+ok 742 - NH130 exact shared editions retain activated revisions and reject orphan files without fallback
+  ---
+  duration_ms: 308.481875
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: NH130 actual HTTP Today shares serve frozen OG and exact API versions without collection
+ok 743 - NH130 actual HTTP Today shares serve frozen OG and exact API versions without collection
+  ---
+  duration_ms: 207.956791
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: NH133 home HTML reads public canonical content with escaping, stable ETag and frozen edition references
+ok 744 - NH133 home HTML reads public canonical content with escaping, stable ETag and frozen edition references
+  ---
+  duration_ms: 185.065458
+  type: 'test'
+  ...
+# Subtest: 고정판 GET은 수집·요약·저장 없이 포인터 판을 필터링만 한다
+ok 745 - 고정판 GET은 수집·요약·저장 없이 포인터 판을 필터링만 한다
+  ---
+  duration_ms: 72.239417
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 로컬 정본 모드는 빌드 중 요청을 처리하고 중복 빌드·유료 모드를 열지 않는다
+ok 746 - 로컬 정본 모드는 빌드 중 요청을 처리하고 중복 빌드·유료 모드를 열지 않는다
+  ---
+  duration_ms: 81.870708
+  type: 'test'
+  ...
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# [feed] FEED_LIVE off & FEED_DEV off — feed will only contain user posts. Set FEED_LIVE=1 for real ingestion, or FEED_DEV=1 for the dev seed dataset.
+# [admin] ADMIN_TOKEN not set — using insecure dev token 'admin-dev'
+# [push] VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY not set — Web Push disabled (in-app digest banner still works). Run `npm run push:keys` to generate a pair.
+# [admatrix] 문구 270개 로드 (undefined)
+# Subtest: 고정판 사전발행 OFF는 판 조회를 유지하고 예약 빌드만 막는다
+ok 747 - 고정판 사전발행 OFF는 판 조회를 유지하고 예약 빌드만 막는다
+  ---
+  duration_ms: 79.887458
+  type: 'test'
+  ...
+# Subtest: 날짜만 지정한 고정판 GET도 그 날짜의 현재 슬롯 판을 읽는다
+ok 748 - 날짜만 지정한 고정판 GET도 그 날짜의 현재 슬롯 판을 읽는다
+  ---
+  duration_ms: 103.108583
+  type: 'test'
+  ...
+# Subtest: 고정판에서 관심 분야를 저장해도 구형 판 생성을 다시 시작하지 않는다
+ok 749 - 고정판에서 관심 분야를 저장해도 구형 판 생성을 다시 시작하지 않는다
+  ---
+  duration_ms: 109.609375
+  type: 'test'
+  ...
+# Subtest: NH133 preflight checks cited initial articles and preserves the unseeded fallback guard
+ok 750 - NH133 preflight checks cited initial articles and preserves the unseeded fallback guard
+  ---
+  duration_ms: 2.48425
+  type: 'test'
+  ...
+# Subtest: NH167 Bose lunch review: the shipped evidence-bound correction replaces a mistranslated headline and detail
+ok 751 - NH167 Bose lunch review: the shipped evidence-bound correction replaces a mistranslated headline and detail
+  ---
+  duration_ms: 1.864792
+  type: 'test'
+  ...
+# Subtest: NH167 target 8: nine qualified stories meet the lane goal, fourteen stays the lane capacity, stored v1 targets project as 8
+ok 752 - NH167 target 8: nine qualified stories meet the lane goal, fourteen stays the lane capacity, stored v1 targets project as 8
+  ---
+  duration_ms: 56.308625
+  type: 'test'
+  ...
+# Subtest: NH167 extras: a 15th lane story needs a news lead reported by two independent groups; engagement alone never qualifies
+ok 753 - NH167 extras: a 15th lane story needs a news lead reported by two independent groups; engagement alone never qualifies
+  ---
+  duration_ms: 117.123542
+  type: 'test'
+  ...
+# Subtest: 사전 발행 실행기는 활성 슬롯을 건너뛰고 나머지를 시간순으로 기존 빌더에 맡긴다
+ok 754 - 사전 발행 실행기는 활성 슬롯을 건너뛰고 나머지를 시간순으로 기존 빌더에 맡긴다
+  ---
+  duration_ms: 52.310417
+  type: 'test'
+  ...
+# Subtest: 한 슬롯이 실패하면 활성 포인터를 보존하고 뒤 슬롯을 실행하지 않는다
+ok 755 - 한 슬롯이 실패하면 활성 포인터를 보존하고 뒤 슬롯을 실행하지 않는다
+  ---
+  duration_ms: 22.097834
+  type: 'test'
+  ...
+# Subtest: 활성판 재사용은 포인터와 풀·패킷·분류 입력이 모두 같을 때만 허용한다
+ok 756 - 활성판 재사용은 포인터와 풀·패킷·분류 입력이 모두 같을 때만 허용한다
+  ---
+  duration_ms: 180.702083
+  type: 'test'
+  ...
+# Subtest: predictions 입력이 바뀌면 같은 날짜·슬롯도 활성판을 재사용하지 않는다
+ok 757 - predictions 입력이 바뀌면 같은 날짜·슬롯도 활성판을 재사용하지 않는다
+  ---
+  duration_ms: 209.772416
+  type: 'test'
+  ...
+# Subtest: 검수 제목 파일은 빌더에 전달되고, 활성판에 반영되기 전에는 같은 슬롯을 건너뛰지 않는다
+ok 758 - 검수 제목 파일은 빌더에 전달되고, 활성판에 반영되기 전에는 같은 슬롯을 건너뛰지 않는다
+  ---
+  duration_ms: 434.014541
+  type: 'test'
+  ...
+# Subtest: 손상되거나 포인터 디렉터리 밖에 있는 artifact는 활성판으로 재사용하지 않는다
+ok 759 - 손상되거나 포인터 디렉터리 밖에 있는 artifact는 활성판으로 재사용하지 않는다
+  ---
+  duration_ms: 19.035375
+  type: 'test'
+  ...
+# Subtest: 기존 빌더 호출은 기본적으로 키를 숨기고 명시적 유료 실행에만 전달한다
+ok 760 - 기존 빌더 호출은 기본적으로 키를 숨기고 명시적 유료 실행에만 전달한다
+  ---
+  duration_ms: 156.6425
+  type: 'test'
+  ...
+# Subtest: 같은 슬롯 재빌드는 자기 판 상세를 재사용하고, 이전 슬롯이 낸 기사는 첫 빌드·재빌드 모두 다시 받지 않는다
+ok 761 - 같은 슬롯 재빌드는 자기 판 상세를 재사용하고, 이전 슬롯이 낸 기사는 첫 빌드·재빌드 모두 다시 받지 않는다
+  ---
+  duration_ms: 641.316292
+  type: 'test'
+  ...
+# Subtest: 저녁판은 앞선 기사와 별칭 중복을 막고 관련 근거·미제공 11시 보도는 남긴다
+ok 762 - 저녁판은 앞선 기사와 별칭 중복을 막고 관련 근거·미제공 11시 보도는 남긴다
+  ---
+  duration_ms: 216.319333
+  type: 'test'
+  ...
+# Subtest: 사전 빌드가 끝나기 전에도 HTTP 요청을 처리하고 자식 실패는 전달한다
+ok 763 - 사전 빌드가 끝나기 전에도 HTTP 요청을 처리하고 자식 실패는 전달한다
+  ---
+  duration_ms: 1210.594834
+  type: 'test'
+  ...
+# Subtest: 전량 빌드 뒤 활성화가 실패해도 포인터를 보존하고 activation HOLD를 남긴다
+ok 764 - 전량 빌드 뒤 활성화가 실패해도 포인터를 보존하고 activation HOLD를 남긴다
+  ---
+  duration_ms: 17.721625
+  type: 'test'
+  ...
+# Subtest: 정시 실행은 현재 풀에서 무료 packet·routing을 준비해 기존 원자 발행기에 한 번만 맡긴다
+ok 765 - 정시 실행은 현재 풀에서 무료 packet·routing을 준비해 기존 원자 발행기에 한 번만 맡긴다
+  ---
+  duration_ms: 71.4595
+  type: 'test'
+  ...
+# Subtest: 발행 20분 전에는 현재판 대신 다음 슬롯을 미리 준비한다
+ok 766 - 발행 20분 전에는 현재판 대신 다음 슬롯을 미리 준비한다
+  ---
+  duration_ms: 89.895708
+  type: 'test'
+  ...
+# Subtest: 이미 활성화된 날짜·슬롯은 풀이 시간창 밖이어도 고정판을 다시 만들지 않는다
+ok 767 - 이미 활성화된 날짜·슬롯은 풀이 시간창 밖이어도 고정판을 다시 만들지 않는다
+  ---
+  duration_ms: 62.708542
+  type: 'test'
+  ...
+# Subtest: 정시 실행은 슬롯 시간창 밖 풀을 작업 파일·빌더·포인터 변경 전에 거부한다
+ok 768 - 정시 실행은 슬롯 시간창 밖 풀을 작업 파일·빌더·포인터 변경 전에 거부한다
+  ---
+  duration_ms: 5.14925
+  type: 'test'
+  ...
+# Subtest: NH167 served event repeats: paraphrase, outlet or evidence-mode changes are withheld; a new number or confirmed outcome stays
+ok 769 - NH167 served event repeats: paraphrase, outlet or evidence-mode changes are withheld; a new number or confirmed outcome stays
+  ---
+  duration_ms: 26.531916
+  type: 'test'
+  ...
+# Subtest: NH167 headline reviews are discovered per date-slot from a review directory and merged for the scheduled build
+ok 770 - NH167 headline reviews are discovered per date-slot from a review directory and merged for the scheduled build
+  ---
+  duration_ms: 28.843208
+  type: 'test'
+  ...
+# Subtest: NH167 extras are admitted lane by lane up to 20 with no shared quota; rejections and overflow carry reasons
+ok 771 - NH167 extras are admitted lane by lane up to 20 with no shared quota; rejections and overflow carry reasons
+  ---
+  duration_ms: 50.440625
+  type: 'test'
+  ...
+# Subtest: NH167 shipped headline reviews are discovered by default and packaged in the image
+ok 772 - NH167 shipped headline reviews are discovered by default and packaged in the image
+  ---
+  duration_ms: 13.727416
+  type: 'test'
+  ...
+# Subtest: NH167 repeats are withheld before lane trimming so fresh reserve candidates refill the baseline without extras qualification
+ok 773 - NH167 repeats are withheld before lane trimming so fresh reserve candidates refill the baseline without extras qualification
+  ---
+  duration_ms: 26.681208
+  type: 'test'
+  ...
+# Subtest: NH167 real 9/30 pairs: concept matches on boilerplate are distinct events; true repeats and retitles are the same story
+ok 774 - NH167 real 9/30 pairs: concept matches on boilerplate are distinct events; true repeats and retitles are the same story
+  ---
+  duration_ms: 7.013209
+  type: 'test'
+  ...
+# Subtest: NH167 review: substantive first amounts survive but dates, tenure and model numbers are not updates
+ok 775 - NH167 review: substantive first amounts survive but dates, tenure and model numbers are not updates
+  ---
+  duration_ms: 0.390709
+  type: 'test'
+  ...
+# Subtest: NH167 late review corrects the active artifact without rebuilding and preserves old shared editions
+ok 776 - NH167 late review corrects the active artifact without rebuilding and preserves old shared editions
+  ---
+  duration_ms: 129.061167
+  type: 'test'
+  ...
+# (node:72424) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 beforeExit listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# (node:72424) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 SIGTERM listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+# (node:72424) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 SIGINT listeners added to [process]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+# Subtest: 저장: 중간 상태가 파일에 남지 않는다
+ok 777 - 저장: 중간 상태가 파일에 남지 않는다
+  ---
+  duration_ms: 8.406125
+  type: 'test'
+  ...
+# Subtest: 저장: 손상된 파일을 만나면 멈춘다 — 빈 상태로 덮어쓰지 않는다
+ok 778 - 저장: 손상된 파일을 만나면 멈춘다 — 빈 상태로 덮어쓰지 않는다
+  ---
+  duration_ms: 30.971334
+  type: 'test'
+  ...
+# Subtest: 저장: 파일이 아예 없으면 빈 상태로 시작한다 (첫 실행)
+ok 779 - 저장: 파일이 아예 없으면 빈 상태로 시작한다 (첫 실행)
+  ---
+  duration_ms: 6.915208
+  type: 'test'
+  ...
+# Subtest: 저장: 재시작해도 그대로 남는다
+ok 780 - 저장: 재시작해도 그대로 남는다
+  ---
+  duration_ms: 1.559334
+  type: 'test'
+  ...
+# Subtest: 저장: 검증된 편집 캐시가 재시작 뒤에도 evidenceHash로 남는다
+ok 781 - 저장: 검증된 편집 캐시가 재시작 뒤에도 evidenceHash로 남는다
+  ---
+  duration_ms: 7.332166
+  type: 'test'
+  ...
+# Subtest: 저장: 먼저 검증된 기사 요약은 다른 분야의 동시 생성 결과가 덮어쓰지 않는다
+ok 782 - 저장: 먼저 검증된 기사 요약은 다른 분야의 동시 생성 결과가 덮어쓰지 않는다
+  ---
+  duration_ms: 5.219083
+  type: 'test'
+  ...
+# Subtest: 저장: 기사 요약은 분야 조합과 재시작을 넘어 같은 기사에 재사용된다
+ok 783 - 저장: 기사 요약은 분야 조합과 재시작을 넘어 같은 기사에 재사용된다
+  ---
+  duration_ms: 41.796542
+  type: 'test'
+  ...
+# Subtest: 저장: 새 판에 포함된 검증 요약은 별도 보강 호출 없이 즉시 공용 정본이 된다
+ok 784 - 저장: 새 판에 포함된 검증 요약은 별도 보강 호출 없이 즉시 공용 정본이 된다
+  ---
+  duration_ms: 5.316583
+  type: 'test'
+  ...
+# Subtest: 저장: 현재 슬롯이 아직 고정되지 않았으면 증거 기준시각을 명시적으로 갱신할 수 있다
+ok 785 - 저장: 현재 슬롯이 아직 고정되지 않았으면 증거 기준시각을 명시적으로 갱신할 수 있다
+  ---
+  duration_ms: 0.61425
+  type: 'test'
+  ...
+# Subtest: 저장: 요약 인덱싱은 불변 판본의 제목과 출처를 다시 쓰지 않는다
+ok 786 - 저장: 요약 인덱싱은 불변 판본의 제목과 출처를 다시 쓰지 않는다
+  ---
+  duration_ms: 32.128708
+  type: 'test'
+  ...
+# [feed] pool: 5 accumulated (48h retention) -> 5 after per-source cap
+# [feed] pool: 5 accumulated (48h retention) -> 5 after per-source cap
+# [feed] pool: 5 accumulated (48h retention) -> 5 after per-source cap
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [feed] pool: 1 accumulated (48h retention) -> 1 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# [feed] pool: 2 accumulated (48h retention) -> 2 after per-source cap
+# Subtest: NH167 news age is publication, never first collection or source modification
+ok 787 - NH167 news age is publication, never first collection or source modification
+  ---
+  duration_ms: 6.402208
+  type: 'test'
+  ...
+# Subtest: NH167 morning is anchored at prior evening preparation even with early preparation
+ok 788 - NH167 morning is anchored at prior evening preparation even with early preparation
+  ---
+  duration_ms: 0.235959
+  type: 'test'
+  ...
+# Subtest: NH167 lunch/evening allow same-day importance without foreign 24h exceptions
+ok 789 - NH167 lunch/evening allow same-day importance without foreign 24h exceptions
+  ---
+  duration_ms: 0.208166
+  type: 'test'
+  ...
+# Subtest: NH167 actual Today normal path rejects stale quota and event reattachment
+ok 790 - NH167 actual Today normal path rejects stale quota and event reattachment
+  ---
+  duration_ms: 185.004041
+  type: 'test'
+  ...
+# Subtest: NH167 actual Today preselected path rejects stale quota and event reattachment
+ok 791 - NH167 actual Today preselected path rejects stale quota and event reattachment
+  ---
+  duration_ms: 37.377459
+  type: 'test'
+  ...
+# Subtest: NH167 community list boards retain current-hot discovery time
+ok 792 - NH167 community list boards retain current-hot discovery time
+  ---
+  duration_ms: 0.127541
+  type: 'test'
+  ...
+# Subtest: NH167 cached context respects edition date and pool evidence cutoff
+ok 793 - NH167 cached context respects edition date and pool evidence cutoff
+  ---
+  duration_ms: 7.291417
+  type: 'test'
+  ...
+# Subtest: NH167 folded same-title fresh news survives normal Today
+ok 794 - NH167 folded same-title fresh news survives normal Today
+  ---
+  duration_ms: 27.715
+  type: 'test'
+  ...
+# Subtest: NH167 folded same-title fresh news survives preselected Today
+ok 795 - NH167 folded same-title fresh news survives preselected Today
+  ---
+  duration_ms: 26.575667
+  type: 'test'
+  ...
+# Subtest: NH167 persisted folded news uses its own packet and routing identity before builder admission
+ok 796 - NH167 persisted folded news uses its own packet and routing identity before builder admission
+  ---
+  duration_ms: 41.897625
+  type: 'test'
+  ...
+# Subtest: NH167 priority spans preserve major news and favor dawn with actual pool cutoffs
+ok 797 - NH167 priority spans preserve major news and favor dawn with actual pool cutoffs
+  ---
+  duration_ms: 0.601792
+  type: 'test'
+  ...
+# Subtest: NH167 priority morning survives engine candidate cap and final digest
+ok 798 - NH167 priority morning survives engine candidate cap and final digest
+  ---
+  duration_ms: 10.395
+  type: 'test'
+  ...
+# Subtest: NH167 priority lunch survives engine candidate cap and final digest
+ok 799 - NH167 priority lunch survives engine candidate cap and final digest
+  ---
+  duration_ms: 17.896375
+  type: 'test'
+  ...
+# Subtest: NH167 priority evening survives engine candidate cap and final digest
+ok 800 - NH167 priority evening survives engine candidate cap and final digest
+  ---
+  duration_ms: 38.154334
+  type: 'test'
+  ...
+# Subtest: NH167 priority missed morning major remains eligible ahead of newer minor
+ok 801 - NH167 priority missed morning major remains eligible ahead of newer minor
+  ---
+  duration_ms: 12.429167
+  type: 'test'
+  ...
+# Subtest: NH167 priority ranks the actual canonical news representative instead of a fresh related member
+ok 802 - NH167 priority ranks the actual canonical news representative instead of a fresh related member
+  ---
+  duration_ms: 57.688
+  type: 'test'
+  ...
+1..802
+# tests 802
+# suites 0
+# pass 801
+# fail 0
+# cancelled 0
+# skipped 1
+# todo 0
+# duration_ms 12316.30025

@@ -482,3 +482,21 @@ test("스토어: 로컬 판본·이전 슬롯·독립 검수자 원장을 재시
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("NH167 fewer observed feeds than the previous edition is not a material update and is not described as growth", () => {
+  const make = (sourceCount) => ({
+    evidenceHash: "f".repeat(64), clusterId: "wobble", subject: "정부, 추석 연휴 고속도로 통행료 면제 확정",
+    headline: "정부, 추석 연휴 고속도로 통행료 면제 확정", categoryIds: ["news"], selectedByCategories: ["news"],
+    metrics: { sourceCount, coverage: 0, score: 0, comments: 0, evidenceMode: "multiple_feed_observed" },
+    evidence: { mode: "multiple_feed_observed" },
+    refs: [{ id: "toll", title: "정부, 추석 연휴 고속도로 통행료 면제 확정", sourceLabel: "연합뉴스", canonicalUrl: "https://example.com/toll" }]
+  });
+  const previous = { editionId: "prev", generatedAt: "2026-09-28T00:00:00.000Z", issues: [make(3)], selectedCategories: ["news"] };
+  const current = { editionId: "cur", generatedAt: "2026-09-28T03:00:00.000Z", issues: [make(2)], selectedCategories: ["news"] };
+  const [issue] = applyEditionChanges(current, previous, { enforceRepeatRule: false }).issues;
+  assert.equal(issue.changeState, "unchanged");
+  assert.doesNotMatch(issue.changedSincePrevious, /늘었습니다/);
+  const [grown] = applyEditionChanges({ ...current, issues: [make(4)] }, previous, { enforceRepeatRule: false }).issues;
+  assert.equal(grown.changeState, "material_update");
+  assert.match(grown.changedSincePrevious, /3건에서 4건으로 늘었습니다/);
+});

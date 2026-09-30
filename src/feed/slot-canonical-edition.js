@@ -7,13 +7,25 @@ import { cleanArticleTextChrome, isJunkImage, looksLikePageChrome } from "./enri
 import { publicExcerpt } from "./article-summary.js";
 import { CATEGORIES } from "./taxonomy.js";
 import { slotAsOfMs } from "./editorial-inventory.js";
+import { SLOTS, VERIFIED_SOURCE_ROLES, slotById } from "./digest.js";
 import { EDITORIAL_SERVING_CONTRACT } from "./editorial-serving.js";
-import { buildEditorialFulfillment } from "./editorial-fulfillment.js";
+import { buildEditorialFulfillment, EDITORIAL_FULFILLMENT_CONTRACT } from "./editorial-fulfillment.js";
 
 export const SLOT_CANONICAL_EDITION_CONTRACT = Object.freeze({
   stableId: "NOWHOT-SLOT-CANONICAL-EDITION-001",
-  version: 1,
-  targetPerCategory: 14,
+  version: 2,
+  legacyVersions: [1],
+  // Eight qualified distinct stories is the per-category goal; fewer is an honest partial lane.
+  // Fourteen is the baseline lane capacity. Positions 15..20 are open, lane by lane with no
+  // shared quota, only to issues whose own evidence already shows a news event reported by two
+  // or more independent source groups, led by an article from the current slot's window.
+  // This is automated multi-source news selection, not human-validated importance.
+  targetPerCategory: 8,
+  laneCapacity: 14,
+  extraLaneCapacity: EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.flexibleLaneDepth,
+  maxPreparedIssues: EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.flexibleMaxPublished,
+  legacyMaxPreparedIssues: EDITORIAL_FULFILLMENT_CONTRACT.issueBudget.maxPublished,
+  extraLanePolicy: "automated_multi_source_news_selection",
   activationMinimumPerCategory: 13,
   preparedDetailStatuses: ["ready", "excerpt_only", "source_unavailable"]
 });
@@ -37,6 +49,53 @@ const firstPublishedAt = (issue) => {
   ].map((row) => Date.parse(row?.publishedAt || "")).filter(Number.isFinite);
   return timestamps.length ? new Date(Math.min(...timestamps)).toISOString() : null;
 };
+
+// The current slot's own window: from the previous slot's publish time to this slot's publish
+// time. The morning opens at the previous evening's publish hour (19:00), not at the evening
+// preparation start, so an 18:59 article belongs to the evening that already published it.
+export function extraLaneFreshnessWindow(editionDate, slotId) {
+  const index = SLOTS.findIndex((row) => row.id === slotId);
+  const midnight = Date.parse(`${editionDate}T00:00:00+09:00`);
+  const start = index <= 0
+    ? midnight - (24 - slotById("evening").publishHour) * 3600000
+    : slotAsOfMs(editionDate, SLOTS[index - 1].id);
+  return { start, end: slotAsOfMs(editionDate, slotId) };
+}
+
+const leadPublishedMs = (issue) => Date.parse(
+  issue?.eventSources?.[0]?.publishedAt || issue?.firstPublishedAt || issue?.refs?.[0]?.publishedAt || "");
+
+// Deterministic from fields the issue already carries; no reviewer decision is minted.
+// Only verified news roles (primary, reported_secondary, first_party) count; community-only
+// lines, unknown roles and single-feed reports never qualify, whatever their engagement, and
+// the lead must come from the current slot's window. Returns null when qualified, else the reason.
+// evidence.independentGroupCount also counts community boards; extras need two distinct
+// reporting operator groups from the event's own source evidence (1 news + 1 board fails).
+function reportingGroupCount(issue) {
+  const rows = Array.isArray(issue?.event?.sourceEvidence) ? issue.event.sourceEvidence : null;
+  if (rows) {
+    return new Set(rows.filter((row) => row?.evidenceRole === "reporting")
+      .map((row) => String(row?.operatorGroup || "").trim()).filter(Boolean)).size;
+  }
+  const counted = Number(issue?.event?.counts?.independentReportingGroups);
+  return Number.isFinite(counted) ? counted : 0;
+}
+
+export function extraLaneRejection(issue, { editionDate, slotId } = {}) {
+  const metrics = issue?.metrics || {};
+  const roles = metrics.sourceRoles && typeof metrics.sourceRoles === "object" ? metrics.sourceRoles : {};
+  const verifiedRoles = Object.entries(roles).filter(([role, count]) => VERIFIED_SOURCE_ROLES.has(role) && Number(count) > 0);
+  const groups = Number(issue?.evidence?.independentGroupCount ?? metrics.independentGroupCount) || 0;
+  if (metrics.communityOnly !== false || !verifiedRoles.length || groups < 2) return "not_multi_source_news";
+  if (reportingGroupCount(issue) < 2) return "fewer_than_two_reporting_groups";
+  if (!editionDate || !slotId) return "slot_window_unknown";
+  const { start, end } = extraLaneFreshnessWindow(editionDate, slotId);
+  const published = leadPublishedMs(issue);
+  if (!Number.isFinite(published) || published < start || published > end) return "outside_current_slot_window";
+  return null;
+}
+
+export const extraLaneQualified = (issue, target) => extraLaneRejection(issue, target) === null;
 
 function payloadFingerprint(issue) {
   return sha256(JSON.stringify({
@@ -78,8 +137,9 @@ function preparedDetail(issue) {
 export function validateSlotCanonicalEdition(artifact) {
   const errors = [];
   if (!artifact || typeof artifact !== "object") return { ok: false, errors: ["artifact object required"] };
+  const legacy = SLOT_CANONICAL_EDITION_CONTRACT.legacyVersions.includes(artifact?.contractVersion);
   if (artifact.contractId !== SLOT_CANONICAL_EDITION_CONTRACT.stableId ||
-      artifact.contractVersion !== SLOT_CANONICAL_EDITION_CONTRACT.version) errors.push("contract mismatch");
+      (!legacy && artifact.contractVersion !== SLOT_CANONICAL_EDITION_CONTRACT.version)) errors.push("contract mismatch");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(artifact.editionDate || ""))) errors.push("editionDate invalid");
   if (!String(artifact.slot?.id || "").trim()) errors.push("slot.id missing");
   if (artifact.summaryBuildMode != null && !["free_only", "paid_allowed"].includes(artifact.summaryBuildMode)) {
@@ -106,13 +166,18 @@ export function validateSlotCanonicalEdition(artifact) {
     if (!availableVerified && ids.length < SLOT_CANONICAL_EDITION_CONTRACT.activationMinimumPerCategory) {
       errors.push(`${category} lane requires at least 13 issues`);
     }
-    if (ids.length > SLOT_CANONICAL_EDITION_CONTRACT.targetPerCategory) {
-      errors.push(`${category} lane exceeds 14 issues`);
+    const laneMax = legacy ? SLOT_CANONICAL_EDITION_CONTRACT.laneCapacity : SLOT_CANONICAL_EDITION_CONTRACT.extraLaneCapacity;
+    if (ids.length > laneMax) errors.push(`${category} lane exceeds ${laneMax} issues`);
+    for (const id of ids.slice(SLOT_CANONICAL_EDITION_CONTRACT.laneCapacity, laneMax)) {
+      const rejection = extraLaneRejection(artifact.issueTable?.[id], { editionDate: artifact.editionDate, slotId: artifact.slot?.id });
+      if (rejection) errors.push(`${category} extra issue not qualified (${rejection}): ${id}`);
     }
     if (new Set(ids).size !== ids.length) errors.push(`${category} lane contains duplicate issue ids`);
     ids.forEach((id) => union.add(id));
   }
   if (!union.size) errors.push("at least one verified issue required");
+  const preparedMax = legacy ? SLOT_CANONICAL_EDITION_CONTRACT.legacyMaxPreparedIssues : SLOT_CANONICAL_EDITION_CONTRACT.maxPreparedIssues;
+  if (union.size > preparedMax) errors.push(`prepared issues exceed ${preparedMax}`);
 
   const issueTable = artifact.issueTable || {};
   const displayOrder = artifact.displayOrder || [];
@@ -168,9 +233,13 @@ export function buildSlotCanonicalEdition({
     const edition = editionsByCategory?.[category.id];
     const issues = edition?.issues;
     if (!Array.isArray(issues)) fail(`${category.id} lane missing`);
-    if (issues.length > SLOT_CANONICAL_EDITION_CONTRACT.targetPerCategory) {
-      fail(`${category.id} lane exceeds 14 issues`);
+    if (issues.length > SLOT_CANONICAL_EDITION_CONTRACT.extraLaneCapacity) {
+      fail(`${category.id} lane exceeds ${SLOT_CANONICAL_EDITION_CONTRACT.extraLaneCapacity} issues`);
     }
+    issues.slice(SLOT_CANONICAL_EDITION_CONTRACT.laneCapacity).forEach((laneIssue) => {
+      const rejection = extraLaneRejection(laneIssue, { editionDate: unionEdition?.editionDate, slotId: unionEdition?.slot?.id });
+      if (rejection) fail(`${category.id} extra issue not qualified (${rejection}): ${issueId(laneIssue)}`);
+    });
     lanes[category.id] = issues.map((laneIssue) => {
       const id = issueId(laneIssue);
       const canonical = unionIssues.get(id);
@@ -230,6 +299,9 @@ export function buildSlotCanonicalEdition({
     withheldCategories: _withheldCategories,
     categoryFulfillment: _categoryFulfillment,
     serving: _serving,
+    digestSummary: _digestSummary,
+    editionChange: _editionChange,
+    continuityProjection: _continuityProjection,
     ...baseEdition
   } = clone(unionEdition);
   const payload = {
@@ -243,6 +315,10 @@ export function buildSlotCanonicalEdition({
     builderPacketSha256,
     routingSnapshot: clone(routingSnapshot),
     targetPerCategory: SLOT_CANONICAL_EDITION_CONTRACT.targetPerCategory,
+    laneCapacity: SLOT_CANONICAL_EDITION_CONTRACT.laneCapacity,
+    extraLaneCapacity: SLOT_CANONICAL_EDITION_CONTRACT.extraLaneCapacity,
+    maxPreparedIssues: SLOT_CANONICAL_EDITION_CONTRACT.maxPreparedIssues,
+    extraLanePolicy: SLOT_CANONICAL_EDITION_CONTRACT.extraLanePolicy,
     activationMinimumPerCategory: SLOT_CANONICAL_EDITION_CONTRACT.activationMinimumPerCategory,
     availableCategories: CATEGORIES.map(({ id, label }) => ({ id, label })),
     baseEdition,
@@ -313,8 +389,15 @@ export function projectSlotCanonicalEdition(artifact, {
     underfilledCategoryIds: [],
     rows: categoryRows
   };
+  // Union-wide summaries describe the pre-lane edition, not the selected categories.
+  const {
+    digestSummary: _digestSummary,
+    editionChange: _editionChange,
+    continuityProjection: _continuityProjection,
+    ...baseEdition
+  } = clone(artifact.baseEdition);
   return {
-    ...clone(artifact.baseEdition),
+    ...baseEdition,
     editionId: artifact.artifactId,
     editionDate: artifact.editionDate,
     slot: clone(artifact.slot),
@@ -338,11 +421,11 @@ export function projectSlotCanonicalEdition(artifact, {
       mode: selectionMode,
       categories: selected.map((id) => clone(categoryById.get(id))),
       explicit,
-      perCategory: artifact.targetPerCategory,
-      maxIssues: selected.length * artifact.targetPerCategory,
-      categoryIssueLimit: artifact.targetPerCategory,
+      perCategory: artifact.extraLaneCapacity || SLOT_CANONICAL_EDITION_CONTRACT.laneCapacity,
+      maxIssues: selected.length * (artifact.extraLaneCapacity || SLOT_CANONICAL_EDITION_CONTRACT.laneCapacity),
+      categoryIssueLimit: artifact.extraLaneCapacity || SLOT_CANONICAL_EDITION_CONTRACT.laneCapacity,
       additiveCategoryUnion: true,
-      minIssuesPerCategory: availableVerified ? artifact.targetPerCategory : artifact.activationMinimumPerCategory,
+      minIssuesPerCategory: availableVerified ? SLOT_CANONICAL_EDITION_CONTRACT.targetPerCategory : artifact.activationMinimumPerCategory,
       generationMinIssuesPerCategory: availableVerified ? 0 : artifact.activationMinimumPerCategory
     },
     categoryFulfillment: fulfillment,

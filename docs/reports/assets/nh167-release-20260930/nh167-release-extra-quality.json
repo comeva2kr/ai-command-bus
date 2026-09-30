@@ -1,0 +1,55 @@
+[
+  {
+    "artifact": "artifact-2026-09-28-evening-8513db1b0c5f.json",
+    "lane": "business",
+    "position": 15,
+    "id": "af2d3c76aad366108c476f7c057890de7188643c665f34a39f3dfb0337b2ceed",
+    "headline": "북한 불신 역대 최고… 국민 3명 중 1명 “통일 없이 지금이 낫다”",
+    "categoryIds": [
+      "business"
+    ]
+  },
+  {
+    "artifact": "artifact-2026-09-28-evening-8513db1b0c5f.json",
+    "lane": "business",
+    "position": 17,
+    "id": "49c5b7864efd4651a44c5fad307af349fa97e49a593ee47ee05b9e69c89e73dd",
+    "headline": "“대통령이 국민 속여” 유시민, 명예훼손 혐의 고발돼",
+    "categoryIds": [
+      "business",
+      "politics"
+    ]
+  },
+  {
+    "artifact": "artifact-2026-09-28-evening-8513db1b0c5f.json",
+    "lane": "politics",
+    "position": 16,
+    "id": "49c5b7864efd4651a44c5fad307af349fa97e49a593ee47ee05b9e69c89e73dd",
+    "headline": "“대통령이 국민 속여” 유시민, 명예훼손 혐의 고발돼",
+    "categoryIds": [
+      "business",
+      "politics"
+    ]
+  },
+  {
+    "artifact": "artifact-2026-09-28-evening-8513db1b0c5f.json",
+    "lane": "news",
+    "position": 16,
+    "id": "50e27037a1f665a86cc6628a7c86d2cdbd0d87bff728c147882bc6323d37ddab",
+    "headline": "시청: Madonna와 Taylor Swift가 MTV VMAs에서 큰 승리를 거두었습니다.",
+    "categoryIds": [
+      "culture",
+      "news"
+    ]
+  },
+  {
+    "artifact": "artifact-2026-09-30-lunch-f11ad1898284.json",
+    "lane": "business",
+    "position": 16,
+    "id": "c5fc99be1acb2ef905acb52ab4af0e03fcc2c481f2b87bc22eb782795a73b016",
+    "headline": "GIST·MIT, 앉아서 오르막 걷는 감각 구현…좁은 공간서도 VR 보행 가능",
+    "categoryIds": [
+      "business"
+    ]
+  }
+]
