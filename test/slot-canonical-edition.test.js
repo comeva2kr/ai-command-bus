@@ -423,6 +423,32 @@ function build(options) {
   });
 }
 
+test("Today catalogue lists activation records without reading every payload; content still validates on read", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-catalogue-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const pointerFile = path.join(root, "active.json");
+  const artifact = build();
+  activateSlotCanonicalEdition({ artifact, directory: root, pointerFile });
+  const reader = makeSlotCanonicalEditionReader({ pointerFile });
+  const readFile = fs.readFileSync;
+  const reads = [];
+  const spy = t.mock.method(fs, "readFileSync", (file, ...args) => {
+    reads.push(file);
+    return readFile(file, ...args);
+  });
+  assert.equal(reader.list()[0].editionId, artifact.artifactId);
+  assert.deepEqual(reads, [pointerFile], "listing must not synchronously validate the entire archive");
+  spy.mock.restore();
+  const pointer = JSON.parse(readFile(pointerFile));
+  const entry = pointer.editions["2026-08-27:lunch"];
+  fs.writeFileSync(path.join(root, entry.file), "broken");
+  assert.throws(() => reader.read({ date: "2026-08-27", slotId: "lunch", editionId: artifact.artifactId }),
+    "an activation entry alone must never authorize serving corrupted content");
+  entry.file = "../outside.json";
+  fs.writeFileSync(pointerFile, JSON.stringify(pointer));
+  assert.deepEqual(reader.list(), [], "out-of-directory entries must stay outside the public catalogue");
+});
+
 test("published Today contents have crawlable pages that update on activation without collection", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-search-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -460,6 +486,7 @@ test("published Today contents have crawlable pages that update on activation wi
   const sitemap = await (await fetch(base + "/sitemap.xml")).text();
   assert.match(sitemap, /\/today\/2026-08-28\/evening</);
   assert.match(sitemap, /\/today\/2026-08-27\/lunch</);
+  assert.ok(sitemap.includes(target + "</loc>"), "recent topics must also be discoverable directly in the sitemap");
   assert.match(await (await fetch(base + "/today")).text(), /\/today\/2026-08-28\/evening/);
   assert.match(await (await fetch(base + "/")).text(), /\/today\/2026-08-28\/evening\/evidence-news-0/);
   const correction = editions();

@@ -509,11 +509,14 @@ export function activateSlotCanonicalEdition({ artifact, directory, pointerFile 
 
 export function makeSlotCanonicalEditionReader({ pointerFile }) {
   const cache = new Map();
-  const verifiedEntries = new Set();
-  function load(entry, key) {
+  function artifactPath(entry) {
     const base = path.resolve(path.dirname(pointerFile));
     const artifactFile = path.resolve(base, entry.file);
     if (artifactFile !== base && !artifactFile.startsWith(`${base}${path.sep}`)) fail("pointer file escapes directory");
+    return artifactFile;
+  }
+  function load(entry, key) {
+    const artifactFile = artifactPath(entry);
     let artifact = cache.get(artifactFile);
     if (!artifact) {
       artifact = assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(artifactFile, "utf8")));
@@ -537,12 +540,12 @@ export function makeSlotCanonicalEditionReader({ pointerFile }) {
         if (typeof key !== "string") return [];
         const [date, slotId] = key.split(":");
         if ((requestedDate && date !== requestedDate) || (requestedSlot && slotId !== requestedSlot)) return [];
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !slotOrder.has(slotId) || !entry?.file || seen.has(entry.artifactId)) return [];
-        const identity = JSON.stringify([key, entry.artifactId, entry.contentSha256, entry.file]);
-        if (!verifiedEntries.has(identity)) {
-          try { load(entry, key); } catch { return []; }
-          verifiedEntries.add(identity);
-        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !slotOrder.has(slotId) || typeof entry?.file !== "string"
+          || !/^SCE-[a-f0-9]{16}$/.test(entry.artifactId) || !/^[a-f0-9]{64}$/.test(entry.contentSha256)
+          || seen.has(entry.artifactId)) return [];
+        // List activation identities only. Reading a selected edition still validates its full payload.
+        // Revalidating every historical payload here blocks all requests as the archive grows.
+        try { if (!fs.statSync(artifactPath(entry)).isFile()) return []; } catch { return []; }
         seen.add(entry.artifactId);
         return [{ date, slotId, editionId: entry.artifactId }];
       }).sort((a, b) => b.date.localeCompare(a.date) || slotOrder.get(b.slotId) - slotOrder.get(a.slotId));

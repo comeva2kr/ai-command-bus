@@ -2710,8 +2710,15 @@ ${limitedAds ? "" : displayAdHtml()}
         for (const loc of ["/today", "/posts", "/communities", "/keywords", "/trends", "/ranking/daily", "/ranking/weekly", "/ranking/monthly"])
           urls.push({ loc, mod: liveMod });
         urls.push({ loc: "/posts?archive=1" });
-        // Edition pages link every published issue. This keeps the sitemap small as years accumulate.
-        for (const row of publicEditions()) urls.push({ loc: `/today/${row.date}/${row.slotId}` });
+        const editions = publicEditions();
+        // All editions remain discoverable; expose the latest three editions' topics directly too.
+        for (const row of editions) urls.push({ loc: `/today/${row.date}/${row.slotId}` });
+        for (const row of editions.slice(0, 3)) {
+          try {
+            const edition = readPublishedEdition(row);
+            for (const issue of edition.issues) urls.push({ loc: todayIssueHref(edition, issue) });
+          } catch { /* Never advertise topics from an invalid publication. */ }
+        }
         const body = `<?xml version="1.0" encoding="UTF-8"?>\n` +
           `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
           urls.map((u) =>
