@@ -2678,6 +2678,7 @@ ${limitedAds ? "" : displayAdHtml()}
           "Disallow: /admin",
           // /p must be crawlable for link previews; its HTML carries noindex.
           `Sitemap: ${origin}/sitemap.xml`,
+          "#DaumWebMasterTool:3e7e4734733e3a6334fc54546c10e26f8e3eb80ebdb7fb190df3ca7008570d05:TjfWRIg4AvRIXkF+EGam5Q==",
           ""
         ].join("\n"));
         return;
