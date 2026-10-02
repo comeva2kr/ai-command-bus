@@ -1540,6 +1540,8 @@ test("NH133 preflight checks cited initial articles and preserves the unseeded f
   };
   const article='<article class="issue"><h2><a class="issue-title-button" href="/?edition=E#issue-E/1">검증 제목</a></h2><div class="editorial-point"><p>기존 요약</p></div><div class="source-links"><a href="https://publisher.test/a">출처</a></div></article>';
   assert.equal(check('<div id="todaySeed">'+article+'</div>'),true);
+  assert.equal(check('<div id="todaySeed">'+article.replace('/?edition=E#issue-E/1','/today/2026-10-02/lunch/evidence-1')+'</div>'),true);
+  assert.equal(check('<div id="todaySeed">'+article.replace('/?edition=E#issue-E/1','/today/2026-10-02/invalid/evidence-1')+'</div>'),false);
   assert.equal(check('<div class="skeleton"></div>'),true);
   assert.equal(check('<div id="todaySeed"></div>'),false);
   assert.equal(check('<div id="todaySeed">'+article.replace(/<h2>[\s\S]*?<\/h2>/,'')+'</div>'),false);

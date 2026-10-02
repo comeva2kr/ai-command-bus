@@ -137,7 +137,7 @@ if (localEditorial) {
     // NH133: 검증판의 제목·기존 요약·출처가 초기 응답에 있어야 한다.
     const articles = [...issues.matchAll(/<article class="issue">([\s\S]*?)<\/article>/g)].map(m => m[1]);
     ok("오늘판 초기 기사·요약·출처", articles.length > 0
-      && articles.every(a => /<h2><a class="issue-title-button" href="\/\?edition=/.test(a))
+      && articles.every(a => /<h2><a class="issue-title-button" href="\/(?:\?edition=[^"]+|today\/\d{4}-\d{2}-\d{2}\/(?:morning|lunch|evening)\/[^"]+)"/.test(a))
       && articles.some(a => /class="editorial-point"><p>[^<]+<\/p>/.test(a))
       && articles.some(a => /class="source-links"><a href="https?:\/\//.test(a)));
   } else {
