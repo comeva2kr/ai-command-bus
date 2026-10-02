@@ -8,7 +8,7 @@
 
 import fs from "node:fs";
 import { ArticleArchive } from "./article-archive.js";
-import { collect, SeedSource, resolveCap, needsPublisherTime, expandRelatedNews } from "./content.js";
+import { collect, SeedSource, StorePostsSource, resolveCap, needsPublisherTime, expandRelatedNews } from "./content.js";
 import { loadRegistry } from "./registry.js";
 import { TitleClassifier, classifyTitle, TRAIN_LABELS, isReclassifiable, OVERRIDE_CATEGORIES, UNTRAINED_CATEGORIES, definiteCategory, CATEGORY_KEYWORDS, includesCategoryKeyword, MIXED_BEST_FALLBACK, MIXED_NEUTRAL_CATEGORY, categoryGuardReason, isGeneralNewsGuardReason } from "./classify.js";
 import { hasProfanity } from "./profanity.js";
@@ -1504,7 +1504,8 @@ export class FeedEngine {
     if (this._poolDisabled === undefined) {
       this._poolDisabled = new Set(loadRegistry().filter((c) => c.enabled === false).map((c) => c.id));
     }
-    return (await this._items()).filter((i) => !this._poolDisabled.has(i.source));
+    const disabled = this.store?.disabledSources?.();
+    return (await this._items()).filter((i) => !this._poolDisabled.has(i.source) && !disabled?.has(i.source));
   }
 
   // Per-source item counts in the current collected pool (David 2026-07-24
@@ -2522,7 +2523,11 @@ export class FeedEngine {
     this._rememberArticle(full);
   }
 
-  async _detailContext(itemId) {
+  archivedPosts(options) {
+    return this._articleArchive.list(options);
+  }
+
+  async _detailContext(itemId, { collect = true } = {}) {
     let items = this._cache || [];
     const lookup = () => {
       const saved = this._articleArchive?.get(itemId);
@@ -2541,9 +2546,15 @@ export class FeedEngine {
       }
       item = lookup();
     }
-    if (!item) {
+    if (!item && collect) {
       items = await this._items();
       item = lookup();
+    }
+    if (!collect) {
+      const local = await new StorePostsSource(this.store).fetch();
+      const current = local.find(row => row.id === itemId);
+      if (current) item = current;
+      else if (["me", "submit", "ourdeal"].includes(item?.via)) item = null;
     }
     return { item: this._cleanItemSummary(item), items };
   }
@@ -3738,12 +3749,12 @@ export class FeedEngine {
     return out;
   }
 
-  async getItem(userId, itemId, { explain = false, explicitOpen = false } = {}) {
+  async getItem(userId, itemId, { explain = false, explicitOpen = false, collect = true } = {}) {
     // 상한 목록에 없으면 **누적 풀(48h)에서 찾는다.** 피드가 내놓은 글이
     // 다음 수집 사이클의 소스별 상한 재편성에서 빠질 수 있다 — 그러면 방금
     // 누른 글인데 "이 글은 지금 목록에 없어요"가 떴다(David 2026-08-07,
     // Alphabet 기사 실측: 풀 8,403 vs 상한 1,973). 풀에는 그대로 있다.
-    const { item, items } = await this._detailContext(itemId);
+    const { item, items } = await this._detailContext(itemId, { collect });
     if (!item) return null;
     const user = this.store.getUser(userId);
     const showTopics = new Set((user && user.showTopics) || []);

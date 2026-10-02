@@ -423,6 +423,65 @@ function build(options) {
   });
 }
 
+test("published Today contents have crawlable pages that update on activation without collection", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-search-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const pointerFile = path.join(root, "active.json");
+  const { byCategory, unionEdition } = editions();
+  unionEdition.issues.find(row => row.evidenceHash === "evidence-art-12").preparedHeadline = "호르무즈 해협 통항 제한";
+  const original = buildSlotCanonicalEdition({ editionsByCategory: byCategory, unionEdition,
+    builderPacketSha256: packetSha, routingSnapshot: { source: { packetSha256: packetSha } } });
+  activateSlotCanonicalEdition({ artifact: original, directory: root, pointerFile });
+  let collections = 0;
+  const server = createServer({ localEditorial: true, localEditorialInventorySchedule: false,
+    slotCanonicalEditionEnabled: true, slotCanonicalPointerFile: pointerFile,
+    clock: () => Date.parse("2026-08-28T20:10:00+09:00"), file: null, vapid: null,
+    sources: [{ id: "unused", fetch: async () => { collections++; return []; } }]
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => { server.closeAllConnections?.(); await new Promise(resolve => server.close(resolve)); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const target = "/today/2026-08-27/lunch/evidence-art-12";
+  const response = await fetch(base + target);
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<title>호르무즈 해협 통항 제한/);
+  assert.match(html, /공개 원문에서 확인한 사실/);
+  assert.ok(html.includes("국제유가와 운임"), "the analysis shown to readers must also be in the HTTP body");
+  assert.match(html, /https:\/\/publisher.example\/art-12/);
+  assert.match(html, /rel="canonical" href="https:\/\/nowhot.kr\/today\/2026-08-27\/lunch\/evidence-art-12"/);
+  assert.doesNotMatch(html, /noindex/);
+  const edition = await (await fetch(base + "/today/2026-08-27/lunch")).text();
+  assert.match(edition, /href="\/today\/2026-08-27\/lunch\/evidence-art-12"/);
+  assert.ok(edition.includes("호르무즈 해협 통항 제한"));
+  assert.match(await (await fetch(base + "/sitemap.xml")).text(), /\/today\/2026-08-27\/lunch</);
+  const next = build({ editionDate: "2026-08-28", slotId: "evening", slotLabel: "이브닝" });
+  activateSlotCanonicalEdition({ artifact: next, directory: root, pointerFile });
+  const sitemap = await (await fetch(base + "/sitemap.xml")).text();
+  assert.match(sitemap, /\/today\/2026-08-28\/evening</);
+  assert.match(sitemap, /\/today\/2026-08-27\/lunch</);
+  assert.match(await (await fetch(base + "/today")).text(), /\/today\/2026-08-28\/evening/);
+  assert.match(await (await fetch(base + "/")).text(), /\/today\/2026-08-28\/evening\/evidence-news-0/);
+  const correction = editions();
+  correction.unionEdition.issues = correction.unionEdition.issues.filter(row => row.evidenceHash !== "evidence-art-12");
+  correction.byCategory.art.issues = correction.byCategory.art.issues.filter(row => row.evidenceHash !== "evidence-art-12");
+  activateSlotCanonicalEdition({ artifact: buildSlotCanonicalEdition({ editionsByCategory: correction.byCategory,
+    unionEdition: correction.unionEdition, builderPacketSha256: packetSha, routingSnapshot: { source: { packetSha256: packetSha } } }),
+    directory: root, pointerFile });
+  const old = await fetch(base + target);
+  assert.equal(old.status, 200, "replacing the same slot must not break a previously published topic URL");
+  assert.ok((await old.text()).includes("호르무즈 해협 통항 제한"));
+  const correctedPage = await (await fetch(base + "/today/2026-08-27/lunch")).text();
+  assert.ok(correctedPage.includes("이 판의 이전 공개 화제"));
+  assert.ok(correctedPage.includes('href="/today/2026-08-27/lunch/evidence-art-12"'), "old topics are also discoverable from normal edition links");
+  const future = build({ editionDate: "2026-08-29", slotId: "morning", slotLabel: "모닝" });
+  activateSlotCanonicalEdition({ artifact: future, directory: root, pointerFile });
+  assert.ok(!(await (await fetch(base + "/sitemap.xml")).text()).includes("/today/2026-08-29"));
+  for (const route of ["/today/2026-08-27/morning", "/today/2026-08-27/lunch/missing", "/today/2026-02-30/lunch", "/today/2026-08-29/morning"])
+    assert.equal((await fetch(base + route)).status, 404, route);
+  assert.equal(collections, 0, "search requests must use published contents, never regenerate or collect");
+});
+
 test("NH146 freezing a correction caps excerpts without shrinking prepared summaries or mutating the old edition", () => {
   const { byCategory, unionEdition } = editions();
   const target=unionEdition.issues[0];

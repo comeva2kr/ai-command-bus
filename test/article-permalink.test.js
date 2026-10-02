@@ -178,6 +178,65 @@ test("old pool links migrate independently of feed freshness and survive the HTT
   assert.equal((await missing.json()).code, "ITEM_UNAVAILABLE");
 });
 
+test("public post pages and paged discovery expose existing content without private fields or scripts", async (t) => {
+  const f = fixture(t, []);
+  const { createServer } = await import("../src/feed/server.js");
+  let engine, fetches = 0;
+  const server = createServer({ file: f.file, vapid: null, onEngineReady: value => { engine = value; },
+    sources: [{ id: "publisher", async fetch() { fetches++; return []; } }] });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(async () => { server.closeAllConnections?.(); await new Promise(resolve => server.close(resolve)); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  engine._cache = Array.from({ length: 101 }, (_, n) => article(`public-${n}`));
+  engine._cache[0] = article("public-0", { title: '</script><script>alert("x")</script>',
+    summary: "공개 요약과 현재 화제 설명", userId: "private-owner", rawBody: "private-raw-body" });
+  engine._cache.push(article("blocked", { source: "blocked-source" }));
+  engine._cache.push(article("advertisement", { kind: "ad" }));
+  engine.store.setSourceDisabled("blocked-source", true);
+  engine.store.addComment(f.user.id, "public-0", "공개 댓글도 검색 가능한 글에서 읽습니다.");
+  const response = await fetch(base + "/post/public-0");
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.ok(html.includes("공개 요약과 현재 화제 설명"));
+  assert.ok(html.includes("공개 댓글도 검색 가능한 글에서 읽습니다."));
+  assert.ok(html.includes('rel="canonical" href="https://nowhot.kr/post/public-0"'));
+  const schema = JSON.parse(html.match(/<script type="application\/ld\+json">(.*?)<\/script>/s)[1]);
+  assert.equal(schema.name, '</script><script>alert("x")</script>');
+  assert.doesNotMatch(html, /private-owner|private-raw-body|<script>alert|noindex/);
+  const list = await (await fetch(base + "/posts")).text();
+  assert.ok(list.includes('href="/post/public-0"'));
+  assert.ok(list.includes('href="/posts?page=2"'));
+  assert.doesNotMatch(list, /\/post\/blocked|\/post\/advertisement/);
+  const second = await (await fetch(base + "/posts?page=2")).text();
+  assert.ok(second.includes('href="/post/public-100"'), "discovery is not capped at the first screen");
+  assert.equal((await fetch(base + "/posts?page=3")).status, 404);
+  assert.ok((await (await fetch(base + "/sitemap.xml")).text()).includes("/posts</loc>"));
+  engine._cache = null;
+  assert.equal((await fetch(base + "/post/public-0")).status, 200, "a published link survives leaving the live pool");
+  const archived = await (await fetch(base + "/posts?archive=1")).text();
+  assert.ok(archived.includes('href="/post/public-0"'), "old public contents remain discoverable after pool eviction");
+  for (const route of ["/post/blocked", "/post/never-collected", "/posts?page=-1", "/post/%ZZ"])
+    assert.ok([400, 404].includes((await fetch(base + route)).status), route);
+  const native = engine.store.createPost(f.user.id, { title: "회원이 작성한 공개 게시글", body: "현재 저장된 공개 본문이 재시작 뒤에도 열립니다." });
+  const nativePage = await fetch(base + `/post/${native.id}`);
+  assert.equal(nativePage.status, 200, "cold native posts use the current store without collecting");
+  assert.ok((await nativePage.text()).includes("현재 저장된 공개 본문이 재시작 뒤에도 열립니다."));
+  engine._cache = [native];
+  engine._pool.set(native.id, { item: native, lastSeenAt: Date.now() });
+  engine.store.deletePost(native.id);
+  assert.equal((await fetch(base + `/post/${native.id}`)).status, 404, "deleted posts must stay deleted");
+  const afterDeletion = await (await fetch(base + "/posts")).text();
+  assert.ok(!afterDeletion.includes(`/post/${native.id}`), "a deleted native post must also leave discovery even while its pool row remains");
+  const deal = engine.store.createOurDeal({ title: "직접 작성한 상품 소개", note: "확인한 상품을 소개합니다.",
+    url: "https://link.coupang.com/a/test", price: "10,000원" });
+  const dealPage = await fetch(base + `/post/${deal.id}`);
+  assert.equal(dealPage.status, 200);
+  const dealHtml = await dealPage.text();
+  assert.ok(dealHtml.includes("쿠팡 파트너스 활동의 일환"));
+  assert.ok(dealHtml.includes('rel="sponsored noopener noreferrer"'));
+  assert.equal(fetches, 0);
+});
+
 test("public snapshots use hashed paths and never retain personal decoration or raw bodies", async (t) => {
   const f = fixture(t, []);
   f.engine._cache = [article("../outside", { userId: "private", rawBody: "private body", saved: true,

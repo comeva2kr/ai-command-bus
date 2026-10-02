@@ -38,6 +38,26 @@ export class ArticleArchive {
     return item ? structuredClone(item) : null;
   }
 
+  list({ offset = 0, limit = 100 } = {}) {
+    if (!this.directory) {
+      const items = [...new Map([...this.cache.values()].map(item => [item.id, item])).values()];
+      return { items: items.slice(offset, offset + limit), total: items.length };
+    }
+    let files;
+    try { files = fs.readdirSync(this.directory).filter(file => /^[a-f0-9]{64}\.json$/.test(file)).sort(); }
+    catch { return { items: [], total: 0 }; }
+    // ponytail: enumerate names per page; add an index only if directory scans become slow.
+    const items = files.slice(offset, offset + limit).flatMap(file => {
+      try {
+        const item = JSON.parse(fs.readFileSync(path.join(this.directory, file), "utf8"));
+        // Alias snapshots link to their current canonical file and are not separate posts.
+        if (typeof item.id !== "string" || this._file(item.id) !== path.join(this.directory, file)) return [];
+        return [this.get(item.id)].filter(Boolean);
+      } catch { return []; }
+    });
+    return { items, total: files.length };
+  }
+
   _read(id) {
     if (typeof id !== "string" || !id || id.length > 512) return null;
     let item = this.cache.get(id);

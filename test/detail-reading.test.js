@@ -210,7 +210,7 @@ function renderTodayDetail(issue, navigator = { userAgent: "Chrome Desktop" }) {
     return elements.get(id);
   } };
   const links = new Function("document", "navigator", "fetch", "issue", "NowHotHistory", "window", "addEventListener", `${script}
-    state.edition={editionId:"SCE-test",issues:[{evidenceHash:"issue-test",...issue}],availableCategories:[]};
+    state.edition={editionId:"SCE-test",editionDate:"2026-09-03",slot:{id:"lunch",label:"런치"},issues:[{evidenceHash:"issue-test",...issue}],availableCategories:[]};
     renderIssues(state.edition);
     openIssueDetail(0);
     return issueSourceLinks(issue);

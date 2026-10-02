@@ -247,7 +247,7 @@ button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--b
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
 <script src="/notice-guide.js?v=20260907-deals"></script>
-<script src="/site-menu.js?v=20260907-deals"></script>
+<script src="/site-menu.js?v=20261002-search"></script>
 <script>
 const state={userId:null,coupang:null,categories:null,confirmedCategories:null,slot:null,editionDate:null,pinnedEdition:false,sharedEdition:null,edition:null,loadRevision:0,loadController:null,categoryRevision:0,categoryQueue:Promise.resolve(),detailRevision:0,detailReturnFocus:null,detailOpener:null,listScrollY:0};
 const $=(id)=>document.getElementById(id);
@@ -560,7 +560,7 @@ function renderIssues(edition){
       <div class="issue-number">${String(index+1).padStart(2,"0")}</div>
       <div>
         <div class="issue-kicker"><span class="lane ${laneClass}">${laneLabel}</span><span class="separator"></span><span>${esc(cats)}</span>${sources?`<span class="separator"></span><span class="source-links">${sources}</span>`:""}${published?`<span class="separator"></span>${published}`:""}</div>
-        <h2><button class="issue-title-button" type="button" data-open-issue="${index}" aria-label="${esc(copy.headline||issue.headline)} 기사 내용 열기" aria-controls="issueDetail" aria-expanded="false">${esc(copy.headline||issue.headline)}</button></h2>
+        <h2><a class="issue-title-button" href="/today/${edition.editionDate}/${edition.slot.id}/${encodeURIComponent(issue.evidenceHash||issue.id||issue.clusterId)}" data-open-issue="${index}" aria-label="${esc(copy.headline||issue.headline)} 기사 내용 열기" aria-controls="issueDetail" aria-expanded="false">${esc(copy.headline||issue.headline)}</a></h2>
         <div class="editorial-grid">
           ${summary?`<div class="editorial-point"><b>핵심 내용</b><p>${esc(summary)}</p></div>`:""}
           ${whyImportant?`<div class="editorial-point"><b>왜 중요한가</b><p>${esc(whyImportant)}</p></div>`:""}
@@ -574,7 +574,10 @@ function renderIssues(edition){
     if(event.target.closest("a,button"))return;
     openIssueDetail(Number(article.dataset.issueIndex),article.querySelector("[data-open-issue]"));
   };
-  for(const button of $("issues").querySelectorAll("[data-open-issue]"))button.onclick=()=>openIssueDetail(Number(button.dataset.openIssue),button);
+  for(const button of $("issues").querySelectorAll("[data-open-issue]"))button.onclick=(event)=>{
+    if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+    event.preventDefault();openIssueDetail(Number(button.dataset.openIssue),button);
+  };
   window.NowHotTrack?.observeAds?.($("issues"));
 }
 

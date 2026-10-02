@@ -18,6 +18,7 @@ import {
 } from "./editorial-llm.js";
 import {
   articleContentId,
+  publicExcerpt,
   isCurrentArticleSummary,
   makeArticleSummaryPipeline
 } from "./article-summary.js";
@@ -344,9 +345,11 @@ function cacheHeadersFor(ext) {
     : "public, max-age=604800";
 }
 
+function todayIssueHref(edition, issue) {
+  return `/today/${edition.editionDate}/${edition.slot.id}/${encodeURIComponent(issue.evidenceHash || issue.id || issue.clusterId)}`;
+}
+
 function todaySeedHtml(edition) {
-  const query = new URLSearchParams({ edition: edition.editionId, date: edition.editionDate,
-    slot: edition.slot.id, categories: edition.selectedCategories.join(",") });
   const serving = edition.serving;
   const notice = `${edition.editionDate} ${edition.slot.label}판` +
     (serving.fallback ? "을 보여드립니다 · 최신판은 검수 중입니다." : " · 공개 기본 관심 분야");
@@ -354,7 +357,7 @@ function todaySeedHtml(edition) {
     <p class="detail-basis">${escapeHtml(notice)}</p>` + edition.issues.map((issue, index) => {
       const title = issue.reader?.headline || issue.headline;
       const summary = String(issue.reader?.summary || issue.paragraph || "").slice(0, 200);
-      const href = `/?${query}#issue-${encodeURIComponent(edition.editionId)}/${encodeURIComponent(issue.evidenceHash || issue.id || issue.clusterId)}`;
+      const href = todayIssueHref(edition, issue);
       const seenSources = new Set();
       const relatedUrls = new Set([...(issue.eventSources || []), ...(issue.sourceEvidence || [])]
         .filter(row => row.evidenceRole === "related_observation").map(row => row.url || row.canonicalUrl));
@@ -373,7 +376,7 @@ function todaySeedHtml(edition) {
         <h2><a class="issue-title-button" href="${escapeHtml(href)}">${escapeHtml(title)}</a></h2>
         ${summary ? `<div class="editorial-grid"><div class="editorial-point"><p>${escapeHtml(summary)}</p></div></div>` : ""}
         <div class="source-links">${sources.join(" · ")}</div></div></article>`;
-    }).join("") + "</div>";
+    }).join("") + '<p><a href="/today">지난 오늘판 전체 보기</a> · <a href="/posts">실시간 공개 글 보기</a></p></div>';
 }
 
 function serveStatic(res, urlPath, seedHtml = "", pageExtras = null) {
@@ -624,7 +627,7 @@ export function createServer(opts = {}) {
   const engine = new FeedEngine(store, opts.sources || sources);
   const livePostHref = (item) => {
     engine.rememberPublishedItem(item);
-    return `/live#post-${encodeURIComponent(item.id)}`;
+    return `/post/${encodeURIComponent(item.id)}`;
   };
   const localEditorial = opts.localEditorial != null
     ? Boolean(opts.localEditorial)
@@ -2002,7 +2005,7 @@ export function createServer(opts = {}) {
   // 처음 보는 사람이 된다 — 취향도 재방문도 거기서 끊긴다.
   // 계정을 만들지는 않는다(빈 계정이 늘지 않게). 식별자만 준다.
   // 사람이 읽는 발행 페이지들. 여기 들른 사람도 다음에 알아봐야 한다.
-  const PUBLISHED_PATH = /^\/(ranking|report|communities|community|keywords|keyword|trends)(\/|$)/;
+  const PUBLISHED_PATH = /^\/(today|posts?|ranking|report|communities|community|keywords|keyword|trends)(\/|$)/;
 
   const ensureVisitor = (req, res) => {
     const existing = parseCookies(req.headers.cookie)[VISITOR_COOKIE];
@@ -2195,14 +2198,10 @@ export function createServer(opts = {}) {
 })();
 </script>`;
 
-  const editionShell = (title, desc, inner, canonicalPath = "", ownLinks = "", coupangBanner = "", noindex = false) => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+  const editionShell = (title, desc, inner, canonicalPath = "", ownLinks = "", coupangBanner = "", limitedAds = false) => `<!doctype html><html lang="ko"><head><meta charset="utf-8">
 ${process.env.ADSENSE_CLIENT ? `<meta name="google-adsense-account" content="${escapeHtml(process.env.ADSENSE_CLIENT)}">` : ""}
 <meta name="naver-site-verification" content="0d469593c15f0aca6694a0eac43985579c104a4d">
-${noindex
-  ? '<meta name="robots" content="noindex,follow">'
-  // 자체 콘텐츠 페이지(브리핑·랭킹·커뮤니티순위)가 정작 Discover가 가장
-  // 필요한 쪽인데 이 줄이 공유 페이지에만 들어가 있었다(2026-08-04 배포 후 실측).
-  : '<meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1">'}
+<meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(canonicalPath === "/" ? title : `${title} — 지금핫 NowHot`)}</title>
 <meta name="description" content="${escapeHtml(desc)}">
@@ -2221,7 +2220,7 @@ ${noindex
   inLanguage: "ko",
   isPartOf: { "@type": "WebSite", name: "지금핫 NowHot", url: "https://nowhot.kr/" },
   publisher: { "@type": "Organization", name: "페퍼클럽", url: "https://nowhot.kr/" }
-})}</script>
+}).replace(/</g, "\\u003c")}</script>
 ${canonicalPath ? `<link rel="canonical" href="https://nowhot.kr${escapeHtml(canonicalPath)}">
 <meta property="og:url" content="https://nowhot.kr${escapeHtml(canonicalPath)}">` : ""}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2333,12 +2332,12 @@ ol.rank li a{color:var(--text);font-weight:700}
 .home-actions a{display:inline-flex;align-items:center;min-height:42px;padding:8px 14px;border:1px solid var(--divider);font-weight:800;color:var(--text)}
 .home-actions a.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .home-kicker{font-size:12px;font-weight:800;color:var(--accent);margin:0 0 6px}.home-lead{font-size:17px;line-height:1.65;margin:10px 0 0}
-</style>${adLoadersHtml(!noindex)}</head><body><div class="wrap">
+</style>${adLoadersHtml(!limitedAds)}</head><body><div class="wrap">
 ${canonicalPath === "/" ? '<header class="home-head"><a class="home-brand" href="/">지금핫</a><a class="home-live" href="/live">실시간 피드 →</a></header>' : '<a class="back" href="/">← 지금핫 홈</a>'}
 ${inner}
 ${coupangBanner}
 ${ownLinks}
-${noindex ? "" : displayAdHtml()}
+${limitedAds ? "" : displayAdHtml()}
 <p class="muted">이 페이지는 지금핫 NowHot이 수집한 공개 반응 지표(추천·댓글·보도량)만으로 작성한 자체 편집 콘텐츠입니다. 각 글의 전문은 출처에서 읽을 수 있습니다. ⓒ 페퍼클럽</p>
 </div>${pageTracker()}${adTrackScript}</body></html>`;
   // ── 발행 페이지 방문 측정 (2026-08-05 전수검사)
@@ -2461,6 +2460,8 @@ ${noindex ? "" : displayAdHtml()}
   const ownContentNav = (current = "") => {
     const links = [
       { href: "/", label: "오늘판" },
+      { href: "/today", label: "지난 오늘판" },
+      { href: "/posts", label: "실시간 공개 글" },
       { href: "/ranking/daily", label: "화제 랭킹" },
       { href: "/trends", label: "실시간 트렌드" },
       { href: "/communities", label: "커뮤니티 순위" },
@@ -2471,6 +2472,39 @@ ${noindex ? "" : displayAdHtml()}
       <h2>다른 콘텐츠 보기</h2>
       <ul>${links.map((l) => `<li><a href="${l.href}">${escapeHtml(l.label)}</a></li>`).join("")}</ul>
     </nav>`;
+  };
+
+  const publicEditions = (includePrevious = false, date, slotId) => (slotCanonicalEditionReader?.list({ includePrevious, date, slotId }) || []).filter(row =>
+    validEditorialDate(row.date) && slotAsOfMs(row.date, row.slotId) <= serverNowMs());
+  const readPublishedEdition = row => slotCanonicalEditionReader.read({ date: row.date, slotId: row.slotId,
+    editionId: row.editionId, categories: CATEGORIES.map(category => category.id), explicit: true, selectionMode: "public" });
+  const readPublicToday = (date, slotId, issueId) => {
+    for (const row of publicEditions(Boolean(issueId), date, slotId)) {
+      try {
+        const edition = readPublishedEdition(row);
+        if (!issueId || edition.issues.some(issue => (issue.evidenceHash || issue.id || issue.clusterId) === issueId)) return edition;
+      } catch { /* Only activated, verified publications may be served. */ }
+    }
+    return null;
+  };
+  const publicIssueBody = (issue, edition) => {
+    const copy = issue.reader || {};
+    const summary = issue.articleSummary || {};
+    const text = summary.status === "ready" ? summary.textKo || "" : summary.status === "excerpt_only" ? publicExcerpt(summary.textKo) : "";
+    const paragraphs = [copy.summary || issue.paragraph, text, copy.whyImportant ?? issue.whyImportant,
+      copy.change || issue.changedSincePrevious, copy.watchNext].filter(Boolean);
+    const sources = (summary.sourceLinks || []).flatMap(source => {
+      try {
+        const url = new URL(source.url || source.canonicalUrl);
+        return /^https?:$/.test(url.protocol) && !url.username && !url.password
+          ? [`<li><a href="${escapeHtml(url.href)}" rel="noopener noreferrer">${escapeHtml(source.title || source.sourceLabel || source.label || url.hostname)}</a></li>`] : [];
+      } catch { return []; }
+    });
+    return `<article><h1>${escapeHtml(copy.headline || issue.headline)}</h1>
+      <p class="muted">${escapeHtml(edition.editionDate)} · ${escapeHtml(edition.slot.label)}판</p>
+      ${[...new Set(paragraphs)].map(paragraph => `<p>${escapeHtml(paragraph)}</p>`).join("")}
+      ${sources.length ? `<h2>출처</h2><ul>${sources.join("")}</ul>` : ""}</article>
+      <p><a href="/today/${edition.editionDate}/${edition.slot.id}">이 오늘판 전체 보기</a> · <a href="/">최신 오늘판 보기</a></p>`;
   };
 
   const rankingNav = (active) => `<div class="nav">
@@ -2673,16 +2707,106 @@ ${noindex ? "" : displayAdHtml()}
           { loc: "/terms", freq: "yearly", pri: "0.2", mod: fileMod("terms.html") },
           { loc: "/privacy", freq: "yearly", pri: "0.2", mod: fileMod("privacy.html") }
         ];
+        for (const loc of ["/today", "/posts", "/communities", "/keywords", "/trends", "/ranking/daily", "/ranking/weekly", "/ranking/monthly"])
+          urls.push({ loc, mod: liveMod });
+        urls.push({ loc: "/posts?archive=1" });
+        // Edition pages link every published issue. This keeps the sitemap small as years accumulate.
+        for (const row of publicEditions()) urls.push({ loc: `/today/${row.date}/${row.slotId}` });
         const body = `<?xml version="1.0" encoding="UTF-8"?>\n` +
           `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
           urls.map((u) =>
             `  <url><loc>${escapeHtml(origin + u.loc)}</loc>` +
             (u.mod ? `<lastmod>${u.mod}</lastmod>` : "") +
-            `<changefreq>${u.freq}</changefreq><priority>${u.pri}</priority></url>`
+            (u.freq ? `<changefreq>${u.freq}</changefreq>` : "") +
+            (u.pri ? `<priority>${u.pri}</priority>` : "") + `</url>`
           ).join("\n") + `\n</urlset>\n`;
         res.writeHead(200, { "content-type": "application/xml; charset=utf-8" });
         res.end(body);
         return;
+      }
+
+      if (p === "/posts" && req.method === "GET") {
+        const page = url.searchParams.get("page") || "1";
+        if (!/^[1-9]\d{0,5}$/.test(page)) return send(res, 400, { error: "invalid page" });
+        const archive = url.searchParams.get("archive") === "1";
+        const offset = (Number(page) - 1) * 100;
+        const disabled = store.disabledSources();
+        const blocked = new Set(loadRegistry().filter(source => source.enabled === false).map(source => source.id));
+        const contents = archive ? engine.archivedPosts({ offset, limit: 100 }) :
+          { items: [...new Map([...(await engine.pool()).filter(item => !["me", "submit", "ourdeal"].includes(item.via)),
+            ...await new StorePostsSource(store).fetch()].map(item => [item.id, item])).values()] };
+        const total = contents.total ?? contents.items.length;
+        const items = (archive ? contents.items : contents.items.slice(offset, offset + 100))
+          .filter(item => !["ad", "affiliate"].includes(item.kind) && !disabled.has(item.source) && !blocked.has(item.source));
+        if (offset >= total && Number(page) > 1) return send(res, 404, { error: "page not found" });
+        const links = items.map(item => `<li><a href="${livePostHref(item)}">${escapeHtml(item.title)}</a></li>`).join("");
+        const prefix = archive ? "/posts?archive=1&amp;page=" : "/posts?page=";
+        const paging = (Number(page) > 1 ? `<a href="${prefix}${Number(page) - 1}">이전</a> ` : "") +
+          (offset + 100 < total ? `<a href="${prefix}${Number(page) + 1}">다음</a>` : "");
+        return sendHtml(res, editionShell("실시간 공개 글", "지금핫에서 읽을 수 있는 공개 화제글과 뉴스",
+          `<h1>${archive ? "지난 공개 글" : "실시간 공개 글"}</h1><p><a href="${archive ? "/posts" : "/posts?archive=1"}">${archive ? "최신 공개 글" : "지난 공개 글"} 보기</a></p><ol>${links}</ol><nav aria-label="글 목록 페이지">${paging}</nav>`,
+          archive ? `/posts?archive=1${Number(page) > 1 ? `&page=${page}` : ""}` : Number(page) === 1 ? "/posts" : `/posts?page=${page}`, ownContentNav("/posts"), "", true));
+      }
+      if (p.startsWith("/post/") && req.method === "GET") {
+        let id;
+        try { id = decodeURIComponent(p.slice(6)); } catch { return send(res, 400, { error: "invalid post id" }); }
+        if (!id || id.length > 512) return send(res, 400, { error: "invalid post id" });
+        const item = await engine.getItem(null, id, { explicitOpen: true, collect: false });
+        if (!item || ["ad", "affiliate"].includes(item.kind) || loadRegistry().some(source => source.id === item.source && source.enabled === false))
+          return send(res, 404, { error: "public post not found" });
+        let original = "";
+        const sponsored = item.via === "ourdeal";
+        try {
+          const source = new URL(item.url);
+          if (/^https?:$/.test(source.protocol) && !source.username && !source.password)
+            original = `<p><a href="${escapeHtml(source.href)}" rel="${sponsored ? "sponsored " : ""}noopener noreferrer">${escapeHtml(item.sourceLabel || item.source)}에서 ${sponsored ? "상품" : "원문"} 보기</a></p>`;
+        } catch { /* Native posts may have no external source. */ }
+        const paragraphs = [...new Set([item.summary, item.originalTitle, item.originalSummary, item.editorialNote].filter(Boolean))];
+        const inner = `<article><h1>${escapeHtml(item.title)}</h1>${paragraphs.map(text => `<p>${escapeHtml(text)}</p>`).join("")}${sponsored ? `<p>${escapeHtml(AD_DISCLOSURE)}</p>` : ""}${original}</article>
+          ${item.thread?.length ? `<section><h2>지금핫 댓글</h2>${item.thread.map(comment => `<p>${escapeHtml(comment.body)}</p>`).join("")}</section>` : ""}
+          <p><a href="/live#post-${encodeURIComponent(item.id)}">실시간 보기에서 반응·댓글 보기</a></p>`;
+        return sendHtml(res, editionShell(item.title, item.summary || "", inner,
+          `/post/${encodeURIComponent(item.id)}`, ownContentNav(), "", true));
+      }
+
+      if ((p === "/today" || p.startsWith("/today/")) && req.method === "GET") {
+        if (p === "/today") {
+          const rows = publicEditions();
+          const links = rows.map(row => `<li><a href="/today/${row.date}/${row.slotId}">${escapeHtml(row.date)} ${escapeHtml(slotById(row.slotId).label)}판</a></li>`).join("");
+          return sendHtml(res, editionShell("지난 오늘판", "하루 세 번 발행한 지금핫의 화제와 분석을 날짜별로 확인하세요.",
+            `<h1>지난 오늘판</h1><ul>${links}</ul>`, "/today", ownContentNav(), "", true));
+        }
+        const match = p.match(/^\/today\/(\d{4}-\d{2}-\d{2})\/(morning|lunch|evening)(?:\/([^/]+))?$/);
+        let id;
+        try { id = match?.[3] && decodeURIComponent(match[3]); } catch { return send(res, 400, { error: "invalid issue id" }); }
+        const edition = match && readPublicToday(match[1], match[2], id);
+        if (!edition) return send(res, 404, { error: "published edition not found" });
+        if (match[3]) {
+          const issue = edition.issues.find(row => (row.evidenceHash || row.id || row.clusterId) === id);
+          if (!issue) return send(res, 404, { error: "published issue not found" });
+          return sendHtml(res, editionShell(issue.reader?.headline || issue.headline,
+            issue.reader?.summary || issue.paragraph || "", publicIssueBody(issue, edition),
+            todayIssueHref(edition, issue), ownContentNav(), "", true));
+        }
+        const title = `${edition.editionDate} ${edition.slot.label} 오늘판`;
+        const seen = new Set(edition.issues.map(issue => issue.evidenceHash || issue.id || issue.clusterId));
+        const earlier = [];
+        for (const row of publicEditions(true, match[1], match[2])) {
+          if (row.editionId === edition.editionId) continue;
+          try {
+            for (const issue of readPublishedEdition(row).issues) {
+              const id = issue.evidenceHash || issue.id || issue.clusterId;
+              if (seen.has(id)) continue;
+              seen.add(id);
+              earlier.push(`<li><a href="${escapeHtml(todayIssueHref(edition, issue))}">${escapeHtml(issue.reader?.headline || issue.headline)}</a></li>`);
+            }
+          } catch { /* Invalid revisions are never promoted into the public archive. */ }
+        }
+        return sendHtml(res, editionShell(title, `${title}의 모든 분야 화제와 분석`,
+          `<h1>${escapeHtml(title)}</h1>${edition.issues.map(issue =>
+            `<section><h2><a href="${escapeHtml(todayIssueHref(edition, issue))}">${escapeHtml(issue.reader?.headline || issue.headline)}</a></h2>${publicIssueBody(issue, edition).replace(/<h1>(.*?)<\/h1>/s, "")}</section>`).join("")}
+            ${earlier.length ? `<section><h2>이 판의 이전 공개 화제</h2><ul>${earlier.join("")}</ul></section>` : ""}`,
+          `/today/${edition.editionDate}/${edition.slot.id}`, ownContentNav(), "", true));
       }
 
       // 로컬 고도화 후보: 기존 수집·랭킹·브리핑을 사용자의 명시적 카테고리로

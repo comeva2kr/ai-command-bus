@@ -307,6 +307,7 @@
     background: var(--card-2); color: var(--muted); }
   .badge.news { color: #7fb0ff; }
   .card h3 { margin: 0 0 6px; font-size: 16px; line-height: 1.4; font-weight: 700; }
+  .post-title { color: inherit; text-decoration: none; }
   /* "새 탭에서 원문 열림" 시각 신호  — 카드 탭 시
      낯선 사이트로 튕기는 당황을 줄이려고 제목 옆에 항상 붙는 작은 화살표. 유저 본인
      글(via==="me")은 인앱 상세로 열리므로 표시하지 않는다. */
@@ -1159,7 +1160,7 @@
 <script src="/navigation-history.js?v=20260907"></script>
 <script src="/push-client.js?v=20260907-ios"></script>
 <script src="/notice-guide.js?v=20260907-deals"></script>
-<script src="/site-menu.js?v=20260907-deals"></script>
+<script src="/site-menu.js?v=20261002-search"></script>
 <script type="module">
 const API = {
   async session(userId) { return post("/api/session", { userId }); },
@@ -3354,7 +3355,7 @@ function appendCard(item){
     </div>
     <div class="card-row">
     <div class="card-main">
-    <h3>${escapeHtml(item.title)}${item.via!=="me" && item.url ? ` <a class="newtab-hint" href="${escapeHtml(item.url)}" rel="noopener" title="${escapeHtml(srcLabel(item.source))} 원문 바로 열기">${ic('external',14)}</a>` : ''}</h3>
+    <h3><a class="post-title" href="/post/${encodeURIComponent(item.id)}">${escapeHtml(item.title)}</a>${item.via!=="me" && item.url ? ` <a class="newtab-hint" href="${escapeHtml(item.url)}" rel="noopener" title="${escapeHtml(srcLabel(item.source))} 원문 바로 열기">${ic('external',14)}</a>` : ''}</h3>
     ${heatRuleHtml(item)}
     ${item.translated&&item.originalTitle?`<div class="orig-title">${escapeHtml(item.originalTitle)}</div>`:''}
     ${item.editorialNote?`<div class="editorial-note">${escapeHtml(item.editorialNote)}</div>`:''}
@@ -3393,6 +3394,10 @@ function appendCard(item){
     // **크롤러에게만 링크이고 사람에게는 아닌** 이상한 상태가 된다.
     // 클릭 기록은 바로 위에서 이미 남겼다.
     if(e.target.closest(".newtab-hint, .card-out a")) return;
+    if(e.target.closest(".post-title")) {
+      if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey) return;
+      e.preventDefault();
+    }
     openDetail(item.id);
   });
   card.addEventListener("keydown", (e)=>{

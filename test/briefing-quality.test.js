@@ -337,7 +337,7 @@ test("HEAD 요청이 GET과 같은 상태코드를 준다 (sitemap '가져올 �
   }
 });
 
-test("sitemap.xml은 자체 편집 페이지만 담고 실시간·유틸리티 지면은 제외한다", async () => {
+test("sitemap.xml은 공개 콘텐츠와 발행 목록을 담고 개인화·폐쇄 지면은 제외한다", async () => {
   const { createServer } = await import("../src/feed/server.js");
   const server = createServer({ dev: true });
   await new Promise((r) => server.listen(0, r));
@@ -354,10 +354,10 @@ test("sitemap.xml은 자체 편집 페이지만 담고 실시간·유틸리티 �
     // 오리진은 요청 호스트에서 만든다(originOf) — 테스트 서버는 127.0.0.1이다.
     // 도메인을 하드코딩하면 스테이징·로컬에서 틀린 sitemap이 나가는 것을 놓친다.
     const origin = `http://127.0.0.1:${port}`;
-    for (const must of ["/", "/report"]) {
+    for (const must of ["/", "/report", "/today", "/posts", "/ranking/daily", "/trends", "/communities", "/keywords"]) {
       assert.ok(xml.includes(`<loc>${origin}${must}</loc>`), `sitemap에 ${must}가 없다`);
     }
-    for (const excluded of ["/briefing", "/rss.xml", "/live", "/ranking/daily", "/trends", "/communities", "/keywords"]) {
+    for (const excluded of ["/briefing", "/rss.xml", "/live"]) {
       assert.ok(!xml.includes(`<loc>${origin}${excluded}</loc>`), `유틸리티 지면 ${excluded}가 sitemap에 들어갔다`);
     }
     // 개인화 API는 색인 대상이 아니다

@@ -66,6 +66,8 @@ window.NowHotMenu = (() => {
            인라인 style은 전부 클래스로 뺐다 — 값이 코드에 박히면 테마가
            바뀔 때 여기만 안 따라온다. -->
       <nav class="drawer-sec drawer-nav" aria-label="지금핫이 만드는 페이지">
+        <a class="drawer-link" href="/today">지난 오늘판</a>
+        <a class="drawer-link" href="/posts">실시간 공개 글</a>
         <a class="drawer-link" href="/ranking/daily">화제 랭킹 TOP 20</a>
         <a class="drawer-link" href="/communities">커뮤니티 순위</a>
         <a class="drawer-link" href="/keywords">화제 키워드</a>

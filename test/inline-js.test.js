@@ -127,7 +127,7 @@ test("발견 경로: 구글 Discover·카톡 공유 자격을 갖췄다", async 
   // 페이지에만 들어가 브리핑·랭킹이 빠져 있었다(배포 후 실측으로 발견).
   const shell = server.slice(server.indexOf("const editionShell ="), server.indexOf("const editionShell =") + 1200);
   assert.match(shell, /max-image-preview:large/, "editionShell(브리핑·랭킹)에 누락");
-  assert.match(shell, /noindex,follow/, "얇은 페이지는 색인만 막는다");
+  assert.doesNotMatch(shell, /noindex/, "공개 콘텐츠 페이지는 색인을 허용한다");
   // og:image가 512 정사각 앱 아이콘이면 카톡 미리보기가 작은 정사각형으로 뜬다.
   // 한국에서 링크가 퍼지는 가장 큰 경로가 카톡이다.
   for (const [name, src] of [["index.html", html], ["today.html", today], ["server.js", server]]) {
@@ -143,12 +143,12 @@ test("발견 경로: 구글 Discover·카톡 공유 자격을 갖췄다", async 
   assert.ok(statSync("src/feed/public/og.png").size < 300_000, "공유 이미지가 너무 무거우면 미리보기가 안 뜬다");
 });
 
-test("색인: 실시간·집계 유틸리티는 열어 두되 noindex이고 sitemap에서 제외한다", async () => {
+test("색인: 공개 콘텐츠 페이지는 허용하고 개인화 화면은 sitemap에서 제외한다", async () => {
   const { readFileSync } = await import("node:fs");
   const src = readFileSync("src/feed/server.js", "utf8");
   assert.match(src, /noindex,follow/, "색인만 막고 링크는 따라가게 둔다");
   const sitemap = src.slice(src.indexOf('if (p === "/sitemap.xml"'), src.indexOf('if (p === "/api/today"'));
-  for (const path of ["/live", "/ranking/daily", "/trends", "/communities", "/keywords", "/keyword/", "/community/"]) {
+  for (const path of ["/live", "/api/", "/admin"]) {
     assert.ok(!sitemap.includes(`loc: "${path}"`) && !sitemap.includes(`loc: \`${path}`),
       `${path}가 sitemap 생성부에 남았다`);
   }

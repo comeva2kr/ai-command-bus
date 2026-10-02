@@ -509,6 +509,7 @@ export function activateSlotCanonicalEdition({ artifact, directory, pointerFile 
 
 export function makeSlotCanonicalEditionReader({ pointerFile }) {
   const cache = new Map();
+  const verifiedEntries = new Set();
   function load(entry, key) {
     const base = path.resolve(path.dirname(pointerFile));
     const artifactFile = path.resolve(base, entry.file);
@@ -517,12 +518,35 @@ export function makeSlotCanonicalEditionReader({ pointerFile }) {
     if (!artifact) {
       artifact = assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(artifactFile, "utf8")));
       cache.set(artifactFile, artifact);
+      // Keep payload memory bounded; the activation catalogue stores only identities.
+      if (cache.size > 32) cache.delete(cache.keys().next().value);
     }
     if (artifact.artifactId !== entry.artifactId || artifact.contentSha256 !== entry.contentSha256
       || pointerKey(artifact.editionDate, artifact.slot.id) !== key) fail("pointer identity mismatch");
     return artifact;
   }
   return {
+    list({ includePrevious = false, date: requestedDate, slotId: requestedSlot } = {}) {
+      let pointer;
+      try { pointer = JSON.parse(fs.readFileSync(pointerFile, "utf8")); }
+      catch { return []; }
+      const entries = Object.entries(pointer.editions || {});
+      if (includePrevious) entries.push(...Object.values(pointer.publishedEditions || {}).reverse().map(entry => [entry.key, entry]));
+      const seen = new Set();
+      return entries.flatMap(([key, entry]) => {
+        if (typeof key !== "string") return [];
+        const [date, slotId] = key.split(":");
+        if ((requestedDate && date !== requestedDate) || (requestedSlot && slotId !== requestedSlot)) return [];
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !slotOrder.has(slotId) || !entry?.file || seen.has(entry.artifactId)) return [];
+        const identity = JSON.stringify([key, entry.artifactId, entry.contentSha256, entry.file]);
+        if (!verifiedEntries.has(identity)) {
+          try { load(entry, key); } catch { return []; }
+          verifiedEntries.add(identity);
+        }
+        seen.add(entry.artifactId);
+        return [{ date, slotId, editionId: entry.artifactId }];
+      }).sort((a, b) => b.date.localeCompare(a.date) || slotOrder.get(b.slotId) - slotOrder.get(a.slotId));
+    },
     read({ date, slotId, categories, selectionMode, explicit, editionId }) {
       let pointer;
       try { pointer = JSON.parse(fs.readFileSync(pointerFile, "utf8")); }
