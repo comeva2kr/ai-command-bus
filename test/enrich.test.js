@@ -1030,6 +1030,62 @@ test("fetchOgMeta: Google 뉴스 중계 이미지를 대표 사진으로 가져�
   assert.equal(calls, 0);
 });
 
+test("fetchOgMeta: 멈춘 본문 읽기를 기한 안에 취소해 수집 큐를 돌려준다", async () => {
+  let cancelled = 0;
+  const pending = fetchOgMeta("https://example.com/stalled-body", {
+    timeoutMs: 15,
+    fetchImpl: async () => ({
+      ok: true,
+      headers: { get: () => "text/html" },
+      body: { getReader: () => ({
+        read: () => new Promise(() => {}),
+        cancel: async () => { cancelled += 1; }
+      }) }
+    })
+  });
+  let timer;
+  const result = await Promise.race([pending, new Promise(resolve => {
+    timer = setTimeout(() => resolve("STALLED"), 150);
+  })]);
+  clearTimeout(timer);
+  assert.deepEqual(result, { image: null, desc: null });
+  assert.equal(cancelled, 1);
+});
+
+test("fetchOgMeta: 응답 헤더가 멈춰도 요청 기한을 지킨다", async () => {
+  let timer;
+  const result = await Promise.race([
+    fetchOgMeta("https://example.com/stalled-headers", {
+      timeoutMs: 15, fetchImpl: () => new Promise(() => {})
+    }),
+    new Promise(resolve => { timer = setTimeout(() => resolve("STALLED"), 150); })
+  ]);
+  clearTimeout(timer);
+  assert.deepEqual(result, { image: null, desc: null });
+});
+
+test("fetchPublicArticle: 멈춘 기사 본문도 취소하고 발행 큐를 돌려준다", async () => {
+  let cancelled = 0;
+  let timer;
+  const result = await Promise.race([
+    fetchPublicArticle("https://example.com/stalled-article", {
+      resolveHost: null, timeoutMs: 15,
+      fetchImpl: async () => ({
+        ok: true, status: 200, url: "https://example.com/stalled-article",
+        headers: { get: () => "text/html" },
+        body: { getReader: () => ({
+          read: () => new Promise(() => {}),
+          cancel: async () => { cancelled += 1; }
+        }) }
+      })
+    }),
+    new Promise(resolve => { timer = setTimeout(() => resolve("STALLED"), 150); })
+  ]);
+  clearTimeout(timer);
+  assert.equal(result.reasonCode, "TIMEOUT");
+  assert.equal(cancelled, 1);
+});
+
 test("fetchPublicArticle: 접근 실패 코드를 명시적으로 보존한다", async () => {
   const cases = [[401, "AUTH_REQUIRED"], [403, "ACCESS_DENIED"], [429, "RATE_LIMITED"], [404, "NOT_FOUND"], [410, "NOT_FOUND"], [500, "HTTP_ERROR"]];
   for (const [status, reasonCode] of cases) {

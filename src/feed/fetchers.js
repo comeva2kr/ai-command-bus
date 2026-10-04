@@ -41,6 +41,22 @@ export function discardBody(res) {
   } catch { /* 이미 소비/중단된 본문 — 무시 */ }
 }
 
+// Enforce the deadline even if a request/body does not reject on abort.
+export async function abortable(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) throw signal.reason;
+  let onAbort;
+  const aborted = new Promise((_, reject) => {
+    onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([promise, aborted]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
 
 async function getText(url, fetchImpl) {
   const res = await fetchImpl(url, {

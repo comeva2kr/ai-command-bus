@@ -21,6 +21,20 @@ function fakeFetch(detected, translated) {
   });
 }
 
+test("무료 번역: 멈춘 응답 본문도 기한 뒤 원문으로 돌려 수집을 계속한다", async () => {
+  const translate = googleFreeTranslator({
+    timeoutMs: 15,
+    fetchImpl: async () => ({ ok: true, json: () => new Promise(() => {}) })
+  });
+  let timer;
+  const out = await Promise.race([
+    translate("World news", { from: "auto", to: "ko" }),
+    new Promise(resolve => { timer = setTimeout(() => resolve("STALLED"), 150); })
+  ]);
+  clearTimeout(timer);
+  assert.equal(out, "World news");
+});
+
 test("번역기가 감지한 원문 언어를 opts로 돌려준다", async () => {
   const t = googleFreeTranslator({ fetchImpl: fakeFetch("ja", "대한축구협회") });
   const opts = { from: "auto", to: "ko" };

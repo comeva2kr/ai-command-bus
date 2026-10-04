@@ -7,6 +7,7 @@
 // navigation; the server just keeps handing out the next best unseen batch.
 
 import fs from "node:fs";
+import { abortable } from "./fetchers.js";
 import { ArticleArchive } from "./article-archive.js";
 import { collect, SeedSource, StorePostsSource, resolveCap, needsPublisherTime, expandRelatedNews } from "./content.js";
 import { loadRegistry } from "./registry.js";
@@ -1058,6 +1059,8 @@ export class FeedEngine {
     this._cache = null; // collected items cache — the capped, ranked-over view of the pool
     this._briefingContextCache = null;
     this._pool = new Map(); // id -> { item, firstSeenAt } — the rolling accumulation pool
+    this._enrichmentTimeoutMs = 180_000;
+    this._summaryTranslationTimeoutMs = 90_000;
     // 수집 풀을 디스크에 남긴다.
     //
     // ── 왜 (David 2026-08-06 "관리자 페이지 대시보드 로딩시간이 갑자기 엄청 길어졌어")
@@ -1613,12 +1616,18 @@ export class FeedEngine {
 
   async refresh() {
     if (this._refreshing) return this._refreshing;
-    this._refreshing = this._refresh().finally(() => { this._refreshing = null; });
+    this._refreshStartedAt = Date.now();
+    this._refreshStage = "collect";
+    this._refreshing = this._refresh().finally(() => {
+      this._refreshing = null;
+      this._refreshStage = null;
+    });
     return this._refreshing;
   }
 
   async _refresh() {
     const { items: freshItems, errors } = await collect(this.sources);
+    this._refreshStage = "assemble";
     const now = this._clock ? new Date(this._clock()).getTime() : Date.now();
 
     // firstSeenAt 우선순위: 메모리 풀 > 영속 기록(재시작 생존) > 지금.
@@ -1810,6 +1819,8 @@ export class FeedEngine {
 
     // 2) 현재 노출 상한과 늦은 백필이 같은 분류 파이프라인을 공유한다.
     this._classifyItems(capped);
+    // Optional page enrichment must not lose a completed collection on restart.
+    this._savePool();
 
     // ---- 썸네일·발췌 보강 (og:image/og:description, enrich.js) -------------
     // 주입된 경우에만 동작(서버 전용), 실패·403은 enrich.js가 조용히 부정캐시로
@@ -1818,8 +1829,11 @@ export class FeedEngine {
     // (라이브 실측 2026-07-31: 첫 페이지 발췌 3/10). 신선도는 핫·최신 양쪽
     // 랭킹의 공통 지배 변수라 "먼저 노출될 글"의 가장 싼 근사다.
     if (this._enricher) {
+      this._refreshStage = "enrich";
+      const signal = AbortSignal.timeout(this._enrichmentTimeoutMs);
       const byFreshness = [...capped].sort((a, b) => itemAgeHours(a, now) - itemAgeHours(b, now));
-      try { await this._enricher.enrich(byFreshness); } catch {}
+      try { await abortable(this._enricher.enrich(byFreshness, { signal }), signal); }
+      catch (error) { console.warn("[feed] optional enrichment stopped:", error?.message); }
       // enricher가 원문 페이지에서 새로 채운 발췌는 **원문 언어 그대로**다.
       // 번역은 수집 단계(TranslatingSource)에서 이미 끝난 뒤라 여기까지 오지
       // 않았다. 그래서 해외 글은 "제목만 한글, 발췌는 영어" 또는 (오늘 규칙으로
@@ -1829,7 +1843,10 @@ export class FeedEngine {
       // "This translation service isn't available in your region"). 하지만
       // **글자를 옮기는 엔드포인트는 우리 서버에서 멀쩡히 돈다** — 제목이 이미
       // 그걸로 번역되고 있다. 남의 프록시로 보내는 대신 우리가 옮긴다.
-      await this._translateFilledSummaries(capped);
+      this._refreshStage = "translate_summaries";
+      const translationSignal = AbortSignal.timeout(this._summaryTranslationTimeoutMs);
+      await this._translateFilledSummaries(capped, 20, { signal: translationSignal });
+      if (translationSignal.aborted) console.warn("[feed] optional summary translation stopped: deadline exceeded");
     }
 
     this._cache = capped.filter(item => !needsPublisherTime(item));
@@ -1837,6 +1854,7 @@ export class FeedEngine {
     this._errors = errors;
     this.lastRefreshedAt = now;
     this._savePool();
+    this._refreshStage = "snapshot";
 
     // ---- 소스 헬스 판정 (health.js) ---------------------------------------
     // 여기가 사이클마다 반드시 지나는 자리라, 여기서 재지 않으면 "언제부터
@@ -1905,10 +1923,15 @@ export class FeedEngine {
     // 무엇이 잘못됐는지 알 길이 없었다 — 조용한 실패는 없는 실패가 아니라
     // **진단할 수 없는 실패**다. 삼키는 동작(다음 주기가 온다)은 그대로 두고
     // 흔적만 남긴다.
-    const run = (why) => this.refresh().then(
+    const run = (why) => {
+      if (this._refreshing && Date.now() - this._refreshStartedAt > 2 * intervalMs) {
+        console.warn(`[feed] refresh overdue: stage=${this._refreshStage} elapsedMs=${Date.now() - this._refreshStartedAt}`);
+      }
+      return this.refresh().then(
       () => {},
       (e) => console.warn(`[feed] refresh 실패 (${why}):`, (e && e.stack) || e)
-    );
+      );
+    };
     const kick = setTimeout(() => {
       console.log("[feed] 기동 직후 첫 수집 시작");
       run("첫 수집");
@@ -2908,7 +2931,7 @@ export class FeedEngine {
   //
   // 한 사이클에 몇 건까지만 부른다 — 무료 엔드포인트라 몰아치면 막힌다.
   // 못 옮긴 것은 다음 사이클에 다시 후보가 된다(발췌가 그대로 남아 있으므로).
-  async _translateFilledSummaries(items, limit = 20) {
+  async _translateFilledSummaries(items, limit = 20, { signal } = {}) {
     if (!this._translateText) return;
     const needs = [];
     for (const i of items) {
@@ -2922,6 +2945,7 @@ export class FeedEngine {
       if (needs.length >= limit) break;
     }
     for (const i of needs) {
+      if (signal?.aborted) break;
       try {
         // 번역 **전** 원문을 붙잡아 둔다. 예전엔 i.summary를 바로 덮어써서
         // 원문이 사라졌다 — 상세 화면의 "원문 보기"가 제목만 바꾸고 발췌는
@@ -2933,7 +2957,7 @@ export class FeedEngine {
         // 여기서 채워진 발췌만 원문을 잃었기 때문이다 — 발췌를 나중에 채우는
         // enricher가 번역 **뒤에** 돌아서, translate.js를 이미 지난 상태다.
         const before = i.summary;
-        const out = await this._translateText(before, { from: i.originalLang || "auto", to: "ko" });
+        const out = await abortable(this._translateText(before, { from: i.originalLang || "auto", to: "ko" }), signal);
         // 원문과 똑같이 돌아왔다면 번역이 안 된 것이다 — 영어를 그대로 남기지
         // 않는다(David 2026-08-05: "진짜 한 것만 띄우자").
         if (out && out !== before && /[가-힣]/.test(out)) {
@@ -2948,7 +2972,15 @@ export class FeedEngine {
           i.summary = "";
           if (i.originalSummary === before) i.originalSummary = null;
         }
-      } catch { /* 한 건 실패가 나머지를 막지 않는다 */ }
+      } catch {
+        if (signal?.aborted) {
+          const before = i.summary;
+          i.summary = "";
+          if (i.originalSummary === before) i.originalSummary = null;
+          break;
+        }
+        // 한 건 실패가 나머지를 막지 않는다.
+      }
     }
   }
 

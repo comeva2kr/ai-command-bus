@@ -1,5 +1,5 @@
 import { decodeEntities } from "./html-text.js";
-import { discardBody, normalizeDate } from "./fetchers.js";
+import { abortable, discardBody, normalizeDate } from "./fetchers.js";
 import { needsPublisherTime } from "./content.js";
 import { lookup as dnsLookup } from "node:dns/promises";
 import { request as httpRequest } from "node:http";
@@ -204,18 +204,18 @@ function decodeHtmlBytes(bytes, contentType) {
   }
 }
 
-async function readCapped(res, maxBytes, contentType, { allowTextFallback = true } = {}) {
+async function readCapped(res, maxBytes, contentType, { allowTextFallback = true, signal } = {}) {
   const reader = res.body && typeof res.body.getReader === "function" ? res.body.getReader() : null;
   if (!reader) {
     if (!allowTextFallback) return "";
-    const text = await res.text();
+    const text = await abortable(res.text(), signal);
     return text.length > maxBytes ? text.slice(0, maxBytes) : text;
   }
   const chunks = [];
   let received = 0;
   try {
     while (received < maxBytes) {
-      const { done, value } = await reader.read();
+      const { done, value } = await abortable(reader.read(), signal);
       if (done) break;
       const remaining = maxBytes - received;
       const chunk = value.byteLength > remaining ? value.slice(0, remaining) : value;
@@ -661,7 +661,7 @@ async function resolveGoogleNewsPublisherUrl(url, { fetchImpl, signal }) {
     }
     if (!page || !page.ok) { discardBody(page); return null; }
     const contentType = page.headers && page.headers.get && page.headers.get("content-type") || "";
-    const html = await readCapped(page, ARTICLE_HTML_MAX_BYTES, contentType);
+    const html = await readCapped(page, ARTICLE_HTML_MAX_BYTES, contentType, { signal });
     const pageId = (html.match(/data-n-a-id=["']([^"']+)/i) || [])[1];
     const timestamp = (html.match(/data-n-a-ts=["'](\d+)/i) || [])[1];
     const signature = (html.match(/data-n-a-sg=["']([^"']+)/i) || [])[1];
@@ -691,7 +691,7 @@ async function resolveGoogleNewsPublisherUrl(url, { fetchImpl, signal }) {
       signal
     });
     if (!rpc || !rpc.ok) { discardBody(rpc); return null; }
-    const responseText = await readCapped(rpc, 64 * 1024, rpc.headers && rpc.headers.get && rpc.headers.get("content-type"));
+    const responseText = await readCapped(rpc, 64 * 1024, rpc.headers && rpc.headers.get && rpc.headers.get("content-type"), { signal });
     const jsonStart = responseText.indexOf("[");
     if (jsonStart < 0) return null;
     const outer = JSON.parse(responseText.slice(jsonStart));
@@ -768,21 +768,6 @@ function pinnedFetch(url, { headers, signal, lookup }) {
   });
 }
 
-async function abortable(promise, signal) {
-  if (!signal) return promise;
-  if (signal.aborted) throw signal.reason;
-  let onAbort;
-  const aborted = new Promise((_, reject) => {
-    onAbort = () => reject(signal.reason);
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-  try {
-    return await Promise.race([promise, aborted]);
-  } finally {
-    signal.removeEventListener("abort", onAbort);
-  }
-}
-
 async function publicArticleUrl(value, resolveHost, signal) {
   let parsed;
   try { parsed = new URL(value); } catch { return { reasonCode: "UNSAFE_URL" }; }
@@ -838,9 +823,9 @@ export async function fetchPublicArticle(url, {
         signal,
         lookup: checked.lookup
       };
-      res = fetchImpl === fetch && checked.lookup
-        ? await pinnedFetch(currentUrl, requestOptions)
-        : await fetchImpl(currentUrl.href, requestOptions);
+      res = await abortable(fetchImpl === fetch && checked.lookup
+        ? pinnedFetch(currentUrl, requestOptions)
+        : fetchImpl(currentUrl.href, requestOptions), signal);
     } catch {
       return unavailable(signal.aborted ? "TIMEOUT" : "NETWORK_ERROR");
     }
@@ -871,7 +856,7 @@ export async function fetchPublicArticle(url, {
   }
   let html;
   try {
-    html = await readCapped(res, ARTICLE_HTML_MAX_BYTES, contentType, { allowTextFallback: false });
+    html = await readCapped(res, ARTICLE_HTML_MAX_BYTES, contentType, { allowTextFallback: false, signal });
   } catch {
     return unavailable(signal.aborted ? "TIMEOUT" : "NETWORK_ERROR");
   }
@@ -913,15 +898,17 @@ export async function fetchOgImage(url, opts = {}) {
 }
 
 // 네트워크 1회로 image+desc를 함께 뽑는다. 실패 시 { image:null, desc:null }.
-export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch } = {}) {
+export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch, signal: parentSignal } = {}) {
   const empty = { image: null, desc: null };
   if (isGoogleNewsRedirect(url)) return empty;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = parentSignal ? AbortSignal.any([parentSignal, timeoutSignal]) : timeoutSignal;
   let res;
   try {
-    res = await fetchImpl(url, {
+    res = await abortable(fetchImpl(url, {
       headers: { "user-agent": DEFAULT_UA, accept: "text/html,*/*;q=0.8" },
-      signal: AbortSignal.timeout(timeoutMs)
-    });
+      signal
+    }), signal);
   } catch {
     return empty; // 네트워크 오류/타임아웃 — 조용히 포기
   }
@@ -930,7 +917,7 @@ export async function fetchOgMeta(url, { timeoutMs = 5000, fetchImpl = fetch } =
   if (!/text\/html/i.test(contentType)) { discardBody(res); return empty; }
   let html;
   try {
-    html = await readCapped(res, MAX_HTML_BYTES, contentType);
+    html = await readCapped(res, MAX_HTML_BYTES, contentType, { signal });
   } catch {
     return empty;
   }
@@ -997,7 +984,7 @@ export function makeEnricher({
     return touched;
   }
 
-  async function enrich(items) {
+  async function enrich(items, { signal } = {}) {
     // 이미지 없는 글을 먼저 처리한다 — 발췌보다 이미지가 화면에서 더 크게
     // 비고, 몰입 모드는 사진이 주인공이라 체감 차이가 크다(David 2026-08-01).
     // 호출측이 이미 신선도 순으로 넘겨주므로, 같은 조건이면 최신이 앞선다.
@@ -1026,8 +1013,10 @@ export function makeEnricher({
 
     async function worker() {
       while (cursor < candidates.length) {
+        if (signal?.aborted) break;
         const item = candidates[cursor++];
-        const meta = await fetchOgMeta(item.url, { fetchImpl });
+        const meta = await fetchOgMeta(item.url, { fetchImpl, signal });
+        if (signal?.aborted) break;
         cacheSet(item.url, meta, needsPublisherTime(item));
         if (applyMeta(item, meta)) filled++;
       }

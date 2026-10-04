@@ -1,4 +1,4 @@
-import { discardBody } from "./fetchers.js";
+import { abortable, discardBody } from "./fetchers.js";
 import { callStructuredMessage } from "./llm.js";
 // Free machine translation for overseas feed items.
 //
@@ -155,13 +155,15 @@ export function googleFreeTranslator({ fetchImpl = fetch, timeoutMs = DEFAULT_TI
       `${ENDPOINT}?client=dict-chrome-ex&sl=${encodeURIComponent(sl)}&tl=${encodeURIComponent(tl)}` +
       `&q=${encodeURIComponent(protectedText.text)}`;
 
+    const signal = AbortSignal.timeout(timeoutMs);
+    let res;
     try {
-      const res = await fetchImpl(url, {
+      res = await abortable(fetchImpl(url, {
         headers: { "user-agent": DEFAULT_UA, accept: "application/json" },
-        signal: AbortSignal.timeout(timeoutMs)
-      });
+        signal
+      }), signal);
       if (!res.ok) { discardBody(res); return text; } // free endpoint hiccup (rate limit, 5xx, ...) -> original text
-      const data = await res.json();
+      const data = await abortable(res.json(), signal);
       const translated = extractTranslation(data);
       // 감지 언어는 **opts에 적어 돌려준다.** 반환값을 객체로 바꾸면
       // translate.js와 engine.js의 호출부가 전부 깨진다 — 계약은 그대로 두고
@@ -170,6 +172,7 @@ export function googleFreeTranslator({ fetchImpl = fetch, timeoutMs = DEFAULT_TI
       if (detected && opts && typeof opts === "object") opts.detectedLang = detected;
       return translated ? protectedText.restore(translated) : text; // empty/unexpected shape -> original text, never throw
     } catch {
+      discardBody(res);
       return text; // network error, timeout (AbortError), bad JSON -> original text
     }
   };
