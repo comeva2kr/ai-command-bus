@@ -5,7 +5,7 @@
 <meta name="nh-build" content="dev">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&display=swap" rel="stylesheet">
-<script src="/audience-client.js?v=20260909-share"></script>
+<script src="/audience-client.js?v=20261012-share"></script>
 <script>/* 테마: 저장된 선택(light|dark) > 시스템 추종(system, 기본).
    드로어에서 바꿀 수 있고, system이면 OS 변경을 즉시 따라간다. */
 (function(){
@@ -3827,7 +3827,12 @@ async function renderDetail(itemId,revision=detailRevision){
   // 같은 사건 목록을 누르면 그 글 상세로 넘어간다.
   setTimeout(()=>{
     document.querySelectorAll("#detailBody [data-detail]").forEach(a=>{
-      a.addEventListener("click", (e)=>{ e.preventDefault(); openDetail(a.dataset.detail); });
+      a.addEventListener("click", (e)=>{
+        e.preventDefault();
+        const related=item.related.find(row=>row.id===a.dataset.detail);
+        if(related)Track.click(related);
+        openDetail(a.dataset.detail);
+      });
     });
   }, 0);
   const head = document.querySelector("#detail .detail-head");
@@ -3874,6 +3879,7 @@ async function renderDetail(itemId,revision=detailRevision){
       <div class="trans-hint">${browserTransHint()}</div>` : ""}
       <div class="excerpt-note">저작권 보호를 위해 발췌만 표시돼요 · 전체 글과 원문 댓글은 ${escapeHtml(srcLabel(item.source))}에서</div>
     `:""}
+    <nav class="detail-onward" aria-label="다른 주요 소식"><a class="readmore readmore-alt" href="/">오늘판 주요 소식 보기 →</a></nav>
     ${detailAdHtml(item.category, item.dealDest || item.adDest)}
     <div class="detail-actions">
       <button class="rate up ${item.myRating>0?'on':''}" id="dUp">${ic('like',15)} 좋아요</button>

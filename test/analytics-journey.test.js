@@ -12,6 +12,18 @@ const ctx={visitorId:vid,selfHost:'nowhot.kr',ua:'Mozilla/5.0 SamsungBrowser/26.
 const event=(seq,type='view',extra={})=>({pageId,seq,type,path:'/',referrer:'https://m.search.naver.com/?query=private',params:{utm_source:'naver',utm_medium:'post',utm_campaign:'launch'},...extra});
 function fixture(){let time=Date.parse('2026-09-07T09:00:00+09:00');const store=new FeedStore({clock:()=>new Date(time).toISOString()});return {store,advance:n=>time+=n,get:()=>summarize(mergeBuckets(Object.values(store.analyticsBuckets()))).journey};}
 
+test('generic share preserves observed source while onward navigation stays in one session',()=>{
+ const {store,get}=fixture(),params={utm_source:'shared_link',utm_medium:'share',utm_content:'post:one'};
+ store.recordJourneyEvents([event(1,'view',{path:'/live/detail',params,referrer:'https://www.threads.com'})],ctx);
+ store.recordJourneyEvents([event(1,'view',{pageId:'c'.repeat(32),path:'/',params:{},referrer:'https://nowhot.kr/live'})],ctx);
+ const j=get();assert.equal(j.sessions,1);assert.equal(j.browsers,1);
+ assert.equal(j.referrers[0].key,'스레드');assert.equal(j.campaigns[0].key,'shared_link | share | -');
+ assert.ok(j.transitions.some(row=>row.key==='실시간 상세 → 오늘판'));
+ assert.equal(acquisitionLabel('',ctx.selfHost,params),'공유 링크');
+ assert.equal(acquisitionLabel('https://nowhot.kr/p',ctx.selfHost,params),'공유 링크');
+ assert.equal(acquisitionLabel('https://www.threads.com',ctx.selfHost,{utm_source:'kakao'}),'카카오');
+});
+
 test('one browser: duplicate batch, refresh, Today→Live→detail keep one attributed session',()=>{
  const {store,get}=fixture();
  store.recordJourneyEvents([event(1),event(2,'engage')],ctx);

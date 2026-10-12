@@ -191,6 +191,29 @@ test('NH155 browser: tagged arrivals and new share copies keep separate attribut
  assert.ok(trackEvents.some(e=>e.path==='/today/detail'&&e.params.utm_content==='x-post-01'));
 });
 
+for (const width of [1100,390]) test(`browser: shared Live detail leads to Today and measured related selections at ${width}px`,options,async t=>{
+ const {page,trackEvents}=await fixture(t,'/live#post-post-0');
+ await page.setViewportSize({width,height:844});
+ await page.waitForSelector('#detail.open #detailTitle');
+ await page.click('#detailBody .detail-onward a');
+ await page.waitForSelector('.issue');
+ assert.equal(new URL(page.url()).pathname,'/');
+ await page.goBack();await page.waitForSelector('#detail.open #detailTitle');
+ assert.match(await page.locator('#detailTitle').innerText(),/Public article 0/);
+ await page.route('**/api/item?**',route=>{
+   const item=items.find(row=>row.id===new URL(route.request().url()).searchParams.get('itemId'));
+   return route.fulfill({json:{...item,related:item.id==='post-0'?[{...items[1],category:'tech'}]:[]}});
+ });
+ await page.reload();await page.waitForSelector('#detail.open [data-detail="post-1"]');
+ await page.click('#detailBody [data-detail="post-1"]');
+ await page.waitForFunction(()=>location.hash==='#post-post-1');
+ await page.waitForFunction(()=>document.querySelector('#detailTitle')?.textContent==='Public article 1');
+ await page.evaluate(()=>NowHotTrack.flush());
+ assert.ok(trackEvents.some(e=>e.type==='click'&&e.source==='test'&&e.category==='tech'));
+ await page.goBack();await page.waitForFunction(()=>!location.hash&&!document.querySelector('#detail.open'));
+ await page.waitForSelector('#feed [data-id="post-0"]');
+});
+
 test('NH155 browser: a stale cached collector cannot shadow the versioned attribution script',options,async t=>{
  const {page,base,trackEvents}=await fixture(t,'/live',true);
  await page.evaluate(()=>navigator.serviceWorker.ready);

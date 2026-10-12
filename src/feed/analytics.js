@@ -113,6 +113,10 @@ export function linkEntryKey(params) {
 
 export function acquisitionLabel(referrer, selfHost, params) {
   const source = (attributionParams(params).utm_source || '').toLowerCase();
+  if (source === 'shared_link') {
+    const observed = refLabel(referrer, selfHost);
+    if (observed !== '내부 이동' && observed !== '직접·출처 미확인') return observed;
+  }
   const known = {web_push:'웹 푸시',shared_link:'공유 링크',naver:'네이버',google:'구글',kakao:'카카오',instagram:'인스타그램',youtube:'유튜브',facebook:'페이스북',threads:'스레드',x:'X',twitter:'X'};
   if (Object.hasOwn(known, source)) return known[source];
   return source && /^[a-z0-9_.-]+$/.test(source) ? `캠페인: ${source}` : refLabel(referrer, selfHost);

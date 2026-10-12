@@ -56,6 +56,16 @@ test("같은 소스가 목록을 독식하지 않는다", async () => {
   assert.equal(new Set(sources).size, sources.length, "한 소스가 여러 칸을 먹었다");
 });
 
+test("눌러서 이동할 관련 글의 분야는 원글 분야로 추정하지 않는다", () => {
+  const engine = new FeedEngine(new FeedStore(), []);
+  const title = "국회 예산안 처리 무산, 여야 대치 계속";
+  const parent = mk("parent", title, "hani", { category: "business" });
+  const target = mk("target", title, "donga", { category: "politics" });
+  const related = engine._relatedItems(parent, [parent, target], { showTopics: new Set(["politics"]) });
+  assert.equal(related[0].id, "target");
+  assert.equal(related[0].category, "politics");
+});
+
 test("브리핑과 같은 사건 판정을 쓴다 — 두 벌로 두지 않는다", async () => {
   // 판정이 두 벌이면 언젠가 어긋난다. 브리핑의 중복 제거와 같은 eventKey다.
   const { readFileSync } = await import("node:fs");

@@ -290,6 +290,13 @@ ${shareImage === fallbackImage ? "" : `<meta property="og:image" content="${esca
 </head><body style="background:#faf9f8;color:#14100e;font-family:-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif;padding:40px;text-align:center">
 <p>${title}</p><p><a style="color:#e02b0f;font-weight:700" href="${escapeHtml(appUrl)}">앱에서 열기 →</a></p>
 <script>
+// The redirect would hide the external referrer; keep only its origin for one arrival.
+try {
+  sessionStorage.removeItem('nh_share_referrer');
+  const ref = new URL(document.referrer);
+  if (/^https?:$/.test(ref.protocol) && ref.origin !== location.origin)
+    sessionStorage.setItem('nh_share_referrer', JSON.stringify({origin:ref.origin,at:Date.now()}));
+} catch {}
 /* meta refresh 대신 replace: 일부 브라우저가 meta refresh를 "reload"로 보고해
    앱의 "새로고침은 홈으로" 규칙에 걸리고, 공유링크가 기사가 아니라 홈으로
    튕겼다(실사용 제보 2026-08-02). replace는 정상 내비게이션으로 보고된다. */
@@ -2353,7 +2360,7 @@ ${limitedAds ? "" : displayAdHtml()}
   //
   // 앱과 같은 /api/track 을 쓴다. 보내는 것은 앱과 동일하게 **유입 도메인,
   // 화면 종류, 체류 시간**뿐이다 — 제목이나 URL 자체는 보내지 않는다.
-  const pageTracker = () => '<script src="/audience-client.js?v=20260909-share"></script>';
+  const pageTracker = () => '<script src="/audience-client.js?v=20261012-share"></script>';
 
   const fmtNum = (n) => n >= 10000 ? `${Math.round(n / 1000) / 10}만` : String(n);
   // 받침 유무 조사 선택 — "(한겨레)이 있습니다" 같은 오류(2차 검수) 방지용.
@@ -2772,7 +2779,8 @@ ${limitedAds ? "" : displayAdHtml()}
         const paragraphs = [...new Set([item.summary, item.originalTitle, item.originalSummary, item.editorialNote].filter(Boolean))];
         const inner = `<article><h1>${escapeHtml(item.title)}</h1>${paragraphs.map(text => `<p>${escapeHtml(text)}</p>`).join("")}${sponsored ? `<p>${escapeHtml(AD_DISCLOSURE)}</p>` : ""}${original}</article>
           ${item.thread?.length ? `<section><h2>지금핫 댓글</h2>${item.thread.map(comment => `<p>${escapeHtml(comment.body)}</p>`).join("")}</section>` : ""}
-          <p><a href="/live#post-${encodeURIComponent(item.id)}">실시간 보기에서 반응·댓글 보기</a></p>`;
+          <p><a href="/live#post-${encodeURIComponent(item.id)}">실시간 보기에서 반응·댓글 보기</a></p>
+          <nav aria-label="다른 주요 소식"><a href="/">오늘판 주요 소식 보기 →</a></nav>`;
         return sendHtml(res, editionShell(item.title, item.summary || "", inner,
           `/post/${encodeURIComponent(item.id)}`, ownContentNav(), "", true));
       }

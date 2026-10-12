@@ -150,6 +150,19 @@ test("old pool links migrate independently of feed freshness and survive the HTT
   const legacy=destination(shareHtml);
   assert.equal(legacy.pathname,'/live');assert.equal(legacy.hash,'#post-old-public');
   assert.equal(legacy.searchParams.get('utm_source'),'shared_link');assert.equal(legacy.searchParams.get('utm_content'),'post:old-public');
+  const { runInNewContext } = await import('node:vm');
+  const bridge = shareHtml.match(/<script>([\s\S]*?)<\/script>/)[1];
+  for (const referrer of ['https://www.threads.com/@reader/post?private=secret', origin+'/post/old-public', '']) {
+    const rows = new Map([['nh_share_referrer','old']]);let redirected;
+    runInNewContext(bridge, { document:{referrer}, URL, Date,
+      sessionStorage:{removeItem:k=>rows.delete(k),setItem:(k,v)=>rows.set(k,v)},
+      location:{origin,replace:url=>{redirected=url;}} });
+    assert.equal(redirected,legacy.pathname+legacy.search+legacy.hash);
+    if (referrer.startsWith('https://www.threads.com')) {
+      const saved=JSON.parse(rows.get('nh_share_referrer'));assert.equal(saved.origin,'https://www.threads.com');
+      assert.doesNotMatch(JSON.stringify(saved), /reader|private|secret/);
+    } else assert.equal(rows.has('nh_share_referrer'),false);
+  }
   for (const channel of ['kakao','x','threads']) {
     const tags=new URLSearchParams({id:'old-public',utm_source:channel,utm_medium:'social',utm_campaign:'launch',utm_content:'post-001'});
     const tagged=await (await fetch(`${origin}/p?${tags}`)).text(),target=destination(tagged);
@@ -199,6 +212,7 @@ test("public post pages and paged discovery expose existing content without priv
   const html = await response.text();
   assert.ok(html.includes("공개 요약과 현재 화제 설명"));
   assert.ok(html.includes("공개 댓글도 검색 가능한 글에서 읽습니다."));
+  assert.match(html, /<nav aria-label="다른 주요 소식"><a href="\/">오늘판 주요 소식 보기 →<\/a><\/nav>/);
   assert.ok(html.includes('rel="canonical" href="https://nowhot.kr/post/public-0"'));
   const schema = JSON.parse(html.match(/<script type="application\/ld\+json">(.*?)<\/script>/s)[1]);
   assert.equal(schema.name, '</script><script>alert("x")</script>');

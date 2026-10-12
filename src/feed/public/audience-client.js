@@ -6,6 +6,22 @@
   let lastInput = Date.now();
   let engaged = false, visibleMs = 0, maxDepth = 0, timer = null, sending = false;
   const queue = [];
+  let referrer = '';
+  try {
+    const ref = new URL(document.referrer);
+    if (/^https?:$/.test(ref.protocol)) referrer = ref.origin;
+  } catch {}
+  try {
+    const raw = sessionStorage.getItem('nh_share_referrer');
+    sessionStorage.removeItem('nh_share_referrer');
+    const saved = JSON.parse(raw || 'null'), ref = new URL(document.referrer);
+    if (saved && ref.origin === location.origin && ref.pathname === '/p' &&
+        Number.isFinite(saved.at) && Date.now() - saved.at >= 0 && Date.now() - saved.at < 30000) {
+      const original = new URL(saved.origin);
+      if (/^https?:$/.test(original.protocol) && original.origin === saved.origin && original.origin !== location.origin)
+        referrer = original.origin;
+    }
+  } catch {}
   function readParams() {
     const params = {}, sp = new URLSearchParams(location.search);
     for (const k of ['utm_source','utm_medium','utm_campaign','utm_content']) if (sp.get(k)) params[k] = sp.get(k).slice(0,k==='utm_content'?80:40);
@@ -14,7 +30,7 @@
   }
   let params = readParams();
   function event(type, values={}) {
-    queue.push({type, pageId, seq:++seq, path, referrer:document.referrer, params, ...values});
+    queue.push({type, pageId, seq:++seq, path, referrer, params, ...values});
     if(queue.length > 200) queue.shift();
     if(!timer) timer=setTimeout(()=>{timer=null;flush();},1000);
   }

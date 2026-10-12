@@ -3770,6 +3770,7 @@ export class FeedEngine {
       out.push({
         id: other.id,
         title: other.title,
+        category: other.category,
         sourceLabel: other.sourceLabel || other.source,
         source: other.source,
         score: other.score || 0,
