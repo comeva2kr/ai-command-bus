@@ -449,6 +449,55 @@ test("Today catalogue lists activation records without reading every payload; co
   assert.deepEqual(reader.list(), [], "out-of-directory entries must stay outside the public catalogue");
 });
 
+test("Today archive reads evict old payloads, retain recently used editions, and preserve shared IDs", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-cache-count-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const pointerFile = path.join(root, "active.json");
+  const artifacts = Array.from({ length: 4 }, (_, index) => build({ editionDate: `2026-08-${24 + index}` }));
+  const files = artifacts.map(artifact => activateSlotCanonicalEdition({ artifact, directory: root, pointerFile }).artifactFile);
+  const readFile = fs.readFileSync;
+  const reads = [];
+  t.mock.method(fs, "readFileSync", (file, ...args) => {
+    if (files.includes(file)) reads.push(file);
+    return readFile(file, ...args);
+  });
+  const reader = makeSlotCanonicalEditionReader({ pointerFile });
+  for (const index of [0, 1, 2, 0, 3, 1]) {
+    const artifact = artifacts[index];
+    const edition = reader.read({ date: artifact.editionDate, slotId: "lunch", editionId: artifact.artifactId, categories: ["news"] });
+    assert.equal(edition.editionId, artifact.artifactId);
+    assert.equal(edition.issues.length, 13);
+  }
+  assert.deepEqual(reads, [files[0], files[1], files[2], files[3], files[1]]);
+});
+
+test("Today payload cache is bounded by bytes and never retains oversized editions", async (t) => {
+  for (const megabytes of [9, 17]) await t.test(`${megabytes} MiB payload`, (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-cache-bytes-"));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const pointerFile = path.join(root, "active.json");
+    const artifacts = [build({ editionDate: "2026-08-26" }), build()];
+    const files = artifacts.map(artifact => {
+      const { artifactFile } = activateSlotCanonicalEdition({ artifact, directory: root, pointerFile });
+      const raw = fs.readFileSync(artifactFile, "utf8");
+      fs.writeFileSync(artifactFile, raw + " ".repeat(megabytes * 1024 * 1024 - Buffer.byteLength(raw)));
+      return artifactFile;
+    });
+    const readFile = fs.readFileSync;
+    const reads = [];
+    t.mock.method(fs, "readFileSync", (file, ...args) => {
+      if (files.includes(file)) reads.push(file);
+      return readFile(file, ...args);
+    });
+    const reader = makeSlotCanonicalEditionReader({ pointerFile });
+    for (const index of [0, 1, 1, 0]) {
+      const artifact = artifacts[index];
+      assert.equal(reader.read({ date: artifact.editionDate, slotId: "lunch", categories: ["news"] }).editionId, artifact.artifactId);
+    }
+    assert.deepEqual(reads, megabytes === 9 ? [files[0], files[1], files[0]] : [files[0], files[1], files[1], files[0]]);
+  });
+});
+
 test("published Today contents have crawlable pages that update on activation without collection", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-search-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

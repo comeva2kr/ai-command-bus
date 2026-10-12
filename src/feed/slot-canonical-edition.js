@@ -509,6 +509,8 @@ export function activateSlotCanonicalEdition({ artifact, directory, pointerFile 
 
 export function makeSlotCanonicalEditionReader({ pointerFile }) {
   const cache = new Map();
+  const maxCacheBytes = 16 * 1024 * 1024;
+  let cacheBytes = 0;
   function artifactPath(entry) {
     const base = path.resolve(path.dirname(pointerFile));
     const artifactFile = path.resolve(base, entry.file);
@@ -517,12 +519,24 @@ export function makeSlotCanonicalEditionReader({ pointerFile }) {
   }
   function load(entry, key) {
     const artifactFile = artifactPath(entry);
-    let artifact = cache.get(artifactFile);
+    const cached = cache.get(artifactFile);
+    let artifact = cached?.artifact;
     if (!artifact) {
+      const bytes = fs.statSync(artifactFile).size;
+      // Evict before parsing: 32 historical payloads exhausted the production heap.
+      while (cache.size && (cache.size >= 3 || cacheBytes + bytes > maxCacheBytes)) {
+        const oldest = cache.keys().next().value;
+        cacheBytes -= cache.get(oldest).bytes;
+        cache.delete(oldest);
+      }
       artifact = assertSlotCanonicalEdition(JSON.parse(fs.readFileSync(artifactFile, "utf8")));
-      cache.set(artifactFile, artifact);
-      // Keep payload memory bounded; the activation catalogue stores only identities.
-      if (cache.size > 32) cache.delete(cache.keys().next().value);
+      if (bytes <= maxCacheBytes) {
+        cache.set(artifactFile, { artifact, bytes });
+        cacheBytes += bytes;
+      }
+    } else {
+      cache.delete(artifactFile);
+      cache.set(artifactFile, cached);
     }
     if (artifact.artifactId !== entry.artifactId || artifact.contentSha256 !== entry.contentSha256
       || pointerKey(artifact.editionDate, artifact.slot.id) !== key) fail("pointer identity mismatch");
