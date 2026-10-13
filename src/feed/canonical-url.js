@@ -142,7 +142,8 @@ export function canonicalizeUrl(url) {
   if (canonicalCache.has(input)) return canonicalCache.get(input);
   const result = canonicalizeUrlUncached(input);
   if (canonicalCache.size >= CANONICAL_CACHE_MAX) canonicalCache.clear();
-  canonicalCache.set(input, result);
+  // A short parsed URL can otherwise retain the entire source document as its backing string.
+  canonicalCache.set(structuredClone(input), result);
   return result;
 }
 

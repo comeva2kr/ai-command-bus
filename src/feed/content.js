@@ -76,7 +76,8 @@ export function normalizeItem(raw, source) {
   // 유저 토글로 기본 숨김(engine.js), adult는 아래에서 기존 19금 필드에 합류시켜
   // 별도 게이트를 만들지 않고 기존 verify-age/adult 게이트 하나로 처리한다.
   const topics = classifyTopics({ title: raw.title, url, sourceId, category });
-  return {
+  // Parsed substrings must not keep entire RSS/HTML documents alive in the pool.
+  return structuredClone({
     id: raw.id || (sourceId === "hani-rank" && url
       ? stableId(url, sourceId, "", "") : stableId(url, sourceId, raw.title, raw.publishedAt)),
     // "news" | "community". 개별 아이템이 kind를 들고 오는 경우는 드물고(대부분
@@ -178,7 +179,7 @@ export function normalizeItem(raw, source) {
     // hand) — engine.js falls back to array position in that case. See
     // ingest.js's rankBySource for how this is used.
     sourceRank: Number.isFinite(raw.sourceRank) ? raw.sourceRank : null
-  };
+  });
 }
 
 // 한겨레 랭킹 RSS의 pubDate는 기사 발행일이 아니라 랭킹 생성 시각이다.
