@@ -136,3 +136,30 @@ test("라벨 리더: 이미지 검증과 요청 형식", async () => {
   const refused = async () => ({ ok: true, json: async () => ({ stop_reason: "refusal", content: [] }) });
   await assert.rejects(readLabel({ dataUrl: "data:image/png;base64,AAAA", apiKey: "k", fetchImpl: refused }), /refused/);
 });
+
+test("한 번 읽은 상품은 표가 접혀 있어도(상품명·URL만) 점수가 나온다", async () => {
+  await withServer({}, async (base) => {
+    const rows = [["식품의 유형", "소시지"], ["원재료명 및 함량", "돼지고기 90%, 정제소금, 아질산나트륨(발색제)"]];
+    // 1) PC 웹에서 고시표가 보이는 페이지
+    const first = await (await post(base, "/api/ansim/analyze", {
+      notice: { title: "꼬마햄 300g", url: "https://www.coupang.com/vp/products/555?itemId=1", rows }, mall: "coupang", profile: { age: 6 }
+    })).json();
+    assert.ok(first.analysis.score != null);
+    // 2) 같은 상품을 모바일 웹에서, 표 없이 — 상품번호로 찾는다
+    const byId = await (await post(base, "/api/ansim/analyze", {
+      notice: { title: "다른 제목", url: "https://m.coupang.com/vm/products/555", rows: [] }, mall: "coupang", profile: { age: 6 }
+    })).json();
+    assert.equal(byId.analysis.score, first.analysis.score);
+    assert.ok(byId.analysis.notes.some((n) => n.includes("전에 읽어 둔 원재료")));
+    // 3) 안드로이드 쇼핑앱 화면처럼 URL 없이 상품명만 — 제목으로 찾는다
+    const byTitle = await (await post(base, "/api/ansim/analyze", {
+      notice: { title: "꼬마햄 300g", url: "", rows: [] }, mall: "coupang", profile: { age: 6 }
+    })).json();
+    assert.equal(byTitle.analysis.score, first.analysis.score);
+    // 4) 처음 보는 상품은 지어내지 않는다
+    const unknown = await (await post(base, "/api/ansim/analyze", {
+      notice: { title: "처음 보는 상품", url: "", rows: [] }, mall: "coupang", profile: { age: 6 }
+    })).json();
+    assert.equal(unknown.analysis.score, null);
+  });
+});

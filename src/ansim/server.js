@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { analyzeProduct, normalizeProfile } from "./core/score.js";
 import { rankAlternatives } from "./core/alternatives.js";
 import { buyLinks, MALL_IDS } from "./core/malls.js";
-import { noticeToProduct } from "./core/notice.js";
+import { listingKeys, noticeToProduct } from "./core/notice.js";
 import { inferCategory } from "./core/categories.js";
 import { createCatalog } from "./catalog.js";
 import { fetchProductByBarcode } from "./mfds.js";
@@ -117,6 +117,7 @@ export function createServer({
       profile,
       { mall, base: analysis }
     ).map((a) => ({ ...a, product: publicProduct(a.product) }));
+    if (product.source === "seen") analysis.notes.push("이 화면에서는 원재료 표가 안 보여, 같은 상품 페이지에서 전에 읽어 둔 원재료로 판정했습니다.");
     return { product: publicProduct(product), analysis, alternatives, links: buyLinks(product, mall) };
   }
 
@@ -156,11 +157,22 @@ export function createServer({
     if (req.method === "POST" && p === "/api/ansim/analyze") {
       const body = await readBody(req, JSON_LIMIT);
       let product = null;
+      const mall = MALL_IDS.includes(body.mall) ? body.mall : null;
       if (body.barcode) product = await lookup(body.barcode);
-      else if (body.notice) product = sanitizeProduct(noticeToProduct({
-        title: str(body.notice.title, 300), url: str(body.notice.url, 500),
-        rows: Array.isArray(body.notice.rows) ? body.notice.rows.slice(0, 80).map((r) => [str(r?.[0], 60), str(r?.[1], 4000)]) : []
-      }));
+      else if (body.notice) {
+        const title = str(body.notice.title, 300);
+        const url = str(body.notice.url, 500);
+        product = sanitizeProduct(noticeToProduct({
+          title, url,
+          rows: Array.isArray(body.notice.rows) ? body.notice.rows.slice(0, 80).map((r) => [str(r?.[0], 60), str(r?.[1], 4000)]) : []
+        }));
+        // 페이지 제목(h1)과 고시표 '제품명' 둘 다로 기억한다 — 표가 접혀 있을 땐 제목만 보이고,
+        // 앱에서는 URL 없이 상품명만 보인다
+        const keys = [...new Set([...listingKeys({ url, title, mall }), ...listingKeys({ title: product.name })])];
+        // 원재료가 보이면 기억하고, 안 보이면(표가 접혀 있음) 전에 읽어 둔 것을 쓴다
+        if (product.ingredientsText) catalog.rememberListing(keys, product);
+        else product = catalog.byListing(keys) || product;
+      }
       else if (body.product) product = sanitizeProduct(body.product);
       if (!product) return send(res, 404, { error: "not_found" }, cors);
       return send(res, 200, verdictPayload(product, body.profile, body.mall), cors);

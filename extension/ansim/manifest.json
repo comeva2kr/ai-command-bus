@@ -1,36 +1,67 @@
 {
   "manifest_version": 3,
   "name": "안심스캔 — 아이 먹거리 점수",
-  "version": "0.1.0",
-  "description": "쇼핑몰 식품 상세 페이지에서 원재료를 읽어 아이 기준 안심점수와 같은 몰의 더 나은 대체품을 보여줍니다.",
-  "permissions": ["storage"],
+  "version": "0.2.0",
+  "description": "쇼핑몰 식품 상세 페이지 오른쪽에 아이 기준 안심점수 탭을 띄우고, 누르면 이유와 같은 몰의 더 나은 대체품을 보여줍니다.",
+  "permissions": [
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ]
+  },
   "content_scripts": [
     {
       "matches": [
         "https://www.coupang.com/vp/products/*",
+        "https://m.coupang.com/vm/products/*",
         "https://smartstore.naver.com/*/products/*",
+        "https://m.smartstore.naver.com/*/products/*",
         "https://brand.naver.com/*/products/*",
+        "https://m.brand.naver.com/*/products/*",
         "https://www.kurly.com/goods/*",
         "https://www.ssg.com/item/*",
-        "https://www.11st.co.kr/products/*"
+        "https://m.ssg.com/item/*",
+        "https://www.11st.co.kr/products/*",
+        "https://m.11st.co.kr/products/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["core/*.js", "data/sample-catalog.json"],
+      "resources": [
+        "core/*.js",
+        "data/sample-catalog.json"
+      ],
       "matches": [
-        "https://www.coupang.com/*",
-        "https://smartstore.naver.com/*",
         "https://brand.naver.com/*",
+        "https://m.11st.co.kr/*",
+        "https://m.brand.naver.com/*",
+        "https://m.coupang.com/*",
+        "https://m.smartstore.naver.com/*",
+        "https://m.ssg.com/*",
+        "https://smartstore.naver.com/*",
+        "https://www.11st.co.kr/*",
+        "https://www.coupang.com/*",
         "https://www.kurly.com/*",
-        "https://www.ssg.com/*",
-        "https://www.11st.co.kr/*"
+        "https://www.ssg.com/*"
       ]
     }
   ],
   "options_page": "options.html",
-  "action": { "default_title": "안심스캔 설정", "default_popup": "options.html" }
+  "action": {
+    "default_title": "안심스캔 설정",
+    "default_popup": "options.html"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ansim-scan@example.org"
+    }
+  }
 }

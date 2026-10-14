@@ -18,9 +18,14 @@ export function loadSampleProducts(file = SAMPLE_CATALOG_PATH) {
   return JSON.parse(fs.readFileSync(file, "utf8")).products;
 }
 
+// 몰 상품 키 → 원재료를 읽어 둔 제품. 사용자 화면에서 읽은 '검증 안 된' 정보라
+// source: "seen"으로 표시하고, 판정 화면에도 그렇게 알린다. 메모리 상한을 둔다.
+const SEEN_LIMIT = 5000;
+
 export function createCatalog(products = loadSampleProducts()) {
   const byCode = new Map();
   const list = [];
+  const seen = new Map();
   const remember = (p) => {
     if (!p) return p;
     const existing = p.barcode && byCode.get(p.barcode);
@@ -37,6 +42,22 @@ export function createCatalog(products = loadSampleProducts()) {
     // 대체품 후보 — 분류가 같고 원재료를 아는 제품만 (모르는 제품은 점수를 매길 수 없다)
     candidates: (category) => list.filter((p) => p.ingredientsText && (!category || p.category === category)),
     all: () => list.slice(),
-    remember
+    remember,
+    rememberListing(keys, product) {
+      if (!product?.ingredientsText) return;
+      const entry = { ...product, source: "seen", seenAt: Date.now() };
+      for (const k of keys) {
+        seen.delete(k);
+        seen.set(k, entry);
+      }
+      while (seen.size > SEEN_LIMIT) seen.delete(seen.keys().next().value);
+    },
+    byListing(keys) {
+      for (const k of keys) {
+        const hit = seen.get(k);
+        if (hit) return hit;
+      }
+      return null;
+    }
   };
 }

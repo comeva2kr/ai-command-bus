@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   analyzeProduct, buyLinks, detectAllergens, detectMall, inferCategory, noticeToProduct,
-  parseIngredients, parseNutrition, rankAlternatives, rowsFromText
+  listingKeys, parseIngredients, parseNutrition, rankAlternatives, rowsFromText
 } from "../src/ansim/core/index.js";
 import { loadSampleProducts } from "../src/ansim/catalog.js";
 
@@ -166,4 +166,12 @@ test("상품정보제공고시 표 → 제품", () => {
   assert.deepEqual(rows, [["제품명", "보리차"], ["원재료명", "정제수, 볶은보리"]]);
   assert.equal(inferCategory({ name: "딸기맛 젤리" }), "candy");
   assert.equal(inferCategory({ name: "치즈 소시지" }), "processed-meat");
+});
+
+test("몰 상품 키: 상품번호 우선, 상품명은 꼬리표를 떼고 정규화", () => {
+  assert.deepEqual(listingKeys({ url: "https://www.coupang.com/vp/products/123?itemId=9", title: "[무료배송] 꼬마 소시지 1kg (2+1)", mall: "coupang" }),
+    ["coupang:id:123", "title:꼬마소시지1kg"]);
+  assert.deepEqual(listingKeys({ url: "https://m.smartstore.naver.com/shop/products/77", title: "", mall: "naver" }), ["naver:id:77"]);
+  assert.deepEqual(listingKeys({ url: "https://www.ssg.com/item/itemView.ssg?itemId=1000", title: "", mall: "ssg" }), ["ssg:id:1000"]);
+  assert.deepEqual(listingKeys({ title: "햄" }), []);    // 너무 짧은 제목은 키로 쓰지 않는다
 });

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  쇼핑 앱 화면의 상품명·원재료 글자를 읽기 위한 접근성 서비스 설정.
+  packageNames로 대상 앱을 묶지 않는 이유: 사용자가 쇼핑 앱을 떠나 다른 앱으로 가면
+  그 '전환' 이벤트를 받아 탭을 숨겨야 한다. 다른 앱 이벤트는 패키지 이름만 보고
+  버리며 화면 내용은 읽지 않는다(MallWatcherService.onAccessibilityEvent).
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagIncludeNotImportantViews"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_description"
+    android:notificationTimeout="400" />

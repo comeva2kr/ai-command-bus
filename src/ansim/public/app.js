@@ -6,11 +6,20 @@ const $ = (id) => document.getElementById(id);
 const PROFILE_KEY = "ansim.profile.v1";
 
 // ── 저장소 (사생활 모드·차단 환경에서도 앱은 돌아가야 한다)
+// 안드로이드 앱 안(WebView)에서 열리면 프로필을 네이티브 쪽에 저장한다 — 쇼핑몰 앱 위
+// 플로팅 탭이 같은 아이 정보를 쓰도록. window.AnsimNative는 그 앱이 주입하는 브리지다.
+const native = window.AnsimNative;
 function loadProfile() {
-  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)) || null; } catch { return null; }
+  try {
+    if (native) return JSON.parse(native.getProfile() || "null");
+    return JSON.parse(localStorage.getItem(PROFILE_KEY)) || null;
+  } catch { return null; }
 }
 function saveProfile(p) {
-  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
+  try {
+    if (native) native.setProfile(JSON.stringify(p));
+    else localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+  } catch {}
 }
 let profile = loadProfile() || { name: "", age: 6, allergies: [], concerns: [], mall: "coupang" };
 

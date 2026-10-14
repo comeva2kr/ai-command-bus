@@ -63,3 +63,33 @@ export function noticeToProduct({ title = "", rows = [], url = "" } = {}) {
     source: "notice"
   };
 }
+
+// ── 몰 상품 식별 키
+// 한 번 원재료를 읽은 상품은 기억해 두고, 다음엔 상품명·URL만으로 바로 점수를 낸다.
+// 모바일 쇼핑몰 앱은 '필수 표기정보'가 접혀 있어 매번 펼치게 할 수 없기 때문이다.
+//   1순위: URL 속 몰 상품번호 (쿠팡 /vp/products/123 등) — 정확
+//   2순위: 정규화한 상품명 — 앱(URL을 모름)에서도 찾을 수 있게
+const PRODUCT_ID = [
+  /\/v[pm]\/products\/(\d+)/,          // 쿠팡 PC·모바일웹
+  /\/products\/(\d+)/,                  // 네이버 스마트스토어·브랜드스토어, 11번가
+  /\/goods\/(\d+)/,                     // 컬리
+  /[?&]itemId=(\d+)/                     // SSG
+];
+
+export function normalizeTitle(title = "") {
+  return String(title).toLowerCase()
+    .replace(/\[[^\]]*\]|\([^)]*\)/g, " ")     // [무료배송] (1+1) 같은 꼬리표
+    .replace(/[^0-9a-z가-힣]+/g, "")
+    .slice(0, 80);
+}
+
+export function listingKeys({ url = "", title = "", mall = null } = {}) {
+  const keys = [];
+  if (mall && url) {
+    const id = PRODUCT_ID.map((re) => String(url).match(re)?.[1]).find(Boolean);
+    if (id) keys.push(`${mall}:id:${id}`);
+  }
+  const t = normalizeTitle(title);
+  if (t.length >= 4) keys.push(`title:${t}`);   // 몰과 무관 — 같은 상품명은 어느 몰에서든 같은 원재료
+  return keys;
+}

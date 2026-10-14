@@ -8,4 +8,4 @@ export { AGE_BANDS, ageBand, parseNutrition, perEating } from "./nutrition.js";
 export { CONCERNS, THRESHOLDS, VERDICTS, analyzeProduct, normalizeProfile } from "./score.js";
 export { improvements, rankAlternatives } from "./alternatives.js";
 export { MALLS, MALL_IDS, buyLinks, detectMall, mallById } from "./malls.js";
-export { cleanTitle, noticeToProduct, rowsFromText } from "./notice.js";
+export { cleanTitle, listingKeys, normalizeTitle, noticeToProduct, rowsFromText } from "./notice.js";

@@ -38,3 +38,16 @@ test("매니페스트: MV3, 콘텐츠 스크립트·웹 리소스가 실제 파�
   // 아이 건강 정보는 기기 밖으로 동기화하지 않는다
   assert.doesNotMatch(fs.readFileSync(path.join(ext, "content.js"), "utf8"), /storage\.sync/);
 });
+
+test("매니페스트: 백그라운드 서비스 워커와 모바일 웹 상품 페이지", () => {
+  const m = JSON.parse(fs.readFileSync(path.join(ext, "manifest.json"), "utf8"));
+  assert.equal(m.background.service_worker, "background.js");
+  assert.ok(fs.existsSync(path.join(ext, "background.js")));
+  const pages = m.content_scripts[0].matches;
+  for (const u of ["https://m.coupang.com/vm/products/*", "https://m.smartstore.naver.com/*/products/*", "https://m.ssg.com/item/*"]) {
+    assert.ok(pages.includes(u), u);
+  }
+  // 콘텐츠 스크립트가 도는 모든 호스트에서 core를 import할 수 있어야 한다
+  const hosts = new Set(pages.map((u) => u.split("/").slice(0, 3).join("/") + "/*"));
+  for (const h of hosts) assert.ok(m.web_accessible_resources[0].matches.includes(h), h);
+});
