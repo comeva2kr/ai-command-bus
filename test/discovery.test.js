@@ -3,6 +3,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { FeedStore } from "../src/feed/store.js";
 
 import { JsonSource } from "../src/feed/content.js";
 
@@ -16,6 +19,7 @@ async function withServer(env, fn) {
   }
   const { createServer } = await import("../src/feed/server.js");
   const server = createServer({ localEditorial: true, localEditorialInventorySchedule: false,
+    indexNowFetch: async () => ({status:200,ok:true}),
     sources: [new JsonSource("clien", async () => [{ id: "discovery", title: "새 반도체 공정 연구 공개",
       url: "https://example.com/discovery", kind: "community", category: "tech", score: 500,
       commentCount: 120, publishedAt: new Date().toISOString() }], "community")] });
@@ -81,6 +85,86 @@ test("IndexNow: 통보 실패가 서비스를 죽이지 않는다", async () => 
   });
   const out = await inx.ping(["/only-once-" + Math.random()]);
   assert.ok(out.error, "실패는 값으로 돌려주고 던지지 않는다");
+});
+
+test("IndexNow: 실패한 URL은 미전송으로 남고 다음 요청에서 복구된다", async () => {
+  for (const failure of ['network', 429]) {
+    let calls=0;
+    const inx=makeIndexNow({key:'k',host:'nowhot.kr',clock:()=>1000,log:{error(){}},
+      fetchImpl:async()=>{calls++;if(calls===1){if(failure==='network')throw new Error('offline');return {ok:false,status:failure};}return {ok:true,status:202};}});
+    await inx.ping(['/today/2026-10-13/evening/topic']);
+    assert.equal((await inx.ping(['/today/2026-10-13/evening/topic'])).ok,true);
+    assert.equal(calls,2);
+  }
+});
+
+test("IndexNow: 자사 공개 주소만 최대100개씩 보내고 남은 주소를 다음 호출에서 처리한다", async () => {
+  const sent=[];
+  const inx=makeIndexNow({key:'k',host:'nowhot.kr',clock:()=>1000,
+    fetchImpl:async(_url,opts)=>{sent.push(JSON.parse(opts.body).urlList);return {ok:true,status:200};}});
+  const paths=Array.from({length:105},(_,i)=>'/today/2026-10-13/evening/'+i);
+  await inx.ping(['https://evil.test/a','//evil.test/b','/api/private','/admin','/today?userId=private',...paths,paths[0]]);
+  assert.equal(sent[0].length,100);assert.ok(sent[0].every(url=>url.startsWith('https://nowhot.kr/today/')));
+  await inx.ping(paths);assert.equal(sent[1].length,5);
+});
+
+test("IndexNow: 성공 체크포인트로 재시작 후 중복을 막고 오래된 통보 상태를 비운다", async () => {
+  let time=1000,state=[],calls=0;
+  const options={key:'k',host:'nowhot.kr',clock:()=>time,onPersist:rows=>{state=rows;},
+    fetchImpl:async()=>{calls++;return {ok:true,status:200};}};
+  await makeIndexNow(options).ping(['/today/2026-10-13/evening/a']);
+  const restarted=makeIndexNow({...options,initialSent:state});
+  await restarted.ping(['/today/2026-10-13/evening/a']);assert.equal(calls,1);
+  time+=7*3600000;
+  await restarted.ping(['/today/2026-10-14/morning/b']);
+  assert.equal(state.length,1);assert.equal(state[0][0],'https://nowhot.kr/today/2026-10-14/morning/b');
+});
+
+test("IndexNow: 체크포인트 실패를 구분하고 진행 중인 요청은 중복 전송하지 않는다", async () => {
+  let release,calls=0;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const inx=makeIndexNow({key:'k',host:'nowhot.kr',onPersist:()=>{throw new Error('disk unavailable');},log:{error(){}},
+    fetchImpl:async()=>{calls++;await gate;return {ok:true,status:200};}});
+  const first=inx.ping(['/today/2026-10-13/evening/a']);
+  assert.equal((await inx.ping(['/today/2026-10-13/evening/a'])).skipped,'in progress');
+  release();const result=await first;
+  assert.equal(result.ok,true);assert.equal(result.persisted,false);assert.equal(calls,1);
+});
+
+test("IndexNow: 같은 공개 버전은 시간이 지나도 재통보하지 않고 실제 수정만 다시 알린다", async () => {
+  let time=1000,calls=0,state=[];
+  const options={key:'k',host:'NowHot.kr',clock:()=>time,onPersist:rows=>{state=rows;},
+    fetchImpl:async(_url,opts)=>{const body=JSON.parse(opts.body);assert.equal(body.host,'nowhot.kr');calls++;return {status:202};}};
+  const first={path:'/today/2026-10-14/morning/issue',version:'a'.repeat(64)};
+  await makeIndexNow(options).ping([first]);
+  time+=25*3600000;
+  const restarted=makeIndexNow({...options,initialSent:state});
+  assert.equal((await restarted.ping([first])).skipped,'throttled');
+  assert.equal((await restarted.ping([{...first,version:'b'.repeat(64)}])).status,202);
+  assert.equal(calls,2);
+});
+
+test("IndexNow: 체크포인트만 실패하면 POST 중복 없이 저장만 다시 시도한다", async () => {
+  let calls=0,writes=0;
+  const inx=makeIndexNow({key:'k',host:'nowhot.kr',log:{error(){},info(){}},
+    onPersist:()=>{if(++writes<3)throw new Error('disk');},
+    fetchImpl:async()=>{calls++;return {status:200};}});
+  assert.equal((await inx.ping(['/today/current/issue'])).persisted,false);
+  assert.equal((await inx.ping(['/today/current/issue'])).persisted,false);
+  assert.equal((await inx.ping(['/today/current/issue'])).persisted,true);
+  assert.equal(calls,1);assert.equal(writes,3);
+});
+
+test("IndexNow: 통보 체크포인트는 사용자 저장소를 다시 직렬화하지 않고 재시작에도 복원된다", t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'nowhot-indexnow-store-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const file=path.join(root,'feed.json');
+  const original=JSON.stringify({seq:0,users:[],sentinel:'user data unchanged'});
+  fs.writeFileSync(file,original);
+  const rows=[['https://nowhot.kr/today/date/slot/issue',1000,'a'.repeat(64)]];
+  new FeedStore({file}).saveIndexNowSent(rows);
+  assert.equal(fs.readFileSync(file,'utf8'),original);
+  assert.deepEqual(new FeedStore({file}).loadIndexNowSent(),rows);
 });
 
 test("구조화 데이터: /live 앱과 편집 홈·콘텐츠 페이지의 역할이 구분된다", async () => {

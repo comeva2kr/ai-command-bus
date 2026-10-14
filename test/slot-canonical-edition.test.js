@@ -423,6 +423,90 @@ function build(options) {
   });
 }
 
+test("IndexNow publication ticks drain verified topics, suppress unchanged versions, recover failures and restart", async t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),"nowhot-indexnow-publication-"));
+  const pointerFile=path.join(root,"active.json"),file=path.join(root,"feed.json");
+  const priorKey=process.env.INDEXNOW_KEY,priorHost=process.env.PUBLIC_HOST;
+  process.env.INDEXNOW_KEY="test-key-publication";process.env.PUBLIC_HOST="nowhot.kr";
+  let server,now=Date.parse("2026-08-28T20:10:00+09:00"),ticks=0;
+  t.after(async()=>{
+    if(server){server.closeAllConnections?.();await new Promise(resolve=>server.close(resolve));}
+    if(priorKey==null)delete process.env.INDEXNOW_KEY;else process.env.INDEXNOW_KEY=priorKey;
+    if(priorHost==null)delete process.env.PUBLIC_HOST;else process.env.PUBLIC_HOST=priorHost;
+    fs.rmSync(root,{recursive:true,force:true});
+  });
+  const past=["morning","lunch","evening"].map(slotId=>build({editionDate:"2026-08-28",slotId}));
+  const old=build({editionDate:"2026-08-27",slotId:"evening"});
+  const future=build({editionDate:"2026-08-29",slotId:"morning"});
+  for(const artifact of [old,...past,future])activateSlotCanonicalEdition({artifact,directory:root,pointerFile});
+  const expected=new Set(["https://nowhot.kr/","https://nowhot.kr/report"]);
+  for(const artifact of past){
+    const prefix=`https://nowhot.kr/today/${artifact.editionDate}/${artifact.slot.id}`;
+    expected.add(prefix);for(const id of artifact.displayOrder)expected.add(`${prefix}/${id}`);
+  }
+  assert.equal(expected.size,548);
+  const attempts=[],accepted=[];
+  const sender=async(_url,options)=>{
+    const urls=JSON.parse(options.body).urlList;
+    attempts.push(urls);if(attempts.length===1)return {status:503};
+    accepted.push(urls);return {status:200};
+  };
+  const realFetch=globalThis.fetch;
+  t.mock.method(globalThis,"fetch",(url,...args)=>String(url).startsWith("https://api.indexnow.org/")?sender(url,...args):realFetch(url,...args));
+  const start=async()=>{
+    server=createServer({file,clock:()=>new Date(now).toISOString(),vapid:null,localEditorial:true,
+      slotCanonicalEditionEnabled:true,slotCanonicalPointerFile:pointerFile,
+      localCanonicalPoolFile:path.join(root,"unused-pool.json"),
+      localCanonicalPublisher:async()=>{ticks++;return {state:"already_active"};},
+      localCanonicalPrepublishDelayMs:0,localCanonicalPrepublishCheckMs:15,
+      indexNowFetch:sender,sources:[{id:"unused",fetch:async()=>[]}]
+    });
+    await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
+  };
+  const until=async predicate=>{
+    const end=Date.now()+4000;
+    while(!predicate()&&Date.now()<end)await new Promise(resolve=>setTimeout(resolve,10));
+    assert.ok(predicate(),"publication ticks did not drain the expected URLs");
+  };
+  const close=async()=>{const current=server;server=null;current.closeAllConnections?.();await new Promise(resolve=>current.close(resolve));};
+  await start();
+  await until(()=>new Set(accepted.flat()).size===expected.size);
+  assert.deepEqual(new Set(accepted.flat()),expected);
+  assert.deepEqual(attempts[0],attempts[1],"failed batch must be retried without loss");
+  assert.ok(attempts.every(rows=>rows.length<=100));assert.ok(ticks>=5);
+  const firstEnd=accepted.length;
+  now+=7*3600000;
+  await new Promise(resolve=>setTimeout(resolve,100));
+  assert.ok(accepted.slice(firstEnd).flat().every(url=>url==="https://nowhot.kr/report"),"unchanged Today pages must not be resubmitted after six hours");
+  const corrected=editions({editionDate:"2026-08-28",slotId:"evening"});
+  corrected.unionEdition.issues[0].preparedHeadline="공식 발표를 반영해 수정한 기사 제목";
+  const revision=buildSlotCanonicalEdition({...corrected,editionsByCategory:corrected.byCategory,
+    builderPacketSha256:packetSha,routingSnapshot:{source:{packetSha256:packetSha}}});
+  const correctionStart=accepted.length;
+  activateSlotCanonicalEdition({artifact:revision,directory:root,pointerFile});
+  await until(()=>accepted.length>correctionStart);
+  await new Promise(resolve=>setTimeout(resolve,60));
+  assert.deepEqual(new Set(accepted.slice(correctionStart).flat()),new Set([
+    "https://nowhot.kr/","https://nowhot.kr/today/2026-08-28/evening",
+    "https://nowhot.kr/today/2026-08-28/evening/evidence-news-0"
+  ]),"only the changed public page and its edition/home should be announced");
+  const futureFile=path.join(root,JSON.parse(fs.readFileSync(pointerFile)).editions["2026-08-29:morning"].file);
+  fs.writeFileSync(futureFile,"{");now=Date.parse("2026-08-29T07:10:00+09:00");
+  const corruptStart=accepted.length;
+  await new Promise(resolve=>setTimeout(resolve,80));
+  assert.equal(accepted.length,corruptStart,"a corrupt active payload must not be announced");
+  fs.writeFileSync(futureFile,JSON.stringify(future));
+  await until(()=>new Set(accepted.flat().filter(url=>url.startsWith("https://nowhot.kr/today/2026-08-29/morning/"))).size===181);
+  await close();const stoppedTicks=ticks;
+  await new Promise(resolve=>setTimeout(resolve,50));assert.equal(ticks,stoppedTicks,"closed servers must stop publication ticks");
+  const restartStart=attempts.length;
+  await start();await new Promise(resolve=>setTimeout(resolve,80));
+  assert.equal(attempts.length,restartStart,"accepted public versions must survive restart");
+  await close();delete process.env.INDEXNOW_KEY;
+  await start();await new Promise(resolve=>setTimeout(resolve,50));
+  assert.equal(attempts.length,restartStart,"missing key must disable automatic notifications");
+});
+
 test("Today catalogue lists activation records without reading every payload; content still validates on read", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-catalogue-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

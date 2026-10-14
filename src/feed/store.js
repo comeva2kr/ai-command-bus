@@ -1095,6 +1095,25 @@ export class FeedStore {
     return contentId && (this.articleSummaries || {})[contentId] || null;
   }
 
+  saveIndexNowSent(rows) {
+    const checkpoint = rows.slice(-1000);
+    if (this.file) {
+      const file = `${this.file}.indexnow`;
+      fs.writeFileSync(`${file}.tmp`, JSON.stringify(checkpoint));
+      fs.renameSync(`${file}.tmp`, file);
+    }
+    this.indexNowSent = checkpoint;
+  }
+
+  loadIndexNowSent() {
+    if (!this.file) return this.indexNowSent || [];
+    try { return JSON.parse(fs.readFileSync(`${this.file}.indexnow`, "utf8")); }
+    catch (error) {
+      if (error.code !== "ENOENT") console.warn("[indexnow] 체크포인트를 복원하지 못했습니다");
+      return [];
+    }
+  }
+
   getEditorialEdition(date, slotId, segmentKey) {
     return this.editorialEditions &&
       this.editorialEditions[date] &&

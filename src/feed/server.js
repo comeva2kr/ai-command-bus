@@ -1341,6 +1341,8 @@ export function createServer(opts = {}) {
     opts.localCanonicalPrepublishSchedule !== false;
   let localInventoryPending = null;
   let localCanonicalPending = null;
+  let canonicalTimer = null;
+  let canonicalWarm = null;
   let localInventoryReceipt = null;
   let localElapsedReceipt = null;
   let localQualityReviewSamplingReceipt = null;
@@ -1560,15 +1562,17 @@ export function createServer(opts = {}) {
   }
 
   if (LOCAL_CANONICAL_SCHEDULE_ENABLED) {
-    const canonicalTick = () => runLocalCanonicalPrepublish().catch((error) => {
+    const canonicalTick = () => runLocalCanonicalPrepublish().then(() => notifyPublishedIndexNow().catch(() => {
+      console.warn("[indexnow] 공개판 통보 실패 — 다음 주기에 재시도합니다");
+    })).catch((error) => {
       console.warn("[slot-canonical] 정시 후보 생성 HOLD:", error && error.message);
     });
-    const interval = setInterval(canonicalTick,
+    canonicalTimer = setInterval(canonicalTick,
       Number(opts.localCanonicalPrepublishCheckMs || LOCAL_INVENTORY_CHECK_MS));
-    interval.unref?.();
-    const warm = setTimeout(canonicalTick,
+    canonicalTimer.unref?.();
+    canonicalWarm = setTimeout(canonicalTick,
       Number(opts.localCanonicalPrepublishDelayMs ?? process.env.NOWHOT_EDITORIAL_INVENTORY_DELAY_MS ?? 30_000));
-    warm.unref?.();
+    canonicalWarm.unref?.();
   }
 
   const localEditorialEvidenceCache = { at: 0, value: null, pending: null };
@@ -1865,22 +1869,6 @@ export function createServer(opts = {}) {
       } catch (error) { console.warn("[push] job failed",error?.name || "Error"); }
     }, pushDigestMs);
     if (pushTimer.unref) pushTimer.unref();
-  }
-
-  // IndexNow — 수집 사이클마다 자체 콘텐츠 URL을 통보한다.
-  // 브리핑이 하루 3회 갱신되는데 크롤러를 기다리면 그만큼 유입이 늦다.
-  // 키가 없으면 아무 일도 하지 않는다(no-op).
-  const indexNow = makeIndexNow({
-    key: indexNowKey(),
-    host: process.env.PUBLIC_HOST || "nowhot.kr"
-  });
-  if (indexNowKey()) {
-    const notify = () => {
-      indexNow.ping(["/", "/report"]).catch(() => {});
-    };
-    notify();
-    const t = setInterval(notify, Number(process.env.INDEXNOW_INTERVAL_MS || 6 * 3600 * 1000));
-    if (t.unref) t.unref();
   }
 
   // ---- 자체 콘텐츠 페이지(브리핑·랭킹) 공통 렌더링 --------------------------
@@ -2513,6 +2501,29 @@ ${limitedAds ? "" : displayAdHtml()}
       ${sources.length ? `<h2>출처</h2><ul>${sources.join("")}</ul>` : ""}</article>
       <p><a href="/today/${edition.editionDate}/${edition.slot.id}">이 오늘판 전체 보기</a> · <a href="/">최신 오늘판 보기</a></p>`;
   };
+
+  let indexNowPending = null;
+  async function notifyPublishedIndexNow() {
+    if (!indexNowKey()) return { skipped: "not configured" };
+    if (indexNowPending) return indexNowPending;
+    indexNowPending = (async () => {
+      const paths = ["/report"];
+      let homeVersion = null;
+      for (const row of publicEditions().slice(0, 3)) {
+        try {
+          const edition = readPublishedEdition(row);
+          const version = edition.slotCanonicalEdition.contentSha256;
+          if (!homeVersion) { homeVersion = version; paths.push({ path: "/", version }); }
+          paths.push({ path: `/today/${row.date}/${row.slotId}`, version },
+            ...edition.issues.map(issue => ({ path: todayIssueHref(edition, issue),
+              version: createHash("sha256").update(JSON.stringify(issue)).digest("hex") })));
+        } catch { /* Only verified, already-public editions are notified. */ }
+      }
+      if (!homeVersion) paths.push("/");
+      return indexNow.ping(paths);
+    })().finally(() => { indexNowPending = null; });
+    return indexNowPending;
+  }
 
   const rankingNav = (active) => `<div class="nav">
     <a href="/ranking/daily" class="${active === "daily" ? "on" : ""}">일간</a>
@@ -4440,6 +4451,17 @@ ${rankingRows(list, (above) => {
   const journeyTimer = setInterval(() => store.finishJourneySessions(), 60000);
   journeyTimer.unref?.();
   server.on("close", () => clearInterval(journeyTimer));
+  server.on("close", () => { clearInterval(canonicalTimer); clearTimeout(canonicalWarm); });
+  const indexNow = makeIndexNow({ key: indexNowKey(), host: process.env.PUBLIC_HOST || "nowhot.kr",
+    fetchImpl: opts.indexNowFetch || fetch, clock: serverNowMs,
+    initialSent: store.loadIndexNowSent(), onPersist: rows => store.saveIndexNowSent(rows) });
+  if (indexNowKey()) {
+    const notify = () => notifyPublishedIndexNow().catch(() => {});
+    const warm = setImmediate(notify);
+    const timer = setInterval(notify, Number(process.env.INDEXNOW_INTERVAL_MS || 6 * 3600 * 1000));
+    timer.unref?.();
+    server.on("close", () => { clearImmediate(warm); clearInterval(timer); });
+  }
   return server;
 }
 
