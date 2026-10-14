@@ -55,10 +55,23 @@ Highlights: warm-start from browsing history, onboarding survey, on-the-fly
 online learning, smooth infinite scroll, and exact scroll-position restore on
 back navigation. See [docs/personalized-feed.md](docs/personalized-feed.md).
 
+## 안심스캔 — Kids Food Safety Scanner
+
+A camera + browser-extension prototype that scores packaged food **for a specific
+child** (age, allergies, concerns) with evidence-graded reasons, and suggests
+better alternatives inside the shopping mall the parent is already using.
+
+```bash
+npm run ansim       # http://localhost:4100 — barcode scan, label photo, alternatives
+```
+
+See [docs/ansim-scan.md](docs/ansim-scan.md).
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Personalized community feed](docs/personalized-feed.md)
+- [안심스캔 kids food safety scanner](docs/ansim-scan.md)
 - [Deploying the feed](docs/deploy.md)
 - [Example task queue](examples/task_queue.json)
 - [Example worker submission](examples/submission.json)

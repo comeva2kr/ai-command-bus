@@ -1,0 +1,10 @@
+{
+  "name": "안심스캔 — 아이 먹거리 점수",
+  "short_name": "안심스캔",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0f10",
+  "theme_color": "#0d0f10",
+  "lang": "ko",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
