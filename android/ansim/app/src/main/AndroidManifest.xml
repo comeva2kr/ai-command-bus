@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 오프라인 매장: 앱 안 스캐너(WebView)의 바코드 스캔·라벨 촬영 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- 쇼핑몰 앱 위 플로팅 탭은 접근성 서비스의 TYPE_ACCESSIBILITY_OVERLAY로 그린다.
+         그래서 '다른 앱 위에 그리기'(SYSTEM_ALERT_WINDOW) 권한과 포그라운드 서비스가 필요 없다. -->
+
+    <!-- 링크를 쇼핑몰 앱으로 넘기려면(앱 링크) 설치 여부를 볼 수 있어야 한다 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_ansim"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="false"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".MallWatcherService"
+            android:exported="false"
+            android:label="@string/accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/ansim_accessibility" />
+        </service>
+    </application>
+</manifest>
