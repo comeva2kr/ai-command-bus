@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { promisify } from "node:util";
@@ -20,6 +20,7 @@ import {
 } from "../src/feed/slot-canonical-edition.js";
 import {
   runDueSlotPrepublish,
+  runSlotCanonicalPrepublishProcess,
   runBuilder,
   runPrepublishManifest,
   slotAlreadyActive
@@ -1119,4 +1120,78 @@ test("NH167 late review corrects the active artifact without rebuilding and pres
     if (previous === undefined) delete process.env.NOWHOT_HEADLINE_REVIEW_DIR;
     else process.env.NOWHOT_HEADLINE_REVIEW_DIR = previous;
   }
+});
+
+
+test("예약 준비는 별도 프로세스로 실행하고 API 키·유료 플래그를 전달하지 않는다", async () => {
+  const seen = [];
+  const controller = new AbortController();
+  const result = await runSlotCanonicalPrepublishProcess({
+    poolFile: "/tmp/public pool.json", outDir: "/tmp/editions", nowMs: Date.parse("2026-10-16T09:45:00Z"), allowPaid: false
+  }, {
+    signal: controller.signal,
+    environment: { ANTHROPIC_API_KEY: "fixture-secret", KEEP: "yes" },
+    spawnImpl: (command, args, options) => { seen.push({ command, args, options }); return spawn(command, ["-e", 'console.log(JSON.stringify({state:"already_active"}))'], options); }
+  });
+  assert.equal(result.state, "already_active");
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].command, process.execPath);
+  assert.ok(seen[0].args[0].endsWith("run-slot-canonical-prepublish.mjs"));
+  assert.deepEqual(seen[0].args.slice(1), ["--pool", "/tmp/public pool.json", "--out-dir", "/tmp/editions", "--now", "2026-10-16T09:45:00.000Z"]);
+  assert.equal(seen[0].options.env.ANTHROPIC_API_KEY, undefined);
+  assert.equal(seen[0].options.env.KEEP, "yes");
+  assert.deepEqual(seen[0].options.stdio, ["ignore", "pipe", "pipe"]);
+  assert.equal(seen[0].options.detached, process.platform !== "win32");
+  await assert.rejects(() => runSlotCanonicalPrepublishProcess({ allowPaid: true }), /paid/i);
+});
+
+test("예약 준비 자식 실패와 잘못된 응답은 성공으로 숨기지 않는다", async () => {
+  const options = { poolFile: "/tmp/pool.json", outDir: "/tmp/editions", nowMs: 0 };
+  await assert.rejects(() => runSlotCanonicalPrepublishProcess(options, {
+    spawnImpl: () => { throw new Error("child failed"); }
+  }), /child failed/);
+  await assert.rejects(() => runSlotCanonicalPrepublishProcess(options, {
+    spawnImpl: (command, _args, options) => spawn(command, ["-e", 'console.log("not json")'], options)
+  }), SyntaxError);
+  await assert.rejects(() => runSlotCanonicalPrepublishProcess(options, {
+    spawnImpl: (command, _args, options) => spawn(command, ["-e", "process.exit(2)"], options)
+  }), /exit 2/);
+});
+
+test("예약 준비 중 HTTP를 처리하고 취소하면 자식과 하위 빌더를 함께 종료한다", { skip: process.platform === "win32" }, async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nowhot-prepublish-process-"));
+  const heartbeat = path.join(root, "heartbeat");
+  const controller = new AbortController();
+  t.after(() => { controller.abort(); fs.rmSync(root, { recursive: true, force: true }); });
+  const server = createServer((_req, res) => res.end("available"));
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const childCode = `const fs=require('node:fs');setInterval(()=>fs.appendFileSync(${JSON.stringify(heartbeat)},'x'),20);`;
+  const parentCode = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(childCode)}],{stdio:'ignore'});setInterval(()=>{},1000);`;
+  let finished = false;
+  const building = runSlotCanonicalPrepublishProcess({ poolFile: "/tmp/unused", outDir: root, nowMs: 0 }, {
+    signal: controller.signal,
+    spawnImpl: (command, _args, options) => spawn(command, ["-e", parentCode], options)
+  }).finally(() => { finished = true; });
+  const rejected = assert.rejects(building, { name: "AbortError" });
+  const response = await fetch(`http://127.0.0.1:${server.address().port}`, { signal: AbortSignal.timeout(750) });
+  assert.equal(await response.text(), "available");
+  assert.equal(finished, false);
+  const deadline = Date.now() + 3000;
+  while (!fs.existsSync(heartbeat) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
+  assert.ok(fs.existsSync(heartbeat), "descendant started");
+  controller.abort();
+  await rejected;
+  await new Promise(resolve => setTimeout(resolve, 100));
+  const afterStop = fs.statSync(heartbeat).size;
+  await new Promise(resolve => setTimeout(resolve, 100));
+  assert.equal(fs.statSync(heartbeat).size, afterStop, "descendant stopped with the scheduled preparation");
+});
+
+
+test("예약 준비 출력 상한을 넘으면 자식을 멈추고 실패를 전달한다", async () => {
+  await assert.rejects(() => runSlotCanonicalPrepublishProcess({ poolFile: "/tmp/unused", outDir: os.tmpdir(), nowMs: 0 }, {
+    spawnImpl: (command, _args, options) => spawn(command, ["-e", "process.stdout.write('x'.repeat(1024*1024+1));setInterval(()=>{},1000);"], options)
+  }), /output limit/);
 });

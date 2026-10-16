@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { isDeepStrictEqual, promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -499,6 +499,54 @@ export async function runDueSlotPrepublish({
     paidCalls: allowPaid ? null : 0,
     result
   };
+}
+
+// Keep pool parsing and packet/routing allocation outside the long-lived HTTP heap.
+export async function runSlotCanonicalPrepublishProcess(options, {
+  spawnImpl = spawn, environment = process.env, signal
+} = {}) {
+  if (options.allowPaid) throw new Error("scheduled prepublish: paid execution is not allowed");
+  if (signal?.aborted) throw new DOMException("scheduled prepublish aborted", "AbortError");
+  const env = { ...environment };
+  delete env.ANTHROPIC_API_KEY;
+  const child = spawnImpl(process.execPath, [fileURLToPath(import.meta.url),
+    "--pool", path.resolve(options.poolFile), "--out-dir", path.resolve(options.outDir),
+    "--now", new Date(options.nowMs).toISOString()
+  ], { cwd: ROOT, env, detached: process.platform !== "win32", stdio: ["ignore", "pipe", "pipe"] });
+  const stop = () => {
+    try {
+      if (child.pid && process.platform !== "win32") process.kill(-child.pid, "SIGTERM");
+      else child.kill();
+    } catch { /* Already exited. */ }
+  };
+  let timer;
+  let abort;
+  try {
+    const stdout = await new Promise((resolve, reject) => {
+      let output = "";
+      let bytes = 0;
+      abort = () => { stop(); reject(new DOMException("scheduled prepublish aborted", "AbortError")); };
+      signal?.addEventListener("abort", abort, { once: true });
+      timer = setTimeout(() => { stop(); reject(new Error("scheduled prepublish timed out")); }, 30 * 60 * 1000);
+      child.stdout.setEncoding("utf8");
+      child.stdout.on("data", chunk => {
+        bytes += Buffer.byteLength(chunk);
+        if (bytes > 1024 * 1024) { stop(); reject(new Error("scheduled prepublish output limit")); }
+        else output += chunk;
+      });
+      child.stderr.resume();
+      child.once("error", reject);
+      child.once("close", code => code === 0 ? resolve(output) : reject(new Error(`scheduled prepublish exit ${code}`)));
+      if (signal?.aborted) abort();
+    });
+    return JSON.parse(stdout.trim());
+  } catch (error) {
+    stop();
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    if (abort) signal?.removeEventListener("abort", abort);
+  }
 }
 
 async function main() {

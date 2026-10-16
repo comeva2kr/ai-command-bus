@@ -1544,13 +1544,14 @@ export function createServer(opts = {}) {
     warm.unref?.();
   }
 
+  const canonicalBuildController = new AbortController();
   async function runLocalCanonicalPrepublish(nowMs = serverNowMs()) {
     if (localCanonicalPending) return localCanonicalPending;
     const poolFile = opts.localCanonicalPoolFile || engine._poolFile;
     if (!poolFile) throw new Error("canonical prepublish: persistent pool file required");
     const publish = opts.localCanonicalPublisher || (async (options) => {
-      const { runDueSlotPrepublish } = await import("../../tools/run-slot-canonical-prepublish.mjs");
-      return runDueSlotPrepublish(options);
+      const { runSlotCanonicalPrepublishProcess } = await import("../../tools/run-slot-canonical-prepublish.mjs");
+      return runSlotCanonicalPrepublishProcess(options, { signal: canonicalBuildController.signal });
     });
     localCanonicalPending = publish({
       nowMs,
@@ -4451,7 +4452,7 @@ ${rankingRows(list, (above) => {
   const journeyTimer = setInterval(() => store.finishJourneySessions(), 60000);
   journeyTimer.unref?.();
   server.on("close", () => clearInterval(journeyTimer));
-  server.on("close", () => { clearInterval(canonicalTimer); clearTimeout(canonicalWarm); });
+  server.on("close", () => { clearInterval(canonicalTimer); clearTimeout(canonicalWarm); canonicalBuildController.abort(); });
   const indexNow = makeIndexNow({ key: indexNowKey(), host: process.env.PUBLIC_HOST || "nowhot.kr",
     fetchImpl: opts.indexNowFetch || fetch, clock: serverNowMs,
     initialSent: store.loadIndexNowSent(), onPersist: rows => store.saveIndexNowSent(rows) });
