@@ -1,0 +1,137 @@
+[
+  {
+    "evidenceHash": "8cf1b282c5948b71a8745e6acc5984800ad06f1e708450b00163daead0073edb",
+    "subject": "국민건강보험공단, ‘임신·출산 진료비 지원’ 카드사 확대…이용자 선택권 넓혀",
+    "headline": "국민건강보험공단, ‘임신·출산 진료비 지원’ 카드사 확대…이용자 선택권 넓혀",
+    "eventSources": [
+      {
+        "evidenceId": "event-source:it_1inlrt0",
+        "id": "it_1inlrt0",
+        "title": "국민건강보험공단, ‘임신·출산 진료비 지원’ 카드사 확대…이용자 선택권 넓혀",
+        "originalTitle": null,
+        "summary": "【베이비뉴스 소장섭 기자】 국민건강보험공단은 2026년 7월부터 ‘건강보험 임신·출산 진료비 지원제도’에 현대카드가 추가돼 총 6개 카드사에서 지원금을 이용할 수 있다고 15일 밝혔다. 건강보험 임신·출산 진료비 지원제도는 임산부와 2세 미만 영유아의 진료비 부담을 줄이기 위해 본인부담금 결제에 사용할 수 있는 지원금을 국민행복카드 형태로 제공하는 제도다.",
+        "sourceId": "ibabynews",
+        "sourceGroup": "ibabynews",
+        "sourceLabel": "베이비뉴스",
+        "url": "https://www.ibabynews.com/news/articleView.html?idxno=155241",
+        "canonicalUrl": "https://www.ibabynews.com/news/articleView.html?idxno=155241",
+        "publishedAt": "2026-10-15T02:31:16.000Z",
+        "image": "https://www.ibabynews.com/image/logo/snslogo_20171207014520.png",
+        "canLead": true,
+        "relay": false
+      },
+      {
+        "evidenceId": "event-source:it_zcq59h",
+        "id": "it_zcq59h",
+        "title": "평창·영월 공공보건의료 협력 강화…미충족 진료과 지원 확대",
+        "originalTitle": null,
+        "summary": "(평창=연합뉴스) 류호준 기자 = 강원 평창군보건의료원은 영월의료원과 공공보건의료 협력체계를 구축하고 지역 의료 공백 해소에 나선다고 15일 밝...",
+        "sourceId": "yna-society",
+        "sourceGroup": "yonhap",
+        "sourceLabel": "연합뉴스 사회",
+        "url": "https://www.yna.co.kr/view/AKR20261015076500062",
+        "canonicalUrl": "https://www.yna.co.kr/view/AKR20261015076500062",
+        "publishedAt": "2026-10-15T02:06:56.000Z",
+        "image": "https://img.yna.co.kr/etc/inner/KR/2026/10/15/AKR20261015076500062_01_i_P2.jpg",
+        "canLead": true,
+        "relay": false
+      }
+    ],
+    "storedSummary": {
+      "status": "excerpt_only",
+      "contractId": "NOWHOT-ARTICLE-SUMMARY-001",
+      "contractVersion": 38,
+      "promptVersion": 20,
+      "articleContentId": "NHC-5aa79fb57ded09475b1cd0cd",
+      "articleContentAliases": [
+        "NHC-5aa79fb57ded09475b1cd0cd"
+      ],
+      "eventSourceSetId": "EV-90c44205a1c5010d:ibabynews|yonhap",
+      "textKo": "(평창=연합뉴스) 류호준 기자 = 강원 평창군보건의료원은 영월의료원과 공공보건의료 협력체계를 구축하고 지역 의료 공백 해소에 나선다고 15일 밝혔다. 양 기관은 지난 14일 영월의료원 회의실에서 업무협약을 체결하고 미충족 진료과 의료진 파견과 임상 진료 연계, 지역사회 건강증진을 위한 공동 연구·교육사업 등에 협력하기로 했다.",
+      "sourceEvidenceId": "event-source:it_zcq59h",
+      "sourceLabel": "연합뉴스 사회",
+      "sourceCount": 2,
+      "summarySourceCount": 1,
+      "sourceLinks": [
+        {
+          "evidenceId": "event-source:it_zcq59h",
+          "sourceLabel": "연합뉴스 사회",
+          "sourceGroup": "yonhap",
+          "url": "https://www.yna.co.kr/view/AKR20261015076500062",
+          "summary": "(평창=연합뉴스) 류호준 기자 = 강원 평창군보건의료원은 영월의료원과 공공보건의료 협력체계를 구축하고 지역 의료 공백 해소에 나선다고 15일 밝...",
+          "image": "https://img.yna.co.kr/etc/inner/KR/2026/10/15/AKR20261015076500062_01_i_P2.jpg",
+          "publishedAt": "2026-10-15T02:06:56.000Z"
+        },
+        {
+          "evidenceId": "event-source:it_1inlrt0",
+          "sourceLabel": "베이비뉴스",
+          "sourceGroup": "ibabynews",
+          "url": "https://www.ibabynews.com/news/articleView.html?idxno=155241",
+          "summary": "【베이비뉴스 소장섭 기자】 국민건강보험공단은 2026년 7월부터 ‘건강보험 임신·출산 진료비 지원제도’에 현대카드가 추가돼 총 6개 카드사에서 지원금을 이용할 수 있다고 15일 밝혔다. 건강보험 임신·출산 진료비 지원제도는 임산부와 2세 미만 영유아의 진료비 부담을 줄이기 위해 본인부담금 결제에 사용할 수 있는 지원금을 국민행복카드 형태로 제공하는 제도다.",
+          "image": "https://www.ibabynews.com/image/logo/snslogo_20171207014520.png",
+          "publishedAt": "2026-10-15T02:31:16.000Z"
+        }
+      ],
+      "image": "https://img4.yna.co.kr/etc/inner/KR/2026/10/15/AKR20261015076500062_01_i_P4.jpg",
+      "generationModel": null,
+      "unavailableReasonCode": null,
+      "generatedAt": "2026-10-15T02:39:46.858Z",
+      "excerptBasis": "public_anchor_body"
+    }
+  },
+  {
+    "evidenceHash": "c5515d0e568fb700ee035a8d1a0dae0e3645e2c7dbf0423cf6fdf1cee21a9626",
+    "subject": "[보험 트렌드] 손해보험협회, 자동차보험 경상환자 보상 피해 신고센터 운영",
+    "headline": "손해보험협회, 자동차보험 경상환자 보상 피해 신고센터 운영",
+    "eventSources": [
+      {
+        "evidenceId": "event-source:it_1odful0",
+        "id": "it_1odful0",
+        "title": "[보험 트렌드] 손해보험협회, 자동차보험 경상환자 보상 피해 신고센터 운영",
+        "originalTitle": null,
+        "summary": "【베이비뉴스 최규삼 기자】 ‘보험 트렌드’는 아이를 키우는 가정에 도움이 되는 보험 분야의 주요 이슈를 모아 전하기 위해 기획된 코너다. 보험상품 출시, 보장 범위 확대, 제도 변화, 어린이·가족 특화 상품, 보험사의 사회공헌 활동 등 다양한 소식 가운데 가정의 위험 대비와 안정적인 미래 설계에 실질적으로 도움이 되는 정보를 선별해 소개한다. -편집자 말",
+        "sourceId": "ibabynews",
+        "sourceGroup": "ibabynews",
+        "sourceLabel": "베이비뉴스",
+        "url": "https://www.ibabynews.com/news/articleView.html?idxno=155235",
+        "canonicalUrl": "https://www.ibabynews.com/news/articleView.html?idxno=155235",
+        "publishedAt": "2026-10-15T02:38:37.000Z",
+        "image": "https://www.ibabynews.com/news/photo/202610/155235_123568_31.jpg",
+        "canLead": true,
+        "relay": false
+      }
+    ],
+    "storedSummary": {
+      "status": "excerpt_only",
+      "contractId": "NOWHOT-ARTICLE-SUMMARY-001",
+      "contractVersion": 38,
+      "promptVersion": 20,
+      "articleContentId": "NHC-96a756a9d238454b90f00cc8",
+      "articleContentAliases": [
+        "NHC-96a756a9d238454b90f00cc8"
+      ],
+      "eventSourceSetId": "EV-03bffc30102bdb22:ibabynews",
+      "textKo": "삼성생명, ‘삼성 골든종신보험’ 개정 출시…암 진단 시 보험료 면제·추가 인출 【베이비뉴스 최규삼 기자】 ‘보험 트렌드’는 아이를 키우는 가정에 도움이 되는 보험 분야의 주요 이슈를 모아 전하기 위해 기획된 코너다.",
+      "sourceEvidenceId": "event-source:it_1odful0",
+      "sourceLabel": "베이비뉴스",
+      "sourceCount": 1,
+      "summarySourceCount": 1,
+      "sourceLinks": [
+        {
+          "evidenceId": "event-source:it_1odful0",
+          "sourceLabel": "베이비뉴스",
+          "sourceGroup": "ibabynews",
+          "url": "https://www.ibabynews.com/news/articleView.html?idxno=155235",
+          "summary": "【베이비뉴스 최규삼 기자】 ‘보험 트렌드’는 아이를 키우는 가정에 도움이 되는 보험 분야의 주요 이슈를 모아 전하기 위해 기획된 코너다. 보험상품 출시, 보장 범위 확대, 제도 변화, 어린이·가족 특화 상품, 보험사의 사회공헌 활동 등 다양한 소식 가운데 가정의 위험 대비와 안정적인 미래 설계에 실질적으로 도움이 되는 정보를 선별해 소개한다. -편집자 말",
+          "image": "https://www.ibabynews.com/news/photo/202610/155235_123568_31.jpg",
+          "publishedAt": "2026-10-15T02:38:37.000Z"
+        }
+      ],
+      "image": "https://www.ibabynews.com/news/photo/202610/155235_123567_30.jpg",
+      "generationModel": null,
+      "unavailableReasonCode": null,
+      "generatedAt": "2026-10-15T02:39:46.858Z",
+      "excerptBasis": "public_anchor_body"
+    }
+  }
+]

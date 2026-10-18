@@ -41,7 +41,7 @@ export function isPreparedArticleSummary(summary, issue = null) {
 }
 
 export function isCurrentArticleSummary(summary, issue = null, nowMs = Date.now()) {
-  if (!isPreparedArticleSummary(summary, issue)) return false;
+  if (!isPreparedArticleSummary(summary, issue) || !hasHeadlineExcerptBinding(summary, issue)) return false;
   if (summary.status === "ready" || summary.status === "excerpt_only") {
     const generatedAt = Date.parse(summary.generatedAt || "");
     return Number.isFinite(generatedAt) && nowMs - generatedAt >= 0 && nowMs - generatedAt < READY_CACHE_MS;
@@ -175,11 +175,36 @@ export function substantialKoreanExcerpt(value) {
 const SENTENCE_END = /[.!?。！？…]["'”’」』)\]]*(?=\s|$)/g;
 const ENDS_WITH_SENTENCE = /[.!?。！？…]["'”’」』)\]]*$/;
 
-function canonicalSourceRows(rows) {
+const sourceTitleKey = value => clean(value).normalize("NFKC").replace(/[‘’“”"']/g, "").toLowerCase();
+const excerptHeadline = issue => issue?.subject || issue?.preparedHeadline || issue?.reader?.headline || issue?.headline;
+const isColumnIntroduction = text => /(?:기획|마련)된\s*코너(?:다|입니다)|[-–—]\s*편집자\s*(?:말|주)\s*$/u.test(text);
+const matchesSourceTitle = (source, title) => Boolean(title && [source.title, source.originalTitle]
+  .some(value => value && sourceTitleKey(value) === sourceTitleKey(title)));
+
+function excerptSources(issue, rows) {
+  const candidates = rows.filter(source => source.canLead !== false);
+  const matching = candidates.filter(source => matchesSourceTitle(source, excerptHeadline(issue)));
+  // Legacy single-source feed records can lack titles; never relax a conflicting title.
+  return matching.length ? matching : candidates.length === 1 &&
+    !candidates[0].title && !candidates[0].originalTitle ? candidates : [];
+}
+
+function hasHeadlineExcerptBinding(summary, issue) {
+  if (summary?.status !== "excerpt_only") return true;
+  if (isColumnIntroduction(summary.textKo || "")) return false;
+  if (!issue) return true;
+  const sources = excerptSources(issue, allSourceRows(issue));
+  const link = (summary.sourceLinks || []).find(row => summary.sourceEvidenceId && row.evidenceId === summary.sourceEvidenceId);
+  return sources.some(source => source.evidenceId && source.evidenceId === summary.sourceEvidenceId ||
+    link && (link.url || link.canonicalUrl) === source.canonicalUrl);
+}
+
+function canonicalSourceRows(rows, title = null) {
   const seenUrls = new Set();
   const seenGroups = new Set();
   return (rows || []).filter((row) => row && /^https?:\/\//i.test(row.canonicalUrl || ""))
-    .sort(sourceRowOrder)
+    .sort((a, b) => Number(!(a.canLead !== false && matchesSourceTitle(a, title))) -
+      Number(!(b.canLead !== false && matchesSourceTitle(b, title))) || sourceRowOrder(a, b))
     .filter((row) => {
       const url = row.canonicalUrl;
       const group = clean(row.sourceGroup) || clean(operationalSourceIdentity(row).ownershipGroup);
@@ -203,7 +228,7 @@ function allSourceRows(issue) {
       evidenceId: row.evidenceId || row.id || null,
       canonicalUrl: row.canonicalUrl || row.url || null
     })).filter((row) => row && row.evidenceRole !== "related_observation" &&
-        !relatedUrls.has(row.canonicalUrl)));
+        !relatedUrls.has(row.canonicalUrl)), excerptHeadline(issue));
   }
   const issueEvidence = issue && issue.sourceEvidence || [];
   const evidence = issueEvidence
@@ -212,7 +237,7 @@ function allSourceRows(issue) {
   return canonicalSourceRows([...evidence, ...(issue && issue.refs || []).map((row) => ({
     ...row,
     evidenceId: row.evidenceId || byUrl.get(row.canonicalUrl)?.evidenceId || row.id
-    })).filter((row) => !relatedUrls.has(row && row.canonicalUrl))]
+    })).filter((row) => !relatedUrls.has(row && row.canonicalUrl))], excerptHeadline(issue)
   );
 }
 
@@ -302,13 +327,14 @@ function cacheKey(issue, model, verifierModel, fallbackModel = null) {
   ].join("|");
 }
 
-function verifiedCache(hit, model, verifierModel, fallbackModel, nowMs) {
+function verifiedCache(hit, model, verifierModel, fallbackModel, nowMs, issue) {
   const savedAt = Date.parse(hit && hit.savedAt || "");
   return Boolean(hit && hit.verified === true && hit.articleSummary &&
     hit.contractId === ARTICLE_SUMMARY_CONTRACT.stableId &&
     hit.contractVersion === ARTICLE_SUMMARY_CONTRACT.version &&
     hit.promptVersion === ARTICLE_SUMMARY_CONTRACT.promptVersion &&
     hit.model === model && hit.verifierModel === verifierModel &&
+    hasHeadlineExcerptBinding(hit.articleSummary, issue) &&
     (hit.fallbackModel || null) === (fallbackModel || null) &&
     Number.isFinite(savedAt) && nowMs - savedAt >= 0 && nowMs - savedAt < READY_CACHE_MS);
 }
@@ -365,33 +391,40 @@ export function publicExcerpt(text) {
 }
 
 async function excerptSummary(row, { translateText, nowMs }) {
-  let anchor = row.sources.find((source) => source.result.state === "available");
-  let excerptBasis = "public_anchor_body";
-  let rawText = anchor ? anchor.result.text : "";
-  if (!anchor) {
-    const source = row.resolvedSources.find((candidate) => clean(
-      candidate.summary || candidate.excerpt || candidate.description
-    ));
-    if (!source) return null;
-    anchor = {
-      source,
-      result: {
-        text: source.summary || source.excerpt || source.description,
-        image: source.image || null
-      }
-    };
-    excerptBasis = "publisher_feed_excerpt";
-    // 피드 발췌는 태그·엔티티가 남은 채 오므로 sourceLinks와 같은 stripHtml을 먼저 거친다.
-    rawText = stripHtml(anchor.result.text);
+  // A cluster may contain a neighbouring story; chronology is not headline provenance.
+  const allowed = new Set(excerptSources(row.issue, row.sources.map(({ source }) => source)));
+  const scoped = row.sources.filter(({ source }) => allowed.has(source));
+  if (!scoped.length && row.sources.some(({ source }) => source.title || source.originalTitle) &&
+    (row.sources.some(({ result }) => result.state === "available") || hasSubstantialFeedExcerpt(row.resolvedSources))) {
+    row.excerptFailureReason = "NO_MATCHING_EVENT_EXCERPT";
   }
-  let textKo = publicExcerpt(cleanArticleTextChrome(rawText));
-  // 이미 한국어인 짧은 조각은 번역해도 완결되지 않으므로 무료 번역기를 부르지 않는다.
-  if (textKo && !substantialKoreanExcerpt(textKo) && !koreanText(textKo).korean && typeof translateText === "function") {
-    const translated = await translateText(textKo, { from: "auto", to: "ko" });
-    if (substantialKoreanExcerpt(translated)) textKo = publicExcerpt(cleanArticleTextChrome(translated));
+  const attempts = [
+    ...scoped.filter(({ result }) => result.state === "available").map(anchor => ({ anchor,
+      text: anchor.result.text, basis: "public_anchor_body" })),
+    ...scoped.map(({ source }) => {
+      const resolved = row.resolvedSources.find(candidate => source.evidenceId && candidate.evidenceId === source.evidenceId) || source;
+      return { anchor: { source: resolved, result: { image: resolved.image || null } },
+        text: stripHtml(resolved.summary || resolved.excerpt || resolved.description || ""), basis: "publisher_feed_excerpt" };
+    })
+  ];
+  let selected = null;
+  for (const attempt of attempts) {
+    let textKo = publicExcerpt(cleanArticleTextChrome(attempt.text));
+    // A roundup's editor note is not an explanation of the headline event.
+    if (isColumnIntroduction(textKo)) {
+      row.excerptFailureReason = "NO_MATCHING_EVENT_EXCERPT";
+      continue;
+    }
+    if (textKo && !substantialKoreanExcerpt(textKo) && !koreanText(textKo).korean && typeof translateText === "function") {
+      const translated = await translateText(textKo, { from: "auto", to: "ko" });
+      if (substantialKoreanExcerpt(translated)) textKo = publicExcerpt(cleanArticleTextChrome(translated));
+    }
+    if (!substantialKoreanExcerpt(textKo) || looksLikePageChrome(textKo)) continue;
+    selected = { ...attempt, textKo };
+    break;
   }
-  // 사이트 소개·메뉴만 남은 발췌는 그 글의 발췌가 아니다(sourceLinks·슬롯 고정판과 같은 판정).
-  if (!substantialKoreanExcerpt(textKo) || looksLikePageChrome(textKo)) return null;
+  if (!selected) return null;
+  const { anchor, basis: excerptBasis, textKo } = selected;
   return {
     status: "excerpt_only",
     contractId: ARTICLE_SUMMARY_CONTRACT.stableId,
@@ -914,11 +947,15 @@ export function makeArticleSummaryPipeline({
     let cacheHits = 0;
     for (const [index, issue] of issues.entries()) {
       if (isCurrentArticleSummary(issue.articleSummary, issue, clock())) continue;
+      if (!hasHeadlineExcerptBinding(issue.articleSummary, issue)) {
+        output[index] = { ...issue };
+        delete output[index].articleSummary;
+      }
       const key = cacheKey(issue, model, verifierModel, effectiveFallbackModel);
       const allSources = allSourceRows(issue);
       const currentSourceFingerprint = sourceFingerprint(allSources);
       const hit = summaries.get(key);
-      if (verifiedCache(hit, model, verifierModel, effectiveFallbackModel, clock()) ||
+      if (verifiedCache(hit, model, verifierModel, effectiveFallbackModel, clock(), issue) ||
         (!completeBeforePublish || !hasSubstantialFeedExcerpt(allSources)) &&
           unavailableCache(hit, model, verifierModel, effectiveFallbackModel, clock(), currentSourceFingerprint)) {
         output[index] = { ...issue, articleSummary: hit.articleSummary };
@@ -989,7 +1026,7 @@ export function makeArticleSummaryPipeline({
     const holdUnavailable = saveUnavailable;
     for (const row of fetchedRows) {
       const resolvedHit = row.resolvedKey && summaries.get(row.resolvedKey);
-      if (verifiedCache(resolvedHit, model, verifierModel, effectiveFallbackModel, clock()) ||
+      if (verifiedCache(resolvedHit, model, verifierModel, effectiveFallbackModel, clock(), row.resolvedIssue) ||
         (!completeBeforePublish || !hasSubstantialFeedExcerpt(row.resolvedSources)) &&
           unavailableCache(resolvedHit, model, verifierModel, effectiveFallbackModel, clock(), sourceFingerprint(row.resolvedSources))) {
         const articleSummary = {
@@ -1286,18 +1323,16 @@ export function makeArticleSummaryPipeline({
           continue;
         }
         const anchor = row.sources.find((source) => source.result.state === "available");
-        const reason = anchor ? "NO_SUBSTANTIAL_PUBLIC_BODY"
-          : row.sources[0]?.result.reasonCode || "NO_PUBLIC_BODY";
+        const reason = row.excerptFailureReason || (anchor ? "NO_SUBSTANTIAL_PUBLIC_BODY"
+          : row.sources[0]?.result.reasonCode || "NO_PUBLIC_BODY");
         const image = row.sources.find((source) => source.result.image)?.result.image || null;
+        const detail = unavailable(row.resolvedIssue, anchor?.source || row.sourceRows[0] || null,
+          reason, row.resolvedSources, image, clock());
+        // Older clients fall back to source-link descriptions when a detail is unavailable.
+        if (row.excerptFailureReason) for (const source of detail.sourceLinks) delete source.summary;
         output[row.index] = {
           ...row.issue,
-          articleSummary: saveUnavailable(row, {
-            ...unavailable(
-              row.resolvedIssue, anchor?.source || row.sourceRows[0] || null,
-              reason, row.resolvedSources, image, clock()
-            ),
-            articleContentAliases: row.articleContentAliases
-          })
+          articleSummary: saveUnavailable(row, { ...detail, articleContentAliases: row.articleContentAliases })
         };
         unavailableCount += 1;
       }

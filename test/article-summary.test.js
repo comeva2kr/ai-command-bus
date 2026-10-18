@@ -2780,3 +2780,77 @@ test("NH146 뉴스레터 가입 머리는 번역 전에 걷고 발췌 경계 함
   const unbroken = publicExcerpt("가나다라마바사아자차카타파하 ".repeat(30));
   assert.ok(unbroken.length <= 200 && unbroken.endsWith("…"), unbroken);
 });
+
+
+const excerptMismatchCases = JSON.parse(readFileSync(new URL("./fixtures/title-excerpt-mismatch-20261015.json", import.meta.url), "utf8"));
+const prepareStoredExcerpt = async (input, fetchArticle) => makeArticleSummaryPipeline({
+  enabled: false, completeBeforePublish: true, allowRecovery: false, fetchArticle,
+  invoke: async () => { throw new Error("paid invocation forbidden"); },
+  clock: () => Date.parse("2026-10-15T03:00:00Z")
+})({ publishable: true, issues: [structuredClone(input)] });
+
+test("기사 제목의 출처가 확보한 발췌를 먼저 쓰고 더 이른 다른 사건 본문을 쓰지 않는다", async () => {
+  const input = excerptMismatchCases[0];
+  const result = await prepareStoredExcerpt(input, async url => url.includes("yna.co.kr")
+    ? { state: "available", text: input.storedSummary.textKo, image: null, finalUrl: url }
+    : { state: "unavailable", reasonCode: "NO_PUBLIC_BODY", image: null });
+  const summary = result.issues[0].articleSummary;
+  assert.equal(summary.status, "excerpt_only");
+  assert.equal(summary.sourceEvidenceId, "event-source:it_1inlrt0");
+  assert.equal(summary.sourceLabel, "베이비뉴스");
+  assert.equal(summary.excerptBasis, "publisher_feed_excerpt");
+  assert.match(summary.textKo, /현대카드|6개 카드사/);
+  assert.doesNotMatch(summary.textKo, /평창|영월|의료진 파견/);
+});
+
+test("신고센터 기사에 종신보험·코너 소개밖에 없으면 사건 설명을 만들지 않는다", async () => {
+  const input = excerptMismatchCases[1];
+  const result = await prepareStoredExcerpt(input, async url => ({
+    state: "available", text: input.storedSummary.textKo, image: null, finalUrl: url
+  }));
+  const summary = result.issues[0].articleSummary;
+  assert.equal(summary.status, "source_unavailable");
+  assert.equal(summary.unavailableReasonCode, "NO_MATCHING_EVENT_EXCERPT");
+  assert.equal(summary.textKo, null);
+  assert.ok(summary.sourceLinks.every(source => !source.summary), "unavailable detail must not revive the rejected excerpt");
+  assert.match(result.issues[0].eventSources[0].summary, /기획된 코너/, "original source evidence is preserved");
+});
+
+test("같은 사건의 정상 본문은 그대로 유지하고 다른 기사 제목의 키워드 겹침은 쓰지 않는다", async () => {
+  const input = structuredClone(excerptMismatchCases[0]);
+  input.eventSources = [input.eventSources[0]];
+  const text = "국민건강보험공단은 임신·출산 진료비 지원에 현대카드가 추가됐다고 밝혔다. 총 6개 카드사에서 국민행복카드를 이용할 수 있다.";
+  const good = await prepareStoredExcerpt(input, async url => ({state:"available", text, image:null, finalUrl:url}));
+  assert.equal(good.issues[0].articleSummary.textKo, text);
+  input.eventSources[0].title = "국민건강보험공단, 임신·출산 진료비 지원 신청 시스템 점검";
+  const wrong = await prepareStoredExcerpt(input, async url => ({state:"available", text:"국민건강보험공단은 임신·출산 진료비 지원 신청 시스템을 점검한다고 밝혔다. 점검 중에는 신청을 할 수 없다고 안내했다.", image:null, finalUrl:url}));
+  assert.equal(wrong.issues[0].articleSummary.status,"source_unavailable");
+});
+
+test("잘못된 출처의 준비 발췌는 캐시·판본 재사용으로 검사를 건너뛰지 못한다", async () => {
+  const input = structuredClone(excerptMismatchCases[0]);
+  input.articleSummary = structuredClone(input.storedSummary);
+  input.articleSummary.articleContentId = articleContentId(input);
+  const now = Date.parse("2026-10-15T03:00:00Z");
+  assert.equal(isCurrentArticleSummary(input.articleSummary, input, now), false);
+  const badCache = { verified: true, contractId: ARTICLE_SUMMARY_CONTRACT.stableId,
+    contractVersion: ARTICLE_SUMMARY_CONTRACT.version, promptVersion: ARTICLE_SUMMARY_CONTRACT.promptVersion,
+    model: "claude-sonnet-5", verifierModel: "claude-sonnet-5", fallbackModel: null,
+    savedAt: new Date(now).toISOString(), articleSummary: input.articleSummary };
+  const pipeline = makeArticleSummaryPipeline({ completeBeforePublish: true, enabled: false,
+    cache: { get: () => badCache, set: () => {} }, clock: () => now,
+    fetchArticle: async () => ({state:"unavailable",reasonCode:"NO_PUBLIC_BODY"}),
+    invoke: async () => assert.fail("paid invocation forbidden") });
+  const out = await pipeline({publishable:true,issues:[input]});
+  assert.equal(out.issues[0].articleSummary.sourceEvidenceId,"event-source:it_1inlrt0");
+  assert.equal(isCurrentArticleSummary(out.issues[0].articleSummary,out.issues[0],now),true);
+});
+
+test("제목 출처는 같은 매체의 오래된 다른 기사보다 먼저 보존된다", async () => {
+  const input=structuredClone(excerptMismatchCases[0]);
+  input.eventSources[1].sourceGroup=input.eventSources[0].sourceGroup;
+  const out=await prepareStoredExcerpt(input,async()=>({state:"unavailable",reasonCode:"NO_PUBLIC_BODY"}));
+  assert.equal(out.issues[0].articleSummary.status,"excerpt_only");
+  assert.equal(out.issues[0].articleSummary.sourceEvidenceId,"event-source:it_1inlrt0");
+  assert.match(out.issues[0].articleSummary.textKo,/현대카드/);
+});
