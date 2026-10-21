@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">안심스캔</string>
+    <string name="accessibility_label">안심스캔 쇼핑 탭</string>
+    <string name="accessibility_description">쿠팡·네이버·컬리·SSG·11번가 앱(그리고 크롬·삼성 인터넷의 해당 쇼핑몰 페이지)에서 상품명과 원재료·영양성분 표시 글자만 읽어, 아이 기준 안심점수 탭을 화면 오른쪽에 띄웁니다. 다른 앱의 화면 내용은 읽지 않으며, 로그인·결제·주소 같은 개인정보는 수집하지 않습니다. 읽은 상품 정보는 점수 계산을 위해 안심스캔 서버로 보내지고, 아이 이름은 보내지 않습니다.</string>
+</resources>

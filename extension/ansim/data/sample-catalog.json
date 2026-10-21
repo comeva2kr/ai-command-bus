@@ -1,0 +1,345 @@
+{
+ "_note": "예시 데이터입니다. 브랜드·제품·바코드(GS1 200 사내용 대역)는 모두 가상이며 실제 제품을 평가한 것이 아닙니다.",
+ "products": [
+  {
+   "name": "꼬마 비엔나 소시지",
+   "brand": "예시식품",
+   "category": "processed-meat",
+   "foodType": "소시지",
+   "ingredientsText": "돼지고기(국산) 72%, 닭고기(국산), 정제수, 전분, 대두단백, 정제소금, 설탕, 복합조미식품[L-글루탐산나트륨(향미증진제), 정제소금, 효모추출물], 폴리인산나트륨, 피로인산나트륨, 아질산나트륨(발색제), 카라기난, 합성향료(스모크향) / 대두, 돼지고기, 닭고기 함유",
+   "nutrition": {
+    "basis": "serving",
+    "basisAmount": 50,
+    "kcal": 140,
+    "sodiumMg": 520,
+    "sugarG": 2,
+    "satFatG": 4,
+    "transFatG": 0,
+    "proteinG": 7
+   },
+   "barcode": "2009000000018",
+   "id": "sample-01",
+   "sample": true
+  },
+  {
+   "name": "분홍 어육소시지",
+   "brand": "예시식품",
+   "category": "processed-meat",
+   "foodType": "어육소시지",
+   "ingredientsText": "연육(외국산:실꼬리돔) 45%, 소맥분(밀:미국산), 정제수, 돼지고기(국산), 옥수수전분, 설탕, 정제소금, L-글루탐산나트륨(향미증진제), 적색제3호, 아질산나트륨(발색제), 소르빈산칼륨(보존료), 폴리인산나트륨 / 밀, 돼지고기, 대두 함유 이 제품은 우유, 새우를 사용한 제품과 같은 제조시설에서 제조하고 있습니다.",
+   "nutrition": {
+    "basis": "serving",
+    "basisAmount": 70,
+    "kcal": 150,
+    "sodiumMg": 620,
+    "sugarG": 4,
+    "satFatG": 2,
+    "transFatG": 0,
+    "proteinG": 6
+   },
+   "barcode": "2009000000025",
+   "id": "sample-02",
+   "sample": true
+  },
+  {
+   "name": "스모크 베이컨",
+   "brand": "예시식품",
+   "category": "processed-meat",
+   "foodType": "베이컨류",
+   "ingredientsText": "돼지고기(삼겹살:국산) 92%, 정제소금, 설탕, 포도당, 폴리인산나트륨, 아질산나트륨(발색제), 에리토브산나트륨, 훈연향 / 돼지고기 함유",
+   "nutrition": {
+    "basis": "serving",
+    "basisAmount": 30,
+    "kcal": 130,
+    "sodiumMg": 450,
+    "sugarG": 1,
+    "satFatG": 4,
+    "transFatG": 0,
+    "proteinG": 5
+   },
+   "barcode": "2009000000032",
+   "id": "sample-03",
+   "sample": true
+  },
+  {
+   "name": "무첨가 그릴 소시지",
+   "brand": "초록들판(예시)",
+   "category": "processed-meat",
+   "foodType": "소시지",
+   "ingredientsText": "돼지고기(국산) 90%, 정제수, 정제소금, 비정제원당, 양파분말, 셀러리분말, 후추 / 돼지고기 함유",
+   "nutrition": {
+    "basis": "serving",
+    "basisAmount": 50,
+    "kcal": 150,
+    "sodiumMg": 380,
+    "sugarG": 1,
+    "satFatG": 5,
+    "transFatG": 0,
+    "proteinG": 8
+   },
+   "barcode": "2009000000049",
+   "id": "sample-04",
+   "sample": true
+  },
+  {
+   "name": "아이 저염 닭가슴살 소시지",
+   "brand": "초록들판(예시)",
+   "category": "processed-meat",
+   "foodType": "소시지",
+   "ingredientsText": "닭가슴살(국산) 88%, 정제수, 감자전분, 천일염, 양파, 마늘, 후추 / 닭고기 함유",
+   "nutrition": {
+    "basis": "serving",
+    "basisAmount": 50,
+    "kcal": 70,
+    "sodiumMg": 210,
+    "sugarG": 0.5,
+    "satFatG": 0.5,
+    "transFatG": 0,
+    "proteinG": 10
+   },
+   "barcode": "2009000000056",
+   "id": "sample-05",
+   "sample": true
+  },
+  {
+   "name": "한돈 순살 비엔나 (발색제 무첨가)",
+   "brand": "해솔목장(예시)",
+   "category": "processed-meat",
+   "foodType": "소시지",
+   "ingredientsText": "돼지고기(국산) 93%, 정제수, 천일염, 감자전분, 마늘, 후추 / 돼지고기 함유",
+   "nutrition": {
+    "basis": "serving",
+    "basisAmount": 50,
+    "kcal": 120,
+    "sodiumMg": 290,
+    "sugarG": 0.5,
+    "satFatG": 3.5,
+    "transFatG": 0,
+    "proteinG": 9
+   },
+   "barcode": "2009000000063",
+   "id": "sample-06",
+   "sample": true
+  },
+  {
+   "name": "레몬라임 스포츠 드링크",
+   "brand": "예시식품",
+   "category": "drink",
+   "foodType": "혼합음료",
+   "ingredientsText": "정제수, 설탕, 포도당, 구연산, 정제소금, 구연산나트륨, 제일인산칼륨, 아라비아검, 로진글리세린에스테르, 합성향료(레몬라임향), 황색제4호",
+   "nutrition": {
+    "basis": "total",
+    "basisAmount": 500,
+    "kcal": 130,
+    "sodiumMg": 230,
+    "sugarG": 32,
+    "satFatG": 0,
+    "transFatG": 0,
+    "proteinG": 0
+   },
+   "barcode": "2009000000070",
+   "id": "sample-07",
+   "sample": true
+  },
+  {
+   "name": "어린이 딸기 젤리음료",
+   "brand": "예시식품",
+   "category": "drink",
+   "foodType": "혼합음료",
+   "ingredientsText": "정제수, 액상과당, 딸기농축과즙 3%, 젤라틴, 구연산, 수크랄로스(감미료), 안식향산나트륨(보존료), 합성향료(딸기향), 적색제40호",
+   "nutrition": {
+    "basis": "total",
+    "basisAmount": 120,
+    "kcal": 60,
+    "sodiumMg": 30,
+    "sugarG": 14,
+    "satFatG": 0,
+    "transFatG": 0,
+    "proteinG": 1
+   },
+   "barcode": "2009000000087",
+   "id": "sample-08",
+   "sample": true
+  },
+  {
+   "name": "무가당 보리차",
+   "brand": "초록들판(예시)",
+   "category": "drink",
+   "foodType": "침출차",
+   "ingredientsText": "정제수, 볶은보리(국산) 0.5%",
+   "nutrition": {
+    "basis": "total",
+    "basisAmount": 500,
+    "kcal": 0,
+    "sodiumMg": 5,
+    "sugarG": 0,
+    "satFatG": 0,
+    "transFatG": 0,
+    "proteinG": 0
+   },
+   "barcode": "2009000000094",
+   "id": "sample-09",
+   "sample": true
+  },
+  {
+   "name": "레몬 수분 보충 워터 (무가당)",
+   "brand": "해솔목장(예시)",
+   "category": "drink",
+   "foodType": "혼합음료",
+   "ingredientsText": "정제수, 레몬농축과즙 2%, 천일염, 염화칼륨, 구연산",
+   "nutrition": {
+    "basis": "total",
+    "basisAmount": 500,
+    "kcal": 15,
+    "sodiumMg": 200,
+    "sugarG": 3,
+    "satFatG": 0,
+    "transFatG": 0,
+    "proteinG": 0
+   },
+   "barcode": "2009000000100",
+   "id": "sample-10",
+   "sample": true
+  },
+  {
+   "name": "나초 치즈 칩",
+   "brand": "예시식품",
+   "category": "snack",
+   "foodType": "과자",
+   "ingredientsText": "옥수수(미국산), 식물성유지(팜올레인유, 해바라기유), 나초치즈시즈닝[설탕, 체다치즈분말(우유), 정제소금, 덱스트린, 탈지분유, 유청분말, L-글루탐산나트륨(향미증진제), 양파분말, 토마토분말, 5'-리보뉴클레오티드이나트륨, 파프리카추출색소, 적색제40호, 황색제4호, 황색제5호, 구연산, 젖산, 합성향료] / 우유, 대두, 토마토 함유",
+   "nutrition": {
+    "basis": "total",
+    "basisAmount": 60,
+    "kcal": 310,
+    "sodiumMg": 380,
+    "sugarG": 3,
+    "satFatG": 4.5,
+    "transFatG": 0,
+    "proteinG": 4
+   },
+   "barcode": "2009000000117",
+   "id": "sample-11",
+   "sample": true
+  },
+  {
+   "name": "구운 옥수수칩 소금맛",
+   "brand": "초록들판(예시)",
+   "category": "snack",
+   "foodType": "과자",
+   "ingredientsText": "옥수수(국산) 85%, 해바라기유, 천일염",
+   "nutrition": {
+    "basis": "total",
+    "basisAmount": 50,
+    "kcal": 240,
+    "sodiumMg": 150,
+    "sugarG": 1,
+    "satFatG": 1,
+    "transFatG": 0,
+    "proteinG": 3
+   },
+   "barcode": "2009000000124",
+   "id": "sample-12",
+   "sample": true
+  },
+  {
+   "name": "새콤 딸기 젤리",
+   "brand": "예시식품",
+   "category": "candy",
+   "foodType": "캔디류",
+   "ingredientsText": "물엿, 설탕, 젤라틴, 딸기농축과즙 3%, 구연산, 합성향료(딸기향), 적색제40호, 카르나우바왁스",
+   "nutrition": {
+    "basis": "total",
+    "basisAmount": 50,
+    "kcal": 165,
+    "sodiumMg": 15,
+    "sugarG": 26,
+    "satFatG": 0,
+    "transFatG": 0,
+    "proteinG": 1.5
+   },
+   "barcode": "2009000000131",
+   "id": "sample-13",
+   "sample": true
+  },
+  {
+   "name": "유기농 과일 퓨레 젤리",
+   "brand": "해솔목장(예시)",
+   "category": "candy",
+   "foodType": "캔디류",
+   "ingredientsText": "유기농 사과퓨레 60%, 유기농 딸기퓨레 30%, 펙틴, 레몬농축과즙",
+   "nutrition": {
+    "basis": "total",
+    "basisAmount": 40,
+    "kcal": 60,
+    "sodiumMg": 5,
+    "sugarG": 9,
+    "satFatG": 0,
+    "transFatG": 0,
+    "proteinG": 0.3
+   },
+   "barcode": "2009000000148",
+   "id": "sample-14",
+   "sample": true
+  },
+  {
+   "name": "쿠키앤크림 아이스크림",
+   "brand": "예시식품",
+   "category": "ice-cream",
+   "foodType": "아이스크림",
+   "ingredientsText": "원유, 물엿, 설탕, 혼합분유, 쿠키조각[소맥분(밀), 설탕, 팜유, 코코아분말(알칼리처리), 옥수수전분, 정제소금, 탄산수소나트륨, 대두레시틴, 바닐린], 정제가공유지, 유청분말, 구아검, 로커스트콩검, 카라기난, 혼합제제(글리세린지방산에스테르, 폴리소르베이트80), 합성향료(바닐라향) / 우유, 밀, 대두 함유",
+   "nutrition": {
+    "basis": "serving",
+    "basisAmount": 100,
+    "kcal": 220,
+    "sodiumMg": 90,
+    "sugarG": 22,
+    "satFatG": 7,
+    "transFatG": 0.2,
+    "proteinG": 3.5
+   },
+   "barcode": "2009000000155",
+   "id": "sample-15",
+   "sample": true
+  },
+  {
+   "name": "4가지 원료 바닐라 아이스크림",
+   "brand": "해솔목장(예시)",
+   "category": "ice-cream",
+   "foodType": "아이스크림",
+   "ingredientsText": "원유(국산) 50%, 유크림 35%, 설탕, 바닐라빈",
+   "nutrition": {
+    "basis": "serving",
+    "basisAmount": 100,
+    "kcal": 230,
+    "sodiumMg": 60,
+    "sugarG": 17,
+    "satFatG": 9,
+    "transFatG": 0,
+    "proteinG": 4
+   },
+   "barcode": "2009000000162",
+   "id": "sample-16",
+   "sample": true
+  },
+  {
+   "name": "딸기 셔벗 (유제품 무첨가)",
+   "brand": "초록들판(예시)",
+   "category": "ice-cream",
+   "foodType": "빙과",
+   "ingredientsText": "딸기(국산) 55%, 정제수, 설탕, 레몬즙, 펙틴",
+   "nutrition": {
+    "basis": "serving",
+    "basisAmount": 100,
+    "kcal": 110,
+    "sodiumMg": 5,
+    "sugarG": 18,
+    "satFatG": 0,
+    "transFatG": 0,
+    "proteinG": 0.5
+   },
+   "barcode": "2009000000179",
+   "id": "sample-17",
+   "sample": true
+  }
+ ]
+}
