@@ -217,10 +217,18 @@ function canonicalSourceRows(rows, title = null) {
 }
 
 function allSourceRows(issue) {
-  const relatedUrls = new Set((issue && issue.sourceEvidence || [])
+  const issueEvidence = issue && issue.sourceEvidence || [];
+  const relatedUrls = new Set(issueEvidence
     .filter((row) => row && row.evidenceRole === "related_observation")
     .map((row) => row.canonicalUrl)
     .filter(Boolean));
+  const relatedSource = (row) => {
+    const exact = issueEvidence.filter((evidence) => evidence?.itemId && evidence.itemId === (row.id || row.itemId) ||
+      row.evidenceId && evidence?.evidenceId === row.evidenceId);
+    // A reaction can share a lead's URL; its role belongs to the source item, not every copy of that URL.
+    return exact.length ? exact.every((evidence) => evidence.evidenceRole === "related_observation")
+      : relatedUrls.has(row.canonicalUrl);
+  };
   const eventSources = issue && issue.eventSources || [];
   if (eventSources.length) {
     return canonicalSourceRows(eventSources.map((row) => ({
@@ -228,16 +236,15 @@ function allSourceRows(issue) {
       evidenceId: row.evidenceId || row.id || null,
       canonicalUrl: row.canonicalUrl || row.url || null
     })).filter((row) => row && row.evidenceRole !== "related_observation" &&
-        !relatedUrls.has(row.canonicalUrl)), excerptHeadline(issue));
+        !relatedSource(row)), excerptHeadline(issue));
   }
-  const issueEvidence = issue && issue.sourceEvidence || [];
   const evidence = issueEvidence
     .filter((row) => row && row.evidenceRole !== "related_observation");
   const byUrl = new Map(evidence.map((row) => [row.canonicalUrl, row]));
   return canonicalSourceRows([...evidence, ...(issue && issue.refs || []).map((row) => ({
     ...row,
     evidenceId: row.evidenceId || byUrl.get(row.canonicalUrl)?.evidenceId || row.id
-    })).filter((row) => !relatedUrls.has(row && row.canonicalUrl))], excerptHeadline(issue)
+    })).filter((row) => !relatedSource(row))], excerptHeadline(issue)
   );
 }
 

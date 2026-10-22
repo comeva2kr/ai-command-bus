@@ -2783,6 +2783,30 @@ test("NH146 뉴스레터 가입 머리는 번역 전에 걷고 발췌 경계 함
 
 
 const excerptMismatchCases = JSON.parse(readFileSync(new URL("./fixtures/title-excerpt-mismatch-20261015.json", import.meta.url), "utf8"));
+test("대표 기사의 ID 근거는 같은 원문 URL의 다른 관련 관찰에 의해 제거되지 않는다", async () => {
+  const stored = JSON.parse(readFileSync(new URL("./fixtures/prepublish-source-role-collision-20261022.json", import.meta.url), "utf8"));
+  for (const eventSources of [true, false]) {
+    const input = structuredClone(stored);
+    if (!eventSources) {
+      delete input.eventSources;
+      input.sourceEvidence[0].canonicalUrl = input.sourceEvidence[1].canonicalUrl;
+    }
+    const fetched = [];
+    const out = await makeArticleSummaryPipeline({ enabled: false, completeBeforePublish: true,
+      allowRecovery: false, clock: () => Date.parse("2026-10-22T03:26:03.570Z"),
+      fetchArticle: async url => { fetched.push(url); return {state:"unavailable",reasonCode:"NO_PUBLIC_BODY"}; },
+      invoke: async () => assert.fail("paid invocation forbidden")
+    })({publishable:true,issues:[input]});
+    const summary = out.issues[0].articleSummary;
+    assert.equal(summary.status, "source_unavailable");
+    assert.equal(summary.sourceLinks.length, 1);
+    assert.equal(summary.sourceLinks[0].url, stored.eventSources[0].canonicalUrl);
+    assert.equal(summary.sourceLinks[0].evidenceId, eventSources ? "event-source:hn_50181114" : "NHE-3de261913e3c44e1");
+    assert.deepEqual(fetched, [stored.eventSources[0].canonicalUrl]);
+    assert.ok(isPreparedArticleSummary(summary, out.issues[0]));
+    assert.deepEqual(out.issues[0].sourceEvidence, input.sourceEvidence);
+  }
+});
 const prepareStoredExcerpt = async (input, fetchArticle) => makeArticleSummaryPipeline({
   enabled: false, completeBeforePublish: true, allowRecovery: false, fetchArticle,
   invoke: async () => { throw new Error("paid invocation forbidden"); },

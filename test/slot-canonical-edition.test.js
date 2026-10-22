@@ -8,7 +8,7 @@ import { sendEditionPushes } from "../src/feed/push.js";
 import { FeedStore } from "../src/feed/store.js";
 
 import { CATEGORIES } from "../src/feed/taxonomy.js";
-import { isPreparedArticleSummary } from "../src/feed/article-summary.js";
+import { isPreparedArticleSummary, makeArticleSummaryPipeline } from "../src/feed/article-summary.js";
 import { createServer } from "../src/feed/server.js";
 import { readerIssueCopy } from "../src/feed/editorial-reader-copy.js";
 import {
@@ -1026,6 +1026,24 @@ test("한 전체판에서 14개 고정 레인을 파생하고 다른 풀 조합�
     packet,
     routingSnapshot: { source: { packetSha256: packetDigest }, entries: [] }
   }), /routing entry coverage mismatch/);
+});
+
+test("실제 점심판의 원문 역할 충돌은 상세 준비부터 최종 판 검사까지 같은 링크를 보존한다", async () => {
+  const stored = JSON.parse(fs.readFileSync(new URL("./fixtures/prepublish-source-role-collision-20261022.json", import.meta.url), "utf8"));
+  const { byCategory, unionEdition } = editions();
+  const target = unionEdition.issues[0];
+  Object.assign(target, stored, {evidenceHash:target.evidenceHash,selectedByCategories:target.selectedByCategories});
+  const prepared = await makeArticleSummaryPipeline({enabled:false,completeBeforePublish:true,allowRecovery:false,
+    clock:()=>Date.parse("2026-10-22T03:26:03.570Z"),
+    fetchArticle:async()=>({state:"unavailable",reasonCode:"NO_PUBLIC_BODY"}),
+    invoke:async()=>assert.fail("paid invocation forbidden")
+  })({publishable:true,issues:[target]});
+  target.articleSummary = prepared.issues[0].articleSummary;
+  assert.ok(isPreparedArticleSummary(target.articleSummary,target));
+  const artifact=buildSlotCanonicalEdition({editionsByCategory:byCategory,unionEdition,
+    builderPacketSha256:packetSha,routingSnapshot:{source:{packetSha256:packetSha}}});
+  assert.equal(artifact.issueTable[target.evidenceHash].articleSummary.sourceLinks.length,1);
+  assert.deepEqual(artifact.displayOrder,unionEdition.issues.map(x=>x.evidenceHash));
 });
 
 test("분야 내부 순위 표식은 최종 사용자 판에 남기지 않는다", () => {
