@@ -38,3 +38,25 @@ test("makeTrendsCache: TTL 캐시 + 실패 시 기존 캐시 유지", async () =
   assert.equal(calls, 2, "TTL 지나면 재시도");
   assert.equal(b.trends.length, 2, "실패해도 이전 캐시를 돌려준다 — 빈 화면 방지");
 });
+
+test("makeTrendsCache: 응답 본문 타임아웃 후 이전 결과를 제공하고 재시도한다", async () => {
+  let now = 0;
+  let failBody = false;
+  const cache = makeTrendsCache({
+    ttlMs: 1000,
+    clock: () => now,
+    fetchImpl: async () => ({
+      ok: true,
+      text: async () => {
+        if (failBody) throw new DOMException("body timeout", "TimeoutError");
+        return SAMPLE;
+      }
+    })
+  });
+  const first = await cache.get();
+  now = 2000;
+  failBody = true;
+  assert.equal(await cache.get(), first);
+  failBody = false;
+  assert.notEqual((await cache.get()).fetchedAt, first.fetchedAt);
+});

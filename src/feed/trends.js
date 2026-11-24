@@ -35,18 +35,17 @@ export function parseTrends(html, limit = 20) {
 }
 
 export async function fetchXTrends({ fetchImpl = fetch, timeoutMs = 8000 } = {}) {
-  let res;
   try {
-    res = await fetchImpl(TRENDS_URL, {
+    const res = await fetchImpl(TRENDS_URL, {
       headers: { "user-agent": UA, accept: "text/html" },
       signal: AbortSignal.timeout(timeoutMs)
     });
+    if (!res || !res.ok) { discardBody(res); return null; }
+    const trends = parseTrends(await res.text());
+    return trends.length ? trends : null;
   } catch {
-    return null; // 네트워크 실패 — 조용히 (트렌드는 부가 기능, 피드를 못 죽인다)
+    return null; // 응답 헤더 이후 본문을 읽는 중에도 시간이 초과될 수 있다.
   }
-  if (!res || !res.ok) { discardBody(res); return null; } // 403 등 — 우회하지 않는다
-  const trends = parseTrends(await res.text());
-  return trends.length ? trends : null;
 }
 
 // 캐시: 20분 TTL. 실패 시 기존 캐시를 유지한다(빈 화면보다 20분 전 트렌드가
