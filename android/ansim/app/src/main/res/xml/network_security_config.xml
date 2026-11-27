@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 개발용: 에뮬레이터에서 PC의 npm run ansim(http://10.0.2.2:4100)에 붙을 수 있게만 평문 허용.
+     실서비스 서버는 HTTPS여야 한다(카메라도 보안 출처에서만 열린다). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

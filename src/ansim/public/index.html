@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0f10">
+<title>안심스캔</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #0d0f10; --panel: #17191b; --panel-2: #202326; --line: #2c3034;
+    --text: #f2f3f4; --muted: #9aa1a8; --faint: #6b7279;
+    --green: #34c77b; --yellow: #f2b632; --red: #ff5a52; --gray: #8a9198;
+    --accent: #34c77b; --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
+    line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 12px 16px 48px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 12px; }
+  .logo { font-weight: 800; letter-spacing: -0.02em; font-size: 20px; }
+  .logo span { color: var(--accent); }
+  .chip-btn { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-size: 13px; color: var(--muted); cursor: pointer; max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .panel { background: var(--panel); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+  .viewfinder { position: relative; aspect-ratio: 4 / 3; background: #000; border-radius: var(--radius); overflow: hidden; display: grid; place-items: center; margin-bottom: 12px; }
+  .viewfinder video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .viewfinder .frame { position: absolute; inset: 22% 10%; border: 2px solid rgba(255,255,255,.75); border-radius: 12px; pointer-events: none; }
+  .viewfinder .hint { position: relative; color: var(--muted); font-size: 14px; text-align: center; padding: 0 24px; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; min-width: 0; }
+  .btn { border: 0; border-radius: 12px; padding: 13px 14px; font-weight: 700; cursor: pointer; background: var(--panel-2); color: var(--text); }
+  .btn.primary { background: var(--accent); color: #06210f; }
+  .btn.danger { background: var(--red); color: #fff; }
+  .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .field { width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  textarea.field { min-height: 110px; resize: vertical; }
+  label.small, .small { font-size: 13px; color: var(--muted); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 4px 0; }
+  .samples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .samples button { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 5px 10px; font-size: 12.5px; cursor: pointer; }
+
+  /* 결과 */
+  .verdict { text-align: center; padding: 24px 16px 16px; }
+  .verdict .word { font-size: 44px; font-weight: 900; letter-spacing: -0.02em; line-height: 1.1; }
+  .verdict .label { font-size: 11px; letter-spacing: .25em; color: var(--faint); margin-top: 10px; }
+  .verdict .score { font-size: 64px; font-weight: 900; line-height: 1; margin-top: 4px; }
+  .verdict .score small { font-size: 24px; color: var(--faint); font-weight: 600; }
+  .verdict .pname { font-weight: 700; margin-top: 10px; font-size: 15px; }
+  .tone-green { color: var(--green); } .tone-yellow { color: var(--yellow); } .tone-red { color: var(--red); } .tone-gray { color: var(--gray); }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px; border: 1px solid var(--line); color: var(--muted); }
+  .badge.A { color: #8fd3ff; border-color: #2a4a60; } .badge.B { color: #ffd27a; border-color: #5a4a22; } .badge.C { color: var(--muted); }
+  .reasons { list-style: none; padding: 0; margin: 0; }
+  .reasons li { padding: 10px 0; border-top: 1px solid var(--line); }
+  .reasons li:first-child { border-top: 0; }
+  .reasons .t { font-weight: 700; }
+  .reasons .t .pen { color: var(--faint); font-weight: 600; font-size: 13px; margin-left: 6px; }
+  .reasons .d { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .reasons .d a { color: var(--muted); }
+  .reasons li.block .t { color: var(--red); }
+  .hl { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .hl span { font-size: 12.5px; color: var(--green); border: 1px solid #1f4a33; border-radius: 999px; padding: 3px 9px; }
+  .notes { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; }
+  .section-title { display: flex; align-items: baseline; justify-content: space-between; margin: 18px 2px 8px; }
+  .section-title h2 { font-size: 16px; margin: 0; }
+  .section-title h2 b { color: var(--green); }
+  .pill { font-size: 11px; letter-spacing: .12em; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; }
+  .alts { display: grid; grid-auto-flow: column; grid-auto-columns: 78%; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; }
+  .alt { scroll-snap-align: start; background: var(--panel); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .alt .n { font-weight: 700; }
+  .alt .s { font-size: 26px; font-weight: 900; color: var(--green); }
+  .alt .s small { font-size: 13px; color: var(--faint); }
+  .alt ul { margin: 0; padding-left: 16px; color: var(--muted); font-size: 13.5px; flex: 1; }
+  .alt .buy { display: flex; flex-direction: column; gap: 6px; }
+  .alt .buy a { text-align: center; text-decoration: none; border-radius: 10px; padding: 9px; font-weight: 700; font-size: 14px; background: var(--panel-2); color: var(--text); }
+  .alt .buy a.first { background: var(--accent); color: #06210f; }
+  .empty { color: var(--muted); font-size: 14px; }
+  .sample-tag { display: inline-block; font-size: 11px; color: var(--yellow); border: 1px solid #5a4a22; border-radius: 6px; padding: 1px 6px; margin-top: 6px; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #2b2f33; color: var(--text); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); z-index: 20; }
+  .hidden { display: none !important; }
+
+  /* 프로필 시트 */
+  .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+  .sheet .inner { background: var(--panel); width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 18px 16px 24px; }
+  .sheet h3 { margin: 0 0 4px; }
+  .group { margin-top: 16px; }
+  .group > .small { margin-bottom: 6px; display: block; }
+  .toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+  .toggles label { border: 1px solid var(--line); border-radius: 999px; padding: 6px 11px; font-size: 13.5px; cursor: pointer; user-select: none; }
+  .toggles input { display: none; }
+  .toggles label:has(input:checked) { background: #12301f; border-color: var(--green); color: var(--green); }
+  .toggles.allergy label:has(input:checked) { background: #3a1513; border-color: var(--red); color: #ffb3ae; }
+  footer { color: var(--faint); font-size: 12px; margin-top: 24px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">안심<span>스캔</span></div>
+    <button class="chip-btn" id="profileChip" type="button">아이 정보 설정</button>
+  </header>
+
+  <!-- 스캔 -->
+  <section id="scanView">
+    <div class="viewfinder" id="viewfinder">
+      <video id="video" playsinline muted class="hidden"></video>
+      <div class="frame hidden" id="frame"></div>
+      <div class="hint" id="hint">바코드를 비추면 아이 기준 점수와<br>더 나은 대체품을 바로 보여드려요</div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="scanBtn" type="button">바코드 스캔</button>
+      <button class="btn" id="photoBtn" type="button">라벨 사진 찍기</button>
+    </div>
+    <input id="photoInput" type="file" accept="image/*" capture="environment" class="hidden">
+
+    <div class="panel" style="margin-top:12px">
+      <form class="row" id="barcodeForm">
+        <input class="field" id="barcodeInput" inputmode="numeric" placeholder="바코드 번호 직접 입력" autocomplete="off">
+        <button class="btn" type="submit" style="flex:0 0 auto">조회</button>
+      </form>
+      <details style="margin-top:10px">
+        <summary>원재료명 붙여넣기</summary>
+        <form id="pasteForm" style="margin-top:8px; display:grid; gap:8px">
+          <input class="field" id="pasteName" placeholder="제품명 (예: 비엔나 소시지)">
+          <textarea class="field" id="pasteIngredients" placeholder="원재료명: 돼지고기(국산), 정제수, 아질산나트륨(발색제)…"></textarea>
+          <textarea class="field" id="pasteNutrition" placeholder="(선택) 영양정보: 총 내용량 100g 250kcal 나트륨 600mg 당류 3g 단백질 10g" style="min-height:64px"></textarea>
+          <button class="btn primary" type="submit">분석하기</button>
+        </form>
+      </details>
+      <div class="small" style="margin-top:12px">예시 제품으로 해보기 <span class="small">(가상 데이터)</span></div>
+      <div class="samples" id="samples"></div>
+    </div>
+  </section>
+
+  <!-- 결과 -->
+  <section id="resultView" class="hidden">
+    <div class="panel verdict" id="verdict"></div>
+    <div class="panel">
+      <ul class="reasons" id="reasons"></ul>
+      <div class="hl" id="highlights"></div>
+      <button class="btn ghost" id="moreBtn" type="button" style="width:100%; margin-top:10px">근거 자세히 보기</button>
+      <div id="more" class="hidden">
+        <ul class="notes" id="notes"></ul>
+        <details id="extractedBox" class="hidden" style="margin-top:10px">
+          <summary>사진에서 읽은 원재료 확인</summary>
+          <p class="small" id="extracted" style="white-space:pre-wrap"></p>
+        </details>
+      </div>
+    </div>
+    <div class="section-title">
+      <h2 id="altTitle"></h2>
+      <span class="pill">광고 없음</span>
+    </div>
+    <div class="alts" id="alts"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" id="againBtn" type="button">다시 스캔</button>
+    </div>
+  </section>
+
+  <footer>
+    안심스캔은 포장에 표시된 원재료·영양정보를 공개된 기준(식약처, WHO, EU 등)과 비교해 보여주는 참고 도구이며 의학적 진단이 아닙니다.
+    근거 등급 — <b>A</b>: 규제기관·국제기구 기준 있음 · <b>B</b>: 경고 표시 의무 또는 일관된 연구 · <b>C</b>: 근거 제한적(작게 반영).
+    점수와 대체품 순위는 광고·제휴와 무관합니다.
+  </footer>
+</div>
+
+<!-- 아이 정보 -->
+<div class="sheet hidden" id="sheet">
+  <form class="inner" id="profileForm">
+    <h3>아이 정보</h3>
+    <div class="small">이 기기에만 저장되고 서버에는 남지 않아요.</div>
+    <div class="group">
+      <label class="small" for="pName">이름 (선택)</label>
+      <input class="field" id="pName" maxlength="20" placeholder="예: 민준">
+    </div>
+    <div class="group">
+      <label class="small" for="pAge">나이</label>
+      <select class="field" id="pAge"></select>
+    </div>
+    <div class="group">
+      <span class="small">알레르기 — 선택한 성분이 든 제품은 무조건 "먹이지 마세요"</span>
+      <div class="toggles allergy" id="pAllergies"></div>
+    </div>
+    <div class="group">
+      <span class="small">걱정되는 것 — 관련 항목을 더 엄격하게 봐요</span>
+      <div class="toggles" id="pConcerns"></div>
+    </div>
+    <div class="group">
+      <label class="small" for="pMall">주로 쓰는 쇼핑몰 — 대체품 구매 링크를 여기로</label>
+      <select class="field" id="pMall"></select>
+    </div>
+    <div class="row" style="margin-top:18px">
+      <button class="btn ghost" type="button" id="sheetClose">닫기</button>
+      <button class="btn primary" type="submit">저장</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
